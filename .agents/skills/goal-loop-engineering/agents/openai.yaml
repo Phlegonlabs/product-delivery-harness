@@ -1,0 +1,6 @@
+interface:
+  display_name: "Goal Loop Engineering"
+  short_description: "Goal loops with verification gates"
+  default_prompt: "Use $goal-loop-engineering to turn this objective into a verified Codex goal loop."
+policy:
+  allow_implicit_invocation: true
