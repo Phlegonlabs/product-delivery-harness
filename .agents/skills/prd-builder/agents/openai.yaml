@@ -1,0 +1,4 @@
+interface:
+  display_name: "PRD Builder"
+  short_description: "Create PRDs, architecture, and wireframes"
+  default_prompt: "Use $prd-builder to turn this product idea into a complete PRD package with architecture and wireframes."
