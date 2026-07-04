@@ -1,0 +1,6 @@
+interface:
+  display_name: "Full-Stack Harness Engineering"
+  short_description: "Plan app builds/refinements with E2E gates"
+  default_prompt: "Use $fullstack-harness-engineering to turn this new or updated PRD, wireframe, design system, page UI, or existing app into a verified full-stack build/refinement loop."
+policy:
+  allow_implicit_invocation: true
