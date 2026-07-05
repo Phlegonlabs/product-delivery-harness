@@ -18,35 +18,63 @@ Use this structure:
 ```markdown
 # Design System: [Product Name]
 
+## Overview
+[Product archetype, audience, visual intent, density, tone, constraints, and source priority.]
+
 ## Source Inputs
 | Source | Path / URL | Role | Notes |
 | --- | --- | --- | --- |
 
-## Design Direction
-[Audience, archetype, visual intent, density, tone, constraints.]
+## Color Palette
+| Token | Value / Direction | Tailwind / CSS reference | Usage |
+| --- | --- | --- | --- |
 
-## Tokens
-### Color
+## Typography
+Pay attention to font family, font weight, font size, line height, and how different fonts or font roles are used together.
+
+| Role | Font / family | Size | Weight | Line height | Usage |
+| --- | --- | --- | --- | --- | --- |
+
+## Spacing System
+| Token | Value | Usage |
+| --- | --- | --- |
+
+## Component Styles
+| Component | Variants | States | Usage Rules |
+| --- | --- | --- | --- |
+
+## Shadows & Elevation
 | Token | Value / Direction | Usage |
 | --- | --- | --- |
 
-### Typography
-| Role | Size | Weight | Line height | Usage |
+## Animations & Transitions
+| Pattern | Duration | Easing | Usage | Reduced-motion fallback |
 | --- | --- | --- | --- | --- |
 
-### Spacing, Radius, Elevation
+## Border Radius
 | Token | Value | Usage |
+| --- | --- | --- |
+
+## Opacity & Transparency
+| Token / Pattern | Value | Usage |
 | --- | --- | --- |
 
 ## Layout Rules
 [Grid, max widths, navigation layout, responsive breakpoints.]
 
-## Components
-| Component | Variants | States | Usage Rules |
+## Common Tailwind CSS Usage In Project
+| Pattern | Classes / tokens | Usage | Notes |
 | --- | --- | --- | --- |
 
-## Interaction And Motion
-[Focus, hover, active, loading, transitions, reduced motion.]
+## Example Component Reference Design Code
+Include a small reference component that demonstrates the design rules. Use the project's likely stack and mark framework assumptions clearly.
+
+```tsx
+// Example only. Adapt to the target project stack.
+export function ExampleCard() {
+  return <div className="[classes]">...</div>;
+}
+```
 
 ## Accessibility Rules
 [Contrast, focus, keyboard, text sizing, motion.]
@@ -135,7 +163,7 @@ Use this structure:
 Before finalizing, verify:
 
 - All four artifacts are present.
-- `design-system.md` defines concrete tokens, layout rules, components, states, and accessibility rules.
+- `design-system.md` defines overview, color palette, typography, spacing, component styles, shadows/elevation, animations/transitions, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules.
 - `page-ui-matrix.md` maps every important page or route to UI source, breakpoints, states, components, data source, and acceptance evidence.
 - `ui-mockups.md` includes high-fidelity page-level specifications or links to actual visual artifacts.
 - `visual-acceptance.md` defines implementation-verifiable visual gates.

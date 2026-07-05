@@ -34,13 +34,18 @@ Mobile apps:
 
 Define only rules that implementation can apply:
 
-- Color tokens: background, surface, text, border, accent, semantic states, charts if needed
-- Typography: font family category, scale, weight, line height, heading/body/caption usage
-- Spacing: base unit, section rhythm, component padding, grid gaps
-- Radius and shadows: component hierarchy and elevation rules
+- Overview: product archetype, audience, visual intent, density, tone, constraints, and source priority
+- Color palette: background, surface, text, border, accent, semantic states, charts if needed
+- Typography: font family category, scale, weight, line height, heading/body/caption usage, and how font roles work together
+- Spacing system: base unit, section rhythm, component padding, grid gaps
+- Component styles: buttons, inputs, selects, tables, cards, dialogs, nav, tabs, alerts, charts, content blocks as relevant
+- Shadows and elevation: component hierarchy, overlays, panels, and depth rules
+- Animations and transitions: hover, focus, active, selected, disabled, loading, skeletons, reduced-motion fallback
+- Border radius: token values and component usage rules
+- Opacity and transparency: disabled states, overlays, glass/subtle surfaces, and contrast risks
 - Layout: grid, max widths, sidebars, headers, responsive breakpoints
-- Components: buttons, inputs, selects, tables, cards, dialogs, nav, tabs, alerts, charts, content blocks as relevant
-- Interaction: hover, focus, active, selected, disabled, loading, skeletons
+- Common Tailwind CSS usage in project: recurring utility patterns, component class patterns, and CSS variable mappings when relevant
+- Example component reference design code: a small implementation-oriented component example that demonstrates the style guide
 - Accessibility: contrast intent, focus visibility, keyboard path, reduced motion
 
 ## Page UI Matrix Rules

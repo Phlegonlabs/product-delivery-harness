@@ -43,7 +43,7 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 ## Output Standards
 
 - Prefer implementation-ready design rules over mood words.
-- Define concrete tokens: colors, type scale, spacing, radius, shadows, layout grid, breakpoints, and motion rules when relevant.
+- Define concrete style-guide sections: overview, color palette, typography, spacing system, component styles, shadows/elevation, animations/transitions, border radius, opacity/transparency, common Tailwind/CSS usage, reference component code, layout grid, breakpoints, and accessibility rules.
 - Define component variants and states: loading, empty, error, disabled, hover, focus, active, selected, expanded, long content, permission denied, and responsive overflow where applicable.
 - Map every important page or route to UI source, breakpoints, states, components, data source, and acceptance evidence.
 - Keep high-fidelity mockups as page-level specifications or generated visual artifacts. Do not claim pixel fidelity unless an actual visual reference or generated mockup exists.
