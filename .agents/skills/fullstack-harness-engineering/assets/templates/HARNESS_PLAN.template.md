@@ -4,6 +4,7 @@
 
 | Source | Path / URL | Owner | Status | Notes |
 |---|---|---|---|---|
+| Document folder | <path> | <owner> | provided / missing / n/a | <upstream package location> |
 | PRD | <path> | <owner> | draft / frozen | <summary> |
 | Updated PRD | <path> | <owner> | draft / accepted / n/a | <delta summary> |
 | Wireframe | <path or URL> | <owner> | draft / frozen | <screens> |
@@ -11,9 +12,24 @@
 | Design system | <path or URL> | <owner> | draft / frozen | <tokens/components> |
 | Updated design system | <path or URL> | <owner> | draft / accepted / n/a | <affected tokens/components> |
 | Page UI references | <path or URL> | <owner> | draft / accepted / n/a | <pages/components> |
+| Visual acceptance | <path or URL> | <owner> | draft / accepted / n/a | <visual gates> |
 | Architecture | <path> | <owner> | draft / frozen | <contracts> |
 | Content / CMS | <path or URL> | <owner> | draft / frozen / n/a | <collections/pages> |
 | Analytics / release | <path or URL> | <owner> | draft / frozen / n/a | <events/deploy target> |
+
+## Handoff Readiness
+
+| Input | Expected source | Status | Decision / gap |
+|---|---|---|---|
+| Product requirements | PRD.md or equivalent | present / missing / n/a | <decision> |
+| Architecture | architecture.md or equivalent | present / missing / n/a | <decision> |
+| Wireframes / UI flow | wireframes.md or equivalent | present / missing / n/a | <decision> |
+| Implementation plan | implementation-plan.md or equivalent when supplied | present / optional / n/a | <decision> |
+| Design system | design-system.md or equivalent | present / missing / n/a | <decision> |
+| Page UI matrix / notes | page-ui-matrix.md, page-ui-notes.md, or equivalent | present / missing / n/a | <decision> |
+| UI mockups / screenshots / Figma refs | ui-mockups.md, mockups/, screenshots/, figma-refs.md, or equivalent | present / missing / n/a | <decision> |
+| Visual acceptance | visual-acceptance.md or equivalent | present / missing / n/a | <decision> |
+| Required states and breakpoints | page UI matrix, wireframes, or design system | complete / partial / missing / n/a | <decision> |
 
 ## Objective
 

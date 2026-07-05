@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-engineering
-description: Build full-stack Codex harness plans from new or updated PRDs, wireframes, design systems, page-specific UI references, architecture notes, broad app ideas, or already-built apps that need refinement. Use when the user asks for end-to-end implementation workflow, Codex /goal planning, worktree or thread orchestration, mission decomposition, verification gates, UI evidence, full-stack acceptance, product/app refinement, UX polish, performance/accessibility/SEO improvement, design-input updates, page UI implementation, or a complete harness engineering process for frontend/backend/data/API work. Do not use for small bounded code edits, simple reviews, or one-off questions that do not need a durable implementation loop.
+description: Build full-stack Codex harness plans from document folders, new or updated PRDs, wireframes, design systems, page-specific UI references, architecture notes, broad app ideas, or already-built apps that need refinement. Use when the user asks for end-to-end implementation workflow, Codex /goal planning, worktree or thread orchestration, mission decomposition, verification gates, UI evidence, full-stack acceptance, product/app refinement, UX polish, performance/accessibility/SEO improvement, design-input updates, page UI implementation, or a complete harness engineering process for frontend/backend/data/API work. Do not use for small bounded code edits, simple reviews, or one-off questions that do not need a durable implementation loop.
 ---
 
 # Full-Stack Harness Engineering
@@ -17,7 +17,7 @@ Use `app` as the umbrella product term. In this skill, an app can be a public we
 
 ## Reference Routing
 
-- Read `references/contract-and-traceability.md` when PRDs, wireframes, design systems, data/API contracts, permissions, or freeze rules matter.
+- Read `references/contract-and-traceability.md` when PRDs, wireframes, design systems, data/API contracts, document folder handoff, permissions, or freeze rules matter.
 - Read `references/design-input-updates.md` when the user provides new or updated PRDs, wireframes, design-system changes, screenshots, Figma/page UI references, or page-specific UI targets for a new build or existing-app refinement.
 - Read `references/platform-archetypes.md` when adapting the harness to authenticated apps, SaaS, internal tools, public websites, marketing sites, docs/content sites, ecommerce/catalog, or conversion landing pages.
 - Read `references/existing-app-refinement.md` when the app already exists and the user wants polish, UX refinement, performance, accessibility, SEO, conversion, reliability, cleanup, or evidence-backed improvement.
@@ -31,6 +31,7 @@ Use `app` as the umbrella product term. In this skill, an app can be a public we
 - Use Direct Work for small bounded edits. Do not create harness files, worktrees, or goals for one-file fixes unless the user explicitly asks.
 - Select a product archetype before drafting contracts. `App` is broad; choose the concrete shape: authenticated app, SaaS platform, internal tool, public website, marketing site, docs/content site, ecommerce/catalog, conversion landing page, or hybrid.
 - Treat updated PRDs, wireframes, design systems, and page UI references as contract deltas. Compare them against the current contract or app baseline before implementation.
+- When the user supplies a document folder path, inspect it during intake and register recognized upstream product, architecture, wireframe, design-system, page UI, mockup, screenshot, and reference files in the source map before drafting harness artifacts.
 - For existing-app refinement, capture the current baseline before proposing changes. Do not replace working behavior or redesign scope without an accepted refinement target.
 - For full-stack or long-running work, freeze the contract before implementation: product scope, architecture/data/API, UI flow, and visual design.
 - Every requirement that matters to acceptance needs a trace ID. Mission tasks and verification rows reference existing IDs; they do not invent new product scope.
@@ -53,7 +54,7 @@ Classify before creating files:
 ```text
 Mode: direct-work | harness-plan | refinement-audit | refinement-loop | create-goal | execute-loop | audit-harness
 Objective:
-Existing inputs: PRD | updated PRD | wireframe | updated wireframe | design system | updated design system | page UI reference | architecture | tickets | screenshots | codebase
+Existing inputs: document folder | PRD | updated PRD | wireframe | updated wireframe | design system | updated design system | page UI reference | architecture | tickets | screenshots | codebase
 Input change type: new build | spec update | page UI update | design-system update | refinement delta | hybrid
 Existing app state: greenfield | built app | deployed app | legacy app | partially implemented
 Product archetype: authenticated app | SaaS platform | internal tool | public website | marketing site | docs/content site | ecommerce/catalog | conversion landing page | hybrid
@@ -70,6 +71,8 @@ Stop or ask when:
 ```
 
 If the answer is Direct Work, do the bounded task and stop. If the request asks to improve an existing app without a concrete target, use `refinement-audit` first and produce a ranked backlog rather than editing immediately. If the request needs a reusable plan, create or update durable harness docs.
+
+If the user provides a document folder, read the folder before classifying contract readiness. Treat matching upstream files as sources, not as harness internals. Use them to populate the source map and handoff readiness table, then create or update the harness-owned docs separately.
 
 ### 2. Build The Contract
 

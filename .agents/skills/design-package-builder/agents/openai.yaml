@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Package Builder"
+  short_description: "Create visual design handoff packages"
+  default_prompt: "Use $design-package-builder to turn product docs into a design system, page UI matrix, and UI mockup package."

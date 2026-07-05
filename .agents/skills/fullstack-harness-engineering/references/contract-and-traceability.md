@@ -34,6 +34,34 @@ Record every canonical input and its status:
 
 If an external source is unavailable, ask for screenshots, exports, or written specs before claiming design-faithful implementation.
 
+## Document Folder Handoff
+
+When the user provides a document folder path, inspect that folder before drafting harness artifacts. Treat files in the folder as upstream sources and register recognized inputs in the source map.
+
+Recognize common upstream files and folders:
+
+```text
+PRD.md
+architecture.md
+wireframes.md
+implementation-plan.md
+design-system.md
+page-ui-matrix.md
+page-ui-notes.md
+ui-mockups.md
+visual-acceptance.md
+mockups/
+screenshots/
+figma-refs.md
+```
+
+Rules:
+
+- Do not require upstream files to come from a specific skill or pipeline.
+- Do not write harness-owned artifacts into the upstream document folder unless the user explicitly asks for that location.
+- If design-system or page UI sources are missing and UI quality matters, classify the design input state as `missing` or `partial` and stop for acceptance or assumptions before claiming a design-faithful build.
+- If a page UI reference omits states or breakpoints, record the gap in the handoff readiness table and resolve it before implementation or mark the surface `UNVALIDATED`.
+
 ## Trace IDs
 
 Use stable IDs so implementation and verification can prove coverage:

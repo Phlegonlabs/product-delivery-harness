@@ -1,11 +1,14 @@
 # Output Contract
 
-Produce a multi-file Markdown PRD package. Use exactly these artifact names unless the user requests different names:
+Produce a core multi-file Markdown PRD package. Use exactly these artifact names unless the user requests different names:
 
 - `PRD.md`
 - `architecture.md`
 - `wireframes.md`
-- `implementation-plan.md`
+
+This package stays in the product/spec layer. Do not add design-system, high-fidelity UI mockup, visual token, or page-level visual acceptance artifacts to this output contract.
+
+Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
 Default all artifact content to English unless the user explicitly asks for another language.
 
@@ -153,7 +156,9 @@ flowchart TD
 - Success:
 ````
 
-## `implementation-plan.md`
+## Optional `implementation-plan.md`
+
+Create this file only when explicitly requested.
 
 Use this structure:
 
@@ -193,11 +198,11 @@ Use this structure:
 
 Before finalizing, verify:
 
-- All four artifacts are present.
+- All three core artifacts are present.
 - `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
 - `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
 - UI states include loading, empty, error, permission, and success where applicable.
-- `implementation-plan.md` includes milestones, dependency order, test strategy, release plan, rollback plan, and unresolved decisions.
+- If produced, `implementation-plan.md` includes milestones, dependency order, test strategy, release plan, rollback plan, and unresolved decisions.
 - Assumptions and open questions are explicit.
 - The artifacts match the selected product archetype.
