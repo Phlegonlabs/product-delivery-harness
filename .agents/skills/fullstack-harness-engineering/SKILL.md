@@ -22,8 +22,9 @@ Use `app` as the umbrella product term. In this skill, an app can be a public we
 - Read `references/platform-archetypes.md` when adapting the harness to authenticated apps, SaaS, internal tools, public websites, marketing sites, docs/content sites, ecommerce/catalog, or conversion landing pages.
 - Read `references/existing-app-refinement.md` when the app already exists and the user wants polish, UX refinement, performance, accessibility, SEO, conversion, reliability, cleanup, or evidence-backed improvement.
 - Read `references/worktree-thread-orchestration.md` when the work uses multiple missions, worktrees, subagents, worker threads, or parent-thread integration.
+- Read `references/orchestration-research-notes.md` when choosing between orchestration modes or before changing any orchestration guidance; it records the verified runtime facts and the decision rationale.
 - Read `references/verification-gates.md` when defining deterministic checks, UI evidence, backend/data checks, end-to-end tests, release gates, or evidence schemas.
-- Use `assets/templates/HARNESS_PLAN.template.md`, `MISSION_RUNBOOK.template.md`, `E2E_VERIFICATION.template.md`, and `GOAL.template.md` when creating durable harness artifacts.
+- Use `assets/templates/HARNESS_PLAN.template.md`, `MISSION_RUNBOOK.template.md`, `E2E_VERIFICATION.template.md`, `GOAL.template.md`, `WORKER_GOAL.template.md`, and `REFINEMENT_BACKLOG.template.md` when creating durable harness artifacts.
 
 ## Core Rules
 
@@ -36,8 +37,10 @@ Use `app` as the umbrella product term. In this skill, an app can be a public we
 - Treat deterministic verification as the hard gate. LLM review is useful critique, not final proof.
 - A loop iteration counts as progress only when a verifier improves, an acceptance row becomes PASS with evidence, a task is committed after verification, or a blocker is narrowed with new reproducible evidence.
 - Do not claim completion without recorded evidence: command, exit code, browser trace/screenshot path, metric, log, commit hash, or explicit human approval.
-- Use worktrees only when isolation helps: parallel missions, high-risk changes, full-stack slices, UI/API/data work that can conflict, or long-running background work.
-- Parent thread owns planning, mission state, merge order, integration verification, and shared harness docs. Worker threads own exactly one mission and report evidence; they do not edit shared state files directly during parallel execution.
+- Default orchestration is single-checkout subagents: run write missions one at a time through subagents in one checkout, and fan out parallel subagents only for read-only work such as audits, reviews, and verification lenses. Never run parallel write subagents in one checkout.
+- Worktrees are opt-in, not the default: use them only for high-risk refactors that need a stable parent checkout, missions that genuinely need parallel writes for wall-clock time, or long-running background work.
+- Parent thread owns planning, mission state, merge order, integration verification, and shared harness docs. Worker threads own exactly one mission and write only their mission scope plus their own evidence directory (`docs/harness/evidence/M<n>/**`); they do not edit shared state files directly during parallel execution.
+- Workers never sync against the base branch or push work; the parent owns upstream sync, integration, and landing (push, PR, cleanup). Push and PR creation require user approval.
 - Before deleting, overwriting, moving, resetting, or cleaning worktrees, ask the user.
 - Recommend Extra High reasoning when the runtime exposes it for long, agentic, high-ambiguity harness planning; do not encode model-specific assumptions into artifacts unless the user asks.
 
@@ -60,7 +63,7 @@ Contract state: missing | draft | frozen | update proposed | delta accepted
 Design input state: missing | provided | partial | conflicting | frozen | updated
 Refinement lenses: UX | visual polish | performance | accessibility | SEO | conversion | reliability | test coverage | code quality | security | release readiness
 UI Evidence Gate: required | optional | n/a
-Worktree strategy: none | single worktree | mission worktrees | Codex-managed app worktrees
+Orchestration: single-checkout subagents | sequential single thread | mission worktrees | Codex-managed app worktrees
 Verification surface: build | lint | typecheck | unit | integration | api | db | e2e | browser | accessibility | performance | release
 Allowed actions: answer-only | create-docs | edit-code | run-verifiers | create-commits | spawn-subagents | create-worktrees
 Stop or ask when:
@@ -125,21 +128,25 @@ Guardrails:
 - If a verifier is missing, create or define the verifier first, or mark the surface `UNVALIDATED`.
 - If verification cannot run, record why and name residual risk.
 
-### 5. Orchestrate Worktrees And Threads
+### 5. Orchestrate Missions
 
-For multi-mission work, the parent thread creates the mission table and worktree plan before workers start. Use one worktree per independent mission when running in parallel.
+Default mode is single-checkout subagents: the parent keeps one checkout and one branch, delegates one write mission at a time to a subagent, and fans out parallel subagents only for read-only work (baseline audits, reviews, verification lenses). No worktree preflight, merge order, or worktree cleanup applies; run each mission's verifier when its subagent reports, then run the final E2E gate on the same branch.
 
-Worker thread contract:
+Worker contract (applies to subagents and worker threads alike):
 
 ```text
 Read: frozen contract files and only this mission's section.
-Write: only the mission write scope.
-Do not edit: shared harness docs, frozen contracts, unrelated files.
+Write: only the mission write scope plus this mission's evidence directory (docs/harness/evidence/M<n>/**).
+Do not edit: shared harness docs outside the mission evidence directory, frozen contracts, unrelated files.
 Verify: run the mission verifier and record literal pass/fail evidence.
 Report: changed files, commands, exit codes, evidence paths, commit hash, blockers, residual risk.
 ```
 
-The parent thread integrates in dependency and merge order, reruns each mission's verifier after merge, then runs the final E2E gate.
+Workers report via `docs/harness/evidence/M<n>/REPORT.md`; the parent verifies claims against the actual diff and serializes state updates.
+
+Worktree mode is opt-in for high-risk refactors or genuinely parallel write work. Then the parent creates the mission table, worktree plan, and one worker goal file per parallel mission (`docs/harness/goals/M<n>_GOAL.md`) before workers start, integrates in dependency and merge order, reruns each mission's verifier after merge, and runs the final E2E gate. Landing follows `references/worktree-thread-orchestration.md`: push/PR only with user approval, cleanup only after the user confirms.
+
+If the runtime has no subagent support, the parent runs the missions sequentially itself with the same gates.
 
 ### 6. Verify And Close
 

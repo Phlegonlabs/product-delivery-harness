@@ -14,8 +14,13 @@ Next action:
 ## Run Mode And Caps
 
 ```text
-Run mode: sequential | parent-orchestrated workers | Codex-managed worktrees
+Run mode: single-checkout subagents (default) | sequential single thread | mission worktrees | Codex-managed app worktrees
+Parallel policy: write missions sequential; read-only fan-out allowed
 Max parallel workers:
+Worker goal files: docs/harness/goals/M<n>_GOAL.md (worktree mode) | n/a
+Worker report path: docs/harness/evidence/M<n>/REPORT.md
+Base branch sync policy: parent-owned; workers never sync upstream
+Landing: PR to <base branch> | push to <branch> | left local
 Iteration cap:
 No-progress cap:
 Failed-mission cap:
@@ -24,6 +29,8 @@ Fallback if subagents/worktrees unavailable:
 ```
 
 ## Mission Coordination
+
+Worktree, Branch, and Resource isolation columns apply to worktree modes only; in single-checkout mode fill them with `N/A - single-checkout`.
 
 | Mission | Depends on | Worker/thread | Worktree | Branch | Resource isolation | Write scope | Verifier | Evidence | Commit | Integration result | Status |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -68,3 +75,5 @@ Fallback if subagents/worktrees unavailable:
 | Final git status / diff review | <clean or expected changes only> | planned | |
 | Evidence paths exist | <all required files exist> | planned | |
 | Release impact | <recorded or n/a> | planned | |
+| Push / PR gate | E2E PASS + evidence complete + user approved landing | planned | |
+| Worktree cleanup | removed with user approval, explicitly deferred, or `N/A - single-checkout` | planned | |

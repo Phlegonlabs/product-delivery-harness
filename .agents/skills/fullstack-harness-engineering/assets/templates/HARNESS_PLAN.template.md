@@ -124,11 +124,15 @@ Release target:
 
 ## Worktree And Thread Plan
 
+Applies to worktree modes only. In the default single-checkout mode, write `N/A - single-checkout` here and skip the table.
+
 | Mission | Worktree | Branch | Port / DB | Runner | Merge order |
 |---|---|---|---|---|---|
 | M1 | <path> | <branch> | <port/schema> | parent / worker | 1 |
 
 ## Launch Preflight
+
+Required before launching any worktree mode. In the default single-checkout mode, write `N/A - single-checkout` here and skip the table.
 
 | Check | Result | Evidence / note |
 |---|---|---|

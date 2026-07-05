@@ -2,6 +2,17 @@
 
 Use this reference when the harness runs more than one mission, uses subagents, or needs worktree isolation.
 
+## Default: Single-Checkout Subagent Orchestration
+
+Prefer this mode unless a worktree exception below applies. One checkout, one branch, parent-owned state:
+
+- Write missions run one at a time, each delegated to a subagent with the mission's runbook section as its prompt and the mission write scope as a stated constraint.
+- Read-only work (baseline audits, reviews, verification lenses) may fan out to parallel subagents freely.
+- Never run parallel write subagents in one checkout: even disjoint write scopes collide on lockfiles, build caches, generated files, dev servers, and local databases.
+- Each subagent writes `docs/harness/evidence/M<n>/REPORT.md`; the parent diffs the checkout against the declared write scope before accepting the report.
+- Worktree preflight, merge order, integration merges, and worktree cleanup do not apply. Landing is one branch and one PR under the same push/PR gate.
+- If the runtime has no subagent primitive, the parent runs the same missions sequentially itself with identical gates.
+
 ## Parent And Worker Roles
 
 Parent thread owns:
@@ -26,19 +37,18 @@ Workers must not edit shared harness docs during parallel execution. They report
 
 ## When To Use Worktrees
 
-Use worktrees for:
+Worktrees are opt-in, not the default. Opting in means accepting real coordination cost: preflight, merge order, integration reruns, and cleanup. Completion signaling depends on the runtime: Codex manual mission threads do not notify the parent -- the user relays completion; Claude Code worktree-isolated background subagents report back to the parent automatically (see `orchestration-research-notes.md`). Use worktrees only for:
 
-- Parallel mission execution.
-- Full-stack work with UI/API/data changes.
-- Long-running background work.
 - High-risk refactors where the parent needs a stable foreground checkout.
-- Different missions requiring different dev ports, local databases, or fixtures.
+- Heavy missions that genuinely need parallel writes to win wall-clock time.
+- Long-running background work that must not block the parent checkout.
+- Missions requiring conflicting dev ports, local databases, or fixtures at the same time.
 
 Skip worktrees for:
 
-- Small direct work.
-- Single-file fixes.
-- Read-only planning.
+- Anything the default single-checkout subagent mode can handle.
+- Small direct work and single-file fixes.
+- Read-only planning, audits, and reviews.
 - Sequential work where one checkout is simpler and safer.
 
 ## Preflight
@@ -123,6 +133,22 @@ If ignored local files are required in Codex-managed app worktrees, use `.worktr
 | M1 foundation | none | db/**, auth/** | ../project-e1-m1 | codex/e1-m1 | 3001 / app_m1 | <cmd> | <path> | 1 | planned |
 ```
 
+## Worker Goal And Report Files
+
+For parallel Codex threads, create one copy-ready goal file per worker mission before launch, from `assets/templates/WORKER_GOAL.template.md`:
+
+```text
+docs/harness/goals/M<n>_GOAL.md
+```
+
+Workers write their final report to their own mission evidence directory, never to shared harness docs:
+
+```text
+docs/harness/evidence/M<n>/REPORT.md
+```
+
+The parent reads each `REPORT.md`, verifies the claims against the actual worktree state, and serializes updates into the mission coordination table. A worker without a report is not done, even if its branch has commits.
+
 ## Worker Prompt Shape
 
 ```text
@@ -130,12 +156,24 @@ You are the worker for Mission <n> only.
 Worktree: <path>
 Branch: <branch>
 Read first: <contract files>, <mission section>
-Write only: <paths>
-Do not edit: shared harness docs, frozen contracts, unrelated files.
+Write only: <paths>, <evidence dir>
+Do not edit: shared harness docs outside your evidence dir, frozen contracts, unrelated files.
+Do not sync: never pull, rebase, merge, or push against the base branch; the parent owns sync and landing.
 Task loop: choose one task, implement it, run the verifier, record evidence, commit only if verification passes.
-Report back: changed files, commands, exit codes, evidence paths, commit hash, blockers, residual risk.
+Report back: write <evidence dir>/REPORT.md with changed files, commands, exit codes, evidence paths, commit hash, blockers, residual risk.
 Stop and ask if the write scope is insufficient, requirements conflict, verification cannot run, or destructive action is needed.
 ```
+
+## Upstream Sync During Parallel Runs
+
+The parent owns all synchronization against the base branch. Workers never pull, rebase, or merge upstream into their mission branch.
+
+If the base branch advances mid-run:
+
+- Default: let workers finish their missions, then integrate onto the updated base and rerun each mission verifier there.
+- If a mid-run sync is unavoidable (for example, a fix the mission depends on landed upstream), the parent pauses the worker at a task boundary, performs the rebase or merge in that worktree, reruns the mission verifier, then resumes the worker.
+- Record every sync event and its verifier result in the runbook attempt log or coordination table.
+- If a sync produces conflicts that touch frozen contract surfaces, stop and ask before resolving.
 
 ## Integration
 
@@ -152,3 +190,46 @@ Parent integration loop:
 ```
 
 Do not merge a mission whose own verifier failed unless the user explicitly accepts the risk.
+
+## Landing And Push-Back
+
+Landing covers everything after local integration passes: push, PR, merge to main, and cleanup.
+
+### Integration Branch Strategy
+
+Decide before launch and record it in the harness plan:
+
+```text
+Single mission: feature branch cut from main, land via one PR.
+Multi-mission: merge mission branches into codex/e<epic>-integration, land via one PR to main.
+Direct-to-main integration: only when the user explicitly chooses it.
+```
+
+### Push / PR Gate
+
+Do not push or open a PR until all of these hold:
+
+- Integration verifiers and the final E2E gate are PASS.
+- The evidence register is complete and every `UNVALIDATED` surface is accepted by the user.
+- Final `git status` / diff review shows expected changes only.
+- The user has approved the landing action. Push and PR creation are outward-facing; do not perform them silently.
+
+PR description should include: summary mapped to trace IDs, verification evidence summary, `UNVALIDATED` surfaces, and migration/deploy notes when relevant.
+
+### Merge Conflicts
+
+1. The parent resolves conflicts in the integration branch or a dedicated integration worktree, never inside a worker's worktree mid-mission.
+2. Resolve using the frozen contract as the arbiter. If the conflict reveals a contract gap or two missions legitimately claim the same surface, stop and ask.
+3. After resolving, rerun the affected missions' verifiers before continuing the merge order.
+
+### Post-Landing Cleanup
+
+Only after the PR is merged and the user confirms cleanup:
+
+```powershell
+git worktree list --porcelain
+git worktree remove <path>
+git branch -d codex/e<n>-m<n>
+```
+
+Ask before every removal. Never force-delete branches that are not fully merged. Record the cleanup (or the decision to defer it) in the runbook.

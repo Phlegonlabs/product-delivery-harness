@@ -126,4 +126,6 @@ Final PASS requires:
 - Every `UNVALIDATED` surface is named.
 - Evidence paths exist or the user accepted non-file evidence.
 - Baseline and skipped-check justifications are recorded when relevant.
-- Integration branch/worktree verifier has been rerun after merge.
+- When worktree mode was used: the integration branch verifier has been rerun after merge. In single-checkout mode the final E2E gate on the working branch covers this.
+- Landing state is recorded: pushed/PR opened with user approval, or explicitly left local.
+- When worktree mode was used: worktree and branch cleanup is completed with user approval or explicitly deferred. In single-checkout mode record `N/A - single-checkout`.

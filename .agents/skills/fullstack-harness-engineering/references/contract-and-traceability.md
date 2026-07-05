@@ -63,7 +63,9 @@ docs/harness/HARNESS_PLAN.md
 docs/harness/MISSION_RUNBOOK.md
 docs/harness/E2E_VERIFICATION.md
 docs/harness/GOAL.md
+docs/harness/goals/M<n>_GOAL.md
 docs/harness/evidence/<mission>/
+docs/harness/evidence/<mission>/REPORT.md
 ```
 
 When the repo already uses Epic artifacts, adapt to that structure rather than duplicating:
@@ -75,7 +77,9 @@ docs/Epic{n}/WIREFRAME.md
 docs/Epic{n}/DESIGN_SPEC.md
 docs/Epic{n}/MISSIONS.md
 docs/Epic{n}/GOAL.md
+docs/Epic{n}/goals/Mission{n}_GOAL.md
 docs/Epic{n}/evidence/Mission{n}/
+docs/Epic{n}/evidence/Mission{n}/REPORT.md
 ```
 
 ## Stop And Ask Conditions
