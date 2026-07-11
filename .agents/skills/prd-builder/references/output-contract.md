@@ -1,14 +1,14 @@
 # Output Contract
 
-Produce a core multi-file Markdown PRD package. Use exactly these artifact names unless the user requests different names:
+Produce a core multi-file Markdown PRD package. Stage and publish it according to `artifact-lifecycle.md`. The final package belongs under `doc/`. Use exactly these artifact names unless the user requests different names:
 
-- `PRD.md`
-- `architecture.md`
-- `wireframes.md`
+- `doc/PRD.md`
+- `doc/architecture.md`
+- `doc/wireframes.md`
 
 This package stays in the product/spec layer. Do not add design-system, high-fidelity UI mockup, visual token, or page-level visual acceptance artifacts to this output contract.
 
-Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
+Produce `doc/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
 Default all artifact content to English unless the user explicitly asks for another language.
 
@@ -196,9 +196,9 @@ Use this structure:
 
 ## Quality Checklist
 
-Before finalizing, verify:
+Before archiving earlier documents or publishing the staged package, verify:
 
-- All three core artifacts are present.
+- All three core artifacts are present in the run-specific staging directory and are ready to publish under `doc/`.
 - `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
 - `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
@@ -206,3 +206,5 @@ Before finalizing, verify:
 - If produced, `implementation-plan.md` includes milestones, dependency order, test strategy, release plan, rollback plan, and unresolved decisions.
 - Assumptions and open questions are explicit.
 - The artifacts match the selected product archetype.
+- No current-package artifact will be published outside `doc/` unless the user explicitly requested another location.
+- The superseded-document inventory excludes `doc/archived/`, unrelated documents, and ambiguous candidates.

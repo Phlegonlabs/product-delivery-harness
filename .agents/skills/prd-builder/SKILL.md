@@ -14,13 +14,16 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 1. Read `references/interview-guide.md` before asking discovery questions.
 2. Conduct a complete but concise product interview before drafting, unless the user explicitly says to skip questions, make assumptions, or produce a first draft immediately.
 3. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid.
-4. After discovery, read `references/output-contract.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`.
-5. Produce the core Markdown artifact package:
+4. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`.
+5. Before drafting, inventory earlier documents related to the same product as described in `references/artifact-lifecycle.md`. Do not move anything yet.
+6. Draft the core Markdown package in the staging location defined by `references/artifact-lifecycle.md`:
    - `PRD.md`
    - `architecture.md`
    - `wireframes.md`
-6. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
-7. Run the quality checklist in `references/output-contract.md` before finalizing.
+7. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
+8. Run the quality checklist in `references/output-contract.md` against the staged package.
+9. Only after the complete package passes validation, archive the previously inventoried superseded documents under `doc/archived/`, then publish the new package under `doc/`. Never archive documents when the workflow is incomplete, paused, or failing validation.
+10. Report the final artifact paths and every archived path.
 
 ## Interview Rules
 
@@ -34,12 +37,14 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 
 - Use `references/interview-guide.md` for required discovery questions and readiness criteria.
 - Use `references/output-contract.md` for the exact artifact names, headings, and final quality checklist.
+- Use `references/artifact-lifecycle.md` for staging, final `doc/` locations, safe identification of superseded documents, and post-validation archival.
 - Use `references/architecture-playbook.md` for implementation-ready architecture content across web, mobile, internal tools, and automations.
 - Use `references/wireframe-guide.md` for ASCII wireframes, Mermaid flows, and required UI states.
 
 ## Output Standards
 
 - Prefer specific, buildable requirements over vague product language.
+- Keep the current PRD package directly under `doc/`; reserve `doc/archived/` for superseded documents only.
 - Tie every major requirement to a user need, workflow, metric, or constraint.
 - Include loading, empty, error, permission, and edge states when a UI or workflow has them.
 - Keep outputs in the product/spec layer. Do not produce design systems, high-fidelity UI mockups, visual tokens, or page-level visual acceptance specs.
