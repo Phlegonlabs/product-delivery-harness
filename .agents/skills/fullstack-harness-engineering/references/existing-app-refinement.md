@@ -27,7 +27,7 @@ Out of scope:
 Acceptance threshold:
 ```
 
-If the user says "make it better" without a target, perform a refinement audit first and produce a ranked backlog. Do not implement the backlog until the user accepts candidates or authorizes defaults.
+If the user says "make it better" without a target, perform a refinement audit first and record a ranked backlog in `RUN.md`. Do not create a separate backlog file unless the list becomes materially difficult to scan. Do not implement the backlog until the user accepts candidates or authorizes defaults.
 
 ## Baseline Evidence
 

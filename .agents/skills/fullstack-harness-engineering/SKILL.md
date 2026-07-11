@@ -1,194 +1,191 @@
 ---
 name: fullstack-harness-engineering
-description: Build full-stack Codex harness plans from document folders, new or updated PRDs, wireframes, design systems, page-specific UI references, architecture notes, broad app ideas, or already-built apps that need refinement. Use when the user asks for end-to-end implementation workflow, Codex /goal planning, worktree or thread orchestration, mission decomposition, verification gates, UI evidence, full-stack acceptance, product/app refinement, UX polish, performance/accessibility/SEO improvement, design-input updates, page UI implementation, or a complete harness engineering process for frontend/backend/data/API work. Do not use for small bounded code edits, simple reviews, or one-off questions that do not need a durable implementation loop.
+description: "Plan first, then optionally run compact full-stack Codex delivery loops from product ideas, document folders, PRDs, wireframes, design systems, UI references, architecture notes, or existing apps. Use for complete PRD implementation planning, frontend/backend sequencing, end-to-end implementation, Codex /goal planning, long-running app work, mission decomposition, UI evidence, verification gates, refinement, worktree orchestration, or full-stack acceptance. Selecting this skill alone does not authorize code changes: review, plan, audit, and how-to requests remain planning-only; implementation starts only after explicit execution authorization or an active delivery Goal. Preserve repository clarity with zero management files for direct work, one RUN.md for medium work, and PLAN.md plus RUN.md only for long or multi-mission work."
 ---
 
 # Full-Stack Harness Engineering
 
 ## Purpose
 
-Use this skill to turn product, design, and architecture inputs into a full-stack implementation harness: frozen contracts, mission slices, worktree/thread orchestration, an execution loop, and end-to-end verification evidence.
+Plan the complete delivery path before implementation, then run it only when execution is explicitly authorized. Reuse product and design sources instead of duplicating them. Preserve repository clarity while keeping enough durable state for compaction, resume, handoff, and long-running Goal execution.
 
-Keep the main prompt short. Put durable context, traceability, mission state, and verification evidence in files when the work is large enough to survive compaction, handoff, or parallel execution.
-
-## Terminology
-
-Use `app` as the umbrella product term. In this skill, an app can be a public website, marketing site, docs/content site, ecommerce/catalog experience, conversion landing page, authenticated web app, SaaS platform, dashboard, internal tool, backend-backed workflow, or a hybrid of these.
+Keep `prd-builder` and `design-package-builder` as separate upstream skills. If required product or visual inputs are missing, route to the matching skill, use user-authorized assumptions, or record the gap as `UNVALIDATED`.
 
 ## Reference Routing
 
-- Read `references/contract-and-traceability.md` when PRDs, wireframes, design systems, data/API contracts, document folder handoff, permissions, or freeze rules matter.
-- Read `references/design-input-updates.md` when the user provides new or updated PRDs, wireframes, design-system changes, screenshots, Figma/page UI references, or page-specific UI targets for a new build or existing-app refinement.
-- Read `references/platform-archetypes.md` when adapting the harness to authenticated apps, SaaS, internal tools, public websites, marketing sites, docs/content sites, ecommerce/catalog, or conversion landing pages.
-- Read `references/existing-app-refinement.md` when the app already exists and the user wants polish, UX refinement, performance, accessibility, SEO, conversion, reliability, cleanup, or evidence-backed improvement.
-- Read `references/worktree-thread-orchestration.md` when the work uses multiple missions, worktrees, subagents, worker threads, or parent-thread integration.
-- Read `references/orchestration-research-notes.md` when choosing between orchestration modes or before changing any orchestration guidance; it records the verified runtime facts and the decision rationale.
-- Read `references/verification-gates.md` when defining deterministic checks, UI evidence, backend/data checks, end-to-end tests, release gates, or evidence schemas.
-- Use `assets/templates/HARNESS_PLAN.template.md`, `MISSION_RUNBOOK.template.md`, `E2E_VERIFICATION.template.md`, `GOAL.template.md`, `WORKER_GOAL.template.md`, and `REFINEMENT_BACKLOG.template.md` when creating durable harness artifacts.
+- Read `references/contract-and-traceability.md` when source handoff, contract freeze, trace IDs, permissions, or file placement matters.
+- Read `references/design-input-updates.md` for updated PRDs, wireframes, design systems, screenshots, Figma/page UI references, or page-specific deltas.
+- Read `references/platform-archetypes.md` to select only relevant platform contracts and gates.
+- Read `references/existing-app-refinement.md` for audits, baselines, ranked improvements, and before/after evidence.
+- Read `references/worktree-thread-orchestration.md` only for multiple missions, subagents, worker threads, or worktrees.
+- Read `references/orchestration-research-notes.md` before changing orchestration guidance.
+- Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
+- Read `references/commit-convention.md` before creating or recording any harness-managed commit.
+- Use `assets/templates/HARNESS_PLAN.template.md` as `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` as `RUN.md`. Use other templates only for an explicit optional expansion.
 
-## Core Rules
+## File Budget
 
-- Use Direct Work for small bounded edits. Do not create harness files, worktrees, or goals for one-file fixes unless the user explicitly asks.
-- Select a product archetype before drafting contracts. `App` is broad; choose the concrete shape: authenticated app, SaaS platform, internal tool, public website, marketing site, docs/content site, ecommerce/catalog, conversion landing page, or hybrid.
-- Treat updated PRDs, wireframes, design systems, and page UI references as contract deltas. Compare them against the current contract or app baseline before implementation.
-- When the user supplies a document folder path, inspect it during intake and register recognized upstream product, architecture, wireframe, design-system, page UI, mockup, screenshot, and reference files in the source map before drafting harness artifacts.
-- For existing-app refinement, capture the current baseline before proposing changes. Do not replace working behavior or redesign scope without an accepted refinement target.
-- For full-stack or long-running work, freeze the contract before implementation: product scope, architecture/data/API, UI flow, and visual design.
-- Every requirement that matters to acceptance needs a trace ID. Mission tasks and verification rows reference existing IDs; they do not invent new product scope.
-- Treat deterministic verification as the hard gate. LLM review is useful critique, not final proof.
-- A loop iteration counts as progress only when a verifier improves, an acceptance row becomes PASS with evidence, a task is committed after verification, or a blocker is narrowed with new reproducible evidence.
-- Do not claim completion without recorded evidence: command, exit code, browser trace/screenshot path, metric, log, commit hash, or explicit human approval.
-- Default orchestration is single-checkout subagents: run write missions one at a time through subagents in one checkout, and fan out parallel subagents only for read-only work such as audits, reviews, and verification lenses. Never run parallel write subagents in one checkout.
-- Worktrees are opt-in, not the default: use them only for high-risk refactors that need a stable parent checkout, missions that genuinely need parallel writes for wall-clock time, or long-running background work.
-- Parent thread owns planning, mission state, merge order, integration verification, and shared harness docs. Worker threads own exactly one mission and write only their mission scope plus their own evidence directory (`docs/harness/evidence/M<n>/**`); they do not edit shared state files directly during parallel execution.
-- Workers never sync against the base branch or push work; the parent owns upstream sync, integration, and landing (push, PR, cleanup). Push and PR creation require user approval.
-- Before deleting, overwriting, moving, resetting, or cleaning worktrees, ask the user.
-- Recommend Extra High reasoning when the runtime exposes it for long, agentic, high-ambiguity harness planning; do not encode model-specific assumptions into artifacts unless the user asks.
+```text
+direct work        -> no management files
+medium work        -> docs/goal/RUN.md
+long/multi-mission -> docs/goal/PLAN.md + docs/goal/RUN.md
+binary UI evidence -> docs/goal/evidence/** only when artifacts exist
+worktree workers   -> temporary per-mission reports only while integration needs them
+```
+
+- Do not create empty directories, duplicate source documents, or one file per concern.
+- Keep Goal text, checkpoint, task state, verification, attempts, evidence links, blockers, and closeout in `RUN.md`.
+- Create `PLAN.md` only for contract freeze, complete PRD coverage, multiple missions, dependency ordering, risk, or handoff.
+- Put machine-readable status in `RUN.md` YAML frontmatter; do not create a second state database unless the target app already has one.
+- Use an established repository planning convention instead of adding `docs/goal/` when one exists.
+- Split a section only when it becomes difficult to scan or needs separate ownership.
+
+## Execution Authorization Gate
+
+Selecting or implicitly invoking this skill does not authorize implementation.
+
+Classify the user's intent before any code edit, stateful command, commit, subagent write task, or external write:
+
+```text
+plan-only          -> inspect, analyze, and produce the complete plan; stop at ready
+plan-then-stop     -> produce PLAN.md/RUN.md and wait for explicit approval
+plan-then-execute  -> plan completely, pass readiness, then execute in the same task
+execute-ready-plan -> validate an existing ready plan, then continue execution
+```
+
+Authorization rules:
+
+- Treat `review`, `plan`, `audit`, `analyze`, `how`, `what first`, `which order`, and similar requests as `plan-only` or `plan-then-stop`.
+- Treat `implement`, `build`, `fix`, `execute`, `continue`, `start implementation`, `plan then execute`, and an explicit request to complete delivery as execution authorization.
+- An active Goal authorizes execution only when its objective explicitly requires implementation or delivery. A planning/review Goal remains planning-only.
+- Creating or starting a native Goal requires explicit `/goal` usage or an explicit request to start one. Drafting a Goal prompt is not the same as starting Goal mode.
+- If authorization is ambiguous, complete planning, set `status: ready` and `execution_authorized: false`, then stop before implementation.
+- Never infer authorization for destructive actions, production changes, push/PR, paid services, or cleanup from general implementation authorization.
 
 ## Workflow
 
 ### 1. Intake And Route
 
-Classify before creating files:
-
 ```text
-Mode: direct-work | harness-plan | refinement-audit | refinement-loop | create-goal | execute-loop | audit-harness
+Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Objective:
-Existing inputs: document folder | PRD | updated PRD | wireframe | updated wireframe | design system | updated design system | page UI reference | architecture | tickets | screenshots | codebase
-Input change type: new build | spec update | page UI update | design-system update | refinement delta | hybrid
-Existing app state: greenfield | built app | deployed app | legacy app | partially implemented
-Product archetype: authenticated app | SaaS platform | internal tool | public website | marketing site | docs/content site | ecommerce/catalog | conversion landing page | hybrid
-Critical surfaces: auth | tenant | roles | billing | admin | content/CMS | SEO | analytics | catalog | checkout | integrations | compliance
-Scale: small | single-mission | multi-mission | full-stack | program
-Contract state: missing | draft | frozen | update proposed | delta accepted
+Existing inputs:
+Existing app state: greenfield | built | deployed | legacy | partial
+Product archetype:
+Critical surfaces:
+Scale: small | medium | multi-mission | program
+Contract state: missing | draft | frozen | delta proposed | delta accepted
 Design input state: missing | provided | partial | conflicting | frozen | updated
-Refinement lenses: UX | visual polish | performance | accessibility | SEO | conversion | reliability | test coverage | code quality | security | release readiness
 UI Evidence Gate: required | optional | n/a
-Orchestration: single-checkout subagents | sequential single thread | mission worktrees | Codex-managed app worktrees
-Verification surface: build | lint | typecheck | unit | integration | api | db | e2e | browser | accessibility | performance | release
-Allowed actions: answer-only | create-docs | edit-code | run-verifiers | create-commits | spawn-subagents | create-worktrees
+Orchestration: sequential parent | single-checkout subagents | mission worktrees | app-managed worktrees
+Verification surfaces:
+Execution authorized: yes | no
+Authorization source: explicit prompt | active delivery Goal | approved ready plan | none
+File budget: 0 | RUN.md | PLAN.md + RUN.md | optional evidence/
 Stop or ask when:
 ```
 
-If the answer is Direct Work, do the bounded task and stop. If the request asks to improve an existing app without a concrete target, use `refinement-audit` first and produce a ranked backlog rather than editing immediately. If the request needs a reusable plan, create or update durable harness docs.
+- Use Direct Work only when the task is bounded and execution is explicit.
+- Use `RUN.md` for several verified steps or work likely to cross compaction.
+- Add `PLAN.md` for a full PRD, multiple missions, frontend/backend sequencing, high risk, or durable handoff.
+- For unclear existing-app improvement, audit first and record ranked candidates in `RUN.md`.
 
-If the user provides a document folder, read the folder before classifying contract readiness. Treat matching upstream files as sources, not as harness internals. Use them to populate the source map and handoff readiness table, then create or update the harness-owned docs separately.
+### 2. Plan The Complete PRD Before Execution
 
-### 2. Build The Contract
+For a PRD-backed build, read all canonical requirements before changing production code. Plan every must-have requirement, not only the first feature.
 
-For full-stack work, produce or update the smallest durable contract set:
+Build the plan in this order:
 
-- `docs/harness/HARNESS_PLAN.md`: source map, product contract, architecture/data/API summary, UI/design contract, traceability matrix, mission map, worktree plan, risk gates.
-- `docs/harness/MISSION_RUNBOOK.md`: mission sections, task queue, acceptance rows, attempt log, worktree/thread assignments, checkpoint, changed files, commits, blockers.
-- `docs/harness/E2E_VERIFICATION.md`: final verification matrix and evidence register.
-- `docs/harness/GOAL.md`: copy-ready `/goal` prompt when the user wants a long-running Codex goal.
+1. Register PRD, architecture, wireframe, design-system, page UI, and current-code sources.
+2. Extract every in-scope requirement, preserve its priority, and assign stable trace IDs; explicitly mark optional or deferred requirements instead of dropping them.
+3. Identify shared foundations: environment, schema, auth, permissions, design tokens, app shell, API clients, fixtures, and test harness.
+4. Draw the dependency order between backend, frontend, data, integrations, UI states, and release work.
+5. Decompose the complete scope into vertical missions and independently verifiable tasks.
+6. Define write scope, pass signal, evidence, risks, and stop conditions for every mission.
+7. Populate the entire mission/task board in `RUN.md`; leave only execution-time discoveries to later refinement.
 
-When updated PRDs, wireframes, design systems, or page UI references are provided, record the delta: source version, changed requirements, affected pages/components, new acceptance gates, superseded assumptions, and unresolved conflicts. For existing apps, map the delta to both current baseline and target state.
+Do not always force backend-first or frontend-first. Use dependency evidence:
 
-For existing-app refinement, add a baseline and backlog section to the harness plan, or create `docs/harness/REFINEMENT_BACKLOG.md` from `assets/templates/REFINEMENT_BACKLOG.template.md` when the audit produces multiple candidate improvements.
+- Start with contract and schema foundations when both sides depend on them.
+- Build the minimum backend capability first when the frontend requires real auth, permissions, persistence, or side effects.
+- Allow frontend shell, design-system, and mocked-state work after UI/data contracts are frozen, even if backend implementation is incomplete.
+- Prefer the first end-to-end vertical slice as soon as the minimum frontend and backend path exists; use it to validate integration before scaling either side.
+- Serialize shared schemas, generated clients, migrations, global config, and design tokens.
+- Record the chosen order and rationale in `PLAN.md`; do not rely on a generic backend-first rule.
 
-If the target repo already has established Epic artifacts such as `docs/Epic{n}/SPEC.md`, `MISSIONS.md`, and `GOAL.md`, use that shape instead of creating a separate `docs/harness/` folder. Preserve local conventions.
+### 3. Pass The Plan Readiness Gate
 
-Read an existing target file before changing it. Prefer gap-fill edits. If a file is not template-produced and needs a major rewrite, stop and ask.
+Set `plan_readiness: ready` only when:
 
-### 3. Decompose Missions
+- Every in-scope PRD/UI/architecture/design trace is planned, deferred with rationale, or out of scope; every must-have trace maps to at least one task and pass signal.
+- Mission dependencies are explicit and acyclic.
+- Frontend/backend/data boundaries and their integration points are defined.
+- Shared foundations and migration order are identified.
+- Required UI routes, breakpoints, states, and visual evidence are planned.
+- Each mission has an allowed write scope and deterministic verifier, or an explicit `UNVALIDATED` risk.
+- Blocking requirements conflicts and approval needs are resolved or clearly surfaced.
+- Final E2E, regression, release, and residual-risk gates are present.
 
-Use vertical slices when possible. A common full-stack sequence is:
+At the gate:
+
+- `plan-only` or `plan-then-stop`: set run status to `ready`, keep `execution_authorized: false`, report the proposed first mission and stop.
+- `plan-then-execute`: record the explicit authorization, set run status to `running`, and begin the first ready task.
+- `execute-ready-plan`: verify that the plan is still current, record approval, then set run status to `running`.
+
+### 4. Execute The Ready Plan
+
+Prefer thin vertical missions connecting behavior, UI/data, and verification. Execute one ready write task at a time:
 
 ```text
-Mission 1: foundation, environment, schema, auth, seed data
-Mission 2: backend API, services, validation, permissions
-Mission 3: frontend routes, screens, state/data wiring
-Mission 4: design system implementation, responsive and interaction states
-Mission 5: integration and end-to-end verification
-Mission 6: release notes, docs, cleanup, if user/operator impact exists
+observe -> confirm plan/authorization -> choose smallest ready task -> implement -> verify -> record evidence -> atomic commit if allowed -> update RUN.md -> continue or stop
 ```
 
-Load the matching platform profile and add only relevant missions. Examples:
-
-- SaaS/authenticated app: tenant/account model, auth lifecycle, roles/admin, billing/entitlements, audit/observability, webhook/job integrations.
-- Public/content site: content/CMS foundation, page templates, SEO/metadata, analytics/conversion, responsive/visual QA, crawl/deployment validation.
-- Ecommerce/catalog: catalog data, PDP/PLP/search/filtering, pricing/inventory, cart/checkout boundary if in scope, schema markup and analytics.
-- Existing app refinement: baseline capture, issue ranking, smallest accepted improvement, regression protection, targeted implementation, before/after verification.
-- Spec/design update: delta audit, contract update, page/component ownership, implementation, conformance verification, regression protection.
-
-Parallelize only missions with disjoint write scopes and satisfied dependencies. Serialize migrations, shared clients, design tokens, global config, and any file touched by multiple missions.
-
-### 4. Define The Loop
-
-Each mission uses this loop:
-
-```text
-observe -> choose the smallest ready task -> implement only that task -> run its verifier -> record evidence -> commit if allowed -> update mission state -> choose next task or report blocker
-```
-
-Guardrails:
-
-- One task per iteration.
-- Commit only after task-specific verification passes.
-- Stop after 3 consecutive no-progress iterations.
+- Never start a task whose dependencies are not `passed`.
+- Commit only after task-specific verification passes, and follow `references/commit-convention.md` for the atomic boundary, subject, trailers, and `RUN.md` recording format.
+- Keep one coherent verified task outcome per commit. Split an oversized task before committing instead of mixing independent outcomes.
 - Do not retry the same failed approach more than twice.
-- If a verifier is missing, create or define the verifier first, or mark the surface `UNVALIDATED`.
-- If verification cannot run, record why and name residual risk.
+- After three consecutive no-progress iterations, record the exact blocker and required input.
+- Define a missing verifier before high-risk implementation; otherwise mark the surface `UNVALIDATED`.
+- Update `RUN.md` after every verified task, blocker change, approval boundary, or mission transition.
+- Replan only affected downstream tasks when implementation reveals new evidence; preserve completed trace coverage.
 
-### 5. Orchestrate Missions
+### 5. Orchestrate Only When Needed
 
-Default mode is single-checkout subagents: the parent keeps one checkout and one branch, delegates one write mission at a time to a subagent, and fans out parallel subagents only for read-only work (baseline audits, reviews, verification lenses). No worktree preflight, merge order, or worktree cleanup applies; run each mission's verifier when its subagent reports, then run the final E2E gate on the same branch.
+Keep one parent-owned `RUN.md`; workers never edit it concurrently.
 
-Worker contract (applies to subagents and worker threads alike):
+- Default to parent execution or one sequential write mission at a time in one checkout.
+- Fan out read-only audits, reviews, and verification lenses only when delegation is allowed.
+- Worktree workers write temporary reports under `docs/goal/evidence/M<n>/REPORT.md`; the parent verifies and folds durable results into `RUN.md`.
+- Remove empty or duplicate worker artifacts only with required approval.
+- If subagents are unavailable, run the same dependency-ordered plan sequentially.
 
-```text
-Read: frozen contract files and only this mission's section.
-Write: only the mission write scope plus this mission's evidence directory (docs/harness/evidence/M<n>/**).
-Do not edit: shared harness docs outside the mission evidence directory, frozen contracts, unrelated files.
-Verify: run the mission verifier and record literal pass/fail evidence.
-Report: changed files, commands, exit codes, evidence paths, commit hash, blockers, residual risk.
-```
+### 6. Verify UI And Close
 
-Workers report via `docs/harness/evidence/M<n>/REPORT.md`; the parent verifies claims against the actual diff and serializes state updates.
+For UI-bearing work, record in `RUN.md`:
 
-Worktree mode is opt-in for high-risk refactors or genuinely parallel write work. Then the parent creates the mission table, worktree plan, and one worker goal file per parallel mission (`docs/harness/goals/M<n>_GOAL.md`) before workers start, integrates in dependency and merge order, reruns each mission's verifier after merge, and runs the final E2E gate. Landing follows `references/worktree-thread-orchestration.md`: push/PR only with user approval, cleanup only after the user confirms.
+- Primary journey and target routes.
+- Required breakpoints.
+- Ready, loading, empty, error, disabled, permission, and long-running states that apply.
+- Browser interaction, console/page/network health, accessibility, and design comparison.
+- Clickable screenshot, trace, or report paths only when artifacts exist.
 
-If the runtime has no subagent support, the parent runs the missions sequentially itself with the same gates.
+Final completion requires:
 
-### 6. Verify And Close
-
-End-to-end completion requires:
-
-- Contract coverage: every must-have trace ID has downstream task and verification coverage.
-- Code health: build/lint/typecheck/unit checks pass or skipped checks are justified.
-- Backend/data: API, validation, permission, migration, seed/reset, and failure paths pass.
-- Platform gates: archetype-specific auth/tenant/billing/content/SEO/analytics/catalog/deployment gates pass or are explicitly marked `UNVALIDATED`.
-- Refinement gates: before/after evidence proves the accepted target improved or did not regress.
-- Design-input gates: implemented pages/components match the accepted PRD/wireframe/design-system/page UI delta, and superseded behavior is intentionally handled.
-- UI: primary journey, responsive breakpoints, loading/empty/error/disabled states, console/network health, accessibility, and design comparison pass when applicable.
-- Integration: merged branch passes the E2E matrix.
-- Evidence: commands, exit codes, artifacts, screenshots/traces, metrics, and commit hashes are recorded.
-- Residual risk: every `UNVALIDATED` surface is named.
+- Every must-have trace has implementation and verification coverage.
+- Every required gate is `PASS`.
+- Skipped or `UNVALIDATED` gates include reason, risk, and acceptance status.
+- Primary journey and relevant platform gates pass.
+- `RUN.md` records final status, evidence, changed files, commits, residual risk, and landing state.
 
 ## Output Shape
 
-For planning:
-
 ```text
-Harness route:
-Contract files:
-Mission map:
-Worktree/thread plan:
-Verification gates:
-Goal prompt:
-Stop/ask conditions:
+Intent and execution authorization:
+Route and file budget:
+Complete mission order and rationale:
+Plan readiness:
+Current checkpoint or proposed first mission:
+Verification and evidence:
+Blockers / unvalidated surfaces:
 Next action:
-```
-
-For execution closeout:
-
-```text
-Outcome:
-Evidence:
-Changed files:
-Commits:
-Unvalidated surfaces:
-Residual risk:
-Next loop:
 ```

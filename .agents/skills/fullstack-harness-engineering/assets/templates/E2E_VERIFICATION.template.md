@@ -1,4 +1,6 @@
-# E2E Verification: <feature or product slice>
+# Optional Expanded E2E Verification: <feature or product slice>
+
+Keep verification in `RUN.md` by default. Use this standalone expansion only when the verification matrix becomes materially difficult to scan or needs separate ownership. Link it from `RUN.md` instead of duplicating rows.
 
 ## Verification Summary
 

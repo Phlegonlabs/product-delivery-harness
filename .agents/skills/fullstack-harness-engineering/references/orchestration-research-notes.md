@@ -62,7 +62,7 @@ Before editing orchestration guidance, re-check:
 | Wall-clock gain | read-only fan-out only | none | full parallel writes | full parallel (app-driven) |
 | Resource isolation | single env, no contention | single env | must be planned per mission (port/DB/seed) | files only; env still shared |
 | Integration cost | none beyond final E2E | none | merge in dependency order + verifier reruns | pull from worktree/branch |
-| Evidence flow | `docs/harness/evidence/M<n>/REPORT.md` -> parent verifies diff | parent records directly | same report path, parent verifies worktree state | thread output + report path |
+| Evidence flow | parent records in `RUN.md`; optional temporary report | parent records in `RUN.md` | `docs/goal/evidence/M<n>/REPORT.md` -> parent folds into `RUN.md` | thread output + optional report |
 | Runtime support | both runtimes, stable | any runtime | both, but notification differs by runtime | Codex app only |
 
 ## Rationale

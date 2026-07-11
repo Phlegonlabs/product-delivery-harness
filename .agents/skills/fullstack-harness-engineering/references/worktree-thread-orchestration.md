@@ -6,10 +6,10 @@ Use this reference when the harness runs more than one mission, uses subagents, 
 
 Prefer this mode unless a worktree exception below applies. One checkout, one branch, parent-owned state:
 
-- Write missions run one at a time, each delegated to a subagent with the mission's runbook section as its prompt and the mission write scope as a stated constraint.
+- Write missions run one at a time, each delegated to a subagent with the mission's `RUN.md` section as its prompt and the mission write scope as a stated constraint.
 - Read-only work (baseline audits, reviews, verification lenses) may fan out to parallel subagents freely.
 - Never run parallel write subagents in one checkout: even disjoint write scopes collide on lockfiles, build caches, generated files, dev servers, and local databases.
-- Each subagent writes `docs/harness/evidence/M<n>/REPORT.md`; the parent diffs the checkout against the declared write scope before accepting the report.
+- A sequential single-checkout subagent reports to the parent directly; create `docs/goal/evidence/M<n>/REPORT.md` only when a durable report is needed for handoff or integration.
 - Worktree preflight, merge order, integration merges, and worktree cleanup do not apply. Landing is one branch and one PR under the same push/PR gate.
 - If the runtime has no subagent primitive, the parent runs the same missions sequentially itself with identical gates.
 
@@ -18,7 +18,7 @@ Prefer this mode unless a worktree exception below applies. One checkout, one br
 Parent thread owns:
 
 - Source intake and contract freeze.
-- Harness docs and mission state.
+- `PLAN.md` and the single parent-owned `RUN.md`.
 - Worktree creation plan.
 - Worker prompts.
 - Merge order and conflict handling.
@@ -33,7 +33,7 @@ Worker thread owns:
 - Task-level verification and commits.
 - Evidence report back to parent.
 
-Workers must not edit shared harness docs during parallel execution. They report evidence; the parent serializes updates.
+Workers must not edit parent-owned `PLAN.md` or `RUN.md` during parallel execution. They report evidence; the parent serializes updates into `RUN.md`.
 
 ## When To Use Worktrees
 
@@ -135,19 +135,19 @@ If ignored local files are required in Codex-managed app worktrees, use `.worktr
 
 ## Worker Goal And Report Files
 
-For parallel Codex threads, create one copy-ready goal file per worker mission before launch, from `assets/templates/WORKER_GOAL.template.md`:
+For parallel Codex threads, keep each worker prompt in the parent task when possible. Create a copy-ready worker goal file from `assets/templates/WORKER_GOAL.template.md` only when another task or worktree needs a durable handoff:
 
 ```text
-docs/harness/goals/M<n>_GOAL.md
+docs/goal/evidence/M<n>/GOAL.md
 ```
 
-Workers write their final report to their own mission evidence directory, never to shared harness docs:
+Workers write their final report to their temporary mission evidence directory, never to parent-owned `PLAN.md` or `RUN.md`:
 
 ```text
-docs/harness/evidence/M<n>/REPORT.md
+docs/goal/evidence/M<n>/REPORT.md
 ```
 
-The parent reads each `REPORT.md`, verifies the claims against the actual worktree state, and serializes updates into the mission coordination table. A worker without a report is not done, even if its branch has commits.
+The parent reads each `REPORT.md`, verifies the claims against the actual worktree state, and folds the durable result into `RUN.md`. After integration, retain the report only when it is needed for acceptance or future debugging.
 
 ## Worker Prompt Shape
 
@@ -157,9 +157,9 @@ Worktree: <path>
 Branch: <branch>
 Read first: <contract files>, <mission section>
 Write only: <paths>, <evidence dir>
-Do not edit: shared harness docs outside your evidence dir, frozen contracts, unrelated files.
+Do not edit: parent-owned PLAN.md or RUN.md, frozen contracts, unrelated files.
 Do not sync: never pull, rebase, merge, or push against the base branch; the parent owns sync and landing.
-Task loop: choose one task, implement it, run the verifier, record evidence, commit only if verification passes.
+Task loop: choose one task, implement it, run the verifier, record evidence, and commit only if verification passes using the harness atomic commit convention.
 Report back: write <evidence dir>/REPORT.md with changed files, commands, exit codes, evidence paths, commit hash, blockers, residual risk.
 Stop and ask if the write scope is insufficient, requirements conflict, verification cannot run, or destructive action is needed.
 ```
@@ -172,7 +172,7 @@ If the base branch advances mid-run:
 
 - Default: let workers finish their missions, then integrate onto the updated base and rerun each mission verifier there.
 - If a mid-run sync is unavoidable (for example, a fix the mission depends on landed upstream), the parent pauses the worker at a task boundary, performs the rebase or merge in that worktree, reruns the mission verifier, then resumes the worker.
-- Record every sync event and its verifier result in the runbook attempt log or coordination table.
+- Record every sync event and its verifier result in the `RUN.md` attempt log.
 - If a sync produces conflicts that touch frozen contract surfaces, stop and ask before resolving.
 
 ## Integration
@@ -197,7 +197,7 @@ Landing covers everything after local integration passes: push, PR, merge to mai
 
 ### Integration Branch Strategy
 
-Decide before launch and record it in the harness plan:
+Decide before launch and record it in `PLAN.md`:
 
 ```text
 Single mission: feature branch cut from main, land via one PR.
@@ -232,4 +232,4 @@ git worktree remove <path>
 git branch -d codex/e<n>-m<n>
 ```
 
-Ask before every removal. Never force-delete branches that are not fully merged. Record the cleanup (or the decision to defer it) in the runbook.
+Ask before every removal. Never force-delete branches that are not fully merged. Record the cleanup (or the decision to defer it) in `RUN.md`.

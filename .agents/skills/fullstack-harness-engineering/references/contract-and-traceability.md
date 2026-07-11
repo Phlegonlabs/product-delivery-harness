@@ -17,7 +17,7 @@ Verification: commands, E2E journey, evidence paths, acceptance thresholds
 Write scope: allowed paths, read-only paths, destructive-action approval gates
 ```
 
-For L full-stack, XL app, or parallel mission work, implementation starts only after the user accepts the freeze or explicitly authorizes assumptions.
+For L full-stack, XL app, or parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
 ## Source Map
 
@@ -82,38 +82,32 @@ Rules:
 - A trace ID with no downstream coverage is a launch blocker unless the user accepts it as out of scope.
 - A task with no upstream trace ID is scope drift unless it is harness, test, cleanup, or explicitly approved.
 
-## Harness Artifact Defaults
+## Compact Artifact Defaults
 
-When no repo convention exists, use:
+When no repo convention exists, enforce this file budget:
 
 ```text
-docs/harness/HARNESS_PLAN.md
-docs/harness/MISSION_RUNBOOK.md
-docs/harness/E2E_VERIFICATION.md
-docs/harness/GOAL.md
-docs/harness/goals/M<n>_GOAL.md
-docs/harness/evidence/<mission>/
-docs/harness/evidence/<mission>/REPORT.md
+direct work        -> no management files
+medium work        -> docs/goal/RUN.md
+long/multi-mission -> docs/goal/PLAN.md + docs/goal/RUN.md
+real binary proof  -> docs/goal/evidence/** only when needed
 ```
 
-When the repo already uses Epic artifacts, adapt to that structure rather than duplicating:
+Keep Goal text, checkpoint, task state, verification, evidence links, blockers, and closeout together in `RUN.md`. Use temporary `docs/goal/evidence/M<n>/REPORT.md` files only for parallel worker integration, then fold their durable result into `RUN.md`.
+
+When the repo already uses Epic artifacts, adapt to that structure rather than duplicating. Prefer one plan file and one live run file:
 
 ```text
 docs/Epic{n}/SPEC.md
-docs/Epic{n}/ARCHITECTURE.md
-docs/Epic{n}/WIREFRAME.md
-docs/Epic{n}/DESIGN_SPEC.md
-docs/Epic{n}/MISSIONS.md
-docs/Epic{n}/GOAL.md
-docs/Epic{n}/goals/Mission{n}_GOAL.md
-docs/Epic{n}/evidence/Mission{n}/
-docs/Epic{n}/evidence/Mission{n}/REPORT.md
+docs/Epic{n}/RUN.md
+docs/Epic{n}/evidence/  # only when real artifacts exist
 ```
 
 ## Stop And Ask Conditions
 
 Stop before implementation when:
 
+- `RUN.md` is not `ready`, the Plan Readiness Gate has required rows that are not `PASS`, or `execution_authorized` is false.
 - PRD and wireframe conflict on the primary flow.
 - The design system contradicts the wireframe in a user-visible way.
 - Auth, permissions, or destructive data behavior is ambiguous.

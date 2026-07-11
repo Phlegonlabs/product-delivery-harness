@@ -1,4 +1,6 @@
-# Refinement Backlog: <app or product slice>
+# Optional Expanded Refinement Backlog: <app or product slice>
+
+Keep refinement candidates in `RUN.md` by default. Use this standalone expansion only when the backlog becomes materially difficult to scan, and link it from `RUN.md`.
 
 ## Baseline Summary
 

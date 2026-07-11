@@ -23,6 +23,7 @@ Task gate:
 
 - Proves one task changed the intended behavior.
 - Must pass before commit.
+- After it passes, create at most one coherent task commit using `commit-convention.md`; split the task first when independent outcomes remain.
 
 Mission gate:
 
@@ -102,6 +103,7 @@ Actual result:
 Exit code:
 Artifact path:
 Commit hash:
+Commit subject:
 Status: PASS | FAIL | BLOCKED | UNVALIDATED
 Notes:
 ```

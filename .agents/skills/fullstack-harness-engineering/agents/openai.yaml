@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
-  short_description: "Plan app builds/refinements with E2E gates"
-  default_prompt: "Use $fullstack-harness-engineering to turn this document folder, new or updated PRD, wireframe, design system, page UI, or existing app into a verified full-stack build/refinement loop."
+  short_description: "Plan first, then run verified app delivery"
+  default_prompt: "Use $fullstack-harness-engineering to plan the complete PRD delivery order first. Do not modify production code unless I explicitly authorize plan-then-execute or approve the ready plan."
 policy:
   allow_implicit_invocation: true

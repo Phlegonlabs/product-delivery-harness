@@ -1,79 +1,141 @@
-# Mission Runbook: <feature or product slice>
+---
+schema_version: 1
+status: draft
+intent: plan-only
+plan_readiness: draft
+execution_authorized: false
+authorization_source: null
+current_mission: null
+current_task: null
+last_verified: null
+blocked: false
+next_action: null
+updated_at: null
+---
 
-## Resume Checkpoint
+# Run: <feature or product slice>
+
+Use this template as `docs/goal/RUN.md`. Keep it as the single operational dashboard for the Goal prompt, checkpoint, tasks, verification, evidence, blockers, and closeout.
+
+## Goal
 
 ```text
+/goal Deliver <measurable outcome> using <PLAN.md and canonical source paths> as the source of truth and this RUN.md as the live checkpoint. First read the complete PRD and related sources, map every must-have trace to a dependency-ordered mission, task, verifier, and final E2E gate, and pass the Plan Readiness Gate before changing production code. After readiness, execute only because this Goal explicitly authorizes delivery. Work on one ready task at a time, verify it, record evidence here, and commit only verified work when allowed using the harness atomic commit convention. Stop on unresolved conflicts, unavailable required tools, approval boundaries, or three consecutive no-progress iterations. Complete only when every required gate is PASS and every UNVALIDATED surface is explicitly accepted.
+```
+
+## Checkpoint
+
+```text
+Objective:
 Current mission:
 Current task:
-Last verified evidence:
+Last verified result:
 Remaining:
-Blocked:
+Blocked / waiting approval:
 Next action:
 ```
 
-## Run Mode And Caps
+## Run Controls
 
 ```text
-Run mode: single-checkout subagents (default) | sequential single thread | mission worktrees | Codex-managed app worktrees
-Parallel policy: write missions sequential; read-only fan-out allowed
-Max parallel workers:
-Worker goal files: docs/harness/goals/M<n>_GOAL.md (worktree mode) | n/a
-Worker report path: docs/harness/evidence/M<n>/REPORT.md
-Base branch sync policy: parent-owned; workers never sync upstream
-Landing: PR to <base branch> | push to <branch> | left local
+Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
+Execution authorized: yes | no
+Authorization source: explicit prompt | active delivery Goal | approved ready plan | none
+File budget: RUN.md | PLAN.md + RUN.md | optional evidence/
+Run mode: sequential parent | single-checkout subagents | mission worktrees | app-managed worktrees
+Parallel policy: writes sequential; read-only fan-out when allowed
+Commit convention: Conventional Commit subject + Task / Trace / Verified trailers
 Iteration cap:
-No-progress cap:
-Failed-mission cap:
-Session cap:
-Fallback if subagents/worktrees unavailable:
+No-progress cap: 3
+Landing: left local | push/PR after approval
 ```
 
-## Mission Coordination
+## Plan Readiness Gate
 
-Worktree, Branch, and Resource isolation columns apply to worktree modes only; in single-checkout mode fill them with `N/A - single-checkout`.
+| Readiness check | Status | Evidence / decision |
+|---|---|---|
+| Every in-scope trace is planned, deferred, or out of scope | draft / PASS / BLOCKED | |
+| Complete must-have task and verifier coverage | draft / PASS / BLOCKED | |
+| Dependency order is explicit and acyclic | draft / PASS / BLOCKED | |
+| Frontend/backend/data boundaries are defined | draft / PASS / BLOCKED | |
+| Shared foundations and migrations are ordered | draft / PASS / BLOCKED | |
+| UI routes, states, breakpoints, and evidence are planned | draft / PASS / BLOCKED / n/a | |
+| Mission write scopes and verifiers exist | draft / PASS / BLOCKED | |
+| Blocking decisions and approvals are resolved | draft / PASS / BLOCKED | |
+| Final E2E, regression, and release gates exist | draft / PASS / BLOCKED | |
 
-| Mission | Depends on | Worker/thread | Worktree | Branch | Resource isolation | Write scope | Verifier | Evidence | Commit | Integration result | Status |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| M1 | none | <id/name> | <path> | <branch> | <port/db/services> | <paths> | <cmd> | <path> | <hash> | pending | planned |
+Do not set `status: running` until all required rows pass and `execution_authorized: true`.
 
-## Mission <n>: <objective>
+## Mission And Task Board
 
-### Read Scope
+| Order | Mission / task | Trace | Work | Depends on | Verifier | Status | Evidence / commit |
+|---|---|---|---|---|---|---|---|
+| 1 | M1 / T1 | PRD-001 | <work> | none | <command/action> | queued | `<hash>` — `<subject>` — PASS |
 
-- <contract paths>
+Status values: `queued`, `ready`, `in_progress`, `verifying`, `passed`, `blocked`, `skipped`.
 
-### Write Scope
+Commit each independently verified task with:
 
-- <allowed paths>
+```text
+<type>(<scope>): <imperative summary>
 
-### Tasks
+Task: M<n>/T<n>
+Trace: <TRACE-ID>[, <TRACE-ID>]
+Verified: <command or action> (<pass signal>)
+```
 
-| Task | Trace | Work | Verifier | Status | Evidence | Commit |
-|---|---|---|---|---|---|---|
-| T1 | PRD-001 | <work> | <cmd> | planned | | |
+## Verification Dashboard
 
-### Acceptance
-
-| Gate | Trace | Pass signal | Status | Evidence |
+| Gate | Required | Pass signal | Status | Evidence |
 |---|---|---|---|---|
-| Task verifier | TEST-001 | <literal pass signal> | planned | |
-| UI Evidence Gate | UI-001 or `N/A - UI Evidence Gate not triggered` | required / optional / `N/A - UI Evidence Gate not triggered` | planned | |
-| Platform gate | <AUTH/TENANT/SEO/etc or n/a> | <literal pass signal or n/a> | planned | |
+| Build / static health | yes / no | <literal signal> | planned | |
+| Focused behavior | yes / no | <literal signal> | planned | |
+| API / data / permissions | yes / no | <literal signal> | planned | |
+| Primary journey | yes / no | <literal signal> | planned | |
+| UI / responsive / states | yes / no | <literal signal> | planned | |
+| Console / network | yes / no | <literal signal> | planned | |
+| Accessibility | yes / no | <literal signal> | planned | |
+| Visual comparison | yes / no | <literal signal> | planned | |
+| Performance / release | yes / no | <literal signal> | planned | |
 
-### Attempt Log
+Gate values: `planned`, `PASS`, `FAIL`, `BLOCKED`, `UNVALIDATED`.
 
-| Time | Task | Approach | Verification / evidence | Progress (prev -> now) | Result | Next action |
-|---|---|---|---|---|---|---|
-| <time> | <task> | <approach> | <cmd/path> | <metric> | <result> | <next> |
+## UI Evidence
 
-## Integration Acceptance
+Include only when UI Evidence Gate is required or optional.
 
-| Gate | Pass signal | Status | Evidence |
+| Route / flow | Viewport | State | Browser result | Console / network | A11y | Visual evidence | Status |
+|---|---|---|---|---|---|---|---|
+| <route> | <size> | ready / loading / empty / error / disabled / permission / long-running | <result> | <result> | <result> | <path> | planned |
+
+Store only real binary artifacts under `docs/goal/evidence/`. Do not create empty evidence folders.
+
+## Attempt Log
+
+| Time | Mission / task | Action | Verification | Progress | Result / next action |
+|---|---|---|---|---|---|
+| <time> | M1 / T1 | <action> | <command/path> | <before -> after> | <result> |
+
+## Blockers And Approvals
+
+| Item | Evidence | Required input / approval | Status |
 |---|---|---|---|
-| Mission verifier rerun after merge | <cmd exits 0> | planned | |
-| E2E journey | <journey passes> | planned | |
-| Final git status / diff review | <clean or expected changes only> | planned | |
-| Evidence paths exist | <all required files exist> | planned | |
-| Release impact | <recorded or n/a> | planned | |
-| Push / PR gate | E2E PASS + evidence complete + user approved landing | planned | |
-| Worktree cleanup | removed with user approval, explicitly deferred, or `N/A - single-checkout` | planned | |
+| <item> | <path/result> | <need> | open / resolved |
+
+## Skipped And Unvalidated
+
+| Surface / gate | Reason | Risk | Accepted by | Status |
+|---|---|---|---|---|
+| <surface> | <reason> | <risk> | <name/date or pending> | UNVALIDATED |
+
+## Closeout
+
+```text
+Final status:
+Outcome:
+Evidence:
+Changed files:
+Commits:
+Residual risk:
+Landing state:
+```

@@ -1,51 +1,34 @@
-# Harness Plan: <feature or product slice>
+# Plan: <feature or product slice>
 
-## Source Map
-
-| Source | Path / URL | Owner | Status | Notes |
-|---|---|---|---|---|
-| Document folder | <path> | <owner> | provided / missing / n/a | <upstream package location> |
-| PRD | <path> | <owner> | draft / frozen | <summary> |
-| Updated PRD | <path> | <owner> | draft / accepted / n/a | <delta summary> |
-| Wireframe | <path or URL> | <owner> | draft / frozen | <screens> |
-| Updated wireframe | <path or URL> | <owner> | draft / accepted / n/a | <affected screens> |
-| Design system | <path or URL> | <owner> | draft / frozen | <tokens/components> |
-| Updated design system | <path or URL> | <owner> | draft / accepted / n/a | <affected tokens/components> |
-| Page UI references | <path or URL> | <owner> | draft / accepted / n/a | <pages/components> |
-| Visual acceptance | <path or URL> | <owner> | draft / accepted / n/a | <visual gates> |
-| Architecture | <path> | <owner> | draft / frozen | <contracts> |
-| Content / CMS | <path or URL> | <owner> | draft / frozen / n/a | <collections/pages> |
-| Analytics / release | <path or URL> | <owner> | draft / frozen / n/a | <events/deploy target> |
-
-## Handoff Readiness
-
-| Input | Expected source | Status | Decision / gap |
-|---|---|---|---|
-| Product requirements | PRD.md or equivalent | present / missing / n/a | <decision> |
-| Architecture | architecture.md or equivalent | present / missing / n/a | <decision> |
-| Wireframes / UI flow | wireframes.md or equivalent | present / missing / n/a | <decision> |
-| Implementation plan | implementation-plan.md or equivalent when supplied | present / optional / n/a | <decision> |
-| Design system | design-system.md or equivalent | present / missing / n/a | <decision> |
-| Page UI matrix / notes | page-ui-matrix.md, page-ui-notes.md, or equivalent | present / missing / n/a | <decision> |
-| UI mockups / screenshots / Figma refs | ui-mockups.md, mockups/, screenshots/, figma-refs.md, or equivalent | present / missing / n/a | <decision> |
-| Visual acceptance | visual-acceptance.md or equivalent | present / missing / n/a | <decision> |
-| Required states and breakpoints | page UI matrix, wireframes, or design system | complete / partial / missing / n/a | <decision> |
+Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Omit sections that do not apply.
 
 ## Objective
 
-<One measurable outcome.>
+<One measurable outcome and stopping condition.>
 
-## Product Archetype
+## Source Map
+
+| Source | Path / URL | Status | Role / notes |
+|---|---|---|---|
+| Product requirements | <path> | draft / frozen / missing / n/a | <notes> |
+| Architecture / API / data | <path> | draft / frozen / missing / n/a | <notes> |
+| Wireframe / flow | <path> | draft / frozen / missing / n/a | <notes> |
+| Design system / page UI | <path or URL> | draft / frozen / missing / n/a | <notes> |
+| Existing app baseline | <path or URL> | captured / missing / n/a | <notes> |
+
+## Delivery Context
 
 ```text
-Archetype:
-Audience:
-Traffic or workflow objective:
-Critical surfaces:
+Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
+Execution authorized: yes | no
+Authorization source: explicit prompt | active delivery Goal | approved ready plan | none
+Product archetype:
 Existing app state:
-Refinement lenses:
-Input change type:
+Audience / primary journey:
+Critical surfaces:
 Release target:
+UI Evidence Gate: required | optional | n/a
+Orchestration: sequential parent | single-checkout subagents | mission worktrees | app-managed worktrees
 ```
 
 ## Scope
@@ -54,111 +37,92 @@ Release target:
 
 - `<TRACE-ID>` <requirement>
 
+### Should / Could / Deferred
+
+- `<TRACE-ID>` <requirement> — planned / deferred with rationale
+
 ### Non-Goals
 
 - <explicitly out of scope>
 
+### Assumptions And Open Decisions
+
+- <assumption or decision>
+
 ## Contract Freeze
 
-| Surface | Contract path / section | Status | Freeze decision |
+| Surface | Canonical source | Status | Decision / gap |
 |---|---|---|---|
-| Product | <path> | draft / frozen | <decision> |
-| Architecture / data / API | <path> | draft / frozen | <decision> |
-| UI flow / wireframe | <path> | draft / frozen | <decision> |
-| Design system | <path> | draft / frozen | <decision> |
-| Verification | <path> | draft / frozen | <decision> |
-| Input delta | <path or section> | draft / accepted / n/a | <decision> |
-| Page UI matrix | <path or section> | draft / accepted / n/a | <decision> |
-| Identity / access | <path or section> | draft / frozen / n/a | <decision> |
-| Tenant / data isolation | <path or section> | draft / frozen / n/a | <decision> |
-| Billing / entitlements | <path or section> | draft / frozen / n/a | <decision> |
-| Content / CMS / SEO | <path or section> | draft / frozen / n/a | <decision> |
-| Analytics / conversion | <path or section> | draft / frozen / n/a | <decision> |
-| Catalog / commerce | <path or section> | draft / frozen / n/a | <decision> |
+| Product behavior | <path/section> | frozen / draft / missing | <decision> |
+| Architecture / data / API | <path/section> | frozen / draft / missing / n/a | <decision> |
+| Identity / permissions | <path/section> | frozen / draft / missing / n/a | <decision> |
+| UI flow and states | <path/section> | frozen / draft / missing / n/a | <decision> |
+| Visual design | <path/section> | frozen / draft / missing / n/a | <decision> |
+| Verification | RUN.md | ready / partial | <decision> |
 
-## Platform Contract
+## Traceability
 
-### Identity And Access
+| Trace | Requirement | Mission / task | Pass signal |
+|---|---|---|---|
+| PRD-001 | <requirement> | M1 / T1 | <literal signal> |
 
-<auth/session/roles/admin or n/a>
+## Accepted Input Deltas
 
-### Tenant / Organization Model
-
-<tenant boundaries, data ownership, isolation evidence or n/a>
-
-### Billing / Entitlements
-
-<plans, limits, subscription states, feature gates or n/a>
-
-### Public Site / Content / SEO
-
-<page inventory, URL/slugs, CMS/source, metadata, sitemap, robots, redirects or n/a>
-
-### Analytics / Conversion
-
-<events, forms, pixels, consent, UTM, CRM/webhook evidence or n/a>
-
-### Catalog / Commerce
-
-<products, variants, pricing, inventory, search/filter, checkout boundary or n/a>
-
-## Traceability Matrix
-
-| Trace ID | Source | Requirement | Implementation owner | Verification |
+| Delta | Source | Change | Affected traces / surfaces | Status |
 |---|---|---|---|---|
-| PRD-001 | PRD | <requirement> | Mission <n> | TEST-001 |
+| DELTA-001 | <source> | <change> | <traces/routes/components> | accepted / blocked |
 
-## Input Delta Matrix
+## UI Surface Matrix
 
-| Delta ID | Source | Change | Affected surfaces | Supersedes | Acceptance / verifier | Status |
-|---|---|---|---|---|---|---|
-| DELTA-001 | updated PRD / wireframe / design system / page UI | <change> | <trace IDs> | <old requirement or n/a> | <gate> | proposed / accepted / blocked |
+Include only when UI Evidence Gate is required or optional.
 
-## Page UI Matrix
-
-| Page / route | UI source | Breakpoints | States | Components | Data source | Acceptance evidence |
-|---|---|---|---|---|---|---|
-| <route> | <source> | <breakpoints> | <states> | <components> | <API/data> | <screenshot/trace/test> |
-
-## Existing App Baseline
-
-| Lens | Baseline evidence | Current result | Target / threshold | Status |
+| Route / screen | Source | Breakpoints | Required states | Evidence |
 |---|---|---|---|---|
-| <UX/perf/a11y/etc> | <cmd/screenshot/trace/path> | <result> | <target> | captured / missing / n/a |
+| <route> | <source> | <sizes> | ready/loading/empty/error/... | <screenshot/trace/test> |
 
-## Refinement Backlog
+## Delivery Dependency Strategy
 
-| ID | Lens | Finding | Evidence | Impact | Effort | Risk | Proposed verifier | Status |
-|---|---|---|---|---|---|---|---|---|
-| REF-001 | <lens> | <finding> | <metric/path> | high / med / low | S / M / L | low / med / high | <cmd/threshold> | proposed |
+```text
+Shared foundations:
+Backend prerequisites:
+Frontend prerequisites:
+Mocked / contract-first work allowed:
+First end-to-end vertical slice:
+Serialized surfaces:
+Chosen order and rationale:
+```
+
+Use dependency evidence rather than a generic backend-first or frontend-first rule. Freeze shared contracts first, implement the minimum prerequisite path, validate one vertical slice, then scale the remaining missions.
 
 ## Mission Map
 
-| Mission | Objective | Depends on | Write scope | Verifier | Status |
-|---|---|---|---|---|---|
-| M1 | <foundation> | none | <paths> | <command> | planned |
+| Order | Mission | Objective | Traces | Depends on | Write scope | Exit verifier | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | M1 | <objective> | <trace IDs> | none | <paths> | <command/action> | queued |
 
-## Worktree And Thread Plan
+## Plan Readiness Gate
 
-Applies to worktree modes only. In the default single-checkout mode, write `N/A - single-checkout` here and skip the table.
-
-| Mission | Worktree | Branch | Port / DB | Runner | Merge order |
-|---|---|---|---|---|---|
-| M1 | <path> | <branch> | <port/schema> | parent / worker | 1 |
-
-## Launch Preflight
-
-Required before launching any worktree mode. In the default single-checkout mode, write `N/A - single-checkout` here and skip the table.
-
-| Check | Result | Evidence / note |
+| Readiness check | Status | Evidence / decision |
 |---|---|---|
-| Base branch | <branch> | |
-| Parent git status | clean / dirty | |
-| Existing worktrees | <list> | |
-| Branch/worktree conflicts | none / <details> | |
-| Dependency DAG/toposort | pass / fail | |
-| Resource isolation | pass / fail | |
-| .worktreeinclude needed | yes / no | |
+| Every in-scope trace is planned, deferred, or out of scope | draft / PASS / BLOCKED | <note> |
+| Every must-have trace maps to task and verifier | draft / PASS / BLOCKED | <note> |
+| Mission dependency graph is explicit and acyclic | draft / PASS / BLOCKED | <note> |
+| Frontend/backend/data integration points are defined | draft / PASS / BLOCKED | <note> |
+| Shared foundations and migrations are ordered | draft / PASS / BLOCKED | <note> |
+| UI routes, breakpoints, states, and evidence are planned | draft / PASS / BLOCKED / n/a | <note> |
+| Write scopes and deterministic verifiers exist | draft / PASS / BLOCKED | <note> |
+| Blocking decisions and approvals are resolved | draft / PASS / BLOCKED | <note> |
+| Final E2E, regression, and release gates exist | draft / PASS / BLOCKED | <note> |
+
+Implementation may start only when every required row is `PASS`, `plan_readiness` is `ready`, and execution is explicitly authorized.
+
+## Orchestration Exceptions
+
+Default is sequential work in one checkout. Complete this section only when using worktrees or parallel workers.
+
+| Mission | Worker / worktree | Resource isolation | Merge order | Temporary report |
+|---|---|---|---|---|
+| M1 | <id/path> | <port/db/services> | 1 | docs/goal/evidence/M1/REPORT.md |
 
 ## Stop / Ask Conditions
 
@@ -166,6 +130,6 @@ Required before launching any worktree mode. In the default single-checkout mode
 
 ## Open Risks
 
-| Risk | Impact | Mitigation | Owner |
-|---|---|---|---|
-| <risk> | <impact> | <mitigation> | <owner> |
+| Risk | Impact | Mitigation / owner |
+|---|---|---|
+| <risk> | <impact> | <mitigation> |
