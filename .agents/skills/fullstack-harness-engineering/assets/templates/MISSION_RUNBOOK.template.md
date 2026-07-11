@@ -43,7 +43,8 @@ Execution authorized: yes | no
 Authorization source: explicit prompt | active delivery Goal | approved ready plan | none
 File budget: RUN.md | PLAN.md + RUN.md | optional evidence/
 Run mode: sequential parent | single-checkout subagents | mission worktrees | app-managed worktrees
-Parallel policy: writes sequential; read-only fan-out when allowed
+Worker budget: parent + up to 3 child workers
+Parallel policy: multi-mission/program planning uses up to 3 independent read-only workers; writes stay sequential unless declared worktrees are isolated
 Commit convention: Conventional Commit subject + Task / Trace / Verified trailers
 Iteration cap:
 No-progress cap: 3

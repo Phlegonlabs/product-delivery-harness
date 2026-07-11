@@ -1,0 +1,4 @@
+# Keep full-harness delegation shallow and within the local runtime budget.
+[agents]
+max_threads = 4
+max_depth = 1

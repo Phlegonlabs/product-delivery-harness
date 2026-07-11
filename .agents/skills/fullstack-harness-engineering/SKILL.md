@@ -78,6 +78,7 @@ Contract state: missing | draft | frozen | delta proposed | delta accepted
 Design input state: missing | provided | partial | conflicting | frozen | updated
 UI Evidence Gate: required | optional | n/a
 Orchestration: sequential parent | single-checkout subagents | mission worktrees | app-managed worktrees
+Worker budget: parent + up to 3 child workers
 Verification surfaces:
 Execution authorized: yes | no
 Authorization source: explicit prompt | active delivery Goal | approved ready plan | none
@@ -153,7 +154,9 @@ observe -> confirm plan/authorization -> choose smallest ready task -> implement
 
 Keep one parent-owned `RUN.md`; workers never edit it concurrently.
 
+- For `multi-mission` or `program` work, spawn up to three direct child workers during planning for independent read-only source/trace coverage, dependency analysis, and UI or verification planning.
 - Default to parent execution or one sequential write mission at a time in one checkout.
+- After the Plan Readiness Gate, use sequential single-checkout workers for write missions unless `PLAN.md` declares independent worktrees with non-overlapping write scopes and isolated ports, databases, migrations, fixtures, and services.
 - Fan out read-only audits, reviews, and verification lenses only when delegation is allowed.
 - Worktree workers write temporary reports under `docs/goal/evidence/M<n>/REPORT.md`; the parent verifies and folds durable results into `RUN.md`.
 - Remove empty or duplicate worker artifacts only with required approval.
@@ -185,6 +188,7 @@ Route and file budget:
 Complete mission order and rationale:
 Plan readiness:
 Current checkpoint or proposed first mission:
+Worker allocation and integration plan:
 Verification and evidence:
 Blockers / unvalidated surfaces:
 Next action:

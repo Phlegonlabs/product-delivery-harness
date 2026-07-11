@@ -29,6 +29,7 @@ Critical surfaces:
 Release target:
 UI Evidence Gate: required | optional | n/a
 Orchestration: sequential parent | single-checkout subagents | mission worktrees | app-managed worktrees
+Worker budget: parent + up to 3 child workers
 ```
 
 ## Scope
@@ -118,7 +119,7 @@ Implementation may start only when every required row is `PASS`, `plan_readiness
 
 ## Orchestration Exceptions
 
-Default is sequential work in one checkout. Complete this section only when using worktrees or parallel workers.
+For `multi-mission` or `program` work, allocate up to three direct child workers to independent read-only planning lanes before the Plan Readiness Gate. Default write execution remains sequential in one checkout. Complete this section when using worktrees or parallel workers.
 
 | Mission | Worker / worktree | Resource isolation | Merge order | Temporary report |
 |---|---|---|---|---|
