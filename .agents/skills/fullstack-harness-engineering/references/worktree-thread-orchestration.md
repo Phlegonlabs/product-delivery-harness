@@ -36,6 +36,7 @@ A worker owns one mission lease only:
 
 - its assigned workspace and allowed mission write scope;
 - task-level implementation, verification, and authorized task commits;
+- bounded read-only child delegation when its recorded nested-subagent policy is enabled and authorized;
 - a structured result or `REFINEMENT_REQUEST` returned through the declared completion channel.
 
 Workers never edit the parent-owned `PLAN.md` or `RUN.md`, never expand their own scope, and never pull, rebase, merge, push, create a PR, deploy, or clean up unless that exact action is separately authorized and assigned.
@@ -68,8 +69,33 @@ Use `app_managed_worktree` only when the runtime exposes it and `create_user_own
 - Do not launch app-managed write fan-out unless branch and commit creation are authorized. Otherwise use sequential parent execution; this protocol does not depend on extracting an uncommitted patch from a managed worktree.
 - The platform controls managed-worktree retention. `remove_worktrees: false` prevents the harness from manually removing one; it cannot override platform lifecycle or automatic retention cleanup.
 - Use the repository's supported ignored-file inclusion mechanism, such as `.worktreeinclude`, only for necessary local files and never to copy tracked files or secrets without permission.
+- Treat the app task itself as the sole writer in its managed worktree. Direct subagents may assist only under the bounded read-only policy below; a second writer requires a separately planned outer mission and isolated worktree, not an informal nested child.
 
 True event-driven cross-task completion requires a runtime integration that exposes task/thread events (for example, Codex App Server notifications). Otherwise use `thread_poll`, `report_file`, or `user_relay` and state that limitation explicitly.
+
+## Nested Subagents Inside An App Task
+
+This is a two-level coordination shape, not another mission wave:
+
+```text
+outer coordinator -> app task / mission writer -> read-only direct subagents
+```
+
+Enable it only when all of these are true:
+
+- the outer worker uses `worker_runtime: app_task`;
+- current runtime observation proves multi-agent tools and a direct result channel are available inside that task;
+- `spawn_subagents` covers the mission and exact outer worker target or an explicitly run-wide target;
+- RUN gives the worker an enabled `nested_subagent_policy` capped at depth one and at most three children;
+- each child assignment is independent, bounded, read-only, and useful enough to offset coordination cost.
+
+Before its first production edit, a non-trivial app task with this policy evaluates four lanes: codebase exploration, documentation/API research, test/log analysis, and independent review. Run eligible exploration, research, and test-plan/contract review before writing. A child that reviews the proposed diff runs after implementation but before the mission result. The task normally spawns one to three children across those checkpoints. It may skip only when the mission is trivial, no child slot/tool is available, or no safe independent lane exists; the WORKER_RESULT must record that reason.
+
+If the outer coordinator cannot observe child-tool availability until the app task exists, perform a no-production-edit capability handshake first. The task reports tool/result availability, the coordinator records `runtime_capabilities.nested_subagents`, assigns an explicit enabled or disabled worker policy, and only then releases implementation. This avoids silently treating “not yet observed” as “unavailable.”
+
+The app task gives every child a concrete question, read/deny scope, expected evidence, required summary, and an explicit instruction not to spawn or delegate further; waits for all requested child results; reconciles disagreements itself; and remains responsible for implementation and verification. Children never edit files or PLAN/RUN, run mutating generators or shared-state services/tests, create worktrees/branches/tasks/commits, or perform integration/landing/lifecycle actions. If a child discovers code that must be changed, it reports the evidence to the app task rather than editing.
+
+Nested children do not appear as PLAN missions, receive leases, consume the outer harness write-worker budget, or report directly to the outer coordinator. The app task includes their IDs, roles, tasks, status, summaries, and evidence paths in `subagent_activity`; the outer coordinator validates the mission result and actual Git state as usual.
 
 ## Launch Preconditions
 
@@ -119,6 +145,7 @@ plan revision and digest
 mission ID and lease ID
 batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
+enabled nested-subagent policy or an explicit disabled policy
 allowed and denied paths
 declared serialized/runtime resources
 task order and verifier argv/cwd

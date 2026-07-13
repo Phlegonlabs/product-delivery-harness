@@ -491,6 +491,101 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
 
+    def test_app_task_accepts_authorized_bounded_nested_subagents(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        digest = plan_digest(plan)
+        run["runtime_capabilities"] = {
+            "worker_runtime": "app_task",
+            "workspace_mode": "app_managed_worktree",
+            "completion_channel": "thread_poll",
+            "max_parallel_workers": 3,
+            "nested_subagents": {
+                "available": True,
+                "max_depth": 1,
+                "max_children_per_worker": 3,
+                "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
+                "write_policy": "read_only",
+                "completion_channel": "agent_result",
+            },
+            "platform_lifecycle": {
+                "owner": "app",
+                "automatic_retention_cleanup_possible": True,
+                "durable_branch_required_before_unique_work": True,
+            },
+        }
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": True,
+            "source": "user: explicit nested-subagent request",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1"],
+                "targets": ["worker:W1"],
+            },
+            "expires_when": "run_complete",
+        }
+        run["mission_states"]["M1"].update(
+            {
+                "phase": "leased",
+                "lease_id": "LEASE1",
+                "lease_plan_revision": 1,
+                "lease_plan_digest_sha256": digest,
+                "worker_id": "W1",
+                "base_sha": SHA_A,
+            }
+        )
+        run["workers"] = [
+            {
+                "worker_id": "W1",
+                "mission_id": "M1",
+                "lease_id": "LEASE1",
+                "plan_revision": 1,
+                "plan_digest_sha256": digest,
+                "batch_base_sha": SHA_A,
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "nested_subagent_policy": {
+                    "enabled": True,
+                    "max_children": 3,
+                    "allowed_roles": ["explorer", "reviewer", "tester"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+                "task_thread_id": "THREAD1",
+                "worktree_path": "/tmp/app-m1",
+                "branch_ref": "refs/heads/codex/app-m1",
+                "report_path": None,
+                "phase": "leased",
+                "worker_head_sha": None,
+            }
+        ]
+        self.assertEqual(validate_run(plan, run), [])
+
+        del run["workers"][0]["nested_subagent_policy"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "is required for app_task workers when runtime nested_subagents is recorded",
+        )
+        run["workers"][0]["nested_subagent_policy"] = {
+            "enabled": True,
+            "max_children": 3,
+            "allowed_roles": ["explorer", "reviewer", "tester"],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        }
+
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "requires matching spawn_subagents authorization",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

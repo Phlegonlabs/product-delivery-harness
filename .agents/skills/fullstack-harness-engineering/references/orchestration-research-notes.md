@@ -18,7 +18,7 @@ This replaces the older single mode enum. A mode label hid important differences
 
 The portable default remains serialized writes in one checkout. Read-only work may fan out. Parallel writes require isolated eligible worktrees, complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
 
-The skill deliberately uses a parent-to-mission-worker shape and keeps tasks sequential within each mission. This is a portability and coordination decision, not a claim that Codex can never support greater nesting.
+The skill uses a parent-to-mission-writer shape and keeps task implementation sequential within each mission. An app-task mission writer may now use bounded direct subagents for independent read-only exploration, research, test analysis, and review. This adds useful nesting without creating a second writer or changing the mission DAG.
 
 ## Codex Subagents
 
@@ -26,9 +26,12 @@ Official Codex subagent documentation establishes these current facts:
 
 - The main agent coordinates child agents, follow-up instructions, waits, and results.
 - Subagents can be requested directly and can also be triggered by applicable skills or `AGENTS.md` instructions when the active configuration permits delegation. “Explicit request only” is not a universal platform invariant.
-- `agents.max_depth` defaults to `1`; it is configurable. A default of one produces the common parent -> worker shape, but it is not a hard maximum to encode in this skill.
+- `agents.max_depth` defaults to `1` and the Codex platform value is configurable. Independently of that platform flexibility, this harness deliberately applies a stricter depth-one maximum to task-local app-worker helpers so they cannot create grandchildren.
 - `agents.max_threads` defaults to `6`, but the effective concurrency available to a task can be lower because of runtime configuration, active workers, product limits, or this harness's stricter budget.
 - Parent-owned subagent results can return to the parent execution flow. Independently created app tasks are a different primitive and must not be assumed to have the same result channel.
+- Codex app tasks can delegate independent work after a direct request or when applicable skill/`AGENTS.md` instructions request it. Merely enabling `features.multi_agent` does not force delegation; the task prompt still needs an applicable delegation rule.
+- Official guidance recommends starting with read-heavy exploration, tests, triage, and summarization, and being more careful with concurrent write-heavy work.
+- Subagents inherit the parent task's active permission mode and available tools. They can still surface approvals for tool-specific or sandbox-controlled actions; nested delegation is not an approval bypass.
 
 Therefore the capability gate observes actual worker slots and completion behavior instead of inferring them from a version string or default configuration.
 
@@ -65,6 +68,8 @@ True event-driven Codex integration is an App Server client capability. App Serv
 | `subagent` | `parent_managed_worktree` | `agent_result` or `report_file` | parallel writes only after full fan-out gate |
 | `app_task` | `app_managed_worktree` | `thread_poll`, `report_file`, or `user_relay` | parallel writes only after full fan-out gate and lifecycle acknowledgement |
 
+Inside the last row, the app task may coordinate up to three direct read-only helpers when the RUN policy and `spawn_subagents` authorization permit it. Those helpers return `agent_result` to the app task; they are not additional app tasks or write workers.
+
 These are examples, not an exhaustive compatibility table. The parent must prove that the chosen combination exists in the current environment. If a completion channel or workspace primitive is missing, fall back to sequential execution.
 
 ## Re-Verification Checklist
@@ -90,7 +95,7 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 
 ## Sources
 
-- Codex subagents: https://developers.openai.com/codex/subagents
+- Codex subagents: https://learn.chatgpt.com/docs/agent-configuration/subagents
 - Codex app worktrees: https://developers.openai.com/codex/app/worktrees
 - Codex App Server: https://developers.openai.com/codex/app-server
 - Codex best practices: https://developers.openai.com/codex/learn/best-practices

@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
   short_description: "Plan first, then run verified app delivery"
-  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery missions, validate deterministic execution waves, and run only the actions I explicitly authorize."
+  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery missions, validate deterministic execution waves, and use bounded read-only subagents inside app-task workers only when I explicitly authorize them."
 policy:
   allow_implicit_invocation: true

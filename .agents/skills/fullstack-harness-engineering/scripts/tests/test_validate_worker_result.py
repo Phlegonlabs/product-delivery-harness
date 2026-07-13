@@ -429,6 +429,102 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, self.run, result)
         self.assertIn("unknown_field", error_codes(errors))
 
+    def test_completed_activity_requires_an_enabled_policy(self) -> None:
+        result = copy.deepcopy(self.result)
+        result["subagent_activity"] = {
+            "status": "completed",
+            "skip_reason": None,
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "explorer",
+                    "task": "Trace the affected request path.",
+                    "status": "completed",
+                    "summary": "The path is isolated to the planned module.",
+                    "evidence_paths": ["src/m1/file.py"],
+                }
+            ],
+        }
+        errors = validate(self.plan, self.run, result)
+        self.assertIn("invalid_value", error_codes(errors))
+
+    def test_enabled_nested_policy_requires_and_validates_activity(self) -> None:
+        run = copy.deepcopy(self.run)
+        worker = run["workers"][0]
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "nested_subagents": {
+                    "available": True,
+                    "max_depth": 1,
+                    "max_children_per_worker": 3,
+                    "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+            }
+        )
+        run["runtime_capabilities"]["platform_lifecycle"] = {
+            "owner": "app",
+            "automatic_retention_cleanup_possible": True,
+            "durable_branch_required_before_unique_work": True,
+        }
+        worker.update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "nested_subagent_policy": {
+                    "enabled": True,
+                    "max_children": 2,
+                    "allowed_roles": ["explorer", "reviewer"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+            }
+        )
+        run["observed"]["git"]["worktrees"][0]["managed_by"] = "app"
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": True,
+            "source": "test user authorization",
+            "scope": {
+                "run_id": "RUN_TEST",
+                "mission_ids": ["M1"],
+                "targets": ["worker:W1"],
+            },
+            "expires_when": "run_complete",
+        }
+
+        errors = validate(self.plan, run, copy.deepcopy(self.result))
+        self.assertIn("missing_field", error_codes(errors))
+
+        result = copy.deepcopy(self.result)
+        result["subagent_activity"] = {
+            "status": "completed",
+            "skip_reason": None,
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "explorer",
+                    "task": "Trace the affected request path.",
+                    "status": "completed",
+                    "summary": "The change is isolated to the planned module.",
+                    "evidence_paths": ["src/m1/file.py"],
+                },
+                {
+                    "agent_id": "A2",
+                    "role": "reviewer",
+                    "task": "Review the proposed behavior and tests.",
+                    "status": "completed",
+                    "summary": "No additional correctness gaps found.",
+                    "evidence_paths": ["evidence/task.txt"],
+                },
+            ],
+        }
+        self.assertEqual(validate(self.plan, run, result), [])
+
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "REPORT.md"

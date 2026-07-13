@@ -155,7 +155,7 @@ Before each action, check its entry again and compare it with observed state. A 
 
 Represent orchestration with three independent axes. Do not encode them as a single mode string.
 
-RUN records them together under `runtime_capabilities`, along with `max_parallel_workers` and a `platform_lifecycle` object. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
+RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and an optional backward-compatible `nested_subagents` policy. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
 
 ### Worker runtime
 
@@ -190,6 +190,29 @@ agent_result | thread_poll | report_file | user_relay
 
 Do not promise an automatic callback from a generic skill. True event-driven task completion requires an App Server client that subscribes to completion/status notifications. Without that integration, use an available poll/result/report channel or fall back to sequential execution.
 
+### Nested subagents inside app tasks
+
+An app task is a root task in its own app-managed worktree and may coordinate direct child subagents when the current runtime exposes multi-agent tools. Record the task-local policy under `runtime_capabilities.nested_subagents`:
+
+```json
+{
+  "available": true,
+  "max_depth": 1,
+  "max_children_per_worker": 3,
+  "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
+  "write_policy": "read_only",
+  "completion_channel": "agent_result"
+}
+```
+
+`available` is an observed capability, not authorization. A worker may enable this policy only when `spawn_subagents` covers its mission and exact `worker:<id>` target (or an explicitly run-wide `*` target). The harness caps the task-local shape at direct children only and three children per app task even if Codex is configured for more.
+
+When capability cannot be proven before an app task exists, use a two-stage handshake: launch or continue the task without production edits, ask it to report whether multi-agent tools/direct results are present, record that observation in RUN, then send the explicit enabled or disabled worker policy. Do not leave a known-capable task implicitly disabled merely because capability was unknown at initial allocation.
+
+The outer app task remains the mission lease holder and sole writer in its worktree. Children may inspect code, research documentation, analyze tests/logs, or review a proposed diff. They do not receive mission leases, alter the outer wave budget, edit PLAN/RUN, mutate repository or shared runtime state, create tasks/worktrees/branches/commits, integrate, land, deploy, or clean up. Their direct `agent_result` is internal to the app task; the outer parent still observes only the app task through `thread_poll`, `report_file`, or `user_relay`.
+
+Each new app-task worker under a RUN that records `runtime_capabilities.nested_subagents` must carry an explicit `nested_subagent_policy` with `enabled`, `max_children`, allowed roles, read-only write policy, and `agent_result` completion. Its WORKER_RESULT records `subagent_activity`: completed child summaries, partial/failure evidence, or a concrete reason that eligible delegation was skipped or unavailable. This report is worker-supplied evidence, not a substitute for parent-observed Git/runtime facts. Older schema-v2 records that omit both optional nested fields remain backward-compatible.
+
 ## Capability Gate
 
 Before leasing or fanning out a mission, the parent must prove all applicable rows:
@@ -203,6 +226,7 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 | Integration observable | Parent can obtain base SHA, worker head SHA, actual changed paths, and verifier evidence |
 | Resource isolation | File scopes and every runtime resource have complete, supported claims |
 | Lifecycle understood | Branch/ref durability and app-managed retention behavior are recorded |
+| Nested delegation bounded | Any enabled app-task child policy is covered by `spawn_subagents`, stays at depth one, uses at most three read-only children, and returns results to the app-task parent |
 
 If any row is unknown, do not fan out. Select a supported sequential combination, normally `parent` or `subagent` with `shared_checkout`, and apply the same verification gates.
 
@@ -220,6 +244,6 @@ selected_missions
 deferred_missions and reason codes
 ```
 
-Each mission lease and worker record repeats the lease ID, plan revision/digest, and batch base so stale results can be rejected without inference. Worker records also name runtime/workspace/completion axes, task/thread identity when applicable, worktree path, branch/ref, optional report path, phase, and observed head SHA.
+Each mission lease and worker record repeats the lease ID, plan revision/digest, and batch base so stale results can be rejected without inference. Worker records also name runtime/workspace/completion axes, task/thread identity when applicable, worktree path, branch/ref, optional nested-subagent policy, optional report path, phase, and observed head SHA.
 
 Worker status, head SHA, integration result, and evidence are live RUN state. After any worker failure, integration failure, dependency change, plan revision, or completed batch, close the wave and recompute from current state. A plan revision supersedes every active old-revision lease: quiesce those workers at safe boundaries and issue new leases only after validating their preserved heads against the new plan. Never carry forward an old result, conflict, or readiness assumption.

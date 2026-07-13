@@ -11,6 +11,7 @@ from typing import Any, Iterable
 
 from harness_manifest import (
     ManifestError,
+    NESTED_SUBAGENT_ROLES,
     authorization_covers,
     execution_covers,
     load_plan,
@@ -59,6 +60,15 @@ TASK_RESULT_FIELDS = {
     "evidence_paths",
 }
 VERIFIER_RESULT_FIELDS = {"id", "status", "evidence"}
+SUBAGENT_ACTIVITY_FIELDS = {"status", "skip_reason", "children"}
+SUBAGENT_CHILD_FIELDS = {
+    "agent_id",
+    "role",
+    "task",
+    "status",
+    "summary",
+    "evidence_paths",
+}
 ISOLATED_WORKSPACES = {"parent_managed_worktree", "app_managed_worktree"}
 
 
@@ -77,6 +87,8 @@ def _check_exact_fields(
     expected: set[str],
     path: str,
     errors: list[dict[str, str]],
+    *,
+    optional: set[str] | None = None,
 ) -> bool:
     if not isinstance(value, dict):
         _issue(errors, "invalid_type", path, "must be an object")
@@ -84,9 +96,90 @@ def _check_exact_fields(
     actual = set(value)
     for field in sorted(expected - actual):
         _issue(errors, "missing_field", f"{path}.{field}", "required field is missing")
-    for field in sorted(actual - expected):
+    allowed_optional = optional or set()
+    for field in sorted(actual - expected - allowed_optional):
         _issue(errors, "unknown_field", f"{path}.{field}", "unknown field is not allowed")
-    return actual == expected
+    return expected.issubset(actual) and actual.issubset(expected | allowed_optional)
+
+
+def _validate_subagent_activity(
+    value: Any,
+    *,
+    policy: dict[str, Any] | None,
+    errors: list[dict[str, str]],
+) -> None:
+    path = "worker_result.subagent_activity"
+    if not _check_exact_fields(value, SUBAGENT_ACTIVITY_FIELDS, path, errors):
+        return
+    status = _require_string(value.get("status"), f"{path}.status", errors)
+    if status not in {"completed", "partial", "unavailable", "not_applicable"}:
+        _issue(errors, "invalid_value", f"{path}.status", "has an unsupported value")
+    skip_reason = value.get("skip_reason")
+    if skip_reason is not None:
+        _require_string(skip_reason, f"{path}.skip_reason", errors)
+    children = value.get("children")
+    if not isinstance(children, list):
+        _issue(errors, "invalid_type", f"{path}.children", "must be an array")
+        return
+    child_statuses: list[str] = []
+    child_roles: list[str] = []
+    agent_ids: list[str] = []
+    for index, child in enumerate(children):
+        child_path = f"{path}.children[{index}]"
+        if not _check_exact_fields(child, SUBAGENT_CHILD_FIELDS, child_path, errors):
+            continue
+        agent_id = _require_string(child.get("agent_id"), f"{child_path}.agent_id", errors)
+        role = _require_string(child.get("role"), f"{child_path}.role", errors)
+        _require_string(child.get("task"), f"{child_path}.task", errors)
+        child_status = _require_string(child.get("status"), f"{child_path}.status", errors)
+        _require_string(child.get("summary"), f"{child_path}.summary", errors)
+        _require_string_list(child.get("evidence_paths"), f"{child_path}.evidence_paths", errors)
+        if agent_id is not None:
+            agent_ids.append(agent_id)
+        if role is not None:
+            child_roles.append(role)
+            if role not in NESTED_SUBAGENT_ROLES:
+                _issue(errors, "invalid_value", f"{child_path}.role", "has an unsupported value")
+        if child_status is not None:
+            child_statuses.append(child_status)
+            if child_status not in {"completed", "failed", "stopped"}:
+                _issue(errors, "invalid_value", f"{child_path}.status", "has an unsupported value")
+    if len(agent_ids) != len(set(agent_ids)):
+        _issue(errors, "duplicate_value", f"{path}.children", "agent_id values must be unique")
+    enabled = isinstance(policy, dict) and policy.get("enabled") is True
+    if enabled:
+        if status == "not_applicable":
+            _issue(errors, "invalid_value", f"{path}.status", "cannot be not_applicable when policy is enabled")
+        limit = policy.get("max_children")
+        if isinstance(limit, int) and not isinstance(limit, bool) and len(children) > limit:
+            _issue(errors, "over_budget", f"{path}.children", "exceeds worker nested-subagent limit")
+        allowed_roles = set(policy.get("allowed_roles", []))
+        if set(child_roles) - allowed_roles:
+            _issue(errors, "invalid_value", f"{path}.children", "contains a role outside the worker policy")
+    elif status in {"completed", "partial"}:
+        _issue(
+            errors,
+            "invalid_value",
+            f"{path}.status",
+            "requires an enabled worker nested-subagent policy",
+        )
+    if status == "completed":
+        if not children:
+            _issue(errors, "missing_field", f"{path}.children", "completed activity requires at least one child")
+        if any(item != "completed" for item in child_statuses):
+            _issue(errors, "invalid_value", f"{path}.children", "completed activity requires completed children")
+        if skip_reason is not None:
+            _issue(errors, "invalid_value", f"{path}.skip_reason", "must be null when completed")
+    elif status == "partial":
+        if not children or all(item == "completed" for item in child_statuses):
+            _issue(errors, "invalid_value", f"{path}.children", "partial activity requires a failed or stopped child")
+        if not isinstance(skip_reason, str) or not skip_reason:
+            _issue(errors, "missing_field", f"{path}.skip_reason", "partial activity requires an explanation")
+    elif status in {"unavailable", "not_applicable"}:
+        if children:
+            _issue(errors, "invalid_value", f"{path}.children", "must be empty for this status")
+        if not isinstance(skip_reason, str) or not skip_reason:
+            _issue(errors, "missing_field", f"{path}.skip_reason", "requires a concrete reason")
 
 
 def _require_string(
@@ -189,7 +282,13 @@ def validate_worker_result_data(
     """Return deterministic validation issues for one integration candidate."""
 
     errors: list[dict[str, str]] = []
-    _check_exact_fields(result, WORKER_RESULT_FIELDS, "worker_result", errors)
+    _check_exact_fields(
+        result,
+        WORKER_RESULT_FIELDS,
+        "worker_result",
+        errors,
+        optional={"subagent_activity"},
+    )
 
     result_type = _require_string(result.get("type"), "worker_result.type", errors)
     run_id = _require_string(result.get("run_id"), "worker_result.run_id", errors)
@@ -286,6 +385,24 @@ def validate_worker_result_data(
         worker: dict[str, Any] = {}
     else:
         worker = worker_matches[0]
+
+    nested_policy = (
+        worker.get("nested_subagent_policy") if isinstance(worker, dict) else None
+    )
+    if isinstance(nested_policy, dict):
+        if "subagent_activity" not in result:
+            _issue(
+                errors,
+                "missing_field",
+                "worker_result.subagent_activity",
+                "is required when the worker records a nested-subagent policy",
+            )
+    if "subagent_activity" in result:
+        _validate_subagent_activity(
+            result.get("subagent_activity"),
+            policy=nested_policy if isinstance(nested_policy, dict) else None,
+            errors=errors,
+        )
 
     worker_id = mission_state.get("worker_id")
     binding_checks = [

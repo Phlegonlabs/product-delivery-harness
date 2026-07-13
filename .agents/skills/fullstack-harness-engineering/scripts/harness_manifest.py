@@ -69,6 +69,7 @@ TARGET_RE = re.compile(
     r"^(?:worker|task|worktree|branch|remote|pr|environment):.+$"
 )
 EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
+NESTED_SUBAGENT_ROLES = {"explorer", "researcher", "reviewer", "tester"}
 
 
 class ManifestError(ValueError):
@@ -943,7 +944,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "platform_lifecycle",
     }
     runtime = run["runtime_capabilities"]
-    if _keys(errors, "run.runtime_capabilities", runtime, runtime_keys):
+    if _keys(
+        errors,
+        "run.runtime_capabilities",
+        runtime,
+        runtime_keys,
+        {"nested_subagents"},
+    ):
         if runtime["worker_runtime"] not in {"parent", "subagent", "app_task"}:
             _add(errors, "run.runtime_capabilities.worker_runtime", "has an unsupported value")
         if runtime["workspace_mode"] not in {
@@ -961,6 +968,66 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.completion_channel", "has an unsupported value")
         if not _is_int(runtime["max_parallel_workers"]) or not 1 <= runtime["max_parallel_workers"] <= 3:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
+        nested = runtime.get("nested_subagents")
+        if nested is not None and _keys(
+            errors,
+            "run.runtime_capabilities.nested_subagents",
+            nested,
+            {
+                "available",
+                "max_depth",
+                "max_children_per_worker",
+                "allowed_roles",
+                "write_policy",
+                "completion_channel",
+            },
+        ):
+            if not isinstance(nested["available"], bool):
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents.available",
+                    "must be boolean",
+                )
+            if nested["max_depth"] != 1:
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents.max_depth",
+                    "must equal 1",
+                )
+            if (
+                not _is_int(nested["max_children_per_worker"])
+                or not 1 <= nested["max_children_per_worker"] <= 3
+            ):
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents.max_children_per_worker",
+                    "must be 1..3",
+                )
+            roles = _strings(
+                errors,
+                "run.runtime_capabilities.nested_subagents.allowed_roles",
+                nested["allowed_roles"],
+                nonempty=True,
+            )
+            unknown_roles = sorted(set(roles) - NESTED_SUBAGENT_ROLES)
+            if unknown_roles:
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents.allowed_roles",
+                    f"unsupported roles: {', '.join(unknown_roles)}",
+                )
+            if nested["write_policy"] != "read_only":
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents.write_policy",
+                    "must equal read_only",
+                )
+            if nested["completion_channel"] != "agent_result":
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents.completion_channel",
+                    "must equal agent_result",
+                )
         lifecycle = runtime["platform_lifecycle"]
         if _keys(
             errors,
@@ -1165,7 +1232,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     else:
         for index, worker in enumerate(workers):
             path = f"run.workers[{index}]"
-            if not _keys(errors, path, worker, worker_keys):
+            if not _keys(errors, path, worker, worker_keys, {"nested_subagent_policy"}):
                 continue
             for key in ("worker_id", "mission_id", "lease_id", "plan_digest_sha256", "batch_base_sha"):
                 if not _nonempty_string(worker[key]):
@@ -1192,6 +1259,128 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.phase", "has an unsupported value")
             if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
                 _add(errors, f"{path}.report_path", "is required for report_file")
+            nested_policy = worker.get("nested_subagent_policy")
+            if (
+                worker["worker_runtime"] == "app_task"
+                and isinstance(runtime, dict)
+                and "nested_subagents" in runtime
+                and nested_policy is None
+            ):
+                _add(
+                    errors,
+                    f"{path}.nested_subagent_policy",
+                    "is required for app_task workers when runtime nested_subagents is recorded",
+                )
+            if nested_policy is not None and _keys(
+                errors,
+                f"{path}.nested_subagent_policy",
+                nested_policy,
+                {
+                    "enabled",
+                    "max_children",
+                    "allowed_roles",
+                    "write_policy",
+                    "completion_channel",
+                },
+            ):
+                if not isinstance(nested_policy["enabled"], bool):
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.enabled",
+                        "must be boolean",
+                    )
+                if nested_policy["write_policy"] != "read_only":
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.write_policy",
+                        "must equal read_only",
+                    )
+                if nested_policy["completion_channel"] != "agent_result":
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.completion_channel",
+                        "must equal agent_result",
+                    )
+                policy_roles = _strings(
+                    errors,
+                    f"{path}.nested_subagent_policy.allowed_roles",
+                    nested_policy["allowed_roles"],
+                    nonempty=bool(nested_policy["enabled"]),
+                )
+                runtime_nested = (
+                    runtime.get("nested_subagents")
+                    if isinstance(runtime, dict)
+                    else None
+                )
+                if nested_policy["enabled"]:
+                    if worker["worker_runtime"] != "app_task":
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "may be true only for app_task workers",
+                        )
+                    if worker["workspace_mode"] != "app_managed_worktree":
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "requires an app_managed_worktree",
+                        )
+                    if not isinstance(runtime_nested, dict) or runtime_nested.get("available") is not True:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "requires an available runtime nested-subagent capability",
+                        )
+                    runtime_limit = (
+                        runtime_nested.get("max_children_per_worker")
+                        if isinstance(runtime_nested, dict)
+                        else None
+                    )
+                    if (
+                        not _is_int(nested_policy["max_children"])
+                        or not 1 <= nested_policy["max_children"] <= 3
+                        or (_is_int(runtime_limit) and nested_policy["max_children"] > runtime_limit)
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.max_children",
+                            "must be 1..3 and not exceed the runtime limit",
+                        )
+                    runtime_roles = (
+                        set(runtime_nested.get("allowed_roles", []))
+                        if isinstance(runtime_nested, dict)
+                        else set()
+                    )
+                    if set(policy_roles) - runtime_roles:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must be a subset of runtime allowed_roles",
+                        )
+                    if not authorization_covers(
+                        run,
+                        "spawn_subagents",
+                        worker["mission_id"],
+                        f"worker:{worker['worker_id']}",
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "requires matching spawn_subagents authorization",
+                        )
+                else:
+                    if nested_policy["max_children"] != 0:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.max_children",
+                            "must equal 0 when disabled",
+                        )
+                    if policy_roles:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must be empty when disabled",
+                        )
 
     if not isinstance(run["attempt_log"], list):
         _add(errors, "run.attempt_log", "must be a list")

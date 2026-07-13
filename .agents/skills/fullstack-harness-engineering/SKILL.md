@@ -26,7 +26,7 @@ For plan-backed orchestration, keep three layers separate:
 - Read `references/design-input-updates.md` for updated PRDs, wireframes, design systems, screenshots, Figma/page UI references, or page-specific deltas.
 - Read `references/platform-archetypes.md` to select only relevant platform contracts and gates.
 - Read `references/existing-app-refinement.md` for audits, baselines, ranked improvements, and before/after evidence.
-- Read `references/worktree-thread-orchestration.md` only for multiple missions, subagents, app tasks, worker threads, or worktrees.
+- Read `references/worktree-thread-orchestration.md` only for multiple missions, subagents, nested subagents inside app tasks, worker threads, or worktrees.
 - Read `references/orchestration-research-notes.md` before changing orchestration guidance.
 - Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
 - Read `references/commit-convention.md` before creating or recording any harness-managed commit.
@@ -119,6 +119,7 @@ UI Evidence Gate: required | optional | n/a
 Worker runtime: parent | subagent | app_task
 Workspace mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 Completion channel: agent_result | thread_poll | report_file | user_relay
+Nested subagents: unavailable | available-not-authorized | enabled-read-only
 Configured worker budget:
 Observed runtime/isolation capacity:
 Verification surfaces:
@@ -212,6 +213,9 @@ Keep one parent-owned `PLAN.md` and `RUN.md`; workers never edit either.
 - Isolated write fan-out requires authorized durable branch and commit creation; the portable coordinator does not integrate uncommitted patches from worker workspaces.
 - Integrate a wave serially in deterministic order. Validate actual diffs and worker results, rerun integration verifiers, mark only successful heads `integrated`, then recompute the next frontier.
 - App-managed tasks are user-owned independent tasks; do not promise automatic parent callbacks. Use the declared completion channel. Platform-managed retention remains outside manual cleanup authorization.
+- An `app_task` mission worker may use bounded direct subagents only when `spawn_subagents` covers that worker and RUN records an enabled nested-subagent policy. The app task remains the sole mission writer; nested children are read-only explorers, researchers, test analysts, or reviewers and never edit PLAN/RUN, create refs/worktrees/tasks, commit, integrate, push, deploy, or clean up.
+- For a non-trivial app task with an enabled policy, explicitly evaluate independent read-only lanes before the first production edit. Run eligible exploration, documentation/API verification, and test-plan/contract review lanes before writing; run a proposed-diff review after implementation but before the mission result. Normally spawn one to three direct children across those checkpoints; skip only for trivial work, missing slots/runtime, or no safe independent lane, and report the reason. Wait for requested children and synthesize their results before returning the mission result.
+- Nested children are task-local assistants, not new harness missions. They receive no mission lease, do not change the outer wave budget or dependency graph, and return only to their app-task parent through `agent_result`; the outer coordinator continues to observe the app task through its declared completion channel.
 - If subagents, app tasks, worktrees, callbacks, or slots are unavailable, run the same dependency-ordered plan sequentially.
 
 ### 6. Verify UI And Close

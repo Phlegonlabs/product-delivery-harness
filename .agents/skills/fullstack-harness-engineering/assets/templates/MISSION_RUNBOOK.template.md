@@ -81,6 +81,19 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
       "workspace_mode": "shared_checkout",
       "completion_channel": "agent_result",
       "max_parallel_workers": 1,
+      "nested_subagents": {
+        "available": false,
+        "max_depth": 1,
+        "max_children_per_worker": 3,
+        "allowed_roles": [
+          "explorer",
+          "researcher",
+          "reviewer",
+          "tester"
+        ],
+        "write_policy": "read_only",
+        "completion_channel": "agent_result"
+      },
       "platform_lifecycle": {
         "owner": "parent",
         "automatic_retention_cleanup_possible": false,
@@ -182,6 +195,8 @@ Use these exact coordination enums:
 - `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
 - `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
 
+`runtime_capabilities.nested_subagents.available` records whether direct child tools/results were observed inside app tasks; it does not grant permission. The harness policy always caps nesting at depth one, children per app task at three, child work to the listed functional roles, writes to `read_only`, and child completion to `agent_result`. Set a worker's nested policy to enabled only when `spawn_subagents` covers its mission and `worker:<id>` target (or an explicitly run-wide `*`).
+
 Use mission phases `queued`, `ready`, `leased`, `worker_running`, `worker_passed`, `integrating`, and `integrated`; mission failure states are `blocked`, `worker_failed`, `integration_failed`, and `superseded`. Use task phases `queued`, `ready`, `running`, `worker_passed`, and `mission_recorded`; task failure states are `blocked`, `worker_failed`, and `superseded`. `worker_passed` does not satisfy downstream mission dependencies. Only a mission at `integrated` with `integration_gate: "PASS"` and an integrated SHA verified as an ancestor of the current integration head does.
 
 Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_plan_digest_sha256`, `base_sha`, and `worker_id`. Each `workers` entry uses this exact shape:
@@ -197,6 +212,13 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
   "worker_runtime": "subagent",
   "workspace_mode": "parent_managed_worktree",
   "completion_channel": "agent_result",
+  "nested_subagent_policy": {
+    "enabled": false,
+    "max_children": 0,
+    "allowed_roles": [],
+    "write_policy": "read_only",
+    "completion_channel": "agent_result"
+  },
   "task_thread_id": null,
   "worktree_path": "<path or null>",
   "branch_ref": "<branch/ref or null>",
@@ -207,6 +229,8 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
 ```
 
 Worker phases are `leased`, `worker_running`, `worker_passed`, `blocked`, `worker_failed`, and `superseded`. An `attempt_log` entry records `attempt_id`, `mission_id`, nullable `task_id` and `lease_id`, `kind`, `result`, and an `evidence` array. Keep observations such as timestamps inside RUN for audit only; selection output remains timestamp-free.
+
+For an enabled app-task nested policy, use `max_children` from 1 to 3 and a non-empty subset of the runtime `allowed_roles`. The app task stays the only writer. It normally launches eligible read-only lanes and records the resulting child activity—or an exact skip/unavailable reason—in WORKER_RESULT. When capability is initially unknown, keep the task at a no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy` and matching `subagent_activity`.
 
 Use active-wave statuses `idle`, `proposed`, `active`, `closed`, and `superseded`. Any accepted plan revision supersedes the active wave and every old-revision lease; quiesce those workers and issue new leases after revalidation rather than accepting stale results.
 
@@ -286,9 +310,9 @@ The parent selects a ready, non-conflicting wave from validated canonical state,
 
 ## Worker View
 
-| Worker | Mission | Runtime | Workspace | Completion | Base / head | Phase | Result source |
-|---|---|---|---|---|---|---|---|
-| <id> | M1 | parent / subagent / app_task | <mode> | <channel> | <SHAs> | <phase> | <result/report/thread> |
+| Worker | Mission | Runtime | Workspace | Completion | Nested helpers | Base / head | Phase | Result source |
+|---|---|---|---|---|---|---|---|---|
+| <id> | M1 | parent / subagent / app_task | <mode> | <channel> | disabled / 1-3 read-only | <SHAs> | <phase> | <result/report/thread> |
 
 For `app_task`, remember that the task is user-owned and automatic cross-task callbacks are not guaranteed. Use `thread_poll` or `user_relay` unless an event-capable integration is actually available. For `app_managed_worktree`, record platform retention behavior and create a durable branch or ref before unique work when authorized; cleanup controls cannot override platform-managed retention.
 
