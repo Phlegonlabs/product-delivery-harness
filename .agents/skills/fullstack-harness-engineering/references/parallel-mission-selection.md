@@ -43,7 +43,8 @@ A mission is in the ready frontier only when all conditions pass:
 7. `resource_inventory_complete` is true.
 8. The chosen runtime/workspace/completion capability combination supports the mission; a parallel write mission has `worktree_eligible: true` and an isolated workspace.
 9. Required action-specific authorizations for the proposed launch path are present.
-10. No human approval, secret, service, contract decision, or destructive action remains unresolved.
+10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
+11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
 An isolated write worker must have an authorized durable branch/ref and `create_local_commits: true`; the portable protocol does not integrate an uncommitted patch from another workspace. When those are unavailable, keep the mission out of fan-out and use sequential parent execution in the integration checkout.
 
@@ -135,6 +136,7 @@ parent_owned_scope
 worktree_ineligible
 runtime_capacity_unavailable
 completion_channel_unavailable
+permission_boundary_not_ready
 blocker_present
 platform_lifecycle_unknown
 over_budget
@@ -192,6 +194,7 @@ Before using a proposal, the parent re-observes:
 - Available worker slots and isolation capacity.
 - Existing branch/worktree names and paths.
 - Each selected mission's required authorizations and completion channel.
+- The selected parent permission mode/profile, worker inheritance, and every required filesystem/network/local surface.
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
 

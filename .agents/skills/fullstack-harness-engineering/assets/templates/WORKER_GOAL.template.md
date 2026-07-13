@@ -16,6 +16,7 @@ Coordination:
 - worker_runtime: parent | subagent | app_task
 - workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 - completion_channel: agent_result | thread_poll | report_file | user_relay
+- permission_boundary: selected mode/profile, approval policy, filesystem/network/local-binding scope, inheritance, ready status
 - nested_subagent_policy: disabled | enabled with max_children 1-3, allowed roles, read_only, agent_result
 - Worktree: <path or n/a>
 - Branch/ref: <branch, ref, or pending-authorized creation>
@@ -24,7 +25,7 @@ Coordination:
 Write only within: <mission write_scope>.
 Deny: <mission deny_scope>, parent-owned PLAN.md and RUN.md, frozen contracts, and unrelated files.
 
-Before editing, verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, and action authorizations are current. Stop if any value is missing, stale, contradictory, or outside the supported scope grammar.
+Before editing, verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
 
 For each ready task: make the smallest coherent change, run its declared verifier, and return evidence. Create a commit only when create_local_commits is explicitly authorized. Do not create another app task, mission worker, branch, worktree, or harness lease. Direct read-only subagents are the sole exception and only when the supplied nested policy is enabled and `spawn_subagents` covers this worker. Do not pull, rebase, merge, integrate, push, open a PR, deploy, remove a worktree, delete a branch, or archive a task; those remain parent/user-owned actions unless separately and explicitly assigned.
 
@@ -53,7 +54,7 @@ The parent creates and records the worktree, branch, and fixed base before launc
 
 ### App-managed worktree
 
-The app may start the task detached and may apply platform retention independently of the ledger. When `create_local_branches` is explicitly authorized, create or attach the recorded durable branch/ref before unique work. Never claim that `remove_worktrees: false` disables platform-managed retention. Completion may require `thread_poll` or `user_relay`; do not assume an automatic cross-task callback.
+The app may start the task detached and may apply platform retention independently of the ledger. When `create_local_branches` is explicitly authorized, create or attach the recorded durable branch/ref before unique work. Remember that branch/commit commands may write the original repository's Git common directory outside this worktree. Never claim that `remove_worktrees: false` disables platform-managed retention. Completion may require `thread_poll` or `user_relay`; do not assume an automatic cross-task callback.
 
 ## Refinement Request Contract
 

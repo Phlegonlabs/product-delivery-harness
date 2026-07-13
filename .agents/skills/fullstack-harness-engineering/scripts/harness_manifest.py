@@ -70,6 +70,31 @@ TARGET_RE = re.compile(
 )
 EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
 NESTED_SUBAGENT_ROLES = {"explorer", "researcher", "reviewer", "tester"}
+PERMISSION_SELECTED_MODES = {
+    "ask_for_approval",
+    "approve_for_me",
+    "full_access",
+    "named_profile",
+    "unknown",
+}
+PERMISSION_APPROVAL_POLICIES = {
+    "untrusted",
+    "on-request",
+    "never",
+    "granular",
+    "unknown",
+}
+PERMISSION_FILESYSTEM_SCOPES = {
+    "read_only",
+    "workspace",
+    "custom",
+    "unrestricted",
+    "unknown",
+}
+PERMISSION_NETWORK_SCOPES = {"disabled", "filtered", "open", "unknown"}
+PERMISSION_LOCAL_BINDINGS = {"allowed", "blocked", "unknown"}
+PERMISSION_INHERITANCE = {"inherited", "not_inherited", "unknown"}
+PERMISSION_STATUSES = {"ready", "may_prompt", "blocked", "unknown"}
 
 
 class ManifestError(ValueError):
@@ -949,7 +974,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "run.runtime_capabilities",
         runtime,
         runtime_keys,
-        {"nested_subagents"},
+        {"nested_subagents", "permission_boundary"},
     ):
         if runtime["worker_runtime"] not in {"parent", "subagent", "app_task"}:
             _add(errors, "run.runtime_capabilities.worker_runtime", "has an unsupported value")
@@ -968,6 +993,63 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.completion_channel", "has an unsupported value")
         if not _is_int(runtime["max_parallel_workers"]) or not 1 <= runtime["max_parallel_workers"] <= 3:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
+        permission = runtime.get("permission_boundary")
+        if permission is not None and _keys(
+            errors,
+            "run.runtime_capabilities.permission_boundary",
+            permission,
+            {
+                "selected_mode",
+                "profile_name",
+                "approval_policy",
+                "filesystem_scope",
+                "network_scope",
+                "local_binding",
+                "worker_inheritance",
+                "status",
+            },
+        ):
+            permission_path = "run.runtime_capabilities.permission_boundary"
+            if permission["selected_mode"] not in PERMISSION_SELECTED_MODES:
+                _add(errors, f"{permission_path}.selected_mode", "has an unsupported value")
+            profile_name = permission["profile_name"]
+            if permission["selected_mode"] == "named_profile":
+                if not _nonempty_string(profile_name):
+                    _add(errors, f"{permission_path}.profile_name", "is required for named_profile")
+            elif profile_name is not None:
+                _add(errors, f"{permission_path}.profile_name", "must be null unless selected_mode is named_profile")
+            if permission["approval_policy"] not in PERMISSION_APPROVAL_POLICIES:
+                _add(errors, f"{permission_path}.approval_policy", "has an unsupported value")
+            if permission["filesystem_scope"] not in PERMISSION_FILESYSTEM_SCOPES:
+                _add(errors, f"{permission_path}.filesystem_scope", "has an unsupported value")
+            if permission["network_scope"] not in PERMISSION_NETWORK_SCOPES:
+                _add(errors, f"{permission_path}.network_scope", "has an unsupported value")
+            if permission["local_binding"] not in PERMISSION_LOCAL_BINDINGS:
+                _add(errors, f"{permission_path}.local_binding", "has an unsupported value")
+            if permission["worker_inheritance"] not in PERMISSION_INHERITANCE:
+                _add(errors, f"{permission_path}.worker_inheritance", "has an unsupported value")
+            if permission["status"] not in PERMISSION_STATUSES:
+                _add(errors, f"{permission_path}.status", "has an unsupported value")
+            if permission["status"] == "ready" and "unknown" in {
+                permission["selected_mode"],
+                permission["approval_policy"],
+                permission["filesystem_scope"],
+                permission["network_scope"],
+                permission["local_binding"],
+                permission["worker_inheritance"],
+            }:
+                _add(errors, permission_path, "cannot be ready while a boundary field is unknown")
+            if permission["selected_mode"] == "full_access" and (
+                permission["approval_policy"] != "never"
+                or permission["filesystem_scope"] != "unrestricted"
+                or permission["network_scope"] != "open"
+                or permission["local_binding"] != "allowed"
+            ):
+                _add(
+                    errors,
+                    permission_path,
+                    "full_access requires never, unrestricted filesystem, open network, and allowed local binding",
+                )
         nested = runtime.get("nested_subagents")
         if nested is not None and _keys(
             errors,

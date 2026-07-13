@@ -466,6 +466,29 @@ class SelectorTests(unittest.TestCase):
             result["deferred_missions"],
         )
 
+    def test_unready_permission_boundary_blocks_launch(self) -> None:
+        plan = make_plan([mission("M1", priority=10, merge_rank=10)])
+        run = make_run(plan)
+        run["runtime_capabilities"]["permission_boundary"] = {
+            "selected_mode": "ask_for_approval",
+            "profile_name": None,
+            "approval_policy": "on-request",
+            "filesystem_scope": "workspace",
+            "network_scope": "filtered",
+            "local_binding": "blocked",
+            "worker_inheritance": "inherited",
+            "status": "may_prompt",
+        }
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual([], result["selected_missions"])
+        self.assertEqual(
+            ["permission_boundary_not_ready"],
+            result["deferred_missions"][0]["reason_codes"],
+        )
+
     def test_named_cli_outputs_canonical_json_without_mutating_inputs(self) -> None:
         plan = make_plan([mission("M1", priority=10, merge_rank=10)])
         run = make_run(plan)

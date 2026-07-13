@@ -32,6 +32,9 @@ Official Codex subagent documentation establishes these current facts:
 - Codex app tasks can delegate independent work after a direct request or when applicable skill/`AGENTS.md` instructions request it. Merely enabling `features.multi_agent` does not force delegation; the task prompt still needs an applicable delegation rule.
 - Official guidance recommends starting with read-heavy exploration, tests, triage, and summarization, and being more careful with concurrent write-heavy work.
 - Subagents inherit the parent task's active permission mode and available tools. They can still surface approvals for tool-specific or sandbox-controlled actions; nested delegation is not an approval bypass.
+- The desktop permission mode is selected beneath the composer and is inherited by subagents. `Approve for me` routes eligible requests to automatic review but does not change the sandbox boundary.
+- Codex treats sandboxing and approvals as separate controls. `workspace-write` with `on-request` can still prompt for linked-worktree Git metadata outside the runtime workspace, package caches, blocked network destinations, or local/private bindings. Non-interactive full access is `danger-full-access` with approval policy `never`.
+- Permission profiles can express a narrower reusable boundary across workspace roots, filesystem paths, network domains, local bindings, and Unix sockets. Existing tasks do not retroactively gain a newly selected boundary; observe the effective mode at each worker launch or restart.
 
 Therefore the capability gate observes actual worker slots and completion behavior instead of inferring them from a version string or default configuration.
 
@@ -100,5 +103,7 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 - Codex App Server: https://developers.openai.com/codex/app-server
 - Codex best practices: https://developers.openai.com/codex/learn/best-practices
 - Codex changelog: https://developers.openai.com/codex/changelog
+- Codex sandbox and approvals: https://learn.chatgpt.com/docs/sandboxing
+- Codex permission profiles: https://learn.chatgpt.com/docs/permissions
 - Claude Code agent overview: https://code.claude.com/docs/en/agents
 - Claude Code subagents: https://code.claude.com/docs/en/sub-agents

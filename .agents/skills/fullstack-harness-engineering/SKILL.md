@@ -120,6 +120,9 @@ Worker runtime: parent | subagent | app_task
 Workspace mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 Completion channel: agent_result | thread_poll | report_file | user_relay
 Nested subagents: unavailable | available-not-authorized | enabled-read-only
+Permission boundary: unknown | ready | may-prompt | blocked
+Selected permission mode/profile and source:
+Required filesystem/network/local-binding surfaces:
 Configured worker budget:
 Observed runtime/isolation capacity:
 Verification surfaces:
@@ -210,6 +213,10 @@ Keep one parent-owned `PLAN.md` and `RUN.md`; workers never edit either.
 - For parallel writes, first validate PLAN/RUN, compute the ready frontier and conflict graph with `scripts/select_parallel_missions.py`, then bind a proposed wave to the current plan revision, digest, and fixed batch base SHA.
 - Effective concurrency is the minimum of configured budget, observed worker slots, isolation capacity, and ready nonconflicting missions. Never exceed three write workers unless the user explicitly changes this skill's default and the runtime safely supports it.
 - The parent confirms current Git/runtime facts and records the wave before any mutating launch action. Unsupported scopes, incomplete resource inventory, unknown capabilities, stale bases, or missing action authorization force sequential fallback or a stop.
+- Before launching subagents or app tasks, observe the permission mode selected for the parent and record the effective approval, filesystem, network, local-binding, and inheritance facts. Child agents inherit the parent task's active permission mode; selecting `Approve for me` changes who reviews eligible prompts, not the sandbox boundary.
+- Preflight every worker against the surfaces its commands actually need: the app worktree, the repository Git common directory used by linked worktrees, system temp, package-manager caches, outbound domains, local/private bindings, and any required Unix sockets. Mark the permission boundary `ready` only when those surfaces are already inside the selected boundary. Treat `may-prompt`, `blocked`, or `unknown` as a launch blocker for unattended write fan-out.
+- Config or composer changes apply at the task/session boundary and do not retroactively widen already-running app tasks. Select the intended mode before the parent turn creates workers; recreate or explicitly restart affected tasks when the mode changes.
+- Never present nested delegation as an approval bypass. If the user explicitly chooses non-interactive full access, the effective Codex setting is `danger-full-access` with approval policy `never`; otherwise prefer a named least-privilege profile that covers the required surfaces. This skill records and verifies the choice but never self-authorizes or silently widens it.
 - Isolated write fan-out requires authorized durable branch and commit creation; the portable coordinator does not integrate uncommitted patches from worker workspaces.
 - Integrate a wave serially in deterministic order. Validate actual diffs and worker results, rerun integration verifiers, mark only successful heads `integrated`, then recompute the next frontier.
 - App-managed tasks are user-owned independent tasks; do not promise automatic parent callbacks. Use the declared completion channel. Platform-managed retention remains outside manual cleanup authorization.
@@ -248,6 +255,7 @@ Plan ID / revision / digest and observed base:
 Plan readiness:
 Current checkpoint or proposed first mission:
 Worker allocation and integration plan:
+Permission boundary and inheritance:
 Verification and evidence:
 Blockers / unvalidated surfaces:
 Next action:

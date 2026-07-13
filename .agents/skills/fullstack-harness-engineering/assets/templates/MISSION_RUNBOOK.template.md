@@ -81,6 +81,16 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
       "workspace_mode": "shared_checkout",
       "completion_channel": "agent_result",
       "max_parallel_workers": 1,
+      "permission_boundary": {
+        "selected_mode": "unknown",
+        "profile_name": null,
+        "approval_policy": "unknown",
+        "filesystem_scope": "unknown",
+        "network_scope": "unknown",
+        "local_binding": "unknown",
+        "worker_inheritance": "unknown",
+        "status": "unknown"
+      },
       "nested_subagents": {
         "available": false,
         "max_depth": 1,
@@ -194,6 +204,8 @@ Use these exact coordination enums:
 - `worker_runtime`: `parent`, `subagent`, or `app_task`
 - `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
 - `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
+
+`runtime_capabilities.permission_boundary` records the effective parent mode before workers launch. Use `selected_mode` values `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown`; a non-empty `profile_name` is required only for `named_profile`. Record approval, filesystem, network, local-binding, and worker-inheritance facts, then set `status` to `ready` only after linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets fit inside the boundary. `may_prompt`, `blocked`, or `unknown` blocks unattended fan-out. Existing schema-v2 RUN files may omit this optional object.
 
 `runtime_capabilities.nested_subagents.available` records whether direct child tools/results were observed inside app tasks; it does not grant permission. The harness policy always caps nesting at depth one, children per app task at three, child work to the listed functional roles, writes to `read_only`, and child completion to `agent_result`. Set a worker's nested policy to enabled only when `spawn_subagents` covers its mission and `worker:<id>` target (or an explicitly run-wide `*`).
 

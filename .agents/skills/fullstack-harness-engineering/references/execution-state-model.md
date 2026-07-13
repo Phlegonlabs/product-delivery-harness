@@ -155,7 +155,7 @@ Before each action, check its entry again and compare it with observed state. A 
 
 Represent orchestration with three independent axes. Do not encode them as a single mode string.
 
-RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and an optional backward-compatible `nested_subagents` policy. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
+RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and optional backward-compatible `nested_subagents` and `permission_boundary` objects. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
 
 ### Worker runtime
 
@@ -213,6 +213,27 @@ The outer app task remains the mission lease holder and sole writer in its workt
 
 Each new app-task worker under a RUN that records `runtime_capabilities.nested_subagents` must carry an explicit `nested_subagent_policy` with `enabled`, `max_children`, allowed roles, read-only write policy, and `agent_result` completion. Its WORKER_RESULT records `subagent_activity`: completed child summaries, partial/failure evidence, or a concrete reason that eligible delegation was skipped or unavailable. This report is worker-supplied evidence, not a substitute for parent-observed Git/runtime facts. Older schema-v2 records that omit both optional nested fields remain backward-compatible.
 
+### Permission boundary
+
+Record the permission state that applies before a worker is launched:
+
+```json
+{
+  "selected_mode": "ask_for_approval",
+  "profile_name": null,
+  "approval_policy": "on-request",
+  "filesystem_scope": "workspace",
+  "network_scope": "filtered",
+  "local_binding": "blocked",
+  "worker_inheritance": "inherited",
+  "status": "may_prompt"
+}
+```
+
+Use `selected_mode` values `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown`. `profile_name` is required only for `named_profile`. Use approval values `untrusted`, `on-request`, `never`, `granular`, or `unknown`; filesystem values `read_only`, `workspace`, `custom`, `unrestricted`, or `unknown`; network values `disabled`, `filtered`, `open`, or `unknown`; local-binding values `allowed`, `blocked`, or `unknown`; inheritance values `inherited`, `not_inherited`, or `unknown`; and status values `ready`, `may_prompt`, `blocked`, or `unknown`.
+
+`status: ready` means the current boundary already covers the concrete worker surfaces, including linked-worktree Git metadata, temp/cache paths, outbound destinations, local bindings, and sockets required by its verifiers. It does not authorize an action. `approve_for_me` may automate review but does not widen filesystem or network access. `full_access` means unrestricted filesystem/network access with approval policy `never`; use it only when the user intentionally selected that boundary. Permission changes do not retroactively update already-running app tasks, so re-observe the boundary when creating or restarting workers.
+
 ## Capability Gate
 
 Before leasing or fanning out a mission, the parent must prove all applicable rows:
@@ -226,6 +247,7 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 | Integration observable | Parent can obtain base SHA, worker head SHA, actual changed paths, and verifier evidence |
 | Resource isolation | File scopes and every runtime resource have complete, supported claims |
 | Lifecycle understood | Branch/ref durability and app-managed retention behavior are recorded |
+| Permission boundary | Parent mode/profile and inheritance are observed; every required filesystem, Git metadata, temp/cache, network, local-binding, and socket surface is covered without an unresolved prompt |
 | Nested delegation bounded | Any enabled app-task child policy is covered by `spawn_subagents`, stays at depth one, uses at most three read-only children, and returns results to the app-task parent |
 
 If any row is unknown, do not fan out. Select a supported sequential combination, normally `parent` or `subagent` with `shared_checkout`, and apply the same verification gates.

@@ -51,6 +51,7 @@ UNARY_REASON_CODES = {
     "worktree_ineligible",
     "runtime_capacity_unavailable",
     "completion_channel_unavailable",
+    "permission_boundary_not_ready",
     "blocker_present",
     "platform_lifecycle_unknown",
     "over_budget",
@@ -192,6 +193,9 @@ def _global_launch_reasons(
         reasons.add("completion_channel_unavailable")
     if not _lifecycle_known(run.get("runtime_capabilities", {})):
         reasons.add("platform_lifecycle_unknown")
+    permission = run.get("runtime_capabilities", {}).get("permission_boundary")
+    if permission is not None and permission.get("status") != "ready":
+        reasons.add("permission_boundary_not_ready")
     if run.get("active_wave", {}).get("status") == "active":
         reasons.add("blocker_present")
     return reasons

@@ -491,6 +491,43 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
 
+    def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["permission_boundary"] = {
+            "selected_mode": "full_access",
+            "profile_name": None,
+            "approval_policy": "never",
+            "filesystem_scope": "unrestricted",
+            "network_scope": "open",
+            "local_binding": "allowed",
+            "worker_inheritance": "inherited",
+            "status": "ready",
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["runtime_capabilities"]["permission_boundary"]["network_scope"] = "unknown"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "cannot be ready while a boundary field is unknown",
+        )
+
+    def test_named_permission_profile_requires_profile_name(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["permission_boundary"] = {
+            "selected_mode": "named_profile",
+            "profile_name": None,
+            "approval_policy": "on-request",
+            "filesystem_scope": "custom",
+            "network_scope": "filtered",
+            "local_binding": "allowed",
+            "worker_inheritance": "inherited",
+            "status": "ready",
+        }
+        self.assert_run_error_contains(plan, run, "is required for named_profile")
+
     def test_app_task_accepts_authorized_bounded_nested_subagents(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
