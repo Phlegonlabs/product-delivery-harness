@@ -19,6 +19,18 @@ Write scope: allowed paths, read-only paths, destructive-action approval gates
 
 For L full-stack, XL app, or parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
+## Canonical Harness State
+
+For long or multi-mission work, keep one versioned plan and one live run record:
+
+- `PLAN.md` owns declarative inputs: sources, traces, missions, flat task definitions, dependency DAGs, allowed scopes, resource claims, and verifier definitions.
+- `RUN.md` owns mutable execution state: authorization, selected runtime capabilities, phase transitions, leases, active waves, worker reports, observed base/head SHAs, integration results, blockers, and closeout.
+- Git, Codex threads, worktrees, services, and ports are runtime facts. Observe them at the relevant gate and record a snapshot in `RUN.md`; do not treat a stale Markdown row as proof of current state.
+- The canonical machine-readable data is the JSON manifest named by each template. Human-readable tables are views only. Validators and selectors must never scrape those tables.
+- Every accepted plan change increments `plan_revision`; recompute the canonical plan digest, validate both DAGs, and invalidate any wave proposal bound to the previous revision or digest.
+
+The parent/coordinator is the sole writer of `PLAN.md` and `RUN.md` during execution. Workers return structured results or refinement requests and never edit either file.
+
 ## Source Map
 
 Record every canonical input and its status:
@@ -31,6 +43,8 @@ Record every canonical input and its status:
 | Design system | <path or URL> | human / team | draft / frozen | <tokens/components> |
 | Architecture | <path> | Codex / team | draft / frozen | <contract surfaces> |
 ```
+
+For plan-backed work, the PLAN JSON `sources` array is canonical; the table is its human view. Each trace references `source_ids` and records `priority`, `disposition`, and any disposition `rationale`. Canonical `ui_surfaces`, `risks`, mission `stop_conditions`, and verifier arrays similarly own the static facts shown in later tables.
 
 If an external source is unavailable, ask for screenshots, exports, or written specs before claiming design-faithful implementation.
 
@@ -81,6 +95,24 @@ Rules:
 - Every must-have PRD/UI/ARCH/DS ID needs at least one downstream task and one verification row.
 - A trace ID with no downstream coverage is a launch blocker unless the user accepts it as out of scope.
 - A task with no upstream trace ID is scope drift unless it is harness, test, cleanup, or explicitly approved.
+- Executable missions/tasks reference only traces with `disposition: planned`. `deferred` and `out_of_scope` traces require rationale and do not count as uncovered executable work until reclassified in a new plan revision.
+
+## Mission And Task Identity
+
+Use opaque, immutable IDs for references and separate aliases for readable labels:
+
+```text
+Mission ID: M1
+Task ID: M1/T01
+Alias: implement-session-contract
+```
+
+Rules:
+
+- Do not encode execution order, filenames, owners, or nesting beyond the mission prefix into identity semantics.
+- Keep tasks in one flat namespace. Express dependencies with `depends_on` and refinement lineage with `parent_task` / `replaced_by`.
+- Preserve imported identifiers in `legacy_task_ids`; never reuse an old ID for a different outcome.
+- A worker may request decomposition but cannot mint accepted tasks or change the plan revision. Follow `execution-task-decomposition.md` for the bounded refinement protocol.
 
 ## Compact Artifact Defaults
 
@@ -93,7 +125,9 @@ long/multi-mission -> docs/goal/PLAN.md + docs/goal/RUN.md
 real binary proof  -> docs/goal/evidence/** only when needed
 ```
 
-Keep Goal text, checkpoint, task state, verification, evidence links, blockers, and closeout together in `RUN.md`. Use temporary `docs/goal/evidence/M<n>/REPORT.md` files only for parallel worker integration, then fold their durable result into `RUN.md`.
+Keep Goal text, checkpoint, task state, verification, evidence links, blockers, and closeout together in `RUN.md`. Use temporary `docs/goal/evidence/<mission>/REPORT.md` files only for parallel worker integration, then fold their durable result into `RUN.md`.
+
+Do not duplicate canonical manifest fields into another state database. If the target repository already has an execution-state convention, map these ownership rules into it and document the mapping instead of creating competing truth sources.
 
 When the repo already uses Epic artifacts, adapt to that structure rather than duplicating. Prefer one plan file and one live run file:
 
@@ -108,9 +142,11 @@ docs/Epic{n}/evidence/  # only when real artifacts exist
 Stop before implementation when:
 
 - `RUN.md` is not `ready`, the Plan Readiness Gate has required rows that are not `PASS`, or `execution_authorized` is false.
+- The requested action is false or absent in the authorization ledger. General execution permission does not imply task creation, worktree creation, commits, integration, push, PR, deploy, archival, or cleanup permission.
 - PRD and wireframe conflict on the primary flow.
 - The design system contradicts the wireframe in a user-visible way.
 - Auth, permissions, or destructive data behavior is ambiguous.
 - Required secrets, services, databases, or browser tools are unavailable.
 - The requested write scope would modify unrelated modules.
 - The user has not approved overwrites, deletes, moves, resets, or worktree cleanup.
+- The canonical plan/run manifest is missing, invalid, stale, or inconsistent with the proposed wave.

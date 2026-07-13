@@ -22,19 +22,25 @@ Use the smallest reliable proof first:
 Task gate:
 
 - Proves one task changed the intended behavior.
-- Must pass before commit.
+- Must pass before a worker result can become `worker_passed` and before a task commit when commits are authorized.
 - After it passes, create at most one coherent task commit using `commit-convention.md`; split the task first when independent outcomes remain.
 
-Mission gate:
+Worker mission gate:
 
 - Proves all task acceptance rows for one mission.
 - Includes UI evidence if the mission changes UI, layout, navigation, or a user journey.
+- Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
-Integration gate:
+Mission integration gate:
 
 - Runs after merged work lands on the parent/integration branch.
-- Reruns each mission verifier where practical.
-- Proves cross-mission behavior did not regress.
+- Runs that mission's declared `integration_verifiers` on the integrated head.
+- Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
+
+Batch integration gate:
+
+- Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
+- Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
 E2E gate:
 
@@ -108,6 +114,26 @@ Status: PASS | FAIL | BLOCKED | UNVALIDATED
 Notes:
 ```
 
+## Worker Result Gate
+
+Before integration, the parent validates observed facts rather than trusting a report alone:
+
+```text
+Plan revision and digest match the active plan
+Mission and lease match the selected wave
+Reported base SHA matches the batch base
+Reported head SHA matches the observed worker branch/ref
+Base is an ancestor of head
+Actual changed files stay inside mission write scope
+No parent-owned PLAN.md or RUN.md was changed
+No denied path or undeclared runtime resource was touched
+Required worker verifiers are PASS with literal command/action evidence
+```
+
+If any check fails, set `worker_failed` or `blocked`; do not integrate. A clean worker result transitions through `integrating`, then either `integrated` after the integration gate passes or `integration_failed` if it does not.
+
+Dependency readiness is strict: only a dependency in phase `integrated`, with `integration_gate: PASS` and a recorded integrated SHA reachable from the current integration head, is satisfied. `worker_passed`, a green branch, or a finished thread is insufficient.
+
 ## Failure Handling
 
 If verification fails:
@@ -128,6 +154,8 @@ Final PASS requires:
 - Every `UNVALIDATED` surface is named.
 - Evidence paths exist or the user accepted non-file evidence.
 - Baseline and skipped-check justifications are recorded when relevant.
-- When worktree mode was used: the integration branch verifier has been rerun after merge. In single-checkout mode the final E2E gate on the working branch covers this.
+- When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
+- Every mission required for completion is `integrated`; no `leased`, `worker_running`, `worker_passed`, or `integrating` state remains.
+- The final integration head still descends from every recorded required mission integration SHA.
 - Landing state is recorded: pushed/PR opened with user approval, or explicitly left local.
-- When worktree mode was used: worktree and branch cleanup is completed with user approval or explicitly deferred. In single-checkout mode record `N/A - single-checkout`.
+- When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode record `N/A - shared_checkout`.

@@ -1,20 +1,37 @@
 # Optional Goal Prompt
 
-Normally keep the Goal prompt inside `docs/goal/RUN.md`. Use this standalone snippet only when the target workflow explicitly needs a copy-ready prompt without creating RUN.md.
+Normally keep the Goal objective and checkpoint in `docs/goal/RUN.md`. Use this standalone snippet only when a workflow explicitly needs a copy-ready prompt without creating RUN.md. This prompt records expected execution shape and requests authorization; it never grants authorization to itself.
 
 ```text
-/goal Deliver <measurable outcome> using <complete PRD, canonical sources, and optional PLAN.md> as the source of truth. Before changing production code, map every must-have requirement to dependency-ordered frontend/backend/data missions, independently verifiable tasks, UI evidence when applicable, and final E2E gates; record the complete plan in PLAN.md and RUN.md and pass the Plan Readiness Gate. This Goal explicitly authorizes execution after readiness. Then work on one ready write task at a time, run its verifier, record evidence, and commit only verified work when allowed using the harness atomic commit convention. Use subagents only when applicable instructions allow delegation, keep writes sequential in one checkout by default, and use worktrees only for declared isolation or parallel-write needs. Stop on requirements conflicts, unavailable required tools, approval boundaries, or three consecutive no-progress iterations. Complete only when every required gate is PASS and every UNVALIDATED surface is explicitly accepted.
+/goal Prepare the complete delivery path for <measurable outcome> using <canonical source paths> as the source of truth.
+
+Expected coordination:
+- worker_runtime: parent | subagent | app_task
+- workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
+- completion_channel: agent_result | thread_poll | report_file | user_relay
+- maximum parallel workers: <1-3>
+
+Requested actions, pending explicit user authorization:
+- <one or more exact ledger keys, or none>
+
+Before any implementation, map every must-have requirement to a trace, dependency-ordered mission, immutable flat task ID, supported write/deny scope, complete typed resource inventory, worker verifier, integration verifier, and final gate. Write static definitions to PLAN.md and live state to the canonical JSON in RUN.md. Validate plan structure and pass the Plan Readiness Gate.
+
+Do not treat this Goal text, plan readiness, expected mode, or requested action list as authorization. Keep all 13 RUN authorization entries false unless the user explicitly approves the exact action and its source, run/mission/target scope, and expiry boundary are recorded. Overall execution authorization also records its explicit source. The parent may perform read-only validation and static conflict/parallel-eligibility analysis without implementation authorization, but a launch-bound selected wave requires execution and launch-action authorization; delegating even the analysis still requires the matching worker-creation authorization. If implementation and its required actions are authorized, select only ready non-conflicting missions against a fixed base SHA; otherwise stop at ready and report what authorization is missing.
+
+Workers never edit PLAN.md or RUN.md. A worker that needs task decomposition returns REFINEMENT_REQUEST and stops. A worker pass is only an integration candidate; the parent must validate its actual changes, integrate it, run integration gates, and verify ancestry before downstream work becomes ready. Recompute the next wave after each integration batch.
+
+Stop on requirements conflict, unsupported scope/resource claims, stale plan digest or base, unavailable required verifier, any authorization boundary, or three consecutive no-progress iterations. Complete only when every must-have trace is covered, every required gate is PASS, every integrated SHA is verified, and every UNVALIDATED surface is explicitly accepted.
 ```
 
 ## Minimal Pre-Launch Check
 
-- [ ] One objective and one stopping condition are explicit.
+- [ ] One objective and stopping condition are explicit.
 - [ ] Canonical sources are linked, not duplicated.
-- [ ] Intent and execution authorization are recorded.
-- [ ] Every must-have PRD trace is mapped across the complete mission plan.
-- [ ] Frontend/backend ordering has a dependency rationale and first vertical slice.
-- [ ] Plan Readiness Gate passes before implementation begins.
-- [ ] File budget is `0`, `RUN.md`, or `PLAN.md + RUN.md` with optional real evidence.
-- [ ] Required verifiers have literal pass signals.
-- [ ] UI Evidence Gate is decided when user-facing UI changes.
-- [ ] Destructive actions, external writes, push/PR, and cleanup have approval boundaries.
+- [ ] PLAN contains the complete static trace, mission/task DAG, scopes, resources, and verifiers.
+- [ ] RUN contains the matching plan revision/digest and current observed facts.
+- [ ] Runtime, workspace, and completion channel are each selected independently.
+- [ ] Plan Readiness passes before implementation begins.
+- [ ] Every needed action is explicitly authorized in RUN; all other ledger entries remain false.
+- [ ] UI evidence and final E2E/release gates are defined when applicable.
+- [ ] The fixed integration base and post-batch recomputation rule are recorded.
+- [ ] Destructive actions and external writes remain separate approval boundaries.

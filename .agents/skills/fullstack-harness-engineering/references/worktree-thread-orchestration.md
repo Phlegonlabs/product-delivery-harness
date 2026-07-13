@@ -1,235 +1,156 @@
-# Worktree And Thread Orchestration
+# Runtime, Worktree, And Thread Orchestration
 
-Use this reference when the harness runs more than one mission, uses subagents, or needs worktree isolation.
+Use this reference when the harness runs multiple missions, delegates to workers, or needs workspace isolation. Read `execution-state-model.md` and `parallel-mission-selection.md` first.
 
-## Default: Single-Checkout Subagent Orchestration
+## Describe Capabilities, Not Product Labels
 
-Prefer this mode unless a worktree exception below applies. One checkout, one branch, parent-owned state:
-
-- Write missions run one at a time, each delegated to a subagent with the mission's `RUN.md` section as its prompt and the mission write scope as a stated constraint.
-- Read-only work (baseline audits, reviews, verification lenses) may fan out to parallel subagents freely.
-- Never run parallel write subagents in one checkout: even disjoint write scopes collide on lockfiles, build caches, generated files, dev servers, and local databases.
-- A sequential single-checkout subagent reports to the parent directly; create `docs/goal/evidence/M<n>/REPORT.md` only when a durable report is needed for handoff or integration.
-- Worktree preflight, merge order, integration merges, and worktree cleanup do not apply. Landing is one branch and one PR under the same push/PR gate.
-- If the runtime has no subagent primitive, the parent runs the same missions sequentially itself with identical gates.
-
-## Parent And Worker Roles
-
-Parent thread owns:
-
-- Source intake and contract freeze.
-- `PLAN.md` and the single parent-owned `RUN.md`.
-- Worktree creation plan.
-- Worker prompts.
-- Merge order and conflict handling.
-- Integration and E2E verification.
-- Final closeout.
-
-Worker thread owns:
-
-- One mission only.
-- Its own worktree or isolated workspace.
-- The mission write scope.
-- Task-level verification and commits.
-- Evidence report back to parent.
-
-Workers must not edit parent-owned `PLAN.md` or `RUN.md` during parallel execution. They report evidence; the parent serializes updates into `RUN.md`.
-
-## When To Use Worktrees
-
-Worktrees are opt-in, not the default. Opting in means accepting real coordination cost: preflight, merge order, integration reruns, and cleanup. Completion signaling depends on the runtime: Codex manual mission threads do not notify the parent -- the user relays completion; Claude Code worktree-isolated background subagents report back to the parent automatically (see `orchestration-research-notes.md`). Use worktrees only for:
-
-- High-risk refactors where the parent needs a stable foreground checkout.
-- Heavy missions that genuinely need parallel writes to win wall-clock time.
-- Long-running background work that must not block the parent checkout.
-- Missions requiring conflicting dev ports, local databases, or fixtures at the same time.
-
-Skip worktrees for:
-
-- Anything the default single-checkout subagent mode can handle.
-- Small direct work and single-file fixes.
-- Read-only planning, audits, and reviews.
-- Sequential work where one checkout is simpler and safer.
-
-## Preflight
-
-Run from the parent checkout:
-
-```powershell
-git status --short --branch
-git worktree list --porcelain
-git branch --format='%(refname:short) %(worktreepath)'
-```
-
-Do not proceed silently if:
-
-- The parent has unrelated dirty changes that affect the mission.
-- The target worktree path already exists and may contain data.
-- The branch name already exists and is checked out elsewhere.
-- The base branch is not the intended integration base.
-
-Ask before deleting, moving, cleaning, resetting, or overwriting any worktree or local file.
-
-Record preflight in the harness artifacts before launch:
+Record three independent fields for each run or worker:
 
 ```text
-Base branch:
-Parent git status:
-Existing worktrees:
-Branch/worktree conflicts:
-Dirty-file attribution:
-Dependency DAG/toposort:
-.worktreeinclude needed:
-Resource isolation plan:
+worker_runtime: parent | subagent | app_task
+workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
+completion_channel: agent_result | thread_poll | report_file | user_relay
 ```
 
-## Worktree Naming
+These fields are orthogonal. Do not infer workspace isolation, completion notification, or cleanup behavior from the word "worker" or from a product name.
 
-Use stable mission names:
+- `subagent` is a parent-managed child. It can return an `agent_result`, but still shares the checkout unless an isolated workspace was deliberately provided.
+- `app_task` is an independent, user-owned Codex task. A generic skill cannot promise an automatic callback to the parent task; use polling, a report file, or user relay unless an App Server integration supplies events.
+- `parent` is the safe fallback when delegation or isolation capabilities are unavailable.
+
+If a requested combination is unsupported, downgrade to sequential parent execution and record the reason. Never silently simulate parallel isolation in a shared checkout.
+
+## Parent And Worker Ownership
+
+The parent/coordinator exclusively owns:
+
+- source intake, contract freeze, and plan revisions;
+- canonical `PLAN.md` and `RUN.md` writes;
+- authorization checks and runtime capability detection;
+- batch-base selection, wave confirmation, leases, and worker prompts;
+- branch/worktree creation when authorized;
+- worker-result validation, integration order, conflict handling, and E2E verification;
+- landing and manual cleanup actions when separately authorized.
+
+A worker owns one mission lease only:
+
+- its assigned workspace and allowed mission write scope;
+- task-level implementation, verification, and authorized task commits;
+- a structured result or `REFINEMENT_REQUEST` returned through the declared completion channel.
+
+Workers never edit the parent-owned `PLAN.md` or `RUN.md`, never expand their own scope, and never pull, rebase, merge, push, create a PR, deploy, or clean up unless that exact action is separately authorized and assigned.
+
+## Mode Selection
+
+### Shared checkout
+
+Use `shared_checkout` for direct work, sequential write missions, and parallel read-only analysis.
+
+- Allow at most one writer at a time, whether that writer is the parent or a subagent.
+- Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
+- Task completion may integrate immediately only after the same worker-result and integration gates are applied.
+
+### Parent-managed worktree
+
+Use `parent_managed_worktree` only when `create_local_worktrees` is authorized and isolated parallel writes materially reduce delivery time.
+
+- The parent creates every worktree from the same recorded `batch_base_sha`; portable write handoff also requires `create_local_branches` and `create_local_commits`, because the parent integrates a durable committed head rather than an uncommitted patch.
+- The parent records the exact path, branch/ref, lease, ports, databases, fixtures, and external resource claims.
+- Workers never synchronize against the base branch. The parent handles any unavoidable mid-run sync at a task boundary and reruns affected verifiers.
+- A worktree isolates tracked files, not ports, databases, environment files, caches, queues, buckets, tenants, or third-party sandboxes.
+
+### App-managed worktree
+
+Use `app_managed_worktree` only when the runtime exposes it and `create_user_owned_tasks` plus `create_app_managed_worktrees` are both explicitly authorized.
+
+- App tasks are user-owned tasks, not invisible subagents. Record their task/thread identity and completion channel.
+- Managed worktrees may begin detached. If durable commits or handoff are required, create an authorized branch or durable ref early; do not leave unique work reachable only from a detached checkout.
+- Do not launch app-managed write fan-out unless branch and commit creation are authorized. Otherwise use sequential parent execution; this protocol does not depend on extracting an uncommitted patch from a managed worktree.
+- The platform controls managed-worktree retention. `remove_worktrees: false` prevents the harness from manually removing one; it cannot override platform lifecycle or automatic retention cleanup.
+- Use the repository's supported ignored-file inclusion mechanism, such as `.worktreeinclude`, only for necessary local files and never to copy tracked files or secrets without permission.
+
+True event-driven cross-task completion requires a runtime integration that exposes task/thread events (for example, Codex App Server notifications). Otherwise use `thread_poll`, `report_file`, or `user_relay` and state that limitation explicitly.
+
+## Launch Preconditions
+
+Before proposing any write wave, the parent confirms:
 
 ```text
-Worktree path: ../<repo>-e<epic>-m<mission>
-Branch: codex/e<epic>-m<mission>
+canonical PLAN and RUN manifests validate
+plan revision and digest match
+plan readiness and execution authorization are true
+the exact spawn/worktree/branch/commit actions are authorized
+integration branch/ref and immutable batch_base_sha are observed
+parent dirty files are attributed and do not overlap mission scopes
+mission/task dependency DAGs are acyclic
+resource_inventory_complete is true for every candidate
+write/deny scopes use the supported grammar
+runtime slots and isolation capacity are known
+required environment and verifier tools are available
 ```
 
-Manual Git worktree command:
+Also inspect the current Git status, worktree list, existing branches/refs, and intended integration head. Stop before overwriting, moving, deleting, resetting, or cleaning anything.
 
-```powershell
-git worktree add -b codex/e1-m1 ../project-e1-m1 main
-```
+Branch and worktree identities are runtime allocations, not static PLAN truth. Derive collision-resistant names from the plan/run plus immutable mission ID, for example `codex/<plan-slug>-m1`, then compare the exact proposed branch and path with observed refs/worktrees before creation. Never reuse a branch or directory merely because its human alias looks related. Record the final allocation in RUN worker state.
 
-For Codex app managed worktrees, record the Codex-created worktree/thread instead of manually creating a path. Managed worktrees may start detached; create a branch only when the work needs commits or sharing.
+## Select And Confirm A Wave
 
-## Environment Isolation
-
-Record these per mission:
+Run the pure validator and selector before any mutating Git or Codex action. The selector emits a proposal bound to:
 
 ```text
-Dev port:
-Database/schema:
-Seed/reset command:
-Migration allocation:
-Env file policy:
-External service sandbox:
-Auth provider app/tenant:
-Payment sandbox account:
-Webhook endpoint:
-Queue/topic:
-Object storage bucket:
-Email/SMS sandbox:
-Feature flag namespace:
-Test users/orgs:
+plan_revision
+plan_digest_sha256
+batch_base_sha
+candidate order and conflict reasons
+effective worker budget
+selected mission IDs
 ```
 
-Worktrees isolate files, not ports, databases, secrets, queues, caches, or running services. Full-stack missions need explicit resource isolation.
+The parent reviews live Git/runtime facts, confirms the proposal, records it in `RUN.md`, assigns leases, and only then creates branches, worktrees, subagents, or app tasks. Scripts must not parse human Markdown tables or mutate Git, Codex, PLAN, or RUN.
 
-If ignored local files are required in Codex-managed app worktrees, use `.worktreeinclude` in the repository root for files such as `.env.local`. Do not list tracked files.
+When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
-## Mission Coordination Table
+## Worker Handoff
+
+Use `assets/templates/WORKER_GOAL.template.md`. A complete handoff binds the worker to:
 
 ```text
-| Mission | Depends on | Write scope | Worktree | Branch | Port / DB | Verifier | Evidence | Merge order | Status |
-|---|---|---|---|---|---|---|---|---|---|
-| M1 foundation | none | db/**, auth/** | ../project-e1-m1 | codex/e1-m1 | 3001 / app_m1 | <cmd> | <path> | 1 | planned |
+plan revision and digest
+mission ID and lease ID
+batch base SHA and assigned branch/ref
+worker_runtime, workspace_mode, completion_channel
+allowed and denied paths
+declared serialized/runtime resources
+task order and verifier argv/cwd
+forbidden parent-owned artifacts
+result/refinement schema and stop conditions
 ```
 
-## Worker Goal And Report Files
+Prefer structured result data returned directly to the parent. Use temporary `docs/goal/evidence/<mission>/REPORT.md` only when the completion channel or durable handoff requires it; the file contains the exact `## Worker Result Manifest` heading and fenced JSON from the worker template. Record that one path as worker-owned handoff scope; every other PLAN/RUN/evidence state path remains parent-owned. The parent validates claims against observed workspace and Git facts before integration.
 
-For parallel Codex threads, keep each worker prompt in the parent task when possible. Create a copy-ready worker goal file from `assets/templates/WORKER_GOAL.template.md` only when another task or worktree needs a durable handoff:
+## Batch Integration
 
-```text
-docs/goal/evidence/M<n>/GOAL.md
-```
+Integrate selected missions serially in declared `merge_rank` and mission-ID order:
 
-Workers write their final report to their temporary mission evidence directory, never to parent-owned `PLAN.md` or `RUN.md`:
+1. Receive the worker result through the declared completion channel.
+2. Confirm the lease, plan revision/digest, batch base, and observed worker head.
+3. Validate ancestry, actual changed paths, denied paths, parent-owned files, resource claims, commits, and worker verifiers.
+4. Transition `worker_passed -> integrating` only after result validation succeeds.
+5. Integrate onto the current integration head when `integrate_locally` is authorized.
+6. Rerun the mission integration verifier on the new head.
+7. Record `integrated_sha` and `integration_gate: PASS`, then transition to `integrated`; otherwise record `integration_failed` and stop dependent work.
+8. After all selected missions integrate, run the PLAN-level batch verifiers; stop the next wave if any fail.
+9. Reobserve the integration head and recompute the ready frontier/conflict graph before launching another wave.
 
-```text
-docs/goal/evidence/M<n>/REPORT.md
-```
+Never treat a completed task/thread, a worker `PASS`, or a commit on a mission branch as dependency satisfaction. Only the integrated state described in `verification-gates.md` unblocks downstream missions.
 
-The parent reads each `REPORT.md`, verifies the claims against the actual worktree state, and folds the durable result into `RUN.md`. After integration, retain the report only when it is needed for acceptance or future debugging.
+## Landing And Lifecycle
 
-## Worker Prompt Shape
+Push, PR creation, deploy, task archival, worktree removal, and branch deletion are independent authorization actions. Passing verification does not authorize any of them.
 
-```text
-You are the worker for Mission <n> only.
-Worktree: <path>
-Branch: <branch>
-Read first: <contract files>, <mission section>
-Write only: <paths>, <evidence dir>
-Do not edit: parent-owned PLAN.md or RUN.md, frozen contracts, unrelated files.
-Do not sync: never pull, rebase, merge, or push against the base branch; the parent owns sync and landing.
-Task loop: choose one task, implement it, run the verifier, record evidence, and commit only if verification passes using the harness atomic commit convention.
-Report back: write <evidence dir>/REPORT.md with changed files, commands, exit codes, evidence paths, commit hash, blockers, residual risk.
-Stop and ask if the write scope is insufficient, requirements conflict, verification cannot run, or destructive action is needed.
-```
-
-## Upstream Sync During Parallel Runs
-
-The parent owns all synchronization against the base branch. Workers never pull, rebase, or merge upstream into their mission branch.
-
-If the base branch advances mid-run:
-
-- Default: let workers finish their missions, then integrate onto the updated base and rerun each mission verifier there.
-- If a mid-run sync is unavoidable (for example, a fix the mission depends on landed upstream), the parent pauses the worker at a task boundary, performs the rebase or merge in that worktree, reruns the mission verifier, then resumes the worker.
-- Record every sync event and its verifier result in the `RUN.md` attempt log.
-- If a sync produces conflicts that touch frozen contract surfaces, stop and ask before resolving.
-
-## Integration
-
-Parent integration loop:
-
-```text
-1. Wait for worker report.
-2. Inspect changed files and commit hash.
-3. Merge in declared order.
-4. Rerun that mission's verifier on the integration branch.
-5. Record integration evidence.
-6. Continue only when integration passes or the blocker is logged.
-7. Run final E2E verification after all required missions merge.
-```
-
-Do not merge a mission whose own verifier failed unless the user explicitly accepts the risk.
-
-## Landing And Push-Back
-
-Landing covers everything after local integration passes: push, PR, merge to main, and cleanup.
-
-### Integration Branch Strategy
-
-Decide before launch and record it in `PLAN.md`:
-
-```text
-Single mission: feature branch cut from main, land via one PR.
-Multi-mission: merge mission branches into codex/e<epic>-integration, land via one PR to main.
-Direct-to-main integration: only when the user explicitly chooses it.
-```
-
-### Push / PR Gate
-
-Do not push or open a PR until all of these hold:
-
-- Integration verifiers and the final E2E gate are PASS.
-- The evidence register is complete and every `UNVALIDATED` surface is accepted by the user.
-- Final `git status` / diff review shows expected changes only.
-- The user has approved the landing action. Push and PR creation are outward-facing; do not perform them silently.
-
-PR description should include: summary mapped to trace IDs, verification evidence summary, `UNVALIDATED` surfaces, and migration/deploy notes when relevant.
-
-### Merge Conflicts
-
-1. The parent resolves conflicts in the integration branch or a dedicated integration worktree, never inside a worker's worktree mid-mission.
-2. Resolve using the frozen contract as the arbiter. If the conflict reveals a contract gap or two missions legitimately claim the same surface, stop and ask.
-3. After resolving, rerun the affected missions' verifiers before continuing the merge order.
-
-### Post-Landing Cleanup
-
-Only after the PR is merged and the user confirms cleanup:
-
-```powershell
-git worktree list --porcelain
-git worktree remove <path>
-git branch -d codex/e<n>-m<n>
-```
-
-Ask before every removal. Never force-delete branches that are not fully merged. Record the cleanup (or the decision to defer it) in `RUN.md`.
+- Review the final diff and rerun final gates before any outward-facing landing action.
+- Preserve user-owned dirty work and unrelated branches/worktrees.
+- For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
+- Delete only the exact recorded, fully integrated branch when `delete_branches` is true.
+- Archive only worker tasks explicitly covered by `archive_worker_tasks`.
+- Record manual cleanup as complete, deferred, or not authorized. Record app-managed lifecycle separately because platform retention remains outside the harness's control.

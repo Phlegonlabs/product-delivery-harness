@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
   short_description: "Plan first, then run verified app delivery"
-  default_prompt: "Use $fullstack-harness-engineering to plan the complete PRD delivery order first. Do not modify production code unless I explicitly authorize plan-then-execute or approve the ready plan."
+  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery missions, validate deterministic execution waves, and run only the actions I explicitly authorize."
 policy:
   allow_implicit_invocation: true

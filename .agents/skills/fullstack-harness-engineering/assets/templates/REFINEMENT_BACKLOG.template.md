@@ -2,6 +2,8 @@
 
 Keep refinement candidates in `RUN.md` by default. Use this standalone expansion only when the backlog becomes materially difficult to scan, and link it from `RUN.md`.
 
+This template is for product/app improvement candidates discovered during an audit. It is not the execution task-decomposition protocol and must not be used to mint child task IDs; use `references/execution-task-decomposition.md` for that.
+
 ## Baseline Summary
 
 ```text
@@ -23,7 +25,7 @@ Unvalidated surfaces:
 
 | ID | Mission | Write scope | Verifier | Before evidence | After evidence | Commit |
 |---|---|---|---|---|---|---|
-| REF-001 | M<n> | <paths> | <cmd> | <path> | <path> | <hash> |
+| REF-001 | M1 | <paths> | <cmd> | <path> | <path> | <hash> |
 
 ## Declined Or Deferred
 
