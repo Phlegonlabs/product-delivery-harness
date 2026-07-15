@@ -689,6 +689,15 @@ class RunValidationTests(unittest.TestCase):
         self.assertEqual(validate_run(plan, run), [])
         run["status"] = "complete"
         self.assertEqual(validate_run(plan, run), [])
+        run["authorizations"]["merge_pr"]["expires_when"] = "wave_closed"
+        run["active_wave"]["status"] = "closed"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["authorizations"]["merge_pr"]["expires_when"] = "run_complete"
+        run["active_wave"]["status"] = "idle"
         run["status"] = "draft"
         run["landing"].update(
             {

@@ -978,7 +978,7 @@ def authorization_covers(
     mission_id: str,
     target: str | None = None,
     *,
-    allow_expired: bool = False,
+    preserve_completed_run_expiry: bool = False,
 ) -> bool:
     authorizations = run.get("authorizations")
     if not isinstance(authorizations, dict):
@@ -995,8 +995,14 @@ def authorization_covers(
     targets = scope.get("targets", [])
     if target is not None and target not in targets and "*" not in targets:
         return False
+    boundary = entry.get("expires_when")
+    expiry_is_preserved = (
+        preserve_completed_run_expiry
+        and boundary == "run_complete"
+        and run.get("status") == "complete"
+    )
     return _nonempty_string(entry.get("source")) and (
-        allow_expired or _authorization_not_expired(run, entry.get("expires_when"))
+        expiry_is_preserved or _authorization_not_expired(run, boundary)
     )
 
 
@@ -1157,7 +1163,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "merge_pr",
                     mission_id,
                     f"pr:{pr_url}",
-                    allow_expired=run["landing"].get("merge_status") == "merged",
+                    preserve_completed_run_expiry=(
+                        run["landing"].get("merge_status") == "merged"
+                    ),
                 )
                 for mission_id in mission_states
             )
