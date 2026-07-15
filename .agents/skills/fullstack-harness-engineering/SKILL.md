@@ -55,7 +55,7 @@ worktree workers   -> temporary per-mission reports only while integration needs
 ## Pure Validation Tools
 
 - `scripts/validate_harness_plan.py --plan <PLAN.md> [--run <RUN.md>]` validates manifests, trace/DAG/refinement structure, scopes/resources, authorization shape, and plan/run digest consistency.
-- `scripts/select_parallel_missions.py --plan <PLAN.md> --run <RUN.md>` computes a deterministic launch-gated frontier, static conflict graph, and wave proposal.
+- `scripts/select_parallel_missions.py --plan <PLAN.md> --run <RUN.md>` computes a deterministic launch-gated frontier, static conflict graph, wave proposal, and one tool-agnostic launch directive per selected mission.
 - `scripts/validate_worker_result.py --plan <PLAN.md> --run <RUN.md> --result <REPORT.md> --observed-head-sha <sha> --observed-changed-file <path>... --ancestry-confirmed` checks a worker integration candidate against parent-observed facts.
 
 All three are Python-stdlib-only and read-only. Their output is sorted JSON with no timestamps. They never create or modify Git refs, worktrees, Codex tasks, PLAN, or RUN. The parent observes live facts and performs authorized mutations only after reviewing their output.
@@ -126,6 +126,7 @@ Worker runtime: parent | subagent | app_task
 Workspace mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 Completion channel: agent_result | thread_poll | report_file | user_relay
 Nested subagents: unavailable | available-not-authorized | enabled-read-only
+Automatic mission threads: not-needed | pending-authorization | enabled | unavailable
 Permission boundary: unknown | ready | may-prompt | blocked
 Selected permission mode/profile and source:
 Required filesystem/network/local-binding surfaces:
@@ -215,8 +216,12 @@ observe -> confirm plan/digest/authorization -> lease ready mission -> choose sm
 Keep one parent-owned `PLAN.md` and `RUN.md`; workers never edit either.
 
 - Fan out read-only planning only when `spawn_subagents` is authorized. Keep mutating generators and shared-state tests serialized even when their intended source edits are read-only.
-- Default to `worker_runtime: parent`, `workspace_mode: shared_checkout`, and one writer.
+- Default to `worker_runtime: parent`, `workspace_mode: shared_checkout`, and one writer as the safe fallback. For explicitly authorized multi-mission or program execution in the Codex app, prefer `app_task` + `app_managed_worktree` + `thread_poll` when current thread tools, isolation, and completion polling are available.
 - For parallel writes, first validate PLAN/RUN, compute the ready frontier and conflict graph with `scripts/select_parallel_missions.py`, then bind a proposed wave to the current plan revision, digest, and fixed batch base SHA.
+- Do not stop after printing a non-empty app-task wave. After the parent rechecks live facts, records the accepted wave, allocates leases, and verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities plus every concrete target already known, consume every `launch_directives` entry: resolve the current Codex project once, create one worktree thread per selected mission with the complete `WORKER_GOAL.template.md` handoff as its initial prompt, and record the returned thread/client identity in the RUN worker record. A selector directive is not authorization and never creates the thread itself.
+- App-task fan-out requires `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `spawn_subagents` to cover the selected mission and allocated targets. Request this bundle once at readiness with explicit run/mission/target scope when it is missing; do not repeatedly ask for each worker when an unexpired run-wide grant already matches. Keep integration, push, PR, merge, deploy, archival, and cleanup permissions separate.
+- Every launched app-task mission receives an explicit depth-one, read-only nested-subagent policy. When capability is already observed, the worker must start at least one useful child for a non-trivial mission and may use up to three across exploration, documentation/API research, test/log analysis, and proposed-diff review. When capability is unknown, launch a no-production-edit handshake, poll the task, record the result, then send an enabled or disabled policy before implementation. If the required capability is unavailable, do not silently run the promised multi-agent shape; record the downgrade and use the sequential parent fallback.
+- Poll app-task threads through the available read-thread/status surface with backoff, preserve blockers and partial results, and send follow-up instructions through the available thread-message surface. Never claim an automatic callback when only polling exists. A terminal thread is still only a worker result; validate its reported head, actual diff, scope, ancestry, and verifiers before integration.
 - Effective concurrency is the minimum of configured budget, observed worker slots, isolation capacity, and ready nonconflicting missions. Never exceed three write workers unless the user explicitly changes this skill's default and the runtime safely supports it.
 - The parent confirms current Git/runtime facts and records the wave before any mutating launch action. Unsupported scopes, incomplete resource inventory, unknown capabilities, stale bases, or missing action authorization force sequential fallback or a stop.
 - Before launching subagents or app tasks, observe the permission mode selected for the parent and record the effective approval, filesystem, network, local-binding, and inheritance facts. Child agents inherit the parent task's active permission mode; selecting `Approve for me` changes who reviews eligible prompts, not the sandbox boundary.

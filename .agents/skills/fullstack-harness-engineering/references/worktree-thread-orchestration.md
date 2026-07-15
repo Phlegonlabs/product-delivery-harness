@@ -140,6 +140,22 @@ The parent reviews live Git/runtime facts, confirms the proposal, records it in 
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
+## Launch Selected Codex App Threads
+
+When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, a non-empty selector result is an instruction for the parent to act, not a final report. Use the current Codex project/thread tools when they are available:
+
+1. Resolve the repository's saved project once.
+2. For each selected mission in deterministic order, allocate its worker ID, lease ID, and branch/ref. Recheck `create_user_owned_tasks` and `create_app_managed_worktrees` against the explicit pre-allocation `*` grant because the app assigns their concrete identities; recheck `create_local_branches`, `create_local_commits`, and `spawn_subagents` against every already-known target.
+3. Build the initial prompt from `WORKER_GOAL.template.md`, including the frozen plan identity, fixed base, mission/task scope, verifiers, permission boundary, and nested policy. Tell the app task directly to use its authorized multi-agent policy.
+4. Create one worktree task/thread per mission from the recorded integration branch/ref. Record either the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.
+5. When nested capability is unobserved, keep the task in a no-production-edit handshake. Poll its capability result, update RUN, and send the explicit enabled or disabled policy before releasing implementation.
+6. Poll running threads with backoff, route necessary follow-up through the thread-message tool, and preserve terminal, blocked, interrupted, and partial results. Do not rely on the user to relay completion when programmatic polling is available.
+7. Validate every result against live Git facts and integrate serially as usual.
+
+For a non-trivial worker with an enabled nested policy, at least one direct child must run. The worker may use up to three read-only children across pre-edit exploration/research/test analysis and post-edit review, waits for them, and reports `subagent_activity`. A missing useful child without an allowed skip reason is a worker-result failure, not a successful single-agent downgrade.
+
+If the app lacks any required project, thread-create, thread-read, thread-message, worktree, or nested-agent capability, leave the affected directive unlaunched, record the exact capability gap, and fall back to the sequential parent. Never claim that writing a worker record created a real task.
+
 ## Worker Handoff
 
 Use `assets/templates/WORKER_GOAL.template.md`. A complete handoff binds the worker to:

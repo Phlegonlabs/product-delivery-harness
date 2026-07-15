@@ -71,7 +71,7 @@ def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
     if worker_runtime == "subagent":
         actions.append("spawn_subagents")
     elif worker_runtime == "app_task":
-        actions.append("create_user_owned_tasks")
+        actions.extend(("create_user_owned_tasks", "spawn_subagents"))
 
     if workspace_mode == "parent_managed_worktree":
         actions.extend(
@@ -88,6 +88,48 @@ def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
             )
         )
     return tuple(actions)
+
+
+def _launch_directive(
+    mission_id: str, runtime: dict[str, Any]
+) -> dict[str, Any]:
+    worker_runtime = runtime["worker_runtime"]
+    launch_kind = {
+        "parent": "run_parent",
+        "subagent": "spawn_subagent",
+        "app_task": "create_thread",
+    }[worker_runtime]
+
+    nested_policy: dict[str, Any] = {
+        "mode": "not_applicable",
+        "max_children": 0,
+        "allowed_roles": [],
+        "write_policy": "read_only",
+        "completion_channel": "agent_result",
+    }
+    if worker_runtime == "app_task":
+        nested = runtime.get("nested_subagents")
+        if isinstance(nested, dict) and nested.get("available") is True:
+            nested_policy = {
+                "mode": "enabled_read_only",
+                "max_children": min(nested["max_children_per_worker"], 3),
+                "allowed_roles": sorted(nested["allowed_roles"]),
+                "write_policy": "read_only",
+                "completion_channel": "agent_result",
+            }
+        else:
+            nested_policy["mode"] = "capability_handshake"
+
+    return {
+        "mission_id": mission_id,
+        "launch_kind": launch_kind,
+        "worker_runtime": worker_runtime,
+        "workspace_mode": runtime["workspace_mode"],
+        "completion_channel": runtime["completion_channel"],
+        "required_actions": list(_required_actions(runtime)),
+        "nested_subagent_policy": nested_policy,
+        "worker_prompt_template": "assets/templates/WORKER_GOAL.template.md",
+    }
 
 
 def _action_covers_mission(run: dict[str, Any], action: str, mission_id: str) -> bool:
@@ -423,6 +465,9 @@ def select_parallel_missions(
         "conflict_edges": conflict_edges,
         "deferred_missions": deferred,
         "effective_worker_budget": effective_budget,
+        "launch_directives": [
+            _launch_directive(mission_id, runtime) for mission_id in selected
+        ],
         "plan_digest_sha256": plan_digest(plan),
         "plan_id": plan["plan_id"],
         "plan_revision": plan["revision"],

@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
   short_description: "Plan, verify, and land delivery through reviewed PRs"
-  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery, preflight permission boundaries, run verified missions, land through current-head CI and GitHub review, use gated auto-merge when authorized, and safely close merged local branches and worktrees under separate cleanup authorization."
+  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery and run verified missions. For an authorized app-task wave, consume selector launch directives by creating one worktree thread per selected mission, require bounded read-only multi-agent work inside each non-trivial mission thread, poll and validate every result, then integrate serially. Preserve separate authorization for thread/worktree/branch/commit/integration, landing, deploy, and cleanup actions."
 policy:
   allow_implicit_invocation: true
