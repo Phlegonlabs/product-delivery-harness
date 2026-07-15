@@ -1132,6 +1132,27 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
     if schema_version in {3, 4}:
         _validate_landing(errors, run["landing"], schema_version)
+    if (
+        schema_version == 4
+        and isinstance(run["landing"], dict)
+        and run["landing"].get("auto_merge_requested") is True
+    ):
+        pr_url = run["landing"].get("pr_url")
+        mission_states = run.get("mission_states")
+        if (
+            not _nonempty_string(pr_url)
+            or not isinstance(mission_states, dict)
+            or not mission_states
+            or any(
+                not authorization_covers(run, "merge_pr", mission_id, f"pr:{pr_url}")
+                for mission_id in mission_states
+            )
+        ):
+            _add(
+                errors,
+                "run.landing",
+                "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+            )
 
     runtime_keys = {
         "worker_runtime",

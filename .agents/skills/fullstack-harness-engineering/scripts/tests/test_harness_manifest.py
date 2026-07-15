@@ -628,7 +628,34 @@ class RunValidationTests(unittest.TestCase):
                 "auto_merge_head_sha": SHA_A,
             }
         )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": True,
+            "source": "user: auto-merge ready PR",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["pr:https://github.com/example/repo/pull/7"],
+            },
+            "expires_when": "run_complete",
+        }
         self.assertEqual(validate_run(plan, run), [])
+
+        run["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            "pr:https://github.com/example/repo/pull/8"
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            "pr:https://github.com/example/repo/pull/7"
+        ]
 
         run["landing"].update(
             {
