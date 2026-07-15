@@ -66,6 +66,8 @@ Official Codex review documentation establishes these current facts:
 
 The harness therefore records local diff review separately from GitHub review and binds GitHub CI/review evidence to the exact PR head SHA. A later push invalidates earlier evidence even if the PR number is unchanged. The parent should request review again after the new checks pass.
 
+A skill can direct the interactive parent to run a persistent GitHub tool loop: create the PR, poll checks, request Codex review, poll findings and threads, and submit an exact-head merge after every gate passes. The skill cannot turn on repository Automatic reviews or auto-merge by itself. Those remain repository settings, and changing them requires separate authorization; when Automatic reviews are not observed, the portable review trigger is `@codex review`.
+
 ## Completion And Event Notifications
 
 A generic skill must not promise automatic cross-task callbacks:

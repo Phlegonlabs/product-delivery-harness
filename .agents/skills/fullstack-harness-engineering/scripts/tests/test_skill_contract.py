@@ -39,6 +39,23 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("Keep all 13 RUN authorization entries false", goal)
         self.assertIn("create one worktree thread per selected mission", goal)
 
+    def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
+        skill = self.read("SKILL.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("#### Authorized Automatic Pull-Request Landing", skill)
+        self.assertIn("do not stop after local verification", skill)
+        self.assertIn("do not stop after verification or PR creation", goal)
+        self.assertIn("one continuous parent-owned landing loop", runbook)
+        self.assertIn("continue through that landing flow without pausing", project_rules)
+        self.assertIn("continue automatically through Draft PR", agent)
+        for content in (skill, goal, runbook, project_rules, agent):
+            self.assertIn("current-head", content)
+            self.assertIn("merge", content.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -107,6 +107,8 @@ Only an explicit user instruction recorded with its source may set overall execu
 
 PR creation, repository review configuration, review management, and merge are separate boundaries. `create_pr` does not authorize marking a PR ready, requesting or resolving review, enabling branch rules, or merging. A read-only local or GitHub diff inspection does not need mutation authorization, but any review-state change uses `manage_pr_review`.
 
+A single explicit user instruction may authorize several exact actions together. Record that one source separately under every covered ledger key; do not collapse the entries into a new blanket permission. For a new end-to-end automatic pull-request landing, normally request `create_local_branches`, `create_local_commits`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` together with run/mission/target scope. If a branch or commit already exists, require only the actions that will actually mutate state. This request does not grant them. Keep `configure_repository`, deploy, archival, worktree removal, and branch deletion separate.
+
 ## Workflow
 
 ### 1. Intake And Route
@@ -127,6 +129,7 @@ Workspace mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 Completion channel: agent_result | thread_poll | report_file | user_relay
 Nested subagents: unavailable | available-not-authorized | enabled-read-only
 Automatic mission threads: not-needed | pending-authorization | enabled | unavailable
+Automatic PR landing: local-only | pending-authorization | enabled | blocked
 Permission boundary: unknown | ready | may-prompt | blocked
 Selected permission mode/profile and source:
 Required filesystem/network/local-binding surfaces:
@@ -236,7 +239,7 @@ Keep one parent-owned `PLAN.md` and `RUN.md`; workers never edit either.
 - Nested children are task-local assistants, not new harness missions. They receive no mission lease, do not change the outer wave budget or dependency graph, and return only to their app-task parent through `agent_result`; the outer coordinator continues to observe the app task through its declared completion channel.
 - If subagents, app tasks, worktrees, callbacks, or slots are unavailable, run the same dependency-ordered plan sequentially.
 
-### 6. Verify UI And Close
+### 6. Verify, Land, And Close
 
 For UI-bearing work, record in `RUN.md`:
 
@@ -245,6 +248,25 @@ For UI-bearing work, record in `RUN.md`:
 - Ready, loading, empty, error, disabled, permission, and long-running states that apply.
 - Browser interaction, console/page/network health, accessibility, and design comparison.
 - Clickable screenshot, trace, or report paths only when artifacts exist.
+
+#### Authorized Automatic Pull-Request Landing
+
+When `landing.mode` is `pull_request` and every action that remains necessary in the landing path has exact authorization—normally `create_local_branches`, `create_local_commits`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` for a new delivery—do not stop after local verification, push, Draft PR creation, CI, or review request. The parent owns this continuous landing loop:
+
+```text
+review final diff -> verify -> commit -> push feature head -> create Draft PR
+-> poll current-head CI -> mark Ready -> request Codex review
+-> poll review and threads -> repair authorized in-scope findings if needed
+-> reset stale gates after every push -> exact-head squash auto-merge
+-> wait until GitHub reports merged -> record merged SHA
+```
+
+- Recheck the matching authorization and live target immediately before every mutation. One bundled user statement avoids repeated pauses; it does not weaken the separate ledger entries.
+- Bind CI and Codex review to the current PR head. A new commit or push resets both results, requires fresh CI, and requires another review of that SHA.
+- Trigger review with the repository's documented mechanism. When Automatic reviews are not observed, use `@codex review` under `manage_pr_review` and poll the PR; do not treat the bot's acknowledgement as PASS.
+- If CI or review finds an in-scope defect, fix it only under the existing execution, commit, and push authorization; rerun local gates, push the new head, and restart the current-head loop. Stop for a scope/contract decision, missing authorization, or three consecutive no-progress attempts.
+- Enable squash auto-merge only after current-head CI and Codex review PASS with zero blocking findings and unresolved threads. Use an exact-head guard and wait for GitHub to report `merged` before declaring landing complete.
+- If repository auto-merge or Codex review configuration is unavailable, do not change repository settings without `configure_repository`; report that one boundary. Deploy and post-merge cleanup remain separate even when landing is automatic.
 
 Final completion requires:
 
