@@ -189,7 +189,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         for item in current_mission["tasks"]
     ]
     return {
-        "schema_version": 4,
+        "schema_version": 5,
         "run_id": "RUN-TEST",
         "plan": {
             "id": plan["plan_id"],
@@ -220,6 +220,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         "observed": {
             "captured_at": None,
             "git": {
+                "parent_worktree_path": "C:/repo/fullstack-goal-dev",
                 "parent_branch": "main",
                 "parent_head_sha": SHA_A,
                 "parent_dirty": False,
@@ -256,6 +257,28 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             "merged_sha": None,
             "auto_merge_requested": False,
             "auto_merge_head_sha": None,
+        },
+        "post_merge_cleanup": {
+            "status": "not_started",
+            "base": {
+                "branch": "main",
+                "head_sha": None,
+                "merged_sha_reachable": None,
+            },
+            "worktree": {
+                "path": None,
+                "branch_ref": None,
+                "head_sha": None,
+                "dirty": None,
+                "status": "not_applicable",
+            },
+            "local_branch": {
+                "ref": None,
+                "head_sha": None,
+                "status": "pending",
+            },
+            "evidence": [],
+            "deferred_reason": None,
         },
         "mission_states": {
             mission_id: {
@@ -480,6 +503,8 @@ class RunValidationTests(unittest.TestCase):
         run = valid_run(plan)
         run["schema_version"] = 2
         del run["landing"]
+        del run["post_merge_cleanup"]
+        del run["observed"]["git"]["parent_worktree_path"]
         for action in ("configure_repository", "manage_pr_review", "merge_pr"):
             del run["authorizations"][action]
         self.assertEqual(validate_run(plan, run), [])
@@ -488,8 +513,255 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         run["schema_version"] = 3
+        del run["post_merge_cleanup"]
+        del run["observed"]["git"]["parent_worktree_path"]
         del run["landing"]["auto_merge_requested"]
         del run["landing"]["auto_merge_head_sha"]
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_run_schema_v4_remains_compatible(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["schema_version"] = 4
+        del run["post_merge_cleanup"]
+        del run["observed"]["git"]["parent_worktree_path"]
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_post_merge_cleanup_binds_to_merged_pr_and_exact_branch(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "merged",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        for state in run["mission_states"].values():
+            state.update(
+                {
+                    "phase": "integrated",
+                    "integration_gate": "PASS",
+                    "integrated_sha": SHA_A,
+                }
+            )
+        run["observed"].update(
+            {
+                "captured_at": "2026-07-15T08:00:00Z",
+                "git": {
+                    "parent_worktree_path": "C:/repo/fullstack-goal-dev",
+                    "parent_branch": "codex/test",
+                    "parent_head_sha": SHA_A,
+                    "parent_dirty": False,
+                    "worktrees": [],
+                },
+            }
+        )
+        run["authorizations"]["delete_branches"] = {
+            "authorized": True,
+            "source": "user: remove the merged local feature branch",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["branch:refs/heads/codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        run["post_merge_cleanup"] = {
+            "status": "ready",
+            "base": {
+                "branch": "main",
+                "head_sha": SHA_B,
+                "merged_sha_reachable": True,
+            },
+            "worktree": {
+                "path": None,
+                "branch_ref": None,
+                "head_sha": None,
+                "dirty": None,
+                "status": "not_applicable",
+            },
+            "local_branch": {
+                "ref": "refs/heads/codex/test",
+                "head_sha": SHA_A,
+                "status": "pending",
+            },
+            "evidence": [],
+            "deferred_reason": None,
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["post_merge_cleanup"]["local_branch"]["head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "local_branch.head_sha: must match the merged PR head SHA",
+        )
+        run["post_merge_cleanup"]["local_branch"]["head_sha"] = SHA_A
+
+        run["post_merge_cleanup"].update(
+            {
+                "status": "complete",
+                "local_branch": {
+                    "ref": "refs/heads/codex/test",
+                    "head_sha": SHA_A,
+                    "status": "deleted",
+                },
+                "evidence": [
+                    "git worktree list --porcelain: no linked target",
+                    "git branch --list codex/test: absent",
+                ],
+            }
+        )
+        run["observed"]["git"].update(
+            {
+                "parent_branch": "main",
+                "parent_head_sha": SHA_B,
+            }
+        )
+        run["status"] = "complete"
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_post_merge_cleanup_requires_clean_observed_worktree(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "merged",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        for state in run["mission_states"].values():
+            state.update(
+                {
+                    "phase": "integrated",
+                    "integration_gate": "PASS",
+                    "integrated_sha": SHA_A,
+                }
+            )
+        path = "C:/tmp/fullstack-goal-dev-cleanup"
+        run["observed"] = {
+            "captured_at": "2026-07-15T08:00:00Z",
+            "git": {
+                "parent_worktree_path": "C:/repo/fullstack-goal-dev",
+                "parent_branch": "main",
+                "parent_head_sha": SHA_B,
+                "parent_dirty": False,
+                "worktrees": [
+                    {
+                        "path": path,
+                        "branch_ref": "refs/heads/codex/test",
+                        "head_sha": SHA_A,
+                        "managed_by": "parent",
+                        "dirty": False,
+                    }
+                ],
+            },
+            "runtime": {
+                "available_worker_slots": 1,
+                "isolation_capacity": 1,
+                "completion_channel_available": True,
+            },
+        }
+        for action, target in (
+            ("delete_branches", "branch:refs/heads/codex/test"),
+            ("remove_worktrees", f"worktree:{path}"),
+        ):
+            run["authorizations"][action] = {
+                "authorized": True,
+                "source": f"user: authorize {action}",
+                "scope": {
+                    "run_id": "RUN-TEST",
+                    "mission_ids": ["M1", "M2"],
+                    "targets": [target],
+                },
+                "expires_when": "run_complete",
+            }
+        run["post_merge_cleanup"] = {
+            "status": "ready",
+            "base": {
+                "branch": "main",
+                "head_sha": SHA_B,
+                "merged_sha_reachable": True,
+            },
+            "worktree": {
+                "path": path,
+                "branch_ref": "refs/heads/codex/test",
+                "head_sha": SHA_A,
+                "dirty": False,
+                "status": "pending",
+            },
+            "local_branch": {
+                "ref": "refs/heads/codex/test",
+                "head_sha": SHA_A,
+                "status": "pending",
+            },
+            "evidence": [],
+            "deferred_reason": None,
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["post_merge_cleanup"]["worktree"]["dirty"] = True
+        self.assert_run_error_contains(plan, run, "worktree.dirty: must be false before removal")
+        run["post_merge_cleanup"]["worktree"]["dirty"] = False
+
+        run["post_merge_cleanup"]["worktree"]["path"] = "C:/repo/fullstack-goal-dev"
+        self.assert_run_error_contains(plan, run, "worktree.path: must not target the primary checkout")
+        run["post_merge_cleanup"]["worktree"]["path"] = path
+
+        run["post_merge_cleanup"]["status"] = "complete"
+        run["post_merge_cleanup"]["worktree"]["status"] = "removed"
+        run["post_merge_cleanup"]["local_branch"]["status"] = "deleted"
+        run["post_merge_cleanup"]["evidence"] = ["worktree and local branch absent"]
+        run["observed"]["git"]["worktrees"] = []
+        run["status"] = "complete"
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_post_merge_cleanup_can_be_deferred_for_platform_lifecycle(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["status"] = "complete"
+        run["post_merge_cleanup"].update(
+            {
+                "status": "deferred",
+                "worktree": {
+                    "path": None,
+                    "branch_ref": None,
+                    "head_sha": None,
+                    "dirty": None,
+                    "status": "platform_managed",
+                },
+                "local_branch": {
+                    "ref": None,
+                    "head_sha": None,
+                    "status": "deferred",
+                },
+                "deferred_reason": "Codex manages this worktree through app retention",
+            }
+        )
         self.assertEqual(validate_run(plan, run), [])
 
     def test_landing_ready_binds_checks_and_review_to_current_pr_head(self) -> None:
@@ -607,6 +879,13 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assertEqual(validate_run(plan, run), [])
 
+        malformed = copy.deepcopy(run)
+        malformed["post_merge_cleanup"]["base"] = []
+        malformed_errors = validate_run(plan, malformed)
+        self.assertTrue(
+            any("run.post_merge_cleanup.base: must be an object" in error for error in malformed_errors)
+        )
+
     def test_auto_merge_requires_a_ready_current_head(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -688,6 +967,8 @@ class RunValidationTests(unittest.TestCase):
         )
         self.assertEqual(validate_run(plan, run), [])
         run["status"] = "complete"
+        run["post_merge_cleanup"]["status"] = "deferred"
+        run["post_merge_cleanup"]["deferred_reason"] = "cleanup authorization is tested separately"
         self.assertEqual(validate_run(plan, run), [])
         run["authorizations"]["merge_pr"]["expires_when"] = "wave_closed"
         run["active_wave"]["status"] = "closed"
@@ -699,6 +980,8 @@ class RunValidationTests(unittest.TestCase):
         run["authorizations"]["merge_pr"]["expires_when"] = "run_complete"
         run["active_wave"]["status"] = "idle"
         run["status"] = "draft"
+        run["post_merge_cleanup"]["status"] = "not_started"
+        run["post_merge_cleanup"]["deferred_reason"] = None
         run["landing"].update(
             {
                 "pr_state": "open",

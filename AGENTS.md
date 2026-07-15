@@ -26,6 +26,7 @@
 - After CI passes, use separate `manage_pr_review` authorization to mark the PR ready and request Codex review.
 - A new push makes earlier CI and review results stale. Wait for checks and request review again for the new head SHA.
 - After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
+- After GitHub reports the PR merged, fetch the base and confirm the local feature branch still equals the merged PR head. With exact cleanup authorization, remove only a clean linked worktree, switch the primary checkout to `main`, then delete only that local feature branch. Never remove the primary checkout.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal are separate actions. Do not infer approval for them from implementation or PR creation.
 
 ## Required Verification
@@ -45,7 +46,7 @@ Treat these as blocking findings:
 - Any path that bypasses explicit action authorization for branch, commit, integration, repository configuration, push, PR review management, merge, deploy, or cleanup.
 - Any direct push or merge path to `main` that bypasses the PR landing flow.
 - Any PASS check or review state that is not bound to the current PR head SHA.
-- Any schema change that breaks valid RUN schema v2 files without an explicit migration path.
+- Any schema change that breaks valid RUN schema v2 through v4 files without an explicit migration path.
 - Any worker that edits parent-owned PLAN/RUN state, escapes its write scope, or independently pushes or opens a PR.
 - Any behavior change without focused tests, or any test/workflow command that does not run from the repository root.
 

@@ -9,7 +9,7 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
 ```json
 {
   "harness_run": {
-    "schema_version": 4,
+    "schema_version": 5,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
@@ -125,6 +125,7 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
     "observed": {
       "captured_at": null,
       "git": {
+        "parent_worktree_path": null,
         "parent_branch": null,
         "parent_head_sha": null,
         "parent_dirty": null,
@@ -161,6 +162,28 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
       "merged_sha": null,
       "auto_merge_requested": false,
       "auto_merge_head_sha": null
+    },
+    "post_merge_cleanup": {
+      "status": "not_started",
+      "base": {
+        "branch": "main",
+        "head_sha": null,
+        "merged_sha_reachable": null
+      },
+      "worktree": {
+        "path": null,
+        "branch_ref": null,
+        "head_sha": null,
+        "dirty": null,
+        "status": "not_applicable"
+      },
+      "local_branch": {
+        "ref": null,
+        "head_sha": null,
+        "status": "pending"
+      },
+      "evidence": [],
+      "deferred_reason": null
     },
     "mission_states": {
       "M1": {
@@ -207,11 +230,13 @@ The exact fenced JSON block above is the canonical run state. Scripts read this 
 
 The action ledger has 16 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. Repository configuration, push, PR creation, PR review management, PR merge, deploy, archive, worktree removal, and branch deletion remain false unless separately authorized.
 
-`landing` is required in schemas v3 and v4. Schema v4 adds the auto-merge fields shown above; schema v3 remains readable without them. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+`landing` is required in schemas v3 through v5. Schemas v4 and v5 include the auto-merge fields shown above; v3 remains readable without them. Schema v5 adds `post_merge_cleanup`; valid v2 through v4 files remain readable. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
 
 Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. At request time this requires `merge_status: "ready"`, current-head CI and Codex review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and unexpired `merge_pr` authorization whose mission scope covers the run and whose target is `pr:<full-PR-URL>` (or an explicitly run-wide `*`). Use `gh pr merge --auto --squash --match-head-commit <sha>` or an equivalent exact-head operation. After the PR reaches `merge_status: "merged"`, preserve the matching authorization evidence even when its `run_complete` boundary expires during final closeout. Any new push, changed integration head, canceled request, or closed-unmerged PR resets the fields to `false` and `null`.
 
 A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
+
+Schema v5 uses `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, fetch the base branch, prove `landing.merged_sha` is reachable from that base, re-observe a clean checkout, record `observed.git.parent_worktree_path`, and confirm the local feature branch still points to `landing.pr_head_sha`. Manual worktree removal additionally requires a different exact clean linked path, branch ref, and head SHA to match the current observation. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
 
 Create the final integration branch and PR from the parent checkout. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, resolve blocking threads, then enable SHA-bound auto-merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
@@ -420,4 +445,5 @@ Changed files:
 Commits:
 Residual risk:
 Landing state:
+Post-merge cleanup state:
 ```
