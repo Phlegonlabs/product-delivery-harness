@@ -11,11 +11,13 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
 
     def test_skill_routes_browser_products_to_frontend_selection(self) -> None:
         skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
 
         self.assertIn("references/frontend-stack-selection.md", skill)
         self.assertIn("recommend one explicit stack", skill)
         self.assertIn("recommendation is not misrepresented as a fixed requirement", skill)
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
+        self.assertIn("when the product has a browser surface", agent)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")

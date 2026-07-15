@@ -49,6 +49,7 @@ class DesignPackageSkillContractTests(unittest.TestCase):
 
     def test_motion_system_supports_hero_choreography_and_runnable_demo(self) -> None:
         skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
         motion_guide = self.read("references/motion-system-guide.md")
         output_contract = self.read("references/output-contract.md")
         design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
@@ -64,6 +65,8 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("Motion system conformance", visual_acceptance)
         self.assertIn('id="reduced-motion"', motion_showcase)
         self.assertIn("Element.prototype.animate", motion_showcase)
+        self.assertIn("runnable motion demos when requested", agent)
+        self.assertNotIn("runnable hero demos", agent)
 
 
 if __name__ == "__main__":
