@@ -604,6 +604,14 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assertEqual(validate_run(plan, run), [])
 
+        run["status"] = "complete"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "a completed pull-request run must complete or defer cleanup",
+        )
+        run["status"] = "draft"
+
         run["observed"]["git"]["parent_head_sha"] = SHA_B
         self.assert_run_error_contains(
             plan,

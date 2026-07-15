@@ -1077,6 +1077,12 @@ def _validate_post_merge_cleanup(
             f"{path}.worktree.managed_by",
             "must be null when no linked worktree applies",
         )
+    if (
+        run.get("status") == "complete"
+        and landing.get("mode") == "pull_request"
+        and status in {"not_started", "ready"}
+    ):
+        _add(errors, path, "a completed pull-request run must complete or defer cleanup")
 
     if status == "not_applicable":
         if run.get("status") == "complete":
@@ -1119,8 +1125,6 @@ def _validate_post_merge_cleanup(
     if status == "not_started":
         if value["deferred_reason"] is not None:
             _add(errors, f"{path}.deferred_reason", "must be null unless cleanup is deferred")
-        if run.get("status") == "complete" and landing.get("mode") == "pull_request":
-            _add(errors, path, "a completed pull-request run must complete or defer cleanup")
         return
 
     if status == "deferred":
