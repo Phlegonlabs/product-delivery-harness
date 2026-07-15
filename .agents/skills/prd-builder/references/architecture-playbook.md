@@ -9,7 +9,7 @@ Every architecture should cover:
 - Product archetype and target surfaces.
 - Actors and external systems.
 - Frontend or client responsibilities.
-- Frontend technology layers: deployment/runtime, rendering model, framework, UI library, build tool, routing/data approach, styling/component approach, and testing.
+- For products with a browser frontend, frontend technology layers: deployment/runtime, rendering model, framework, UI library, build tool, routing/data approach, styling/component approach, and testing.
 - Backend, service, or workflow orchestration responsibilities.
 - Data model and persistence.
 - API, event, file, or trigger contracts.

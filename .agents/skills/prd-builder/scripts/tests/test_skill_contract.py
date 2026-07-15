@@ -45,7 +45,10 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
 
         self.assertIn("content-led, interaction-led", interview)
         self.assertIn("rendering needs", interview)
-        self.assertIn("Frontend technology layers", architecture)
+        self.assertIn(
+            "For products with a browser frontend, frontend technology layers",
+            architecture,
+        )
         self.assertIn("official-source verification date", architecture)
 
 
