@@ -20,11 +20,12 @@
 - With matching `create_local_commits` authorization, commit only the verified task scope.
 - Worker branches and worktrees stay local. With matching `integrate_locally` authorization, the parent integrates verified worker commits into one final branch.
 - Before push, run the required tests and review the complete diff against `main`.
-- Change branch rules, required checks, or Codex review settings only with matching `configure_repository` authorization.
+- Change branch rules, required checks, repository auto-merge, or Codex review settings only with matching `configure_repository` authorization.
 - With matching `push` authorization, push only the final branch.
 - With separate `create_pr` authorization, open a Draft PR.
 - After CI passes, use separate `manage_pr_review` authorization to mark the PR ready and request Codex review.
 - A new push makes earlier CI and review results stale. Wait for checks and request review again for the new head SHA.
+- After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal are separate actions. Do not infer approval for them from implementation or PR creation.
 
 ## Required Verification

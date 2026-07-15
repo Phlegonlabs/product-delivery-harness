@@ -795,7 +795,7 @@ def _optional_nonnegative_int(errors: list[str], path: str, value: Any) -> None:
         _add(errors, path, "must be null or a non-negative integer")
 
 
-def _validate_landing(errors: list[str], value: Any) -> None:
+def _validate_landing(errors: list[str], value: Any, schema_version: int) -> None:
     path = "run.landing"
     keys = {
         "mode",
@@ -816,6 +816,8 @@ def _validate_landing(errors: list[str], value: Any) -> None:
         "merge_status",
         "merged_sha",
     }
+    if schema_version == 4:
+        keys.update({"auto_merge_requested", "auto_merge_head_sha"})
     if not _keys(errors, path, value, keys):
         return
 
@@ -831,6 +833,10 @@ def _validate_landing(errors: list[str], value: Any) -> None:
         "merged_sha",
     ):
         _optional_sha(errors, f"{path}.{key}", value[key])
+    if schema_version == 4:
+        if not isinstance(value["auto_merge_requested"], bool):
+            _add(errors, f"{path}.auto_merge_requested", "must be boolean")
+        _optional_sha(errors, f"{path}.auto_merge_head_sha", value["auto_merge_head_sha"])
     _optional_nonnegative_int(errors, f"{path}.blocking_findings", value["blocking_findings"])
     _optional_nonnegative_int(errors, f"{path}.unresolved_threads", value["unresolved_threads"])
 
@@ -922,6 +928,25 @@ def _validate_landing(errors: list[str], value: Any) -> None:
         _add(errors, path, "closed PR requires merge_status closed_unmerged")
     if value["merge_status"] != "merged" and value["merged_sha"] is not None:
         _add(errors, path, "only merged status may record merged_sha")
+    if schema_version == 4:
+        if value["auto_merge_requested"]:
+            if (
+                value["mode"] != "pull_request"
+                or value["merge_status"] not in {"ready", "merged"}
+                or value["auto_merge_head_sha"] is None
+                or value["auto_merge_head_sha"] != value["pr_head_sha"]
+            ):
+                _add(
+                    errors,
+                    path,
+                    "auto_merge_requested requires a ready or merged current-head PR",
+                )
+        elif value["auto_merge_head_sha"] is not None:
+            _add(
+                errors,
+                f"{path}.auto_merge_head_sha",
+                "must be null when auto_merge_requested is false",
+            )
 
 
 def _validate_authorization_scope(
@@ -948,9 +973,17 @@ def _validate_authorization_scope(
 
 
 def authorization_covers(
-    run: dict[str, Any], action: str, mission_id: str, target: str | None = None
+    run: dict[str, Any],
+    action: str,
+    mission_id: str,
+    target: str | None = None,
+    *,
+    preserve_completed_run_expiry: bool = False,
 ) -> bool:
-    entry = run.get("authorizations", {}).get(action, {})
+    authorizations = run.get("authorizations")
+    if not isinstance(authorizations, dict):
+        return False
+    entry = authorizations.get(action, {})
     if not isinstance(entry, dict) or entry.get("authorized") is not True:
         return False
     scope = entry.get("scope")
@@ -962,8 +995,14 @@ def authorization_covers(
     targets = scope.get("targets", [])
     if target is not None and target not in targets and "*" not in targets:
         return False
-    return _nonempty_string(entry.get("source")) and _authorization_not_expired(
-        run, entry.get("expires_when")
+    boundary = entry.get("expires_when")
+    expiry_is_preserved = (
+        preserve_completed_run_expiry
+        and boundary == "run_complete"
+        and run.get("status") == "complete"
+    )
+    return _nonempty_string(entry.get("source")) and (
+        expiry_is_preserved or _authorization_not_expired(run, boundary)
     )
 
 
@@ -1016,12 +1055,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "attempt_log",
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         run_keys.add("landing")
     if not _keys(errors, "run", run, run_keys):
         return sorted(errors)
-    if schema_version not in {2, 3}:
-        _add(errors, "run.schema_version", "must equal 2 or 3")
+    if schema_version not in {2, 3, 4}:
+        _add(errors, "run.schema_version", "must equal 2, 3, or 4")
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
@@ -1064,7 +1103,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if run["plan"]["digest_sha256"] != digest:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
-    authorization_keys = AUTHORIZATION_KEYS if schema_version == 3 else AUTHORIZATION_KEYS_V2
+    authorization_keys = AUTHORIZATION_KEYS if schema_version in {3, 4} else AUTHORIZATION_KEYS_V2
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
         _add(errors, "run.authorizations", "must be an object")
@@ -1105,8 +1144,37 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
 
-    if schema_version == 3:
-        _validate_landing(errors, run["landing"])
+    if schema_version in {3, 4}:
+        _validate_landing(errors, run["landing"], schema_version)
+    if (
+        schema_version == 4
+        and isinstance(run["landing"], dict)
+        and run["landing"].get("auto_merge_requested") is True
+    ):
+        pr_url = run["landing"].get("pr_url")
+        mission_states = run.get("mission_states")
+        if (
+            not _nonempty_string(pr_url)
+            or not isinstance(mission_states, dict)
+            or not mission_states
+            or any(
+                not authorization_covers(
+                    run,
+                    "merge_pr",
+                    mission_id,
+                    f"pr:{pr_url}",
+                    preserve_completed_run_expiry=(
+                        run["landing"].get("merge_status") == "merged"
+                    ),
+                )
+                for mission_id in mission_states
+            )
+        ):
+            _add(
+                errors,
+                "run.landing",
+                "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+            )
 
     runtime_keys = {
         "worker_runtime",
@@ -1307,7 +1375,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
         if (
-            schema_version == 3
+            schema_version in {3, 4}
             and isinstance(run["landing"], dict)
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
@@ -1323,7 +1391,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "pull_request mode requires integration.branch to match head_branch",
             )
         if (
-            schema_version == 3
+            schema_version in {3, 4}
             and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"

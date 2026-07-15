@@ -31,7 +31,7 @@ For plan-backed orchestration, keep three layers separate:
 - Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
 - Read `references/commit-convention.md` before creating or recording any harness-managed commit.
 - Use `assets/templates/HARNESS_PLAN.template.md` as `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` as `RUN.md`. Use other templates only for an explicit optional expansion.
-- For a new GitHub repository that will use pull-request landing, inspect its root `AGENTS.md`, PR template, and CI workflows. When durable project setup is in scope, instantiate `assets/templates/PROJECT_AGENTS.template.md`, `PULL_REQUEST.template.md`, and `PROJECT_CI.template.yml`; replace every placeholder with repo-specific values before activating the workflow.
+- For a new GitHub repository that will use pull-request landing, inspect its root `AGENTS.md`, PR template, CI workflows, branch rules, and repository auto-merge setting. When durable project setup is in scope, instantiate `assets/templates/PROJECT_AGENTS.template.md`, `PULL_REQUEST.template.md`, and `PROJECT_CI.template.yml`; replace every placeholder with repo-specific values before activating the workflow. Enable repository auto-merge only with `configure_repository` authorization and only when the project adopts the gated auto-merge policy below.
 
 ## File Budget
 
@@ -251,7 +251,7 @@ Final completion requires:
 - `RUN.md` records final status, evidence, changed files, commits, residual risk, and landing state.
 - In pull-request mode, the final branch was reviewed locally before push, and current-head CI plus GitHub review are recorded separately. A new push invalidates any earlier PASS tied to another SHA.
 - Only the parent integration branch lands by default. In pull-request mode, `integration.branch` must be the PR head branch and must differ from the base branch. Worker branches remain local and do not open their own PRs unless the plan gives them a separate landing target.
-- `merge_status: ready` and `merged` both preserve the same current-head gate: the PR head matches the integration head, check and review PASS records match that PR head, and no blocking finding or unresolved thread remains. `merged` additionally records the merged PR state and merge SHA. Merge and deploy still require their own authorization.
+- `merge_status: ready` and `merged` both preserve the same current-head gate: the PR head matches the integration head, check and review PASS records match that PR head, and no blocking finding or unresolved thread remains. Schema v4 may set `auto_merge_requested: true` only after that gate passes, with `auto_merge_head_sha` equal to the current PR head. Enable squash auto-merge with an exact head-SHA match only when `merge_pr` covers the PR; any new push resets the request and requires fresh CI and review. `merged` additionally records the merged PR state and merge SHA. Merge and deploy still require their own authorization.
 
 ## Output Shape
 

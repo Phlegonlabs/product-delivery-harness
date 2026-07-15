@@ -189,7 +189,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         for item in current_mission["tasks"]
     ]
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "run_id": "RUN-TEST",
         "plan": {
             "id": plan["plan_id"],
@@ -254,6 +254,8 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             "unresolved_threads": None,
             "merge_status": "not_ready",
             "merged_sha": None,
+            "auto_merge_requested": False,
+            "auto_merge_head_sha": None,
         },
         "mission_states": {
             mission_id: {
@@ -482,6 +484,14 @@ class RunValidationTests(unittest.TestCase):
             del run["authorizations"][action]
         self.assertEqual(validate_run(plan, run), [])
 
+    def test_run_schema_v3_remains_compatible(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["schema_version"] = 3
+        del run["landing"]["auto_merge_requested"]
+        del run["landing"]["auto_merge_head_sha"]
+        self.assertEqual(validate_run(plan, run), [])
+
     def test_landing_ready_binds_checks_and_review_to_current_pr_head(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -596,6 +606,128 @@ class RunValidationTests(unittest.TestCase):
             "expires_when": "run_complete",
         }
         self.assertEqual(validate_run(plan, run), [])
+
+    def test_auto_merge_requires_a_ready_current_head(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "ready",
+                "auto_merge_requested": True,
+                "auto_merge_head_sha": SHA_A,
+            }
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": True,
+            "source": "user: auto-merge ready PR",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["pr:https://github.com/example/repo/pull/7"],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+        malformed = copy.deepcopy(run)
+        malformed["authorizations"] = []
+        malformed_errors = validate_run(plan, malformed)
+        self.assertTrue(
+            any("run.authorizations: must be an object" in error for error in malformed_errors)
+        )
+        self.assertTrue(
+            any(
+                "auto_merge_requested requires matching merge_pr authorization for the exact PR"
+                in error
+                for error in malformed_errors
+            )
+        )
+
+        run["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            "pr:https://github.com/example/repo/pull/8"
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            "pr:https://github.com/example/repo/pull/7"
+        ]
+
+        run["status"] = "complete"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["status"] = "draft"
+
+        run["landing"].update(
+            {
+                "pr_state": "merged",
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+        run["status"] = "complete"
+        self.assertEqual(validate_run(plan, run), [])
+        run["authorizations"]["merge_pr"]["expires_when"] = "wave_closed"
+        run["active_wave"]["status"] = "closed"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["authorizations"]["merge_pr"]["expires_when"] = "run_complete"
+        run["active_wave"]["status"] = "idle"
+        run["status"] = "draft"
+        run["landing"].update(
+            {
+                "pr_state": "open",
+                "merge_status": "ready",
+                "merged_sha": None,
+            }
+        )
+
+        run["landing"]["auto_merge_head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires a ready or merged current-head PR",
+        )
+
+        run["landing"]["auto_merge_head_sha"] = SHA_A
+        run["landing"]["merge_status"] = "not_ready"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires a ready or merged current-head PR",
+        )
+
+        run["landing"]["auto_merge_requested"] = False
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_head_sha: must be null when auto_merge_requested is false",
+        )
 
     def test_local_only_landing_rejects_a_pushed_head(self) -> None:
         plan = valid_plan()

@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
   short_description: "Plan, verify, and land delivery through reviewed PRs"
-  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery, preflight permission boundaries, run verified missions, and land the final integration branch through current-head CI and GitHub code review when authorized."
+  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery, preflight permission boundaries, run verified missions, and land the final integration branch through current-head CI, GitHub code review, and gated auto-merge when authorized."
 policy:
   allow_implicit_invocation: true
