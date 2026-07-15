@@ -973,7 +973,12 @@ def _validate_authorization_scope(
 
 
 def authorization_covers(
-    run: dict[str, Any], action: str, mission_id: str, target: str | None = None
+    run: dict[str, Any],
+    action: str,
+    mission_id: str,
+    target: str | None = None,
+    *,
+    allow_expired: bool = False,
 ) -> bool:
     authorizations = run.get("authorizations")
     if not isinstance(authorizations, dict):
@@ -990,8 +995,8 @@ def authorization_covers(
     targets = scope.get("targets", [])
     if target is not None and target not in targets and "*" not in targets:
         return False
-    return _nonempty_string(entry.get("source")) and _authorization_not_expired(
-        run, entry.get("expires_when")
+    return _nonempty_string(entry.get("source")) and (
+        allow_expired or _authorization_not_expired(run, entry.get("expires_when"))
     )
 
 
@@ -1147,7 +1152,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             or not isinstance(mission_states, dict)
             or not mission_states
             or any(
-                not authorization_covers(run, "merge_pr", mission_id, f"pr:{pr_url}")
+                not authorization_covers(
+                    run,
+                    "merge_pr",
+                    mission_id,
+                    f"pr:{pr_url}",
+                    allow_expired=run["landing"].get("merge_status") == "merged",
+                )
                 for mission_id in mission_states
             )
         ):

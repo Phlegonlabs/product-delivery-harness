@@ -671,6 +671,14 @@ class RunValidationTests(unittest.TestCase):
             "pr:https://github.com/example/repo/pull/7"
         ]
 
+        run["status"] = "complete"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+        run["status"] = "draft"
+
         run["landing"].update(
             {
                 "pr_state": "merged",
@@ -679,6 +687,9 @@ class RunValidationTests(unittest.TestCase):
             }
         )
         self.assertEqual(validate_run(plan, run), [])
+        run["status"] = "complete"
+        self.assertEqual(validate_run(plan, run), [])
+        run["status"] = "draft"
         run["landing"].update(
             {
                 "pr_state": "open",
