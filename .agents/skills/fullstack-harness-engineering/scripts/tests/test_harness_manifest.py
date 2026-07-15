@@ -604,6 +604,14 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assertEqual(validate_run(plan, run), [])
 
+        run["observed"]["git"]["parent_head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "parent_head_sha: must match the merged PR head while the primary checkout is on the cleanup branch",
+        )
+        run["observed"]["git"]["parent_head_sha"] = SHA_A
+
         run["post_merge_cleanup"]["local_branch"]["head_sha"] = SHA_B
         self.assert_run_error_contains(
             plan,
@@ -778,6 +786,27 @@ class RunValidationTests(unittest.TestCase):
             plan,
             run,
             "manual cleanup worktrees must be parent-managed",
+        )
+
+    def test_post_merge_cleanup_not_applicable_rejects_linked_worktree(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["status"] = "complete"
+        run["post_merge_cleanup"]["status"] = "not_applicable"
+        run["observed"]["captured_at"] = "2026-07-15T08:00:00Z"
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": "C:/tmp/still-linked",
+                "branch_ref": "refs/heads/codex/test",
+                "head_sha": SHA_B,
+                "managed_by": "parent",
+                "dirty": False,
+            }
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "not_applicable requires no matching linked worktree in the current observation",
         )
 
     def test_post_merge_cleanup_can_be_deferred_for_platform_lifecycle(self) -> None:

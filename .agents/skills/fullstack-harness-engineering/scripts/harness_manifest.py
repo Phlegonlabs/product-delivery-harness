@@ -1037,6 +1037,26 @@ def _validate_post_merge_cleanup(
     if not isinstance(landing, dict):
         return
 
+    expected_branch_ref = (
+        f"refs/heads/{landing['head_branch']}"
+        if _nonempty_string(landing.get("head_branch"))
+        and not landing["head_branch"].startswith("refs/heads/")
+        else landing.get("head_branch")
+    )
+    observed = run.get("observed")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    parent_worktree_path = (
+        observed_git.get("parent_worktree_path")
+        if isinstance(observed_git, dict)
+        else None
+    )
+    observed_worktrees = (
+        observed_git.get("worktrees", [])
+        if isinstance(observed_git, dict)
+        and isinstance(observed_git.get("worktrees", []), list)
+        else []
+    )
+
     worktree_status = worktree.get("status")
     worktree_manager = worktree.get("managed_by")
     if worktree_status in {"pending", "removed"} and worktree_manager != "parent":
@@ -1059,6 +1079,32 @@ def _validate_post_merge_cleanup(
         )
 
     if status == "not_applicable":
+        if run.get("status") == "complete":
+            if not isinstance(observed, dict) or not _nonempty_string(
+                observed.get("captured_at")
+            ):
+                _add(
+                    errors,
+                    "run.observed.captured_at",
+                    "is required for terminal not-applicable cleanup",
+                )
+            if not _nonempty_string(parent_worktree_path):
+                _add(
+                    errors,
+                    "run.observed.git.parent_worktree_path",
+                    "is required for terminal not-applicable cleanup",
+                )
+            if any(
+                isinstance(item, dict)
+                and item.get("path") != parent_worktree_path
+                and item.get("branch_ref") == expected_branch_ref
+                for item in observed_worktrees
+            ):
+                _add(
+                    errors,
+                    f"{path}.worktree.status",
+                    "not_applicable requires no matching linked worktree in the current observation",
+                )
         if landing.get("mode") == "pull_request" and landing.get("pr_state") not in {
             "closed",
             "not_created",
@@ -1089,12 +1135,6 @@ def _validate_post_merge_cleanup(
         _add(errors, path, "ready or complete cleanup requires a merged pull request")
 
     base_branch = landing.get("base_branch")
-    expected_branch_ref = (
-        f"refs/heads/{landing['head_branch']}"
-        if _nonempty_string(landing.get("head_branch"))
-        and not landing["head_branch"].startswith("refs/heads/")
-        else landing.get("head_branch")
-    )
     if base.get("branch") != base_branch:
         _add(errors, f"{path}.base.branch", "must match landing.base_branch")
     if base.get("head_sha") is None:
@@ -1110,19 +1150,28 @@ def _validate_post_merge_cleanup(
     if local_branch.get("head_sha") != landing.get("pr_head_sha"):
         _add(errors, f"{path}.local_branch.head_sha", "must match the merged PR head SHA")
 
-    observed = run.get("observed")
-    observed_git = observed.get("git") if isinstance(observed, dict) else None
     if not isinstance(observed, dict) or not _nonempty_string(observed.get("captured_at")):
         _add(errors, "run.observed.captured_at", "is required before cleanup")
     if not isinstance(observed_git, dict) or observed_git.get("parent_dirty") is not False:
         _add(errors, "run.observed.git.parent_dirty", "must be false before cleanup")
-    parent_worktree_path = (
-        observed_git.get("parent_worktree_path")
-        if isinstance(observed_git, dict)
-        else None
-    )
     if not _nonempty_string(parent_worktree_path):
         _add(errors, "run.observed.git.parent_worktree_path", "is required before cleanup")
+    parent_branch = observed_git.get("parent_branch") if isinstance(observed_git, dict) else None
+    parent_branch_ref = (
+        f"refs/heads/{parent_branch}"
+        if _nonempty_string(parent_branch) and not parent_branch.startswith("refs/heads/")
+        else parent_branch
+    )
+    if (
+        parent_branch_ref == local_branch.get("ref")
+        and isinstance(observed_git, dict)
+        and observed_git.get("parent_head_sha") != landing.get("pr_head_sha")
+    ):
+        _add(
+            errors,
+            "run.observed.git.parent_head_sha",
+            "must match the merged PR head while the primary checkout is on the cleanup branch",
+        )
 
     mission_states = run.get("mission_states")
     if not isinstance(mission_states, dict) or not mission_states or any(
@@ -1156,12 +1205,6 @@ def _validate_post_merge_cleanup(
             "cleanup requires matching delete_branches authorization for the exact local branch",
         )
 
-    observed_worktrees = (
-        observed_git.get("worktrees", [])
-        if isinstance(observed_git, dict)
-        and isinstance(observed_git.get("worktrees", []), list)
-        else []
-    )
     if worktree_status in {"pending", "removed"}:
         required_worktree = ("path", "branch_ref", "head_sha", "dirty")
         if any(worktree.get(key) is None for key in required_worktree):
