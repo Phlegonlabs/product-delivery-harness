@@ -27,3 +27,9 @@ jobs:
 
       - name: Run harness tests
         run: python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+
+      - name: Run design package contract tests
+        run: python -m unittest discover -s .agents/skills/design-package-builder/scripts/tests -v
+
+      - name: Run PRD builder contract tests
+        run: python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
