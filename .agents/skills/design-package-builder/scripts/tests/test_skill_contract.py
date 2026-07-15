@@ -27,6 +27,8 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("## Product-Specific Visual Thesis", design_system)
         self.assertIn("### Product-Specific Design Decisions", ui_mockups)
         self.assertIn("Distinctiveness / anti-generic review", visual_acceptance)
+        self.assertIn("````markdown\n# Design System: [Product Name]", output_contract)
+        self.assertIn("## Open Questions\n- [Question]\n````", output_contract)
 
     def test_icon_system_is_routed_and_required_by_templates(self) -> None:
         skill = self.read("SKILL.md")

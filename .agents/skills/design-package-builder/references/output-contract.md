@@ -17,7 +17,7 @@ When the user requests a runnable animation demonstration, also produce `motion-
 
 Use this structure:
 
-```markdown
+````markdown
 # Design System: [Product Name]
 
 ## Overview
@@ -152,7 +152,7 @@ export function ExampleCard() {
 
 ## Open Questions
 - [Question]
-```
+````
 
 ## `page-ui-matrix.md`
 
