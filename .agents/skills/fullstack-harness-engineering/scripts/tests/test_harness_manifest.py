@@ -270,6 +270,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
                 "branch_ref": None,
                 "head_sha": None,
                 "dirty": None,
+                "managed_by": None,
                 "status": "not_applicable",
             },
             "local_branch": {
@@ -590,6 +591,7 @@ class RunValidationTests(unittest.TestCase):
                 "branch_ref": None,
                 "head_sha": None,
                 "dirty": None,
+                "managed_by": None,
                 "status": "not_applicable",
             },
             "local_branch": {
@@ -632,6 +634,22 @@ class RunValidationTests(unittest.TestCase):
         )
         run["status"] = "complete"
         self.assertEqual(validate_run(plan, run), [])
+
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": "C:/tmp/still-linked",
+                "branch_ref": "refs/heads/codex/test",
+                "head_sha": SHA_A,
+                "managed_by": "parent",
+                "dirty": False,
+            }
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "not_applicable requires no matching linked worktree",
+        )
+        run["observed"]["git"]["worktrees"] = []
 
     def test_post_merge_cleanup_requires_clean_observed_worktree(self) -> None:
         plan = valid_plan()
@@ -712,6 +730,7 @@ class RunValidationTests(unittest.TestCase):
                 "branch_ref": "refs/heads/codex/test",
                 "head_sha": SHA_A,
                 "dirty": False,
+                "managed_by": "parent",
                 "status": "pending",
             },
             "local_branch": {
@@ -723,6 +742,14 @@ class RunValidationTests(unittest.TestCase):
             "deferred_reason": None,
         }
         self.assertEqual(validate_run(plan, run), [])
+
+        run["observed"]["git"]["worktrees"][0]["managed_by"] = "app"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "ready cleanup must match an observed clean parent-managed worktree",
+        )
+        run["observed"]["git"]["worktrees"][0]["managed_by"] = "parent"
 
         run["post_merge_cleanup"]["worktree"]["dirty"] = True
         self.assert_run_error_contains(plan, run, "worktree.dirty: must be false before removal")
@@ -740,6 +767,13 @@ class RunValidationTests(unittest.TestCase):
         run["status"] = "complete"
         self.assertEqual(validate_run(plan, run), [])
 
+        run["post_merge_cleanup"]["worktree"]["managed_by"] = "app"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "manual cleanup worktrees must be parent-managed",
+        )
+
     def test_post_merge_cleanup_can_be_deferred_for_platform_lifecycle(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -752,6 +786,7 @@ class RunValidationTests(unittest.TestCase):
                     "branch_ref": None,
                     "head_sha": None,
                     "dirty": None,
+                    "managed_by": "app",
                     "status": "platform_managed",
                 },
                 "local_branch": {

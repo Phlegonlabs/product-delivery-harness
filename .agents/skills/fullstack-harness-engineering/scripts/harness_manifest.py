@@ -1003,13 +1003,15 @@ def _validate_post_merge_cleanup(
         errors,
         f"{path}.worktree",
         worktree,
-        {"path", "branch_ref", "head_sha", "dirty", "status"},
+        {"path", "branch_ref", "head_sha", "dirty", "managed_by", "status"},
     ):
         _optional_string(errors, f"{path}.worktree.path", worktree["path"])
         _optional_string(errors, f"{path}.worktree.branch_ref", worktree["branch_ref"])
         _optional_sha(errors, f"{path}.worktree.head_sha", worktree["head_sha"])
         if worktree["dirty"] is not None and not isinstance(worktree["dirty"], bool):
             _add(errors, f"{path}.worktree.dirty", "must be null or boolean")
+        if worktree["managed_by"] not in {None, "parent", "app"}:
+            _add(errors, f"{path}.worktree.managed_by", "must be null, parent, or app")
         if worktree["status"] not in CLEANUP_WORKTREE_STATUSES:
             _add(errors, f"{path}.worktree.status", "has an unsupported value")
 
@@ -1034,6 +1036,27 @@ def _validate_post_merge_cleanup(
     landing = run.get("landing")
     if not isinstance(landing, dict):
         return
+
+    worktree_status = worktree.get("status")
+    worktree_manager = worktree.get("managed_by")
+    if worktree_status in {"pending", "removed"} and worktree_manager != "parent":
+        _add(
+            errors,
+            f"{path}.worktree.managed_by",
+            "manual cleanup worktrees must be parent-managed",
+        )
+    if worktree_status == "platform_managed" and worktree_manager != "app":
+        _add(
+            errors,
+            f"{path}.worktree.managed_by",
+            "platform-managed worktrees must be app-managed",
+        )
+    if worktree_status == "not_applicable" and worktree_manager is not None:
+        _add(
+            errors,
+            f"{path}.worktree.managed_by",
+            "must be null when no linked worktree applies",
+        )
 
     if status == "not_applicable":
         if landing.get("mode") == "pull_request" and landing.get("pr_state") not in {
@@ -1133,7 +1156,12 @@ def _validate_post_merge_cleanup(
             "cleanup requires matching delete_branches authorization for the exact local branch",
         )
 
-    worktree_status = worktree.get("status")
+    observed_worktrees = (
+        observed_git.get("worktrees", [])
+        if isinstance(observed_git, dict)
+        and isinstance(observed_git.get("worktrees", []), list)
+        else []
+    )
     if worktree_status in {"pending", "removed"}:
         required_worktree = ("path", "branch_ref", "head_sha", "dirty")
         if any(worktree.get(key) is None for key in required_worktree):
@@ -1167,9 +1195,6 @@ def _validate_post_merge_cleanup(
                 "cleanup requires matching remove_worktrees authorization for the exact path",
             )
 
-        observed_worktrees = (
-            observed_git.get("worktrees", []) if isinstance(observed_git, dict) else []
-        )
         matching_worktrees = [
             item
             for item in observed_worktrees
@@ -1178,10 +1203,15 @@ def _validate_post_merge_cleanup(
         if status == "ready" and not any(
             item.get("branch_ref") == worktree.get("branch_ref")
             and item.get("head_sha") == worktree.get("head_sha")
+            and item.get("managed_by") == "parent"
             and item.get("dirty") is False
             for item in matching_worktrees
         ):
-            _add(errors, f"{path}.worktree", "ready cleanup must match an observed clean worktree")
+            _add(
+                errors,
+                f"{path}.worktree",
+                "ready cleanup must match an observed clean parent-managed worktree",
+            )
         if status == "complete" and matching_worktrees:
             _add(errors, f"{path}.worktree", "removed worktree must be absent from the refreshed observation")
     elif any(
@@ -1191,6 +1221,25 @@ def _validate_post_merge_cleanup(
             errors,
             f"{path}.worktree",
             "non-manual worktree status must not record manual cleanup fields",
+        )
+
+    matching_linked_worktrees = [
+        item
+        for item in observed_worktrees
+        if isinstance(item, dict)
+        and item.get("path") != parent_worktree_path
+        and item.get("branch_ref") == local_branch.get("ref")
+        and item.get("head_sha") == landing.get("pr_head_sha")
+    ]
+    if (
+        status in {"ready", "complete"}
+        and worktree_status == "not_applicable"
+        and matching_linked_worktrees
+    ):
+        _add(
+            errors,
+            f"{path}.worktree.status",
+            "not_applicable requires no matching linked worktree in the current observation",
         )
 
     if status == "ready":
