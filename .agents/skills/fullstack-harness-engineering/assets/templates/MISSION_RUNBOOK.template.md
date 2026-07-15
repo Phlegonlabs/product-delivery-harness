@@ -9,7 +9,7 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
 ```json
 {
   "harness_run": {
-    "schema_version": 3,
+    "schema_version": 4,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
@@ -158,7 +158,9 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
       "blocking_findings": null,
       "unresolved_threads": null,
       "merge_status": "not_ready",
-      "merged_sha": null
+      "merged_sha": null,
+      "auto_merge_requested": false,
+      "auto_merge_head_sha": null
     },
     "mission_states": {
       "M1": {
@@ -205,11 +207,13 @@ The exact fenced JSON block above is the canonical run state. Scripts read this 
 
 The action ledger has 16 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. Repository configuration, push, PR creation, PR review management, PR merge, deploy, archive, worktree removal, and branch deletion remain false unless separately authorized.
 
-`landing` is required in schema v3. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+`landing` is required in schemas v3 and v4. Schema v4 adds the auto-merge fields shown above; schema v3 remains readable without them. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+
+Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. This requires `merge_status: "ready"` or `"merged"`, current-head CI and Codex review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and `merge_pr` authorization for the exact PR. Use `gh pr merge --auto --squash --match-head-commit <sha>` or an equivalent exact-head operation. Any new push, changed integration head, canceled request, or closed-unmerged PR resets the fields to `false` and `null`.
 
 A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
 
-Create the final integration branch and PR from the parent checkout. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, then merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
+Create the final integration branch and PR from the parent checkout. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, resolve blocking threads, then enable SHA-bound auto-merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
 

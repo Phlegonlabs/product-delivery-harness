@@ -110,7 +110,7 @@ blocked | worker_failed | superseded
 
 Authorization is action-specific. Overall `execution_authorized` also has siblings `execution_authorization_source` and `execution_authorization_scope`; when true, both must match the run, mission, and expiry boundary. Every action entry defaults to `authorized: false` and records an explicit user source before it can become true. A goal, plan, template, skill selection, worker report, or assistant assumption cannot authorize itself.
 
-The exact schema-v3 ledger has 16 actions. Schema v2 remains readable with its original 13 entries, but new RUN files use v3:
+The exact schema-v3-and-v4 ledger has 16 actions. Schema v2 remains readable with its original 13 entries, schema v3 remains readable with its original landing fields, and new RUN files use v4:
 
 ```text
 spawn_subagents
@@ -157,11 +157,13 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Pull Request Landing State
 
-Schema v3 requires a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. Local-only mode cannot record a pushed head or created PR. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target.
+Schemas v3 and v4 require a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. Local-only mode cannot record a pushed head or created PR. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target. Schema v4 adds `auto_merge_requested` and `auto_merge_head_sha`; schema v3 files remain valid without them.
 
 For a created PR, `pr_head_sha` equals `pushed_head_sha`. A check PASS is current only when `checks_head_sha == pr_head_sha == integration.integration_head_sha`; a review PASS is current only when `review_head_sha == pr_head_sha == integration.integration_head_sha`, `blocking_findings == 0`, and `unresolved_threads == 0`. Any push or local integration that changes either head makes prior CI or review evidence stale. Reset the affected status and request current-head review again.
 
 `merge_status: ready` requires `pr_state: open`, `pr_head_sha == integration.integration_head_sha`, plus current-head PASS checks and review. A later local integration therefore invalidates readiness even before the next push. `merge_status: merged` preserves those same head/check/review gates and additionally requires `pr_state: merged` plus a recorded merged SHA. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
+
+In schema v4, `auto_merge_requested: true` records that GitHub auto-merge was successfully enabled for the exact `auto_merge_head_sha`. It is valid only when `merge_status` is `ready` or `merged`, the mode is `pull_request`, and `auto_merge_head_sha == pr_head_sha == integration.integration_head_sha`. Enable it only after current-head checks and Codex review pass and all blocking findings and unresolved threads are zero. Use an exact-head guard such as `gh pr merge --auto --squash --match-head-commit <sha>`. A new push, local integration, canceled request, or changed head resets `auto_merge_requested` to false and `auto_merge_head_sha` to null until fresh gates pass. Repository-level auto-merge configuration uses `configure_repository`; enabling it on a PR uses `merge_pr`.
 
 A PR closed without merge uses the exact terminal pair `pr_state: closed` and `merge_status: closed_unmerged`, with no `merged_sha`. No state other than `merged` may record `merged_sha`. This prevents review or merge automation from treating the closed PR as merely not ready.
 
