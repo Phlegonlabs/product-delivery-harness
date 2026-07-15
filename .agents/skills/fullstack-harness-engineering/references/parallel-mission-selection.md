@@ -23,12 +23,13 @@ effective_worker_budget
 ready_frontier
 conflict_edges with reason codes
 selected_missions
+launch_directives
 deferred_missions with reason codes
 ```
 
 Serialize each conflict edge as `{ "left": <lower mission ID>, "right": <higher mission ID>, "reason_codes": [...] }`. Serialize each deferred mission as `{ "mission_id": ..., "reason_codes": [...], "conflicts_with": [...] }`. Sort IDs and reason codes; never encode a reason only in prose.
 
-The output is a proposal until the parent rechecks observed facts and records it in RUN state.
+Each selected mission has one deterministic `launch_directives` entry containing its mission ID, launch kind, runtime/workspace/completion axes, required action keys, nested-subagent mode, and worker prompt template. It contains no allocated worker, task, branch, or worktree identity. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
 
 ## Ready Frontier
 
@@ -42,7 +43,7 @@ A mission is in the ready frontier only when all conditions pass:
 6. Trace, write-scope, verifier, and resource inventory validation passed.
 7. `resource_inventory_complete` is true.
 8. The chosen runtime/workspace/completion capability combination supports the mission; a parallel write mission has `worktree_eligible: true` and an isolated workspace.
-9. Required action-specific authorizations for the proposed launch path are present.
+9. Required action-specific authorizations for the proposed launch path are present. App-task fan-out includes `spawn_subagents` because every non-trivial mission thread is expected to use its bounded read-only child policy.
 10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
 11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
@@ -197,6 +198,17 @@ Before using a proposal, the parent re-observes:
 - The selected parent permission mode/profile, worker inheritance, and every required filesystem/network/local surface.
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
+
+For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
+
+1. Resolve the current Codex project once through the available project-listing surface.
+2. Allocate a worker/lease and exact durable branch target. For task/worktree identities assigned only by creation, recheck the explicit pre-allocation `*` grant; recheck every already-known target exactly.
+3. Create one app-managed worktree thread for the mission. Use the complete `WORKER_GOAL.template.md` handoff as the initial prompt and start from the recorded integration branch/ref that points at `batch_base_sha`.
+4. Record the returned thread ID or queued client-thread ID in the RUN worker record, bind later actions to that concrete identity, and move the mission to `worker_running` only when the task/workspace is observable.
+5. If the directive says `capability_handshake`, prohibit production edits until the thread reports direct child-tool/result availability. Update RUN and send the enabled or disabled nested policy through the thread-message surface.
+6. Poll through the available read-thread/status surface with backoff. Treat the terminal task output as a worker result candidate and validate it normally.
+
+If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure and use sequential parent execution.
 
 For app-managed worktrees, record that they may begin detached and are governed by platform retention. `platform_lifecycle` is an object with `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`. Create a durable authorized branch/ref early when unique work must survive task/worktree lifecycle. `remove_worktrees: false` prevents the harness from removing one; it cannot disable platform-managed retention.
 

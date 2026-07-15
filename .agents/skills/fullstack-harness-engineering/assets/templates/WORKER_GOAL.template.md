@@ -38,7 +38,7 @@ Guardrails: stop on requirements conflict, unavailable verifier, scope escape, u
 
 ## Nested Subagent Rules
 
-When child-tool availability is not yet observed, do not make production edits: report whether direct subagent tools/results are available and wait for the parent to send an explicit enabled or disabled policy. When the supplied policy is enabled and this is a non-trivial `app_task`, evaluate independent code-exploration, documentation/API research, test/log analysis, and review lanes before the first production edit. Run eligible exploration, research, and test-plan/contract review before writing; run proposed-diff review after implementation but before the mission result. Normally spawn one to three eligible lanes across those checkpoints. Skip only when the mission is trivial, the runtime/slots are unavailable, or no safe independent read-only lane exists; preserve that reason in `subagent_activity`.
+When child-tool availability is not yet observed, do not make production edits: report whether direct subagent tools/results are available and wait for the parent to send an explicit enabled or disabled policy. When the supplied policy is enabled and this is a non-trivial `app_task`, spawn at least one and at most `max_children` direct read-only subagents. Choose independent code-exploration, documentation/API research, or test/log analysis lanes before the first production edit, and use a proposed-diff review after implementation when another useful slot is available. Skip child launch only when the mission is trivial, the runtime/slots are unavailable, or no safe independent read-only lane exists; preserve that reason in `subagent_activity`. Do not return `worker_passed` after silently doing a non-trivial enabled mission as a single agent.
 
 Give each child one bounded question, read/deny scope, expected evidence, required summary, and an explicit instruction that it must not spawn or delegate further. Children must not edit files, run mutating generators or shared-state services/tests, change PLAN/RUN, create tasks/worktrees/branches/commits, or perform integration/landing/cleanup. Wait for all requested children, reconcile their evidence, and implement the mission yourself. These children are task-local assistants, not mission workers, and they return only to you through `agent_result`.
 
@@ -166,7 +166,7 @@ Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_fail
 - [ ] RUN records `plan_readiness: "ready"` and overall execution authorization.
 - [ ] Mission is `leased` at the fixed base SHA and its dependencies are already integrated.
 - [ ] The selected runtime, workspace, completion channel, and required authorizations match the launch method.
-- [ ] The nested policy is disabled or is authorized, read-only, depth-one, capped at three direct children, and reported in `subagent_activity`.
+- [ ] The nested policy is disabled or is authorized, read-only, depth-one, capped at three direct children, and reported in `subagent_activity`; a non-trivial enabled app task launched at least one child.
 - [ ] Any isolated write handoff has authorized branch and commit creation; otherwise this mission uses sequential parent execution.
 - [ ] Write/deny scopes and typed resource inventory are complete and non-conflicting.
 - [ ] Worktree/branch behavior follows the selected workspace rule.

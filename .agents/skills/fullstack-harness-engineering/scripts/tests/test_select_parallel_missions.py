@@ -251,6 +251,39 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
     }
 
 
+def configure_app_task_fanout(
+    run: dict[str, object], mission_ids: list[str]
+) -> None:
+    run_id = run["run_id"]
+    run["runtime_capabilities"] = {
+        "worker_runtime": "app_task",
+        "workspace_mode": "app_managed_worktree",
+        "completion_channel": "thread_poll",
+        "max_parallel_workers": 3,
+        "nested_subagents": {
+            "available": True,
+            "max_depth": 1,
+            "max_children_per_worker": 3,
+            "allowed_roles": ["tester", "explorer", "reviewer", "researcher"],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        },
+        "platform_lifecycle": {
+            "owner": "app",
+            "automatic_retention_cleanup_possible": True,
+            "durable_branch_required_before_unique_work": True,
+        },
+    }
+    for key in (
+        "spawn_subagents",
+        "create_user_owned_tasks",
+        "create_app_managed_worktrees",
+        "create_local_branches",
+        "create_local_commits",
+    ):
+        run["authorizations"][key] = authorization(run_id, mission_ids)
+
+
 def manifest_markdown(heading: str, wrapper: str, value: dict[str, object]) -> str:
     encoded = json.dumps({wrapper: value}, sort_keys=True, indent=2)
     return f"# Harness fixture\n\n{heading}\n\n```json\n{encoded}\n```\n"
@@ -280,6 +313,87 @@ class SelectorTests(unittest.TestCase):
 
         self.assertEqual(["M1", "M2", "M3"], result["candidate_order"])
         self.assertEqual(["M1", "M2", "M3"], result["selected_missions"])
+
+    def test_app_task_wave_emits_thread_launch_directives_with_nested_policy(self) -> None:
+        plan = make_plan(
+            [
+                mission("M2", priority=10, merge_rank=20),
+                mission("M1", priority=20, merge_rank=10),
+            ]
+        )
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1", "M2"])
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual(["M1", "M2"], result["selected_missions"])
+        self.assertEqual(
+            [
+                {
+                    "mission_id": mission_id,
+                    "launch_kind": "create_thread",
+                    "worker_runtime": "app_task",
+                    "workspace_mode": "app_managed_worktree",
+                    "completion_channel": "thread_poll",
+                    "required_actions": [
+                        "create_user_owned_tasks",
+                        "spawn_subagents",
+                        "create_app_managed_worktrees",
+                        "create_local_branches",
+                        "create_local_commits",
+                    ],
+                    "nested_subagent_policy": {
+                        "mode": "enabled_read_only",
+                        "max_children": 3,
+                        "allowed_roles": [
+                            "explorer",
+                            "researcher",
+                            "reviewer",
+                            "tester",
+                        ],
+                        "write_policy": "read_only",
+                        "completion_channel": "agent_result",
+                    },
+                    "worker_prompt_template": "assets/templates/WORKER_GOAL.template.md",
+                }
+                for mission_id in ("M1", "M2")
+            ],
+            result["launch_directives"],
+        )
+
+    def test_app_task_wave_requires_nested_subagent_authorization(self) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1"])
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual([], result["selected_missions"])
+        self.assertEqual([], result["launch_directives"])
+        self.assertEqual(
+            ["action_not_authorized"],
+            result["deferred_missions"][0]["reason_codes"],
+        )
+
+    def test_app_task_wave_uses_no_edit_handshake_when_capability_is_unobserved(self) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1"])
+        run["runtime_capabilities"]["nested_subagents"]["available"] = False
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        policy = result["launch_directives"][0]["nested_subagent_policy"]
+        self.assertEqual("capability_handshake", policy["mode"])
+        self.assertEqual(0, policy["max_children"])
+        self.assertEqual([], policy["allowed_roles"])
 
     def test_static_edges_include_nonready_missions_but_unary_codes_do_not(self) -> None:
         plan = make_plan(
