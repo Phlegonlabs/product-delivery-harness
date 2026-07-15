@@ -31,6 +31,7 @@ For plan-backed orchestration, keep three layers separate:
 - Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
 - Read `references/commit-convention.md` before creating or recording any harness-managed commit.
 - Use `assets/templates/HARNESS_PLAN.template.md` as `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` as `RUN.md`. Use other templates only for an explicit optional expansion.
+- For a new GitHub repository that will use pull-request landing, inspect its root `AGENTS.md`, PR template, and CI workflows. When durable project setup is in scope, instantiate `assets/templates/PROJECT_AGENTS.template.md`, `PULL_REQUEST.template.md`, and `PROJECT_CI.template.yml`; replace every placeholder with repo-specific values before activating the workflow.
 
 ## File Budget
 
@@ -93,6 +94,9 @@ create_local_commits
 integrate_locally
 push
 create_pr
+configure_repository
+manage_pr_review
+merge_pr
 deploy
 archive_worker_tasks
 remove_worktrees
@@ -100,6 +104,8 @@ delete_branches
 ```
 
 Only an explicit user instruction recorded with its source may set overall execution or an action to `true`. Every true action also records run/mission/target scope and an expiry boundary; nonmatching or expired authorization is false for the proposed action. A generated Goal prompt, PLAN, RUN, worker prompt, inferred best practice, successful verification, or platform capability cannot self-authorize it. When an unauthorized action is optional, use a safe sequential/local fallback; when it is required, stop at that boundary.
+
+PR creation, repository review configuration, review management, and merge are separate boundaries. `create_pr` does not authorize marking a PR ready, requesting or resolving review, enabling branch rules, or merging. A read-only local or GitHub diff inspection does not need mutation authorization, but any review-state change uses `manage_pr_review`.
 
 ## Workflow
 
@@ -243,6 +249,9 @@ Final completion requires:
 - Skipped or `UNVALIDATED` gates include reason, risk, and acceptance status.
 - Primary journey and relevant platform gates pass.
 - `RUN.md` records final status, evidence, changed files, commits, residual risk, and landing state.
+- In pull-request mode, the final branch was reviewed locally before push, and current-head CI plus GitHub review are recorded separately. A new push invalidates any earlier PASS tied to another SHA.
+- Only the parent integration branch lands by default. Worker branches remain local and do not open their own PRs unless the plan gives them a separate landing target.
+- `merge_status: ready` requires an open PR whose check and review PASS records both match the current PR head, with no blocking finding or unresolved thread. Merge and deploy still require their own authorization.
 
 ## Output Shape
 

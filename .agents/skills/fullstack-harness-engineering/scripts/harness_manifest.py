@@ -14,7 +14,7 @@ PLAN_HEADING = "## Harness Plan Manifest"
 RUN_HEADING = "## Harness Run State"
 WORKER_HEADING = "## Worker Result Manifest"
 
-AUTHORIZATION_KEYS = (
+AUTHORIZATION_KEYS_V2 = (
     "spawn_subagents",
     "create_user_owned_tasks",
     "create_local_worktrees",
@@ -28,6 +28,12 @@ AUTHORIZATION_KEYS = (
     "archive_worker_tasks",
     "remove_worktrees",
     "delete_branches",
+)
+
+AUTHORIZATION_KEYS = AUTHORIZATION_KEYS_V2 + (
+    "configure_repository",
+    "manage_pr_review",
+    "merge_pr",
 )
 
 MISSION_PHASES = {
@@ -66,7 +72,7 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")
 TASK_ID_RE = re.compile(r"^([A-Z][A-Z0-9_-]{0,63})/([A-Z][A-Z0-9_-]{0,63})$")
 TARGET_RE = re.compile(
-    r"^(?:worker|task|worktree|branch|remote|pr|environment):.+$"
+    r"^(?:worker|task|worktree|branch|remote|pr|repository|environment):.+$"
 )
 EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
 NESTED_SUBAGENT_ROLES = {"explorer", "researcher", "reviewer", "tester"}
@@ -784,6 +790,130 @@ def _optional_sha(errors: list[str], path: str, value: Any) -> None:
         _add(errors, path, "must be null or a full lowercase Git SHA")
 
 
+def _optional_nonnegative_int(errors: list[str], path: str, value: Any) -> None:
+    if value is not None and (not _is_int(value) or value < 0):
+        _add(errors, path, "must be null or a non-negative integer")
+
+
+def _validate_landing(errors: list[str], value: Any) -> None:
+    path = "run.landing"
+    keys = {
+        "mode",
+        "remote",
+        "head_branch",
+        "base_branch",
+        "pushed_head_sha",
+        "pr_number",
+        "pr_url",
+        "pr_state",
+        "pr_head_sha",
+        "checks_status",
+        "checks_head_sha",
+        "review_status",
+        "review_head_sha",
+        "blocking_findings",
+        "unresolved_threads",
+        "merge_status",
+        "merged_sha",
+    }
+    if not _keys(errors, path, value, keys):
+        return
+
+    if value["mode"] not in {"local_only", "pull_request"}:
+        _add(errors, f"{path}.mode", "must be local_only or pull_request")
+    for key in ("remote", "head_branch", "base_branch", "pr_url"):
+        _optional_string(errors, f"{path}.{key}", value[key])
+    for key in (
+        "pushed_head_sha",
+        "pr_head_sha",
+        "checks_head_sha",
+        "review_head_sha",
+        "merged_sha",
+    ):
+        _optional_sha(errors, f"{path}.{key}", value[key])
+    _optional_nonnegative_int(errors, f"{path}.blocking_findings", value["blocking_findings"])
+    _optional_nonnegative_int(errors, f"{path}.unresolved_threads", value["unresolved_threads"])
+
+    if value["pr_number"] is not None and (
+        not _is_int(value["pr_number"]) or value["pr_number"] < 1
+    ):
+        _add(errors, f"{path}.pr_number", "must be null or a positive integer")
+    if value["pr_state"] not in {"not_created", "draft", "open", "closed", "merged"}:
+        _add(errors, f"{path}.pr_state", "has an unsupported value")
+    if value["checks_status"] not in {"not_started", "pending", "PASS", "FAIL", "BLOCKED"}:
+        _add(errors, f"{path}.checks_status", "has an unsupported value")
+    if value["review_status"] not in {
+        "not_requested",
+        "pending",
+        "PASS",
+        "CHANGES_REQUESTED",
+        "BLOCKED",
+    }:
+        _add(errors, f"{path}.review_status", "has an unsupported value")
+    if value["merge_status"] not in {"not_ready", "ready", "merged", "closed_unmerged"}:
+        _add(errors, f"{path}.merge_status", "has an unsupported value")
+
+    if (
+        _nonempty_string(value["head_branch"])
+        and _nonempty_string(value["base_branch"])
+        and value["head_branch"] == value["base_branch"]
+    ):
+        _add(errors, path, "head_branch and base_branch must differ")
+
+    created_states = {"draft", "open", "closed", "merged"}
+    if value["pr_state"] in created_states:
+        required_created = (
+            "remote",
+            "head_branch",
+            "base_branch",
+            "pushed_head_sha",
+            "pr_number",
+            "pr_url",
+            "pr_head_sha",
+        )
+        if any(value[key] is None for key in required_created):
+            _add(errors, path, "created PR state is missing remote, branch, URL, number, or head data")
+        if value["pr_head_sha"] != value["pushed_head_sha"]:
+            _add(errors, path, "pr_head_sha must match pushed_head_sha")
+    elif value["pr_state"] == "not_created":
+        if any(value[key] is not None for key in ("pr_number", "pr_url", "pr_head_sha")):
+            _add(errors, path, "not_created PR must not record number, URL, or PR head")
+
+    if value["mode"] == "local_only" and value["pr_state"] != "not_created":
+        _add(errors, path, "local_only mode cannot record a created PR")
+    if value["checks_status"] == "PASS" and (
+        value["pr_state"] not in created_states
+        or value["checks_head_sha"] is None
+        or value["checks_head_sha"] != value["pr_head_sha"]
+    ):
+        _add(errors, path, "PASS checks must bind to a created PR's current head")
+    if value["review_status"] == "PASS":
+        if (
+            value["pr_state"] not in created_states
+            or value["review_head_sha"] is None
+            or value["review_head_sha"] != value["pr_head_sha"]
+        ):
+            _add(errors, path, "PASS review must bind to a created PR's current head")
+        if value["blocking_findings"] != 0 or value["unresolved_threads"] != 0:
+            _add(errors, path, "PASS review requires zero blocking findings and unresolved threads")
+    if value["merge_status"] == "ready" and (
+        value["pr_state"] != "open"
+        or value["checks_status"] != "PASS"
+        or value["review_status"] != "PASS"
+        or value["checks_head_sha"] != value["pr_head_sha"]
+        or value["review_head_sha"] != value["pr_head_sha"]
+    ):
+        _add(errors, path, "ready merge requires an open PR with current-head PASS checks and review")
+    if value["merge_status"] == "merged" and (
+        value["pr_state"] != "merged" or value["merged_sha"] is None
+    ):
+        _add(errors, path, "merged status requires a merged PR and merged_sha")
+    if value["pr_state"] == "merged" and value["merge_status"] != "merged":
+        _add(errors, path, "merged PR requires merge_status merged")
+    if value["merge_status"] == "closed_unmerged" and value["pr_state"] != "closed":
+        _add(errors, path, "closed_unmerged requires a closed PR")
+
+
 def _validate_authorization_scope(
     errors: list[str], path: str, value: Any, *, action: bool
 ) -> None:
@@ -875,10 +1005,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "workers",
         "attempt_log",
     }
+    schema_version = run.get("schema_version") if isinstance(run, dict) else None
+    if schema_version == 3:
+        run_keys.add("landing")
     if not _keys(errors, "run", run, run_keys):
         return sorted(errors)
-    if run["schema_version"] != 2:
-        _add(errors, "run.schema_version", "must equal 2")
+    if schema_version not in {2, 3}:
+        _add(errors, "run.schema_version", "must equal 2 or 3")
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
@@ -921,17 +1054,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if run["plan"]["digest_sha256"] != digest:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
+    authorization_keys = AUTHORIZATION_KEYS if schema_version == 3 else AUTHORIZATION_KEYS_V2
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
         _add(errors, "run.authorizations", "must be an object")
     else:
-        missing = sorted(set(AUTHORIZATION_KEYS) - set(authorizations))
-        unknown = sorted(set(authorizations) - set(AUTHORIZATION_KEYS))
+        missing = sorted(set(authorization_keys) - set(authorizations))
+        unknown = sorted(set(authorizations) - set(authorization_keys))
         if missing:
             _add(errors, "run.authorizations", f"missing keys: {', '.join(missing)}")
         if unknown:
             _add(errors, "run.authorizations", f"unknown keys: {', '.join(unknown)}")
-        for action in AUTHORIZATION_KEYS:
+        for action in authorization_keys:
             if action not in authorizations:
                 continue
             entry = authorizations[action]
@@ -960,6 +1094,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.source", "must be null when unauthorized")
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
+
+    if schema_version == 3:
+        _validate_landing(errors, run["landing"])
 
     runtime_keys = {
         "worker_runtime",

@@ -9,7 +9,7 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
 ```json
 {
   "harness_run": {
-    "schema_version": 2,
+    "schema_version": 3,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
@@ -56,6 +56,18 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
         "source": null
       },
       "create_pr": {
+        "authorized": false,
+        "source": null
+      },
+      "configure_repository": {
+        "authorized": false,
+        "source": null
+      },
+      "manage_pr_review": {
+        "authorized": false,
+        "source": null
+      },
+      "merge_pr": {
         "authorized": false,
         "source": null
       },
@@ -129,6 +141,25 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
       "batch_base_sha": null,
       "integration_head_sha": null
     },
+    "landing": {
+      "mode": "pull_request",
+      "remote": "origin",
+      "head_branch": null,
+      "base_branch": "main",
+      "pushed_head_sha": null,
+      "pr_number": null,
+      "pr_url": null,
+      "pr_state": "not_created",
+      "pr_head_sha": null,
+      "checks_status": "not_started",
+      "checks_head_sha": null,
+      "review_status": "not_requested",
+      "review_head_sha": null,
+      "blocking_findings": null,
+      "unresolved_threads": null,
+      "merge_status": "not_ready",
+      "merged_sha": null
+    },
     "mission_states": {
       "M1": {
         "phase": "queued",
@@ -172,7 +203,11 @@ For compact medium work that intentionally has no `PLAN.md`, set the three `plan
 
 The exact fenced JSON block above is the canonical run state. Scripts read this block only; Markdown tables later in this document are non-canonical human views. Update the JSON first, keep it valid, and never infer authorization from plan readiness, a template, or a Goal prompt.
 
-The action ledger has 13 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. Push, PR, deploy, archive, worktree removal, and branch deletion remain false unless separately authorized.
+The action ledger has 16 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. Repository configuration, push, PR creation, PR review management, PR merge, deploy, archive, worktree removal, and branch deletion remain false unless separately authorized.
+
+`landing` is required in schema v3. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA matches that current PR head. Any new push makes the old check and review result stale; reset the affected status, request review again, and do not set `merge_status: "ready"` until current-head checks and review pass with zero blocking findings and unresolved threads.
+
+Create the final integration branch and PR from the parent checkout. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, then merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
 

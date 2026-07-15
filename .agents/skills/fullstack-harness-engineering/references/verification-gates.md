@@ -157,5 +157,7 @@ Final PASS requires:
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
 - Every mission required for completion is `integrated`; no `leased`, `worker_running`, `worker_passed`, or `integrating` state remains.
 - The final integration head still descends from every recorded required mission integration SHA.
-- Landing state is recorded: pushed/PR opened with user approval, or explicitly left local.
+- Landing state is recorded: explicitly left local, or final branch pushed and PR opened with user approval.
+- In pull-request mode, local diff review passed before push; current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer push resets this gate.
+- `merge_status: ready` is recorded only after the current-head landing gate passes. Actual merge and deploy remain separate authorized actions.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode record `N/A - shared_checkout`.

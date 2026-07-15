@@ -9,7 +9,7 @@ The harness has three distinct authorities. Do not merge them into one table or 
 | Authority | Owns | Does not own |
 |---|---|---|
 | `PLAN.md` | Static declarations for one plan revision: requirements, traces, mission/task definitions, dependency DAGs, scopes, resource claims, verifier commands, priorities, and merge ranks | Worker leases, live phase, current Git head, verifier results, authorization decisions, or selected waves |
-| `RUN.md` | Mutable coordination state: readiness, explicit authorization ledger, chosen runtime capabilities, mission/task phases, leases, workers, wave proposals accepted by the parent, integration outcomes, blockers, and evidence pointers | Repository truth, process truth, or a new plan definition |
+| `RUN.md` | Mutable coordination state: readiness, explicit authorization ledger, chosen runtime capabilities, mission/task phases, leases, workers, wave proposals accepted by the parent, integration outcomes, PR landing state, blockers, and evidence pointers | Repository truth, process truth, or a new plan definition |
 | Observed Git/runtime facts | The current checkout, refs, commit ancestry, diffs, worktrees, dirty state, active worker slots, process availability, and completion signals | User authorization or declarative scope |
 
 `PLAN.md` and `RUN.md` each contain one canonical fenced JSON manifest. The exact level-two headings are `## Harness Plan Manifest` and `## Harness Run State`; the first non-empty content after each heading is its single fenced `json` block. Markdown tables are non-canonical human views. Tools parse the JSON manifests only; they must not recover state from prose or tables.
@@ -110,7 +110,7 @@ blocked | worker_failed | superseded
 
 Authorization is action-specific. Overall `execution_authorized` also has siblings `execution_authorization_source` and `execution_authorization_scope`; when true, both must match the run, mission, and expiry boundary. Every action entry defaults to `authorized: false` and records an explicit user source before it can become true. A goal, plan, template, skill selection, worker report, or assistant assumption cannot authorize itself.
 
-The exact ledger has 13 actions:
+The exact schema-v3 ledger has 16 actions. Schema v2 remains readable with its original 13 entries, but new RUN files use v3:
 
 ```text
 spawn_subagents
@@ -122,6 +122,9 @@ create_local_commits
 integrate_locally
 push
 create_pr
+configure_repository
+manage_pr_review
+merge_pr
 deploy
 archive_worker_tasks
 remove_worktrees
@@ -137,7 +140,7 @@ Each `authorizations` entry has this minimum shape:
 }
 ```
 
-When `authorized` is true, add a required `scope` object with `run_id`, `mission_ids`, and exact `targets`, plus `expires_when`. Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`, `remote:`, `pr:`, or `environment:`. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
+When `authorized` is true, add a required `scope` object with `run_id`, `mission_ids`, and exact `targets`, plus `expires_when`. Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`, `remote:`, `pr:`, `repository:`, or `environment:`. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
 
 `wave_closed` is one-use authorization for the currently recorded wave. When that wave becomes `closed` or `superseded`, set every matching action entry back to `{ "authorized": false, "source": null }` and clear overall execution authorization when it used the same boundary before replacing `active_wave`. Never copy or revive a wave-scoped grant for a later wave; a new wave needs a newly recorded explicit source.
 
@@ -146,10 +149,19 @@ When `authorized` is true, add a required `scope` object with `run_id`, `mission
 - Static conflict and parallel-eligibility analysis performed by the parent does not require implementation, worktree, branch, commit, or integration authorization. A launch-bound ready frontier and selected wave do require execution plus all launch-path authorizations. Delegating even read-only analysis still requires `spawn_subagents` or `create_user_owned_tasks`, according to the chosen worker primitive.
 - `spawn_subagents` does not authorize user-owned app tasks.
 - Worktree creation does not authorize branch creation, commits, integration, or cleanup.
-- Local integration does not authorize push, PR creation, deploy, branch deletion, or worktree removal.
+- Local integration does not authorize push, PR creation, repository configuration, review management, PR merge, deploy, branch deletion, or worktree removal.
+- PR creation does not authorize marking a PR ready, requesting review, resolving threads, or merging it. Repository rules and Codex review settings use `configure_repository`; PR review-state mutations use `manage_pr_review`; merge or auto-merge uses `merge_pr`.
 - Platform-managed retention is not a harness cleanup action and may still apply to app-managed worktrees.
 
 Before each action, check its entry again and compare it with observed state. A previously authorized action can still be unsafe because the target changed or the plan became stale.
+
+## Pull Request Landing State
+
+Schema v3 requires a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target.
+
+For a created PR, `pr_head_sha` equals `pushed_head_sha`. A check PASS is current only when `checks_head_sha == pr_head_sha`; a review PASS is current only when `review_head_sha == pr_head_sha`, `blocking_findings == 0`, and `unresolved_threads == 0`. Any push that changes the PR head makes prior CI or review evidence stale. Reset the affected status and request current-head review again.
+
+`merge_status: ready` requires `pr_state: open` plus current-head PASS checks and review. `merge_status: merged` requires `pr_state: merged` and a recorded merged SHA. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
 
 ## Runtime Capability Axes
 

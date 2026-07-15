@@ -1,6 +1,6 @@
 # Multi-Thread Orchestration Research Notes
 
-Last reviewed: 2026-07-13. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex configuration, app behavior, and defaults can change independently of this skill.
+Last reviewed: 2026-07-14. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex configuration, app behavior, and defaults can change independently of this skill.
 
 Do not hard-code a local `codex-cli` version into portable guidance. Record the observed version in RUN evidence only when a specific behavior depends on it.
 
@@ -50,6 +50,17 @@ Official Codex app worktree documentation establishes these current constraints:
 An authorization such as `remove_worktrees: false` controls harness-initiated cleanup only. It cannot promise that the platform will retain an app-managed worktree. Record `platform_lifecycle`, create a durable branch/ref early when needed, and do not leave unique verified work reachable only through detached `HEAD`.
 
 Worktrees isolate files. They do not isolate ports, processes, databases, migration streams, queues, buckets, test identities, feature-flag namespaces, or external sandboxes.
+
+## Local And GitHub Code Review
+
+Official Codex review documentation establishes these current facts:
+
+- Local `/review` runs in read-only mode and can review uncommitted changes or compare the current branch with a base branch. It is the pre-push review gate, not proof that GitHub reviewed the pushed head.
+- GitHub review requires the repository to be connected to Codex Cloud with Code review enabled. Automatic reviews can review each new PR opened for review; `@codex review` is the manual trigger.
+- Repository `AGENTS.md` files may define `## Review guidelines` that Codex uses during GitHub review.
+- Codex GitHub review reports high-signal P0/P1 findings. Ordinary CI, repository rules, and required status checks remain separate controls.
+
+The harness therefore records local diff review separately from GitHub review and binds GitHub CI/review evidence to the exact PR head SHA. A later push invalidates earlier evidence even if the PR number is unchanged. The parent should request review again after the new checks pass.
 
 ## Completion And Event Notifications
 
@@ -105,5 +116,8 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 - Codex changelog: https://developers.openai.com/codex/changelog
 - Codex sandbox and approvals: https://learn.chatgpt.com/docs/sandboxing
 - Codex permission profiles: https://learn.chatgpt.com/docs/permissions
+- Codex local code review: https://developers.openai.com/codex/app/code-review
+- Codex GitHub code review: https://developers.openai.com/codex/cloud/code-review
+- Codex AGENTS.md guidance: https://developers.openai.com/codex/guides/agents-md
 - Claude Code agent overview: https://code.claude.com/docs/en/agents
 - Claude Code subagents: https://code.claude.com/docs/en/sub-agents
