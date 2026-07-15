@@ -975,7 +975,10 @@ def _validate_authorization_scope(
 def authorization_covers(
     run: dict[str, Any], action: str, mission_id: str, target: str | None = None
 ) -> bool:
-    entry = run.get("authorizations", {}).get(action, {})
+    authorizations = run.get("authorizations")
+    if not isinstance(authorizations, dict):
+        return False
+    entry = authorizations.get(action, {})
     if not isinstance(entry, dict) or entry.get("authorized") is not True:
         return False
     scope = entry.get("scope")

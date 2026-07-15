@@ -645,6 +645,20 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assertEqual(validate_run(plan, run), [])
 
+        malformed = copy.deepcopy(run)
+        malformed["authorizations"] = []
+        malformed_errors = validate_run(plan, malformed)
+        self.assertTrue(
+            any("run.authorizations: must be an object" in error for error in malformed_errors)
+        )
+        self.assertTrue(
+            any(
+                "auto_merge_requested requires matching merge_pr authorization for the exact PR"
+                in error
+                for error in malformed_errors
+            )
+        )
+
         run["authorizations"]["merge_pr"]["scope"]["targets"] = [
             "pr:https://github.com/example/repo/pull/8"
         ]
