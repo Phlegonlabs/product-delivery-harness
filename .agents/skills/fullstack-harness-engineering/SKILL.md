@@ -251,7 +251,7 @@ Final completion requires:
 - `RUN.md` records final status, evidence, changed files, commits, residual risk, and landing state.
 - In pull-request mode, the final branch was reviewed locally before push, and current-head CI plus GitHub review are recorded separately. A new push invalidates any earlier PASS tied to another SHA.
 - Only the parent integration branch lands by default. Worker branches remain local and do not open their own PRs unless the plan gives them a separate landing target.
-- `merge_status: ready` requires an open PR whose head matches the current integration head, whose check and review PASS records both match that PR head, and which has no blocking finding or unresolved thread. Merge and deploy still require their own authorization.
+- `merge_status: ready` and `merged` both preserve the same current-head gate: the PR head matches the integration head, check and review PASS records match that PR head, and no blocking finding or unresolved thread remains. `merged` additionally records the merged PR state and merge SHA. Merge and deploy still require their own authorization.
 
 ## Output Shape
 

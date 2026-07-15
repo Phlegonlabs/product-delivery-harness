@@ -511,7 +511,25 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "ready merge requires the current PR head to match integration_head_sha",
+            "ready or merged status requires the current PR head to match integration_head_sha",
+        )
+
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["landing"].update(
+            {
+                "pr_state": "merged",
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["landing"]["checks_status"] = "not_started"
+        run["landing"]["checks_head_sha"] = None
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "merged status requires the matching PR state with current-head PASS checks and review",
         )
 
         run = valid_run(plan)

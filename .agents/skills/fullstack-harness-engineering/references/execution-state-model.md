@@ -161,7 +161,7 @@ Schema v3 requires a `landing` object. `mode` is `local_only` or `pull_request`;
 
 For a created PR, `pr_head_sha` equals `pushed_head_sha`. A check PASS is current only when `checks_head_sha == pr_head_sha`; a review PASS is current only when `review_head_sha == pr_head_sha`, `blocking_findings == 0`, and `unresolved_threads == 0`. Any push that changes the PR head makes prior CI or review evidence stale. Reset the affected status and request current-head review again.
 
-`merge_status: ready` requires `pr_state: open`, `pr_head_sha == integration.integration_head_sha`, plus current-head PASS checks and review. A later local integration therefore invalidates readiness even before the next push. `merge_status: merged` requires `pr_state: merged` and a recorded merged SHA. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
+`merge_status: ready` requires `pr_state: open`, `pr_head_sha == integration.integration_head_sha`, plus current-head PASS checks and review. A later local integration therefore invalidates readiness even before the next push. `merge_status: merged` preserves those same head/check/review gates and additionally requires `pr_state: merged` plus a recorded merged SHA. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
 
 ## Runtime Capability Axes
 

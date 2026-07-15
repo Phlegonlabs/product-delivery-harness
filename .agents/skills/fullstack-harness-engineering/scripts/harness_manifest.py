@@ -896,14 +896,18 @@ def _validate_landing(errors: list[str], value: Any) -> None:
             _add(errors, path, "PASS review must bind to a created PR's current head")
         if value["blocking_findings"] != 0 or value["unresolved_threads"] != 0:
             _add(errors, path, "PASS review requires zero blocking findings and unresolved threads")
-    if value["merge_status"] == "ready" and (
-        value["pr_state"] != "open"
+    if value["merge_status"] in {"ready", "merged"} and (
+        value["pr_state"] != ("open" if value["merge_status"] == "ready" else "merged")
         or value["checks_status"] != "PASS"
         or value["review_status"] != "PASS"
         or value["checks_head_sha"] != value["pr_head_sha"]
         or value["review_head_sha"] != value["pr_head_sha"]
     ):
-        _add(errors, path, "ready merge requires an open PR with current-head PASS checks and review")
+        _add(
+            errors,
+            path,
+            f"{value['merge_status']} status requires the matching PR state with current-head PASS checks and review",
+        )
     if value["merge_status"] == "merged" and (
         value["pr_state"] != "merged" or value["merged_sha"] is None
     ):
@@ -1299,13 +1303,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if (
             schema_version == 3
             and isinstance(run["landing"], dict)
-            and run["landing"].get("merge_status") == "ready"
+            and run["landing"].get("merge_status") in {"ready", "merged"}
             and run["landing"].get("pr_head_sha") != integration["integration_head_sha"]
         ):
             _add(
                 errors,
                 "run.landing",
-                "ready merge requires the current PR head to match integration_head_sha",
+                "ready or merged status requires the current PR head to match integration_head_sha",
             )
 
     mission_ids = {mission["id"] for mission in plan.get("missions", []) if isinstance(mission, dict) and "id" in mission}
