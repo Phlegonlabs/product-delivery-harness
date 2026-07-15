@@ -507,11 +507,12 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(plan, run, "PASS review must bind to a created PR's current head")
 
         run["landing"]["review_head_sha"] = SHA_A
+        run["landing"]["merge_status"] = "not_ready"
         run["integration"]["integration_head_sha"] = SHA_B
         self.assert_run_error_contains(
             plan,
             run,
-            "ready or merged status requires the current PR head to match integration_head_sha",
+            "PASS landing evidence requires the current PR head to match integration_head_sha",
         )
 
         run["integration"]["integration_head_sha"] = SHA_A
@@ -547,6 +548,14 @@ class RunValidationTests(unittest.TestCase):
         )
         self.assertEqual(validate_run(plan, run), [])
 
+        run["landing"]["merged_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "only merged status may record merged_sha",
+        )
+
+        run["landing"]["merged_sha"] = None
         run["landing"]["merge_status"] = "not_ready"
         self.assert_run_error_contains(
             plan,

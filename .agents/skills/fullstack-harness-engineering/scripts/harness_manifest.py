@@ -918,8 +918,8 @@ def _validate_landing(errors: list[str], value: Any) -> None:
         _add(errors, path, "closed_unmerged requires a closed PR")
     if value["pr_state"] == "closed" and value["merge_status"] != "closed_unmerged":
         _add(errors, path, "closed PR requires merge_status closed_unmerged")
-    if value["merge_status"] == "closed_unmerged" and value["merged_sha"] is not None:
-        _add(errors, path, "closed_unmerged must not record merged_sha")
+    if value["merge_status"] != "merged" and value["merged_sha"] is not None:
+        _add(errors, path, "only merged status may record merged_sha")
 
 
 def _validate_authorization_scope(
@@ -1307,13 +1307,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if (
             schema_version == 3
             and isinstance(run["landing"], dict)
-            and run["landing"].get("merge_status") in {"ready", "merged"}
+            and (
+                run["landing"].get("checks_status") == "PASS"
+                or run["landing"].get("review_status") == "PASS"
+            )
             and run["landing"].get("pr_head_sha") != integration["integration_head_sha"]
         ):
             _add(
                 errors,
                 "run.landing",
-                "ready or merged status requires the current PR head to match integration_head_sha",
+                "PASS landing evidence requires the current PR head to match integration_head_sha",
             )
 
     mission_ids = {mission["id"] for mission in plan.get("missions", []) if isinstance(mission, dict) and "id" in mission}
