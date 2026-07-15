@@ -163,6 +163,8 @@ For a created PR, `pr_head_sha` equals `pushed_head_sha`. A check PASS is curren
 
 `merge_status: ready` requires `pr_state: open`, `pr_head_sha == integration.integration_head_sha`, plus current-head PASS checks and review. A later local integration therefore invalidates readiness even before the next push. `merge_status: merged` preserves those same head/check/review gates and additionally requires `pr_state: merged` plus a recorded merged SHA. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
 
+A PR closed without merge uses the exact terminal pair `pr_state: closed` and `merge_status: closed_unmerged`, with no `merged_sha`. This state prevents review or merge automation from treating the closed PR as merely not ready.
+
 ## Runtime Capability Axes
 
 Represent orchestration with three independent axes. Do not encode them as a single mode string.

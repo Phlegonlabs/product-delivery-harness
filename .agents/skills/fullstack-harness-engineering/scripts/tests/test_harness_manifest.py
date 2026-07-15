@@ -532,6 +532,28 @@ class RunValidationTests(unittest.TestCase):
             "merged status requires the matching PR state with current-head PASS checks and review",
         )
 
+        run["landing"].update(
+            {
+                "pr_state": "closed",
+                "checks_status": "not_started",
+                "checks_head_sha": None,
+                "review_status": "not_requested",
+                "review_head_sha": None,
+                "blocking_findings": None,
+                "unresolved_threads": None,
+                "merge_status": "closed_unmerged",
+                "merged_sha": None,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["landing"]["merge_status"] = "not_ready"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "closed PR requires merge_status closed_unmerged",
+        )
+
         run = valid_run(plan)
         run["landing"].update(
             {

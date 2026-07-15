@@ -15,9 +15,9 @@
 ## Git And Pull Request Flow
 
 - Do not push directly to `main`.
-- Before each branch, push, PR creation, or PR review-state mutation, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
+- Before each branch, local integration, push, PR creation, or PR review-state mutation, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
 - With matching `create_local_branches` authorization, create a `codex/<short-name>` branch for implementation work.
-- Worker branches and worktrees stay local. The parent integrates verified worker commits into one final branch.
+- Worker branches and worktrees stay local. With matching `integrate_locally` authorization, the parent integrates verified worker commits into one final branch.
 - Before push, run the required tests and review the complete diff against `main`.
 - With matching `push` authorization, push only the final branch.
 - With separate `create_pr` authorization, open a Draft PR.

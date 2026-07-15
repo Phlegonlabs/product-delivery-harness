@@ -916,6 +916,10 @@ def _validate_landing(errors: list[str], value: Any) -> None:
         _add(errors, path, "merged PR requires merge_status merged")
     if value["merge_status"] == "closed_unmerged" and value["pr_state"] != "closed":
         _add(errors, path, "closed_unmerged requires a closed PR")
+    if value["pr_state"] == "closed" and value["merge_status"] != "closed_unmerged":
+        _add(errors, path, "closed PR requires merge_status closed_unmerged")
+    if value["merge_status"] == "closed_unmerged" and value["merged_sha"] is not None:
+        _add(errors, path, "closed_unmerged must not record merged_sha")
 
 
 def _validate_authorization_scope(

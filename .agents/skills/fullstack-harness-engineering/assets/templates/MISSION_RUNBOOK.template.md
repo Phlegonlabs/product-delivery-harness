@@ -207,6 +207,8 @@ The action ledger has 16 independent entries. Keep every entry false unless an e
 
 `landing` is required in schema v3. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA matches that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals `integration.integration_head_sha`, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
 
+A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
+
 Create the final integration branch and PR from the parent checkout. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, then merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
