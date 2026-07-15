@@ -1229,7 +1229,6 @@ def _validate_post_merge_cleanup(
         if isinstance(item, dict)
         and item.get("path") != parent_worktree_path
         and item.get("branch_ref") == local_branch.get("ref")
-        and item.get("head_sha") == landing.get("pr_head_sha")
     ]
     if (
         status in {"ready", "complete"}

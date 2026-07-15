@@ -649,6 +649,12 @@ class RunValidationTests(unittest.TestCase):
             run,
             "not_applicable requires no matching linked worktree",
         )
+        run["observed"]["git"]["worktrees"][0]["head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "not_applicable requires no matching linked worktree",
+        )
         run["observed"]["git"]["worktrees"] = []
 
     def test_post_merge_cleanup_requires_clean_observed_worktree(self) -> None:
