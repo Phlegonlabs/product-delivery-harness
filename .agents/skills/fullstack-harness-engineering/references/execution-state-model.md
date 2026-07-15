@@ -52,6 +52,7 @@ The minimum RUN snapshot shape is:
   "observed": {
     "captured_at": null,
     "git": {
+      "parent_worktree_path": null,
       "parent_branch": null,
       "parent_head_sha": null,
       "parent_dirty": null,
@@ -110,7 +111,7 @@ blocked | worker_failed | superseded
 
 Authorization is action-specific. Overall `execution_authorized` also has siblings `execution_authorization_source` and `execution_authorization_scope`; when true, both must match the run, mission, and expiry boundary. Every action entry defaults to `authorized: false` and records an explicit user source before it can become true. A goal, plan, template, skill selection, worker report, or assistant assumption cannot authorize itself.
 
-The exact schema-v3-and-v4 ledger has 16 actions. Schema v2 remains readable with its original 13 entries, schema v3 remains readable with its original landing fields, and new RUN files use v4:
+The exact schema-v3-through-v5 ledger has 16 actions. Schema v2 remains readable with its original 13 entries, schema v3 remains readable with its original landing fields, schema v4 remains readable with auto-merge state, and new RUN files use v5:
 
 ```text
 spawn_subagents
@@ -157,15 +158,25 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Pull Request Landing State
 
-Schemas v3 and v4 require a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. Local-only mode cannot record a pushed head or created PR. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target. Schema v4 adds `auto_merge_requested` and `auto_merge_head_sha`; schema v3 files remain valid without them.
+Schemas v3 through v5 require a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. Local-only mode cannot record a pushed head or created PR. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target. Schemas v4 and v5 include `auto_merge_requested` and `auto_merge_head_sha`; schema v3 files remain valid without them.
 
 For a created PR, `pr_head_sha` equals `pushed_head_sha`. A check PASS is current only when `checks_head_sha == pr_head_sha == integration.integration_head_sha`; a review PASS is current only when `review_head_sha == pr_head_sha == integration.integration_head_sha`, `blocking_findings == 0`, and `unresolved_threads == 0`. Any push or local integration that changes either head makes prior CI or review evidence stale. Reset the affected status and request current-head review again.
 
 `merge_status: ready` requires `pr_state: open`, `pr_head_sha == integration.integration_head_sha`, plus current-head PASS checks and review. A later local integration therefore invalidates readiness even before the next push. `merge_status: merged` preserves those same head/check/review gates and additionally requires `pr_state: merged` plus a recorded merged SHA. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
 
-In schema v4, `auto_merge_requested: true` records that GitHub auto-merge was successfully enabled for the exact `auto_merge_head_sha`. At request time it is valid only when `merge_status` is `ready`, the mode is `pull_request`, `auto_merge_head_sha == pr_head_sha == integration.integration_head_sha`, and an unexpired `merge_pr` authorization covers every run mission plus the exact `pr:<full-PR-URL>` target (or an explicitly run-wide `*`). Enable it only after current-head checks and Codex review pass and all blocking findings and unresolved threads are zero. Use an exact-head guard such as `gh pr merge --auto --squash --match-head-commit <sha>`. After the PR reaches `merge_status: merged`, preserve the same matching authorization evidence even if its `run_complete` boundary expires during final closeout. A new push, local integration, canceled request, or changed head resets `auto_merge_requested` to false and `auto_merge_head_sha` to null until fresh gates pass. Repository-level auto-merge configuration uses `configure_repository`; enabling it on a PR uses `merge_pr`.
+In schemas v4 and v5, `auto_merge_requested: true` records that GitHub auto-merge was successfully enabled for the exact `auto_merge_head_sha`. At request time it is valid only when `merge_status` is `ready`, the mode is `pull_request`, `auto_merge_head_sha == pr_head_sha == integration.integration_head_sha`, and an unexpired `merge_pr` authorization covers every run mission plus the exact `pr:<full-PR-URL>` target (or an explicitly run-wide `*`). Enable it only after current-head checks and Codex review pass and all blocking findings and unresolved threads are zero. Use an exact-head guard such as `gh pr merge --auto --squash --match-head-commit <sha>`. After the PR reaches `merge_status: merged`, preserve the same matching authorization evidence even if its `run_complete` boundary expires during final closeout. A new push, local integration, canceled request, or changed head resets `auto_merge_requested` to false and `auto_merge_head_sha` to null until fresh gates pass. Repository-level auto-merge configuration uses `configure_repository`; enabling it on a PR uses `merge_pr`.
 
 A PR closed without merge uses the exact terminal pair `pr_state: closed` and `merge_status: closed_unmerged`, with no `merged_sha`. No state other than `merged` may record `merged_sha`. This prevents review or merge automation from treating the closed PR as merely not ready.
+
+## Post-Merge Cleanup State
+
+Schema v5 adds `post_merge_cleanup`. It closes only local lifecycle state and never changes the GitHub merge result. Valid v2 through v4 RUN files remain readable without it.
+
+Cleanup may become `ready` only after the landing state is `merged`, every mission is integrated, the merged SHA is freshly confirmed reachable from the base branch, and the exact local feature branch still points to `landing.pr_head_sha`. When the primary checkout is on that feature branch, its observed `parent_head_sha` must supply the same proof. This exact-head rule matters for squash merge: the feature commit is not normally an ancestor of the squash commit, so ordinary `git branch -d` may reject it even though GitHub merged the PR. A forced local ref deletion is safe only after the merged-PR/current-head proof and exact `delete_branches` authorization pass.
+
+For a parent-managed linked worktree, record its absolute path, branch ref, head SHA, clean state, and `managed_by: parent`. Schema v5 also records `observed.git.parent_worktree_path`; the cleanup target must differ so the primary checkout cannot be removed. `ready` requires the same clean parent-managed linked worktree in the current observed snapshot plus `remove_worktrees` authorization for `worktree:<absolute-path>`. `not_applicable` requires no matching linked worktree; an app-managed match must use deferred platform lifecycle state instead. Remove a parent-managed worktree without force, refresh the worktree observation, switch the primary checkout to the base branch, and only then delete `branch:refs/heads/<head-branch>`. `complete` requires the worktree to be absent, the primary checkout to be clean on the base branch, the local branch to be recorded deleted, and verification evidence to be present. Preserve matching `run_complete` authorization evidence after closeout just as merged auto-merge evidence is preserved.
+
+Use `deferred` with a reason when either cleanup action is not authorized, observed state is dirty or changed, or platform-managed retention owns the worktree. Use `not_applicable` for local-only/uncreated/closed-unmerged landing only when a fresh terminal observation contains no matching linked worktree. Never remove the primary checkout. App-managed automatic cleanup and snapshot restoration remain platform lifecycle facts, not `remove_worktrees` execution.
 
 ## Runtime Capability Axes
 

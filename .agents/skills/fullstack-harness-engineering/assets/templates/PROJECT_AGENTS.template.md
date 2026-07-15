@@ -19,6 +19,7 @@
 - After CI passes, use separate `manage_pr_review` authorization to mark it ready and request Codex review.
 - After every new push, wait for current-head CI and request review again.
 - After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
+- After a merged PR, re-fetch the base and verify the exact PR head before cleanup. Remove only an authorized clean linked worktree, switch the primary checkout to the base branch, then delete only the authorized local feature branch. Never remove the primary checkout.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal require separate approval.
 
 ## Review Guidelines

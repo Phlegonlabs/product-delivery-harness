@@ -101,6 +101,21 @@ PERMISSION_NETWORK_SCOPES = {"disabled", "filtered", "open", "unknown"}
 PERMISSION_LOCAL_BINDINGS = {"allowed", "blocked", "unknown"}
 PERMISSION_INHERITANCE = {"inherited", "not_inherited", "unknown"}
 PERMISSION_STATUSES = {"ready", "may_prompt", "blocked", "unknown"}
+CLEANUP_STATUSES = {"not_started", "ready", "complete", "deferred", "not_applicable"}
+CLEANUP_WORKTREE_STATUSES = {
+    "not_applicable",
+    "pending",
+    "removed",
+    "platform_managed",
+    "deferred",
+}
+CLEANUP_BRANCH_STATUSES = {
+    "pending",
+    "deleted",
+    "preserved",
+    "deferred",
+    "not_applicable",
+}
 
 
 class ManifestError(ValueError):
@@ -816,7 +831,7 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
         "merge_status",
         "merged_sha",
     }
-    if schema_version == 4:
+    if schema_version >= 4:
         keys.update({"auto_merge_requested", "auto_merge_head_sha"})
     if not _keys(errors, path, value, keys):
         return
@@ -833,7 +848,7 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
         "merged_sha",
     ):
         _optional_sha(errors, f"{path}.{key}", value[key])
-    if schema_version == 4:
+    if schema_version >= 4:
         if not isinstance(value["auto_merge_requested"], bool):
             _add(errors, f"{path}.auto_merge_requested", "must be boolean")
         _optional_sha(errors, f"{path}.auto_merge_head_sha", value["auto_merge_head_sha"])
@@ -928,7 +943,7 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
         _add(errors, path, "closed PR requires merge_status closed_unmerged")
     if value["merge_status"] != "merged" and value["merged_sha"] is not None:
         _add(errors, path, "only merged status may record merged_sha")
-    if schema_version == 4:
+    if schema_version >= 4:
         if value["auto_merge_requested"]:
             if (
                 value["mode"] != "pull_request"
@@ -947,6 +962,352 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
                 f"{path}.auto_merge_head_sha",
                 "must be null when auto_merge_requested is false",
             )
+
+
+def _validate_post_merge_cleanup(
+    errors: list[str], value: Any, run: dict[str, Any]
+) -> None:
+    path = "run.post_merge_cleanup"
+    if not _keys(
+        errors,
+        path,
+        value,
+        {"status", "base", "worktree", "local_branch", "evidence", "deferred_reason"},
+    ):
+        return
+
+    status = value["status"]
+    if status not in CLEANUP_STATUSES:
+        _add(errors, f"{path}.status", "has an unsupported value")
+
+    base = value["base"]
+    if _keys(
+        errors,
+        f"{path}.base",
+        base,
+        {"branch", "head_sha", "merged_sha_reachable"},
+    ):
+        _optional_string(errors, f"{path}.base.branch", base["branch"])
+        _optional_sha(errors, f"{path}.base.head_sha", base["head_sha"])
+        if base["merged_sha_reachable"] is not None and not isinstance(
+            base["merged_sha_reachable"], bool
+        ):
+            _add(
+                errors,
+                f"{path}.base.merged_sha_reachable",
+                "must be null or boolean",
+            )
+
+    worktree = value["worktree"]
+    if _keys(
+        errors,
+        f"{path}.worktree",
+        worktree,
+        {"path", "branch_ref", "head_sha", "dirty", "managed_by", "status"},
+    ):
+        _optional_string(errors, f"{path}.worktree.path", worktree["path"])
+        _optional_string(errors, f"{path}.worktree.branch_ref", worktree["branch_ref"])
+        _optional_sha(errors, f"{path}.worktree.head_sha", worktree["head_sha"])
+        if worktree["dirty"] is not None and not isinstance(worktree["dirty"], bool):
+            _add(errors, f"{path}.worktree.dirty", "must be null or boolean")
+        if worktree["managed_by"] not in {None, "parent", "app"}:
+            _add(errors, f"{path}.worktree.managed_by", "must be null, parent, or app")
+        if worktree["status"] not in CLEANUP_WORKTREE_STATUSES:
+            _add(errors, f"{path}.worktree.status", "has an unsupported value")
+
+    local_branch = value["local_branch"]
+    if _keys(
+        errors,
+        f"{path}.local_branch",
+        local_branch,
+        {"ref", "head_sha", "status"},
+    ):
+        _optional_string(errors, f"{path}.local_branch.ref", local_branch["ref"])
+        _optional_sha(errors, f"{path}.local_branch.head_sha", local_branch["head_sha"])
+        if local_branch["status"] not in CLEANUP_BRANCH_STATUSES:
+            _add(errors, f"{path}.local_branch.status", "has an unsupported value")
+
+    evidence = _strings(errors, f"{path}.evidence", value["evidence"])
+    _optional_string(errors, f"{path}.deferred_reason", value["deferred_reason"])
+
+    if not all(isinstance(item, dict) for item in (base, worktree, local_branch)):
+        return
+
+    landing = run.get("landing")
+    if not isinstance(landing, dict):
+        return
+
+    expected_branch_ref = (
+        f"refs/heads/{landing['head_branch']}"
+        if _nonempty_string(landing.get("head_branch"))
+        and not landing["head_branch"].startswith("refs/heads/")
+        else landing.get("head_branch")
+    )
+    observed = run.get("observed")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    parent_worktree_path = (
+        observed_git.get("parent_worktree_path")
+        if isinstance(observed_git, dict)
+        else None
+    )
+    observed_worktrees = (
+        observed_git.get("worktrees", [])
+        if isinstance(observed_git, dict)
+        and isinstance(observed_git.get("worktrees", []), list)
+        else []
+    )
+
+    worktree_status = worktree.get("status")
+    worktree_manager = worktree.get("managed_by")
+    if worktree_status in {"pending", "removed"} and worktree_manager != "parent":
+        _add(
+            errors,
+            f"{path}.worktree.managed_by",
+            "manual cleanup worktrees must be parent-managed",
+        )
+    if worktree_status == "platform_managed" and worktree_manager != "app":
+        _add(
+            errors,
+            f"{path}.worktree.managed_by",
+            "platform-managed worktrees must be app-managed",
+        )
+    if worktree_status == "not_applicable" and worktree_manager is not None:
+        _add(
+            errors,
+            f"{path}.worktree.managed_by",
+            "must be null when no linked worktree applies",
+        )
+    if (
+        run.get("status") == "complete"
+        and landing.get("mode") == "pull_request"
+        and status in {"not_started", "ready"}
+    ):
+        _add(errors, path, "a completed pull-request run must complete or defer cleanup")
+
+    if status == "not_applicable":
+        if run.get("status") == "complete":
+            if not isinstance(observed, dict) or not _nonempty_string(
+                observed.get("captured_at")
+            ):
+                _add(
+                    errors,
+                    "run.observed.captured_at",
+                    "is required for terminal not-applicable cleanup",
+                )
+            if not _nonempty_string(parent_worktree_path):
+                _add(
+                    errors,
+                    "run.observed.git.parent_worktree_path",
+                    "is required for terminal not-applicable cleanup",
+                )
+            if any(
+                isinstance(item, dict)
+                and item.get("path") != parent_worktree_path
+                and item.get("branch_ref") == expected_branch_ref
+                for item in observed_worktrees
+            ):
+                _add(
+                    errors,
+                    f"{path}.worktree.status",
+                    "not_applicable requires no matching linked worktree in the current observation",
+                )
+        if landing.get("mode") == "pull_request" and landing.get("pr_state") not in {
+            "closed",
+            "not_created",
+        }:
+            _add(
+                errors,
+                path,
+                "not_applicable is valid only before PR creation, after an unmerged close, or in local-only mode",
+            )
+        return
+
+    if status == "not_started":
+        if value["deferred_reason"] is not None:
+            _add(errors, f"{path}.deferred_reason", "must be null unless cleanup is deferred")
+        return
+
+    if status == "deferred":
+        if not _nonempty_string(value["deferred_reason"]):
+            _add(errors, f"{path}.deferred_reason", "is required when cleanup is deferred")
+        return
+
+    if value["deferred_reason"] is not None:
+        _add(errors, f"{path}.deferred_reason", "must be null unless cleanup is deferred")
+
+    if landing.get("merge_status") != "merged" or landing.get("pr_state") != "merged":
+        _add(errors, path, "ready or complete cleanup requires a merged pull request")
+
+    base_branch = landing.get("base_branch")
+    if base.get("branch") != base_branch:
+        _add(errors, f"{path}.base.branch", "must match landing.base_branch")
+    if base.get("head_sha") is None:
+        _add(errors, f"{path}.base.head_sha", "is required for cleanup")
+    if base.get("merged_sha_reachable") is not True:
+        _add(
+            errors,
+            f"{path}.base.merged_sha_reachable",
+            "must be true after observing the merged SHA on the base branch",
+        )
+    if local_branch.get("ref") != expected_branch_ref:
+        _add(errors, f"{path}.local_branch.ref", "must match the merged PR head branch")
+    if local_branch.get("head_sha") != landing.get("pr_head_sha"):
+        _add(errors, f"{path}.local_branch.head_sha", "must match the merged PR head SHA")
+
+    if not isinstance(observed, dict) or not _nonempty_string(observed.get("captured_at")):
+        _add(errors, "run.observed.captured_at", "is required before cleanup")
+    if not isinstance(observed_git, dict) or observed_git.get("parent_dirty") is not False:
+        _add(errors, "run.observed.git.parent_dirty", "must be false before cleanup")
+    if not _nonempty_string(parent_worktree_path):
+        _add(errors, "run.observed.git.parent_worktree_path", "is required before cleanup")
+    parent_branch = observed_git.get("parent_branch") if isinstance(observed_git, dict) else None
+    parent_branch_ref = (
+        f"refs/heads/{parent_branch}"
+        if _nonempty_string(parent_branch) and not parent_branch.startswith("refs/heads/")
+        else parent_branch
+    )
+    if (
+        parent_branch_ref == local_branch.get("ref")
+        and isinstance(observed_git, dict)
+        and observed_git.get("parent_head_sha") != landing.get("pr_head_sha")
+    ):
+        _add(
+            errors,
+            "run.observed.git.parent_head_sha",
+            "must match the merged PR head while the primary checkout is on the cleanup branch",
+        )
+
+    mission_states = run.get("mission_states")
+    if not isinstance(mission_states, dict) or not mission_states or any(
+        not isinstance(state, dict) or state.get("phase") != "integrated"
+        for state in mission_states.values()
+    ):
+        _add(errors, path, "cleanup requires every run mission to be integrated")
+        mission_ids: list[str] = []
+    else:
+        mission_ids = list(mission_states)
+
+    branch_target = (
+        f"branch:{local_branch['ref']}"
+        if _nonempty_string(local_branch.get("ref"))
+        else None
+    )
+    preserve_expiry = status == "complete"
+    if branch_target is None or any(
+        not authorization_covers(
+            run,
+            "delete_branches",
+            mission_id,
+            branch_target,
+            preserve_completed_run_expiry=preserve_expiry,
+        )
+        for mission_id in mission_ids
+    ):
+        _add(
+            errors,
+            path,
+            "cleanup requires matching delete_branches authorization for the exact local branch",
+        )
+
+    if worktree_status in {"pending", "removed"}:
+        required_worktree = ("path", "branch_ref", "head_sha", "dirty")
+        if any(worktree.get(key) is None for key in required_worktree):
+            _add(errors, f"{path}.worktree", "manual cleanup requires path, branch, head, and dirty state")
+        if worktree.get("branch_ref") != local_branch.get("ref"):
+            _add(errors, f"{path}.worktree.branch_ref", "must match the local cleanup branch")
+        if worktree.get("head_sha") != landing.get("pr_head_sha"):
+            _add(errors, f"{path}.worktree.head_sha", "must match the merged PR head SHA")
+        if worktree.get("dirty") is not False:
+            _add(errors, f"{path}.worktree.dirty", "must be false before removal")
+        if worktree.get("path") == parent_worktree_path:
+            _add(errors, f"{path}.worktree.path", "must not target the primary checkout")
+        worktree_target = (
+            f"worktree:{worktree['path']}"
+            if _nonempty_string(worktree.get("path"))
+            else None
+        )
+        if worktree_target is None or any(
+            not authorization_covers(
+                run,
+                "remove_worktrees",
+                mission_id,
+                worktree_target,
+                preserve_completed_run_expiry=preserve_expiry,
+            )
+            for mission_id in mission_ids
+        ):
+            _add(
+                errors,
+                path,
+                "cleanup requires matching remove_worktrees authorization for the exact path",
+            )
+
+        matching_worktrees = [
+            item
+            for item in observed_worktrees
+            if isinstance(item, dict) and item.get("path") == worktree.get("path")
+        ]
+        if status == "ready" and not any(
+            item.get("branch_ref") == worktree.get("branch_ref")
+            and item.get("head_sha") == worktree.get("head_sha")
+            and item.get("managed_by") == "parent"
+            and item.get("dirty") is False
+            for item in matching_worktrees
+        ):
+            _add(
+                errors,
+                f"{path}.worktree",
+                "ready cleanup must match an observed clean parent-managed worktree",
+            )
+        if status == "complete" and matching_worktrees:
+            _add(errors, f"{path}.worktree", "removed worktree must be absent from the refreshed observation")
+    elif any(
+        worktree.get(key) is not None for key in ("path", "branch_ref", "head_sha", "dirty")
+    ):
+        _add(
+            errors,
+            f"{path}.worktree",
+            "non-manual worktree status must not record manual cleanup fields",
+        )
+
+    matching_linked_worktrees = [
+        item
+        for item in observed_worktrees
+        if isinstance(item, dict)
+        and item.get("path") != parent_worktree_path
+        and item.get("branch_ref") == local_branch.get("ref")
+    ]
+    if (
+        status in {"ready", "complete"}
+        and worktree_status == "not_applicable"
+        and matching_linked_worktrees
+    ):
+        _add(
+            errors,
+            f"{path}.worktree.status",
+            "not_applicable requires no matching linked worktree in the current observation",
+        )
+
+    if status == "ready":
+        if local_branch.get("status") != "pending":
+            _add(errors, f"{path}.local_branch.status", "must be pending when cleanup is ready")
+        if worktree_status not in {"pending", "not_applicable"}:
+            _add(errors, f"{path}.worktree.status", "must be pending or not_applicable when cleanup is ready")
+    elif status == "complete":
+        if local_branch.get("status") != "deleted":
+            _add(errors, f"{path}.local_branch.status", "must be deleted when cleanup is complete")
+        if worktree_status not in {"removed", "not_applicable"}:
+            _add(errors, f"{path}.worktree.status", "must be removed or not_applicable when cleanup is complete")
+        if not evidence:
+            _add(errors, f"{path}.evidence", "must record cleanup verification evidence")
+        if isinstance(observed_git, dict):
+            parent_branch = observed_git.get("parent_branch")
+            if _nonempty_string(parent_branch):
+                parent_branch = parent_branch.removeprefix("refs/heads/")
+            if parent_branch != base_branch:
+                _add(errors, "run.observed.git.parent_branch", "must be the base branch after cleanup")
+            if observed_git.get("parent_head_sha") != base.get("head_sha"):
+                _add(errors, "run.observed.git.parent_head_sha", "must match the observed base head after cleanup")
 
 
 def _validate_authorization_scope(
@@ -1055,12 +1416,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "attempt_log",
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
-    if schema_version in {3, 4}:
+    if schema_version in {3, 4, 5}:
         run_keys.add("landing")
+    if schema_version == 5:
+        run_keys.add("post_merge_cleanup")
+    if schema_version not in {2, 3, 4, 5}:
+        _add(errors, "run.schema_version", "must equal 2, 3, 4, or 5")
     if not _keys(errors, "run", run, run_keys):
         return sorted(errors)
-    if schema_version not in {2, 3, 4}:
-        _add(errors, "run.schema_version", "must equal 2, 3, or 4")
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
@@ -1103,7 +1466,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if run["plan"]["digest_sha256"] != digest:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
-    authorization_keys = AUTHORIZATION_KEYS if schema_version in {3, 4} else AUTHORIZATION_KEYS_V2
+    authorization_keys = (
+        AUTHORIZATION_KEYS if schema_version in {3, 4, 5} else AUTHORIZATION_KEYS_V2
+    )
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
         _add(errors, "run.authorizations", "must be an object")
@@ -1144,10 +1509,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
 
-    if schema_version in {3, 4}:
+    if schema_version in {3, 4, 5}:
         _validate_landing(errors, run["landing"], schema_version)
     if (
-        schema_version == 4
+        schema_version in {4, 5}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
@@ -1175,6 +1540,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested requires matching merge_pr authorization for the exact PR",
             )
+    if schema_version == 5:
+        _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
 
     runtime_keys = {
         "worker_runtime",
@@ -1342,7 +1709,21 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     if _keys(errors, "run.observed", observed, {"captured_at", "git", "runtime"}):
         _optional_string(errors, "run.observed.captured_at", observed["captured_at"])
         git = observed["git"]
-        if _keys(errors, "run.observed.git", git, {"parent_branch", "parent_head_sha", "parent_dirty", "worktrees"}):
+        observed_git_keys = {
+            "parent_branch",
+            "parent_head_sha",
+            "parent_dirty",
+            "worktrees",
+        }
+        if schema_version == 5:
+            observed_git_keys.add("parent_worktree_path")
+        if _keys(errors, "run.observed.git", git, observed_git_keys):
+            if schema_version == 5:
+                _optional_string(
+                    errors,
+                    "run.observed.git.parent_worktree_path",
+                    git["parent_worktree_path"],
+                )
             _optional_string(errors, "run.observed.git.parent_branch", git["parent_branch"])
             _optional_sha(errors, "run.observed.git.parent_head_sha", git["parent_head_sha"])
             if git["parent_dirty"] is not None and not isinstance(git["parent_dirty"], bool):
@@ -1375,7 +1756,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
         if (
-            schema_version in {3, 4}
+            schema_version in {3, 4, 5}
             and isinstance(run["landing"], dict)
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
@@ -1391,7 +1772,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "pull_request mode requires integration.branch to match head_branch",
             )
         if (
-            schema_version in {3, 4}
+            schema_version in {3, 4, 5}
             and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"

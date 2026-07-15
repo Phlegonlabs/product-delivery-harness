@@ -1,6 +1,6 @@
 # Multi-Thread Orchestration Research Notes
 
-Last reviewed: 2026-07-14. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex configuration, app behavior, and defaults can change independently of this skill.
+Last reviewed: 2026-07-15. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex configuration, app behavior, and defaults can change independently of this skill.
 
 Do not hard-code a local `codex-cli` version into portable guidance. Record the observed version in RUN evidence only when a specific behavior depends on it.
 
@@ -46,6 +46,7 @@ Official Codex app worktree documentation establishes these current constraints:
 - Task-scoped managed worktrees are common, but permanent worktrees can host multiple tasks. Do not enforce “exactly one task per worktree” as a universal invariant.
 - `.worktreeinclude` can copy required ignored local files into a managed worktree. It is not a substitute for checking secrets or environment isolation.
 - The app keeps a recent set of managed worktrees (documented default: 15) and can remove older managed worktrees according to platform retention behavior.
+- Codex-managed worktrees are not automatically deleted while their task is active, their conversation is pinned, or the worktree is permanent. Archiving the associated task or exceeding the configured retention limit can trigger deletion, and Codex saves a restorable snapshot first.
 
 An authorization such as `remove_worktrees: false` controls harness-initiated cleanup only. It cannot promise that the platform will retain an app-managed worktree. Record `platform_lifecycle`, create a durable branch/ref early when needed, and do not leave unique verified work reachable only through detached `HEAD`.
 
