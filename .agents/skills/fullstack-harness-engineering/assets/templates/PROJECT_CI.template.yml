@@ -1,0 +1,24 @@
+name: project-ci
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches:
+      - <base-branch>
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Add the repo-specific runtime setup steps here.
+
+      - name: Run required verification
+        run: <verification-command>

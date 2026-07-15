@@ -31,6 +31,7 @@ from harness_manifest import (  # noqa: E402
 
 
 SHA_A = "a" * 40
+SHA_B = "b" * 40
 
 
 def verifier(identifier: str, *argv: str) -> dict[str, object]:
@@ -188,7 +189,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         for item in current_mission["tasks"]
     ]
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": "RUN-TEST",
         "plan": {
             "id": plan["plan_id"],
@@ -231,9 +232,28 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             },
         },
         "integration": {
-            "branch": "main",
+            "branch": "codex/test",
             "batch_base_sha": SHA_A,
             "integration_head_sha": SHA_A,
+        },
+        "landing": {
+            "mode": "pull_request",
+            "remote": "origin",
+            "head_branch": "codex/test",
+            "base_branch": "main",
+            "pushed_head_sha": None,
+            "pr_number": None,
+            "pr_url": None,
+            "pr_state": "not_created",
+            "pr_head_sha": None,
+            "checks_status": "not_started",
+            "checks_head_sha": None,
+            "review_status": "not_requested",
+            "review_head_sha": None,
+            "blocking_findings": None,
+            "unresolved_threads": None,
+            "merge_status": "not_ready",
+            "merged_sha": None,
         },
         "mission_states": {
             mission_id: {
@@ -452,6 +472,145 @@ class RunValidationTests(unittest.TestCase):
 
         run["plan"]["digest_sha256"] = "0" * 64
         self.assert_run_error_contains(plan, run, "does not match semantic PLAN digest")
+
+    def test_run_schema_v2_remains_compatible(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["schema_version"] = 2
+        del run["landing"]
+        for action in ("configure_repository", "manage_pr_review", "merge_pr"):
+            del run["authorizations"][action]
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_landing_ready_binds_checks_and_review_to_current_pr_head(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "ready",
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["branch"] = "main"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "pull_request mode requires integration.branch to match head_branch",
+        )
+        run["integration"]["branch"] = "codex/test"
+
+        run["landing"]["review_head_sha"] = SHA_B
+        self.assert_run_error_contains(plan, run, "PASS review must bind to a created PR's current head")
+
+        run["landing"]["review_head_sha"] = SHA_A
+        run["landing"]["merge_status"] = "not_ready"
+        run["integration"]["integration_head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "PASS landing evidence requires the current PR head to match integration_head_sha",
+        )
+
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["landing"].update(
+            {
+                "pr_state": "merged",
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["landing"]["checks_status"] = "not_started"
+        run["landing"]["checks_head_sha"] = None
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "merged status requires the matching PR state with current-head PASS checks and review",
+        )
+
+        run["landing"].update(
+            {
+                "pr_state": "closed",
+                "checks_status": "not_started",
+                "checks_head_sha": None,
+                "review_status": "not_requested",
+                "review_head_sha": None,
+                "blocking_findings": None,
+                "unresolved_threads": None,
+                "merge_status": "closed_unmerged",
+                "merged_sha": None,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["landing"]["merged_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "only merged status may record merged_sha",
+        )
+
+        run["landing"]["merged_sha"] = None
+        run["landing"]["merge_status"] = "not_ready"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "closed PR requires merge_status closed_unmerged",
+        )
+
+        run = valid_run(plan)
+        run["landing"].update(
+            {
+                "checks_status": "PASS",
+                "review_status": "PASS",
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+            }
+        )
+        self.assert_run_error_contains(plan, run, "PASS checks must bind to a created PR's current head")
+
+    def test_repository_configuration_has_its_own_authorization_target(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["authorizations"]["configure_repository"] = {
+            "authorized": True,
+            "source": "user: configure GitHub review flow",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["repository:example/repo"],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_local_only_landing_rejects_a_pushed_head(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["landing"].update(
+            {
+                "mode": "local_only",
+                "pushed_head_sha": SHA_A,
+            }
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "local_only mode cannot record a pushed head",
+        )
 
     def test_execution_authorization_requires_source_and_scope(self) -> None:
         plan = valid_plan()

@@ -167,7 +167,7 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
     }
     digest = plan_digest(plan)
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": run_id,
         "plan": {
             "id": plan["plan_id"],
@@ -214,6 +214,25 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
             "branch": "codex/integration",
             "batch_base_sha": SHA,
             "integration_head_sha": SHA,
+        },
+        "landing": {
+            "mode": "pull_request",
+            "remote": "origin",
+            "head_branch": "codex/integration",
+            "base_branch": "main",
+            "pushed_head_sha": None,
+            "pr_number": None,
+            "pr_url": None,
+            "pr_state": "not_created",
+            "pr_head_sha": None,
+            "checks_status": "not_started",
+            "checks_head_sha": None,
+            "review_status": "not_requested",
+            "review_head_sha": None,
+            "blocking_findings": None,
+            "unresolved_threads": None,
+            "merge_status": "not_ready",
+            "merged_sha": None,
         },
         "mission_states": mission_states,
         "task_states": task_states,

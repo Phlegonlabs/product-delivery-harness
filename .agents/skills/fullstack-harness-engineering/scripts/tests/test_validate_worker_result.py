@@ -140,7 +140,7 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
         "create_local_commits", enabled=True, target=f"branch:{BRANCH_REF}"
     )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "run_id": "RUN_TEST",
         "plan": {
             "id": "PLAN_TEST",
@@ -195,6 +195,25 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
             "branch": "refs/heads/codex/integration",
             "batch_base_sha": BASE_SHA,
             "integration_head_sha": BASE_SHA,
+        },
+        "landing": {
+            "mode": "pull_request",
+            "remote": "origin",
+            "head_branch": "codex/integration",
+            "base_branch": "main",
+            "pushed_head_sha": None,
+            "pr_number": None,
+            "pr_url": None,
+            "pr_state": "not_created",
+            "pr_head_sha": None,
+            "checks_status": "not_started",
+            "checks_head_sha": None,
+            "review_status": "not_requested",
+            "review_head_sha": None,
+            "blocking_findings": None,
+            "unresolved_threads": None,
+            "merge_status": "not_ready",
+            "merged_sha": None,
         },
         "mission_states": {
             "M1": {
