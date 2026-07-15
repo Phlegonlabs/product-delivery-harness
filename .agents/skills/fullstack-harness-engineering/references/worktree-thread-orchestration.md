@@ -183,7 +183,7 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Review the final diff locally and rerun final gates before any outward-facing landing action. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
 - In pull-request mode, never push the base branch directly. Push the final feature/integration branch, create a Draft PR, wait for CI, then use `manage_pr_review` authorization to mark it ready and request GitHub review.
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
-- Bind CI and review results to the exact current PR head SHA. After every new push, treat earlier check/review PASS state as stale and request review again.
+- Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and request review again.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.

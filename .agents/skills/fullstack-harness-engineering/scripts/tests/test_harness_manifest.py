@@ -506,6 +506,14 @@ class RunValidationTests(unittest.TestCase):
         run["landing"]["review_head_sha"] = SHA_B
         self.assert_run_error_contains(plan, run, "PASS review must bind to a created PR's current head")
 
+        run["landing"]["review_head_sha"] = SHA_A
+        run["integration"]["integration_head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "ready merge requires the current PR head to match integration_head_sha",
+        )
+
         run = valid_run(plan)
         run["landing"].update(
             {

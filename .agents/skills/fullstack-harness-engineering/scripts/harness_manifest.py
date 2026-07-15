@@ -1296,6 +1296,17 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_string(errors, "run.integration.branch", integration["branch"])
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
+        if (
+            schema_version == 3
+            and isinstance(run["landing"], dict)
+            and run["landing"].get("merge_status") == "ready"
+            and run["landing"].get("pr_head_sha") != integration["integration_head_sha"]
+        ):
+            _add(
+                errors,
+                "run.landing",
+                "ready merge requires the current PR head to match integration_head_sha",
+            )
 
     mission_ids = {mission["id"] for mission in plan.get("missions", []) if isinstance(mission, dict) and "id" in mission}
     task_ids = {

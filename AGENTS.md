@@ -15,11 +15,13 @@
 ## Git And Pull Request Flow
 
 - Do not push directly to `main`.
-- Create a `codex/<short-name>` branch for implementation work.
+- Before each branch, push, PR creation, or PR review-state mutation, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
+- With matching `create_local_branches` authorization, create a `codex/<short-name>` branch for implementation work.
 - Worker branches and worktrees stay local. The parent integrates verified worker commits into one final branch.
 - Before push, run the required tests and review the complete diff against `main`.
-- Push only the final branch, then open a Draft PR.
-- After CI passes, mark the PR ready and request Codex review.
+- With matching `push` authorization, push only the final branch.
+- With separate `create_pr` authorization, open a Draft PR.
+- After CI passes, use separate `manage_pr_review` authorization to mark the PR ready and request Codex review.
 - A new push makes earlier CI and review results stale. Wait for checks and request review again for the new head SHA.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal are separate actions. Do not infer approval for them from implementation or PR creation.
 
