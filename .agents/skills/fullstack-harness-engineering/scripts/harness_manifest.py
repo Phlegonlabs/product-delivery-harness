@@ -881,6 +881,8 @@ def _validate_landing(errors: list[str], value: Any) -> None:
 
     if value["mode"] == "local_only" and value["pr_state"] != "not_created":
         _add(errors, path, "local_only mode cannot record a created PR")
+    if value["mode"] == "local_only" and value["pushed_head_sha"] is not None:
+        _add(errors, path, "local_only mode cannot record a pushed head")
     if value["checks_status"] == "PASS" and (
         value["pr_state"] not in created_states
         or value["checks_head_sha"] is None

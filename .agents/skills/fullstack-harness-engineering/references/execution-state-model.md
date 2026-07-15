@@ -157,7 +157,7 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Pull Request Landing State
 
-Schema v3 requires a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target.
+Schema v3 requires a `landing` object. `mode` is `local_only` or `pull_request`; shared repositories default to `pull_request`. Local-only mode cannot record a pushed head or created PR. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target.
 
 For a created PR, `pr_head_sha` equals `pushed_head_sha`. A check PASS is current only when `checks_head_sha == pr_head_sha == integration.integration_head_sha`; a review PASS is current only when `review_head_sha == pr_head_sha == integration.integration_head_sha`, `blocking_findings == 0`, and `unresolved_threads == 0`. Any push or local integration that changes either head makes prior CI or review evidence stale. Reset the affected status and request current-head review again.
 

@@ -589,6 +589,21 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assertEqual(validate_run(plan, run), [])
 
+    def test_local_only_landing_rejects_a_pushed_head(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["landing"].update(
+            {
+                "mode": "local_only",
+                "pushed_head_sha": SHA_A,
+            }
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "local_only mode cannot record a pushed head",
+        )
+
     def test_execution_authorization_requires_source_and_scope(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
