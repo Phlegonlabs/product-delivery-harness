@@ -15,10 +15,12 @@
 ## Git And Pull Request Flow
 
 - Do not push directly to `main`.
-- Before each branch, local integration, push, PR creation, or PR review-state mutation, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
+- Before any action represented in the RUN authorization ledger, verify its exact authorization. Common GitHub-flow examples are branch creation, local commits, local integration, repository configuration, push, PR creation, review-state mutation, merge, and cleanup. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
 - With matching `create_local_branches` authorization, create a `codex/<short-name>` branch for implementation work.
+- With matching `create_local_commits` authorization, commit only the verified task scope.
 - Worker branches and worktrees stay local. With matching `integrate_locally` authorization, the parent integrates verified worker commits into one final branch.
 - Before push, run the required tests and review the complete diff against `main`.
+- Change branch rules, required checks, or Codex review settings only with matching `configure_repository` authorization.
 - With matching `push` authorization, push only the final branch.
 - With separate `create_pr` authorization, open a Draft PR.
 - After CI passes, use separate `manage_pr_review` authorization to mark the PR ready and request Codex review.
