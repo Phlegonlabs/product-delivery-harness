@@ -1135,6 +1135,27 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
 
+    def test_invalid_run_schema_does_not_crash_auto_merge_validation(self) -> None:
+        plan = valid_plan()
+
+        string_schema = valid_run(plan)
+        string_schema["schema_version"] = "5"
+        self.assert_run_error_contains(
+            plan,
+            string_schema,
+            "run.schema_version: must equal 2, 3, 4, or 5",
+        )
+
+        unsupported_schema = valid_run(plan)
+        unsupported_schema["schema_version"] = 6
+        del unsupported_schema["landing"]
+        del unsupported_schema["post_merge_cleanup"]
+        self.assert_run_error_contains(
+            plan,
+            unsupported_schema,
+            "run.schema_version: must equal 2, 3, 4, or 5",
+        )
+
     def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)

@@ -1416,10 +1416,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         run_keys.add("landing")
     if schema_version == 5:
         run_keys.add("post_merge_cleanup")
-    if not _keys(errors, "run", run, run_keys):
-        return sorted(errors)
     if schema_version not in {2, 3, 4, 5}:
         _add(errors, "run.schema_version", "must equal 2, 3, 4, or 5")
+    if not _keys(errors, "run", run, run_keys):
+        return sorted(errors)
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
@@ -1508,7 +1508,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     if schema_version in {3, 4, 5}:
         _validate_landing(errors, run["landing"], schema_version)
     if (
-        schema_version >= 4
+        schema_version in {4, 5}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
