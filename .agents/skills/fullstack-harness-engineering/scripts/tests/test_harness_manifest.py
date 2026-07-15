@@ -232,7 +232,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             },
         },
         "integration": {
-            "branch": "main",
+            "branch": "codex/test",
             "batch_base_sha": SHA_A,
             "integration_head_sha": SHA_A,
         },
@@ -502,6 +502,14 @@ class RunValidationTests(unittest.TestCase):
             }
         )
         self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["branch"] = "main"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "pull_request mode requires integration.branch to match head_branch",
+        )
+        run["integration"]["branch"] = "codex/test"
 
         run["landing"]["review_head_sha"] = SHA_B
         self.assert_run_error_contains(plan, run, "PASS review must bind to a created PR's current head")

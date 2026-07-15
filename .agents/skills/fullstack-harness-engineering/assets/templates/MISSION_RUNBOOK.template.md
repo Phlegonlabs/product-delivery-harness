@@ -209,7 +209,7 @@ The action ledger has 16 independent entries. Keep every entry false unless an e
 
 A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
 
-Create the final integration branch and PR from the parent checkout. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, then merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
+Create the final integration branch and PR from the parent checkout. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, then merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
 

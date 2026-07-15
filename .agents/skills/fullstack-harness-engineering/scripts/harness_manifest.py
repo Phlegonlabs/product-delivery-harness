@@ -1309,6 +1309,22 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if (
             schema_version == 3
             and isinstance(run["landing"], dict)
+            and run["landing"].get("mode") == "pull_request"
+            and _nonempty_string(run["landing"].get("head_branch"))
+            and (
+                not _nonempty_string(integration["branch"])
+                or integration["branch"].removeprefix("refs/heads/")
+                != run["landing"]["head_branch"].removeprefix("refs/heads/")
+            )
+        ):
+            _add(
+                errors,
+                "run.landing",
+                "pull_request mode requires integration.branch to match head_branch",
+            )
+        if (
+            schema_version == 3
+            and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"
                 or run["landing"].get("review_status") == "PASS"
