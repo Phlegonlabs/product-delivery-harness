@@ -12,6 +12,22 @@
 | Wireframes | <path> | structure source | <notes> |
 | Brand / reference | <path or URL> | visual source | <notes> |
 
+## Product-Specific Visual Thesis
+
+| Cue / signature decision | Product or source basis | System expression | Avoid |
+|---|---|---|---|
+| <concrete cue or recurring decision> | <evidence or explicit assumption> | <tokens, components, layouts, imagery, or motion> | <unsupported generic default> |
+
+## Anti-Generic Design Rules
+
+| Risk | Default rule | Allowed exception | Review test |
+|---|---|---|---|
+| <generic or AI-UI pattern risk> | <product-specific rule> | <evidence-based exception> | <how to verify> |
+
+## Content & Data Realism
+
+<Domain vocabulary, representative data shapes and lengths, asset constraints, placeholder rules, and claims that must not be fabricated.>
+
 ## Color Palette
 
 | Token | Value / Direction | Tailwind / CSS reference | Usage |
@@ -33,6 +49,53 @@ Pay attention to font family, font weight, font size, line height, and how diffe
 | Section heading | <font> | <size> | <weight> | <line height> | <usage> |
 | Body | <font> | <size> | <weight> | <line height> | <usage> |
 | Caption / metadata | <font> | <size> | <weight> | <line height> | <usage> |
+
+## Iconography System
+
+### Market Scan & Decision
+
+| Candidate | Official source | Visual fit | Required-icon coverage | Integration | License / checked date | Decision |
+|---|---|---|---|---|---|---|
+| <icon set> | <official URL> | <fit> | <pass / gaps> | <package, SVG, font, or platform API> | <license / YYYY-MM-DD> | <primary, exception, or rejected> |
+
+### Icon Tokens
+
+| Token | Optical size | Stroke / weight / fill | Color behavior | Usage |
+|---|---|---|---|---|
+| <token> | <size> | <setting> | <currentColor or semantic token> | <usage> |
+
+### Semantic Icon Inventory
+
+| Intent / object | Visible label | Icon name | Source | Token / variant | State behavior | Accessibility behavior |
+|---|---|---|---|---|---|---|
+| <action, status, navigation, or domain object> | <label or none> | <exact name> | <library or custom source> | <token / variant> | <selected, disabled, RTL, etc.> | <hidden, named control, tooltip, etc.> |
+
+### Source & Exception Rules
+
+<Primary package/import path or asset source, version policy, tree-shaking or subsetting, RTL handling, brand-icon source, custom-icon construction rules, and approved secondary-library exceptions.>
+
+### Example Icon Usage Code
+
+```tsx
+// Example structure only. Replace with the selected library and project primitives.
+import { ExampleIcon } from "<approved-icon-package>";
+
+export function IconActions() {
+  return (
+    <>
+      <button>
+        <ExampleIcon aria-hidden="true" className="<icon-token>" />
+        Visible action
+      </button>
+      <button aria-label="Descriptive action">
+        <ExampleIcon aria-hidden="true" className="<icon-token>" />
+      </button>
+    </>
+  );
+}
+```
+
+<Define tooltip behavior for the icon-only control and adapt accessibility details to the target stack.>
 
 ## Spacing System
 
@@ -62,13 +125,41 @@ Pay attention to font family, font weight, font size, line height, and how diffe
 | Raised | <value> | <usage> |
 | Overlay | <value> | <usage> |
 
-## Animations & Transitions
+## Motion System
 
-| Pattern | Duration | Easing | Usage | Reduced-motion fallback |
-|---|---|---|---|---|
-| Hover feedback | <duration> | <easing> | <usage> | <fallback> |
-| Panel / modal entry | <duration> | <easing> | <usage> | <fallback> |
-| Loading / skeleton | <duration> | <easing> | <usage> | <fallback> |
+### Motion Principles & Stack
+
+| Layer / purpose | Technology | Why | Dependency / version | Performance constraints | Fallback |
+|---|---|---|---|---|---|
+| <feedback, orientation, continuity, emphasis, or storytelling> | <CSS, WAAPI, Motion, GSAP, Rive, native, or none> | <rationale> | <dependency / version or built-in> | <constraints> | <fallback> |
+
+### Motion Tokens
+
+| Token | Duration | Easing / spring | Distance / scale | Usage | Reduced-motion value |
+|---|---|---|---|---|---|
+| <token> | <duration> | <curve or spring> | <distance or scale> | <usage> | <none, instant, or opacity-only> |
+
+### Motion Pattern Inventory
+
+| Motion ID | Surface / component | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
+|---|---|---|---|---|---|---|---|
+| MOTION-001 | <surface> | <purpose> | <load, viewport, interaction, state, or scroll> | <opacity/transform/etc.> | <tokens> | <rules> | <behavior> |
+
+### Hero Choreography
+
+| Step | Element | Start / relation | From → to | Purpose | Mobile behavior | Reduced-motion behavior |
+|---|---|---|---|---|---|---|
+| 1 | <eyebrow, headline, copy, CTA, media, or decoration> | <time or relation> | <values> | <reason> | <variant> | <fallback> |
+
+### Motion Demo Index
+
+| Demo ID | Pattern / page | Artifact path | Stack | Controls | Status |
+|---|---|---|---|---|---|
+| DEMO-001 | <hero or pattern> | <motion-showcase.html or path> | <stack> | play / pause / restart / reduced motion | <draft or approved> |
+
+### Example Motion Implementation Code
+
+<Provide static-first, stack-appropriate implementation code with reduced-motion handling and cleanup/cancellation where required.>
 
 ## Border Radius
 

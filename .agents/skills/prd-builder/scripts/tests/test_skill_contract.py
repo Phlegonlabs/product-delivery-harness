@@ -1,0 +1,53 @@
+import unittest
+from pathlib import Path
+
+
+SKILL_ROOT = Path(__file__).resolve().parents[2]
+
+
+class PrdBuilderSkillContractTests(unittest.TestCase):
+    def read(self, relative_path: str) -> str:
+        return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def test_skill_routes_browser_products_to_frontend_selection(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn("references/frontend-stack-selection.md", skill)
+        self.assertIn("recommend one explicit stack", skill)
+        self.assertIn("recommendation is not misrepresented as a fixed requirement", skill)
+        self.assertIn("Cloudflare is a deployment/runtime platform", skill)
+
+    def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
+        guide = self.read("references/frontend-stack-selection.md")
+
+        self.assertIn("## First Separate the Layers", guide)
+        self.assertIn("## Product-Fit Patterns", guide)
+        self.assertIn("Astro + React islands", guide)
+        self.assertIn("React + Vite", guide)
+        self.assertIn("Cloudflare Workers with Static Assets", guide)
+        self.assertIn("## Official Sources to Recheck", guide)
+
+    def test_output_contract_requires_decision_and_verification(self) -> None:
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("## Frontend Delivery Requirements", contract)
+        self.assertIn("## Frontend Technology Decision", contract)
+        self.assertIn("Decision status: [Required / Selected / Recommended / Provisional]", contract)
+        self.assertIn("### Recorded or Recommended Stack", contract)
+        self.assertIn("### Rendering and Route Strategy", contract)
+        self.assertIn("### Platform Compatibility Verification", contract)
+        self.assertIn("### Unresolved Decision Protocol", contract)
+        self.assertIn("a bare `TBD` does not pass validation", contract)
+
+    def test_discovery_and_architecture_capture_selection_evidence(self) -> None:
+        interview = self.read("references/interview-guide.md")
+        architecture = self.read("references/architecture-playbook.md")
+
+        self.assertIn("content-led, interaction-led", interview)
+        self.assertIn("rendering needs", interview)
+        self.assertIn("Frontend technology layers", architecture)
+        self.assertIn("official-source verification date", architecture)
+
+
+if __name__ == "__main__":
+    unittest.main()

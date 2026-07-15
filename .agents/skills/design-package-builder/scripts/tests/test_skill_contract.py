@@ -1,0 +1,68 @@
+import unittest
+from pathlib import Path
+
+
+SKILL_ROOT = Path(__file__).resolve().parents[2]
+
+
+class DesignPackageSkillContractTests(unittest.TestCase):
+    def read(self, relative_path: str) -> str:
+        return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def test_skill_requires_product_specific_visual_thesis(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/visual-decision-guide.md")
+
+        self.assertIn("product-specific visual thesis", skill.lower())
+        self.assertIn("## Product-Specific Visual Thesis", guide)
+        self.assertIn("## Anti-Generic Review", guide)
+
+    def test_output_contract_and_templates_include_anti_generic_review(self) -> None:
+        output_contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
+        visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        self.assertIn("## Anti-Generic Review Checklist", output_contract)
+        self.assertIn("## Product-Specific Visual Thesis", design_system)
+        self.assertIn("### Product-Specific Design Decisions", ui_mockups)
+        self.assertIn("Distinctiveness / anti-generic review", visual_acceptance)
+
+    def test_icon_system_is_routed_and_required_by_templates(self) -> None:
+        skill = self.read("SKILL.md")
+        icon_guide = self.read("references/icon-system-guide.md")
+        output_contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
+        visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        self.assertIn("references/icon-system-guide.md", skill)
+        self.assertIn("## Current Market Shortlist", icon_guide)
+        self.assertIn("## Iconography System", output_contract)
+        self.assertIn("## Iconography System", design_system)
+        self.assertIn("### Example Icon Usage Code", output_contract)
+        self.assertIn("### Example Icon Usage Code", design_system)
+        self.assertIn("### Icon Usage", ui_mockups)
+        self.assertIn("Icon system conformance", visual_acceptance)
+
+    def test_motion_system_supports_hero_choreography_and_runnable_demo(self) -> None:
+        skill = self.read("SKILL.md")
+        motion_guide = self.read("references/motion-system-guide.md")
+        output_contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
+        visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        motion_showcase = self.read("assets/templates/MOTION_SHOWCASE.template.html")
+
+        self.assertIn("references/motion-system-guide.md", skill)
+        self.assertIn("## Hero Section Blueprint", motion_guide)
+        self.assertIn("## Motion System", output_contract)
+        self.assertIn("### Hero Choreography", design_system)
+        self.assertIn("### Motion & Choreography", ui_mockups)
+        self.assertIn("Motion system conformance", visual_acceptance)
+        self.assertIn('id="reduced-motion"', motion_showcase)
+        self.assertIn("Element.prototype.animate", motion_showcase)
+
+
+if __name__ == "__main__":
+    unittest.main()

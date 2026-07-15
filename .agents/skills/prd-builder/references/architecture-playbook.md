@@ -1,6 +1,6 @@
 # Architecture Playbook
 
-Use this playbook to make architecture sections implementation-ready while remaining stack-neutral unless the user provides a stack.
+Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. For products with a browser surface, record the required/selected frontend or make an evidence-backed recommendation as described in `frontend-stack-selection.md`.
 
 ## Baseline Architecture Coverage
 
@@ -9,6 +9,7 @@ Every architecture should cover:
 - Product archetype and target surfaces.
 - Actors and external systems.
 - Frontend or client responsibilities.
+- Frontend technology layers: deployment/runtime, rendering model, framework, UI library, build tool, routing/data approach, styling/component approach, and testing.
 - Backend, service, or workflow orchestration responsibilities.
 - Data model and persistence.
 - API, event, file, or trigger contracts.
@@ -24,6 +25,7 @@ Every architecture should cover:
 Use for browser-based SaaS, marketplaces, dashboards, portals, and public web products.
 
 - Frontend: routes, layout model, server/client rendering assumptions, form validation, state management, responsive behavior.
+- Frontend decision: status (`Required`, `Selected`, `Recommended`, or `Provisional`), product-fit rationale, alternatives rejected, official-source verification date, runtime compatibility, and any spike needed to close uncertainty.
 - Backend: API layer, business services, validation, background jobs, file handling, notifications.
 - Data: relational entities by default for transactional products; include indexes, tenancy, soft delete, audit history, and retention when relevant.
 - APIs: list core REST, GraphQL, RPC, or server action contracts; include pagination, filtering, validation errors, auth errors, and rate limits.
@@ -79,4 +81,6 @@ Use when the product is mainly a service consumed by other systems.
 - Call out tradeoffs when choosing between synchronous requests, background jobs, event-driven design, or scheduled processing.
 - Specify idempotency for payment, notification, import, workflow, and external mutation flows.
 - Specify authorization at both UI and backend layers.
-- Avoid naming a vendor unless the user specified it or the current environment clearly requires it.
+- For a browser frontend, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
+- Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
+- Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

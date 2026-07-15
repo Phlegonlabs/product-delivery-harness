@@ -36,6 +36,9 @@ Ask only questions that are not already answered.
    - Are there known design references or brand constraints?
 8. Architecture constraints
    - Is there a required stack, hosting environment, database, auth provider, or existing system?
+   - For a browser frontend, is the product primarily content-led, interaction-led, or a mixture? Which routes require SEO, static generation, server rendering, authenticated personalization, or SPA behavior?
+   - Does the frontend need Cloudflare Workers bindings or APIs such as D1, KV, R2, Durable Objects, Queues, Workflows, or Workers AI?
+   - Which team skills, existing components, package constraints, browser targets, and build/deployment workflows should shape the frontend choice?
    - Are there latency, scale, reliability, security, or cost constraints?
    - Does the product need observability, audit logs, background jobs, or queueing?
 9. Delivery constraints
@@ -57,6 +60,7 @@ Discovery is complete enough to draft when the agent can state:
 - The core data objects and integrations.
 - The v1 scope, non-goals, and constraints.
 - The architecture assumptions and high-risk unknowns.
+- For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - The UI screens or interaction points that need wireframes.
 - The success metrics and acceptance criteria.
 
@@ -69,4 +73,4 @@ If the user asks for a first draft without more questions:
 - State that assumptions are being used.
 - Add an `Assumptions` section to every artifact where relevant.
 - Add unresolved items to `Open Questions`.
-- Avoid inventing named vendors, frameworks, compliance requirements, or pricing unless the prompt strongly implies them.
+- Do not invent compliance requirements or pricing. A named frontend recommendation is allowed when it follows `frontend-stack-selection.md`, is supported by the known requirements, and clearly identifies assumptions and alternatives.

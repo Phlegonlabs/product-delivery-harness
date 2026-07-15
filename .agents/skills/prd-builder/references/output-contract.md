@@ -47,6 +47,11 @@ Use this structure:
 ## UX Requirements
 - [Screens, states, accessibility, notifications, responsive behavior]
 
+## Frontend Delivery Requirements
+- [Target devices and browsers, content/interactivity profile, SEO, rendering, performance, accessibility, localization, offline, and deployment constraints]
+
+Omit this section only when the product has no browser frontend.
+
 ## Data and Integration Requirements
 - [Data objects, external systems, freshness, retention]
 
@@ -80,6 +85,47 @@ Use this structure:
 
 ## Product Archetype
 [Web app, mobile app, internal tool, automation or agent workflow, API or hybrid.]
+
+## Frontend Technology Decision
+Use this section for every product with a browser frontend. Omit it only when no browser surface exists.
+
+Decision status: [Required / Selected / Recommended / Provisional]
+
+Decision authority: [User constraint, existing repository, or PRD recommendation]
+
+### Decision Drivers
+- [Product evidence that determines the choice: content density, interactivity, SEO, rendering, auth, edge data, team capability, reuse, performance, and deployment constraints.]
+
+### Recorded or Recommended Stack
+| Layer | Selection | Why It Fits | Constraint or Follow-up |
+| --- | --- | --- | --- |
+| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | [Reason] | [Constraint] |
+| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | [Reason] | [Constraint] |
+| Framework | [e.g. Astro, React Router, or none] | [Reason] | [Constraint] |
+| UI library | [e.g. React or none] | [Reason] | [Constraint] |
+| Build tool | [e.g. Vite, or framework-managed] | [Reason] | [Constraint] |
+| Routing and data | [Approach] | [Reason] | [Constraint] |
+| Styling and components | [Approach] | [Reason] | [Constraint] |
+| Testing | [Unit, component, end-to-end, accessibility] | [Reason] | [Constraint] |
+
+### Rendering and Route Strategy
+| Route Group | Rendering | Data Source | Cache / Freshness | Auth Boundary | Rationale |
+| --- | --- | --- | --- | --- | --- |
+
+### Alternatives Considered
+| Alternative | Where It Fits Better | Why Not Selected Here | Revisit Trigger |
+| --- | --- | --- | --- |
+
+### Platform Compatibility Verification
+- Checked on: [YYYY-MM-DD]
+- Official sources: [Direct links]
+- Runtime/build requirements: [Compatibility date, Node version, adapter/plugin, bindings, asset routing, or other constraints]
+
+### Unresolved Decision Protocol
+Use only when a stack layer cannot yet be decided.
+
+| Open Decision | Missing Evidence | Owner | Decision Date | Time-boxed Spike | Pass / Fail Criteria |
+| --- | --- | --- | --- | --- | --- |
 
 ## System Context
 [Actors, systems, dependencies.]
@@ -200,7 +246,11 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 - All three core artifacts are present in the run-specific staging directory and are ready to publish under `doc/`.
 - `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
+- For a browser product, `PRD.md` defines frontend delivery requirements including content/interactivity, rendering, SEO, accessibility, performance, target devices, and deployment constraints where applicable.
 - `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
+- For a browser product, `architecture.md` records the required/selected stack or recommends one frontend stack, separates its technology layers, maps rendering by route, explains rejected alternatives, and records official-source verification date and runtime constraints.
+- The frontend decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
+- Any unresolved frontend stack decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
 - UI states include loading, empty, error, permission, and success where applicable.
 - If produced, `implementation-plan.md` includes milestones, dependency order, test strategy, release plan, rollback plan, and unresolved decisions.

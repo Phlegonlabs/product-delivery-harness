@@ -1,6 +1,6 @@
 ---
 name: prd-builder
-description: Create product requirement document packages from user needs, including product discovery, implementation-ready architecture, UX flows, and low-fidelity ASCII and Mermaid wireframes. Use when Codex is asked to build, draft, plan, or refine a PRD, product spec, app spec, web product spec, internal tool spec, automation or agent workflow spec, UI wireframes, or architecture for a product idea.
+description: Create product requirement document packages from user needs, including product discovery, explicit or recommended frontend stack selection, implementation-ready architecture, UX flows, and low-fidelity ASCII and Mermaid wireframes. Use when Codex is asked to build, draft, plan, or refine a PRD, product spec, app spec, web product spec, internal tool spec, automation or agent workflow spec, UI wireframes, frontend technology recommendation, or architecture for a product idea.
 ---
 
 # PRD Builder
@@ -14,7 +14,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 1. Read `references/interview-guide.md` before asking discovery questions.
 2. Conduct a complete but concise product interview before drafting, unless the user explicitly says to skip questions, make assumptions, or produce a first draft immediately.
 3. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid.
-4. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`.
+4. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`. For a web app, internal tool, public website, or hybrid with a browser frontend, also read `references/frontend-stack-selection.md`.
 5. Before drafting, inventory earlier documents related to the same product as described in `references/artifact-lifecycle.md`. Do not move anything yet.
 6. Draft the core Markdown package in the staging location defined by `references/artifact-lifecycle.md`:
    - `PRD.md`
@@ -39,6 +39,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Use `references/output-contract.md` for the exact artifact names, headings, and final quality checklist.
 - Use `references/artifact-lifecycle.md` for staging, final `doc/` locations, safe identification of superseded documents, and post-validation archival.
 - Use `references/architecture-playbook.md` for implementation-ready architecture content across web, mobile, internal tools, and automations.
+- Use `references/frontend-stack-selection.md` to separate frontend technology layers, recommend one product-fit stack, and verify current Cloudflare support when that platform is in scope.
 - Use `references/wireframe-guide.md` for ASCII wireframes, Mermaid flows, and required UI states.
 
 ## Output Standards
@@ -49,4 +50,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Include loading, empty, error, permission, and edge states when a UI or workflow has them.
 - Keep outputs in the product/spec layer. Do not produce design systems, high-fidelity UI mockups, visual tokens, or page-level visual acceptance specs.
 - Keep assumptions explicit and avoid hiding unresolved decisions in confident prose.
-- Make architecture technology-neutral unless the user names a stack or the surrounding repo makes the stack obvious.
+- Architecture may remain technology-neutral overall. For every product with a browser frontend, record the required or already selected frontend stack, or recommend one explicit stack when the user has not chosen and discovery provides enough evidence. Label the decision status so a recommendation is not misrepresented as a fixed requirement. Record the deployment platform, rendering model, framework, UI library, build tool, and key supporting choices as separate layers.
+- Do not present Cloudflare, Astro, React, and Vite as peer alternatives: Cloudflare is a deployment/runtime platform, Astro is a web framework, React is a UI library, and Vite is a build tool that can be paired with React or used by frameworks.
+- Keep a decision technology-neutral only when evidence is genuinely insufficient. In that case, document the missing evidence, decision owner, decision deadline, and a time-boxed spike with pass/fail criteria.
+- When recommending a fast-moving hosted platform or framework, verify current official documentation and record the check date and sources in `architecture.md`.
