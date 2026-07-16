@@ -7,6 +7,12 @@ $ErrorActionPreference = "Stop"
 $Marketplace = "fullstack-goal-dev"
 $Plugin = "fullstack-harness"
 $PluginSelector = "$Plugin@$Marketplace"
+$ClaudeMarketplaceSource = if ([string]::IsNullOrWhiteSpace($Ref)) {
+    $Repository
+}
+else {
+    "https://github.com/$Repository.git#$Ref"
+}
 
 function Invoke-Checked {
     param(
@@ -45,7 +51,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
         Invoke-Checked claude plugin marketplace update $Marketplace
     }
     else {
-        Invoke-Checked claude plugin marketplace add $Repository --scope user
+        Invoke-Checked claude plugin marketplace add $ClaudeMarketplaceSource --scope user
     }
 
     $installedPlugins = Invoke-Checked claude plugin list --json | ConvertFrom-Json
