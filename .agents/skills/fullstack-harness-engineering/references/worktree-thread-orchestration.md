@@ -20,6 +20,28 @@ These fields are orthogonal. Do not infer workspace isolation, completion notifi
 
 If a requested combination is unsupported, downgrade to sequential parent execution and record the reason. Never silently simulate parallel isolation in a shared checkout.
 
+## Runtime Adapter Routing
+
+Schema v6 records the observed provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
+
+```text
+provider: codex | claude_code | generic
+available_drivers: app_threads | dynamic_workflow | subagents | sequential_parent
+detection_source: observed | explicit | fallback
+```
+
+Always include `sequential_parent` as the safe fallback. Select the first observed driver in this fixed order:
+
+```text
+codex: app_threads -> subagents -> sequential_parent
+claude_code: dynamic_workflow -> subagents -> sequential_parent
+generic: subagents -> sequential_parent
+```
+
+The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to `parent` + `shared_checkout` + `agent_result`. Do not route from a product label alone; record how the capability was observed and fall back if the selected primitive is missing at launch.
+
+Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
+
 ## Parent And Worker Ownership
 
 The parent/coordinator exclusively owns:
@@ -27,6 +49,7 @@ The parent/coordinator exclusively owns:
 - source intake, contract freeze, and plan revisions;
 - canonical `PLAN.md` and `RUN.md` writes;
 - authorization checks and runtime capability detection;
+- provider/driver routing and Dynamic Workflow argument construction;
 - batch-base selection, wave confirmation, leases, and worker prompts;
 - branch/worktree creation when authorized;
 - worker-result validation, integration order, conflict handling, and E2E verification;
@@ -114,6 +137,7 @@ mission/task dependency DAGs are acyclic
 resource_inventory_complete is true for every candidate
 write/deny scopes use the supported grammar
 runtime slots and isolation capacity are known
+provider, available drivers, and selected route are observed
 required environment and verifier tools are available
 selected permission boundary and worker inheritance are observed
 linked-worktree Git metadata, temp/cache, network, local-binding, and socket requirements fit that boundary
@@ -134,11 +158,25 @@ batch_base_sha
 candidate order and conflict reasons
 effective worker budget
 selected mission IDs
+runtime provider and selected driver
 ```
 
 The parent reviews live Git/runtime facts, confirms the proposal, records it in `RUN.md`, assigns leases, and only then creates branches, worktrees, subagents, or app tasks. Scripts must not parse human Markdown tables or mutate Git, Codex, PLAN, or RUN.
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
+
+## Launch Selected Claude Dynamic Workflow
+
+When the accepted schema-v6 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
+
+1. Confirm Dynamic Workflow is available in the current Claude Code runtime. Treat version support and observed command availability as capability evidence, not authorization.
+2. Allocate one authorized parent-managed worktree, durable branch, worker ID, and lease per selected mission from the fixed `batch_base_sha`. The parent owns these mutations and records the concrete identities in RUN.
+3. Render the workflow arguments from the accepted selector result and `WORKER_GOAL.template.md` handoffs. Each mission receives its lease ID, branch ref, assigned existing worktree path, scope, tasks, resources, verifiers, permission boundary, and frozen plan/base identity. The mission agent must enter that existing worktree before any repository action and return blocked if it cannot bind; it never creates a replacement worktree or writes in the parent checkout.
+4. Invoke the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted wave supplied as structured `args`. Its `pipeline()` starts sibling mission agents and returns one complete `WORKER_RESULT` or `REFINEMENT_REQUEST` object per mission through `agent_result`. Save a reusable rendered copy under `.claude/workflows/` only when that project file write is planned and authorized.
+5. Do not ask for user input inside the workflow. A mission that needs a contract decision or refined tasks returns a blocked/refinement result; the parent updates PLAN/RUN and starts a later workflow after the decision.
+6. Validate every result against live worktree, branch, head, scope, and verifier facts. Integrate accepted mission heads serially and recompute the next wave.
+
+Claude Code currently supports nested subagents, but this schema-v6 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, push, or land a PR. If Dynamic Workflow is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
 
 ## Launch Selected Codex App Threads
 
@@ -165,6 +203,7 @@ plan revision and digest
 mission ID and lease ID
 batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
+runtime provider and selected driver
 enabled nested-subagent policy or an explicit disabled policy
 allowed and denied paths
 declared serialized/runtime resources
@@ -198,7 +237,7 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Integrate worker results serially into one final parent branch. Worker branches and worktrees do not push or open PRs unless the plan defines a separate landing target.
 - Review the final diff locally and rerun final gates before any outward-facing landing action. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
 - In pull-request mode, `integration.branch` and `landing.head_branch` must name the same final feature branch, and that branch must differ from `landing.base_branch`. Never push the base branch directly. Push the final feature/integration branch, create a Draft PR, wait for CI, then use `manage_pr_review` authorization to mark it ready and request GitHub review.
-- When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in schema v4 or v5 and reset it after any new push or changed integration head.
+- When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in schema v4 through v6 and reset it after any new push or changed integration head.
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
 - Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and request review again.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.
@@ -208,4 +247,4 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Archive only worker tasks explicitly covered by `archive_worker_tasks`.
 - Record manual cleanup as complete, deferred, or not authorized. Record app-managed lifecycle separately because platform retention remains outside the harness's control.
 
-For schema-v5 post-merge cleanup, perform this serialized closeout only after GitHub reports the final PR merged: fetch the base, confirm the merged SHA is reachable, confirm the local feature branch still equals the recorded PR head, and refresh `git worktree list --porcelain`. Stop on any dirty, moved, missing, or mismatched target. If the feature branch is attached to an authorized parent-managed linked worktree, remove that exact clean path without force and re-observe it as absent. Switch the primary checkout to the refreshed base branch, then delete only the exact authorized local feature branch. Squash merge may require forced local branch deletion because the original feature commit is not an ancestor of the squash commit; the merged PR and exact-head checks are the safety proof. Never force-remove a worktree, never remove the primary checkout, and never manually clean an app-managed worktree under the platform's retention control.
+For schema-v5-or-v6 post-merge cleanup, perform this serialized closeout only after GitHub reports the final PR merged: fetch the base, confirm the merged SHA is reachable, confirm the local feature branch still equals the recorded PR head, and refresh `git worktree list --porcelain`. Stop on any dirty, moved, missing, or mismatched target. If the feature branch is attached to an authorized parent-managed linked worktree, remove that exact clean path without force and re-observe it as absent. Switch the primary checkout to the refreshed base branch, then delete only the exact authorized local feature branch. Squash merge may require forced local branch deletion because the original feature commit is not an ancestor of the squash commit; the merged PR and exact-head checks are the safety proof. Never force-remove a worktree, never remove the primary checkout, and never manually clean an app-managed worktree under the platform's retention control.

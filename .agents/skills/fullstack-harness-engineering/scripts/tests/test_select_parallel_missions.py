@@ -284,6 +284,43 @@ def configure_app_task_fanout(
         run["authorizations"][key] = authorization(run_id, mission_ids)
 
 
+def upgrade_to_schema_v6(
+    run: dict[str, object], provider: str, available_drivers: list[str]
+) -> None:
+    run["schema_version"] = 6
+    run["runtime_capabilities"]["runtime_adapter"] = {
+        "provider": provider,
+        "available_drivers": available_drivers,
+        "detection_source": "observed",
+    }
+    run["observed"]["git"]["parent_worktree_path"] = "C:/repo/fullstack-goal-dev"
+    run["landing"]["auto_merge_requested"] = False
+    run["landing"]["auto_merge_head_sha"] = None
+    run["post_merge_cleanup"] = {
+        "status": "not_started",
+        "base": {
+            "branch": "main",
+            "head_sha": None,
+            "merged_sha_reachable": None,
+        },
+        "worktree": {
+            "path": None,
+            "branch_ref": None,
+            "head_sha": None,
+            "dirty": None,
+            "managed_by": None,
+            "status": "not_applicable",
+        },
+        "local_branch": {
+            "ref": None,
+            "head_sha": None,
+            "status": "pending",
+        },
+        "evidence": [],
+        "deferred_reason": None,
+    }
+
+
 def manifest_markdown(heading: str, wrapper: str, value: dict[str, object]) -> str:
     encoded = json.dumps({wrapper: value}, sort_keys=True, indent=2)
     return f"# Harness fixture\n\n{heading}\n\n```json\n{encoded}\n```\n"
@@ -361,6 +398,84 @@ class SelectorTests(unittest.TestCase):
             ],
             result["launch_directives"],
         )
+
+    def test_schema_v6_routes_claude_wave_to_one_dynamic_workflow(self) -> None:
+        plan = make_plan(
+            [
+                mission("M2", priority=10, merge_rank=20),
+                mission("M1", priority=20, merge_rank=10),
+            ]
+        )
+        run = make_run(plan)
+        upgrade_to_schema_v6(
+            run,
+            "claude_code",
+            ["sequential_parent", "subagents", "dynamic_workflow"],
+        )
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual(
+            {
+                "provider": "claude_code",
+                "driver": "dynamic_workflow",
+                "detection_source": "observed",
+            },
+            result["runtime_route"],
+        )
+        self.assertEqual(
+            {
+                "launch_kind": "run_dynamic_workflow",
+                "mission_ids": ["M1", "M2"],
+                "script_path": "assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
+                "args_source": "accepted_wave",
+            },
+            result["wave_launch"],
+        )
+        for directive in result["launch_directives"]:
+            self.assertEqual("run_dynamic_workflow", directive["launch_kind"])
+            self.assertEqual("claude_code", directive["runtime_provider"])
+            self.assertEqual("dynamic_workflow", directive["runtime_driver"])
+            self.assertEqual("flat_wave", directive["workflow_policy"]["mode"])
+            self.assertEqual(
+                "assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
+                directive["workflow_policy"]["script_path"],
+            )
+            self.assertEqual("not_applicable", directive["nested_subagent_policy"]["mode"])
+
+    def test_schema_v6_claude_falls_back_to_direct_subagents(self) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        upgrade_to_schema_v6(
+            run,
+            "claude_code",
+            ["subagents", "sequential_parent"],
+        )
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual("subagents", result["runtime_route"]["driver"])
+        self.assertEqual("spawn_subagent", result["launch_directives"][0]["launch_kind"])
+        self.assertNotIn("wave_launch", result)
+
+    def test_schema_v6_routes_codex_wave_to_app_threads(self) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1"])
+        upgrade_to_schema_v6(
+            run,
+            "codex",
+            ["sequential_parent", "subagents", "app_threads"],
+        )
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual("app_threads", result["runtime_route"]["driver"])
+        self.assertEqual("create_thread", result["launch_directives"][0]["launch_kind"])
+        self.assertEqual("codex", result["launch_directives"][0]["runtime_provider"])
 
     def test_app_task_wave_requires_nested_subagent_authorization(self) -> None:
         plan = make_plan([mission("M1", priority=20, merge_rank=10)])

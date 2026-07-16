@@ -32,6 +32,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             runbook,
         )
 
+    def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
+        skill = self.read("SKILL.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        selector_reference = self.read("references/parallel-mission-selection.md")
+        workflow = self.read("assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js")
+
+        for content in (skill, runbook, orchestration, selector_reference):
+            self.assertIn("runtime_adapter", content)
+            self.assertIn("dynamic_workflow", content)
+        self.assertIn("## Launch Selected Claude Dynamic Workflow", orchestration)
+        self.assertIn("`scriptPath`", orchestration)
+        self.assertIn("run_dynamic_workflow", selector_reference)
+        self.assertIn("CLAUDE_DYNAMIC_WORKFLOW.template.js", skill)
+        self.assertIn("pipeline(args.missions", workflow)
+        self.assertIn('"worker_result"', workflow)
+        self.assertIn('"lease_id"', workflow)
+        self.assertIn('"task_results"', workflow)
+        self.assertIn('"REFINEMENT_REQUEST"', workflow)
+
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
 
