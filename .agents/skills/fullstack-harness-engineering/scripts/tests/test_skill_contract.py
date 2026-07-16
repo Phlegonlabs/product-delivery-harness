@@ -95,7 +95,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("  e2e:", ci_template)
         self.assertIn("<e2e-command>", ci_template)
         self.assertIn("actions/upload-artifact@v4", ci_template)
-        self.assertIn("e2e-${{ github.sha }}", ci_template)
+        self.assertIn("github.event.pull_request.head.sha", ci_template)
+        self.assertIn("ref: ${{ env.E2E_HEAD_SHA }}", ci_template)
+        self.assertIn("e2e-${{ env.E2E_HEAD_SHA }}", ci_template)
 
 
 if __name__ == "__main__":
