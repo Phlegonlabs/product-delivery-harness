@@ -50,6 +50,7 @@ Review the system and every important mockup for unsupported clusters of common 
 
 - A badge, oversized gradient headline, generic benefit copy, two CTA buttons, and a floating dashboard mockup used as a default hero formula
 - Every content group placed inside a floating rounded card, including nested cards that do not communicate hierarchy or interaction
+- Repeated bordered cards or panels with a colored side rail or accent stripe used as generic decoration rather than a named state, selection, priority, category, or approved brand motif
 - Excessive pills, large corner radii, glows, glass effects, gradients, icon chips, or soft shadows without a semantic or brand role
 - Uniformly centered or evenly weighted sections that ignore task priority, content shape, reading flow, or data density
 - Repeated three-column feature grids, interchangeable icons, and equal-length placeholder copy that could describe any product
@@ -65,6 +66,7 @@ Repair generic results in this order:
 1. Restore task and content hierarchy.
 2. Replace invented or vague content with representative domain content or explicit placeholders.
 3. Remove unnecessary containers and decorative treatments.
+   Remove repeated borders and accent rails before inventing a new decorative replacement.
 4. Apply the product's signature typography, layout, color, imagery, or interaction decisions.
 5. Recheck responsive behavior, accessibility, and platform conventions.
 
@@ -111,6 +113,7 @@ For each page mockup, specify:
 - Viewport and breakpoint
 - Primary content hierarchy
 - For landing pages, the single job of each region, required content, and content intentionally deferred or excluded
+- The style direction and visual job of each important region, including whether it should remain open, use a real container, change background, split layout, or apply another hierarchy treatment
 - Layout regions
 - Component composition
 - Approved or draft exact wording, or a bounded display contract that states what the region shows, the intended takeaway or action, the source, and relevant constraints
@@ -130,4 +133,5 @@ If generating actual bitmap mockups or visual alternatives is requested and imag
 - Design system beats one-off mockup styling unless the user accepts an exception.
 - Page UI mockups beat low-fidelity wireframes for visual hierarchy and layout detail.
 - Low-fidelity wireframes remain authoritative for flow, required regions, supplied exact wording, and bounded display contracts.
+- Wireframe style, media, and motion labels define required intent; the design system owns the final visual and choreography choices.
 - Missing brand direction should become explicit assumptions, not hidden generic styling.

@@ -201,10 +201,10 @@ flowchart TD
 - Permission:
 - Success:
 
-### Content, Media & Motion Notes
-| Region | Content mode | Exact wording or display contract | Content priority | Image / media | Motion | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or design handoff question] |
+### Content, Style, Media & Motion Notes
+| Region | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or design handoff question] |
 ````
 
 ## Optional `implementation-plan.md`
@@ -258,6 +258,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Any unresolved frontend stack decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
 - Every visible wireframe region contains either exact UI wording or a display contract covering what to show, the intended takeaway or action, the source, and relevant constraints. Generic placeholders do not pass validation.
+- Every visually important wireframe region names its style direction and purpose. Every animated region labels motion as required, optional, or none and states what it communicates.
+- ASCII boxes represent real grouping, interaction, state, or hierarchy. Repeated bordered panels with colored side rails or accent stripes are not implied without a named semantic or approved brand role.
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
 - Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to the design package.
 - UI states include loading, empty, error, permission, and success where applicable.

@@ -14,6 +14,7 @@
 | Motion performance | yes | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
 | Distinctiveness / anti-generic review | yes | Product-specific cues recur and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
 | Content specificity | yes | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
+| Container and accent-rail restraint | yes | Repeated bordered panels and colored side rails are absent unless each use has a named semantic or approved brand role | screenshot / design review |
 | Landing-page simplicity | when applicable | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
 | Media and motion traceability | when applicable | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
 

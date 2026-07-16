@@ -81,18 +81,22 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("approved or draft exact wording", skill)
         self.assertIn("bounded display contract", skill)
         self.assertIn("Do not mirror the whole PRD on the landing page", guide)
+        self.assertIn("colored side rail or accent stripe", guide)
         self.assertIn("supplied exact wording", guide)
         self.assertIn("## Landing Page Simplicity & Media Plan", output_contract)
         self.assertIn("Exact wording / display contract", output_contract)
+        self.assertIn("Container and accent-rail restraint", output_contract)
         self.assertIn("## Landing Page Simplicity & Media Plan", design_system)
         self.assertIn("### Content Budget", ui_mockups)
         self.assertIn("exact copy / display contract", ui_mockups)
         self.assertIn("required / optional / none", ui_mockups)
         self.assertIn("Content specificity", visual_acceptance)
+        self.assertIn("Container and accent-rail restraint", visual_acceptance)
         self.assertIn("Landing-page simplicity", visual_acceptance)
         self.assertIn("Media and motion traceability", visual_acceptance)
         self.assertIn("keeps landing pages KISS", agent)
         self.assertIn("preserves exact wording or bounded display contracts", agent)
+        self.assertIn("avoids repeated bordered panels with decorative colored side rails", agent)
 
 
 if __name__ == "__main__":
