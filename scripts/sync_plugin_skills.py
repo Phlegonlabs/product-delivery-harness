@@ -82,6 +82,8 @@ def write_marker() -> None:
 
 
 def sync() -> None:
+    if DESTINATION_ROOT.is_symlink():
+        raise SystemExit(f"Refusing to use symlinked destination root: {DESTINATION_ROOT}")
     if MARKER.is_symlink():
         raise SystemExit(f"Refusing to use symlinked marker: {MARKER}")
     if DESTINATION_ROOT.exists() and any(DESTINATION_ROOT.iterdir()) and not MARKER.exists():

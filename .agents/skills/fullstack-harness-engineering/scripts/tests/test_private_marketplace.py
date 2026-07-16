@@ -149,6 +149,45 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 "external target stays unchanged\n",
             )
 
+    def test_sync_refuses_symlinked_destination_root_without_writing(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            source_skill.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            destination_root.mkdir()
+            sentinel = destination_root / "important.txt"
+            sentinel.write_text("external data stays unchanged\n", encoding="utf-8")
+
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = destination_root / ".generated-from-agents-skills"
+            module.SKILL_NAMES = ("sample",)
+
+            original_is_symlink = Path.is_symlink
+
+            def root_is_symlink(path: Path) -> bool:
+                return path == destination_root or original_is_symlink(path)
+
+            with mock.patch.object(Path, "is_symlink", root_is_symlink):
+                with self.assertRaisesRegex(SystemExit, "symlinked destination root"):
+                    module.sync()
+
+            self.assertEqual(
+                sentinel.read_text(encoding="utf-8"),
+                "external data stays unchanged\n",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
