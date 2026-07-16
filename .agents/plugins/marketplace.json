@@ -1,0 +1,20 @@
+{
+  "name": "fullstack-goal-dev",
+  "interface": {
+    "displayName": "Full Stack Goal Dev"
+  },
+  "plugins": [
+    {
+      "name": "fullstack-harness",
+      "source": {
+        "source": "local",
+        "path": "./plugins/fullstack-harness"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Engineering"
+    }
+  ]
+}
