@@ -18,7 +18,7 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 3. Conduct a concise design interview unless the user explicitly says to skip questions, make assumptions, or draft a first pass immediately.
 4. Classify the design target: SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid.
 5. After discovery, read `references/output-contract.md` and `references/visual-decision-guide.md`. Read `references/icon-system-guide.md` whenever icons are in scope or the icon source is unresolved. Read `references/motion-system-guide.md` whenever motion is requested, implied by a visual direction, or needed to explain hierarchy or state.
-6. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, choose signature design decisions, identify generic defaults to avoid, define realistic content constraints, select an icon direction from the actual semantic inventory, and give every motion pattern a purpose.
+6. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, choose signature design decisions, identify generic defaults to avoid, define realistic content constraints and landing-page content budgets, select an icon direction from the actual semantic inventory, and give every image, media asset, and motion pattern a stated purpose.
 7. Produce the design package:
    - `design-system.md`
    - `page-ui-matrix.md`
@@ -30,7 +30,7 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 ## Input Boundaries
 
 - Treat PRDs, architecture docs, and low-fidelity wireframes as product sources, not visual design sources.
-- Use low-fidelity wireframes for structure and flow only. Do not copy their plain ASCII styling into the visual system.
+- Use low-fidelity wireframes for structure, flow, approved or draft exact wording, and bounded section display contracts. Preserve those content requirements, but do not copy plain ASCII styling into the visual system.
 - When product docs conflict with the requested visual direction, preserve product requirements and flag the visual conflict.
 - If the user provides brand guidelines, screenshots, Figma links, or reference images, register them as visual sources and use them as higher-priority visual evidence than generic assumptions.
 - If no visual direction exists, state assumptions and derive a coherent, product-specific system from the product archetype, audience, content, density, and workflow needs. Do not silently fall back to a generic SaaS or AI-generated aesthetic.
@@ -50,6 +50,9 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 - Define a product-specific visual thesis with three to five concrete brand or context cues, at least two signature design decisions, and explicit anti-patterns. Tie each decision to source evidence or a stated assumption.
 - Treat common patterns as risks only when they are unsupported or clustered into a generic composition. Do not mechanically ban gradients, rounded cards, pills, centered layouts, glass effects, or familiar fonts when the brand or interaction model justifies them.
 - Use realistic, domain-specific labels, data shapes, content lengths, and asset requirements. Do not invent vague benefit copy, fake metrics, testimonials, or social proof to make a mockup look complete.
+- Preserve exact wording supplied by product sources. When wording is unavailable or content is data-driven, carry forward a bounded display contract that states what the region must show, the intended user takeaway or action, the source, and relevant format or length constraints. Do not replace either mode with generic mockup copy.
+- For public websites, marketing pages, and landing pages, default to KISS: one clear value proposition and one primary action in the first viewport, one job per section, and only the content needed to understand the offer, establish necessary trust, answer a blocking objection, or take the next step. Defer secondary detail to deeper pages, docs, or a bounded FAQ instead of turning the landing page into a summary of the whole PRD.
+- For each landing-page region, label image or media and motion as `required`, `optional`, or `none`. Record the purpose, source or creation need, responsive treatment, and static or reduced-motion fallback. Preserve equivalent labels from supplied wireframes and resolve their visual treatment in `design-system.md` and `ui-mockups.md`.
 - Select one primary functional icon family from a current official-source market scan. Test candidate coverage against the product's real actions, navigation, statuses, and domain objects; do not choose by catalog size or popularity alone.
 - Record the chosen icon set, official URL, package or asset source, checked date, version when relevant, license, visual settings, naming rules, and allowed exceptions. Reverify unstable version, pricing, package, and license details at task time.
 - Keep brand marks separate from functional UI icons. Do not mix icon families on one product surface unless a documented platform, brand, or coverage exception includes optical normalization rules.

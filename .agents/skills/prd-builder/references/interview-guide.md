@@ -34,6 +34,9 @@ Ask only questions that are not already answered.
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
    - Are there known design references or brand constraints?
+   - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
+   - For a landing page, what single message and primary action belong in the first viewport, and which details can be deferred?
+   - Which regions require an image, product media, video, or animation, and what should each help the user understand or do?
 8. Architecture constraints
    - Is there a required stack, hosting environment, database, auth provider, or existing system?
    - For a browser frontend, is the product primarily content-led, interaction-led, or a mixture? Which routes require SEO, static generation, server rendering, authenticated personalization, or SPA behavior?
@@ -62,6 +65,7 @@ Discovery is complete enough to draft when the agent can state:
 - The architecture assumptions and high-risk unknowns.
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - The UI screens or interaction points that need wireframes.
+- Approved or draft exact wording and bounded display responsibilities for wireframed regions, or permission to derive them.
 - The success metrics and acceptance criteria.
 
 If any item is missing and the user did not authorize assumptions, ask follow-up questions before drafting.

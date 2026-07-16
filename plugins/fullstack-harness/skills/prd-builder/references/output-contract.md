@@ -188,9 +188,9 @@ flowchart TD
 +------------------------------------------------+
 | Header                                         |
 +------------------------------------------------+
-| Main content                                   |
+| [Exact copy/data or DISPLAY: responsibility]  |
 |                                                |
-| [Primary action]                               |
+| [Exact primary action label]                   |
 +------------------------------------------------+
 ```
 
@@ -200,6 +200,11 @@ flowchart TD
 - Error:
 - Permission:
 - Success:
+
+### Content, Media & Motion Notes
+| Region | Content mode | Exact wording or display contract | Content priority | Image / media | Motion | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or design handoff question] |
 ````
 
 ## Optional `implementation-plan.md`
@@ -252,6 +257,9 @@ Before archiving earlier documents or publishing the staged package, verify:
 - The frontend decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
 - Any unresolved frontend stack decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
+- Every visible wireframe region contains either exact UI wording or a display contract covering what to show, the intended takeaway or action, the source, and relevant constraints. Generic placeholders do not pass validation.
+- Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
+- Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to the design package.
 - UI states include loading, empty, error, permission, and success where applicable.
 - If produced, `implementation-plan.md` includes milestones, dependency order, test strategy, release plan, rollback plan, and unresolved decisions.
 - Assumptions and open questions are explicit.

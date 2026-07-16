@@ -13,6 +13,9 @@
 | Motion system conformance | yes | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
 | Motion performance | yes | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
 | Distinctiveness / anti-generic review | yes | Product-specific cues recur and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
+| Content specificity | yes | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
+| Landing-page simplicity | when applicable | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
+| Media and motion traceability | when applicable | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
 
 ## Page Acceptance
 
