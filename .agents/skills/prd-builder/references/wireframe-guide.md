@@ -7,7 +7,7 @@ Use low-fidelity ASCII wireframes plus Mermaid flows. Do not produce Figma or HT
 - Use fixed-width fenced code blocks with `text`.
 - Keep layouts low fidelity and structural, not decorative.
 - Label key regions, controls, data, errors, and actions.
-- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Keep art direction and detailed choreography out of the low-fidelity wireframe.
+- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Label the style direction of visually important regions with its intended effect on hierarchy or comprehension. Keep tokens, art direction, and detailed choreography out of the low-fidelity wireframe.
 - Show responsive differences when mobile and desktop experiences materially differ.
 - Include primary, secondary, and destructive actions when relevant.
 - Include loading, empty, error, permission, and success states for each major screen or workflow.
@@ -20,6 +20,14 @@ Every visible region must use one of these content modes:
 2. `Display contract`: when final wording is not available or the region is data-driven, state what the region must display, what the user should understand or do, the content or data source, and any ordering, format, count, or length constraints.
 
 Do not leave `Main content`, `Feature section`, `Card 1`, `Lorem ipsum`, or similar generic placeholders in a final wireframe. If a decision is genuinely unresolved, write `[COPY TBD: specific question or owner]`, add it to open questions, and still provide the section's display responsibility.
+
+## Style And Anti-Slop Structure Rules
+
+- Give each visually important region a short `STYLE` label that describes its visual job, not just a mood word. Examples: `editorial split for narrative contrast`, `full-bleed product proof`, `dense comparison table`, or `unframed text for a quiet transition`.
+- Give each animated region a `MOTION` label with `required`, `optional`, or `none`, plus what the animation communicates. `Add animation` without a purpose does not pass.
+- A box in an ASCII wireframe must mean real grouping, interaction, state, or hierarchy. Do not box every section merely because ASCII makes it easy.
+- Do not imply repeated bordered cards or panels with a colored side rail or accent stripe as a default visual treatment. Allow that pattern only when the stripe communicates a named state, selection, priority, category, or approved brand motif.
+- Prefer open layout regions, spacing, typography, alignment, rules, or background changes when they communicate the hierarchy without another container.
 
 ## KISS Landing Page Rules
 
@@ -55,10 +63,10 @@ Purpose: [What user accomplishes here]
 - Permission: [Access denied or request access path]
 - Success: [Confirmation and next step]
 
-### Content, Media & Motion Notes
-| Region | Content mode | Exact wording or display contract | Content priority | Image / media | Motion | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or handoff question] |
+### Content, Style, Media & Motion Notes
+| Region | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or handoff question] |
 ````
 
 ## Mobile Layout Template

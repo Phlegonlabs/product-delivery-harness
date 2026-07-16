@@ -23,6 +23,7 @@
 | Risk | Default rule | Allowed exception | Review test |
 |---|---|---|---|
 | <generic or AI-UI pattern risk> | <product-specific rule> | <evidence-based exception> | <how to verify> |
+| Repeated bordered panels with a colored side rail or accent stripe | Do not use as a generic section treatment | Named state, selection, priority, category, or approved brand motif | Every use has a documented semantic or brand role |
 
 ## Content & Data Realism
 
@@ -32,9 +33,9 @@
 
 <Use when a public website, marketing page, or landing page is in scope. Keep one clear value proposition and one primary action in the first viewport. Give each section one job.>
 
-| Section / region | Single job | Exact wording / display contract | Image / media | Motion | Defer / exclude |
-|---|---|---|---|---|---|
-| <region> | <what the user must understand or do> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <required / optional / none; purpose; source or creation need; responsive and static fallback> | <required / optional / none; purpose; trigger; reduced-motion fallback> | <content that belongs elsewhere> |
+| Section / region | Single job | Exact wording / display contract | Style direction | Image / media | Motion | Defer / exclude |
+|---|---|---|---|---|---|---|
+| <region> | <what the user must understand or do> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <visual job; open/container/background/layout treatment; purpose> | <required / optional / none; purpose; source or creation need; responsive and static fallback> | <required / optional / none; purpose; trigger; reduced-motion fallback> | <content that belongs elsewhere> |
 
 ## Color Palette
 

@@ -30,9 +30,9 @@
 
 <Use for landing pages and other content-heavy public pages.>
 
-| Region | Single job | Content mode | Exact wording / display contract | Defer / exclude |
-|---|---|---|---|---|
-| <region> | <what the user must understand or do> | <exact copy / display contract> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <move elsewhere or omit> |
+| Region | Single job | Content mode | Exact wording / display contract | Style direction | Defer / exclude |
+|---|---|---|---|---|---|
+| <region> | <what the user must understand or do> | <exact copy / display contract> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <visual job; open/container/background/layout treatment; purpose> | <move elsewhere or omit> |
 
 ### Product-Specific Design Decisions
 

@@ -1,4 +1,4 @@
 interface:
   display_name: "Design Package Builder"
   short_description: "Create distinctive visual, icon, and motion systems"
-  default_prompt: "Use $design-package-builder to turn product docs into a brand-specific, anti-generic design system that preserves exact wording or bounded display contracts, keeps landing pages KISS, labels per-region image/media and motion needs, uses evidence-based icon and motion systems where applicable, provides runnable motion demos when requested, and produces a UI package."
+  default_prompt: "Use $design-package-builder to turn product docs into a brand-specific, anti-generic design system that preserves exact wording or bounded display contracts, keeps landing pages KISS, labels per-region style/image/media/motion needs, avoids repeated bordered panels with decorative colored side rails, uses evidence-based icon and motion systems where applicable, provides runnable motion demos when requested, and produces a UI package."
