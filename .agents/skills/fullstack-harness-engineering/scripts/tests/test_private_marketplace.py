@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 def find_repo_root(start: Path) -> Path | None:
@@ -107,6 +108,45 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             self.assertEqual(
                 (destination_skill / "SKILL.md").read_text(encoding="utf-8"),
                 "current\n",
+            )
+
+    def test_sync_refuses_symlinked_marker_without_writing(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            source_skill.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            destination_root.mkdir()
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("external target stays unchanged\n", encoding="utf-8")
+
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+
+            original_is_symlink = Path.is_symlink
+
+            def marker_is_symlink(path: Path) -> bool:
+                return path == marker or original_is_symlink(path)
+
+            with mock.patch.object(Path, "is_symlink", marker_is_symlink):
+                with self.assertRaisesRegex(SystemExit, "symlinked marker"):
+                    module.sync()
+
+            self.assertEqual(
+                marker.read_text(encoding="utf-8"),
+                "external target stays unchanged\n",
             )
 
 
