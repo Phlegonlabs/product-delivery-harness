@@ -19,6 +19,30 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
         self.assertIn("one worktree thread per selected mission", agent)
 
+    def test_plan_backed_runs_detect_then_select_up_to_three(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("## Default Runtime And Wave Policy", skill)
+        self.assertIn("proactively inspect the current-session native tool surface", skill)
+        self.assertIn(
+            "Missing authorization must never make an available driver disappear",
+            skill,
+        )
+        self.assertIn(
+            "Use three as the configured plan-backed write-worker maximum",
+            skill,
+        )
+        self.assertIn("default immediately after Plan Readiness", state)
+        self.assertIn("## Default Plan-Backed Wave", orchestration)
+        self.assertIn("selection is the default post-readiness action", selector)
+        self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
+        self.assertIn("up to three authorized nonconflicting missions", agent)
+
     def test_nontrivial_app_worker_must_use_nested_subagent(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")

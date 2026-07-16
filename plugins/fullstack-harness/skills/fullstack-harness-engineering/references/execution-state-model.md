@@ -200,6 +200,8 @@ Schema v6 records observed provider capabilities without replacing the three por
 
 `provider` is `codex`, `claude_code`, or `generic`. `detection_source` is `observed`, `explicit`, or `fallback`. `available_drivers` contains only capabilities proven in the current surface and always includes `sequential_parent`. The selector applies a fixed route: Codex uses `app_threads`, then `subagents`, then `sequential_parent`; Claude Code uses `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic uses `subagents`, then `sequential_parent`.
 
+For every plan-backed multi-mission run, capture this adapter before the first production edit or worker launch. Capability observation and action authorization are separate facts: record a usable driver even when its launch actions remain false. In particular, do not omit `app_threads` because `create_user_owned_tasks` or worktree authorization is missing; record the capability, request the launch bundle once at Plan Readiness, and rerun selection after the answer.
+
 Provider means the host session running the Harness, not every CLI installed on the machine. Observe current-session native tools first: Codex project/thread creation and polling for `app_threads`, Claude Code's `Workflow` tool and supported runtime for `dynamic_workflow`, and current-session child-agent tools for `subagents`. Use `explicit` only when the host surface is opaque; otherwise use `generic` + `fallback`. A binary version may confirm feature compatibility after provider detection, but it does not select the provider.
 
 The chosen driver must match the portable axes. `app_threads` requires `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` requires `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use `subagent` with a supported shared or parent-managed workspace and direct result/report channel. `sequential_parent` requires `parent` + `shared_checkout` + `agent_result`.
@@ -300,7 +302,9 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 | Runtime route | Provider and available drivers are observed; the deterministic selected driver matches the declared runtime/workspace/completion axes |
 | Nested delegation bounded | Any enabled app-task child policy is covered by `spawn_subagents`, stays at depth one, uses at most three read-only children, and returns results to the app-task parent |
 
-If any row is unknown, do not fan out. Select a supported sequential combination, normally `parent` or `subagent` with `shared_checkout`, and apply the same verification gates.
+If any capability, isolation, permission, or completion row is unknown, do not fan out. Observe it first; if it remains unavailable, select a supported sequential combination, normally `parent` or `subagent` with `shared_checkout`, and apply the same verification gates. Missing launch authorization is not an unknown capability: request the exact run-wide launch bundle once and pause rather than rewriting the runtime adapter or silently downgrading.
+
+For plan-backed multi-mission execution, the configured write-worker maximum defaults to three. Deterministic mission selection is the default immediately after Plan Readiness and execution authorization; run validation and selection before any production task. The effective wave remains the minimum of that default, live worker slots, isolated workspaces, dependency-ready nonconflicting missions, and every capability and permission gate above.
 
 ## Parent-Owned Wave State
 

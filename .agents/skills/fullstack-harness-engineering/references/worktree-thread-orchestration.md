@@ -42,6 +42,14 @@ The selected driver must match the axes recorded in RUN. `app_threads` maps to `
 
 Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
+Perform this detection proactively before the first production edit in every plan-backed multi-mission run. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
+
+## Default Plan-Backed Wave
+
+After Plan Readiness and execution authorization, run validation and deterministic mission selection before starting any production task. Use a configured maximum of three write missions, then let live slots, worktree isolation, dependencies, conflicts, runtime resources, permission boundaries, and any lower user limit reduce the effective wave.
+
+If the preferred route's task/worktree/branch/commit bundle is missing, request it once for the run and pause. Retain the observed route while waiting, record the answer, and rerun selection. When it is already authorized, create every selected worker without another confirmation. Fall back to fewer workers or sequential parent execution only after user refusal or concrete runtime evidence requires it.
+
 ## Parent And Worker Ownership
 
 The parent/coordinator exclusively owns:

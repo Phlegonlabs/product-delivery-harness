@@ -2,6 +2,8 @@
 
 Use this reference after plan readiness passes and before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, PRs, deployments, or cleanup actions.
 
+For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, use three as the configured maximum unless the user sets a lower limit, and run the selector before any production task. The selected wave may contain fewer than three missions when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization require it.
+
 ## Inputs And Output
 
 The selector reads only canonical machine data. In schema v6, provider routing comes from `runtime_capabilities.runtime_adapter`:
@@ -52,6 +54,8 @@ A mission is in the ready frontier only when all conditions pass:
 An isolated write worker must have an authorized durable branch/ref and `create_local_commits: true`; the portable protocol does not integrate an uncommitted patch from another workspace. When those are unavailable, keep the mission out of fan-out and use sequential parent execution in the integration checkout.
 
 Selection happens before worker/task/branch/worktree identities are allocated. Therefore a launch-path action passes this pre-allocation gate only when the user explicitly authorized that action for the mission scope with `targets: ["*"]`. A selector must never manufacture `worker:<mission-id>`, `branch:<mission-id>`, or another pseudo-target. After the parent allocates concrete identities, it checks the exact `worker:`, `task:`, `worktree:`, or `branch:` target again immediately before each mutation; the pre-allocation result is not a substitute for that check.
+
+Keep capability detection independent from this authorization gate. If the preferred observed route lacks one or more action grants, retain that route in `runtime_adapter`, report `action_not_authorized`, request the complete route bundle once, and rerun selection after the answer. Do not select a lower-priority runtime driver solely because its mutation bundle is easier to satisfy.
 
 `worker_passed` dependencies are not ready dependencies. Dirty shared foundation, an unknown base SHA, missing resource claims, unsupported scope syntax, or a stale plan digest removes a mission from the frontier.
 
@@ -201,6 +205,8 @@ Before using a proposal, the parent re-observes:
 - The selected parent permission mode/profile, worker inheritance, and every required filesystem/network/local surface.
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
+
+When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. Use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
 
 For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
 

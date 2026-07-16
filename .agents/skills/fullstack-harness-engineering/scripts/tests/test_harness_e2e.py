@@ -112,12 +112,13 @@ class HarnessCliE2ETests(unittest.TestCase):
     def test_validated_codex_run_selects_app_thread_wave(self) -> None:
         plan = make_plan(
             [
+                mission("M3", priority=5, merge_rank=30),
                 mission("M2", priority=10, merge_rank=20),
                 mission("M1", priority=20, merge_rank=10),
             ]
         )
         run = make_run(plan)
-        configure_app_task_fanout(run, ["M1", "M2"])
+        configure_app_task_fanout(run, ["M1", "M2", "M3"])
         upgrade_to_schema_v6(
             run,
             "codex",
@@ -125,7 +126,7 @@ class HarnessCliE2ETests(unittest.TestCase):
         )
         proposal = self.validate_and_select(plan, run)
 
-        self.assertEqual(["M1", "M2"], proposal["selected_missions"])
+        self.assertEqual(["M1", "M2", "M3"], proposal["selected_missions"])
         self.assertEqual(
             {
                 "provider": "codex",
@@ -135,11 +136,11 @@ class HarnessCliE2ETests(unittest.TestCase):
             proposal["runtime_route"],
         )
         self.assertEqual(
-            ["create_thread", "create_thread"],
+            ["create_thread", "create_thread", "create_thread"],
             [item["launch_kind"] for item in proposal["launch_directives"]],
         )
         self.assertEqual(
-            ["M1", "M2"],
+            ["M1", "M2", "M3"],
             [item["mission_id"] for item in proposal["launch_directives"]],
         )
 

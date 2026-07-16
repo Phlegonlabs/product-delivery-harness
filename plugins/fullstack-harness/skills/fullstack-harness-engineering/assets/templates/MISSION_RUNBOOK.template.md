@@ -4,6 +4,8 @@ Use this template as `docs/goal/RUN.md`. Keep mutable authorization, observed ru
 
 For compact medium work that intentionally has no `PLAN.md`, set the three `plan` values to `null`, keep `worker_runtime: "parent"`, `workspace_mode: "shared_checkout"`, `max_parallel_workers: 1`, and leave waves/workers empty. That compact mode does not claim static plan validation and cannot delegate writes, accept execution-time task refinement, or use the selector. Create and validate `PLAN.md`, then fill the plan ID/revision/digest before crossing any of those boundaries.
 
+For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum to three or a lower explicit/runtime limit, and run deterministic selection immediately after Plan Readiness. If the preferred route lacks task/worktree/branch/commit authorization, request that bundle once and rerun selection; do not hide the capability or silently downgrade. Never run parallel writers in `shared_checkout`.
+
 ## Harness Run State
 
 ```json

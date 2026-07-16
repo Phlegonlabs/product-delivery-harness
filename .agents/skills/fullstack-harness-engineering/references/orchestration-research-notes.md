@@ -1,6 +1,6 @@
 # Multi-Thread Orchestration Research Notes
 
-Last reviewed: 2026-07-15. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex and Claude Code configuration, product behavior, and defaults can change independently of this skill.
+Last reviewed: 2026-07-16. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex and Claude Code configuration, product behavior, and defaults can change independently of this skill.
 
 Do not hard-code a local `codex-cli` version into portable guidance. Record the observed version in RUN evidence only when a specific behavior depends on it.
 
@@ -19,6 +19,8 @@ This replaces the older single mode enum. A mode label hid important differences
 Schema v6 adds a small runtime adapter beside those axes. It records `provider`, observed `available_drivers`, and `detection_source`. The selector uses a deterministic provider route: Codex prefers app threads, Claude Code prefers Dynamic Workflow, both fall back to direct subagents when observed, and every provider has sequential parent execution as the final fallback. Provider routing does not replace authorization, isolation, or completion-channel checks.
 
 The portable default remains serialized writes in one checkout. Read-only work may fan out. Parallel writes require isolated eligible worktrees, complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
+
+For plan-backed multi-mission execution, runtime detection is now proactive and deterministic selection is the default immediately after Plan Readiness. The configured write-worker maximum is three, while the effective wave can be smaller. Capability observation remains independent from authorization: a missing task/worktree/branch/commit grant triggers one bundled request and reselection, not a false claim that the preferred driver is unavailable. Shared-checkout writes remain serialized.
 
 The skill uses a parent-to-mission-writer shape and keeps task implementation sequential within each mission. An app-task mission writer may now use bounded direct subagents for independent read-only exploration, research, test analysis, and review. This adds useful nesting without creating a second writer or changing the mission DAG.
 
@@ -64,6 +66,7 @@ Therefore the capability gate observes actual worker slots and completion behavi
 
 Official Codex app worktree documentation establishes these current constraints:
 
+- Worktrees are the desktop app's supported isolation primitive for running independent tasks in parallel without disturbing the local checkout.
 - App-created worktrees commonly start at detached `HEAD`. Work that must survive the task/worktree lifecycle needs a durable branch or ref, created only when authorized.
 - Task-scoped managed worktrees are common, but permanent worktrees can host multiple tasks. Do not enforce “exactly one task per worktree” as a universal invariant.
 - `.worktreeinclude` can copy required ignored local files into a managed worktree. It is not a substitute for checking secrets or environment isolation.
