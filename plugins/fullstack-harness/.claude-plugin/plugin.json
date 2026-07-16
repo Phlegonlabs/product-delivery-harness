@@ -1,0 +1,17 @@
+{
+  "name": "fullstack-harness",
+  "version": "0.1.0",
+  "description": "Plan and run full-stack delivery with Codex or Claude Code.",
+  "author": {
+    "name": "Phlegonlabs"
+  },
+  "homepage": "https://github.com/Phlegonlabs/fullstack-goal-dev",
+  "repository": "https://github.com/Phlegonlabs/fullstack-goal-dev",
+  "license": "Proprietary",
+  "keywords": [
+    "full-stack",
+    "harness",
+    "multi-agent",
+    "workflow"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "fullstack-harness",
+  "version": "0.1.0",
+  "description": "Plan and run full-stack delivery with Codex or Claude Code.",
+  "author": {
+    "name": "Phlegonlabs",
+    "url": "https://github.com/Phlegonlabs"
+  },
+  "homepage": "https://github.com/Phlegonlabs/fullstack-goal-dev",
+  "repository": "https://github.com/Phlegonlabs/fullstack-goal-dev",
+  "license": "Proprietary",
+  "keywords": [
+    "full-stack",
+    "harness",
+    "multi-agent",
+    "workflow"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Full Stack Harness",
+    "shortDescription": "Plan and run full-stack delivery workflows",
+    "longDescription": "Routes a delivery plan to Codex multi-thread execution or Claude Code dynamic workflows, with PRD and design package support.",
+    "developerName": "Phlegonlabs",
+    "category": "Engineering",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Phlegonlabs/fullstack-goal-dev",
+    "defaultPrompt": [
+      "Plan and run this full-stack change",
+      "Create a PRD for this product idea",
+      "Build a design handoff package"
+    ],
+    "brandColor": "#2563EB",
+    "screenshots": []
+  }
+}

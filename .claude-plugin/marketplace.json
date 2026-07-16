@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "fullstack-goal-dev",
+  "owner": {
+    "name": "Phlegonlabs"
+  },
+  "metadata": {
+    "description": "Private Full Stack Harness skills for Codex and Claude Code.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "fullstack-harness",
+      "source": "./plugins/fullstack-harness",
+      "description": "Plan and run full-stack delivery with Codex or Claude Code.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Phlegonlabs"
+      }
+    }
+  ]
+}
