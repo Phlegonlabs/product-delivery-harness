@@ -22,6 +22,7 @@ from harness_manifest import (  # noqa: E402
     load_run,
     mission_conflicts,
     plan_digest,
+    route_runtime_driver,
     scope_overlap,
     topological_levels,
     validate_plan,
@@ -189,7 +190,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         for item in current_mission["tasks"]
     ]
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "run_id": "RUN-TEST",
         "plan": {
             "id": plan["plan_id"],
@@ -211,6 +212,11 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             "workspace_mode": "shared_checkout",
             "completion_channel": "agent_result",
             "max_parallel_workers": 1,
+            "runtime_adapter": {
+                "provider": "generic",
+                "available_drivers": ["sequential_parent"],
+                "detection_source": "fallback",
+            },
             "platform_lifecycle": {
                 "owner": "parent",
                 "automatic_retention_cleanup_possible": False,
@@ -503,6 +509,7 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         run["schema_version"] = 2
+        del run["runtime_capabilities"]["runtime_adapter"]
         del run["landing"]
         del run["post_merge_cleanup"]
         del run["observed"]["git"]["parent_worktree_path"]
@@ -514,6 +521,7 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         run["schema_version"] = 3
+        del run["runtime_capabilities"]["runtime_adapter"]
         del run["post_merge_cleanup"]
         del run["observed"]["git"]["parent_worktree_path"]
         del run["landing"]["auto_merge_requested"]
@@ -524,9 +532,114 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         run["schema_version"] = 4
+        del run["runtime_capabilities"]["runtime_adapter"]
         del run["post_merge_cleanup"]
         del run["observed"]["git"]["parent_worktree_path"]
         self.assertEqual(validate_run(plan, run), [])
+
+    def test_run_schema_v5_remains_compatible(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["schema_version"] = 5
+        del run["runtime_capabilities"]["runtime_adapter"]
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"] = {
+            "worker_runtime": "subagent",
+            "workspace_mode": "parent_managed_worktree",
+            "completion_channel": "agent_result",
+            "max_parallel_workers": 3,
+            "runtime_adapter": {
+                "provider": "claude_code",
+                "available_drivers": [
+                    "dynamic_workflow",
+                    "subagents",
+                    "sequential_parent",
+                ],
+                "detection_source": "observed",
+            },
+            "platform_lifecycle": {
+                "owner": "parent",
+                "automatic_retention_cleanup_possible": False,
+                "durable_branch_required_before_unique_work": True,
+            },
+        }
+
+        self.assertEqual(validate_run(plan, run), [])
+        self.assertEqual(route_runtime_driver(run["runtime_capabilities"]), "dynamic_workflow")
+
+        run["workers"].append(
+            {
+                "worker_id": "W1",
+                "mission_id": "M1",
+                "lease_id": "LEASE-1",
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": plan_digest(plan),
+                "batch_base_sha": SHA_A,
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "task_thread_id": None,
+                "worktree_path": "C:/repo/worktrees/M1",
+                "branch_ref": "refs/heads/codex/test-m1",
+                "report_path": None,
+                "phase": "leased",
+                "worker_head_sha": None,
+                "nested_subagent_policy": {
+                    "enabled": False,
+                    "max_children": 0,
+                    "allowed_roles": [],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+            }
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must be omitted for flat dynamic-workflow orchestration",
+        )
+
+    def test_schema_v6_rejects_provider_driver_and_axis_mismatches(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        adapter = run["runtime_capabilities"]["runtime_adapter"]
+        adapter.update(
+            provider="claude_code",
+            available_drivers=["app_threads", "sequential_parent"],
+            detection_source="observed",
+        )
+        self.assert_run_error_contains(plan, run, "drivers do not match provider: app_threads")
+
+        adapter["available_drivers"] = ["dynamic_workflow", "sequential_parent"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "dynamic_workflow requires claude_code subagent/parent_managed_worktree/agent_result",
+        )
+
+    def test_schema_v6_rejects_malformed_runtime_adapter_without_crashing(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["runtime_adapter"] = None
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter: must be an object",
+        )
+
+        run["runtime_capabilities"]["runtime_adapter"] = {
+            "provider": {},
+            "available_drivers": ["sequential_parent"],
+            "detection_source": [],
+        }
+        errors = validate_run(plan, run)
+        self.assertTrue(any("provider: has an unsupported value" in error for error in errors))
+        self.assertTrue(any("detection_source: has an unsupported value" in error for error in errors))
+        self.assertEqual(route_runtime_driver(run["runtime_capabilities"]), "sequential_parent")
 
     def test_post_merge_cleanup_binds_to_merged_pr_and_exact_branch(self) -> None:
         plan = valid_plan()
@@ -1147,21 +1260,21 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
 
         string_schema = valid_run(plan)
-        string_schema["schema_version"] = "5"
+        string_schema["schema_version"] = "6"
         self.assert_run_error_contains(
             plan,
             string_schema,
-            "run.schema_version: must equal 2, 3, 4, or 5",
+            "run.schema_version: must equal 2, 3, 4, 5, or 6",
         )
 
         unsupported_schema = valid_run(plan)
-        unsupported_schema["schema_version"] = 6
+        unsupported_schema["schema_version"] = 7
         del unsupported_schema["landing"]
         del unsupported_schema["post_merge_cleanup"]
         self.assert_run_error_contains(
             plan,
             unsupported_schema,
-            "run.schema_version: must equal 2, 3, 4, or 5",
+            "run.schema_version: must equal 2, 3, 4, 5, or 6",
         )
 
     def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:
@@ -1210,6 +1323,15 @@ class RunValidationTests(unittest.TestCase):
             "workspace_mode": "app_managed_worktree",
             "completion_channel": "thread_poll",
             "max_parallel_workers": 3,
+            "runtime_adapter": {
+                "provider": "codex",
+                "available_drivers": [
+                    "app_threads",
+                    "subagents",
+                    "sequential_parent",
+                ],
+                "detection_source": "observed",
+            },
             "nested_subagents": {
                 "available": True,
                 "max_depth": 1,

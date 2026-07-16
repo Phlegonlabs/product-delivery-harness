@@ -19,6 +19,7 @@ from harness_manifest import (
     mission_conflicts,
     parent_owned_path,
     plan_digest,
+    route_runtime_driver,
     topological_levels,
     validate_plan,
     validate_run,
@@ -65,12 +66,12 @@ class SelectionError(ValueError):
 
 def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
     actions: list[str] = []
-    worker_runtime = runtime.get("worker_runtime")
+    runtime_driver = route_runtime_driver(runtime)
     workspace_mode = runtime.get("workspace_mode")
 
-    if worker_runtime == "subagent":
+    if runtime_driver in {"subagents", "dynamic_workflow"}:
         actions.append("spawn_subagents")
-    elif worker_runtime == "app_task":
+    elif runtime_driver == "app_threads":
         actions.extend(("create_user_owned_tasks", "spawn_subagents"))
 
     if workspace_mode == "parent_managed_worktree":
@@ -94,11 +95,13 @@ def _launch_directive(
     mission_id: str, runtime: dict[str, Any]
 ) -> dict[str, Any]:
     worker_runtime = runtime["worker_runtime"]
+    runtime_driver = route_runtime_driver(runtime)
     launch_kind = {
-        "parent": "run_parent",
-        "subagent": "spawn_subagent",
-        "app_task": "create_thread",
-    }[worker_runtime]
+        "sequential_parent": "run_parent",
+        "subagents": "spawn_subagent",
+        "app_threads": "create_thread",
+        "dynamic_workflow": "run_dynamic_workflow",
+    }[runtime_driver]
 
     nested_policy: dict[str, Any] = {
         "mode": "not_applicable",
@@ -107,7 +110,7 @@ def _launch_directive(
         "write_policy": "read_only",
         "completion_channel": "agent_result",
     }
-    if worker_runtime == "app_task":
+    if runtime_driver == "app_threads":
         nested = runtime.get("nested_subagents")
         if isinstance(nested, dict) and nested.get("available") is True:
             nested_policy = {
@@ -120,7 +123,7 @@ def _launch_directive(
         else:
             nested_policy["mode"] = "capability_handshake"
 
-    return {
+    directive = {
         "mission_id": mission_id,
         "launch_kind": launch_kind,
         "worker_runtime": worker_runtime,
@@ -130,6 +133,18 @@ def _launch_directive(
         "nested_subagent_policy": nested_policy,
         "worker_prompt_template": "assets/templates/WORKER_GOAL.template.md",
     }
+    adapter = runtime.get("runtime_adapter")
+    if isinstance(adapter, dict):
+        directive["runtime_provider"] = adapter["provider"]
+        directive["runtime_driver"] = runtime_driver
+    if runtime_driver == "dynamic_workflow":
+        directive["workflow_policy"] = {
+            "mode": "flat_wave",
+            "mid_run_user_input": False,
+            "result_channel": "agent_result",
+            "script_path": "assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
+        }
+    return directive
 
 
 def _action_covers_mission(run: dict[str, Any], action: str, mission_id: str) -> bool:
@@ -459,7 +474,7 @@ def select_parallel_missions(
                 + ", ".join(sorted(unknown))
             )
 
-    return {
+    result = {
         "batch_base_sha": run["integration"]["batch_base_sha"],
         "candidate_order": ready,
         "conflict_edges": conflict_edges,
@@ -474,6 +489,22 @@ def select_parallel_missions(
         "ready_frontier": ready,
         "selected_missions": selected,
     }
+    adapter = runtime.get("runtime_adapter")
+    if isinstance(adapter, dict):
+        runtime_driver = route_runtime_driver(runtime)
+        result["runtime_route"] = {
+            "provider": adapter["provider"],
+            "driver": runtime_driver,
+            "detection_source": adapter["detection_source"],
+        }
+        if runtime_driver == "dynamic_workflow" and selected:
+            result["wave_launch"] = {
+                "launch_kind": "run_dynamic_workflow",
+                "mission_ids": selected,
+                "script_path": "assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
+                "args_source": "accepted_wave",
+            }
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:

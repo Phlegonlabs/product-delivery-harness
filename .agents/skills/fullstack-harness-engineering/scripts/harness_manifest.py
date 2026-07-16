@@ -116,10 +116,45 @@ CLEANUP_BRANCH_STATUSES = {
     "deferred",
     "not_applicable",
 }
+RUNTIME_PROVIDERS = {"codex", "claude_code", "generic"}
+RUNTIME_DRIVERS = {
+    "app_threads",
+    "dynamic_workflow",
+    "subagents",
+    "sequential_parent",
+}
+RUNTIME_DETECTION_SOURCES = {"observed", "explicit", "fallback"}
+RUNTIME_DRIVER_PRIORITY = {
+    "codex": ("app_threads", "subagents", "sequential_parent"),
+    "claude_code": ("dynamic_workflow", "subagents", "sequential_parent"),
+    "generic": ("subagents", "sequential_parent"),
+}
 
 
 class ManifestError(ValueError):
     """Raised when a canonical manifest cannot be extracted or decoded."""
+
+
+def route_runtime_driver(runtime: dict[str, Any]) -> str:
+    """Select one deterministic execution driver from observed capabilities."""
+
+    adapter = runtime.get("runtime_adapter")
+    if not isinstance(adapter, dict):
+        return {
+            "parent": "sequential_parent",
+            "subagent": "subagents",
+            "app_task": "app_threads",
+        }.get(runtime.get("worker_runtime"), "sequential_parent")
+
+    available = adapter.get("available_drivers")
+    if not isinstance(available, list):
+        return "sequential_parent"
+    provider = adapter.get("provider")
+    priority = RUNTIME_DRIVER_PRIORITY.get(provider, ()) if isinstance(provider, str) else ()
+    for driver in priority:
+        if driver in available:
+            return driver
+    return "sequential_parent"
 
 
 def extract_json_manifest(path: str | Path, heading: str, wrapper: str) -> dict[str, Any]:
@@ -1416,12 +1451,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "attempt_log",
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
-    if schema_version in {3, 4, 5}:
+    if schema_version in {3, 4, 5, 6}:
         run_keys.add("landing")
-    if schema_version == 5:
+    if schema_version in {5, 6}:
         run_keys.add("post_merge_cleanup")
-    if schema_version not in {2, 3, 4, 5}:
-        _add(errors, "run.schema_version", "must equal 2, 3, 4, or 5")
+    if schema_version not in {2, 3, 4, 5, 6}:
+        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, or 6")
     if not _keys(errors, "run", run, run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
@@ -1467,7 +1502,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
     authorization_keys = (
-        AUTHORIZATION_KEYS if schema_version in {3, 4, 5} else AUTHORIZATION_KEYS_V2
+        AUTHORIZATION_KEYS if schema_version in {3, 4, 5, 6} else AUTHORIZATION_KEYS_V2
     )
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
@@ -1509,10 +1544,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
 
-    if schema_version in {3, 4, 5}:
+    if schema_version in {3, 4, 5, 6}:
         _validate_landing(errors, run["landing"], schema_version)
     if (
-        schema_version in {4, 5}
+        schema_version in {4, 5, 6}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
@@ -1540,7 +1575,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested requires matching merge_pr authorization for the exact PR",
             )
-    if schema_version == 5:
+    if schema_version in {5, 6}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
 
     runtime_keys = {
@@ -1550,6 +1585,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "max_parallel_workers",
         "platform_lifecycle",
     }
+    if schema_version == 6:
+        runtime_keys.add("runtime_adapter")
     runtime = run["runtime_capabilities"]
     if _keys(
         errors,
@@ -1575,6 +1612,88 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.completion_channel", "has an unsupported value")
         if not _is_int(runtime["max_parallel_workers"]) or not 1 <= runtime["max_parallel_workers"] <= 3:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
+        adapter = runtime.get("runtime_adapter")
+        adapter_path = "run.runtime_capabilities.runtime_adapter"
+        if schema_version == 6 and adapter is None:
+            _add(errors, adapter_path, "must be an object")
+        elif adapter is not None and _keys(
+            errors,
+            adapter_path,
+            adapter,
+            {"provider", "available_drivers", "detection_source"},
+        ):
+            provider = adapter["provider"]
+            provider_valid = isinstance(provider, str) and provider in RUNTIME_PROVIDERS
+            if not provider_valid:
+                _add(errors, f"{adapter_path}.provider", "has an unsupported value")
+            drivers = _strings(
+                errors,
+                f"{adapter_path}.available_drivers",
+                adapter["available_drivers"],
+                nonempty=True,
+            )
+            unknown_drivers = sorted(set(drivers) - RUNTIME_DRIVERS)
+            if unknown_drivers:
+                _add(
+                    errors,
+                    f"{adapter_path}.available_drivers",
+                    f"unsupported drivers: {', '.join(unknown_drivers)}",
+                )
+            allowed_drivers = set(RUNTIME_DRIVER_PRIORITY.get(provider, ())) if provider_valid else set()
+            incompatible_drivers = sorted(set(drivers) - allowed_drivers)
+            if provider_valid and incompatible_drivers:
+                _add(
+                    errors,
+                    f"{adapter_path}.available_drivers",
+                    f"drivers do not match provider: {', '.join(incompatible_drivers)}",
+                )
+            if "sequential_parent" not in drivers:
+                _add(
+                    errors,
+                    f"{adapter_path}.available_drivers",
+                    "must include sequential_parent as the safe fallback",
+                )
+            detection_source = adapter["detection_source"]
+            if not isinstance(detection_source, str) or detection_source not in RUNTIME_DETECTION_SOURCES:
+                _add(errors, f"{adapter_path}.detection_source", "has an unsupported value")
+
+            selected_driver = route_runtime_driver(runtime)
+            if selected_driver == "app_threads" and (
+                provider != "codex"
+                or runtime["worker_runtime"] != "app_task"
+                or runtime["workspace_mode"] != "app_managed_worktree"
+                or runtime["completion_channel"] != "thread_poll"
+            ):
+                _add(errors, adapter_path, "app_threads requires codex app_task/app_managed_worktree/thread_poll")
+            elif selected_driver == "dynamic_workflow" and (
+                provider != "claude_code"
+                or runtime["worker_runtime"] != "subagent"
+                or runtime["workspace_mode"] != "parent_managed_worktree"
+                or runtime["completion_channel"] != "agent_result"
+            ):
+                _add(
+                    errors,
+                    adapter_path,
+                    "dynamic_workflow requires claude_code subagent/parent_managed_worktree/agent_result",
+                )
+            elif selected_driver == "subagents" and (
+                runtime["worker_runtime"] != "subagent"
+                or runtime["workspace_mode"] not in {"shared_checkout", "parent_managed_worktree"}
+                or runtime["completion_channel"] not in {"agent_result", "report_file"}
+            ):
+                _add(errors, adapter_path, "subagents requires a supported subagent workspace and result channel")
+            elif selected_driver == "sequential_parent" and (
+                runtime["worker_runtime"] != "parent"
+                or runtime["workspace_mode"] != "shared_checkout"
+                or runtime["completion_channel"] != "agent_result"
+            ):
+                _add(errors, adapter_path, "sequential_parent requires parent/shared_checkout/agent_result")
+            if selected_driver == "dynamic_workflow" and runtime.get("nested_subagents") is not None:
+                _add(
+                    errors,
+                    "run.runtime_capabilities.nested_subagents",
+                    "must be omitted for flat dynamic-workflow orchestration",
+                )
         permission = runtime.get("permission_boundary")
         if permission is not None and _keys(
             errors,
@@ -1715,10 +1834,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "parent_dirty",
             "worktrees",
         }
-        if schema_version == 5:
+        if schema_version in {5, 6}:
             observed_git_keys.add("parent_worktree_path")
         if _keys(errors, "run.observed.git", git, observed_git_keys):
-            if schema_version == 5:
+            if schema_version in {5, 6}:
                 _optional_string(
                     errors,
                     "run.observed.git.parent_worktree_path",
@@ -1756,7 +1875,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
         if (
-            schema_version in {3, 4, 5}
+            schema_version in {3, 4, 5, 6}
             and isinstance(run["landing"], dict)
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
@@ -1772,7 +1891,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "pull_request mode requires integration.branch to match head_branch",
             )
         if (
-            schema_version in {3, 4, 5}
+            schema_version in {3, 4, 5, 6}
             and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"
@@ -1968,6 +2087,17 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
+            if (
+                schema_version == 6
+                and isinstance(runtime, dict)
+                and route_runtime_driver(runtime) == "dynamic_workflow"
+                and nested_policy is not None
+            ):
+                _add(
+                    errors,
+                    f"{path}.nested_subagent_policy",
+                    "must be omitted for flat dynamic-workflow orchestration",
+                )
             if (
                 worker["worker_runtime"] == "app_task"
                 and isinstance(runtime, dict)

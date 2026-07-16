@@ -4,7 +4,7 @@ Use this reference after plan readiness passes and before any parallel write fan
 
 ## Inputs And Output
 
-The selector reads only canonical machine data:
+The selector reads only canonical machine data. In schema v6, provider routing comes from `runtime_capabilities.runtime_adapter`:
 
 - Static `harness_plan` JSON from `PLAN.md`.
 - Mutable `harness_run` JSON from `RUN.md`.
@@ -20,16 +20,18 @@ plan_revision
 plan_digest_sha256
 batch_base_sha
 effective_worker_budget
+runtime_route (schema v6)
 ready_frontier
 conflict_edges with reason codes
 selected_missions
 launch_directives
+wave_launch (schema v6 Claude Dynamic Workflow only)
 deferred_missions with reason codes
 ```
 
 Serialize each conflict edge as `{ "left": <lower mission ID>, "right": <higher mission ID>, "reason_codes": [...] }`. Serialize each deferred mission as `{ "mission_id": ..., "reason_codes": [...], "conflicts_with": [...] }`. Sort IDs and reason codes; never encode a reason only in prose.
 
-Each selected mission has one deterministic `launch_directives` entry containing its mission ID, launch kind, runtime/workspace/completion axes, required action keys, nested-subagent mode, and worker prompt template. It contains no allocated worker, task, branch, or worktree identity. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
+Each selected mission has one deterministic `launch_directives` entry containing its mission ID, launch kind, runtime provider/driver, runtime/workspace/completion axes, required action keys, worker prompt template, and any route-specific policy. It contains no allocated worker, task, branch, or worktree identity. For Claude Dynamic Workflow, `wave_launch` bundles the selected mission IDs into one flat workflow invocation, supplies the template through `script_path`, and marks the accepted wave as the structured argument source; the per-mission directives remain the source for allocation and validation. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
 
 ## Ready Frontier
 
@@ -43,7 +45,7 @@ A mission is in the ready frontier only when all conditions pass:
 6. Trace, write-scope, verifier, and resource inventory validation passed.
 7. `resource_inventory_complete` is true.
 8. The chosen runtime/workspace/completion capability combination supports the mission; a parallel write mission has `worktree_eligible: true` and an isolated workspace.
-9. Required action-specific authorizations for the proposed launch path are present. App-task fan-out includes `spawn_subagents` because every non-trivial mission thread is expected to use its bounded read-only child policy.
+9. Required action-specific authorizations for the proposed launch path are present. App-task fan-out includes `spawn_subagents` because every non-trivial mission thread is expected to use its bounded read-only child policy. Claude Dynamic Workflow and direct subagent fan-out require `spawn_subagents`; isolated workflow writes also require parent-managed worktree, branch, and commit authorization.
 10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
 11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
@@ -193,6 +195,7 @@ Before using a proposal, the parent re-observes:
 - Integration branch and committed `batch_base_sha`.
 - Dirty state and uncommitted shared foundation.
 - Available worker slots and isolation capacity.
+- Observed provider, available runtime drivers, and the selected deterministic route.
 - Existing branch/worktree names and paths.
 - Each selected mission's required authorizations and completion channel.
 - The selected parent permission mode/profile, worker inheritance, and every required filesystem/network/local surface.
@@ -211,6 +214,17 @@ For `launch_kind: "create_thread"`, the parent must consume the directive after 
 If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure and use sequential parent execution.
 
 For app-managed worktrees, record that they may begin detached and are governed by platform retention. `platform_lifecycle` is an object with `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`. Create a durable authorized branch/ref early when unique work must survive task/worktree lifecycle. `remove_worktrees: false` prevents the harness from removing one; it cannot disable platform-managed retention.
+
+For `launch_kind: "run_dynamic_workflow"`, the parent consumes the whole accepted wave through one flat Claude Dynamic Workflow invocation:
+
+1. Confirm the observed provider is `claude_code`, the selected driver is `dynamic_workflow`, and the installed Claude Code version/runtime exposes Dynamic Workflow.
+2. Allocate one authorized durable branch, parent-managed worktree, worker ID, and lease per selected mission from the same `batch_base_sha` before starting the workflow.
+3. Build the workflow arguments from the accepted selector result and frozen worker handoffs. Pass each mission's lease ID, branch ref, existing worktree path, task data, verifiers, and plan/base identity. The agent must enter that exact worktree before any repository action and return blocked if it cannot bind; do not let the workflow discover or mutate canonical PLAN/RUN state or create replacement worktrees.
+4. Invoke the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and pass the accepted wave as structured `args`. The script launches sibling mission agents through `pipeline()` and returns complete `WORKER_RESULT` or `REFINEMENT_REQUEST` objects through `agent_result`. If the team chooses to save a reusable project command, place a rendered copy under `.claude/workflows/` only when that file write is planned and authorized.
+5. Validate every returned result against the allocated lease and live Git facts, then integrate passing missions serially. A workflow-level exception or missing mission result leaves the affected mission blocked or failed; it is not a silent sequential success.
+6. When a mission needs human sign-off or task refinement, preserve its result as blocked or `REFINEMENT_REQUEST`, return control to the parent, update canonical state there, and start a later workflow. Dynamic Workflow does not support mid-run user input.
+
+Current Claude Code can support nested subagents, but schema v6 deliberately keeps Dynamic Workflow flat: the workflow is the single wave coordinator, every mission agent is a sibling and sole mission writer, and the adapter omits `nested_subagents`. This keeps the Harness worker budget, lease ownership, and result validation explicit. If Dynamic Workflow is unavailable, reroute deterministically to direct `subagents` when observed, otherwise to `sequential_parent`; never claim the workflow launched.
 
 ## Batch Integration And Recompute
 

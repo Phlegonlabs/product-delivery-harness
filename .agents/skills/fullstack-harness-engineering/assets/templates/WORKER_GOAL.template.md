@@ -3,7 +3,7 @@
 Use this prompt only after the parent validates the canonical PLAN/RUN state, leases one mission, fixes its base SHA, and confirms every required authorization. A worker owns mission implementation only; the parent owns planning, live state, integration, and landing.
 
 ```text
-/goal Complete <mission ID> (<objective>) only.
+Complete <mission ID> (<objective>) only.
 
 Frozen inputs:
 - PLAN: <path>, plan ID <id>, revision <revision>, digest <sha256>
@@ -13,6 +13,8 @@ Frozen inputs:
 - Batch base SHA: <full SHA>
 
 Coordination:
+- runtime_provider: codex | claude_code | generic
+- runtime_driver: app_threads | dynamic_workflow | subagents | sequential_parent
 - worker_runtime: parent | subagent | app_task
 - workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 - completion_channel: agent_result | thread_poll | report_file | user_relay
@@ -41,6 +43,12 @@ Guardrails: stop on requirements conflict, unavailable verifier, scope escape, u
 When child-tool availability is not yet observed, do not make production edits: report whether direct subagent tools/results are available and wait for the parent to send an explicit enabled or disabled policy. When the supplied policy is enabled and this is a non-trivial `app_task`, spawn at least one and at most `max_children` direct read-only subagents. Choose independent code-exploration, documentation/API research, or test/log analysis lanes before the first production edit, and use a proposed-diff review after implementation when another useful slot is available. Skip child launch only when the mission is trivial, the runtime/slots are unavailable, or no safe independent read-only lane exists; preserve that reason in `subagent_activity`. Do not return `worker_passed` after silently doing a non-trivial enabled mission as a single agent.
 
 Give each child one bounded question, read/deny scope, expected evidence, required summary, and an explicit instruction that it must not spawn or delegate further. Children must not edit files, run mutating generators or shared-state services/tests, change PLAN/RUN, create tasks/worktrees/branches/commits, or perform integration/landing/cleanup. Wait for all requested children, reconcile their evidence, and implement the mission yourself. These children are task-local assistants, not mission workers, and they return only to you through `agent_result`.
+
+## Claude Dynamic Workflow Rules
+
+When `runtime_driver` is `dynamic_workflow`, the accepted wave is one parent-owned flat workflow. This mission worker must not spawn or delegate. Explorer, writer, and reviewer agents are workflow-controlled siblings, not nested children, and `subagent_activity` remains `not_applicable` for the mission worker. Work only in the exact parent-allocated worktree and branch supplied above.
+
+Claude Dynamic Workflow cannot wait for human sign-off between stages. If implementation needs a contract choice, new authorization, secret, destructive action, scope expansion, or generation-1 refinement decision, return `REFINEMENT_REQUEST` and stop. Never guess the decision or keep writing while waiting for an interactive reply.
 
 ## Workspace Launch Rules
 
@@ -166,6 +174,7 @@ Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_fail
 - [ ] RUN records `plan_readiness: "ready"` and overall execution authorization.
 - [ ] Mission is `leased` at the fixed base SHA and its dependencies are already integrated.
 - [ ] The selected runtime, workspace, completion channel, and required authorizations match the launch method.
+- [ ] The recorded provider capability snapshot routes to the declared driver; Claude workflow workers use flat orchestration and do not delegate.
 - [ ] The nested policy is disabled or is authorized, read-only, depth-one, capped at three direct children, and reported in `subagent_activity`; a non-trivial enabled app task launched at least one child.
 - [ ] Any isolated write handoff has authorized branch and commit creation; otherwise this mission uses sequential parent execution.
 - [ ] Write/deny scopes and typed resource inventory are complete and non-conflicting.

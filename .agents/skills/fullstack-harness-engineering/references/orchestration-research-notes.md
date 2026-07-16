@@ -1,6 +1,6 @@
 # Multi-Thread Orchestration Research Notes
 
-Last reviewed: 2026-07-15. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex configuration, app behavior, and defaults can change independently of this skill.
+Last reviewed: 2026-07-15. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex and Claude Code configuration, product behavior, and defaults can change independently of this skill.
 
 Do not hard-code a local `codex-cli` version into portable guidance. Record the observed version in RUN evidence only when a specific behavior depends on it.
 
@@ -16,11 +16,30 @@ completion_channel: agent_result | thread_poll | report_file | user_relay
 
 This replaces the older single mode enum. A mode label hid important differences: a subagent is parent-owned while an app task is user-owned; a worktree can be parent- or platform-managed; and completion can arrive as a result, poll, report file, or user relay.
 
+Schema v6 adds a small runtime adapter beside those axes. It records `provider`, observed `available_drivers`, and `detection_source`. The selector uses a deterministic provider route: Codex prefers app threads, Claude Code prefers Dynamic Workflow, both fall back to direct subagents when observed, and every provider has sequential parent execution as the final fallback. Provider routing does not replace authorization, isolation, or completion-channel checks.
+
 The portable default remains serialized writes in one checkout. Read-only work may fan out. Parallel writes require isolated eligible worktrees, complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
 
 The skill uses a parent-to-mission-writer shape and keeps task implementation sequential within each mission. An app-task mission writer may now use bounded direct subagents for independent read-only exploration, research, test analysis, and review. This adds useful nesting without creating a second writer or changing the mission DAG.
 
 The selector now emits deterministic, tool-agnostic launch directives for selected missions. It remains read-only. In a Codex app session that exposes project lookup plus thread create/read/message tools, the parent consumes those directives after accepting the wave: it creates one app-managed worktree thread per selected mission, polls completion, and validates results. This model-driven tool loop is the portable in-app launcher. A separate App Server client is needed only for event-driven orchestration outside the interactive parent task.
+
+In Claude Code with Dynamic Workflow available, the selector also emits one wave-level launch bundle. The parent allocates mission branches/worktrees first, then runs a flat JavaScript workflow that starts sibling mission agents and returns structured result candidates. The workflow is an adapter over the same mission, authorization, result, and integration gates; it is not a second planning system.
+
+## Claude Code Dynamic Workflow
+
+Official Claude Code documentation establishes these current facts:
+
+- Dynamic Workflow requires Claude Code 2.1.154 or later. Saved workflow files live in `.claude/workflows` and are plain JavaScript.
+- Workflow scripts coordinate agents through `agent()` and `pipeline()`. The script itself does not receive general filesystem or shell tools; spawned agents perform repository work through their allowed tools.
+- Dynamic Workflow has no mid-run user input. Human approval or contract refinement must end the current workflow and continue in a later workflow after the parent updates canonical state.
+- Pause and resume are session-scoped. A workflow can resume only from the same Claude Code session, so durable Harness state still belongs in PLAN/RUN and Git rather than in workflow memory.
+- Spawned workflow agents run with `acceptEdits` and inherit the parent session's tool allowlist. A workflow is not an authorization or permission bypass.
+- Since Claude Code v2.1.172, subagents can spawn nested subagents up to a fixed depth of five. The Harness v6 Dynamic Workflow adapter deliberately uses a stricter flat shape and omits the nested helper policy so worker budget, lease ownership, and the sole mission writer remain explicit.
+- Agents can use worktree isolation. The Harness keeps parent-managed worktree allocation so exact branch/worktree actions remain visible in its existing authorization ledger and every mission starts from the same recorded base.
+- Documented concurrency and per-run agent limits are product ceilings, not Harness budgets. Observe current capacity and keep the configured Harness worker maximum instead of hard-coding those ceilings.
+
+The workflow template returns a structured array of complete `WORKER_RESULT` or `REFINEMENT_REQUEST` objects keyed internally by mission ID. The parent still verifies leases, base/head ancestry, actual paths, verifier evidence, and current Git state before integration. Claude Code's `Workflow` tool accepts the asset through `scriptPath` and the accepted wave through structured `args`; reusable named commands live under `.claude/workflows/`, and creating one remains a planned project write.
 
 ## Codex Subagents
 
@@ -88,6 +107,8 @@ True event-driven Codex integration is an App Server client capability. App Serv
 | `subagent` | `parent_managed_worktree` | `agent_result` or `report_file` | parallel writes only after full fan-out gate |
 | `app_task` | `app_managed_worktree` | `thread_poll`, `report_file`, or `user_relay` | parallel writes only after full fan-out gate and lifecycle acknowledgement |
 
+The `subagent` + `parent_managed_worktree` + `agent_result` row covers both direct parent-owned subagents and Claude Dynamic Workflow mission agents. The runtime adapter distinguishes those launch drivers without changing the portable axes.
+
 Inside the last row, the app task may coordinate up to three direct read-only helpers when the RUN policy and `spawn_subagents` authorization permit it. Those helpers return `agent_result` to the app task; they are not additional app tasks or write workers.
 
 These are examples, not an exhaustive compatibility table. The parent must prove that the chosen combination exists in the current environment. If a completion channel or workspace primitive is missing, fall back to sequential execution.
@@ -101,6 +122,8 @@ Before changing orchestration guidance, re-check:
 - Available thread/task tools in the current product surface and whether they support polling, messaging, creation, or only navigation.
 - App Server event names and client subscription semantics before promising event-driven integration.
 - Codex best-practice warnings for concurrent work on the same files and the current recommended use of worktrees.
+- Claude Code Dynamic Workflow version gate, workflow directory, `agent()`/`pipeline()` contract, result schemas, pause/resume behavior, tool inheritance, and current capacity ceilings.
+- Claude Code subagent nesting and worktree-isolation behavior before changing the flat workflow shape.
 - Any other runtime's worker nesting, isolation, completion, and cleanup behavior before mapping it to these axes.
 
 Record environment-specific observations in RUN evidence. Keep this reference about portable capability semantics.
@@ -111,7 +134,7 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 2. Worktree isolation is necessary but insufficient for full-stack fan-out because runtime resources still conflict.
 3. Parent ownership of PLAN/RUN avoids multiple writers racing on orchestration state.
 4. Worker verification and integration verification are separate facts; only integrated results unlock dependencies.
-5. Orthogonal capability axes allow the same skill to degrade safely across CLI, app, subagent, and App Server environments without inventing unsupported automation.
+5. Orthogonal capability axes plus a small runtime adapter allow the same skill to route across Codex and Claude Code while degrading safely when a preferred driver is unavailable.
 
 ## Sources
 
@@ -127,3 +150,6 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 - Codex AGENTS.md guidance: https://developers.openai.com/codex/guides/agents-md
 - Claude Code agent overview: https://code.claude.com/docs/en/agents
 - Claude Code subagents: https://code.claude.com/docs/en/sub-agents
+- Claude Code workflows: https://code.claude.com/docs/en/workflows
+- Claude Code worktrees: https://code.claude.com/docs/en/worktrees
+- Claude Code plugins: https://code.claude.com/docs/en/plugins
