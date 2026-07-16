@@ -49,6 +49,6 @@ Stop on requirements conflict, unsupported scope/resource claims, stale plan dig
 - [ ] Plan Readiness passes before implementation begins.
 - [ ] Every needed action is explicitly authorized in RUN; all other ledger entries remain false.
 - [ ] Automatic landing is either fully authorized for exact targets or stops once with the complete missing-action list.
-- [ ] UI evidence and final E2E/release gates are defined when applicable.
+- [ ] UI evidence and final E2E/release gates are defined when applicable, including the automated E2E command, current-head check/evidence, target environment, and manual-smoke disposition.
 - [ ] The fixed integration base and post-batch recomputation rule are recorded.
 - [ ] Destructive actions and external writes remain separate approval boundaries.

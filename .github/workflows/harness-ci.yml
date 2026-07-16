@@ -14,18 +14,21 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    env:
+      VALIDATED_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.VALIDATED_HEAD_SHA }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: Run harness tests
+      - name: Run harness unit, contract, and E2E tests
         run: python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 
       - name: Run design package contract tests

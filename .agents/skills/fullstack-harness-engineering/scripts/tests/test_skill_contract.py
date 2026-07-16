@@ -76,6 +76,29 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())
 
+    def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:
+        skill = self.read("SKILL.md")
+        verification = self.read("references/verification-gates.md")
+        e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        ci_template = self.read("assets/templates/PROJECT_CI.template.yml")
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("## Automated E2E And Smoke Reuse", verification)
+        self.assertIn("### Automated E2E And Smoke Reuse", runbook)
+        for content in (skill, verification, e2e_template, runbook, project_rules):
+            self.assertIn(
+                "not required - covered by current-head E2E",
+                content,
+            )
+            self.assertIn("deployment smoke", content.lower())
+        self.assertIn("  e2e:", ci_template)
+        self.assertIn("<e2e-command>", ci_template)
+        self.assertIn("actions/upload-artifact@v4", ci_template)
+        self.assertIn("github.event.pull_request.head.sha", ci_template)
+        self.assertIn("ref: ${{ env.E2E_HEAD_SHA }}", ci_template)
+        self.assertIn("e2e-${{ env.E2E_HEAD_SHA }}", ci_template)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -79,6 +79,21 @@ Use or adapt this matrix:
 | Release impact | user/operator-visible change | impact recorded | release note or mission row |
 ```
 
+## Automated E2E And Smoke Reuse
+
+Make deterministic automated E2E the normal proof for every primary journey. Record its command, CI check name, environment, covered journey, expected pass signal, artifact or retained log, and commit SHA before execution.
+
+A current-head E2E PASS replaces a duplicate manual smoke only when all of these are true:
+
+- The E2E ran against the exact integration or PR head being accepted.
+- It covers the same primary journey, assertions, configuration, data, auth state, and external dependencies as the proposed smoke.
+- It has a deterministic pass signal and retained evidence that can be tied to that head SHA.
+- No later code, configuration, migration, dependency, or deployment change invalidated the result.
+
+When these conditions hold, record the manual smoke disposition as `not required - covered by current-head E2E`, with the E2E check and SHA. This is not a skipped gate and needs no risk acceptance.
+
+Manual smoke or another environment-specific check is still required when automated E2E is missing, skipped, failed, flaky, or materially narrower than the target; when a visual or external integration remains uncovered; or when the deployed environment differs from the tested environment. Deployment smoke remains a separate gate whenever deployment is in scope and current-head E2E did not run against that exact deployed release.
+
 ## UI Evidence Gate
 
 Required when:
@@ -159,6 +174,7 @@ Final PASS requires:
 - The final integration head still descends from every recorded required mission integration SHA.
 - Landing state is recorded: explicitly left local, or final branch pushed and PR opened with user approval.
 - In pull-request mode, local diff review passed before push; integration head, current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer local integration or push resets this gate.
+- When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - `merge_status: ready` is recorded only after the current-head landing gate passes, and `merged` preserves that evidence while adding the merged PR state and merge SHA. Actual merge and deploy remain separate authorized actions.
 - A schema-v4-through-v6 auto-merge request is recorded only after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Any changed head resets the request before fresh CI and review.
 - A PR closed without merge records `closed` / `closed_unmerged` with no merge SHA; it is not left in the reusable `not_ready` state.
