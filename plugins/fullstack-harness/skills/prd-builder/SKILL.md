@@ -48,6 +48,9 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Keep the current PRD package directly under `doc/`; reserve `doc/archived/` for superseded documents only.
 - Tie every major requirement to a user need, workflow, metric, or constraint.
 - Include loading, empty, error, permission, and edge states when a UI or workflow has them.
+- Keep public-site and landing-page wireframes simple: one clear value proposition and one primary action in the first viewport, one job per section, and secondary detail deferred instead of copying the whole PRD into the page.
+- Make every visible wireframe region implementation-ready with either exact UI wording or a bounded display contract that states what the region must show, the intended user takeaway or action, the content or data source, and relevant format or length constraints. Do not leave generic labels such as `Main content`, `Feature section`, or `Card 1` in a final wireframe.
+- In each relevant wireframe, label image/media and motion as `required`, `optional`, or `none`, and state the purpose. Keep these labels structural; leave visual style, asset art direction, and detailed choreography to the design package.
 - Keep outputs in the product/spec layer. Do not produce design systems, high-fidelity UI mockups, visual tokens, or page-level visual acceptance specs.
 - Keep assumptions explicit and avoid hiding unresolved decisions in confident prose.
 - Architecture may remain technology-neutral overall. For every product with a browser frontend, record the required or already selected frontend stack, or recommend one explicit stack when the user has not chosen and discovery provides enough evidence. Label the decision status so a recommendation is not misrepresented as a fixed requirement. Record the deployment platform, rendering model, framework, UI library, build tool, and key supporting choices as separate layers.

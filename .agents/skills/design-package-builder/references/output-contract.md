@@ -38,6 +38,13 @@ Use this structure:
 ## Content & Data Realism
 [Domain vocabulary, representative data shapes and lengths, asset constraints, placeholder rules, and claims that must not be fabricated.]
 
+## Landing Page Simplicity & Media Plan
+Use this section when a public website, marketing page, or landing page is in scope. Keep one clear value proposition and one primary action in the first viewport. Give each section one job. Do not copy the whole PRD into the page.
+
+| Section / region | Single job | Exact wording / display contract | Image / media | Motion | Defer / exclude |
+| --- | --- | --- | --- | --- | --- |
+| [Region] | [What the user must understand or do] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [required / optional / none; purpose; source or creation need; responsive and static fallback] | [required / optional / none; purpose; trigger; reduced-motion fallback] | [Content that belongs elsewhere] |
+
 ## Color Palette
 | Token | Value / Direction | Tailwind / CSS reference | Usage |
 | --- | --- | --- | --- |
@@ -194,6 +201,13 @@ Use this structure:
 ### Visual Details
 [Color, typography, imagery, icons, density, alignment.]
 
+### Content Budget
+Use for landing pages and other content-heavy public pages.
+
+| Region | Single job | Content mode | Exact wording / display contract | Defer / exclude |
+| --- | --- | --- | --- | --- |
+| [Region] | [User understanding or action] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [Move elsewhere or omit] |
+
 ### Product-Specific Design Decisions
 - Signature cues applied: [decisions]
 - Generic patterns intentionally avoided: [patterns and rationale]
@@ -208,7 +222,9 @@ Use this structure:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ### Asset Requirements
-- [Images, icons, logos, generated assets, screenshots.]
+| Region | Asset type | Need | Purpose | Source / creation | Responsive and static fallback |
+| --- | --- | --- | --- | --- | --- |
+| [Region] | [image, product media, illustration, video, icon, logo, generated asset, screenshot, or none] | [required / optional / none] | [What it helps the user understand or do] | [Existing path, source, or create] | [Crop, alternate, poster, or text/structure fallback] |
 
 ### Acceptance Criteria
 - [Visual requirement]
@@ -233,6 +249,9 @@ Use this structure:
 | Motion system conformance | yes | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
 | Motion performance | yes | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
 | Distinctiveness / anti-generic review | yes | Product-specific cues recur and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
+| Content specificity | yes | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
+| Landing-page simplicity | when applicable | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
+| Media and motion traceability | when applicable | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
 
 ## Page Acceptance
 | Page / route | Source | Required evidence | Status |
@@ -256,6 +275,8 @@ Before finalizing, verify:
 - Requested runnable motion showcases exist, work without production dependencies unless justified, expose preview controls, and keep essential content usable when animation is unavailable.
 - `page-ui-matrix.md` maps every important page or route to UI and motion sources, breakpoints, states, components, data source, and acceptance evidence.
 - `ui-mockups.md` includes high-fidelity page-level specifications or links to actual visual artifacts, plus product-specific decisions, content-realism notes, and motion choreography for every important animated page.
+- `ui-mockups.md` preserves product-source exact wording or a bounded display contract for every visible region; generic mockup placeholders do not pass validation.
+- When a landing page is in scope, `design-system.md` and `ui-mockups.md` define the first-viewport message and action, one job per section, content to defer, and per-region image/media/motion status.
 - `visual-acceptance.md` defines implementation-verifiable visual gates, including distinctiveness and unsupported AI-UI pattern clusters.
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.
@@ -268,5 +289,7 @@ Before finalizing, verify:
 - At least two signature decisions recur across the system and important pages without becoming repetitive decoration.
 - Containers, radii, pills, shadows, gradients, glass effects, icons, and motion each have a product, hierarchy, or interaction rationale.
 - Page composition follows task priority and content shape instead of defaulting to centered heroes, uniform card grids, or equal visual weight.
+- Landing pages do not summarize the entire PRD. The first viewport has one message and primary action, and every later section earns its place with one clear job.
+- Images, media, and animation are tied to a named user or product purpose; decorative assets are not added merely to fill space.
 - Labels, sample data, imagery, and content lengths reflect the domain; unsupported claims, metrics, testimonials, and logos are not fabricated.
 - Familiar patterns retained for usability, platform convention, or brand fit have a documented reason rather than being removed mechanically.

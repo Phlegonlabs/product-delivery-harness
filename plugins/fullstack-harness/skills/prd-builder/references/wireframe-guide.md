@@ -7,9 +7,27 @@ Use low-fidelity ASCII wireframes plus Mermaid flows. Do not produce Figma or HT
 - Use fixed-width fenced code blocks with `text`.
 - Keep layouts low fidelity and structural, not decorative.
 - Label key regions, controls, data, errors, and actions.
+- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Keep art direction and detailed choreography out of the low-fidelity wireframe.
 - Show responsive differences when mobile and desktop experiences materially differ.
 - Include primary, secondary, and destructive actions when relevant.
 - Include loading, empty, error, permission, and success states for each major screen or workflow.
+
+## Content Specificity Rules
+
+Every visible region must use one of these content modes:
+
+1. `Exact copy`: write the actual heading, body copy, label, CTA, helper text, validation message, or state message. Mark wording as `approved` or `draft` when that status matters.
+2. `Display contract`: when final wording is not available or the region is data-driven, state what the region must display, what the user should understand or do, the content or data source, and any ordering, format, count, or length constraints.
+
+Do not leave `Main content`, `Feature section`, `Card 1`, `Lorem ipsum`, or similar generic placeholders in a final wireframe. If a decision is genuinely unresolved, write `[COPY TBD: specific question or owner]`, add it to open questions, and still provide the section's display responsibility.
+
+## KISS Landing Page Rules
+
+- Put one clear value proposition and one primary action in the first viewport.
+- Give each section one job. Keep it only when it explains the offer, establishes necessary trust, resolves a blocking objection, or enables the next step.
+- Do not turn every PRD requirement, feature, workflow, or proof point into a landing-page section. Defer secondary detail to deeper pages, docs, or a bounded FAQ.
+- Prefer a short, ordered section list over a large collage of cards, badges, metrics, and repeated calls to action.
+- Label media and motion where they are needed; do not add an image or animation merely to fill space.
 
 ## Screen Template
 
@@ -22,11 +40,11 @@ Purpose: [What user accomplishes here]
 +------------------------------------------------------------+
 | Product / Section                                  [User]  |
 +------------------------------------------------------------+
-| Nav         | Main title                         [Action]   |
+| Nav         | [Exact title or PURPOSE: ...]   [Exact CTA]  |
 |-------------+----------------------------------------------|
-| Item        | Content area                                  |
+| Item        | [Exact copy/data or DISPLAY: responsibility] |
 | Item        |                                              |
-|             | [Primary control] [Secondary control]         |
+|             | [Exact primary label] [Exact secondary label] |
 +------------------------------------------------------------+
 ```
 
@@ -36,6 +54,11 @@ Purpose: [What user accomplishes here]
 - Error: [Error message, retry, support path]
 - Permission: [Access denied or request access path]
 - Success: [Confirmation and next step]
+
+### Content, Media & Motion Notes
+| Region | Content mode | Exact wording or display contract | Content priority | Image / media | Motion | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or handoff question] |
 ````
 
 ## Mobile Layout Template

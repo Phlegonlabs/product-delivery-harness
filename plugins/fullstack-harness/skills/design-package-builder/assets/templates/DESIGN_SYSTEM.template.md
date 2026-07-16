@@ -28,6 +28,14 @@
 
 <Domain vocabulary, representative data shapes and lengths, asset constraints, placeholder rules, and claims that must not be fabricated.>
 
+## Landing Page Simplicity & Media Plan
+
+<Use when a public website, marketing page, or landing page is in scope. Keep one clear value proposition and one primary action in the first viewport. Give each section one job.>
+
+| Section / region | Single job | Exact wording / display contract | Image / media | Motion | Defer / exclude |
+|---|---|---|---|---|---|
+| <region> | <what the user must understand or do> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <required / optional / none; purpose; source or creation need; responsive and static fallback> | <required / optional / none; purpose; trigger; reduced-motion fallback> | <content that belongs elsewhere> |
+
 ## Color Palette
 
 | Token | Value / Direction | Tailwind / CSS reference | Usage |

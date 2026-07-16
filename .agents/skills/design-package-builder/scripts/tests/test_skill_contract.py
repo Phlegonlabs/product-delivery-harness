@@ -68,6 +68,32 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("runnable motion demos when requested", agent)
         self.assertNotIn("runnable hero demos", agent)
 
+    def test_landing_pages_stay_simple_and_trace_media_and_motion(self) -> None:
+        skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
+        guide = self.read("references/visual-decision-guide.md")
+        output_contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
+        visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        self.assertIn("default to KISS", skill)
+        self.assertIn("approved or draft exact wording", skill)
+        self.assertIn("bounded display contract", skill)
+        self.assertIn("Do not mirror the whole PRD on the landing page", guide)
+        self.assertIn("supplied exact wording", guide)
+        self.assertIn("## Landing Page Simplicity & Media Plan", output_contract)
+        self.assertIn("Exact wording / display contract", output_contract)
+        self.assertIn("## Landing Page Simplicity & Media Plan", design_system)
+        self.assertIn("### Content Budget", ui_mockups)
+        self.assertIn("exact copy / display contract", ui_mockups)
+        self.assertIn("required / optional / none", ui_mockups)
+        self.assertIn("Content specificity", visual_acceptance)
+        self.assertIn("Landing-page simplicity", visual_acceptance)
+        self.assertIn("Media and motion traceability", visual_acceptance)
+        self.assertIn("keeps landing pages KISS", agent)
+        self.assertIn("preserves exact wording or bounded display contracts", agent)
+
 
 if __name__ == "__main__":
     unittest.main()

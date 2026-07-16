@@ -13,7 +13,10 @@ SaaS apps, dashboards, and internal tools:
 Public websites, marketing pages, and conversion landing pages:
 
 - Make the product, offer, venue, person, or object immediately visible in the first viewport.
+- Keep the first viewport to one clear value proposition and one primary action. Give each later section one job and include it only when it helps the user understand the offer, trust it, resolve a blocking objection, or take the next step.
+- Do not mirror the whole PRD on the landing page. Move secondary workflows, exhaustive feature detail, long explanations, and low-priority proof to deeper pages, docs, or a bounded FAQ.
 - Use visual assets that reveal the actual subject. Avoid purely abstract decoration as the primary visual.
+- For every region, label image/media and motion as `required`, `optional`, or `none`, then state its purpose, source or creation need, responsive treatment, and fallback.
 - Define conversion states, form states, trust signals, SEO/content modules, and responsive section order.
 
 Docs and content sites:
@@ -50,6 +53,8 @@ Review the system and every important mockup for unsupported clusters of common 
 - Excessive pills, large corner radii, glows, glass effects, gradients, icon chips, or soft shadows without a semantic or brand role
 - Uniformly centered or evenly weighted sections that ignore task priority, content shape, reading flow, or data density
 - Repeated three-column feature grids, interchangeable icons, and equal-length placeholder copy that could describe any product
+- Landing pages that expose every feature, proof point, workflow, and content module at equal weight instead of making a clear editorial choice
+- Decorative images, video, or animation added to fill space without helping comprehension, trust, orientation, feedback, or action
 - Fabricated metrics, testimonials, customer logos, activity, or polished sample data presented as if factual
 - A default font, palette, or component-library appearance left unchanged without an intentional product rationale
 
@@ -81,6 +86,7 @@ Define only rules that implementation can apply:
 - Common Tailwind CSS usage in project: recurring utility patterns, component class patterns, and CSS variable mappings when relevant
 - Example component reference design code: a small implementation-oriented component example that demonstrates the style guide
 - Product-specific visual thesis: concrete cues, recurring signature decisions, avoided defaults, and content realism rules
+- Landing-page simplicity and media plan when relevant: first-viewport message and action, one job per section, content to defer, and per-region image/media/motion labels
 - Accessibility: contrast intent, focus visibility, keyboard path, reduced motion
 
 ## Page UI Matrix Rules
@@ -104,12 +110,14 @@ For each page mockup, specify:
 
 - Viewport and breakpoint
 - Primary content hierarchy
+- For landing pages, the single job of each region, required content, and content intentionally deferred or excluded
 - Layout regions
 - Component composition
-- Copy/content placeholders
+- Approved or draft exact wording, or a bounded display contract that states what the region shows, the intended takeaway or action, the source, and relevant constraints
 - State-specific changes
 - Responsive behavior
 - Asset requirements
+- Per-region image/media status (`required`, `optional`, or `none`), purpose, source or creation need, responsive treatment, and fallback
 - Product-specific signature decisions and generic patterns intentionally avoided
 - Motion purpose, trigger, sequence, responsive variant, reduced-motion fallback, and runnable demo path when applicable
 - Visual acceptance criteria
@@ -121,5 +129,5 @@ If generating actual bitmap mockups or visual alternatives is requested and imag
 - Product requirements beat visual preference.
 - Design system beats one-off mockup styling unless the user accepts an exception.
 - Page UI mockups beat low-fidelity wireframes for visual hierarchy and layout detail.
-- Low-fidelity wireframes remain useful for flow and required regions.
+- Low-fidelity wireframes remain authoritative for flow, required regions, supplied exact wording, and bounded display contracts.
 - Missing brand direction should become explicit assumptions, not hidden generic styling.

@@ -1,4 +1,4 @@
 interface:
   display_name: "PRD Builder"
   short_description: "Create PRDs, architecture, and wireframes"
-  default_prompt: "Use $prd-builder to turn this product idea into a complete PRD package with architecture, wireframes, and an explicit or recommended frontend stack when the product has a browser surface."
+  default_prompt: "Use $prd-builder to turn this product idea into a complete PRD package with architecture, KISS landing-page wireframes, exact UI wording or bounded display contracts for every visible region, explicit image/media and motion labels, and an explicit or recommended frontend stack when the product has a browser surface."

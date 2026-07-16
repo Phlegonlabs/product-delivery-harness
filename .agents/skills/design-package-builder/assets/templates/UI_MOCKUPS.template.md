@@ -26,6 +26,14 @@
 
 <Color, typography, imagery, icons, density, alignment, and visual hierarchy.>
 
+### Content Budget
+
+<Use for landing pages and other content-heavy public pages.>
+
+| Region | Single job | Content mode | Exact wording / display contract | Defer / exclude |
+|---|---|---|---|---|
+| <region> | <what the user must understand or do> | <exact copy / display contract> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <move elsewhere or omit> |
+
 ### Product-Specific Design Decisions
 
 - Signature cues applied: <recurring product-specific decisions>
@@ -46,7 +54,9 @@
 
 ### Asset Requirements
 
-- <image, icon, logo, generated asset, screenshot, or none>
+| Region | Asset type | Need | Purpose | Source / creation | Responsive and static fallback |
+|---|---|---|---|---|---|
+| <region> | <image, product media, illustration, video, icon, logo, generated asset, screenshot, or none> | <required / optional / none> | <what it helps the user understand or do> | <existing path, source, or create> | <crop, alternate, poster, or text/structure fallback> |
 
 ### Acceptance Criteria
 

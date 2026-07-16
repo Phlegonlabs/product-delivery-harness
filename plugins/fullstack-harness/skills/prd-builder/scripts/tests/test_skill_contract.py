@@ -53,6 +53,31 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertIn("official-source verification date", architecture)
 
+    def test_wireframes_keep_landing_pages_simple_and_label_media(self) -> None:
+        skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
+        interview = self.read("references/interview-guide.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("one job per section", skill)
+        self.assertIn("exact UI wording or a bounded display contract", skill)
+        self.assertIn("## Content Specificity Rules", guide)
+        self.assertIn("`Exact copy`", guide)
+        self.assertIn("`Display contract`", guide)
+        self.assertIn("Do not leave `Main content`", guide)
+        self.assertIn("## KISS Landing Page Rules", guide)
+        self.assertIn("Do not turn every PRD requirement", guide)
+        self.assertIn("### Content, Media & Motion Notes", guide)
+        self.assertIn("required / optional / none", guide)
+        self.assertIn("### Content, Media & Motion Notes", contract)
+        self.assertIn("Exact wording or display contract", contract)
+        self.assertNotIn("| Main content", contract)
+        self.assertIn("KISS landing-page wireframes", agent)
+        self.assertIn("bounded display contracts", agent)
+        self.assertIn("already have approved wording", interview)
+        self.assertIn("bounded display responsibilities", interview)
+
 
 if __name__ == "__main__":
     unittest.main()
