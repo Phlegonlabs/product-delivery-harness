@@ -382,7 +382,7 @@ If Goal mode is used, its prompt may record expected coordination and request au
 | Frontend/backend/data boundaries are defined | draft / PASS / BLOCKED | |
 | Scopes and typed resource inventories are complete | draft / PASS / BLOCKED | |
 | UI routes, states, breakpoints, and evidence are planned | draft / PASS / BLOCKED / n/a | |
-| Worker, mission-integration, batch, final E2E, and release gates exist | draft / PASS / BLOCKED | |
+| Worker, mission-integration, batch, final E2E, and release gates exist; E2E command, current-head check, evidence, environment, and smoke disposition are named | draft / PASS / BLOCKED | |
 | Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
 
 For plan-backed work, do not set the run to `running` until all required readiness rows pass, the plan revision/digest is current, `execution_authorized` is true, and every next action has its own authorization. In compact RUN-only mode, the parent may set `plan_readiness: "ready"` and `status: "running"` after the applicable sequential readiness checks pass and execution is explicitly authorized; keep plan identity null and do not claim plan validation, delegation, refinement, or wave selection.
@@ -425,6 +425,18 @@ For `app_task`, create one real task/thread for each selected mission and record
 | Performance / release | yes / no | <literal signal> | planned | |
 
 Gate values: `planned`, `PASS`, `FAIL`, `BLOCKED`, `UNVALIDATED`.
+
+### Automated E2E And Smoke Reuse
+
+| E2E command | CI check | Environment | Covered journeys | Head SHA | Retained evidence | Status |
+|---|---|---|---|---|---|---|
+| `<e2e-command>` | `<check-name>` | <local / preview / staging / deployed> | <journey IDs> | <SHA> | <artifact / trace / CI log> | planned |
+
+| Proposed manual smoke | Same journey and equivalent environment covered | Disposition | Reason / uncovered risk |
+|---|---|---|---|
+| <smoke> | yes / no | `required` / `not required - covered by current-head E2E` | <reason> |
+
+Use the replacement disposition only after the automated E2E passes on the exact current head. Deployment smoke, visual checks, or external-integration smoke remains required when its environment or assertions are not equivalent.
 
 ## UI Evidence
 

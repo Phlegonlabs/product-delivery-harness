@@ -29,8 +29,25 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Analytics / conversion | yes / no | planned | | |
 | Catalog / ecommerce | yes / no | planned | | |
 | Performance | yes / no | planned | | |
+| Automated E2E | yes / no | planned | | |
 | Deployment smoke | yes / no | planned | | |
 | Release impact | yes / no | planned | | |
+
+## Automated E2E Contract
+
+| Field | Value |
+|---|---|
+| Command | `<e2e-command>` |
+| CI check name | `<e2e-check-name>` |
+| Environment | `<local / preview / staging / deployed>` |
+| Covered journeys | `<journey IDs>` |
+| Expected pass signal | `<exit code / assertion>` |
+| Bound commit SHA | `<hash>` |
+| Retained evidence | `<artifact / trace / CI log>` |
+| Manual smoke disposition | `required / not required - covered by current-head E2E` |
+| Disposition reason | `<coverage match or uncovered risk>` |
+
+A current-head E2E PASS may replace only a duplicate manual smoke for the same journey and equivalent environment. Keep deployment, external-integration, visual, or other materially different smoke checks required until they have their own proof.
 
 ## Primary Journey
 

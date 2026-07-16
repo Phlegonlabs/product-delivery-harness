@@ -190,7 +190,7 @@ Set `plan_readiness: ready` only when:
 - Each mission has an allowed write scope and deterministic verifier, or an explicit `UNVALIDATED` risk.
 - Every mission eligible for fan-out declares `resource_inventory_complete: true`, supported write-scope claims, and all serialized/runtime resources it may mutate.
 - Blocking requirements conflicts and approval needs are resolved or clearly surfaced.
-- Final E2E, regression, release, and residual-risk gates are present.
+- Final E2E, regression, release, and residual-risk gates are present. When a primary journey exists, name its automated E2E command, current-head CI check, target environment, retained evidence, and manual-smoke disposition.
 - The shipped plan validator passes; the canonical RUN plan ID, revision, and digest match PLAN.
 
 At the gate:
@@ -256,20 +256,22 @@ For UI-bearing work, record in `RUN.md`:
 - Browser interaction, console/page/network health, accessibility, and design comparison.
 - Clickable screenshot, trace, or report paths only when artifacts exist.
 
+Run deterministic automated E2E for every primary journey on the final integration head. A PASS may replace a duplicate manual smoke only when the test covers the same journey and equivalent environment, is bound to the current head SHA, and retains a deterministic log, trace, or artifact. Record that disposition as `not required - covered by current-head E2E`, not as a skipped gate. Keep manual smoke for missing, failed, flaky, narrower, visual-only, external-integration, or materially different deployed-environment coverage; deployment smoke remains separate when the live release was not the E2E target. Follow `references/verification-gates.md` for the full equivalence test.
+
 #### Authorized Automatic Pull-Request Landing
 
 When `landing.mode` is `pull_request` and every action that remains necessary in the landing path has exact authorization—normally `create_local_branches`, `create_local_commits`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` for a new delivery—do not stop after local verification, push, Draft PR creation, CI, or review request. The parent owns this continuous landing loop:
 
 ```text
 review final diff -> verify -> commit -> push feature head -> create Draft PR
--> poll current-head CI -> mark Ready -> request Codex review
+-> poll current-head CI, including required E2E -> mark Ready -> request Codex review
 -> poll review and threads -> repair authorized in-scope findings if needed
 -> reset stale gates after every push -> exact-head squash auto-merge
 -> wait until GitHub reports merged -> record merged SHA
 ```
 
 - Recheck the matching authorization and live target immediately before every mutation. One bundled user statement avoids repeated pauses; it does not weaken the separate ledger entries.
-- Bind CI and Codex review to the current PR head. A new commit or push resets both results, requires fresh CI, and requires another review of that SHA.
+- Bind CI, required E2E, and Codex review to the current PR head. A new commit or push resets those results, requires fresh CI and E2E, and requires another review of that SHA.
 - Trigger review with the repository's documented mechanism. When Automatic reviews are not observed, use `@codex review` under `manage_pr_review` and poll the PR; do not treat the bot's acknowledgement as PASS.
 - If CI or review finds an in-scope defect, fix it only under the existing execution, commit, and push authorization; rerun local gates, push the new head, and restart the current-head loop. Stop for a scope/contract decision, missing authorization, or three consecutive no-progress attempts.
 - Enable squash auto-merge only after current-head CI and Codex review PASS with zero blocking findings and unresolved threads. Use an exact-head guard and wait for GitHub to report `merged` before declaring landing complete.
@@ -282,6 +284,7 @@ Final completion requires:
 - Every required gate is `PASS`.
 - Skipped or `UNVALIDATED` gates include reason, risk, and acceptance status.
 - Primary journey and relevant platform gates pass.
+- Required automated E2E is PASS on the current integration or PR head. Any duplicate manual smoke it replaces is recorded as `not required - covered by current-head E2E`; uncovered or environment-specific smoke still passes separately.
 - `RUN.md` records final status, evidence, changed files, commits, residual risk, and landing state.
 - In pull-request mode, the final branch was reviewed locally before push, and current-head CI plus GitHub review are recorded separately. A new push invalidates any earlier PASS tied to another SHA.
 - Only the parent integration branch lands by default. In pull-request mode, `integration.branch` must be the PR head branch and must differ from the base branch. Worker branches remain local and do not open their own PRs unless the plan gives them a separate landing target.
