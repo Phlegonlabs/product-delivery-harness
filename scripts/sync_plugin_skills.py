@@ -32,6 +32,12 @@ def included_files(root: Path) -> dict[Path, Path]:
 
 def differences() -> list[str]:
     problems: list[str] = []
+    if DESTINATION_ROOT.exists():
+        expected_entries = {MARKER.name, *SKILL_NAMES}
+        for path in sorted(DESTINATION_ROOT.iterdir()):
+            if path.name not in expected_entries:
+                problems.append(f"extra: {path.name}")
+
     for name in SKILL_NAMES:
         source = SOURCE_ROOT / name
         destination = DESTINATION_ROOT / name
@@ -70,6 +76,17 @@ def sync() -> None:
         encoding="utf-8",
     )
     managed_root = DESTINATION_ROOT.resolve()
+    expected_entries = {MARKER.name, *SKILL_NAMES}
+    for path in DESTINATION_ROOT.iterdir():
+        if path.name in expected_entries:
+            continue
+        if path.resolve().parent != managed_root:
+            raise SystemExit(f"Refusing to remove path outside {DESTINATION_ROOT}.")
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
     for name, source in sources.items():
         destination = DESTINATION_ROOT / name
         if destination.exists():

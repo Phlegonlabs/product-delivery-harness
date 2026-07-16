@@ -90,6 +90,9 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             destination_skill.mkdir(parents=True)
             (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
             (destination_skill / "stale.txt").write_text("stale\n", encoding="utf-8")
+            removed_skill = destination_root / "removed-skill"
+            removed_skill.mkdir()
+            (removed_skill / "SKILL.md").write_text("removed\n", encoding="utf-8")
             marker = destination_root / ".generated-from-agents-skills"
             marker.write_text("managed\n", encoding="utf-8")
 
@@ -100,6 +103,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             module.sync()
 
             self.assertFalse((destination_skill / "stale.txt").exists())
+            self.assertFalse(removed_skill.exists())
             self.assertEqual(
                 (destination_skill / "SKILL.md").read_text(encoding="utf-8"),
                 "current\n",
