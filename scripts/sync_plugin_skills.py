@@ -23,6 +23,8 @@ SKILL_NAMES = (
 def included_files(root: Path) -> dict[Path, Path]:
     files: dict[Path, Path] = {}
     for path in root.rglob("*"):
+        if path.is_symlink():
+            continue
         if not path.is_file():
             continue
         if "__pycache__" in path.parts or path.suffix == ".pyc":
@@ -31,24 +33,28 @@ def included_files(root: Path) -> dict[Path, Path]:
     return files
 
 
-def destination_path_problem() -> str | None:
+def managed_path_problem(path: Path, label: str) -> str | None:
     try:
-        relative_destination = DESTINATION_ROOT.relative_to(REPO_ROOT)
+        relative_path = path.relative_to(REPO_ROOT)
     except ValueError:
-        return f"destination root is outside the repository: {DESTINATION_ROOT}"
+        return f"{label} root is outside the repository: {path}"
 
     candidate = REPO_ROOT
-    for part in relative_destination.parts:
+    for part in relative_path.parts:
         candidate /= part
         if candidate.is_symlink():
-            kind = "root" if candidate == DESTINATION_ROOT else "ancestor"
-            return f"symlinked destination {kind}: {candidate}"
+            kind = "root" if candidate == path else "ancestor"
+            return f"symlinked {label} {kind}: {candidate}"
 
     try:
-        DESTINATION_ROOT.resolve().relative_to(REPO_ROOT.resolve())
+        path.resolve().relative_to(REPO_ROOT.resolve())
     except ValueError:
-        return f"resolved destination root is outside the repository: {DESTINATION_ROOT}"
+        return f"resolved {label} root is outside the repository: {path}"
     return None
+
+
+def destination_path_problem() -> str | None:
+    return managed_path_problem(DESTINATION_ROOT, "destination")
 
 
 def symlink_entries(root: Path) -> list[Path]:
@@ -77,6 +83,12 @@ def differences() -> list[str]:
     for name in SKILL_NAMES:
         source = SOURCE_ROOT / name
         destination = DESTINATION_ROOT / name
+        source_problem = managed_path_problem(source, "source")
+        if source_problem:
+            problems.append(source_problem)
+            continue
+        for relative in symlink_entries(source):
+            problems.append(f"source symlink: {name}/{relative.as_posix()}")
         source_files = included_files(source)
         if destination.is_symlink():
             problems.append(f"symlink: {name}")
@@ -139,8 +151,15 @@ def sync() -> None:
     sources: dict[str, Path] = {}
     for name in SKILL_NAMES:
         source = SOURCE_ROOT / name
+        source_problem = managed_path_problem(source, "source")
+        if source_problem:
+            raise SystemExit(f"Refusing to use {source_problem}")
         if not (source / "SKILL.md").is_file():
             raise SystemExit(f"Canonical skill is missing: {source}")
+        source_symlinks = symlink_entries(source)
+        if source_symlinks:
+            paths = ", ".join(path.as_posix() for path in source_symlinks)
+            raise SystemExit(f"Canonical skill contains symlinks: {name}: {paths}")
         sources[name] = source
 
     DESTINATION_ROOT.mkdir(parents=True, exist_ok=True)

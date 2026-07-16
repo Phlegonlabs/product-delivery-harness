@@ -302,6 +302,57 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 "external data stays unchanged\n",
             )
 
+    def test_check_and_sync_reject_symlinked_source_entry_without_writing(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            destination_skill = destination_root / "sample"
+            source_skill.mkdir(parents=True)
+            destination_skill.mkdir(parents=True)
+            source_file = source_skill / "SKILL.md"
+            source_file.write_text("current\n", encoding="utf-8")
+            (destination_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+            sentinel = destination_root / "important.txt"
+            sentinel.write_text("destination stays unchanged\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+
+            original_is_symlink = Path.is_symlink
+
+            def source_file_is_symlink(path: Path) -> bool:
+                return path == source_file or original_is_symlink(path)
+
+            with mock.patch.object(Path, "is_symlink", source_file_is_symlink):
+                self.assertIn(
+                    "source symlink: sample/SKILL.md",
+                    module.differences(),
+                )
+                with self.assertRaisesRegex(
+                    SystemExit, "Canonical skill contains symlinks"
+                ):
+                    module.sync()
+
+            self.assertEqual(
+                sentinel.read_text(encoding="utf-8"),
+                "destination stays unchanged\n",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
