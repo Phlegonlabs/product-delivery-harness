@@ -31,8 +31,43 @@ def included_files(root: Path) -> dict[Path, Path]:
     return files
 
 
+def destination_path_problem() -> str | None:
+    try:
+        relative_destination = DESTINATION_ROOT.relative_to(REPO_ROOT)
+    except ValueError:
+        return f"destination root is outside the repository: {DESTINATION_ROOT}"
+
+    candidate = REPO_ROOT
+    for part in relative_destination.parts:
+        candidate /= part
+        if candidate.is_symlink():
+            kind = "root" if candidate == DESTINATION_ROOT else "ancestor"
+            return f"symlinked destination {kind}: {candidate}"
+
+    try:
+        DESTINATION_ROOT.resolve().relative_to(REPO_ROOT.resolve())
+    except ValueError:
+        return f"resolved destination root is outside the repository: {DESTINATION_ROOT}"
+    return None
+
+
+def symlink_entries(root: Path) -> list[Path]:
+    if not root.exists():
+        return []
+    return [path.relative_to(root) for path in root.rglob("*") if path.is_symlink()]
+
+
 def differences() -> list[str]:
     problems: list[str] = []
+    destination_problem = destination_path_problem()
+    if destination_problem:
+        return [destination_problem]
+
+    if MARKER.is_symlink():
+        problems.append(f"symlink: {MARKER.name}")
+    elif not MARKER.is_file():
+        problems.append(f"missing: {MARKER.name}")
+
     if DESTINATION_ROOT.exists():
         expected_entries = {MARKER.name, *SKILL_NAMES}
         for path in sorted(DESTINATION_ROOT.iterdir()):
@@ -43,7 +78,16 @@ def differences() -> list[str]:
         source = SOURCE_ROOT / name
         destination = DESTINATION_ROOT / name
         source_files = included_files(source)
-        destination_files = included_files(destination) if destination.exists() else {}
+        if destination.is_symlink():
+            problems.append(f"symlink: {name}")
+            destination_files = {}
+        else:
+            destination_files = (
+                included_files(destination) if destination.exists() else {}
+            )
+            for relative in symlink_entries(destination):
+                problems.append(f"symlink: {name}/{relative.as_posix()}")
+                destination_files.pop(relative, None)
 
         for relative in sorted(source_files.keys() - destination_files.keys()):
             problems.append(f"missing: {name}/{relative.as_posix()}")
@@ -82,8 +126,9 @@ def write_marker() -> None:
 
 
 def sync() -> None:
-    if DESTINATION_ROOT.is_symlink():
-        raise SystemExit(f"Refusing to use symlinked destination root: {DESTINATION_ROOT}")
+    destination_problem = destination_path_problem()
+    if destination_problem:
+        raise SystemExit(f"Refusing to use {destination_problem}")
     if MARKER.is_symlink():
         raise SystemExit(f"Refusing to use symlinked marker: {MARKER}")
     if DESTINATION_ROOT.exists() and any(DESTINATION_ROOT.iterdir()) and not MARKER.exists():
@@ -105,6 +150,8 @@ def sync() -> None:
     for path in DESTINATION_ROOT.iterdir():
         if path.name in expected_entries:
             continue
+        if path.is_symlink():
+            raise SystemExit(f"Refusing to remove symlinked path: {path}")
         if path.resolve().parent != managed_root:
             raise SystemExit(f"Refusing to remove path outside {DESTINATION_ROOT}.")
         if path.is_dir():
@@ -114,6 +161,8 @@ def sync() -> None:
 
     for name, source in sources.items():
         destination = DESTINATION_ROOT / name
+        if destination.is_symlink():
+            raise SystemExit(f"Refusing to remove symlinked path: {destination}")
         if destination.exists():
             if destination.resolve().parent != managed_root:
                 raise SystemExit(f"Refusing to remove path outside {DESTINATION_ROOT}.")

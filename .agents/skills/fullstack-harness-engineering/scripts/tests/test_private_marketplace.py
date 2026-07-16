@@ -98,6 +98,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             marker.write_text("managed\n", encoding="utf-8")
 
             module.SOURCE_ROOT = source_root
+            module.REPO_ROOT = root
             module.DESTINATION_ROOT = destination_root
             module.MARKER = marker
             module.SKILL_NAMES = ("sample",)
@@ -131,6 +132,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             marker.write_text("external target stays unchanged\n", encoding="utf-8")
 
             module.SOURCE_ROOT = source_root
+            module.REPO_ROOT = root
             module.DESTINATION_ROOT = destination_root
             module.MARKER = marker
             module.SKILL_NAMES = ("sample",)
@@ -170,6 +172,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             sentinel.write_text("external data stays unchanged\n", encoding="utf-8")
 
             module.SOURCE_ROOT = source_root
+            module.REPO_ROOT = root
             module.DESTINATION_ROOT = destination_root
             module.MARKER = destination_root / ".generated-from-agents-skills"
             module.SKILL_NAMES = ("sample",)
@@ -181,6 +184,117 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
 
             with mock.patch.object(Path, "is_symlink", root_is_symlink):
                 with self.assertRaisesRegex(SystemExit, "symlinked destination root"):
+                    module.sync()
+
+            self.assertEqual(
+                sentinel.read_text(encoding="utf-8"),
+                "external data stays unchanged\n",
+            )
+
+    def test_check_requires_generated_marker(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            destination_skill = destination_root / "sample"
+            source_skill.mkdir(parents=True)
+            destination_skill.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            (destination_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = destination_root / ".generated-from-agents-skills"
+            module.SKILL_NAMES = ("sample",)
+
+            self.assertIn(
+                "missing: .generated-from-agents-skills",
+                module.differences(),
+            )
+
+    def test_check_rejects_symlinked_bundle_entries(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            destination_skill = destination_root / "sample"
+            source_skill.mkdir(parents=True)
+            destination_skill.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            destination_file = destination_skill / "SKILL.md"
+            destination_file.write_text("current\n", encoding="utf-8")
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+
+            original_is_symlink = Path.is_symlink
+
+            def bundle_file_is_symlink(path: Path) -> bool:
+                return path == destination_file or original_is_symlink(path)
+
+            with mock.patch.object(Path, "is_symlink", bundle_file_is_symlink):
+                self.assertIn("symlink: sample/SKILL.md", module.differences())
+
+    def test_sync_refuses_symlinked_destination_ancestor_without_writing(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_parent = root / "plugin"
+            destination_root = destination_parent / "skills"
+            source_skill = source_root / "sample"
+            source_skill.mkdir(parents=True)
+            destination_root.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+            sentinel = destination_root / "important.txt"
+            sentinel.write_text("external data stays unchanged\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+
+            original_is_symlink = Path.is_symlink
+
+            def ancestor_is_symlink(path: Path) -> bool:
+                return path == destination_parent or original_is_symlink(path)
+
+            with mock.patch.object(Path, "is_symlink", ancestor_is_symlink):
+                with self.assertRaisesRegex(SystemExit, "symlinked destination ancestor"):
                     module.sync()
 
             self.assertEqual(
