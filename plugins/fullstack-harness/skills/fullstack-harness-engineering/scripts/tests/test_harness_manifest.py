@@ -1077,6 +1077,90 @@ class RunValidationTests(unittest.TestCase):
             any("run.post_merge_cleanup.base: must be an object" in error for error in malformed_errors)
         )
 
+    def test_schema_v6_accepts_only_bounded_future_pr_authorization(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        future_target = "future-pr:example/repo:base=main:head=codex/test"
+        for action in ("manage_pr_review", "merge_pr"):
+            run["authorizations"][action] = {
+                "authorized": True,
+                "source": "user: land the planned pull request",
+                "scope": {
+                    "run_id": "RUN-TEST",
+                    "mission_ids": ["M1", "M2"],
+                    "targets": [future_target],
+                },
+                "expires_when": "run_complete",
+            }
+        self.assertEqual(validate_run(plan, run), [])
+
+        malformed = copy.deepcopy(run)
+        malformed["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            "future-pr:example/repo:head=codex/test"
+        ]
+        self.assert_run_error_contains(plan, malformed, "unsupported target")
+
+        unrelated = copy.deepcopy(run)
+        unrelated["authorizations"]["push"] = copy.deepcopy(
+            unrelated["authorizations"]["merge_pr"]
+        )
+        self.assert_run_error_contains(plan, unrelated, "unsupported target")
+
+        legacy = copy.deepcopy(run)
+        legacy["schema_version"] = 5
+        self.assert_run_error_contains(plan, legacy, "unsupported target")
+
+    def test_future_pr_authorization_resolves_to_the_matching_exact_pr(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "ready",
+                "auto_merge_requested": True,
+                "auto_merge_head_sha": SHA_A,
+            }
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": True,
+            "source": "user: land the planned pull request",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["future-pr:example/repo:base=main:head=codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
+
+        run["authorizations"]["merge_pr"]["scope"]["targets"].append(
+            "pr:https://github.com/example/repo/pull/7"
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["authorizations"]["merge_pr"]["scope"]["targets"][0] = (
+            "future-pr:example/repo:base=main:head=codex/other"
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested exact PR does not match its authorized future PR binding",
+        )
+
     def test_auto_merge_requires_a_ready_current_head(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)

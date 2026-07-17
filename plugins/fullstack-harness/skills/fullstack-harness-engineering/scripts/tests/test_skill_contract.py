@@ -117,6 +117,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, state, goal, runbook, project_rules, agent):
             self.assertIn("manage_pr_review", content)
             self.assertIn("merge_pr", content)
+            self.assertIn("future-pr:", content)
 
     def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:
         skill = self.read("SKILL.md")

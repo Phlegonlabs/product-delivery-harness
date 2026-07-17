@@ -74,6 +74,14 @@ TASK_ID_RE = re.compile(r"^([A-Z][A-Z0-9_-]{0,63})/([A-Z][A-Z0-9_-]{0,63})$")
 TARGET_RE = re.compile(
     r"^(?:worker|task|worktree|branch|remote|pr|repository|environment):.+$"
 )
+FUTURE_PR_TARGET_RE = re.compile(
+    r"^future-pr:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+):"
+    r"base=(?P<base>[^:\s]+):head=(?P<head>[^:\s]+)$"
+)
+GITHUB_PR_URL_RE = re.compile(
+    r"^https://github\.com/(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/"
+    r"pull/[1-9][0-9]*/?$"
+)
 EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
 NESTED_SUBAGENT_ROLES = {"explorer", "researcher", "reviewer", "tester"}
 PERMISSION_SELECTED_MODES = {
@@ -1346,7 +1354,13 @@ def _validate_post_merge_cleanup(
 
 
 def _validate_authorization_scope(
-    errors: list[str], path: str, value: Any, *, action: bool
+    errors: list[str],
+    path: str,
+    value: Any,
+    *,
+    action: bool,
+    action_name: str | None = None,
+    allow_future_pr: bool = False,
 ) -> None:
     required = {"run_id", "mission_ids", "targets"} if action else {"run_id", "mission_ids", "expires_when"}
     if not _keys(errors, path, value, required):
@@ -1357,7 +1371,17 @@ def _validate_authorization_scope(
     if action:
         targets = _strings(errors, f"{path}.targets", value["targets"], nonempty=True)
         for target in targets:
-            if target != "*" and not TARGET_RE.fullmatch(target):
+            if target == "*":
+                continue
+            if target.startswith("future-pr:"):
+                if (
+                    not allow_future_pr
+                    or action_name not in {"manage_pr_review", "merge_pr"}
+                    or not FUTURE_PR_TARGET_RE.fullmatch(target)
+                ):
+                    _add(errors, f"{path}.targets", f"unsupported target {target!r}")
+                continue
+            if not TARGET_RE.fullmatch(target):
                 _add(errors, f"{path}.targets", f"unsupported target {target!r}")
     else:
         if value["expires_when"] not in EXPIRY_BOUNDARIES:
@@ -1399,6 +1423,25 @@ def authorization_covers(
     )
     return _nonempty_string(entry.get("source")) and (
         expiry_is_preserved or _authorization_not_expired(run, boundary)
+    )
+
+
+def _landing_future_pr_target(landing: dict[str, Any]) -> str | None:
+    pr_url = landing.get("pr_url")
+    base_branch = landing.get("base_branch")
+    head_branch = landing.get("head_branch")
+    if (
+        not _nonempty_string(pr_url)
+        or not _nonempty_string(base_branch)
+        or not _nonempty_string(head_branch)
+    ):
+        return None
+    match = GITHUB_PR_URL_RE.fullmatch(pr_url)
+    if match is None:
+        return None
+    return (
+        f"future-pr:{match.group('repository')}:"
+        f"base={base_branch}:head={head_branch}"
     )
 
 
@@ -1529,7 +1572,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" not in entry or "expires_when" not in entry:
                     _add(errors, path, "authorized action requires scope and expires_when")
                 else:
-                    _validate_authorization_scope(errors, f"{path}.scope", entry["scope"], action=True)
+                    _validate_authorization_scope(
+                        errors,
+                        f"{path}.scope",
+                        entry["scope"],
+                        action=True,
+                        action_name=action,
+                        allow_future_pr=(schema_version == 6),
+                    )
                     if isinstance(entry["scope"], dict) and entry["scope"].get("run_id") != run["run_id"]:
                         _add(errors, f"{path}.scope.run_id", "must match run_id")
                     if entry["expires_when"] not in EXPIRY_BOUNDARIES:
@@ -1574,6 +1624,21 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 errors,
                 "run.landing",
                 "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+            )
+        authorizations = run.get("authorizations", {})
+        merge_entry = authorizations.get("merge_pr", {}) if isinstance(authorizations, dict) else {}
+        merge_scope = merge_entry.get("scope", {}) if isinstance(merge_entry, dict) else {}
+        merge_targets = merge_scope.get("targets", []) if isinstance(merge_scope, dict) else []
+        future_targets = {
+            target
+            for target in merge_targets
+            if isinstance(target, str) and FUTURE_PR_TARGET_RE.fullmatch(target)
+        }
+        if future_targets and _landing_future_pr_target(run["landing"]) not in future_targets:
+            _add(
+                errors,
+                "run.landing",
+                "auto_merge_requested exact PR does not match its authorized future PR binding",
             )
     if schema_version in {5, 6}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)

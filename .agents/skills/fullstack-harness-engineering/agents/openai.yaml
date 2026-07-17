@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
   short_description: "Plan and run up to three isolated verified missions"
-  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery, proactively detect the current runtime, and at Plan Readiness request the exact launch and pull-request landing actions once, including manage_pr_review and merge_pr. Automatically select and launch up to three authorized nonconflicting missions in isolated workers; for Codex app fan-out, create one worktree thread per selected mission. Integrate serially, then continue automatically through Draft PR, current-head CI, Codex review, and exact-head merge without intermediate prompts when each ledger action is authorized."
+  default_prompt: "Use $fullstack-harness-engineering to plan traceable delivery, proactively detect the current runtime, and at Plan Readiness request the exact launch and pull-request landing actions once, including manage_pr_review and merge_pr. Bind unborn PR review and merge targets to future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>, then resolve them to the matching exact PR URL after creation. Automatically select and launch up to three authorized nonconflicting missions in isolated workers; for Codex app fan-out, create one worktree thread per selected mission. Integrate serially, then continue automatically through Draft PR, current-head CI, Codex review, and exact-head merge without intermediate prompts when each ledger action is authorized."
 policy:
   allow_implicit_invocation: true
