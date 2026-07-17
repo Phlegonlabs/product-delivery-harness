@@ -100,6 +100,24 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())
 
+    def test_plan_readiness_requests_review_and_merge_once(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("request every missing launch and landing action", skill)
+        self.assertIn("request every missing landing action once", state)
+        self.assertIn("one-time Plan Readiness authorization checkpoint", goal)
+        self.assertIn("request every missing launch and landing action", runbook)
+        self.assertIn("Request every missing branch, commit, integration", project_rules)
+        self.assertIn("at Plan Readiness request the exact launch", agent)
+        for content in (skill, state, goal, runbook, project_rules, agent):
+            self.assertIn("manage_pr_review", content)
+            self.assertIn("merge_pr", content)
+
     def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:
         skill = self.read("SKILL.md")
         verification = self.read("references/verification-gates.md")

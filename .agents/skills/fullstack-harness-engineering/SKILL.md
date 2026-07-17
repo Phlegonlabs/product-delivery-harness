@@ -68,9 +68,11 @@ Apply this policy to every plan-backed multi-mission execution unless the user e
 2. Record every observed driver independently of authorization. In Codex, usable project lookup plus thread create/read/message surfaces prove `app_threads`; child-agent tools prove `subagents`. Missing authorization must never make an available driver disappear from `runtime_adapter.available_drivers`.
 3. Use three as the configured plan-backed write-worker maximum. The effective wave may contain fewer missions because it is still capped by observed slots, isolation capacity, dependency readiness, conflicts, permission boundaries, and the user's lower explicit limit.
 4. Immediately after `plan_readiness: ready`, validate PLAN/RUN and compute the dependency-ready conflict graph. For execution-authorized work, run `select_parallel_missions.py` before starting a production task and select up to three nonconflicting missions in deterministic order.
-5. When the selected launch route is already authorized, accept the wave and consume every launch directive without another confirmation. When the exact launch bundle is missing, request it once with run-wide mission scope and pre-allocation `targets: ["*"]`, pause at that boundary, record the answer, and rerun selection. Do not silently downgrade merely because authorization is missing.
-6. Fall back to fewer workers or sequential parent execution only when the user declines the bundle or live capability, isolation, permission, dependency, conflict, or resource evidence requires it. Record the exact reason.
-7. Never run more than one write-capable parent or subagent in `shared_checkout`. Parallel writes require isolated worktrees and durable authorized branch/commit handoff.
+5. For execution-intent work in a shared repository, default `landing.mode` to `pull_request` unless the user explicitly requests local-only delivery. At Plan Readiness, inspect the remote, branch rules, required checks, Codex review availability, and repository auto-merge setting, then request every missing launch and landing action in one authorization checkpoint. Record each approved action separately in the ledger; the bundled request is not blanket permission.
+6. The normal landing bundle is `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr`, plus the selected route's worker/worktree actions. Include `configure_repository` in the same checkpoint only when the observed repository needs an exact configuration change for the requested flow. Keep deploy, archival, worktree removal, and branch deletion outside this bundle.
+7. When the selected launch route and landing path are already authorized, accept the wave, consume every launch directive, and continue through review and merge without another confirmation. When either exact bundle is missing, request the complete missing-action set once, pause at that boundary, record the answer, and rerun selection. Do not silently downgrade merely because authorization is missing.
+8. Fall back to fewer workers, sequential parent execution, or local-only closeout only when the user declines the relevant bundle or live capability, isolation, permission, dependency, conflict, resource, or repository evidence requires it. Record the exact reason.
+9. Never run more than one write-capable parent or subagent in `shared_checkout`. Parallel writes require isolated worktrees and durable authorized branch/commit handoff.
 
 ## Execution Authorization Gate
 
@@ -119,7 +121,7 @@ Only an explicit user instruction recorded with its source may set overall execu
 
 PR creation, repository review configuration, review management, and merge are separate boundaries. `create_pr` does not authorize marking a PR ready, requesting or resolving review, enabling branch rules, or merging. A read-only local or GitHub diff inspection does not need mutation authorization, but any review-state change uses `manage_pr_review`.
 
-A single explicit user instruction may authorize several exact actions together. Record that one source separately under every covered ledger key; do not collapse the entries into a new blanket permission. For a new end-to-end automatic pull-request landing, normally request `create_local_branches`, `create_local_commits`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` together with run/mission/target scope. If a branch or commit already exists, require only the actions that will actually mutate state. This request does not grant them. Keep `configure_repository`, deploy, archival, worktree removal, and branch deletion separate.
+A single explicit user instruction may authorize several exact actions together. Record that one source separately under every covered ledger key; do not collapse the entries into a new blanket permission. For plan-backed execution that will land through a pull request, proactively request the complete landing bundle once at Plan Readiness: normally `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr`, together with run/mission/target scope. If a branch, commit, or integration already exists, require only the actions that will actually mutate state. This request does not grant them. `configure_repository` remains its own ledger action even when an observed setup gap causes it to be included in the same readiness checkpoint; keep deploy, archival, worktree removal, and branch deletion separate.
 
 ## Workflow
 
@@ -209,8 +211,8 @@ Set `plan_readiness: ready` only when:
 At the gate:
 
 - `plan-only` or `plan-then-stop`: set run status to `ready`, keep `execution_authorized: false`, report the proposed first mission and stop.
-- `plan-then-execute`: record the explicit authorization, set run status to `running`, then apply the Default Runtime And Wave Policy before beginning any production task.
-- `execute-ready-plan`: verify that the plan is still current, record approval, set run status to `running`, then apply the Default Runtime And Wave Policy before beginning any production task.
+- `plan-then-execute`: make one Plan Readiness authorization checkpoint for the exact execution, launch, and pull-request landing actions; record the explicit decision, set run status to `running` only when the next actions are authorized, then apply the Default Runtime And Wave Policy before beginning any production task.
+- `execute-ready-plan`: verify that the plan is still current, make the same one-time missing-action checkpoint, record the explicit decision, set run status to `running` only when the next actions are authorized, then apply the Default Runtime And Wave Policy before beginning any production task.
 
 ### 4. Execute The Ready Plan
 
@@ -273,7 +275,9 @@ Run deterministic automated E2E for every primary journey on the final integrati
 
 #### Authorized Automatic Pull-Request Landing
 
-When `landing.mode` is `pull_request` and every action that remains necessary in the landing path has exact authorization—normally `create_local_branches`, `create_local_commits`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` for a new delivery—do not stop after local verification, push, Draft PR creation, CI, or review request. The parent owns this continuous landing loop:
+For execution-intent work in a shared repository, `pull_request` is the default landing mode. Inspect the review and merge path and request the full missing landing bundle once at Plan Readiness, not after implementation. This remains an authorization request: the skill, plan, and default mode cannot approve any action.
+
+When `landing.mode` is `pull_request` and every action that remains necessary in the landing path has exact authorization—normally `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` for a new delivery—do not stop after local verification, push, Draft PR creation, CI, or review request. The parent owns this continuous landing loop:
 
 ```text
 review final diff -> verify -> commit -> push feature head -> create Draft PR
@@ -288,7 +292,7 @@ review final diff -> verify -> commit -> push feature head -> create Draft PR
 - Trigger review with the repository's documented mechanism. When Automatic reviews are not observed, use `@codex review` under `manage_pr_review` and poll the PR; do not treat the bot's acknowledgement as PASS.
 - If CI or review finds an in-scope defect, fix it only under the existing execution, commit, and push authorization; rerun local gates, push the new head, and restart the current-head loop. Stop for a scope/contract decision, missing authorization, or three consecutive no-progress attempts.
 - Enable squash auto-merge only after current-head CI and Codex review PASS with zero blocking findings and unresolved threads. Use an exact-head guard and wait for GitHub to report `merged` before declaring landing complete.
-- If repository auto-merge or Codex review configuration is unavailable, do not change repository settings without `configure_repository`; report that one boundary. Deploy and post-merge cleanup remain separate even when landing is automatic.
+- If repository auto-merge or Codex review configuration is unavailable, do not change repository settings without `configure_repository`. When the gap was observable at Plan Readiness, include that exact action in the one-time checkpoint; otherwise report the newly discovered boundary. Deploy and post-merge cleanup remain separate even when landing is automatic.
 
 Final completion requires:
 
