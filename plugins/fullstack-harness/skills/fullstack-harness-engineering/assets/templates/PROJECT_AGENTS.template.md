@@ -9,6 +9,7 @@
 
 - Do not push directly to `<base-branch>`.
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. Common GitHub-flow examples are branch creation, local commits, local integration, repository configuration, push, PR creation, review-state mutation, merge, and cleanup. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
+- For plan-backed shared-repository execution, inspect the full launch, review, and merge path at Plan Readiness. Request every missing branch, commit, integration, push, PR, review-management, and merge action once with exact scope, then record each approved action under its own ledger key. Before a PR exists, bind review and merge to `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>`; after creation, verify the binding and append the exact `pr:<full-PR-URL>` target. Include an exact repository-configuration action in that checkpoint only when the observed setup requires it.
 - With matching `create_local_branches` authorization, work on `<branch-prefix>/<short-name>`.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
 - Worker branches stay local. With matching `integrate_locally` authorization, integrate verified work into one final parent branch.
@@ -22,7 +23,7 @@
 - After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
 - When every remaining branch, commit, push, PR creation, review-management, and merge mutation is explicitly authorized for its exact target, continue through that landing flow without pausing between stages. Poll CI and review, reset stale evidence after every push, fix only authorized in-scope findings, and finish only after GitHub reports the PR merged.
 - After a merged PR, re-fetch the base and verify the exact PR head before cleanup. Remove only an authorized clean linked worktree, switch the primary checkout to the base branch, then delete only the authorized local feature branch. Never remove the primary checkout.
-- Merge, auto-merge, deploy, branch deletion, and worktree removal require separate approval.
+- Merge, auto-merge, deploy, branch deletion, and worktree removal remain separate ledger actions even when several are approved in one explicit readiness statement.
 
 ## Review Guidelines
 

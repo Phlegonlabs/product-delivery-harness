@@ -85,10 +85,14 @@ Official Codex review documentation establishes these current facts:
 - GitHub review requires the repository to be connected to Codex Cloud with Code review enabled. Automatic reviews can review each new PR opened for review; `@codex review` is the manual trigger.
 - Repository `AGENTS.md` files may define `## Review guidelines` that Codex uses during GitHub review.
 - Codex GitHub review reports high-signal P0/P1 findings. Ordinary CI, repository rules, and required status checks remain separate controls.
+- GitHub auto-merge merges a PR only after its required reviews and status checks pass, and the repository must have auto-merge enabled first.
+- GitHub CLI supports an exact-head merge guard through `gh pr merge --match-head-commit <SHA>` and can combine it with squash and auto-merge.
 
 The harness therefore records local diff review separately from GitHub review and binds GitHub CI/review evidence to the exact PR head SHA. A later push invalidates earlier evidence even if the PR number is unchanged. The parent should request review again after the new checks pass.
 
 A skill can direct the interactive parent to run a persistent GitHub tool loop: create the PR, poll checks, request Codex review, poll findings and threads, and submit an exact-head merge after every gate passes. The skill cannot turn on repository Automatic reviews or auto-merge by itself. Those remain repository settings, and changing them requires separate authorization; when Automatic reviews are not observed, the portable review trigger is `@codex review`.
+
+For plan-backed shared-repository execution, the harness now surfaces the full launch and landing authorization set in one Plan Readiness checkpoint. Every action still has its own ledger entry and live pre-mutation recheck; the checkpoint only removes repeated prompts after the user has approved the exact path.
 
 ## Completion And Event Notifications
 
@@ -151,6 +155,8 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 - Codex local code review: https://developers.openai.com/codex/app/code-review
 - Codex GitHub code review: https://developers.openai.com/codex/cloud/code-review
 - Codex AGENTS.md guidance: https://developers.openai.com/codex/guides/agents-md
+- GitHub auto-merge: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request
+- GitHub CLI PR merge: https://cli.github.com/manual/gh_pr_merge
 - Claude Code agent overview: https://code.claude.com/docs/en/agents
 - Claude Code subagents: https://code.claude.com/docs/en/sub-agents
 - Claude Code workflows: https://code.claude.com/docs/en/workflows

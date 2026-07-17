@@ -20,11 +20,11 @@ Expected coordination:
 Requested actions, pending explicit user authorization:
 - <one or more exact ledger keys, or none>
 
-For automatic Codex app-task fan-out, request this local execution bundle together with exact scope: `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally`. This line requests approval; it does not grant it. Keep push, PR, review, merge, deploy, archival, and cleanup actions separate.
+For automatic Codex app-task fan-out, request this local execution bundle together with exact scope: `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally`. This line requests approval; it does not grant it. Keep every push, PR, review, merge, deploy, archival, and cleanup action as a separate ledger entry; when pull-request landing is intended, include the missing launch and landing entries in the same one-time Plan Readiness authorization checkpoint.
 
 For Claude Dynamic Workflow fan-out with isolated mission writes, request `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally` with exact scope. The parent allocates one worktree per mission and runs one flat workflow for the selected wave. This line requests approval; it does not grant it.
 
-For a new end-to-end automatic pull-request landing, normally request `create_local_branches`, `create_local_commits`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` together with exact scope; omit an action only when its mutation has already happened or is not needed. Record one explicit user statement under each covered entry, then continue through Draft PR, current-head CI, Codex review, zero unresolved threads, exact-head squash auto-merge, and merged-state confirmation without asking again between those stages. This line requests approval; it does not grant it. Keep repository configuration, deploy, archival, and cleanup separate.
+For a new end-to-end automatic pull-request landing, proactively request `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` together with exact scope at Plan Readiness; omit an action only when its mutation has already happened or is not needed. Before the PR exists, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` for its review and merge targets. After creation, verify that binding and append `pr:<full-PR-URL>` before review or merge. Record one explicit user statement under each covered entry, then continue through Draft PR, current-head CI, Codex review, zero unresolved threads, exact-head squash auto-merge, and merged-state confirmation without asking again between those stages. This line requests approval; it does not grant it. Keep `configure_repository` as a separate ledger entry, but include it in the same checkpoint when inspection proves an exact review or auto-merge configuration change is required. Keep deploy, archival, and cleanup separate.
 
 Before any implementation, map every must-have requirement to a trace, dependency-ordered mission, immutable flat task ID, supported write/deny scope, complete typed resource inventory, worker verifier, integration verifier, and final gate. Write static definitions to PLAN.md and live state to the canonical JSON in RUN.md. Validate plan structure and pass the Plan Readiness Gate.
 
@@ -48,7 +48,7 @@ Stop on requirements conflict, unsupported scope/resource claims, stale plan dig
 - [ ] Provider, observed drivers, selected route, runtime, workspace, and completion channel are recorded consistently.
 - [ ] Plan Readiness passes before implementation begins.
 - [ ] Every needed action is explicitly authorized in RUN; all other ledger entries remain false.
-- [ ] Automatic landing is either fully authorized for exact targets or stops once with the complete missing-action list.
+- [ ] Automatic landing was inspected and requested once at Plan Readiness; it is either fully authorized for exact targets or stops once with the complete missing-action list.
 - [ ] UI evidence and final E2E/release gates are defined when applicable, including the automated E2E command, current-head check/evidence, target environment, and manual-smoke disposition.
 - [ ] The fixed integration base and post-batch recomputation rule are recorded.
 - [ ] Destructive actions and external writes remain separate approval boundaries.
