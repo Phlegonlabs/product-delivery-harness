@@ -44,6 +44,38 @@ Establish this thesis before choosing tokens or composing pages:
 
 The result should remain usable without decoration and recognizable without relying only on the logo. Consistency does not require every section to use the same card, alignment, density, or rhythm.
 
+## Taste & Anti-Slop Guardrails
+
+Taste here means product-specific judgment that is visible in the hierarchy, restraint, and recurring decisions. It is not a universal style or a longer blacklist.
+
+Every design system must define:
+
+- A one-sentence taste statement that names the intended character and the concrete typography, composition, color, imagery, or interaction choices that create it
+- What receives the strongest emphasis, what stays quiet, and how that priority changes across responsive layouts
+- Two or more signature decisions that recur without turning every section into the same component
+- The unsupported pattern clusters that would make the product look interchangeable
+- A container and border policy that defaults content regions to open layouts and records the purpose of every visible frame
+- A visual review loop: render at required breakpoints, critique against the package, fix the highest-impact failure, and recheck
+
+### Container & Border Decision Rules
+
+1. Default to an open region. Use typography, spacing, alignment, grid, or a deliberate background change before adding a box.
+2. Use a card only for a self-contained, modular subject that can stand independently and usually has its own action, state, or destination. Sequential prose, a simple call to action, or tabular data does not become a card merely to gain a border.
+3. At each nesting level, choose one primary grouping cue: whitespace, alignment, background, divider or border, or elevation. Stacking cues requires a named hierarchy, interaction, or state reason.
+4. Allow a persistent border when it communicates a control boundary, data structure, focus, selection, validation, status, or necessary contrast. "Decoration," "visual interest," and "make it pop" are not valid purposes.
+5. Avoid bordered containers inside bordered containers. Keep the inner border only when it represents an independent interactive, scrollable, selectable, or stateful region.
+6. Do not use decorative colored side rails, accent stripes, dashed frames, double frames, or arbitrary corner treatments as generic section styling.
+7. Do not remove borders or outlines needed for form controls, keyboard focus, error identification, selected state, data comprehension, or non-text contrast.
+
+Use the removal test: temporarily remove a container, border, shadow, or accent. If hierarchy, interaction, state, and comprehension remain clear, leave it out.
+
+Research basis checked on 2026-07-17:
+
+- [Puck's constrained UI guidance](https://puckeditor.com/blog/ai-slop-vs-constrained-ui) supports explicit component, schema, and composition boundaries for generated interfaces.
+- [U.S. Web Design System card guidance](https://designsystem.digital.gov/components/card/) defines cards as modular, single-subject content and says not to use them only for decoration.
+- [GOV.UK focus-state guidance](https://design-system.service.gov.uk/get-started/focus-states/) shows why visible borders and outlines must remain when they communicate keyboard focus and contrast.
+- [SmoothUI's AI design slop review](https://smoothui.dev/blog/ai-design-slop) recommends a guardrail, critique, repair, and recheck loop instead of a one-shot checklist.
+
 ## Anti-Generic Review
 
 Review the system and every important mockup for unsupported clusters of common AI-generated UI patterns:
@@ -69,6 +101,7 @@ Repair generic results in this order:
    Remove repeated borders and accent rails before inventing a new decorative replacement.
 4. Apply the product's signature typography, layout, color, imagery, or interaction decisions.
 5. Recheck responsive behavior, accessibility, and platform conventions.
+6. Render again, compare against the taste statement and acceptance gates, and repeat until the package passes or the remaining constraint is explicit.
 
 ## Design System Coverage
 

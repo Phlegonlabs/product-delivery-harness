@@ -18,14 +18,14 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 3. Conduct a concise design interview unless the user explicitly says to skip questions, make assumptions, or draft a first pass immediately.
 4. Classify the design target: SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid.
 5. After discovery, read `references/output-contract.md` and `references/visual-decision-guide.md`. Read `references/icon-system-guide.md` whenever icons are in scope or the icon source is unresolved. Read `references/motion-system-guide.md` whenever motion is requested, implied by a visual direction, or needed to explain hierarchy or state.
-6. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, choose signature design decisions, identify generic defaults to avoid, define realistic content constraints and landing-page content budgets, select an icon direction from the actual semantic inventory, and give every image, media asset, and motion pattern a stated purpose.
+6. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, write a one-sentence taste statement, choose signature design decisions, identify generic defaults to avoid, define the container and border logic, define realistic content constraints and landing-page content budgets, select an icon direction from the actual semantic inventory, and give every image, media asset, and motion pattern a stated purpose.
 7. Produce the design package:
    - `design-system.md`
    - `page-ui-matrix.md`
    - `ui-mockups.md`
    - `visual-acceptance.md`
    - Optional runnable `motion-showcase.html` or bounded files under `motion-demos/` when motion demonstration is requested
-8. Run both the quality checklist and the anti-generic review in `references/output-contract.md` before finalizing.
+8. Run both the quality checklist and the taste and anti-slop review in `references/output-contract.md` before finalizing. Critique, repair the highest-impact failure, and recheck until the package passes or an unresolved constraint is recorded.
 
 ## Input Boundaries
 
@@ -48,8 +48,12 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 
 - Prefer implementation-ready design rules over mood words.
 - Define a product-specific visual thesis with three to five concrete brand or context cues, at least two signature design decisions, and explicit anti-patterns. Tie each decision to source evidence or a stated assumption.
+- Add a one-sentence taste statement that names the intended visual character and the compositional choices that create it. Do not accept empty adjectives such as "clean," "modern," or "premium" without concrete typography, layout, color, imagery, or interaction consequences.
 - Treat common patterns as risks only when they are unsupported or clustered into a generic composition. Do not mechanically ban gradients, rounded cards, pills, centered layouts, glass effects, or familiar fonts when the brand or interaction model justifies them.
-- Do not use repeated bordered cards or panels with a colored side rail or accent stripe as a generic section treatment. Allow the pattern only when the rail communicates a named state, selection, priority, category, or approved brand motif, and document where it may appear.
+- Default page regions to open layouts organized by typography, spacing, alignment, and deliberate background changes. Do not wrap content merely because it forms a section.
+- Use one primary grouping cue at each nesting level: whitespace, alignment, background, divider or border, or elevation. Combining several cues requires a named hierarchy, interaction, or state reason.
+- Give every persistent border or elevated container a documented purpose. Valid purposes include a control boundary, independently actionable modular content, data separation, focus, selection, validation, status, or necessary contrast. "Decoration," "visual interest," and "make it pop" do not pass.
+- Do not use repeated bordered cards or panels with a colored side rail or accent stripe as a generic section treatment. Allow the pattern only when the rail communicates a named state, selection, priority, category, or approved brand motif, and document where it may appear. Do not remove borders or outlines required for controls, focus visibility, data comprehension, or accessibility.
 - Use realistic, domain-specific labels, data shapes, content lengths, and asset requirements. Do not invent vague benefit copy, fake metrics, testimonials, or social proof to make a mockup look complete.
 - Preserve exact wording supplied by product sources. When wording is unavailable or content is data-driven, carry forward a bounded display contract that states what the region must show, the intended user takeaway or action, the source, and relevant format or length constraints. Do not replace either mode with generic mockup copy.
 - For public websites, marketing pages, and landing pages, default to KISS: one clear value proposition and one primary action in the first viewport, one job per section, and only the content needed to understand the offer, establish necessary trust, answer a blocking objection, or take the next step. Defer secondary detail to deeper pages, docs, or a bounded FAQ instead of turning the landing page into a summary of the whole PRD.
@@ -66,5 +70,6 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 - Define component variants and states: loading, empty, error, disabled, hover, focus, active, selected, expanded, long content, permission denied, and responsive overflow where applicable.
 - Map every important page or route to UI source, breakpoints, states, components, data source, and acceptance evidence.
 - Require each important page mockup to show how the shared signature decisions appear without weakening task hierarchy, accessibility, or platform conventions.
+- Require each important page mockup to identify its default container treatment and justify any visible border, accent rail, nested frame, or elevation. If removing a treatment causes no loss of hierarchy, interaction, state, or comprehension, remove it.
 - Keep high-fidelity mockups as page-level specifications or generated visual artifacts. Do not claim pixel fidelity unless an actual visual reference or generated mockup exists.
 - Keep visual assumptions explicit and avoid hiding missing brand or asset decisions in confident prose.
