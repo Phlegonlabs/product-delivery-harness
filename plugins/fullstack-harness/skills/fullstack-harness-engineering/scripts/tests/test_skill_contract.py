@@ -9,6 +9,35 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
+    def test_project_size_gate_keeps_small_work_direct(self) -> None:
+        skill = self.read("SKILL.md")
+        research = self.read("references/orchestration-research-notes.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        agent = self.read("agents/openai.yaml")
+        readme = (SKILL_ROOT.parents[2] / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("## Project Size Gate", skill)
+        self.assertIn("small -> direct inspect", skill)
+        self.assertIn("large -> planner", skill)
+        self.assertIn("Small work creates no PLAN/RUN files", skill)
+        self.assertIn("scheduler fan-out only when", skill)
+        self.assertIn("two-way project-size gate", research)
+        self.assertIn("Small work never reaches this selector", selector)
+        self.assertIn("Small direct work does not instantiate this file", runbook)
+        self.assertIn("classify the project as small or large", agent)
+        self.assertIn("The delivery skill makes one size decision", readme)
+
+    def test_external_claude_bridge_is_preflighted_on_demand(self) -> None:
+        skill = self.read("SKILL.md")
+        research = self.read("references/orchestration-research-notes.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("Do not probe an external runtime merely because it may be available", skill)
+        self.assertIn("only when the user or selected ready-node policy calls for external Claude", skill)
+        self.assertIn("does not preflight Claude merely because its CLI is installed", research)
+        self.assertIn("preflight Claude only for a selected Claude route", agent)
+
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
         skill = self.read("SKILL.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")

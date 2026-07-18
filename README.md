@@ -23,11 +23,13 @@ It is not just a collection of prompts. The plugin separates product definition,
 | `design-package-builder` | Design direction, tokens, icon and motion rules, page specs, and visual acceptance | `design-system.md`, `page-ui-matrix.md`, `ui-mockups.md`, `visual-acceptance.md` |
 | `fullstack-harness-engineering` | Traceable implementation planning, safe multi-agent execution, verification, and PR landing | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 
-The delivery skill chooses the lightest workflow that fits the task:
+The delivery skill makes one size decision before it invokes managed orchestration:
 
-- Direct work for a small, explicit change.
-- `RUN.md` for a medium sequential task.
-- `PLAN.md` and `RUN.md` for a larger delivery with dependencies, multiple missions, or durable handoff.
+- Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
+- Large work enters managed planning. It may use `RUN.md` for a sequential delivery or `PLAN.md` and `RUN.md` for multiple missions and durable handoff.
+- Scheduler fan-out starts only when a large plan has at least two independent ready missions. External Claude is preflighted only when a selected route needs it.
+
+Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
 ## How the system fits together
 
@@ -231,7 +233,9 @@ Use $fullstack-harness-engineering to review the existing app, plan the work, an
 
 ### 交付原則
 
-Harness 會依任務大小選擇最小流程：小改動直接處理；中型工作使用 `RUN.md`；有多個任務、依賴或交接需求時使用 `PLAN.md` 與 `RUN.md`。
+Harness 會先把工作分成小項目或大項目。小項目直接處理，預設不啟動 planner、scheduler、PLAN/RUN、subagent 或外部 runtime preflight。大項目才進入 managed planning；只有存在兩個以上可獨立執行的 ready missions 時才啟動 scheduler。Claude bridge 也只會在選定的 route 確實需要 Claude 時 preflight。
+
+大小看的是協調範圍與影響面，不是單純計算檔案數或程式碼行數。小項目途中變大時，Harness 會保留已完成的工作，只規劃剩餘範圍。
 
 多 agent 寫入預設最多三個 mission，且每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
 

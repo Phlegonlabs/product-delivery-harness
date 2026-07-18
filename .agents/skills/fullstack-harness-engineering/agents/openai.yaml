@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
-  short_description: "Plan and run typed Codex or Claude delivery graphs"
-  default_prompt: "Use $fullstack-harness-engineering to freeze hashed upstream sources, build a typed PLAN/RUN graph, split frontend and backend implementation and review when both surfaces exist, add SHA-bound visual review for UI work, select authorized ready nodes within shared runtime capacity, bind Codex or Claude models and effort with fallback, validate results, and integrate verified work."
+  short_description: "Route small work directly and plan large delivery graphs"
+  default_prompt: "Use $fullstack-harness-engineering to classify the project as small or large before invoking managed orchestration. Keep small work direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default. For large work, freeze hashed upstream sources, build a typed PLAN/RUN graph when needed, select authorized ready nodes within shared runtime capacity, preflight Claude only for a selected Claude route, validate results, and integrate verified work."
 policy:
   allow_implicit_invocation: true
