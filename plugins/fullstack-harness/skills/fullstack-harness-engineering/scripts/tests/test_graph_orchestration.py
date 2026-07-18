@@ -39,8 +39,9 @@ def graph_node(
     providers: list[str] | None = None,
     preferred: str | None = None,
     provider_options: dict[str, object] | None = None,
+    authorization_target: str | None = None,
 ) -> dict[str, object]:
-    return {
+    node = {
         "id": node_id,
         "kind": kind,
         "ref": ref,
@@ -57,6 +58,9 @@ def graph_node(
             else None
         ),
     }
+    if authorization_target is not None:
+        node["authorization_target"] = authorization_target
+    return node
 
 
 def valid_graph_plan() -> dict[str, object]:
@@ -419,6 +423,7 @@ class GraphManifestTests(unittest.TestCase):
             "deploy",
             "harness_parent",
             ["pass", "blocked"],
+            authorization_target="environment:development",
         )
         plan["graph"]["nodes"].append(lifecycle)
         plan["graph"]["entry_nodes"].append(lifecycle["id"])
@@ -439,6 +444,9 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         authorize(run, "deploy", mission_ids, "environment:development")
+        run["authorizations"]["deploy"]["scope"]["targets"].append(
+            "environment:production"
+        )
 
         result = select_ready_nodes(plan, run)
         directive = next(
@@ -449,8 +457,80 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertEqual("run_lifecycle_action", directive["launch_kind"])
         self.assertEqual(["deploy"], directive["required_actions"])
+        self.assertEqual("environment:development", directive["authorization_target"])
         self.assertEqual(
             ["environment:development"], directive["authorization_targets"]
+        )
+
+    def test_lifecycle_node_defers_when_authorization_target_is_ambiguous(self) -> None:
+        plan = valid_graph_plan()
+        lifecycle = graph_node(
+            "N-DEPLOY",
+            "lifecycle",
+            "deploy",
+            "harness_parent",
+            ["pass", "blocked"],
+        )
+        plan["graph"]["nodes"].append(lifecycle)
+        plan["graph"]["entry_nodes"].append(lifecycle["id"])
+        run = valid_graph_run(plan)
+        mission_ids = ["M1", "M2"]
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": mission_ids,
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        authorize(run, "deploy", mission_ids, "environment:development")
+        run["authorizations"]["deploy"]["scope"]["targets"].append(
+            "environment:production"
+        )
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertNotIn(
+            lifecycle["id"],
+            [item["node_id"] for item in result["dispatchable_nodes"]],
+        )
+        self.assertEqual(
+            ["authorization_target_ambiguous"],
+            {
+                item["node_id"]: item["reason_codes"]
+                for item in result["deferred_nodes"]
+            }[lifecycle["id"]],
+        )
+
+    def test_authorization_target_is_lifecycle_only_and_typed(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["authorization_target"] = "environment:development"
+        self.assertTrue(
+            any(
+                "must be omitted unless the node is lifecycle" in error
+                for error in validate_plan(plan)
+            )
+        )
+
+        plan = valid_graph_plan()
+        lifecycle = graph_node(
+            "N-DEPLOY",
+            "lifecycle",
+            "deploy",
+            "harness_parent",
+            ["pass", "blocked"],
+            authorization_target="development",
+        )
+        plan["graph"]["nodes"].append(lifecycle)
+        plan["graph"]["entry_nodes"].append(lifecycle["id"])
+        self.assertTrue(
+            any("has an unsupported target" in error for error in validate_plan(plan))
         )
 
     def test_runtime_reviews_require_authorization_and_share_runtime_capacity(self) -> None:

@@ -689,7 +689,13 @@ def _validate_graph(
     else:
         for index, node in enumerate(value["nodes"]):
             node_path = f"{path}.nodes[{index}]"
-            if not _keys(errors, node_path, node, node_keys, {"review"}):
+            if not _keys(
+                errors,
+                node_path,
+                node,
+                node_keys,
+                {"review", "authorization_target"},
+            ):
                 continue
             node_id = node["id"]
             if not _nonempty_string(node_id) or not ID_RE.fullmatch(node_id):
@@ -787,11 +793,41 @@ def _validate_graph(
                     _add(errors, f"{node_path}.executor", "lifecycle requires harness_parent")
                 if ref not in AUTHORIZATION_KEYS_V8:
                     _add(errors, f"{node_path}.ref", "must reference an authorization action")
+                if "authorization_target" in node:
+                    target = node["authorization_target"]
+                    if not _nonempty_string(target):
+                        _add(
+                            errors,
+                            f"{node_path}.authorization_target",
+                            "must be a non-empty string",
+                        )
+                    elif target.startswith("future-pr:"):
+                        if (
+                            ref not in {"manage_pr_review", "merge_pr"}
+                            or not FUTURE_PR_TARGET_RE.fullmatch(target)
+                        ):
+                            _add(
+                                errors,
+                                f"{node_path}.authorization_target",
+                                "has an unsupported target",
+                            )
+                    elif not TARGET_RE.fullmatch(target):
+                        _add(
+                            errors,
+                            f"{node_path}.authorization_target",
+                            "has an unsupported target",
+                        )
             if kind != "verifier" and node.get("review") is not None:
                 _add(
                     errors,
                     f"{node_path}.review",
                     "must be omitted unless a verifier uses runtime_worker",
+                )
+            if kind != "lifecycle" and "authorization_target" in node:
+                _add(
+                    errors,
+                    f"{node_path}.authorization_target",
+                    "must be omitted unless the node is lifecycle",
                 )
 
             runtime = node["runtime"]

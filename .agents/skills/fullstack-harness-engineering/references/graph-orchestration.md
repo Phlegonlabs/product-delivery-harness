@@ -43,6 +43,8 @@ external_wait -> CI, review, deployment, or other observed external state
 lifecycle     -> one authorization-ledger action owned by the parent
 ```
 
+A lifecycle node may set `authorization_target` to the exact ledger target it represents. If it omits the field, the selector may infer a target only when that action has exactly one authorized target. Multiple authorized targets without a node binding are ambiguous and remain deferred, so development, production, PR, remote, and cleanup stages cannot collapse into one directive.
+
 Use these executors:
 
 ```text

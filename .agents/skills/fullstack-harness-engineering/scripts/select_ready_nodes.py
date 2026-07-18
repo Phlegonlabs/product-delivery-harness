@@ -186,6 +186,16 @@ def _authorization_targets(run: dict[str, Any], action: str) -> list[str]:
     return sorted(target for target in targets if isinstance(target, str))
 
 
+def _lifecycle_authorization_target(
+    node: dict[str, Any], run: dict[str, Any]
+) -> str | None:
+    configured = node.get("authorization_target")
+    if isinstance(configured, str) and configured:
+        return configured
+    targets = _authorization_targets(run, node["ref"])
+    return targets[0] if len(targets) == 1 else None
+
+
 def _required_actions(
     node: dict[str, Any], binding: dict[str, Any], runtime: dict[str, Any]
 ) -> list[str]:
@@ -246,11 +256,13 @@ def _dispatch_reasons(
     if node["kind"] == "lifecycle":
         mission_ids = sorted(run["mission_states"])
         targets = _authorization_targets(run, node["ref"])
-        if not targets or any(
-            not any(
-                _action_authorized(run, node["ref"], mission_id, target)
-                for target in targets
+        target = _lifecycle_authorization_target(node, run)
+        if target is None:
+            reasons.add(
+                "authorization_target_ambiguous" if len(targets) > 1 else "action_not_authorized"
             )
+        elif any(
+            not _action_authorized(run, node["ref"], mission_id, target)
             for mission_id in mission_ids
         ):
             reasons.add("action_not_authorized")
@@ -266,11 +278,13 @@ def _directive(
     if node["kind"] == "external_wait":
         return {**base, "launch_kind": "poll_external"}
     if node["kind"] == "lifecycle":
+        target = _lifecycle_authorization_target(node, run)
         return {
             **base,
             "launch_kind": "run_lifecycle_action",
             "required_actions": [node["ref"]],
-            "authorization_targets": _authorization_targets(run, node["ref"]),
+            "authorization_target": target,
+            "authorization_targets": [target] if target is not None else [],
         }
     if node["kind"] == "verifier" and node["executor"] != "runtime_worker":
         return {**base, "launch_kind": "run_verifier"}
