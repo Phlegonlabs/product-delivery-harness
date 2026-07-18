@@ -145,6 +145,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_cloudflare_release_uses_two_isolated_exact_sha_workers(self) -> None:
         skill = self.read("SKILL.md")
         lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
+        state_model = self.read("references/execution-state-model.md")
         plan_template = self.read("assets/templates/HARNESS_PLAN.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         deploy_workflow = self.read(
@@ -160,6 +161,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"release"', plan_template)
         self.assertIn("schema v7", runbook)
         self.assertIn('"deployments"', runbook)
+        self.assertIn("version support does not enable Cloudflare release state by itself", runbook)
+        self.assertIn("required only when a schema-v3 PLAN declares `release`", runbook)
+        self.assertIn("Schema version alone does not enable release behavior", state_model)
         self.assertIn("workflow_dispatch:", deploy_workflow)
         self.assertIn("source_sha:", deploy_workflow)
         self.assertIn("cloudflare/wrangler-action@v3", deploy_workflow)

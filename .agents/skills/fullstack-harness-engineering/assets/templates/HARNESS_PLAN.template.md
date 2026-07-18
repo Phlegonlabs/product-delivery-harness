@@ -256,7 +256,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 }
 ```
 
-The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v3; schema v2 plans remain readable without `release`. Keep the JSON valid, increment `revision` after an accepted semantic plan change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
+The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v3. Keep the displayed `release` object only for a deployable Cloudflare plan; remove the whole object for non-Cloudflare or non-deployable work. Schema version exposes the field but does not enable it by itself. Schema v2 plans remain readable without `release`. Keep the JSON valid, increment `revision` after an accepted semantic plan change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
 
 Use immutable, flat task IDs such as `M1/T01`. Represent lineage only with `parent_task`; use `legacy_task_ids` only for real pre-existing identifiers. A generation-0 task may be replaced by generation-1 children, but generation-1 tasks must not split again without a mission-level replan. When accepted refinement replaces a task, set its `replaced_by`, give each child `parent_task`, `split_reason`, and `refinement_generation: 1`, then increment the plan revision and revalidate the complete graph.
 

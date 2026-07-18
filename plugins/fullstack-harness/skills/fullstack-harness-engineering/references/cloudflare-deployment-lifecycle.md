@@ -11,7 +11,7 @@ merged main SHA -> production Worker -> production smoke
 
 ## Static Release Contract
 
-New PLAN files use schema v3 and define `release.provider: cloudflare` with exactly two targets:
+Cloudflare release PLAN files use schema v3 and define `release.provider: cloudflare` with exactly two targets. Non-Cloudflare or non-deployable schema-v3 plans omit `release` instead of inheriting Cloudflare behavior:
 
 - `development` uses `source: pr_head`, a `development` Wrangler environment, an isolated non-production Worker, sandbox payment credentials when payment applies, development auth configuration, and non-production storage.
 - `production` uses `source: merged_main`, a `production` Wrangler environment, the production Worker, live payment credentials when payment applies, production auth configuration, and production storage.
@@ -22,7 +22,7 @@ Use the repository's Wrangler config as the application deployment source of tru
 
 ## Live Deployment State
 
-Every schema-v3 PLAN release uses a schema-v7 RUN; an older RUN schema cannot close a declared release without deployment state. `deployments.development` and `deployments.production` record:
+Every schema-v3 PLAN that declares a release uses a schema-v7 RUN with `deployments`; an older RUN schema cannot close a declared release without deployment state. Schema-v7 RUN files without a release PLAN omit `deployments`. `deployments.development` and `deployments.production` record:
 
 ```text
 status
