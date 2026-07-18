@@ -20,6 +20,17 @@ Every architecture should cover:
 - Observability, metrics, alerting, and audit logs.
 - Scaling, reliability, idempotency, retries, and rate limits.
 
+## Default Cloudflare Release Pattern
+
+For a deployable product, use Cloudflare as the default platform unless the user or current repository names another target. Keep one repository and one codebase, then promote exact commits through two separately named Workers:
+
+| Target | Release source | Runtime and data boundary | Required proof |
+| --- | --- | --- | --- |
+| Development | Current pull-request head after current-head CI | Development Worker; isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Migration result when applicable, deployed URL/version, automated checks, and development smoke |
+| Production | Exact merged base-branch SHA after development passes | Production Worker; production bindings, secrets, data, auth, and live payment credentials | Migration result when applicable, deployed URL/version, production smoke, monitoring signal, and rollback version |
+
+Do not model development as a second codebase or a long-lived development branch by default. Do not let a development Worker access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward-compatibility needs, secret ownership, rollback, and which evidence becomes stale after a new commit or deployment.
+
 ## Web App Pattern
 
 Use for browser-based SaaS, marketplaces, dashboards, portals, and public web products.
@@ -83,4 +94,5 @@ Use when the product is mainly a service consumed by other systems.
 - Specify authorization at both UI and backend layers.
 - For a browser frontend, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
+- For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact PR-head-to-merged-main promotion path.
 - Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

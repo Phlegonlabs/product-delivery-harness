@@ -18,9 +18,11 @@
 ## Landing
 
 - [ ] Complete diff reviewed locally before push
+- [ ] When Cloudflare deployment is in scope, the exact current PR head passed development Worker smoke with isolated non-production data, auth, and payments
 - [ ] PR is ready for review
 - [ ] Codex reviewed the current PR head
 - [ ] Blocking findings and unresolved threads are zero
 - [ ] Auto-merge is SHA-bound and enabled only after all landing gates pass, or is not authorized
 - [ ] Merge and deploy remain separate authorized actions
+- [ ] When Cloudflare production deployment is in scope, it will use the exact merged base SHA and separate production bindings, secrets, auth, and payments
 - [ ] Post-merge local branch/worktree cleanup is complete, deferred, or not authorized

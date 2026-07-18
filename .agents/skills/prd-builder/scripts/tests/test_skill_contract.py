@@ -66,6 +66,24 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertIn("official-source verification date", architecture)
 
+    def test_cloudflare_default_records_isolated_promotion_contract(self) -> None:
+        skill = self.read("SKILL.md")
+        architecture = self.read("references/architecture-playbook.md")
+        frontend = self.read("references/frontend-stack-selection.md")
+        contract = self.read("references/output-contract.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("default the deployment platform to Cloudflare", skill)
+        self.assertIn("## Default Cloudflare Release Pattern", architecture)
+        self.assertIn("one repository and one codebase", architecture)
+        self.assertIn("separately named development and production Workers", frontend)
+        self.assertIn("Current PR head after current-head CI", contract)
+        self.assertIn("Exact merged base-branch SHA after development PASS", contract)
+        for content in (skill, architecture, frontend, contract, agent):
+            self.assertIn("development", content.lower())
+            self.assertIn("production", content.lower())
+            self.assertIn("cloudflare", content.lower())
+
     def test_wireframes_keep_landing_pages_simple_and_label_media(self) -> None:
         skill = self.read("SKILL.md")
         agent = self.read("agents/openai.yaml")
@@ -116,6 +134,21 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("## Wireframe Direction", contract)
         self.assertIn("Layout pattern:", contract)
         self.assertIn("modern-minimal assumption", agent)
+
+    def test_builder_ux_direction_precedes_wireframes_without_claiming_validation(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, interview, guide, contract, agent):
+            self.assertIn("Builder UX Direction", content)
+        self.assertIn("before drafting wireframes", skill)
+        self.assertIn("guided or flexible", interview)
+        self.assertIn("## Builder UX Direction Gate", guide)
+        self.assertIn("selected / provisional / assumed", contract)
+        self.assertIn("not usability proof", agent)
 
 
 if __name__ == "__main__":

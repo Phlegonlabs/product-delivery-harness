@@ -25,6 +25,15 @@
 - After a merged PR, re-fetch the base and verify the exact PR head before cleanup. Remove only an authorized clean linked worktree, switch the primary checkout to the base branch, then delete only the authorized local feature branch. Never remove the primary checkout.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal remain separate ledger actions even when several are approved in one explicit readiness statement.
 
+## Cloudflare Release Flow
+
+- For deployable Cloudflare applications, use one codebase with isolated `development` and `production` Workers and environment-specific storage, secrets, auth configuration, payment mode, routes, and webhooks.
+- Deploy the exact current PR head to `environment:development` only after current-head CI passes and matching `deploy` authorization is present. A new push makes the development deployment and its E2E evidence stale.
+- Require development migration and deployed-environment E2E PASS before merge. Development uses non-production data and payment sandbox mode when payment applies.
+- Deploy the exact merged `<base-branch>` SHA to `environment:production` only after GitHub reports the PR merged and matching production deploy authorization is present. Production smoke must pass before release completion.
+- Use the exact-SHA dispatched Cloudflare deployment workflow. Do not make an arbitrary branch push or base-branch push an unconditional deployment path, and do not infer deploy authorization from push or merge.
+- Keep Wrangler configuration as the repository source of truth. Never store Cloudflare tokens or environment secret values in PLAN, RUN, workflow files, or committed dotenv files.
+
 ## Review Guidelines
 
-Treat authorization bypasses, direct base-branch landing, stale check/review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.
+Treat authorization bypasses, direct base-branch landing, stale check/review/deployment SHAs, cross-environment data or secret reuse, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.

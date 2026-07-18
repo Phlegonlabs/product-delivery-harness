@@ -22,7 +22,7 @@ If a requested combination is unsupported, downgrade to sequential parent execut
 
 ## Runtime Adapter Routing
 
-Schema v6 records the observed provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
+Schemas v6 and v7 record the observed provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
 
 ```text
 provider: codex | claude_code | generic
@@ -175,7 +175,7 @@ When no safe set exists, run the next dependency-ready mission sequentially. Par
 
 ## Launch Selected Claude Dynamic Workflow
 
-When the accepted schema-v6 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
+When the accepted schema-v6-or-v7 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
 
 1. Confirm Dynamic Workflow is available in the current Claude Code runtime. Treat version support and observed command availability as capability evidence, not authorization.
 2. Allocate one authorized parent-managed worktree, durable branch, worker ID, and lease per selected mission from the fixed `batch_base_sha`. The parent owns these mutations and records the concrete identities in RUN.
@@ -184,7 +184,7 @@ When the accepted schema-v6 wave routes to `claude_code` + `dynamic_workflow`, u
 5. Do not ask for user input inside the workflow. A mission that needs a contract decision or refined tasks returns a blocked/refinement result; the parent updates PLAN/RUN and starts a later workflow after the decision.
 6. Validate every result against live worktree, branch, head, scope, and verifier facts. Integrate accepted mission heads serially and recompute the next wave.
 
-Claude Code currently supports nested subagents, but this schema-v6 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, push, or land a PR. If Dynamic Workflow is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
+Claude Code currently supports nested subagents, but this schema-v6-or-v7 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, push, or land a PR. If Dynamic Workflow is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
 
 ## Launch Selected Codex App Threads
 
@@ -245,7 +245,7 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Integrate worker results serially into one final parent branch. Worker branches and worktrees do not push or open PRs unless the plan defines a separate landing target.
 - Review the final diff locally and rerun final gates before any outward-facing landing action. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
 - In pull-request mode, `integration.branch` and `landing.head_branch` must name the same final feature branch, and that branch must differ from `landing.base_branch`. Never push the base branch directly. Push the final feature/integration branch, create a Draft PR, wait for CI, then use `manage_pr_review` authorization to mark it ready and request GitHub review.
-- When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in schema v4 through v6 and reset it after any new push or changed integration head.
+- When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in schema v4 through v7 and reset it after any new push or changed integration head.
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
 - Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and request review again.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.

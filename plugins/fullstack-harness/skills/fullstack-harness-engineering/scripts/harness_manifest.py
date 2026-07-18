@@ -407,6 +407,142 @@ def _validate_verifier(errors: list[str], path: str, value: Any) -> None:
     _strings(errors, f"{path}.argv", value["argv"], nonempty=True)
 
 
+def _validate_release(errors: list[str], value: Any) -> None:
+    path = "plan.release"
+    if not _keys(errors, path, value, {"provider", "targets"}):
+        return
+    if value["provider"] != "cloudflare":
+        _add(errors, f"{path}.provider", "must equal cloudflare")
+    if not isinstance(value["targets"], list) or len(value["targets"]) != 2:
+        _add(errors, f"{path}.targets", "must contain development and production")
+        return
+
+    targets: dict[str, dict[str, Any]] = {}
+    target_keys = {
+        "id",
+        "source",
+        "worker_name",
+        "wrangler_config_path",
+        "wrangler_environment",
+        "data_mode",
+        "payment_mode",
+        "auth_mode",
+        "prerequisites",
+        "migration_command",
+        "deploy_command",
+        "smoke_verifiers",
+    }
+    for index, target in enumerate(value["targets"]):
+        target_path = f"{path}.targets[{index}]"
+        if not _keys(errors, target_path, target, target_keys):
+            continue
+        target_id = target["id"]
+        if not isinstance(target_id, str) or target_id not in (
+            "development",
+            "production",
+        ):
+            _add(errors, f"{target_path}.id", "must be development or production")
+            continue
+        if target_id in targets:
+            _add(errors, f"{target_path}.id", "must be unique")
+        targets[target_id] = target
+        for key in ("worker_name", "wrangler_config_path", "wrangler_environment"):
+            if not _nonempty_string(target[key]):
+                _add(errors, f"{target_path}.{key}", "must be a non-empty string")
+        config_path = target["wrangler_config_path"]
+        config_problem = validate_scope_claim(config_path)
+        if config_problem or (isinstance(config_path, str) and config_path.endswith("/**")):
+            _add(
+                errors,
+                f"{target_path}.wrangler_config_path",
+                config_problem or "must be an exact repository-relative path",
+            )
+        if target["wrangler_environment"] != target_id:
+            _add(errors, f"{target_path}.wrangler_environment", "must match id")
+        _strings(
+            errors,
+            f"{target_path}.prerequisites",
+            target["prerequisites"],
+            nonempty=True,
+        )
+        if target["migration_command"] is not None:
+            _validate_verifier(errors, f"{target_path}.migration_command", target["migration_command"])
+        _validate_verifier(errors, f"{target_path}.deploy_command", target["deploy_command"])
+        smoke = target["smoke_verifiers"]
+        if not isinstance(smoke, list) or not smoke:
+            _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
+        else:
+            for verifier_index, verifier in enumerate(smoke):
+                _validate_verifier(
+                    errors,
+                    f"{target_path}.smoke_verifiers[{verifier_index}]",
+                    verifier,
+                )
+
+    if set(targets) != {"development", "production"}:
+        _add(errors, f"{path}.targets", "must contain development and production")
+        return
+    development = targets["development"]
+    production = targets["production"]
+    if development["source"] != "pr_head":
+        _add(errors, f"{path}.targets.development.source", "must equal pr_head")
+    if production["source"] != "merged_main":
+        _add(errors, f"{path}.targets.production.source", "must equal merged_main")
+    if development["data_mode"] != "isolated_non_production":
+        _add(
+            errors,
+            f"{path}.targets.development.data_mode",
+            "must equal isolated_non_production",
+        )
+    if production["data_mode"] != "production":
+        _add(errors, f"{path}.targets.production.data_mode", "must equal production")
+    if development["payment_mode"] not in ("sandbox", "not_applicable"):
+        _add(
+            errors,
+            f"{path}.targets.development.payment_mode",
+            "must be sandbox or not_applicable",
+        )
+    if production["payment_mode"] not in ("live", "not_applicable"):
+        _add(
+            errors,
+            f"{path}.targets.production.payment_mode",
+            "must be live or not_applicable",
+        )
+    if development["auth_mode"] not in ("development", "not_applicable"):
+        _add(
+            errors,
+            f"{path}.targets.development.auth_mode",
+            "must be development or not_applicable",
+        )
+    if production["auth_mode"] not in ("production", "not_applicable"):
+        _add(
+            errors,
+            f"{path}.targets.production.auth_mode",
+            "must be production or not_applicable",
+        )
+    if development["worker_name"] == production["worker_name"]:
+        _add(errors, f"{path}.targets", "development and production worker_name must differ")
+    development_prerequisites = development["prerequisites"]
+    if not isinstance(development_prerequisites, list) or (
+        "current_head_ci" not in development_prerequisites
+    ):
+        _add(
+            errors,
+            f"{path}.targets.development.prerequisites",
+            "must include current_head_ci",
+        )
+    production_prerequisites = production["prerequisites"]
+    for prerequisite in ("development_pass", "merged_main"):
+        if not isinstance(production_prerequisites, list) or (
+            prerequisite not in production_prerequisites
+        ):
+            _add(
+                errors,
+                f"{path}.targets.production.prerequisites",
+                f"must include {prerequisite}",
+            )
+
+
 def _validate_scope_list(
     errors: list[str], path: str, value: Any, *, nonempty: bool = False
 ) -> list[str]:
@@ -464,10 +600,13 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "final_gates",
         "missions",
     }
+    schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
+    if schema_version == 3:
+        top_keys.add("release")
     if not _keys(errors, "plan", plan, top_keys):
         return sorted(errors)
-    if plan["schema_version"] != 2:
-        _add(errors, "plan.schema_version", "must equal 2")
+    if plan["schema_version"] not in {2, 3}:
+        _add(errors, "plan.schema_version", "must equal 2 or 3")
     if not _nonempty_string(plan["plan_id"]):
         _add(errors, "plan.plan_id", "must be a non-empty string")
     if not _is_int(plan["revision"]) or plan["revision"] < 1:
@@ -589,6 +728,9 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                     if verifier["id"] in ids:
                         _add(errors, f"plan.{group}[{index}].id", "must be unique")
                     ids.add(verifier["id"])
+
+    if plan["schema_version"] == 3:
+        _validate_release(errors, plan["release"])
 
     missions: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["missions"], list) or not plan["missions"]:
@@ -1005,6 +1147,151 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
                 f"{path}.auto_merge_head_sha",
                 "must be null when auto_merge_requested is false",
             )
+
+
+def _validate_deployments(
+    errors: list[str], value: Any, run: dict[str, Any], plan: dict[str, Any]
+) -> None:
+    path = "run.deployments"
+    if not _keys(errors, path, value, {"provider", "development", "production"}):
+        return
+    if value["provider"] != "cloudflare":
+        _add(errors, f"{path}.provider", "must equal cloudflare")
+
+    release = plan.get("release")
+    release_targets: dict[str, dict[str, Any]] = {}
+    if plan.get("schema_version") != 3 or not isinstance(release, dict):
+        _add(errors, path, "schema v7 RUN requires a schema v3 PLAN release contract")
+    elif release.get("provider") != value["provider"]:
+        _add(errors, f"{path}.provider", "must match PLAN release provider")
+    elif isinstance(release.get("targets"), list):
+        release_targets = {
+            target["id"]: target
+            for target in release["targets"]
+            if isinstance(target, dict)
+            and target.get("id") in ("development", "production")
+        }
+
+    status_values = ("not_started", "pending", "PASS", "FAIL", "BLOCKED")
+    migration_values = status_values + ("not_required",)
+    target_keys = {
+        "status",
+        "source_sha",
+        "worker_name",
+        "url",
+        "version_id",
+        "migration_status",
+        "verification_status",
+        "rollback_version",
+        "evidence",
+    }
+    targets: dict[str, dict[str, Any]] = {}
+    for target_id in ("development", "production"):
+        target = value[target_id]
+        target_path = f"{path}.{target_id}"
+        if not _keys(errors, target_path, target, target_keys):
+            continue
+        targets[target_id] = target
+        if target["status"] not in status_values:
+            _add(errors, f"{target_path}.status", "has an unsupported value")
+        if target["migration_status"] not in migration_values:
+            _add(errors, f"{target_path}.migration_status", "has an unsupported value")
+        if target["verification_status"] not in status_values:
+            _add(errors, f"{target_path}.verification_status", "has an unsupported value")
+        _optional_sha(errors, f"{target_path}.source_sha", target["source_sha"])
+        for key in ("worker_name", "url", "version_id", "rollback_version"):
+            _optional_string(errors, f"{target_path}.{key}", target[key])
+        declared_target = release_targets.get(target_id)
+        if (
+            target["worker_name"] is not None
+            and declared_target is not None
+            and target["worker_name"] != declared_target.get("worker_name")
+        ):
+            _add(errors, f"{target_path}.worker_name", "must match PLAN release target")
+        evidence = _strings(errors, f"{target_path}.evidence", target["evidence"])
+        if target["status"] == "not_started":
+            if any(
+                target[key] is not None
+                for key in (
+                    "source_sha",
+                    "worker_name",
+                    "url",
+                    "version_id",
+                    "rollback_version",
+                )
+            ):
+                _add(errors, target_path, "not_started deployment must not record release data")
+            if target["migration_status"] != "not_started":
+                _add(errors, target_path, "not_started deployment requires migration_status not_started")
+            if target["verification_status"] != "not_started":
+                _add(errors, target_path, "not_started deployment requires verification_status not_started")
+            if evidence:
+                _add(errors, target_path, "not_started deployment must not record evidence")
+        if target["status"] == "PASS":
+            if any(
+                not _nonempty_string(target[key])
+                for key in ("worker_name", "url", "version_id")
+            ) or not is_full_sha(target["source_sha"]):
+                _add(errors, target_path, "PASS requires source SHA, worker, URL, and version ID")
+            if target["migration_status"] not in ("PASS", "not_required"):
+                _add(errors, target_path, "PASS requires migration PASS or not_required")
+            if target["verification_status"] != "PASS":
+                _add(errors, target_path, "PASS requires verification_status PASS")
+            if not evidence:
+                _add(errors, target_path, "PASS requires retained evidence")
+            mission_states = run.get("mission_states", {})
+            mission_ids = list(mission_states) if isinstance(mission_states, dict) else []
+            if not mission_ids or any(
+                not authorization_covers(
+                    run,
+                    "deploy",
+                    mission_id,
+                    f"environment:{target_id}",
+                    preserve_completed_run_expiry=True,
+                )
+                for mission_id in mission_ids
+            ):
+                _add(
+                    errors,
+                    target_path,
+                    f"PASS requires deploy authorization for environment:{target_id}",
+                )
+
+    landing = run.get("landing")
+    development = targets.get("development")
+    production = targets.get("production")
+    if isinstance(landing, dict) and development is not None and development["status"] == "PASS":
+        if (
+            landing.get("pr_state") not in ("draft", "open", "merged")
+            or development["source_sha"] != landing.get("pr_head_sha")
+            or landing.get("checks_status") != "PASS"
+            or landing.get("checks_head_sha") != development["source_sha"]
+        ):
+            _add(
+                errors,
+                f"{path}.development",
+                "PASS must bind to the current PR head after current-head CI passes",
+            )
+    if isinstance(landing, dict) and production is not None and production["status"] == "PASS":
+        if development is None or development.get("status") != "PASS":
+            _add(errors, f"{path}.production", "PASS requires development PASS first")
+        if (
+            landing.get("pr_state") != "merged"
+            or landing.get("merge_status") != "merged"
+            or production["source_sha"] != landing.get("merged_sha")
+        ):
+            _add(
+                errors,
+                f"{path}.production",
+                "PASS must bind to the merged main SHA",
+            )
+    if run.get("status") == "complete" and (
+        development is None
+        or production is None
+        or development.get("status") != "PASS"
+        or production.get("status") != "PASS"
+    ):
+        _add(errors, path, "complete Cloudflare run requires development and production PASS")
 
 
 def _validate_post_merge_cleanup(
@@ -1494,12 +1781,20 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "attempt_log",
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
-    if schema_version in {3, 4, 5, 6}:
+    if schema_version in {3, 4, 5, 6, 7}:
         run_keys.add("landing")
-    if schema_version in {5, 6}:
+    if schema_version in {5, 6, 7}:
         run_keys.add("post_merge_cleanup")
-    if schema_version not in {2, 3, 4, 5, 6}:
-        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, or 6")
+    if schema_version == 7:
+        run_keys.add("deployments")
+    if schema_version not in {2, 3, 4, 5, 6, 7}:
+        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, or 7")
+    if (
+        plan.get("schema_version") == 3
+        and isinstance(plan.get("release"), dict)
+        and schema_version != 7
+    ):
+        _add(errors, "run.schema_version", "must equal 7 when PLAN declares release")
     if not _keys(errors, "run", run, run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
@@ -1545,7 +1840,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
     authorization_keys = (
-        AUTHORIZATION_KEYS if schema_version in {3, 4, 5, 6} else AUTHORIZATION_KEYS_V2
+        AUTHORIZATION_KEYS if schema_version in {3, 4, 5, 6, 7} else AUTHORIZATION_KEYS_V2
     )
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
@@ -1578,7 +1873,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         entry["scope"],
                         action=True,
                         action_name=action,
-                        allow_future_pr=(schema_version == 6),
+                        allow_future_pr=(schema_version in {6, 7}),
                     )
                     if isinstance(entry["scope"], dict) and entry["scope"].get("run_id") != run["run_id"]:
                         _add(errors, f"{path}.scope.run_id", "must match run_id")
@@ -1594,10 +1889,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
 
-    if schema_version in {3, 4, 5, 6}:
+    if schema_version in {3, 4, 5, 6, 7}:
         _validate_landing(errors, run["landing"], schema_version)
     if (
-        schema_version in {4, 5, 6}
+        schema_version in {4, 5, 6, 7}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
@@ -1640,8 +1935,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested exact PR does not match its authorized future PR binding",
             )
-    if schema_version in {5, 6}:
+    if schema_version in {5, 6, 7}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
+    if schema_version == 7:
+        _validate_deployments(errors, run["deployments"], run, plan)
 
     runtime_keys = {
         "worker_runtime",
@@ -1650,7 +1947,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "max_parallel_workers",
         "platform_lifecycle",
     }
-    if schema_version == 6:
+    if schema_version in {6, 7}:
         runtime_keys.add("runtime_adapter")
     runtime = run["runtime_capabilities"]
     if _keys(
@@ -1679,7 +1976,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
         adapter = runtime.get("runtime_adapter")
         adapter_path = "run.runtime_capabilities.runtime_adapter"
-        if schema_version == 6 and adapter is None:
+        if schema_version in {6, 7} and adapter is None:
             _add(errors, adapter_path, "must be an object")
         elif adapter is not None and _keys(
             errors,
@@ -1899,10 +2196,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "parent_dirty",
             "worktrees",
         }
-        if schema_version in {5, 6}:
+        if schema_version in {5, 6, 7}:
             observed_git_keys.add("parent_worktree_path")
         if _keys(errors, "run.observed.git", git, observed_git_keys):
-            if schema_version in {5, 6}:
+            if schema_version in {5, 6, 7}:
                 _optional_string(
                     errors,
                     "run.observed.git.parent_worktree_path",
@@ -1940,7 +2237,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
         if (
-            schema_version in {3, 4, 5, 6}
+            schema_version in {3, 4, 5, 6, 7}
             and isinstance(run["landing"], dict)
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
@@ -1956,7 +2253,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "pull_request mode requires integration.branch to match head_branch",
             )
         if (
-            schema_version in {3, 4, 5, 6}
+            schema_version in {3, 4, 5, 6, 7}
             and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"
@@ -2153,7 +2450,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
             if (
-                schema_version == 6
+                schema_version in {6, 7}
                 and isinstance(runtime, dict)
                 and route_runtime_driver(runtime) == "dynamic_workflow"
                 and nested_policy is not None

@@ -6,7 +6,7 @@ For every execution-authorized plan-backed multi-mission run, selection is the d
 
 ## Inputs And Output
 
-The selector reads only canonical machine data. In schema v6, provider routing comes from `runtime_capabilities.runtime_adapter`:
+The selector reads only canonical machine data. In RUN schema v6 and later, provider routing comes from `runtime_capabilities.runtime_adapter`:
 
 - Static `harness_plan` JSON from `PLAN.md`.
 - Mutable `harness_run` JSON from `RUN.md`.
@@ -22,12 +22,12 @@ plan_revision
 plan_digest_sha256
 batch_base_sha
 effective_worker_budget
-runtime_route (schema v6)
+runtime_route (RUN schema v6+)
 ready_frontier
 conflict_edges with reason codes
 selected_missions
 launch_directives
-wave_launch (schema v6 Claude Dynamic Workflow only)
+wave_launch (RUN schema v6+ Claude Dynamic Workflow only)
 deferred_missions with reason codes
 ```
 
@@ -230,7 +230,7 @@ For `launch_kind: "run_dynamic_workflow"`, the parent consumes the whole accepte
 5. Validate every returned result against the allocated lease and live Git facts, then integrate passing missions serially. A workflow-level exception or missing mission result leaves the affected mission blocked or failed; it is not a silent sequential success.
 6. When a mission needs human sign-off or task refinement, preserve its result as blocked or `REFINEMENT_REQUEST`, return control to the parent, update canonical state there, and start a later workflow. Dynamic Workflow does not support mid-run user input.
 
-Current Claude Code can support nested subagents, but schema v6 deliberately keeps Dynamic Workflow flat: the workflow is the single wave coordinator, every mission agent is a sibling and sole mission writer, and the adapter omits `nested_subagents`. This keeps the Harness worker budget, lease ownership, and result validation explicit. If Dynamic Workflow is unavailable, reroute deterministically to direct `subagents` when observed, otherwise to `sequential_parent`; never claim the workflow launched.
+Current Claude Code can support nested subagents, but RUN schema v6 and later deliberately keep Dynamic Workflow flat: the workflow is the single wave coordinator, every mission agent is a sibling and sole mission writer, and the adapter omits `nested_subagents`. This keeps the Harness worker budget, lease ownership, and result validation explicit. If Dynamic Workflow is unavailable, reroute deterministically to direct `subagents` when observed, otherwise to `sequential_parent`; never claim the workflow launched.
 
 ## Batch Integration And Recompute
 

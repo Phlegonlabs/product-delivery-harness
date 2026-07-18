@@ -22,6 +22,8 @@ Admin / operator surfaces:
 External integrations:
 Regulated or sensitive data:
 Release target:
+Development Worker and non-production resource boundary:
+Production Worker and production resource boundary:
 ```
 
 ## Authenticated App, Dashboard, Internal Tool, SaaS
@@ -37,6 +39,7 @@ Billing / entitlements: plans, limits, feature flags, subscription states, trial
 Admin / operator surfaces: impersonation policy, moderation, support actions, destructive actions
 Audit / observability: audit events, logs, metrics, alerts, data export/delete/retention
 Integrations: webhooks, background jobs, email, queues, object storage, third-party APIs
+Cloudflare release isolation: development uses non-production data, development auth, sandbox payments, and separate stateful bindings; production uses production data, production auth, live payments, and production bindings
 ```
 
 Common missions:
