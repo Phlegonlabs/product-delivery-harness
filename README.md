@@ -146,7 +146,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 | Codex app | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
 | Claude Code | Dynamic workflow with parent-managed worktrees | Direct subagents, then one sequential parent |
 
-Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Workers do not edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees unless that exact action is assigned and authorized.
+Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 
@@ -233,7 +233,7 @@ Use $fullstack-harness-engineering to review the existing app, plan the work, an
 
 Harness 會依任務大小選擇最小流程：小改動直接處理；中型工作使用 `RUN.md`；有多個任務、依賴或交接需求時使用 `PLAN.md` 與 `RUN.md`。
 
-多 agent 寫入預設最多三個 mission，且每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
+多 agent 寫入預設最多三個 mission，且每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
 
 ### 維護 repository
 
