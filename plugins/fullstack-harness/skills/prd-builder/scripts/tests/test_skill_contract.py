@@ -19,6 +19,19 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
         self.assertIn("when the product has a browser surface", agent)
 
+    def test_completed_prd_offers_opt_in_design_package_handoff(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn(
+            "ask whether the user wants to run `$design-package-builder` next",
+            skill,
+        )
+        self.assertIn("Do not invoke the design skill without an explicit yes", skill)
+        self.assertIn(
+            "do not offer the handoff while the PRD workflow is incomplete",
+            skill,
+        )
+
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
 
@@ -85,6 +98,24 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("bounded display responsibilities", interview)
         self.assertIn("specific style direction or animation", interview)
         self.assertIn("Required style and motion intent", interview)
+
+    def test_wireframes_ask_for_style_and_define_a_simple_fallback(self) -> None:
+        skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
+        interview = self.read("references/interview-guide.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("ask what overall style the user wants", skill)
+        self.assertIn("What overall visual character", interview)
+        self.assertIn("If the answer is only `modern`", interview)
+        self.assertIn("## Direction And Configuration", guide)
+        self.assertIn("record `modern-minimal` as provisional", guide)
+        self.assertIn("Do not accept `modern` as a complete layout decision", guide)
+        self.assertIn("Dashboard or monitoring screen", guide)
+        self.assertIn("## Wireframe Direction", contract)
+        self.assertIn("Layout pattern:", contract)
+        self.assertIn("modern-minimal assumption", agent)
 
 
 if __name__ == "__main__":

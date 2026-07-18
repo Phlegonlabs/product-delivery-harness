@@ -33,6 +33,8 @@ Ask only questions that are not already answered.
 7. UX expectations
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
+   - What overall visual character should the finished interface convey? Ask the user to choose or describe a direction instead of assuming one. Offer compact examples only when useful: modern minimal, editorial, utilitarian and dense, warm and human, bold and expressive, or an existing brand reference.
+   - If the answer is only `modern`, which concrete cues should define it: sparse or dense information, generous or compact spacing, quiet or expressive typography, restrained or vivid color, product imagery, and formal or friendly interaction tone?
    - Are there known design references or brand constraints?
    - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
    - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action?
@@ -67,6 +69,7 @@ Discovery is complete enough to draft when the agent can state:
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - The UI screens or interaction points that need wireframes.
 - Approved or draft exact wording and bounded display responsibilities for wireframed regions, or permission to derive them.
+- The requested overall interface style, or permission to record `modern-minimal` as a provisional assumption.
 - Required style and motion intent for visually important regions, or permission to derive it.
 - The success metrics and acceptance criteria.
 

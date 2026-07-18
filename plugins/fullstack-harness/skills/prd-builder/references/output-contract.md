@@ -173,6 +173,12 @@ Use this structure:
 ````markdown
 # Wireframes: [Product Name]
 
+## Wireframe Direction
+- Fidelity: Low
+- Product style intent: [User-selected direction, or provisional modern-minimal assumption]
+- Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
+- High-fidelity decisions deferred: [Tokens, typefaces, palette, detailed art direction, and other design-package decisions]
+
 ## Navigation Model
 [Primary navigation, tabs, routes, or channels.]
 
@@ -184,6 +190,12 @@ flowchart TD
 ```
 
 ## Screen: [Name]
+Purpose: [What user accomplishes here]
+
+Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern]
+
+Density: [Sparse / balanced / dense, with a task or content reason]
+
 ```text
 +------------------------------------------------+
 | Header                                         |
@@ -257,6 +269,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - The frontend decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
 - Any unresolved frontend stack decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
+- `wireframes.md` records the user-selected interface style, or an explicit provisional `modern-minimal` assumption when the user authorized assumptions. A `modern` direction is translated into concrete hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences.
+- Every important screen names a layout pattern and density justified by its primary task and content shape.
 - Every visible wireframe region contains either exact UI wording or a display contract covering what to show, the intended takeaway or action, the source, and relevant constraints. Generic placeholders do not pass validation.
 - Every visually important wireframe region names its style direction and purpose. Every animated region labels motion as required, optional, or none and states what it communicates.
 - ASCII boxes represent real grouping, interaction, state, or hierarchy. Repeated bordered panels with colored side rails or accent stripes are not implied without a named semantic or approved brand role.
