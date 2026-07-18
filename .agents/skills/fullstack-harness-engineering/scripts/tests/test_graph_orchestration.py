@@ -411,6 +411,48 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual("opus", result["wave_launches"][0]["model"])
         self.assertEqual(["N-M1"], result["wave_launches"][0]["node_ids"])
 
+    def test_lifecycle_node_honors_exact_authorization_target(self) -> None:
+        plan = valid_graph_plan()
+        lifecycle = graph_node(
+            "N-DEPLOY-DEVELOPMENT",
+            "lifecycle",
+            "deploy",
+            "harness_parent",
+            ["pass", "blocked"],
+        )
+        plan["graph"]["nodes"].append(lifecycle)
+        plan["graph"]["entry_nodes"].append(lifecycle["id"])
+        run = valid_graph_run(plan)
+        mission_ids = ["M1", "M2"]
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": mission_ids,
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        authorize(run, "deploy", mission_ids, "environment:development")
+
+        result = select_ready_nodes(plan, run)
+        directive = next(
+            item
+            for item in result["dispatchable_nodes"]
+            if item["node_id"] == lifecycle["id"]
+        )
+
+        self.assertEqual("run_lifecycle_action", directive["launch_kind"])
+        self.assertEqual(["deploy"], directive["required_actions"])
+        self.assertEqual(
+            ["environment:development"], directive["authorization_targets"]
+        )
+
     def test_runtime_reviews_require_authorization_and_share_runtime_capacity(self) -> None:
         plan = valid_graph_plan()
         reviews = []
@@ -547,7 +589,9 @@ class GraphManifestTests(unittest.TestCase):
         plan["required_reviews"] = ["frontend_code"]
         plan["graph"]["entry_nodes"].append(review["id"])
         run = valid_graph_run(plan)
-        run["integration"]["integration_head_sha"] = "a" * 40
+        run["integration"]["integration_head_sha"] = "c" * 40
+        run["mission_states"]["M1"]["integrated_sha"] = "a" * 40
+        run["mission_states"]["M2"]["integrated_sha"] = "b" * 40
         run["graph_state"]["node_states"][review["id"]].update(
             {
                 "phase": "running",
@@ -582,6 +626,16 @@ class GraphManifestTests(unittest.TestCase):
             }
         ]
         self.assertEqual([], validate_run(plan, run))
+        run["review_workers"][0]["reviewed_sha"] = "b" * 40
+        self.assertTrue(
+            any(
+                "must identify a reviewed mission" in error
+                for error in validate_run(plan, run)
+            )
+        )
+        run["review_workers"][0]["reviewed_sha"] = "c" * 40
+        self.assertEqual([], validate_run(plan, run))
+        run["review_workers"][0]["reviewed_sha"] = "a" * 40
         result = {
             "node_id": review["id"],
             "attempt_id": "ATT-REVIEW-1",

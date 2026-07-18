@@ -179,6 +179,13 @@ def _action_authorized(
     return authorization_covers(run, action, mission_id, target)
 
 
+def _authorization_targets(run: dict[str, Any], action: str) -> list[str]:
+    entry = run.get("authorizations", {}).get(action, {})
+    scope = entry.get("scope", {}) if isinstance(entry, dict) else {}
+    targets = scope.get("targets", []) if isinstance(scope, dict) else []
+    return sorted(target for target in targets if isinstance(target, str))
+
+
 def _required_actions(
     node: dict[str, Any], binding: dict[str, Any], runtime: dict[str, Any]
 ) -> list[str]:
@@ -238,7 +245,14 @@ def _dispatch_reasons(
                 reasons.add("action_not_authorized")
     if node["kind"] == "lifecycle":
         mission_ids = sorted(run["mission_states"])
-        if any(not _action_authorized(run, node["ref"], mission_id) for mission_id in mission_ids):
+        targets = _authorization_targets(run, node["ref"])
+        if not targets or any(
+            not any(
+                _action_authorized(run, node["ref"], mission_id, target)
+                for target in targets
+            )
+            for mission_id in mission_ids
+        ):
             reasons.add("action_not_authorized")
     return sorted(reasons)
 
@@ -252,7 +266,12 @@ def _directive(
     if node["kind"] == "external_wait":
         return {**base, "launch_kind": "poll_external"}
     if node["kind"] == "lifecycle":
-        return {**base, "launch_kind": "run_lifecycle_action", "required_actions": [node["ref"]]}
+        return {
+            **base,
+            "launch_kind": "run_lifecycle_action",
+            "required_actions": [node["ref"]],
+            "authorization_targets": _authorization_targets(run, node["ref"]),
+        }
     if node["kind"] == "verifier" and node["executor"] != "runtime_worker":
         return {**base, "launch_kind": "run_verifier"}
     if binding is None:

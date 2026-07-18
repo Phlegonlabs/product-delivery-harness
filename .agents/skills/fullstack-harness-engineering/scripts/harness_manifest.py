@@ -3371,21 +3371,33 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if worker["graph_revision"] != run["graph_state"]["graph_revision"]:
                     _add(errors, f"{path}.graph_revision", "must match the current graph revision")
                 _optional_sha(errors, f"{path}.reviewed_sha", worker["reviewed_sha"])
+                review = node.get("review") if isinstance(node, dict) else None
+                reviewed_mission_ids = (
+                    review.get("mission_ids", []) if isinstance(review, dict) else []
+                )
+                mission_states = run.get("mission_states", {})
+                if not isinstance(mission_states, dict):
+                    mission_states = {}
+                reviewed_mission_shas = (
+                    mission_states.get(mission_id, {}).get("integrated_sha")
+                    for mission_id in reviewed_mission_ids
+                    if isinstance(mission_states.get(mission_id), dict)
+                )
                 current_reviewable_shas = {
                     sha
                     for sha in (
                         run.get("integration", {}).get("integration_head_sha"),
                         run.get("landing", {}).get("pr_head_sha"),
-                        *(
-                            state.get("integrated_sha")
-                            for state in run.get("mission_states", {}).values()
-                            if isinstance(state, dict)
-                        ),
+                        *reviewed_mission_shas,
                     )
                     if is_full_sha(sha)
                 }
                 if worker["reviewed_sha"] not in current_reviewable_shas:
-                    _add(errors, f"{path}.reviewed_sha", "must identify a current integrated or PR head")
+                    _add(
+                        errors,
+                        f"{path}.reviewed_sha",
+                        "must identify a reviewed mission, current integration, or current PR head",
+                    )
                 if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
                     _add(errors, f"{path}.worker_runtime", "has an unsupported value")
                 if worker["completion_channel"] not in {
