@@ -17,16 +17,18 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("## Product-Specific Visual Thesis", guide)
         self.assertIn("## Anti-Generic Review", guide)
 
-    def test_output_contract_and_templates_include_anti_generic_review(self) -> None:
+    def test_output_contract_and_templates_include_taste_review(self) -> None:
         output_contract = self.read("references/output-contract.md")
         design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
         visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
 
-        self.assertIn("## Anti-Generic Review Checklist", output_contract)
+        self.assertIn("## Taste & Anti-Slop Review Checklist", output_contract)
         self.assertIn("## Product-Specific Visual Thesis", design_system)
         self.assertIn("### Product-Specific Design Decisions", ui_mockups)
-        self.assertIn("Distinctiveness / anti-generic review", visual_acceptance)
+        self.assertIn("Taste and anti-slop review", visual_acceptance)
+        self.assertIn("Rendered visual review loop", visual_acceptance)
+        self.assertIn("Spec-only review path", visual_acceptance)
         self.assertIn("````markdown\n# Design System: [Product Name]", output_contract)
         self.assertIn("## Open Questions\n- [Question]\n````", output_contract)
 
@@ -85,18 +87,40 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("supplied exact wording", guide)
         self.assertIn("## Landing Page Simplicity & Media Plan", output_contract)
         self.assertIn("Exact wording / display contract", output_contract)
-        self.assertIn("Container and accent-rail restraint", output_contract)
+        self.assertIn("Container and border purpose", output_contract)
         self.assertIn("## Landing Page Simplicity & Media Plan", design_system)
         self.assertIn("### Content Budget", ui_mockups)
         self.assertIn("exact copy / display contract", ui_mockups)
         self.assertIn("required / optional / none", ui_mockups)
         self.assertIn("Content specificity", visual_acceptance)
-        self.assertIn("Container and accent-rail restraint", visual_acceptance)
+        self.assertIn("Container and border purpose", visual_acceptance)
         self.assertIn("Landing-page simplicity", visual_acceptance)
         self.assertIn("Media and motion traceability", visual_acceptance)
         self.assertIn("keeps landing pages KISS", agent)
         self.assertIn("preserves exact wording or bounded display contracts", agent)
-        self.assertIn("avoids repeated bordered panels with decorative colored side rails", agent)
+        self.assertIn("avoids nested frames and decorative accent rails", agent)
+
+    def test_taste_and_border_guardrails_are_required(self) -> None:
+        skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
+        guide = self.read("references/visual-decision-guide.md")
+        output_contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
+        visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        self.assertIn("one-sentence taste statement", skill)
+        self.assertIn("## Taste & Anti-Slop Guardrails", guide)
+        self.assertIn("### Container & Border Decision Rules", guide)
+        self.assertIn("Use the removal test", guide)
+        self.assertIn("## Taste & Anti-Slop Guardrails", output_contract)
+        self.assertIn("### Container & Border Rules", output_contract)
+        self.assertIn("one primary grouping cue", output_contract)
+        self.assertIn("Taste statement:", design_system)
+        self.assertIn("Ordinary content section | open", design_system)
+        self.assertIn("Container and border treatment", ui_mockups)
+        self.assertIn("Container and border purpose", visual_acceptance)
+        self.assertIn("defaults ordinary regions to open layouts", agent)
 
 
 if __name__ == "__main__":

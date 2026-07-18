@@ -31,9 +31,16 @@ Use this structure:
 | Cue / signature decision | Product or source basis | System expression | Avoid |
 | --- | --- | --- | --- |
 
-## Anti-Generic Design Rules
+## Taste & Anti-Slop Guardrails
+Taste statement: [One sentence naming the intended visual character and the concrete typography, composition, color, imagery, or interaction choices that create it.]
+
 | Risk | Default rule | Allowed exception | Review test |
 | --- | --- | --- | --- |
+
+### Container & Border Rules
+| Surface / region | Default treatment | Primary grouping cue | Border / elevation allowed for | Must avoid |
+| --- | --- | --- | --- | --- |
+| [Surface] | [open / background band / real container] | [spacing / alignment / background / divider / border / elevation] | [named interaction, hierarchy, state, data, or accessibility purpose] | [unsupported framing or stacked effects] |
 
 ## Content & Data Realism
 [Domain vocabulary, representative data shapes and lengths, asset constraints, placeholder rules, and claims that must not be fabricated.]
@@ -146,8 +153,8 @@ Include a small reference component that demonstrates the design rules. Use the 
 
 ```tsx
 // Example only. Adapt to the target project stack.
-export function ExampleCard() {
-  return <div className="[classes]">...</div>;
+export function ExampleContentSection() {
+  return <section className="[open layout classes]">...</section>;
 }
 ```
 
@@ -211,6 +218,7 @@ Use for landing pages and other content-heavy public pages.
 ### Product-Specific Design Decisions
 - Signature cues applied: [decisions]
 - Generic patterns intentionally avoided: [patterns and rationale]
+- Container and border treatment: [open-layout default and the named purpose of any visible frame or elevation]
 - Content realism: [representative content/data or explicit placeholders]
 
 ### Icon Usage
@@ -248,9 +256,11 @@ Use this structure:
 | Icon system conformance | yes | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
 | Motion system conformance | yes | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
 | Motion performance | yes | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
-| Distinctiveness / anti-generic review | yes | Product-specific cues recur and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
+| Taste and anti-slop review | yes | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
+| Rendered visual review loop | when visual artifacts or an implementation exist | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
+| Spec-only review path | when rendered visuals do not exist | The Markdown package was checked for taste, hierarchy, container and border purpose, responsive intent, and internal consistency; render evidence is marked unavailable and no visual-verification claim is made | text review notes |
 | Content specificity | yes | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
-| Container and accent-rail restraint | yes | Repeated bordered panels and colored side rails are absent unless each use has a named semantic or approved brand role | screenshot / design review |
+| Container and border purpose | yes | Regions default to open layouts; every visible border, frame, rail, or elevation has a named hierarchy, interaction, state, data, or accessibility purpose | screenshot / border inventory / design review |
 | Landing-page simplicity | when applicable | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
 | Media and motion traceability | when applicable | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
 
@@ -268,8 +278,10 @@ Use this structure:
 Before finalizing, verify:
 
 - All four artifacts are present.
-- `design-system.md` defines overview, a product-specific visual thesis, anti-generic rules, content/data realism, color palette, typography, iconography, spacing, component styles, shadows/elevation, a complete motion system, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules.
+- `design-system.md` defines overview, a product-specific visual thesis, taste and anti-slop guardrails, container and border rules, content/data realism, color palette, typography, iconography, spacing, component styles, shadows/elevation, a complete motion system, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules.
 - The visual thesis includes three to five concrete brand or context cues, at least two recurring signature decisions, and avoided defaults tied to product evidence or explicit assumptions.
+- The taste statement names a concrete visual character and the compositional choices that create it; it does not stop at generic adjectives.
+- The container and border table defaults ordinary regions to open layouts, chooses one primary grouping cue per nesting level, and gives every visible frame or elevation a named purpose.
 - The iconography section records a current official-source market scan, evidence-based primary choice, actual required-icon coverage, token rules, semantic inventory, package or asset source, checked date, license, accessibility behavior, and documented exceptions.
 - The iconography section includes stack-appropriate reference code for labeled and icon-only actions using the exact approved import, tokens, accessible-name ownership, decorative hiding, and tooltip behavior.
 - The motion system defines purpose, stack choice, tokens, pattern inventory, triggers, interruption/repeat rules, responsive variants, reduced-motion behavior, performance limits, and hero choreography when a hero exists.
@@ -277,22 +289,26 @@ Before finalizing, verify:
 - `page-ui-matrix.md` maps every important page or route to UI and motion sources, breakpoints, states, components, data source, and acceptance evidence.
 - `ui-mockups.md` includes high-fidelity page-level specifications or links to actual visual artifacts, plus product-specific decisions, content-realism notes, and motion choreography for every important animated page.
 - `ui-mockups.md` preserves product-source exact wording or a bounded display contract for every visible region; generic mockup placeholders do not pass validation.
-- `ui-mockups.md` resolves each required style label and does not default regions to repeated bordered panels or colored accent rails without a named semantic or approved brand role.
+- `ui-mockups.md` resolves each required style label, states the container and border treatment, and does not default regions to framed panels, nested cards, or colored accent rails without a named purpose.
 - When a landing page is in scope, `design-system.md` and `ui-mockups.md` define the first-viewport message and action, one job per section, content to defer, and per-region image/media/motion status.
-- `visual-acceptance.md` defines implementation-verifiable visual gates, including distinctiveness and unsupported AI-UI pattern clusters.
+- `visual-acceptance.md` defines implementation-verifiable visual gates, including taste, unsupported AI-UI pattern clusters, and container and border purpose.
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.
 
-## Anti-Generic Review Checklist
+## Taste & Anti-Slop Review Checklist
 
 Before finalizing, verify:
 
 - The interface remains understandable when decorative effects are removed.
+- The one-sentence taste statement is visible in the hierarchy and at least two recurring decisions, not only in the logo or adjectives.
 - At least two signature decisions recur across the system and important pages without becoming repetitive decoration.
-- Containers, radii, pills, shadows, gradients, glass effects, icons, and motion each have a product, hierarchy, or interaction rationale.
-- Repeated bordered cards or panels with colored side rails or accent stripes are absent unless every use communicates a named state, selection, priority, category, or approved brand motif.
+- Ordinary content regions default to open layouts, and each nesting level uses one primary grouping cue unless a documented reason requires more.
+- Every visible border, frame, rail, or elevation has a named hierarchy, interaction, state, data, or accessibility purpose; the removal test eliminates treatments that add no information.
+- Repeated bordered cards, nested frames, colored side rails, accent stripes, dashed outlines, and double frames are absent unless every use has a named semantic or approved brand role.
+- Radii, pills, shadows, gradients, glass effects, icons, and motion each have a product, hierarchy, or interaction rationale.
 - Page composition follows task priority and content shape instead of defaulting to centered heroes, uniform card grids, or equal visual weight.
 - Landing pages do not summarize the entire PRD. The first viewport has one message and primary action, and every later section earns its place with one clear job.
 - Images, media, and animation are tied to a named user or product purpose; decorative assets are not added merely to fill space.
 - Labels, sample data, imagery, and content lengths reflect the domain; unsupported claims, metrics, testimonials, and logos are not fabricated.
 - Familiar patterns retained for usability, platform convention, or brand fit have a documented reason rather than being removed mechanically.
+- When visual artifacts or an implementation exist, required breakpoint renders were critiqued, the highest-impact failure was repaired, and the package was rechecked against these gates. For a spec-only package, a text-only conformance review covers taste, hierarchy, container and border purpose, responsive intent, and internal consistency; render evidence is marked unavailable and the package makes no visual-verification claim.

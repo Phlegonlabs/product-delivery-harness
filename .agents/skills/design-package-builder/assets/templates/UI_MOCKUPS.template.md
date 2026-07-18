@@ -38,6 +38,7 @@
 
 - Signature cues applied: <recurring product-specific decisions>
 - Generic patterns intentionally avoided: <patterns and rationale>
+- Container and border treatment: <open-layout default and the named purpose of any visible frame or elevation>
 - Content realism: <representative content/data or explicit placeholders>
 
 ### Icon Usage

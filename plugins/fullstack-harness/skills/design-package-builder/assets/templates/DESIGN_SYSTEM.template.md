@@ -18,12 +18,21 @@
 |---|---|---|---|
 | <concrete cue or recurring decision> | <evidence or explicit assumption> | <tokens, components, layouts, imagery, or motion> | <unsupported generic default> |
 
-## Anti-Generic Design Rules
+## Taste & Anti-Slop Guardrails
+
+Taste statement: <one sentence naming the intended visual character and the concrete typography, composition, color, imagery, or interaction choices that create it>
 
 | Risk | Default rule | Allowed exception | Review test |
 |---|---|---|---|
 | <generic or AI-UI pattern risk> | <product-specific rule> | <evidence-based exception> | <how to verify> |
 | Repeated bordered panels with a colored side rail or accent stripe | Do not use as a generic section treatment | Named state, selection, priority, category, or approved brand motif | Every use has a documented semantic or brand role |
+
+### Container & Border Rules
+
+| Surface / region | Default treatment | Primary grouping cue | Border / elevation allowed for | Must avoid |
+|---|---|---|---|---|
+| Ordinary content section | open | spacing | n/a | decorative frame, nested card, accent rail |
+| <surface> | <open / background band / real container> | <spacing / alignment / background / divider / border / elevation> | <named interaction, hierarchy, state, data, or accessibility purpose> | <unsupported framing or stacked effects> |
 
 ## Content & Data Realism
 
@@ -204,9 +213,9 @@ export function IconActions() {
 
 ```tsx
 // Example only. Adapt to the target project stack.
-export function ExampleCard() {
+export function ExampleContentSection() {
   return (
-    <section className="<container classes>">
+    <section className="<open layout classes>">
       <div className="<header classes>">
         <h2 className="<title classes>">Example title</h2>
         <p className="<body classes>">Example supporting copy.</p>

@@ -8,7 +8,7 @@
   <img alt="Claude dynamic workflow" src="https://img.shields.io/badge/Claude-dynamic_workflow-D97706?style=flat-square">
   <img alt="Windows" src="https://img.shields.io/badge/Windows-PowerShell-7C3AED?style=flat-square">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-zsh-334155?style=flat-square">
-  <img alt="Plugin version" src="https://img.shields.io/badge/plugin-v0.1.0-059669?style=flat-square">
+  <img alt="Plugin version" src="https://img.shields.io/badge/plugin-v0.1.1-059669?style=flat-square">
 </p>
 
 <p align="center">
