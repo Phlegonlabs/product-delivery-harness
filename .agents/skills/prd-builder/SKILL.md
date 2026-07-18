@@ -24,6 +24,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 8. Run the quality checklist in `references/output-contract.md` against the staged package.
 9. Only after the complete package passes validation, archive the previously inventoried superseded documents under `doc/archived/`, then publish the new package under `doc/`. Never archive documents when the workflow is incomplete, paused, or failing validation.
 10. Report the final artifact paths and every archived path.
+11. After reporting a completed PRD package, ask whether the user wants to run `$design-package-builder` next using the new package as its product input. Do not invoke the design skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, or failing validation.
 
 ## Interview Rules
 
@@ -48,6 +49,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Keep the current PRD package directly under `doc/`; reserve `doc/archived/` for superseded documents only.
 - Tie every major requirement to a user need, workflow, metric, or constraint.
 - Include loading, empty, error, permission, and edge states when a UI or workflow has them.
+- Keep every low-fidelity wireframe structurally simple regardless of the intended final visual style. For browser or mobile interfaces, ask what overall style the user wants unless the prompt already answers it. If the user authorizes assumptions and gives no direction, record `modern-minimal` as a provisional baseline rather than silently treating it as approved design.
 - Keep public-site and landing-page wireframes simple: one clear value proposition and one primary action in the first viewport, one job per section, and secondary detail deferred instead of copying the whole PRD into the page.
 - Make every visible wireframe region implementation-ready with either exact UI wording or a bounded display contract that states what the region must show, the intended user takeaway or action, the content or data source, and relevant format or length constraints. Do not leave generic labels such as `Main content`, `Feature section`, or `Card 1` in a final wireframe.
 - In each relevant wireframe, label image/media and motion as `required`, `optional`, or `none`, and state the purpose. Also label the intended style direction for each visually important region, such as editorial split, full-bleed product proof, dense comparison, or unframed text. Keep these labels structural; leave tokens, asset art direction, and detailed choreography to the design package.

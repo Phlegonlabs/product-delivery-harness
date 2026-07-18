@@ -2,6 +2,20 @@
 
 Use low-fidelity ASCII wireframes plus Mermaid flows. Do not produce Figma or HTML unless the user asks for them.
 
+## Direction And Configuration
+
+- Ask what overall visual character the user wants before drafting interface wireframes unless the prompt already answers it. Capture the answer as downstream design intent, not as permission to turn the wireframe into a high-fidelity mockup.
+- Keep the wireframe itself simple for every style direction: grayscale in visual tools, clear hierarchy, consistent alignment, restrained containers, and only enough detail to explain content, behavior, and flow.
+- If the user authorizes assumptions and gives no style direction, record `modern-minimal` as provisional. Interpret it structurally as clear hierarchy, balanced whitespace, familiar interaction patterns, restrained grouping, and no decorative UI. Do not present it as an approved design system.
+- Do not accept `modern` as a complete layout decision. Translate it into concrete choices about information density, spacing, typography role, imagery, container use, and interaction tone. Record unresolved choices as handoff questions.
+- Choose the layout pattern from the screen's primary task and content shape:
+  - Landing or narrative page: ordered story, one first-viewport value proposition, one primary action, and secondary detail deferred.
+  - App workspace or CRUD screen: stable navigation, task context, primary work area, and actions near the object they affect.
+  - Dashboard or monitoring screen: summary, exceptions, trends, then records or next actions; do not force every metric into a card.
+  - Form or wizard: progress and context, grouped inputs, inline validation, then one clear next action.
+  - Search, catalog, or comparison screen: query and filters, result summary, scannable results, then detail or comparison.
+- State the selected layout pattern and density for each important screen. Change the pattern only when the user task or content shape changes.
+
 ## ASCII Wireframe Rules
 
 - Use fixed-width fenced code blocks with `text`.
@@ -43,6 +57,10 @@ Do not leave `Main content`, `Feature section`, `Card 1`, `Lorem ipsum`, or simi
 ## Screen: [Name]
 
 Purpose: [What user accomplishes here]
+
+Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern]
+
+Density: [Sparse / balanced / dense, with a task or content reason]
 
 ```text
 +------------------------------------------------------------+
