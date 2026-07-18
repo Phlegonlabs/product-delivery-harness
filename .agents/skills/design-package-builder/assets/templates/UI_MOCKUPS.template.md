@@ -2,11 +2,15 @@
 
 ## Mockup Index
 
-| Mockup ID | Page / route | Breakpoint | State | Source / artifact | Motion demo |
-|---|---|---|---|---|---|
-| MOCK-001 | <route> | desktop | ready | <section or file path> | <demo path or n/a> |
+| Mockup ID | UI ID | Page / route | Breakpoint | State | Upstream trace IDs | DS IDs | Source / artifact | Motion demo |
+|---|---|---|---|---|---|---|---|---|
+| UI-001-DESKTOP-READY | UI-001 | <route> | desktop | ready | PRD-001, UX-001, ARCH-001 | DS-001 | <section or file path> | <demo path or n/a> |
 
 ## Mockup: <page name> - <breakpoint> - <state>
+
+UI ID: UI-001
+
+Trace IDs: PRD-001, UX-001, ARCH-001, DS-001
 
 ### Purpose
 

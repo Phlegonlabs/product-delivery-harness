@@ -56,6 +56,7 @@ Builder direction is a product input, not usability proof. Record any conflict w
 ## Functional Requirements
 | ID | Requirement | Priority | Acceptance Criteria |
 | --- | --- | --- | --- |
+| PRD-001 | [Requirement] | [Must / should / could] | [Observable acceptance] |
 
 ## UX Requirements
 | ID | User / task | Requirement | Success and failure signal | Evidence status |
@@ -97,6 +98,11 @@ Use this structure:
 
 ## Architecture Summary
 [Implementation-ready overview.]
+
+## Architecture Trace Index
+| ARCH ID | Contract or decision | Upstream PRD / UX IDs | Downstream UI / TEST IDs |
+| --- | --- | --- | --- |
+| ARCH-001 | [Stable architecture contract] | PRD-001 | UI-001, TEST-001 |
 
 ## Product Archetype
 [Web app, mobile app, internal tool, automation or agent workflow, API or hybrid.]
@@ -146,16 +152,16 @@ Use only when a stack layer cannot yet be decided.
 [Actors, systems, dependencies.]
 
 ## Component Architecture
-| Component | Responsibility | Notes |
-| --- | --- | --- |
+| ARCH ID | Component | Responsibility | Upstream trace IDs | Notes |
+| --- | --- | --- | --- | --- |
 
 ## Data Model
 | Entity | Key Fields | Relationships | Notes |
 | --- | --- | --- | --- |
 
 ## API and Interface Contracts
-| Interface | Method or Trigger | Input | Output | Errors |
-| --- | --- | --- | --- | --- |
+| ARCH ID | Interface | Method or Trigger | Input | Output | Errors | TEST IDs |
+| --- | --- | --- | --- | --- | --- | --- |
 
 ## Workflow and Data Flow
 [Describe request, background job, event, and integration flows.]
@@ -216,6 +222,10 @@ flowchart TD
 ```
 
 ## Screen: [Name]
+UI ID: UI-001
+
+Trace IDs: PRD-001, UX-001, ARCH-001
+
 Purpose: [What user accomplishes here]
 
 Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern]
@@ -240,9 +250,9 @@ Density: [Sparse / balanced / dense, with a task or content reason]
 - Success:
 
 ### Content, Style, Media & Motion Notes
-| Region | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or design handoff question] |
+| UI ID | Region | Trace IDs | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UI-001-R01 | [Region] | PRD-001, UX-001 | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or design handoff question] |
 ````
 
 ## Optional `implementation-plan.md`
@@ -270,8 +280,9 @@ Use this structure:
 | --- | --- | --- | --- |
 
 ## Test Strategy
-| Test Type | Coverage | Acceptance Signal |
-| --- | --- | --- |
+| TEST ID | Test Type | Coverage | Upstream trace IDs | Acceptance Signal |
+| --- | --- | --- | --- | --- |
+| TEST-001 | [Unit / integration / E2E / visual / accessibility] | [Coverage] | PRD-001, ARCH-001, UI-001 | [Literal signal] |
 
 ## Release Plan
 [Launch, feature flags, migration, rollout, support.]
@@ -289,6 +300,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 - All three core artifacts are present in the run-specific staging directory and are ready to publish under `doc/`.
 - `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
+- Product requirements use stable `PRD-*` IDs; architecture contracts use `ARCH-*`; screens and visible regions use `UI-*`; usability needs use `UX-*`; test obligations use `TEST-*`. Cross-document tables carry the upstream IDs they satisfy.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
 - For a browser product, `PRD.md` defines frontend delivery requirements including content/interactivity, rendering, SEO, accessibility, performance, target devices, and deployment constraints where applicable.
@@ -313,3 +325,4 @@ Before archiving earlier documents or publishing the staged package, verify:
 - The artifacts match the selected product archetype.
 - No current-package artifact will be published outside `doc/` unless the user explicitly requested another location.
 - The superseded-document inventory excludes `doc/archived/`, unrelated documents, and ambiguous candidates.
+- Validation does not trigger publication by itself. Exact overwrite and archive moves are already authorized, or the staged package remains unchanged while approval is requested.

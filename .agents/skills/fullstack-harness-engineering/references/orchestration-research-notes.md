@@ -1,6 +1,6 @@
 # Multi-Thread Orchestration Research Notes
 
-Last reviewed: 2026-07-16. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources before changing behavior because Codex and Claude Code configuration, product behavior, and defaults can change independently of this skill.
+Last reviewed: 2026-07-18. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources and the current local CLI surface before changing behavior because Codex and Claude Code configuration, product behavior, and defaults can change independently of this skill.
 
 Do not hard-code a local `codex-cli` version into portable guidance. Record the observed version in RUN evidence only when a specific behavior depends on it.
 
@@ -27,6 +27,10 @@ The skill uses a parent-to-mission-writer shape and keeps task implementation se
 The selector now emits deterministic, tool-agnostic launch directives for selected missions. It remains read-only. In a Codex app session that exposes project lookup plus thread create/read/message tools, the parent consumes those directives after accepting the wave: it creates one app-managed worktree thread per selected mission, polls completion, and validates results. This model-driven tool loop is the portable in-app launcher. A separate App Server client is needed only for event-driven orchestration outside the interactive parent task.
 
 In Claude Code with Dynamic Workflow available, the selector also emits one wave-level launch bundle. The parent allocates mission branches/worktrees first, then runs a flat JavaScript workflow that starts sibling mission agents and returns structured result candidates. The workflow is an adapter over the same mission, authorization, result, and integration gates; it is not a second planning system.
+
+Schema v8 adds a typed graph and a bounded external-runtime bridge. The host provider remains the session running PLAN/RUN. A Codex parent may bind an individual graph node to external Claude Code only after a no-edit Workflow preflight. This is not native Codex delegation: the bridge starts a separate Claude Code process, passes one immutable wave, and returns result candidates. `invoke_external_runtime` remains separate from worker, worktree, branch, commit, and integration authorization.
+
+The current Codex app task creation surface accepts an explicit model and reasoning effort per task. Claude Code accepts a model through its CLI, while its Dynamic Workflow siblings inherit the outer invocation. The portable graph therefore stores provider-specific model options in PLAN, emits them in the runtime binding, and groups external Claude nodes by model. It does not hard-code a Codex model catalog because the destination host validates that evolving catalog at launch.
 
 ## Claude Code Dynamic Workflow
 

@@ -1,8 +1,8 @@
 # Run: <feature or product slice>
 
-Use this template as `docs/goal/RUN.md`. Keep mutable authorization, observed runtime facts, mission/task phases, wave selection, worker state, verification, blockers, and closeout here. Keep static plan definitions in `PLAN.md`.
+Use this template as `docs/goal/RUN.md`. Keep mutable authorization, observed runtime facts, mission/task phases, wave selection, worker state, verification, blockers, and closeout here. Keep static plan definitions in `PLAN.md`; version support does not enable Cloudflare release state by itself.
 
-For compact medium work that intentionally has no `PLAN.md`, set the three `plan` values to `null`, remove the complete `deployments` object, keep `worker_runtime: "parent"`, `workspace_mode: "shared_checkout"`, `max_parallel_workers: 1`, and leave waves/workers empty. Schema v7 remains valid because version support does not enable Cloudflare release state by itself. That compact mode does not claim static plan validation and cannot delegate writes, accept execution-time task refinement, or use the selector. Create and validate `PLAN.md`, then fill the plan ID/revision/digest before crossing any of those boundaries.
+For compact medium work that intentionally has no `PLAN.md`, use schema v7, set the three `plan` values to `null`, remove the complete `deployments` and `graph_state` objects, keep `worker_runtime: "parent"`, `workspace_mode: "shared_checkout"`, `max_parallel_workers: 1`, and leave waves/workers empty. That compact mode does not claim static plan or graph validation and cannot delegate writes, accept execution-time task refinement, or use a selector. Create and validate a schema-v4 `PLAN.md`, promote the RUN to schema v8, then fill the plan ID/revision/digest and graph state before crossing any of those boundaries.
 
 For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum to three or a lower explicit/runtime limit, and run deterministic selection immediately after Plan Readiness. For shared-repository execution, also inspect the PR review and merge path and request every missing launch and landing action in one Plan Readiness checkpoint. Before the PR exists, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` for its review and merge targets. Record approvals under separate exact ledger entries, rerun selection after the answer, and continue through authorized review and merge without repeated prompts. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
 
@@ -11,7 +11,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 ```json
 {
   "harness_run": {
-    "schema_version": 7,
+    "schema_version": 8,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
@@ -25,6 +25,10 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
     "execution_authorization_source": null,
     "execution_authorization_scope": null,
     "authorizations": {
+      "invoke_external_runtime": {
+        "authorized": false,
+        "source": null
+      },
       "spawn_subagents": {
         "authorized": false,
         "source": null
@@ -100,7 +104,8 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
         "available_drivers": [
           "sequential_parent"
         ],
-        "detection_source": "fallback"
+        "detection_source": "fallback",
+        "external_runtimes": []
       },
       "permission_boundary": {
         "selected_mode": "unknown",
@@ -220,6 +225,20 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       "evidence": [],
       "deferred_reason": null
     },
+    "graph_state": {
+      "graph_revision": 1,
+      "node_states": {
+        "N-M1": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        }
+      },
+      "edge_states": {}
+    },
     "mission_states": {
       "M1": {
         "phase": "queued",
@@ -256,6 +275,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       "conflict_edges": []
     },
     "workers": [],
+    "review_workers": [],
     "attempt_log": []
   }
 }
@@ -263,17 +283,19 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 The exact fenced JSON block above is the canonical run state. Scripts read this block only; Markdown tables later in this document are non-canonical human views. Update the JSON first, keep it valid, and never infer authorization from plan readiness, a template, or a Goal prompt.
 
-The action ledger has 16 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. At Plan Readiness, one prompt may request all missing execution, launch, branch, commit, integration, push, PR creation, review-management, and merge actions for exact targets, but every action remains a separate ledger entry. Use the schema-v6-or-v7 `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` target for review and merge only until that PR is created. Repository configuration may join that checkpoint only for an observed exact setup change. Deploy, archive, worktree removal, and branch deletion remain outside the landing bundle.
+The schema-v8 action ledger has 17 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. `invoke_external_runtime` is separate from `spawn_subagents` and uses an exact `runtime:<provider>` target because it can cross a data, cost, and permission boundary. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. At Plan Readiness, one prompt may request all missing execution, launch, branch, commit, integration, push, PR creation, review-management, and merge actions for exact targets, but every action remains a separate ledger entry. Use the schema-v6-through-v8 `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` target for review and merge only until that PR is created. Repository configuration may join that checkpoint only for an observed exact setup change. Deploy, archive, worktree removal, and branch deletion remain outside the landing bundle.
 
-`landing` is required in schemas v3 through v7. Schemas v4 through v7 include the auto-merge fields shown above; v3 remains readable without them. Schemas v5 through v7 include `post_merge_cleanup`. Schema v7 supports Cloudflare `deployments` state, but the field is required only when a schema-v3 PLAN declares `release` and must be omitted otherwise; valid RUN schemas v2 through v6 remain readable. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+`graph_state` is the canonical routing record for PLAN-v4 nodes and edges. Initialize one state for every declared node and edge. A mission node reaches `succeeded` with outcome `pass` only when its matching mission state is `integrated` with an integration `PASS`; keep mission state for lease/Git/integration details and graph state for attempt/outcome/routing details. Every retry uses a new `last_attempt_id`, increments `attempts`, preserves the prior attempt evidence in `attempt_log`, and rechecks authorization. Edge `traversals` never exceeds the PLAN bound. Run `select_ready_nodes.py` after every terminal node result, integration, graph revision, or changed external state.
 
-When schema v7 carries `deployments`, deploy the current PR head to the development Worker only after current-head CI passes. Record its exact SHA, Worker, URL, Cloudflare version ID, migration result, deployed-environment verification, and evidence. Production may reach `PASS` only after development is `PASS`, the PR is merged, and the production source SHA equals `landing.merged_sha`. A complete Cloudflare run requires both targets to pass. Before either mutation, the `deploy` ledger must cover every run mission and the exact `environment:development` or `environment:production` target. One explicit readiness statement may authorize both targets, but deployment stays a separate ledger action from push, merge, and repository configuration.
+`landing` is required in schemas v3 through v8. Schemas v4 through v8 include the auto-merge fields shown above; v3 remains readable without them. Schemas v5 through v8 include `post_merge_cleanup`. Schemas v7 and v8 support Cloudflare `deployments` state, but the field is required only when the matching PLAN declares `release` and must be omitted otherwise. Valid older RUN schemas remain readable. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+
+When schema v7 or v8 carries `deployments`, deploy the current PR head to the development Worker only after current-head CI passes. Record its exact SHA, Worker, URL, Cloudflare version ID, migration result, deployed-environment verification, and evidence. Production may reach `PASS` only after development is `PASS`, the PR is merged, and the production source SHA equals `landing.merged_sha`. A complete Cloudflare run requires both targets to pass. Before either mutation, the `deploy` ledger must cover every run mission and the exact `environment:development` or `environment:production` target. One explicit readiness statement may authorize both targets, but deployment stays a separate ledger action from push, merge, and repository configuration.
 
 Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. At request time this requires `merge_status: "ready"`, current-head CI and Codex review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and unexpired `merge_pr` authorization whose mission scope covers the run and whose target is `pr:<full-PR-URL>` (or an explicitly run-wide `*`). If that entry began with `future-pr:`, retain it and verify that the exact PR has the same repository, base, and head before appending the exact target. Use `gh pr merge --auto --squash --match-head-commit <sha>` or an equivalent exact-head operation. After the PR reaches `merge_status: "merged"`, preserve the matching authorization evidence even when its `run_complete` boundary expires during final closeout. Any new push, changed integration head, canceled request, or closed-unmerged PR resets the fields to `false` and `null`.
 
 A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
 
-Schemas v5 through v7 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, fetch the base branch, prove `landing.merged_sha` is reachable from that base, re-observe a clean checkout, record `observed.git.parent_worktree_path`, and confirm the local feature branch still points to `landing.pr_head_sha`; when the primary checkout is on that branch, its observed `parent_head_sha` must match too. Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
+Schemas v5 through v8 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, fetch the base branch, prove `landing.merged_sha` is reachable from that base, re-observe a clean checkout, record `observed.git.parent_worktree_path`, and confirm the local feature branch still points to `landing.pr_head_sha`; when the primary checkout is on that branch, its observed `parent_head_sha` must match too. Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
 
 Create the final integration branch and PR from the parent checkout. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, resolve blocking threads, then enable SHA-bound auto-merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
@@ -298,7 +320,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-When an action is authorized, scope is required and must cover the current run, mission, and target; use `"*"` only when the user's approval is explicitly run-wide. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, or `environment:<name>` as appropriate. Schemas v6 and v7 additionally permit `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr`; it must resolve to and retain the matching exact PR target before either mutation. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`; the coordinator evaluates that boundary against current RUN state. Treat an expired or nonmatching entry as unauthorized.
+When an action is authorized, scope is required and must cover the current run, mission, and target; use `"*"` only when the user's approval is explicitly run-wide. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, `environment:<name>`, or `runtime:<provider>` as appropriate. Schemas v6 through v8 additionally permit `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr`; it must resolve to and retain the matching exact PR target before either mutation. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`; the coordinator evaluates that boundary against current RUN state. Treat an expired or nonmatching entry as unauthorized.
 
 Treat `wave_closed` as a one-use grant. On `closed` or `superseded`, reset matching action entries to unauthorized and clear an overall wave-scoped execution grant before replacing `active_wave`; never carry that source into the next wave.
 
@@ -306,15 +328,19 @@ The parent may inspect state, validate manifests, and compute static conflict/pa
 
 For automatic app-task fan-out, the selector emits one `launch_directives` entry per selected mission. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If project lookup, thread creation, worktree setup, follow-up messaging, polling, or nested-agent capability is unavailable, leave the worker unlaunched and use the sequential parent fallback.
 
+For graph workers, copy the selector's complete `runtime_binding` into the allocated mission `workers[]` record or read-only verifier `review_workers[]` record. A review worker also binds node ID, attempt ID, graph revision, review path, and exact current integrated or PR-head SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null `model` and `reasoning_effort` as task creation `model` and `thinking`; omit null values so the host default remains explicit. For Claude Code, group selected nodes by model and effort, put both in each immutable wave request, and pass non-null effort through `--effort`. Do not override the bridge model unless it matches the PLAN-selected model. The destination host validates the exact pair at launch.
+
 Use these exact coordination enums:
 
 - `worker_runtime`: `parent`, `subagent`, or `app_task`
 - `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
 - `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
 
-Schemas v6 and v7 require `runtime_capabilities.runtime_adapter`. The parent detects actual runtime capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available driver in `available_drivers`. Always include `sequential_parent`. Routing is deterministic: Codex prefers `app_threads`, then `subagents`, then `sequential_parent`; Claude Code prefers `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic runtimes use `subagents` or `sequential_parent`. Capability detection is not authorization.
+Schemas v6 through v8 require `runtime_capabilities.runtime_adapter`. The parent detects actual host capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available host driver in `available_drivers`. Schema v8 additionally records proven external providers in `external_runtimes`; an available entry requires command, version, completion channel, and Workflow-preflight evidence. Always include `sequential_parent`. Capability detection is not authorization.
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
+
+When a Codex parent binds a graph node to external Claude Code, run the no-edit bridge preflight first and record the result in `runtime_adapter.external_runtimes`. Require `invoke_external_runtime` for `runtime:claude_code` plus `spawn_subagents`. Write missions also require the normal worktree, branch, and commit actions. Read-only review nodes require neither and instead bind an exact review SHA/path/scope in `review_workers[]`. Allocate the attempt and matching worker record before calling `claude_runtime_bridge.py run-wave` with `CLAUDE_GRAPH_WORKFLOW.template.js`. The bridge returns result candidates only; validate the node wrapper, worker or review payload, and actual Git state before integration or graph routing.
 
 `runtime_capabilities.permission_boundary` records the effective parent mode before workers launch. Use `selected_mode` values `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown`; a non-empty `profile_name` is required only for `named_profile`. Record approval, filesystem, network, local-binding, and worker-inheritance facts, then set `status` to `ready` only after linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets fit inside the boundary. `may_prompt`, `blocked`, or `unknown` blocks unattended fan-out. Existing schema-v2 RUN files may omit this optional object.
 
@@ -335,6 +361,14 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
   "worker_runtime": "subagent",
   "workspace_mode": "parent_managed_worktree",
   "completion_channel": "agent_result",
+  "runtime_binding": {
+    "provider": "claude_code",
+    "driver": "external_dynamic_workflow",
+    "source": "external_bridge",
+    "model": "claude-fable-5",
+    "reasoning_effort": "high",
+    "option_source": "plan_provider_options"
+  },
   "nested_subagent_policy": {
     "enabled": false,
     "max_children": 0,
@@ -352,6 +386,36 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
 ```
 
 Worker phases are `leased`, `worker_running`, `worker_passed`, `blocked`, `worker_failed`, and `superseded`. An `attempt_log` entry records `attempt_id`, `mission_id`, nullable `task_id` and `lease_id`, `kind`, `result`, and an `evidence` array. Keep observations such as timestamps inside RUN for audit only; selection output remains timestamp-free.
+
+Each `review_workers` entry uses this exact read-only shape:
+
+```json
+{
+  "worker_id": "RW1",
+  "node_id": "N-FRONTEND-REVIEW",
+  "attempt_id": "ATT-REVIEW-1",
+  "plan_revision": 1,
+  "plan_digest_sha256": "<sha256>",
+  "graph_revision": 1,
+  "reviewed_sha": "<current integrated or PR-head SHA>",
+  "review_path": "<absolute read-only path or immutable snapshot>",
+  "worker_runtime": "subagent",
+  "completion_channel": "agent_result",
+  "runtime_binding": {
+    "provider": "claude_code",
+    "driver": "external_dynamic_workflow",
+    "source": "external_bridge",
+    "model": "claude-fable-5",
+    "reasoning_effort": "xhigh",
+    "option_source": "plan_provider_options"
+  },
+  "task_thread_id": null,
+  "report_path": null,
+  "phase": "worker_running"
+}
+```
+
+The matching successful node result puts exactly `reviewed_sha`, `findings`, and `evidence_summary` inside `worker_result`. The reviewed SHA must match the active review worker.
 
 For an enabled app-task nested policy, use `max_children` from 1 to 3 and a non-empty subset of the runtime `allowed_roles`. The app task stays the only writer. A non-trivial mission launches at least one eligible read-only lane and records the resulting child activity in WORKER_RESULT; a skip is valid only for a trivial mission, unavailable runtime/slots, or no safe independent lane. When capability is initially unknown, keep the task at a no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy` and matching `subagent_activity`.
 
@@ -434,9 +498,9 @@ The parent selects a ready, non-conflicting wave from validated canonical state,
 
 ## Worker View
 
-| Worker | Mission | Runtime | Workspace | Completion | Nested helpers | Base / head | Phase | Result source |
-|---|---|---|---|---|---|---|---|---|
-| <id> | M1 | parent / subagent / app_task | <mode> | <channel> | disabled / 1-3 read-only | <SHAs> | <phase> | <result/report/thread> |
+| Worker | Mission | Runtime | Model / effort | Workspace | Completion | Nested helpers | Base / head | Phase | Result source |
+|---|---|---|---|---|---|---|---|---|---|
+| <id> | M1 | parent / subagent / app_task | <model / effort> | <mode> | <channel> | disabled / 1-3 read-only | <SHAs> | <phase> | <result/report/thread> |
 
 For `app_task`, create one real task/thread for each selected mission and record its returned thread or queued client-thread identity. Automatic cross-task callbacks are not guaranteed, so use `thread_poll` when programmatic polling is available and reserve `user_relay` for runtimes without it. Send the complete worker handoff as the initial prompt and use the thread-message surface for the post-handshake policy or later steering. For `app_managed_worktree`, record platform retention behavior and create a durable branch or ref before unique work when authorized; cleanup controls cannot override platform-managed retention.
 

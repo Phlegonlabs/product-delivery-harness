@@ -18,15 +18,17 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 3. Read `references/design-interview-guide.md` before asking design discovery questions.
 4. Conduct a concise design interview unless the user explicitly says to skip questions, make assumptions, or draft a first pass immediately.
 5. Classify the design target: SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid.
-6. After discovery, read `references/output-contract.md` and `references/visual-decision-guide.md`. Read `references/icon-system-guide.md` whenever icons are in scope or the icon source is unresolved. Read `references/motion-system-guide.md` whenever motion is requested, implied by a visual direction, or needed to explain hierarchy or state.
+6. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, and `references/visual-decision-guide.md`. Read `references/icon-system-guide.md` whenever icons are in scope or the icon source is unresolved. Read `references/motion-system-guide.md` whenever motion is requested, implied by a visual direction, or needed to explain hierarchy or state.
 7. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, carry forward the Builder UX Direction, write a one-sentence taste statement, choose signature design decisions, identify generic defaults to avoid, define the container and border logic, define realistic content constraints and landing-page content budgets, select an icon direction from the actual semantic inventory, and give every image, media asset, and motion pattern a stated purpose.
-8. Produce the design package:
+8. Inventory existing design artifacts, then produce the design package in the run-specific staging location from `references/artifact-lifecycle.md`:
    - `design-system.md`
    - `page-ui-matrix.md`
    - `ui-mockups.md`
    - `visual-acceptance.md`
    - Optional runnable `motion-showcase.html` or bounded files under `motion-demos/` when motion demonstration is requested
 9. Run both the quality checklist and the taste and anti-slop review in `references/output-contract.md` before finalizing. Critique, repair the highest-impact failure, and recheck until the package passes or an unresolved constraint is recorded. Use rendered breakpoint evidence when visual artifacts or an implementation exist; otherwise use the contract's text-only conformance path and do not claim visual verification.
+10. Show the exact publish paths, overwrite targets, and archive moves. Perform them only when the original request already authorized those exact paths or the user explicitly approves them. Otherwise leave the validated staging package intact.
+11. After a published package is complete, offer `$fullstack-harness-engineering` as the implementation handoff. Do not invoke it without an explicit yes.
 
 ## Input Boundaries
 
@@ -41,6 +43,7 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 
 - Use `references/design-interview-guide.md` for required visual discovery questions and readiness criteria.
 - Use `references/output-contract.md` for exact artifact names, headings, templates, and quality checks.
+- Use `references/artifact-lifecycle.md` for staging, fixed `doc/` paths, safe superseded-artifact inventory, and the explicit publish/archive approval gate.
 - Use `references/visual-decision-guide.md` for product-archetype visual rules, density, palette, component, state, and mockup decisions.
 - Use `references/icon-system-guide.md` to research current icon libraries, score candidates, define icon tokens, create the semantic inventory, and specify accessibility and implementation rules.
 - Use `references/motion-system-guide.md` to select a motion stack, define tokens and choreography, specify hero animation, create runnable demonstrations, and enforce performance and accessibility fallbacks.
@@ -49,6 +52,7 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 ## Output Standards
 
 - Prefer implementation-ready design rules over mood words.
+- Preserve upstream `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, and `TEST-*` IDs. Mint stable `DS-*` IDs for design decisions, tokens, components, and motion patterns, plus new `TEST-*` IDs only for design-specific acceptance obligations.
 - Define a product-specific visual thesis with three to five concrete brand or context cues, at least two signature design decisions, and explicit anti-patterns. Tie each decision to source evidence or a stated assumption.
 - Add a one-sentence taste statement that names the intended visual character and the compositional choices that create it. Do not accept empty adjectives such as "clean," "modern," or "premium" without concrete typography, layout, color, imagery, or interaction consequences.
 - Treat common patterns as risks only when they are unsupported or clustered into a generic composition. Do not mechanically ban gradients, rounded cards, pills, centered layouts, glass effects, or familiar fonts when the brand or interaction model justifies them.

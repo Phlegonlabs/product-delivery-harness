@@ -150,6 +150,19 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("selected / provisional / assumed", contract)
         self.assertIn("not usability proof", agent)
 
+    def test_trace_ids_and_publish_approval_are_explicit(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        for trace_prefix in ("`PRD-*`", "`ARCH-*`", "`UI-*`", "`UX-*`", "`TEST-*`"):
+            self.assertIn(trace_prefix, skill)
+        self.assertIn("## Architecture Trace Index", contract)
+        self.assertIn("UI ID: UI-001", contract)
+        self.assertIn("| TEST ID | Test Type", contract)
+        self.assertIn("Passing validation does not authorize an overwrite, move, or archive", lifecycle)
+        self.assertIn("keep the staged package", lifecycle)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,9 +23,9 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
    - `wireframes.md`
 8. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 9. Run the quality checklist in `references/output-contract.md` against the staged package.
-10. Only after the complete package passes validation, archive the previously inventoried superseded documents under `doc/archived/`, then publish the new package under `doc/`. Never archive documents when the workflow is incomplete, paused, or failing validation.
+10. After validation, show the exact publish paths, overwrite targets, and archive moves. Perform them only when the original request already authorized those exact paths or the user explicitly approves them. Otherwise leave the validated staging package intact and report it as ready to publish. Never archive documents when the workflow is incomplete, paused, failing validation, or awaiting approval.
 11. Report the final artifact paths and every archived path.
-12. After reporting a completed PRD package, ask whether the user wants to run `$design-package-builder` next using the new package as its product input. Do not invoke the design skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, or failing validation.
+12. After reporting a completed UI-bearing PRD package, ask whether the user wants to run `$design-package-builder` next using the new package as its product input. Do not invoke the design skill without an explicit yes. For a non-UI product, offer `$fullstack-harness-engineering` instead. If a UI-bearing product deliberately skips design, record that gap before offering the Harness. Do not invoke another skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, failing validation, or awaiting publish approval.
 
 ## Interview Rules
 
@@ -50,6 +50,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Prefer specific, buildable requirements over vague product language.
 - Keep the current PRD package directly under `doc/`; reserve `doc/archived/` for superseded documents only.
 - Tie every major requirement to a user need, workflow, metric, or constraint.
+- Mint stable upstream trace IDs: `PRD-*` for product requirements, `ARCH-*` for architecture contracts, `UI-*` for screens or visible regions, `UX-*` for usability requirements, and `TEST-*` for test obligations. Preserve them across revisions and never reuse a retired ID for a different meaning.
 - For every UI-bearing product, record the Builder UX Direction Decision and carry it into `wireframes.md`. Do not let the implementation agent invent its own taste when the human decision owner has not answered; use an explicit provisional assumption only when assumption mode is authorized.
 - Include loading, empty, error, permission, and edge states when a UI or workflow has them.
 - Keep every low-fidelity wireframe structurally simple regardless of the intended final visual style. For browser or mobile interfaces, ask what overall style the user wants unless the prompt already answers it. If the user authorizes assumptions and gives no direction, record `modern-minimal` as a provisional baseline rather than silently treating it as approved design.

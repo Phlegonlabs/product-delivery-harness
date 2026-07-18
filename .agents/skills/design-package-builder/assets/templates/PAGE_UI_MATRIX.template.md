@@ -1,8 +1,8 @@
 # Page UI Matrix: <product name>
 
-| Page / route | UI source | Motion source | Breakpoints | States | Components | Data source | Acceptance evidence |
-|---|---|---|---|---|---|---|---|
-| <route> | ui-mockups.md#<anchor> | <demo path, motion spec, or n/a> | mobile / tablet / desktop | ready / loading / empty / error | <components> | <API/data/source> | screenshot + visual/motion review |
+| UI ID | Page / route | Upstream trace IDs | DS IDs | UI source | Motion source | Breakpoints | States | Components | Data source | TEST IDs / acceptance evidence |
+|---|---|---|---|---|---|---|---|---|---|---|
+| UI-001 | <route> | PRD-001, UX-001, ARCH-001 | DS-001 | ui-mockups.md#<anchor> | <demo path, motion spec, or n/a> | mobile / tablet / desktop | ready / loading / empty / error | <components> | <API/data/source> | TEST-VIS-001 + screenshot |
 
 ## State Coverage Notes
 

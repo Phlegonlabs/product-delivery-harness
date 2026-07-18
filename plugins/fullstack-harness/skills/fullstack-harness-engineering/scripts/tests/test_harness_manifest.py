@@ -712,7 +712,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "must equal 7 when PLAN declares release",
+            "must equal 7 when a schema v3 PLAN declares release",
         )
 
         run["schema_version"] = 7
@@ -732,7 +732,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "schema v7 RUN requires a schema v3 PLAN release contract",
+            "deployment state requires a PLAN release contract",
         )
 
     def test_schema_v7_rejects_malformed_deployment_values_without_crashing(self) -> None:
@@ -1595,17 +1595,17 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             string_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, or 7",
+            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, or 8",
         )
 
         unsupported_schema = valid_run(plan)
-        unsupported_schema["schema_version"] = 8
+        unsupported_schema["schema_version"] = 9
         del unsupported_schema["landing"]
         del unsupported_schema["post_merge_cleanup"]
         self.assert_run_error_contains(
             plan,
             unsupported_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, or 7",
+            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, or 8",
         )
 
     def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:
