@@ -601,9 +601,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "missions",
     }
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
-    if schema_version == 3:
-        top_keys.add("release")
-    if not _keys(errors, "plan", plan, top_keys):
+    optional_keys = {"release"} if schema_version == 3 else set()
+    if not _keys(errors, "plan", plan, top_keys, optional_keys):
         return sorted(errors)
     if plan["schema_version"] not in {2, 3}:
         _add(errors, "plan.schema_version", "must equal 2 or 3")
@@ -729,7 +728,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                         _add(errors, f"plan.{group}[{index}].id", "must be unique")
                     ids.add(verifier["id"])
 
-    if plan["schema_version"] == 3:
+    if plan["schema_version"] == 3 and "release" in plan:
         _validate_release(errors, plan["release"])
 
     missions: dict[str, dict[str, Any]] = {}
@@ -1781,21 +1780,24 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "attempt_log",
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
+    plan_declares_release = (
+        plan.get("schema_version") == 3 and "release" in plan
+    )
     if schema_version in {3, 4, 5, 6, 7}:
         run_keys.add("landing")
     if schema_version in {5, 6, 7}:
         run_keys.add("post_merge_cleanup")
-    if schema_version == 7:
+    if schema_version == 7 and plan_declares_release:
         run_keys.add("deployments")
     if schema_version not in {2, 3, 4, 5, 6, 7}:
         _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, or 7")
     if (
-        plan.get("schema_version") == 3
-        and isinstance(plan.get("release"), dict)
+        plan_declares_release
         and schema_version != 7
     ):
         _add(errors, "run.schema_version", "must equal 7 when PLAN declares release")
-    if not _keys(errors, "run", run, run_keys):
+    optional_run_keys = {"deployments"} if schema_version == 7 else set()
+    if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
@@ -1937,7 +1939,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
     if schema_version in {5, 6, 7}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
-    if schema_version == 7:
+    if schema_version == 7 and "deployments" in run:
         _validate_deployments(errors, run["deployments"], run, plan)
 
     runtime_keys = {

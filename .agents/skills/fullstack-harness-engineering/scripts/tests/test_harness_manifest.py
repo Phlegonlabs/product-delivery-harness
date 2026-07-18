@@ -715,6 +715,26 @@ class RunValidationTests(unittest.TestCase):
             "must equal 7 when PLAN declares release",
         )
 
+        run["schema_version"] = 7
+        self.assert_run_error_contains(plan, run, "missing keys: deployments")
+
+    def test_schema_v3_and_v7_do_not_enable_release_fields_by_version_alone(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        self.assertEqual(validate_plan(plan), [])
+
+        run = valid_run(plan)
+        run["schema_version"] = 7
+        self.assertEqual(validate_run(plan, run), [])
+
+        release_run = valid_release_run(valid_release_plan())
+        run["deployments"] = release_run["deployments"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "schema v7 RUN requires a schema v3 PLAN release contract",
+        )
+
     def test_schema_v7_rejects_malformed_deployment_values_without_crashing(self) -> None:
         plan = valid_release_plan()
         run = valid_release_run(plan)

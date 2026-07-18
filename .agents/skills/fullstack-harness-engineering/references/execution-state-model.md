@@ -170,9 +170,9 @@ In schemas v4 through v7, `auto_merge_requested: true` records that GitHub auto-
 
 ## Cloudflare Deployment State
 
-PLAN schema v3 adds a static `release` contract. For the default Cloudflare path it declares exactly two targets: development from the current PR head and production from merged `main`. Each target owns its Worker name, Wrangler config/environment, data/auth/payment mode, prerequisites, migration command, deploy command, and smoke verifiers. PLAN never stores secret values or live deployment results.
+PLAN schema v3 supports an optional static `release` contract. Schema version alone does not enable release behavior. For the default Cloudflare path, the declared contract contains exactly two targets: development from the current PR head and production from merged `main`. Each target owns its Worker name, Wrangler config/environment, data/auth/payment mode, prerequisites, migration command, deploy command, and smoke verifiers. PLAN never stores secret values or live deployment results.
 
-RUN schema v7 adds `deployments` with the provider plus development and production state. Valid RUN schemas v2 through v6 remain readable without it. Each target records status, source SHA, Worker, URL, Cloudflare version ID, migration and verification state, optional rollback version, and retained evidence.
+RUN schema v7 supports `deployments` with the provider plus development and production state. It is required when the matching PLAN declares `release` and omitted otherwise, so deployment state cannot affect unrelated runtime, landing, or authorization fields. Valid RUN schemas v2 through v6 remain readable without it. Each target records status, source SHA, Worker, URL, Cloudflare version ID, migration and verification state, optional rollback version, and retained evidence.
 
 Development `PASS` requires:
 
