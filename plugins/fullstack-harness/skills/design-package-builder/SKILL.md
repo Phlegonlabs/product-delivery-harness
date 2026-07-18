@@ -25,7 +25,7 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
    - `ui-mockups.md`
    - `visual-acceptance.md`
    - Optional runnable `motion-showcase.html` or bounded files under `motion-demos/` when motion demonstration is requested
-8. Run both the quality checklist and the taste and anti-slop review in `references/output-contract.md` before finalizing. Critique, repair the highest-impact failure, and recheck until the package passes or an unresolved constraint is recorded.
+8. Run both the quality checklist and the taste and anti-slop review in `references/output-contract.md` before finalizing. Critique, repair the highest-impact failure, and recheck until the package passes or an unresolved constraint is recorded. Use rendered breakpoint evidence when visual artifacts or an implementation exist; otherwise use the contract's text-only conformance path and do not claim visual verification.
 
 ## Input Boundaries
 

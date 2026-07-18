@@ -55,7 +55,7 @@ Every design system must define:
 - Two or more signature decisions that recur without turning every section into the same component
 - The unsupported pattern clusters that would make the product look interchangeable
 - A container and border policy that defaults content regions to open layouts and records the purpose of every visible frame
-- A visual review loop: render at required breakpoints, critique against the package, fix the highest-impact failure, and recheck
+- An evidence-appropriate review path: render, critique, repair, and recheck required breakpoints when visual artifacts or an implementation exist; otherwise run a text-only conformance review and mark render evidence unavailable
 
 ### Container & Border Decision Rules
 
@@ -101,7 +101,7 @@ Repair generic results in this order:
    Remove repeated borders and accent rails before inventing a new decorative replacement.
 4. Apply the product's signature typography, layout, color, imagery, or interaction decisions.
 5. Recheck responsive behavior, accessibility, and platform conventions.
-6. Render again, compare against the taste statement and acceptance gates, and repeat until the package passes or the remaining constraint is explicit.
+6. When visual artifacts or an implementation exist, render again, compare against the taste statement and acceptance gates, and repeat until the package passes or the remaining constraint is explicit. For a spec-only package, repeat the same critique over the Markdown sources, record render evidence as unavailable, and do not claim visual fidelity or implementation verification.
 
 ## Design System Coverage
 

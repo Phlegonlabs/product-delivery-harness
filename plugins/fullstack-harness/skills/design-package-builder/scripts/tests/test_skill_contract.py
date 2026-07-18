@@ -27,7 +27,8 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("## Product-Specific Visual Thesis", design_system)
         self.assertIn("### Product-Specific Design Decisions", ui_mockups)
         self.assertIn("Taste and anti-slop review", visual_acceptance)
-        self.assertIn("Visual review loop", visual_acceptance)
+        self.assertIn("Rendered visual review loop", visual_acceptance)
+        self.assertIn("Spec-only review path", visual_acceptance)
         self.assertIn("````markdown\n# Design System: [Product Name]", output_contract)
         self.assertIn("## Open Questions\n- [Question]\n````", output_contract)
 
