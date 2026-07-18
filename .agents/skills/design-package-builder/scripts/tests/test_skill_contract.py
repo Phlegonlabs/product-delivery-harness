@@ -138,6 +138,21 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("does not prove usability", guide)
         self.assertIn("Builder UX Direction conformance", visual_acceptance)
 
+    def test_trace_ids_and_safe_artifact_lifecycle_are_required(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        matrix = self.read("assets/templates/PAGE_UI_MATRIX.template.md")
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        for trace_prefix in ("`PRD-*`", "`ARCH-*`", "`UI-*`", "`UX-*`", "`TEST-*`", "`DS-*`"):
+            self.assertIn(trace_prefix, skill)
+        self.assertIn("| DS ID | Cue / signature decision", contract)
+        self.assertIn("| UI ID | Page / route | Upstream trace IDs | DS IDs", matrix)
+        self.assertIn("| TEST ID | Gate | Required | Upstream trace IDs", acceptance)
+        self.assertIn("doc/.design-staging/<run-id>/", lifecycle)
+        self.assertIn("Passing validation does not authorize overwrite, move, or archive", lifecycle)
+
 
 if __name__ == "__main__":
     unittest.main()

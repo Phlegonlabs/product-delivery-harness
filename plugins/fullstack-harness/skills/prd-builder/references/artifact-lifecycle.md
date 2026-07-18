@@ -37,9 +37,13 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
 3. Run the output-contract quality checklist against the staged files.
 4. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 
+## Approval Gate
+
+Passing validation does not authorize an overwrite, move, or archive. Before publishing, list every exact final path that would be created or overwritten and every source-to-archive move. Continue only when the user's original request already authorized those exact mutations or the user explicitly approves the list. If approval is absent, keep the staged package and existing documents unchanged.
+
 ## Archive and Publish
 
-After the entire staged package passes validation:
+After the entire staged package passes validation and the exact mutation list is authorized:
 
 1. Create `doc/archived/<YYYYMMDD-HHMMSS>-<product-slug>/`.
 2. Move only the previously inventoried superseded documents into that directory. Preserve recognizable filenames; when basenames collide, include the original parent directory or a numeric suffix.
@@ -56,3 +60,4 @@ List:
 - Every artifact published under `doc/`.
 - Every document moved under `doc/archived/`.
 - Any ambiguous legacy document deliberately left untouched.
+- Whether publication was completed or the validated staging package is awaiting explicit approval.

@@ -1,0 +1,457 @@
+#!/usr/bin/env python3
+"""Select a deterministic typed-graph frontier and runtime bindings."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from itertools import combinations
+from pathlib import Path
+from typing import Any
+
+from harness_manifest import (
+    ManifestError,
+    authorization_covers,
+    execution_covers,
+    load_plan,
+    load_run,
+    mission_conflicts,
+    plan_digest,
+    route_runtime_driver,
+    validate_plan,
+    validate_run,
+)
+
+
+class GraphSelectionError(ValueError):
+    """Raised when canonical graph state cannot produce a safe frontier."""
+
+
+def _validation_error(kind: str, errors: list[str]) -> GraphSelectionError:
+    return GraphSelectionError(
+        f"{kind} validation failed:\n" + "\n".join(f"- {error}" for error in errors)
+    )
+
+
+def _node_levels(plan: dict[str, Any]) -> dict[str, int]:
+    graph = plan["graph"]
+    dependencies = {node["id"]: [] for node in graph["nodes"]}
+    for edge in graph["edges"]:
+        if edge["kind"] == "dependency":
+            dependencies[edge["to"]].append(edge["from"])
+    levels: dict[str, int] = {}
+
+    def visit(node_id: str) -> int:
+        if node_id in levels:
+            return levels[node_id]
+        sources = dependencies[node_id]
+        level = 0 if not sources else 1 + max(visit(source) for source in sources)
+        levels[node_id] = level
+        return level
+
+    for node_id in sorted(dependencies):
+        visit(node_id)
+    return levels
+
+
+def _external_runtime(runtime: dict[str, Any], provider: str) -> dict[str, Any] | None:
+    adapter = runtime.get("runtime_adapter", {})
+    for item in adapter.get("external_runtimes", []):
+        if (
+            isinstance(item, dict)
+            and item.get("provider") == provider
+            and item.get("status") == "available"
+        ):
+            return item
+    return None
+
+
+def _runtime_options(policy: dict[str, Any], provider: str) -> dict[str, Any]:
+    configured = policy.get("provider_options", {}).get(provider)
+    if configured is not None:
+        return {
+            "model": configured["model"] or ("sonnet" if provider == "claude_code" else None),
+            "reasoning_effort": configured["reasoning_effort"],
+            "option_source": "plan_provider_options",
+        }
+    return {
+        "model": "sonnet" if provider == "claude_code" else None,
+        "reasoning_effort": None,
+        "option_source": "provider_default",
+    }
+
+
+def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any] | None:
+    policy = node.get("runtime")
+    if node.get("executor") != "runtime_worker" or not isinstance(policy, dict):
+        return None
+    allowed = policy.get("allowed_providers", [])
+    preferred = policy.get("preferred_provider")
+    host_provider = runtime.get("runtime_adapter", {}).get("provider")
+    candidates: list[str] = []
+    for provider in (preferred, host_provider, "claude_code", "codex", "generic"):
+        if provider in allowed and provider not in candidates:
+            candidates.append(provider)
+    for provider in candidates:
+        options = _runtime_options(policy, provider)
+        if provider == host_provider:
+            return {
+                "provider": provider,
+                "driver": route_runtime_driver(runtime),
+                "source": "host",
+                **options,
+            }
+        external = _external_runtime(runtime, provider)
+        if external is not None:
+            return {
+                "provider": provider,
+                "driver": "external_dynamic_workflow",
+                "source": "external_bridge",
+                **options,
+            }
+    return None
+
+
+def _incoming(plan: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+    dependencies = {node["id"]: [] for node in plan["graph"]["nodes"]}
+    routes = {node["id"]: [] for node in plan["graph"]["nodes"]}
+    for edge in plan["graph"]["edges"]:
+        target = dependencies if edge["kind"] == "dependency" else routes
+        target[edge["to"]].append(edge)
+    return dependencies, routes
+
+
+def _logical_reasons(
+    node: dict[str, Any],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    dependencies: dict[str, list[dict[str, Any]]],
+    routes: dict[str, list[dict[str, Any]]],
+) -> list[str]:
+    reasons: set[str] = set()
+    node_id = node["id"]
+    state = run["graph_state"]["node_states"][node_id]
+    if run.get("plan_readiness") != "ready":
+        reasons.add("plan_not_ready")
+    if run.get("execution_authorized") is not True:
+        reasons.add("execution_not_authorized")
+    if state["phase"] not in {"dormant", "ready"}:
+        reasons.add("node_phase_not_ready")
+    if state["blockers"]:
+        reasons.add("blocker_present")
+    if state["attempts"] >= node["max_attempts"]:
+        reasons.add("attempts_exhausted")
+
+    node_states = run["graph_state"]["node_states"]
+    for edge in dependencies[node_id]:
+        source = node_states[edge["from"]]
+        if source["phase"] != "succeeded" or source["last_outcome"] != "pass":
+            reasons.add("dependency_not_satisfied")
+
+    incoming_routes = routes[node_id]
+    if incoming_routes:
+        edge_states = run["graph_state"]["edge_states"]
+        matched = False
+        for edge in incoming_routes:
+            source = node_states[edge["from"]]
+            edge_state = edge_states[edge["id"]]
+            bound = edge["max_traversals"]
+            if (
+                source["last_outcome"] in edge["on_outcomes"]
+                and source["phase"] in {"succeeded", "failed", "blocked"}
+                and (bound is None or edge_state["traversals"] < bound)
+            ):
+                matched = True
+        if not matched:
+            reasons.add("route_not_activated")
+
+    if node["kind"] == "mission":
+        mission_state = run["mission_states"][node["ref"]]
+        if mission_state["phase"] not in {"queued", "ready"}:
+            reasons.add("mission_phase_not_ready")
+    return sorted(reasons)
+
+
+def _action_authorized(
+    run: dict[str, Any], action: str, mission_id: str, target: str = "*"
+) -> bool:
+    return authorization_covers(run, action, mission_id, target)
+
+
+def _required_actions(
+    node: dict[str, Any], binding: dict[str, Any], runtime: dict[str, Any]
+) -> list[str]:
+    read_only_review = node["kind"] == "verifier"
+    if binding["driver"] == "external_dynamic_workflow":
+        actions = ["invoke_external_runtime", "spawn_subagents"]
+        if not read_only_review:
+            actions.extend(
+                ["create_local_worktrees", "create_local_branches", "create_local_commits"]
+            )
+        return actions
+    driver = binding["driver"]
+    actions: list[str] = []
+    if driver in {"subagents", "dynamic_workflow"}:
+        actions.append("spawn_subagents")
+    elif driver == "app_threads":
+        actions.extend(["create_user_owned_tasks", "spawn_subagents"])
+    if read_only_review:
+        return actions
+    workspace = runtime.get("workspace_mode")
+    if workspace == "parent_managed_worktree":
+        actions.extend(["create_local_worktrees", "create_local_branches", "create_local_commits"])
+    elif workspace == "app_managed_worktree":
+        if "create_user_owned_tasks" not in actions:
+            actions.append("create_user_owned_tasks")
+        actions.extend(
+            ["create_app_managed_worktrees", "create_local_branches", "create_local_commits"]
+        )
+    return actions
+
+
+def _dispatch_reasons(
+    node: dict[str, Any], binding: dict[str, Any] | None, run: dict[str, Any]
+) -> list[str]:
+    reasons: set[str] = set()
+    if node["executor"] == "runtime_worker" and binding is None:
+        reasons.add("runtime_unavailable")
+        return sorted(reasons)
+    authorization_missions: list[str] = []
+    if node["kind"] == "mission":
+        authorization_missions = [node["ref"]]
+        if not execution_covers(run, node["ref"]):
+            reasons.add("execution_not_authorized")
+    elif node["kind"] == "verifier" and node["executor"] == "runtime_worker":
+        authorization_missions = node["review"]["mission_ids"]
+        if any(not execution_covers(run, mission_id) for mission_id in authorization_missions):
+            reasons.add("execution_not_authorized")
+    if authorization_missions and binding is not None:
+        for action in _required_actions(node, binding, run["runtime_capabilities"]):
+            target = (
+                f"runtime:{binding['provider']}" if action == "invoke_external_runtime" else "*"
+            )
+            if any(
+                not _action_authorized(run, action, mission_id, target)
+                for mission_id in authorization_missions
+            ):
+                reasons.add("action_not_authorized")
+    if node["kind"] == "lifecycle":
+        mission_ids = sorted(run["mission_states"])
+        if any(not _action_authorized(run, node["ref"], mission_id) for mission_id in mission_ids):
+            reasons.add("action_not_authorized")
+    return sorted(reasons)
+
+
+def _directive(
+    node: dict[str, Any], binding: dict[str, Any] | None, run: dict[str, Any]
+) -> dict[str, Any]:
+    base = {"node_id": node["id"], "kind": node["kind"], "ref": node["ref"]}
+    if node["kind"] == "approval":
+        return {**base, "launch_kind": "await_approval"}
+    if node["kind"] == "external_wait":
+        return {**base, "launch_kind": "poll_external"}
+    if node["kind"] == "lifecycle":
+        return {**base, "launch_kind": "run_lifecycle_action", "required_actions": [node["ref"]]}
+    if node["kind"] == "verifier" and node["executor"] != "runtime_worker":
+        return {**base, "launch_kind": "run_verifier"}
+    if binding is None:
+        return {**base, "launch_kind": "unavailable"}
+    driver = binding["driver"]
+    launch_kind = {
+        "app_threads": "create_thread",
+        "subagents": "spawn_subagent",
+        "sequential_parent": "run_parent",
+        "dynamic_workflow": "run_dynamic_workflow",
+        "external_dynamic_workflow": "run_external_dynamic_workflow",
+    }[driver]
+    directive = {
+        **base,
+        "launch_kind": launch_kind,
+        "runtime_provider": binding["provider"],
+        "runtime_driver": driver,
+        "runtime_source": binding["source"],
+        "runtime_binding": binding,
+        "required_actions": _required_actions(node, binding, run["runtime_capabilities"]),
+    }
+    if node["kind"] == "verifier":
+        directive["review"] = node["review"]
+    if driver == "external_dynamic_workflow":
+        directive.update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": (
+                    "shared_checkout" if node["kind"] == "verifier" else "parent_managed_worktree"
+                ),
+                "completion_channel": "agent_result",
+                "bridge_path": "scripts/claude_runtime_bridge.py",
+                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
+            }
+        )
+    else:
+        runtime = run["runtime_capabilities"]
+        directive.update(
+            {
+                "worker_runtime": runtime["worker_runtime"],
+                "workspace_mode": runtime["workspace_mode"],
+                "completion_channel": runtime["completion_channel"],
+            }
+        )
+    return directive
+
+
+def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+    plan_errors = validate_plan(plan)
+    if plan_errors:
+        raise _validation_error("PLAN", plan_errors)
+    run_errors = validate_run(plan, run)
+    if run_errors:
+        raise _validation_error("RUN", run_errors)
+    if plan.get("schema_version") != 4 or run.get("schema_version") != 8:
+        raise GraphSelectionError("typed graph selection requires PLAN v4 and RUN v8")
+
+    dependencies, routes = _incoming(plan)
+    levels = _node_levels(plan)
+    missions = {mission["id"]: mission for mission in plan["missions"]}
+    nodes = sorted(
+        plan["graph"]["nodes"],
+        key=lambda node: (
+            levels[node["id"]],
+            -missions.get(node["ref"], {}).get("priority", 0),
+            missions.get(node["ref"], {}).get("merge_rank", 0),
+            node["id"],
+        ),
+    )
+
+    logical_ready: list[dict[str, Any]] = []
+    deferred: list[dict[str, Any]] = []
+    for node in nodes:
+        reasons = _logical_reasons(node, plan, run, dependencies, routes)
+        if reasons:
+            deferred.append({"node_id": node["id"], "reason_codes": reasons})
+        else:
+            binding = _runtime_binding(node, run["runtime_capabilities"])
+            logical_ready.append({"node": node, "binding": binding})
+
+    write_candidates = [
+        item for item in logical_ready if item["node"]["kind"] == "mission"
+    ]
+    selected_write: list[dict[str, Any]] = []
+    conflict_edges: list[dict[str, Any]] = []
+    for left, right in combinations(write_candidates, 2):
+        reasons = mission_conflicts(missions[left["node"]["ref"]], missions[right["node"]["ref"]])
+        if reasons:
+            conflict_edges.append(
+                {
+                    "left": left["node"]["id"],
+                    "right": right["node"]["id"],
+                    "reason_codes": reasons,
+                }
+            )
+    write_budget = min(
+        plan["max_parallel_workers"],
+        run["runtime_capabilities"]["max_parallel_workers"],
+        run["observed"]["runtime"]["available_worker_slots"],
+        run["observed"]["runtime"]["isolation_capacity"],
+    )
+    conflict_pairs = {
+        frozenset((edge["left"], edge["right"])) for edge in conflict_edges
+    }
+    for item in write_candidates:
+        node_id = item["node"]["id"]
+        if len(selected_write) >= write_budget:
+            deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
+            continue
+        if any(
+            frozenset((node_id, selected["node"]["id"])) in conflict_pairs
+            for selected in selected_write
+        ):
+            deferred.append({"node_id": node_id, "reason_codes": ["write_conflict"]})
+            continue
+        selected_write.append(item)
+
+    selected_ids = {item["node"]["id"] for item in selected_write}
+    authorized_candidates: list[dict[str, Any]] = []
+    for item in logical_ready:
+        node = item["node"]
+        if node["kind"] == "mission" and node["id"] not in selected_ids:
+            continue
+        reasons = _dispatch_reasons(node, item["binding"], run)
+        if reasons:
+            deferred.append({"node_id": node["id"], "reason_codes": reasons})
+            continue
+        authorized_candidates.append(item)
+
+    runtime_budget = min(
+        plan["max_parallel_workers"],
+        run["runtime_capabilities"]["max_parallel_workers"],
+        run["observed"]["runtime"]["available_worker_slots"],
+    )
+    runtime_count = 0
+    dispatchable: list[dict[str, Any]] = []
+    for item in authorized_candidates:
+        node = item["node"]
+        if node["executor"] == "runtime_worker":
+            if runtime_count >= runtime_budget:
+                deferred.append(
+                    {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
+                )
+                continue
+            runtime_count += 1
+        dispatchable.append(_directive(node, item["binding"], run))
+
+    wave_launches = []
+    external_groups: dict[tuple[str, str | None], list[str]] = {}
+    for item in dispatchable:
+        if item["launch_kind"] != "run_external_dynamic_workflow":
+            continue
+        model = item["runtime_binding"]["model"]
+        effort = item["runtime_binding"]["reasoning_effort"]
+        external_groups.setdefault((model, effort), []).append(item["node_id"])
+    for model, effort in sorted(external_groups, key=lambda pair: (pair[0], pair[1] or "")):
+        wave_launches.append(
+            {
+                "launch_kind": "run_external_dynamic_workflow",
+                "provider": "claude_code",
+                "model": model,
+                "reasoning_effort": effort,
+                "node_ids": external_groups[(model, effort)],
+                "bridge_path": "scripts/claude_runtime_bridge.py",
+                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
+            }
+        )
+    return {
+        "plan_id": plan["plan_id"],
+        "plan_revision": plan["revision"],
+        "plan_digest_sha256": plan_digest(plan),
+        "graph_revision": run["graph_state"]["graph_revision"],
+        "ready_frontier": [item["node"]["id"] for item in logical_ready],
+        "dispatchable_nodes": dispatchable,
+        "deferred_nodes": sorted(deferred, key=lambda item: item["node_id"]),
+        "conflict_edges": conflict_edges,
+        "wave_launches": wave_launches,
+    }
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Select typed graph nodes and bind them to observed runtimes."
+    )
+    parser.add_argument("--plan", required=True, type=Path)
+    parser.add_argument("--run", required=True, type=Path)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        result = select_ready_nodes(load_plan(args.plan), load_run(args.run))
+    except (ManifestError, OSError, GraphSelectionError) as exc:
+        print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True, indent=2))
+        return 2
+    print(json.dumps(result, sort_keys=True, indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

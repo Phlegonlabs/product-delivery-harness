@@ -36,6 +36,8 @@ AUTHORIZATION_KEYS = AUTHORIZATION_KEYS_V2 + (
     "merge_pr",
 )
 
+AUTHORIZATION_KEYS_V8 = AUTHORIZATION_KEYS + ("invoke_external_runtime",)
+
 MISSION_PHASES = {
     "queued",
     "ready",
@@ -69,10 +71,11 @@ WORKER_PHASES = {
 }
 GATE_VALUES = {"planned", "PASS", "FAIL", "BLOCKED", "UNVALIDATED"}
 SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")
 TASK_ID_RE = re.compile(r"^([A-Z][A-Z0-9_-]{0,63})/([A-Z][A-Z0-9_-]{0,63})$")
 TARGET_RE = re.compile(
-    r"^(?:worker|task|worktree|branch|remote|pr|repository|environment):.+$"
+    r"^(?:worker|task|worktree|branch|remote|pr|repository|environment|runtime):.+$"
 )
 FUTURE_PR_TARGET_RE = re.compile(
     r"^future-pr:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+):"
@@ -125,6 +128,16 @@ CLEANUP_BRANCH_STATUSES = {
     "not_applicable",
 }
 RUNTIME_PROVIDERS = {"codex", "claude_code", "generic"}
+RUNTIME_REASONING_EFFORTS = {
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra",
+}
 RUNTIME_DRIVERS = {
     "app_threads",
     "dynamic_workflow",
@@ -137,6 +150,34 @@ RUNTIME_DRIVER_PRIORITY = {
     "claude_code": ("dynamic_workflow", "subagents", "sequential_parent"),
     "generic": ("subagents", "sequential_parent"),
 }
+GRAPH_NODE_KINDS = {"mission", "verifier", "approval", "external_wait", "lifecycle"}
+GRAPH_EXECUTORS = {
+    "runtime_worker",
+    "harness_parent",
+    "local_command",
+    "external_system",
+    "human",
+}
+GRAPH_OUTCOMES = {
+    "pass",
+    "fix_required",
+    "retryable_failure",
+    "blocked",
+    "contract_gap",
+}
+GRAPH_NODE_PHASES = {
+    "dormant",
+    "ready",
+    "running",
+    "succeeded",
+    "failed",
+    "blocked",
+    "skipped",
+    "superseded",
+}
+GRAPH_EDGE_PHASES = {"dormant", "eligible", "traversed", "exhausted", "skipped"}
+EXTERNAL_RUNTIME_STATUSES = {"available", "unavailable", "unknown"}
+RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual"}
 
 
 class ManifestError(ValueError):
@@ -330,8 +371,47 @@ def mission_conflicts(left: dict[str, Any], right: dict[str, Any]) -> list[str]:
     return sorted(reasons)
 
 
+def mission_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
+    """Return the canonical mission dependency projection for every PLAN schema."""
+
+    missions = {
+        mission["id"]: mission
+        for mission in plan.get("missions", [])
+        if isinstance(mission, dict) and isinstance(mission.get("id"), str)
+    }
+    if plan.get("schema_version") != 4:
+        return {
+            mission_id: list(mission.get("depends_on", []))
+            for mission_id, mission in missions.items()
+        }
+
+    graph = plan.get("graph", {})
+    nodes = graph.get("nodes", []) if isinstance(graph, dict) else []
+    node_to_mission = {
+        node.get("id"): node.get("ref")
+        for node in nodes
+        if isinstance(node, dict)
+        and node.get("kind") == "mission"
+        and node.get("ref") in missions
+    }
+    dependencies = {mission_id: [] for mission_id in missions}
+    edges = graph.get("edges", []) if isinstance(graph, dict) else []
+    for edge in edges:
+        if not isinstance(edge, dict) or edge.get("kind") != "dependency":
+            continue
+        source = node_to_mission.get(edge.get("from"))
+        target = node_to_mission.get(edge.get("to"))
+        if source is not None and target is not None:
+            dependencies[target].append(source)
+    return {
+        mission_id: sorted(set(values))
+        for mission_id, values in dependencies.items()
+    }
+
+
 def topological_levels(plan: dict[str, Any]) -> dict[str, int]:
     missions = {mission["id"]: mission for mission in plan.get("missions", [])}
+    dependency_map = mission_dependencies(plan)
     levels: dict[str, int] = {}
 
     def visit(mission_id: str, stack: set[str]) -> int:
@@ -340,7 +420,7 @@ def topological_levels(plan: dict[str, Any]) -> dict[str, int]:
         if mission_id in stack:
             raise ManifestError("mission dependency cycle")
         stack.add(mission_id)
-        dependencies = missions[mission_id].get("depends_on", [])
+        dependencies = dependency_map.get(mission_id, [])
         level = 0 if not dependencies else 1 + max(visit(dep, stack) for dep in dependencies)
         stack.remove(mission_id)
         levels[mission_id] = level
@@ -582,6 +662,315 @@ def _cycle_nodes(edges: dict[str, list[str]]) -> set[str]:
     return cyclic
 
 
+def _validate_graph(
+    errors: list[str],
+    value: Any,
+    missions: dict[str, dict[str, Any]],
+    verifier_ids: set[str],
+) -> None:
+    path = "plan.graph"
+    if not _keys(errors, path, value, {"entry_nodes", "nodes", "edges"}):
+        return
+
+    entry_nodes = _strings(errors, f"{path}.entry_nodes", value["entry_nodes"], nonempty=True)
+    nodes: dict[str, dict[str, Any]] = {}
+    mission_nodes: dict[str, str] = {}
+    node_keys = {
+        "id",
+        "kind",
+        "ref",
+        "executor",
+        "allowed_outcomes",
+        "max_attempts",
+        "runtime",
+    }
+    if not isinstance(value["nodes"], list) or not value["nodes"]:
+        _add(errors, f"{path}.nodes", "must be a non-empty list")
+    else:
+        for index, node in enumerate(value["nodes"]):
+            node_path = f"{path}.nodes[{index}]"
+            if not _keys(errors, node_path, node, node_keys, {"review"}):
+                continue
+            node_id = node["id"]
+            if not _nonempty_string(node_id) or not ID_RE.fullmatch(node_id):
+                _add(errors, f"{node_path}.id", "must be a flat uppercase identifier")
+            elif node_id in nodes:
+                _add(errors, f"{node_path}.id", "must be unique")
+            nodes[node_id] = node
+            kind = node["kind"]
+            if kind not in GRAPH_NODE_KINDS:
+                _add(errors, f"{node_path}.kind", "has an unsupported value")
+            executor = node["executor"]
+            if executor not in GRAPH_EXECUTORS:
+                _add(errors, f"{node_path}.executor", "has an unsupported value")
+            outcomes = _strings(
+                errors,
+                f"{node_path}.allowed_outcomes",
+                node["allowed_outcomes"],
+                nonempty=True,
+            )
+            unknown_outcomes = sorted(set(outcomes) - GRAPH_OUTCOMES)
+            if unknown_outcomes:
+                _add(
+                    errors,
+                    f"{node_path}.allowed_outcomes",
+                    f"unsupported outcomes: {', '.join(unknown_outcomes)}",
+                )
+            if not _is_int(node["max_attempts"]) or not 1 <= node["max_attempts"] <= 3:
+                _add(errors, f"{node_path}.max_attempts", "must be an integer from 1 to 3")
+
+            ref = node["ref"]
+            if not _nonempty_string(ref):
+                _add(errors, f"{node_path}.ref", "must be a non-empty string")
+            if kind == "mission":
+                if ref not in missions:
+                    _add(errors, f"{node_path}.ref", "must reference a PLAN mission")
+                elif ref in mission_nodes:
+                    _add(errors, f"{node_path}.ref", "each mission must have exactly one graph node")
+                else:
+                    mission_nodes[ref] = node_id
+                if executor not in {"runtime_worker", "harness_parent"}:
+                    _add(errors, f"{node_path}.executor", "mission requires runtime_worker or harness_parent")
+            elif kind == "verifier":
+                if ref not in verifier_ids:
+                    _add(errors, f"{node_path}.ref", "must reference a declared verifier")
+                if executor not in {"runtime_worker", "harness_parent", "local_command"}:
+                    _add(errors, f"{node_path}.executor", "verifier has an incompatible executor")
+                review = node.get("review")
+                if executor == "runtime_worker":
+                    review_path = f"{node_path}.review"
+                    if _keys(
+                        errors,
+                        review_path,
+                        review,
+                        {"type", "mission_ids", "scope", "required_evidence"},
+                    ):
+                        if review["type"] not in RUNTIME_REVIEW_TYPES:
+                            _add(errors, f"{review_path}.type", "has an unsupported review type")
+                        review_missions = _strings(
+                            errors,
+                            f"{review_path}.mission_ids",
+                            review["mission_ids"],
+                            nonempty=True,
+                        )
+                        for mission_id in review_missions:
+                            if mission_id not in missions:
+                                _add(
+                                    errors,
+                                    f"{review_path}.mission_ids",
+                                    f"unknown mission {mission_id!r}",
+                                )
+                        _validate_scope_list(
+                            errors,
+                            f"{review_path}.scope",
+                            review["scope"],
+                            nonempty=True,
+                        )
+                        _strings(
+                            errors,
+                            f"{review_path}.required_evidence",
+                            review["required_evidence"],
+                            nonempty=True,
+                        )
+                elif review is not None:
+                    _add(
+                        errors,
+                        f"{node_path}.review",
+                        "must be omitted unless a verifier uses runtime_worker",
+                    )
+            elif kind == "approval" and executor != "human":
+                _add(errors, f"{node_path}.executor", "approval requires human")
+            elif kind == "external_wait" and executor != "external_system":
+                _add(errors, f"{node_path}.executor", "external_wait requires external_system")
+            elif kind == "lifecycle":
+                if executor != "harness_parent":
+                    _add(errors, f"{node_path}.executor", "lifecycle requires harness_parent")
+                if ref not in AUTHORIZATION_KEYS_V8:
+                    _add(errors, f"{node_path}.ref", "must reference an authorization action")
+            if kind != "verifier" and node.get("review") is not None:
+                _add(
+                    errors,
+                    f"{node_path}.review",
+                    "must be omitted unless a verifier uses runtime_worker",
+                )
+
+            runtime = node["runtime"]
+            if executor == "runtime_worker":
+                runtime_path = f"{node_path}.runtime"
+                if _keys(
+                    errors,
+                    runtime_path,
+                    runtime,
+                    {"preferred_provider", "allowed_providers"},
+                    {"provider_options"},
+                ):
+                    providers = _strings(
+                        errors,
+                        f"{runtime_path}.allowed_providers",
+                        runtime["allowed_providers"],
+                        nonempty=True,
+                    )
+                    unknown_providers = sorted(set(providers) - RUNTIME_PROVIDERS)
+                    if unknown_providers:
+                        _add(
+                            errors,
+                            f"{runtime_path}.allowed_providers",
+                            f"unsupported providers: {', '.join(unknown_providers)}",
+                        )
+                    preferred = runtime["preferred_provider"]
+                    if preferred is not None and preferred not in providers:
+                        _add(
+                            errors,
+                            f"{runtime_path}.preferred_provider",
+                            "must be null or one of allowed_providers",
+                        )
+                    provider_options = runtime.get("provider_options", {})
+                    if not isinstance(provider_options, dict):
+                        _add(errors, f"{runtime_path}.provider_options", "must be an object")
+                    else:
+                        unknown_option_providers = sorted(set(provider_options) - set(providers))
+                        if unknown_option_providers:
+                            _add(
+                                errors,
+                                f"{runtime_path}.provider_options",
+                                "contains providers not present in allowed_providers: "
+                                + ", ".join(unknown_option_providers),
+                            )
+                        for provider, options in provider_options.items():
+                            option_path = f"{runtime_path}.provider_options.{provider}"
+                            if not _keys(
+                                errors,
+                                option_path,
+                                options,
+                                {"model", "reasoning_effort"},
+                            ):
+                                continue
+                            model = options["model"]
+                            if model is not None and not _nonempty_string(model):
+                                _add(errors, f"{option_path}.model", "must be null or a non-empty string")
+                            effort = options["reasoning_effort"]
+                            if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
+                                _add(
+                                    errors,
+                                    f"{option_path}.reasoning_effort",
+                                    "must be null or a supported reasoning effort",
+                                )
+                            if provider not in {"codex", "claude_code"} and effort is not None:
+                                _add(
+                                    errors,
+                                    f"{option_path}.reasoning_effort",
+                                    "must be null unless the provider supports selectable effort",
+                                )
+            elif runtime is not None:
+                _add(errors, f"{node_path}.runtime", "must be null unless executor is runtime_worker")
+
+    for entry in entry_nodes:
+        if entry not in nodes:
+            _add(errors, f"{path}.entry_nodes", f"unknown node {entry!r}")
+    if set(mission_nodes) != set(missions):
+        missing = sorted(set(missions) - set(mission_nodes))
+        if missing:
+            _add(errors, f"{path}.nodes", f"missing mission nodes: {', '.join(missing)}")
+
+    edges: dict[str, dict[str, Any]] = {}
+    dependency_map = {node_id: [] for node_id in nodes}
+    combined_map = {node_id: [] for node_id in nodes}
+    outgoing = {node_id: [] for node_id in nodes}
+    incoming = {node_id: [] for node_id in nodes}
+    edge_keys = {"id", "kind", "from", "to", "on_outcomes", "max_traversals"}
+    if not isinstance(value["edges"], list):
+        _add(errors, f"{path}.edges", "must be a list")
+        return
+    for index, edge in enumerate(value["edges"]):
+        edge_path = f"{path}.edges[{index}]"
+        if not _keys(errors, edge_path, edge, edge_keys):
+            continue
+        edge_id = edge["id"]
+        if not _nonempty_string(edge_id) or not ID_RE.fullmatch(edge_id):
+            _add(errors, f"{edge_path}.id", "must be a flat uppercase identifier")
+        elif edge_id in edges:
+            _add(errors, f"{edge_path}.id", "must be unique")
+        edges[edge_id] = edge
+        source = edge["from"]
+        target = edge["to"]
+        if source not in nodes:
+            _add(errors, f"{edge_path}.from", "references an unknown node")
+        if target not in nodes:
+            _add(errors, f"{edge_path}.to", "references an unknown node")
+        if source == target:
+            _add(errors, edge_path, "self edges are forbidden")
+        outcomes = _strings(errors, f"{edge_path}.on_outcomes", edge["on_outcomes"], nonempty=True)
+        if source in nodes:
+            invalid = sorted(set(outcomes) - set(nodes[source].get("allowed_outcomes", [])))
+            if invalid:
+                _add(
+                    errors,
+                    f"{edge_path}.on_outcomes",
+                    f"source node does not declare: {', '.join(invalid)}",
+                )
+        if edge["kind"] == "dependency":
+            if outcomes != ["pass"]:
+                _add(errors, f"{edge_path}.on_outcomes", "dependency requires exactly ['pass']")
+            if edge["max_traversals"] is not None:
+                _add(errors, f"{edge_path}.max_traversals", "dependency must be null")
+            if source in nodes and target in nodes:
+                dependency_map[target].append(source)
+        elif edge["kind"] == "route":
+            bound = edge["max_traversals"]
+            if bound is not None and (not _is_int(bound) or not 1 <= bound <= 3):
+                _add(errors, f"{edge_path}.max_traversals", "must be null or an integer from 1 to 3")
+        else:
+            _add(errors, f"{edge_path}.kind", "must be dependency or route")
+        if source in nodes and target in nodes:
+            combined_map[target].append(source)
+            outgoing[source].append(target)
+            incoming[target].append(source)
+
+    cyclic_dependencies = _cycle_nodes(dependency_map)
+    if cyclic_dependencies:
+        _add(
+            errors,
+            f"{path}.edges",
+            f"dependency cycle includes {', '.join(sorted(cyclic_dependencies))}",
+        )
+
+    cyclic_nodes = _cycle_nodes(combined_map)
+    if cyclic_nodes:
+        for edge_id, edge in edges.items():
+            if (
+                edge.get("kind") == "route"
+                and edge.get("from") in cyclic_nodes
+                and edge.get("to") in cyclic_nodes
+                and edge.get("max_traversals") is None
+            ):
+                _add(
+                    errors,
+                    f"{path}.edges.{edge_id}.max_traversals",
+                    "route cycles require an explicit traversal bound",
+                )
+        if not any(
+            source in cyclic_nodes and target not in cyclic_nodes
+            for source, targets in outgoing.items()
+            for target in targets
+        ):
+            _add(errors, f"{path}.edges", "route cycles require an exit edge")
+
+    roots = {node_id for node_id, sources in incoming.items() if not sources}
+    if set(entry_nodes) != roots:
+        _add(errors, f"{path}.entry_nodes", "must exactly match graph root nodes")
+    reachable = set(entry_nodes)
+    pending = list(entry_nodes)
+    while pending:
+        source = pending.pop()
+        for target in outgoing.get(source, []):
+            if target not in reachable:
+                reachable.add(target)
+                pending.append(target)
+    unreachable = sorted(set(nodes) - reachable)
+    if unreachable:
+        _add(errors, f"{path}.nodes", f"unreachable nodes: {', '.join(unreachable)}")
+
+
 def validate_plan(plan: dict[str, Any]) -> list[str]:
     """Return deterministic validation errors for a harness_plan object."""
 
@@ -601,11 +990,13 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "missions",
     }
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
-    optional_keys = {"release"} if schema_version == 3 else set()
+    if schema_version == 4:
+        top_keys.update({"graph", "required_reviews"})
+    optional_keys = {"release"} if schema_version in {3, 4} else set()
     if not _keys(errors, "plan", plan, top_keys, optional_keys):
         return sorted(errors)
-    if plan["schema_version"] not in {2, 3}:
-        _add(errors, "plan.schema_version", "must equal 2 or 3")
+    if plan["schema_version"] not in {2, 3, 4}:
+        _add(errors, "plan.schema_version", "must equal 2, 3, or 4")
     if not _nonempty_string(plan["plan_id"]):
         _add(errors, "plan.plan_id", "must be a non-empty string")
     if not _is_int(plan["revision"]) or plan["revision"] < 1:
@@ -618,18 +1009,52 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     ):
         _add(errors, "plan.max_parallel_workers", "must be an integer from 1 to 3")
 
+    required_reviews: list[str] = []
+    if schema_version == 4:
+        required_reviews = _strings(
+            errors,
+            "plan.required_reviews",
+            plan["required_reviews"],
+        )
+        if len(required_reviews) != len(set(required_reviews)):
+            _add(errors, "plan.required_reviews", "must not contain duplicates")
+        unknown_reviews = sorted(set(required_reviews) - RUNTIME_REVIEW_TYPES)
+        if unknown_reviews:
+            _add(
+                errors,
+                "plan.required_reviews",
+                f"unsupported review types: {', '.join(unknown_reviews)}",
+            )
+
     sources: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["sources"], list) or not plan["sources"]:
         _add(errors, "plan.sources", "must be a non-empty list")
     else:
         source_keys = {"id", "kind", "location", "owner", "status", "notes"}
+        if schema_version == 4:
+            source_keys.update({"content_sha256", "source_revision"})
         for index, source in enumerate(plan["sources"]):
             path = f"plan.sources[{index}]"
             if not _keys(errors, path, source, source_keys):
                 continue
-            for key in source_keys:
+            for key in {"id", "kind", "location", "owner", "status", "notes"}:
                 if not _nonempty_string(source[key]):
                     _add(errors, f"{path}.{key}", "must be a non-empty string")
+            if schema_version == 4:
+                content_sha = source["content_sha256"]
+                source_revision = source["source_revision"]
+                if content_sha is not None and (
+                    not isinstance(content_sha, str) or SHA256_RE.fullmatch(content_sha) is None
+                ):
+                    _add(errors, f"{path}.content_sha256", "must be null or a lowercase SHA-256 digest")
+                if source_revision is not None and not _nonempty_string(source_revision):
+                    _add(errors, f"{path}.source_revision", "must be null or a non-empty immutable revision")
+                if content_sha is None and source_revision is None:
+                    _add(
+                        errors,
+                        path,
+                        "schema v4 sources require content_sha256 or source_revision",
+                    )
             source_id = source["id"]
             if source_id in sources:
                 _add(errors, f"{path}.id", f"duplicate source ID {source_id!r}")
@@ -716,6 +1141,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             if risk["impact"] not in {"high", "medium", "low"}:
                 _add(errors, f"{path}.impact", "must be high, medium, or low")
 
+    declared_verifier_ids: set[str] = set()
     for group in ("batch_verifiers", "final_gates"):
         if not isinstance(plan[group], list) or not plan[group]:
             _add(errors, f"plan.{group}", "must be a non-empty list")
@@ -727,8 +1153,9 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                     if verifier["id"] in ids:
                         _add(errors, f"plan.{group}[{index}].id", "must be unique")
                     ids.add(verifier["id"])
+                    declared_verifier_ids.add(verifier["id"])
 
-    if plan["schema_version"] == 3 and "release" in plan:
+    if plan["schema_version"] in {3, 4} and "release" in plan:
         _validate_release(errors, plan["release"])
 
     missions: dict[str, dict[str, Any]] = {}
@@ -741,7 +1168,6 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "objective",
         "priority",
         "merge_rank",
-        "depends_on",
         "trace_ids",
         "write_scope",
         "deny_scope",
@@ -754,6 +1180,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "integration_verifiers",
         "tasks",
     }
+    if plan["schema_version"] != 4:
+        mission_keys.add("depends_on")
     for index, mission in enumerate(plan["missions"]):
         path = f"plan.missions[{index}]"
         if not _keys(errors, path, mission, mission_keys):
@@ -792,7 +1220,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         for key in ("priority", "merge_rank"):
             if not _is_int(mission[key]):
                 _add(errors, f"{mission_path}.{key}", "must be an integer")
-        _strings(errors, f"{mission_path}.depends_on", mission["depends_on"])
+        if plan["schema_version"] != 4:
+            _strings(errors, f"{mission_path}.depends_on", mission["depends_on"])
         mission_trace_ids = _strings(
             errors, f"{mission_path}.trace_ids", mission["trace_ids"], nonempty=True
         )
@@ -849,6 +1278,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                         if verifier["id"] in ids:
                             _add(errors, f"{mission_path}.{verifier_group}[{verifier_index}].id", "must be unique")
                         ids.add(verifier["id"])
+                        declared_verifier_ids.add(verifier["id"])
         if not isinstance(mission["tasks"], list) or not mission["tasks"]:
             _add(errors, f"{mission_path}.tasks", "must be a non-empty list")
             continue
@@ -864,10 +1294,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 _add(errors, f"{task_path}.id", f"duplicate task ID {task_id!r}")
             task_records[task_id] = (mission_id, task, task_path)
 
-    mission_edges: dict[str, list[str]] = {}
+    mission_edges = mission_dependencies(plan)
     for mission_id, mission in missions.items():
-        deps = mission.get("depends_on", []) if isinstance(mission, dict) else []
-        mission_edges[mission_id] = deps if isinstance(deps, list) else []
         for dependency in mission_edges[mission_id]:
             if dependency not in missions:
                 _add(errors, f"mission {mission_id}.depends_on", f"unknown mission {dependency!r}")
@@ -956,6 +1384,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                     if verifier["id"] in verifier_ids:
                         _add(errors, f"{path}.verifiers[{verifier_index}].id", "must be unique")
                     verifier_ids.add(verifier["id"])
+                    declared_verifier_ids.add(verifier["id"])
 
     for task_id, dependencies in task_edges.items():
         for dependency in dependencies:
@@ -975,6 +1404,24 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     for trace_id, trace in traces.items():
         if trace.get("disposition") == "planned" and trace_id not in planned_trace_coverage:
             _add(errors, f"trace {trace_id}", "planned trace has no task coverage")
+
+    if plan["schema_version"] == 4:
+        _validate_graph(errors, plan["graph"], missions, declared_verifier_ids)
+        declared_reviews = {
+            node.get("review", {}).get("type")
+            for node in plan["graph"].get("nodes", [])
+            if isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+            and isinstance(node.get("review"), dict)
+        }
+        missing_reviews = sorted(set(required_reviews) - declared_reviews)
+        if missing_reviews:
+            _add(
+                errors,
+                "plan.required_reviews",
+                "missing runtime review nodes: " + ", ".join(missing_reviews),
+            )
 
     return sorted(set(errors))
 
@@ -1159,8 +1606,8 @@ def _validate_deployments(
 
     release = plan.get("release")
     release_targets: dict[str, dict[str, Any]] = {}
-    if plan.get("schema_version") != 3 or not isinstance(release, dict):
-        _add(errors, path, "schema v7 RUN requires a schema v3 PLAN release contract")
+    if plan.get("schema_version") not in {3, 4} or not isinstance(release, dict):
+        _add(errors, path, "deployment state requires a PLAN release contract")
     elif release.get("provider") != value["provider"]:
         _add(errors, f"{path}.provider", "must match PLAN release provider")
     elif isinstance(release.get("targets"), list):
@@ -1669,6 +2116,14 @@ def _validate_authorization_scope(
                 continue
             if not TARGET_RE.fullmatch(target):
                 _add(errors, f"{path}.targets", f"unsupported target {target!r}")
+            elif action_name == "invoke_external_runtime" and not target.startswith(
+                "runtime:"
+            ):
+                _add(
+                    errors,
+                    f"{path}.targets",
+                    "invoke_external_runtime requires runtime:<provider> targets",
+                )
     else:
         if value["expires_when"] not in EXPIRY_BOUNDARIES:
             _add(
@@ -1755,6 +2210,126 @@ def _authorization_not_expired(run: dict[str, Any], boundary: Any) -> bool:
     return False
 
 
+def _validate_graph_state(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    path = "run.graph_state"
+    value = run.get("graph_state")
+    if not _keys(errors, path, value, {"graph_revision", "node_states", "edge_states"}):
+        return
+    if value["graph_revision"] != plan.get("revision"):
+        _add(errors, f"{path}.graph_revision", "must match PLAN revision")
+
+    graph = plan.get("graph", {})
+    graph_nodes = {
+        node["id"]: node
+        for node in graph.get("nodes", [])
+        if isinstance(node, dict) and isinstance(node.get("id"), str)
+    }
+    graph_edges = {
+        edge["id"]: edge
+        for edge in graph.get("edges", [])
+        if isinstance(edge, dict) and isinstance(edge.get("id"), str)
+    }
+    mission_states = run.get("mission_states", {})
+
+    node_states = value["node_states"]
+    node_state_keys = {
+        "phase",
+        "attempts",
+        "last_attempt_id",
+        "last_outcome",
+        "bound_worker_id",
+        "blockers",
+    }
+    if not isinstance(node_states, dict):
+        _add(errors, f"{path}.node_states", "must be an object")
+    else:
+        if set(node_states) != set(graph_nodes):
+            _add(errors, f"{path}.node_states", "keys must exactly match PLAN graph nodes")
+        for node_id, state in node_states.items():
+            state_path = f"{path}.node_states.{node_id}"
+            if node_id not in graph_nodes or not _keys(errors, state_path, state, node_state_keys):
+                continue
+            node = graph_nodes[node_id]
+            phase = state["phase"]
+            if phase not in GRAPH_NODE_PHASES:
+                _add(errors, f"{state_path}.phase", "has an unsupported value")
+            attempts = state["attempts"]
+            if not _is_int(attempts) or attempts < 0:
+                _add(errors, f"{state_path}.attempts", "must be a non-negative integer")
+            elif attempts > node.get("max_attempts", 0):
+                _add(errors, f"{state_path}.attempts", "exceeds PLAN max_attempts")
+            for key in ("last_attempt_id", "bound_worker_id"):
+                _optional_string(errors, f"{state_path}.{key}", state[key])
+            outcome = state["last_outcome"]
+            if outcome is not None and outcome not in node.get("allowed_outcomes", []):
+                _add(errors, f"{state_path}.last_outcome", "is not declared by the PLAN node")
+            blockers = _strings(errors, f"{state_path}.blockers", state["blockers"])
+            if phase in {"succeeded", "failed", "blocked"} and (
+                not _nonempty_string(state["last_attempt_id"])
+                or outcome is None
+                or attempts < 1
+            ):
+                _add(errors, state_path, "terminal node requires attempt identity, outcome, and attempts")
+            if phase == "blocked" and not blockers:
+                _add(errors, f"{state_path}.blockers", "blocked node requires a blocker")
+            if phase == "running" and node.get("executor") == "runtime_worker" and not _nonempty_string(
+                state["bound_worker_id"]
+            ):
+                _add(errors, f"{state_path}.bound_worker_id", "is required for a running runtime worker")
+
+            if node.get("kind") == "mission" and node.get("ref") in mission_states:
+                mission_state = mission_states[node["ref"]]
+                mission_phase = mission_state.get("phase") if isinstance(mission_state, dict) else None
+                if phase == "succeeded" and (
+                    outcome != "pass"
+                    or mission_phase != "integrated"
+                    or mission_state.get("integration_gate") != "PASS"
+                ):
+                    _add(errors, state_path, "succeeded mission node requires integrated mission PASS")
+                if mission_phase == "integrated" and (
+                    phase != "succeeded" or outcome != "pass"
+                ):
+                    _add(errors, state_path, "integrated mission must be a succeeded pass node")
+                if phase == "running" and mission_phase not in {
+                    "leased",
+                    "worker_running",
+                    "worker_passed",
+                    "integrating",
+                }:
+                    _add(errors, state_path, "running mission node does not match mission phase")
+                if phase == "ready" and mission_phase not in {"queued", "ready"}:
+                    _add(errors, state_path, "ready mission node does not match mission phase")
+
+    edge_states = value["edge_states"]
+    edge_state_keys = {"status", "traversals", "source_attempt_id"}
+    if not isinstance(edge_states, dict):
+        _add(errors, f"{path}.edge_states", "must be an object")
+    else:
+        if set(edge_states) != set(graph_edges):
+            _add(errors, f"{path}.edge_states", "keys must exactly match PLAN graph edges")
+        for edge_id, state in edge_states.items():
+            state_path = f"{path}.edge_states.{edge_id}"
+            if edge_id not in graph_edges or not _keys(errors, state_path, state, edge_state_keys):
+                continue
+            if state["status"] not in GRAPH_EDGE_PHASES:
+                _add(errors, f"{state_path}.status", "has an unsupported value")
+            traversals = state["traversals"]
+            if not _is_int(traversals) or traversals < 0:
+                _add(errors, f"{state_path}.traversals", "must be a non-negative integer")
+            bound = graph_edges[edge_id].get("max_traversals")
+            if _is_int(traversals) and _is_int(bound) and traversals > bound:
+                _add(errors, f"{state_path}.traversals", "exceeds PLAN max_traversals")
+            _optional_string(errors, f"{state_path}.source_attempt_id", state["source_attempt_id"])
+            if state["status"] == "traversed" and (
+                not _is_int(traversals)
+                or traversals < 1
+                or not _nonempty_string(state["source_attempt_id"])
+            ):
+                _add(errors, state_path, "traversed edge requires traversal count and source attempt")
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -1781,22 +2356,23 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
     plan_declares_release = (
-        plan.get("schema_version") == 3 and "release" in plan
+        plan.get("schema_version") in {3, 4} and "release" in plan
     )
-    if schema_version in {3, 4, 5, 6, 7}:
+    if schema_version == 8:
+        run_keys.update({"graph_state", "review_workers"})
+    if schema_version in {3, 4, 5, 6, 7, 8}:
         run_keys.add("landing")
-    if schema_version in {5, 6, 7}:
+    if schema_version in {5, 6, 7, 8}:
         run_keys.add("post_merge_cleanup")
-    if schema_version == 7 and plan_declares_release:
+    if schema_version in {7, 8} and plan_declares_release:
         run_keys.add("deployments")
-    if schema_version not in {2, 3, 4, 5, 6, 7}:
-        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, or 7")
-    if (
-        plan_declares_release
-        and schema_version != 7
-    ):
-        _add(errors, "run.schema_version", "must equal 7 when PLAN declares release")
-    optional_run_keys = {"deployments"} if schema_version == 7 else set()
+    if schema_version not in {2, 3, 4, 5, 6, 7, 8}:
+        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, 7, or 8")
+    if plan.get("schema_version") == 4 and schema_version != 8:
+        _add(errors, "run.schema_version", "must equal 8 for a schema v4 graph PLAN")
+    elif plan_declares_release and plan.get("schema_version") == 3 and schema_version != 7:
+        _add(errors, "run.schema_version", "must equal 7 when a schema v3 PLAN declares release")
+    optional_run_keys = {"deployments"} if schema_version in {7, 8} else set()
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
@@ -1842,7 +2418,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
     authorization_keys = (
-        AUTHORIZATION_KEYS if schema_version in {3, 4, 5, 6, 7} else AUTHORIZATION_KEYS_V2
+        AUTHORIZATION_KEYS_V8
+        if schema_version == 8
+        else AUTHORIZATION_KEYS
+        if schema_version in {3, 4, 5, 6, 7, 8}
+        else AUTHORIZATION_KEYS_V2
     )
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
@@ -1875,7 +2455,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         entry["scope"],
                         action=True,
                         action_name=action,
-                        allow_future_pr=(schema_version in {6, 7}),
+                        allow_future_pr=(schema_version in {6, 7, 8}),
                     )
                     if isinstance(entry["scope"], dict) and entry["scope"].get("run_id") != run["run_id"]:
                         _add(errors, f"{path}.scope.run_id", "must match run_id")
@@ -1891,10 +2471,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
 
-    if schema_version in {3, 4, 5, 6, 7}:
+    if schema_version in {3, 4, 5, 6, 7, 8}:
         _validate_landing(errors, run["landing"], schema_version)
     if (
-        schema_version in {4, 5, 6, 7}
+        schema_version in {4, 5, 6, 7, 8}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
@@ -1937,9 +2517,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested exact PR does not match its authorized future PR binding",
             )
-    if schema_version in {5, 6, 7}:
+    if schema_version in {5, 6, 7, 8}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
-    if schema_version == 7 and "deployments" in run:
+    if schema_version in {7, 8} and "deployments" in run:
         _validate_deployments(errors, run["deployments"], run, plan)
 
     runtime_keys = {
@@ -1949,7 +2529,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "max_parallel_workers",
         "platform_lifecycle",
     }
-    if schema_version in {6, 7}:
+    if schema_version in {6, 7, 8}:
         runtime_keys.add("runtime_adapter")
     runtime = run["runtime_capabilities"]
     if _keys(
@@ -1978,13 +2558,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
         adapter = runtime.get("runtime_adapter")
         adapter_path = "run.runtime_capabilities.runtime_adapter"
-        if schema_version in {6, 7} and adapter is None:
+        if schema_version in {6, 7, 8} and adapter is None:
             _add(errors, adapter_path, "must be an object")
         elif adapter is not None and _keys(
             errors,
             adapter_path,
             adapter,
-            {"provider", "available_drivers", "detection_source"},
+            {
+                "provider",
+                "available_drivers",
+                "detection_source",
+                *({"external_runtimes"} if schema_version == 8 else set()),
+            },
         ):
             provider = adapter["provider"]
             provider_valid = isinstance(provider, str) and provider in RUNTIME_PROVIDERS
@@ -2058,6 +2643,53 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.runtime_capabilities.nested_subagents",
                     "must be omitted for flat dynamic-workflow orchestration",
                 )
+            external_runtimes = adapter.get("external_runtimes", [])
+            if schema_version == 8:
+                if not isinstance(external_runtimes, list):
+                    _add(errors, f"{adapter_path}.external_runtimes", "must be a list")
+                else:
+                    external_providers: set[str] = set()
+                    for index, external in enumerate(external_runtimes):
+                        external_path = f"{adapter_path}.external_runtimes[{index}]"
+                        if not _keys(
+                            errors,
+                            external_path,
+                            external,
+                            {
+                                "provider",
+                                "driver",
+                                "status",
+                                "command",
+                                "version",
+                                "completion_channel",
+                                "evidence",
+                            },
+                        ):
+                            continue
+                        if external["provider"] != "claude_code":
+                            _add(errors, f"{external_path}.provider", "must equal claude_code")
+                        elif external["provider"] in external_providers:
+                            _add(errors, f"{external_path}.provider", "must be unique")
+                        external_providers.add(external["provider"])
+                        if external["driver"] != "dynamic_workflow":
+                            _add(errors, f"{external_path}.driver", "must equal dynamic_workflow")
+                        if external["status"] not in EXTERNAL_RUNTIME_STATUSES:
+                            _add(errors, f"{external_path}.status", "has an unsupported value")
+                        _optional_string(errors, f"{external_path}.command", external["command"])
+                        _optional_string(errors, f"{external_path}.version", external["version"])
+                        if external["completion_channel"] != "agent_result":
+                            _add(errors, f"{external_path}.completion_channel", "must equal agent_result")
+                        evidence = _strings(errors, f"{external_path}.evidence", external["evidence"])
+                        if external["status"] == "available" and (
+                            not _nonempty_string(external["command"])
+                            or not _nonempty_string(external["version"])
+                            or not evidence
+                        ):
+                            _add(
+                                errors,
+                                external_path,
+                                "available runtime requires command, version, and evidence",
+                            )
         permission = runtime.get("permission_boundary")
         if permission is not None and _keys(
             errors,
@@ -2198,10 +2830,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "parent_dirty",
             "worktrees",
         }
-        if schema_version in {5, 6, 7}:
+        if schema_version in {5, 6, 7, 8}:
             observed_git_keys.add("parent_worktree_path")
         if _keys(errors, "run.observed.git", git, observed_git_keys):
-            if schema_version in {5, 6, 7}:
+            if schema_version in {5, 6, 7, 8}:
                 _optional_string(
                     errors,
                     "run.observed.git.parent_worktree_path",
@@ -2239,7 +2871,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
         if (
-            schema_version in {3, 4, 5, 6, 7}
+            schema_version in {3, 4, 5, 6, 7, 8}
             and isinstance(run["landing"], dict)
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
@@ -2255,7 +2887,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "pull_request mode requires integration.branch to match head_branch",
             )
         if (
-            schema_version in {3, 4, 5, 6, 7}
+            schema_version in {3, 4, 5, 6, 7, 8}
             and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"
@@ -2323,6 +2955,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 state["integration_gate"] != "PASS" or state["integrated_sha"] is None
             ):
                 _add(errors, path, "integrated mission requires PASS gate and integrated_sha")
+
+    if schema_version == 8:
+        _validate_graph_state(errors, plan, run)
 
     task_states = run["task_states"]
     task_state_keys = {
@@ -2401,6 +3036,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
     worker_ids: set[str] = set()
     workers = run["workers"]
+    graph_nodes_by_mission = {
+        node.get("ref"): node
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict) and node.get("kind") == "mission"
+    } if plan.get("schema_version") == 4 and isinstance(plan.get("graph"), dict) else {}
     worker_keys = {
         "worker_id",
         "mission_id",
@@ -2423,7 +3063,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     else:
         for index, worker in enumerate(workers):
             path = f"run.workers[{index}]"
-            if not _keys(errors, path, worker, worker_keys, {"nested_subagent_policy"}):
+            if not _keys(
+                errors,
+                path,
+                worker,
+                worker_keys,
+                {"nested_subagent_policy", "runtime_binding"},
+            ):
                 continue
             for key in ("worker_id", "mission_id", "lease_id", "plan_digest_sha256", "batch_base_sha"):
                 if not _nonempty_string(worker[key]):
@@ -2448,11 +3094,94 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _optional_string(errors, f"{path}.{key}", worker[key])
             if worker["phase"] not in WORKER_PHASES:
                 _add(errors, f"{path}.phase", "has an unsupported value")
+            runtime_binding = worker.get("runtime_binding")
+            if schema_version == 8 and worker["mission_id"] in graph_nodes_by_mission and runtime_binding is None:
+                _add(
+                    errors,
+                    f"{path}.runtime_binding",
+                    "is required for a PLAN-v4 graph worker",
+                )
+            if runtime_binding is not None and _keys(
+                errors,
+                f"{path}.runtime_binding",
+                runtime_binding,
+                {
+                    "provider",
+                    "driver",
+                    "source",
+                    "model",
+                    "reasoning_effort",
+                    "option_source",
+                },
+            ):
+                if runtime_binding["provider"] not in RUNTIME_PROVIDERS:
+                    _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
+                if not _nonempty_string(runtime_binding["driver"]):
+                    _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
+                if runtime_binding["source"] not in {"host", "external_bridge"}:
+                    _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
+                if runtime_binding["option_source"] not in {
+                    "plan_provider_options",
+                    "provider_default",
+                }:
+                    _add(errors, f"{path}.runtime_binding.option_source", "has an unsupported value")
+                model = runtime_binding["model"]
+                if model is not None and not _nonempty_string(model):
+                    _add(errors, f"{path}.runtime_binding.model", "must be null or a non-empty string")
+                effort = runtime_binding["reasoning_effort"]
+                if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
+                    _add(
+                        errors,
+                        f"{path}.runtime_binding.reasoning_effort",
+                        "must be null or a supported reasoning effort",
+                    )
+                if runtime_binding["provider"] not in {"codex", "claude_code"} and effort is not None:
+                    _add(
+                        errors,
+                        f"{path}.runtime_binding.reasoning_effort",
+                        "must be null unless the provider supports selectable effort",
+                    )
+                graph_node = graph_nodes_by_mission.get(worker["mission_id"])
+                policy = graph_node.get("runtime") if isinstance(graph_node, dict) else None
+                if isinstance(policy, dict):
+                    provider = runtime_binding["provider"]
+                    if provider not in policy.get("allowed_providers", []):
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.provider",
+                            "must be allowed by the matching PLAN node",
+                        )
+                    configured = policy.get("provider_options", {}).get(provider)
+                    expected_model = "sonnet" if provider == "claude_code" else None
+                    expected_effort = None
+                    expected_source = "provider_default"
+                    if isinstance(configured, dict):
+                        expected_model = configured.get("model") or expected_model
+                        expected_effort = configured.get("reasoning_effort")
+                        expected_source = "plan_provider_options"
+                    if runtime_binding["model"] != expected_model:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.model",
+                            "must match the matching PLAN provider option",
+                        )
+                    if runtime_binding["reasoning_effort"] != expected_effort:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.reasoning_effort",
+                            "must match the matching PLAN provider option",
+                        )
+                    if runtime_binding["option_source"] != expected_source:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.option_source",
+                            "must identify the matching PLAN option source",
+                        )
             if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
             if (
-                schema_version in {6, 7}
+                schema_version in {6, 7, 8}
                 and isinstance(runtime, dict)
                 and route_runtime_driver(runtime) == "dynamic_workflow"
                 and nested_policy is not None
@@ -2582,6 +3311,159 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             errors,
                             f"{path}.nested_subagent_policy.allowed_roles",
                             "must be empty when disabled",
+                        )
+
+    if schema_version == 8:
+        review_workers = run["review_workers"]
+        review_nodes = {
+            node.get("id"): node
+            for node in plan.get("graph", {}).get("nodes", [])
+            if isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+        }
+        review_worker_keys = {
+            "worker_id",
+            "node_id",
+            "attempt_id",
+            "plan_revision",
+            "plan_digest_sha256",
+            "graph_revision",
+            "reviewed_sha",
+            "review_path",
+            "worker_runtime",
+            "completion_channel",
+            "runtime_binding",
+            "task_thread_id",
+            "report_path",
+            "phase",
+        }
+        if not isinstance(review_workers, list):
+            _add(errors, "run.review_workers", "must be a list")
+        else:
+            for index, worker in enumerate(review_workers):
+                path = f"run.review_workers[{index}]"
+                if not _keys(errors, path, worker, review_worker_keys):
+                    continue
+                for key in (
+                    "worker_id",
+                    "node_id",
+                    "attempt_id",
+                    "plan_digest_sha256",
+                    "reviewed_sha",
+                    "review_path",
+                ):
+                    if not _nonempty_string(worker[key]):
+                        _add(errors, f"{path}.{key}", "must be a non-empty string")
+                if worker["worker_id"] in worker_ids:
+                    _add(errors, f"{path}.worker_id", "must be unique across all workers")
+                worker_ids.add(worker["worker_id"])
+                node = review_nodes.get(worker["node_id"])
+                if node is None:
+                    _add(errors, f"{path}.node_id", "must reference a runtime-worker verifier")
+                if not _is_int(worker["plan_revision"]) or worker["plan_revision"] < 1:
+                    _add(errors, f"{path}.plan_revision", "must be a positive integer")
+                if worker["plan_revision"] != plan.get("revision"):
+                    _add(errors, f"{path}.plan_revision", "must match the current PLAN")
+                _optional_sha(errors, f"{path}.plan_digest_sha256", worker["plan_digest_sha256"])
+                if worker["plan_digest_sha256"] != plan_digest(plan):
+                    _add(errors, f"{path}.plan_digest_sha256", "must match the current PLAN")
+                if worker["graph_revision"] != run["graph_state"]["graph_revision"]:
+                    _add(errors, f"{path}.graph_revision", "must match the current graph revision")
+                _optional_sha(errors, f"{path}.reviewed_sha", worker["reviewed_sha"])
+                current_reviewable_shas = {
+                    sha
+                    for sha in (
+                        run.get("integration", {}).get("integration_head_sha"),
+                        run.get("landing", {}).get("pr_head_sha"),
+                        *(
+                            state.get("integrated_sha")
+                            for state in run.get("mission_states", {}).values()
+                            if isinstance(state, dict)
+                        ),
+                    )
+                    if is_full_sha(sha)
+                }
+                if worker["reviewed_sha"] not in current_reviewable_shas:
+                    _add(errors, f"{path}.reviewed_sha", "must identify a current integrated or PR head")
+                if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
+                    _add(errors, f"{path}.worker_runtime", "has an unsupported value")
+                if worker["completion_channel"] not in {
+                    "agent_result",
+                    "thread_poll",
+                    "report_file",
+                    "user_relay",
+                }:
+                    _add(errors, f"{path}.completion_channel", "has an unsupported value")
+                for key in ("task_thread_id", "report_path"):
+                    _optional_string(errors, f"{path}.{key}", worker[key])
+                if worker["completion_channel"] == "report_file" and not _nonempty_string(
+                    worker["report_path"]
+                ):
+                    _add(errors, f"{path}.report_path", "is required for report_file")
+                if worker["phase"] not in WORKER_PHASES:
+                    _add(errors, f"{path}.phase", "has an unsupported value")
+                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
+                if worker["phase"] in {"worker_running", "worker_passed"} and (
+                    state.get("bound_worker_id") != worker["worker_id"]
+                    or state.get("last_attempt_id") != worker["attempt_id"]
+                ):
+                    _add(errors, path, "active review worker must match the bound graph attempt")
+                binding = worker["runtime_binding"]
+                if _keys(
+                    errors,
+                    f"{path}.runtime_binding",
+                    binding,
+                    {
+                        "provider",
+                        "driver",
+                        "source",
+                        "model",
+                        "reasoning_effort",
+                        "option_source",
+                    },
+                ):
+                    provider = binding["provider"]
+                    policy = node.get("runtime") if isinstance(node, dict) else None
+                    if provider not in RUNTIME_PROVIDERS:
+                        _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
+                    if not isinstance(policy, dict) or provider not in policy.get(
+                        "allowed_providers", []
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.provider",
+                            "must be allowed by the matching review node",
+                        )
+                    if not _nonempty_string(binding["driver"]):
+                        _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
+                    if binding["source"] not in {"host", "external_bridge"}:
+                        _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
+                    configured = (
+                        policy.get("provider_options", {}).get(provider)
+                        if isinstance(policy, dict)
+                        else None
+                    )
+                    expected_model = "sonnet" if provider == "claude_code" else None
+                    expected_effort = None
+                    expected_source = "provider_default"
+                    if isinstance(configured, dict):
+                        expected_model = configured.get("model") or expected_model
+                        expected_effort = configured.get("reasoning_effort")
+                        expected_source = "plan_provider_options"
+                    if binding["model"] != expected_model:
+                        _add(errors, f"{path}.runtime_binding.model", "must match the review node")
+                    if binding["reasoning_effort"] != expected_effort:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.reasoning_effort",
+                            "must match the review node",
+                        )
+                    if binding["option_source"] != expected_source:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.option_source",
+                            "must identify the matching PLAN option source",
                         )
 
     if not isinstance(run["attempt_log"], list):

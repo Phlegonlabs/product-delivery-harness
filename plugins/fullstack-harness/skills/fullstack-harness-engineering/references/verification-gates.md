@@ -96,7 +96,7 @@ Manual smoke or another environment-specific check is still required when automa
 
 ## Cloudflare Development And Production Gates
 
-For a PLAN schema-v3 Cloudflare release, use two deployed-environment gates rather than treating a successful upload as release completion:
+For a new PLAN schema-v4 Cloudflare release, use two deployed-environment gates rather than treating a successful upload as release completion; existing schema-v3 release plans retain the same gates:
 
 | Gate | Source | Required proof |
 |---|---|---|

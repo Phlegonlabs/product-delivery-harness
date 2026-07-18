@@ -37,16 +37,16 @@ The parent/coordinator is the sole writer of `PLAN.md` and `RUN.md` during execu
 Record every canonical input and its status:
 
 ```text
-| Source | Path / URL | Owner | Status | Notes |
-|---|---|---|---|---|
-| PRD | <path> | human / team | draft / frozen | <summary> |
-| Builder UX direction | <PRD section, path, or URL> | human decision owner | selected / provisional / assumed | <direction and validation needs> |
-| Wireframe | <path or URL> | human / team | draft / frozen | <screens> |
-| Design system | <path or URL> | human / team | draft / frozen | <tokens/components> |
-| Architecture | <path> | Codex / team | draft / frozen | <contract surfaces> |
+| Source | Path / URL | Content SHA-256 / immutable revision | Owner | Status | Notes |
+|---|---|---|---|---|---|
+| PRD | <path> | <hash or revision> | human / team | draft / frozen | <summary> |
+| Builder UX direction | <PRD section, path, or URL> | <hash or revision> | human decision owner | selected / provisional / assumed | <direction and validation needs> |
+| Wireframe | <path or URL> | <hash or revision> | human / team | draft / frozen | <screens> |
+| Design system | <path or URL> | <hash or revision> | human / team | draft / frozen | <tokens/components> |
+| Architecture | <path> | <hash or revision> | Codex / team | draft / frozen | <contract surfaces> |
 ```
 
-For plan-backed work, the PLAN JSON `sources` array is canonical; the table is its human view. Each trace references `source_ids` and records `priority`, `disposition`, and any disposition `rationale`. Canonical `ui_surfaces`, `risks`, mission `stop_conditions`, and verifier arrays similarly own the static facts shown in later tables.
+For plan-backed work, the PLAN JSON `sources` array is canonical; the table is its human view. Every schema-v4 source includes `content_sha256`, an immutable `source_revision`, or both. A mutable path or URL without either binding is not frozen. Recompute the PLAN digest and invalidate old attempts whenever source content or its upstream revision changes. Each trace references `source_ids` and records `priority`, `disposition`, and any disposition `rationale`. Canonical `ui_surfaces`, `risks`, mission `stop_conditions`, and verifier arrays similarly own the static facts shown in later tables.
 
 If an external source is unavailable, ask for screenshots, exports, or written specs before claiming design-faithful implementation.
 

@@ -28,9 +28,9 @@ Builder approval proves direction conformance only, not usability. Keep unsuppor
 
 ## Product-Specific Visual Thesis
 
-| Cue / signature decision | Product or source basis | System expression | Avoid |
-|---|---|---|---|
-| <concrete cue or recurring decision> | <evidence or explicit assumption> | <tokens, components, layouts, imagery, or motion> | <unsupported generic default> |
+| DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |
+|---|---|---|---|---|---|
+| DS-001 | <concrete cue or recurring decision> | <evidence or explicit assumption> | PRD-001, UI-001, UX-001 | <tokens, components, layouts, imagery, or motion> | <unsupported generic default> |
 
 ## Taste & Anti-Slop Guardrails
 
@@ -140,13 +140,13 @@ export function IconActions() {
 
 ## Component Styles
 
-| Component | Variants | States | Usage Rules |
-|---|---|---|---|
-| Button | <variants> | <states> | <rules> |
-| Input | <variants> | <states> | <rules> |
-| Navigation | <variants> | <states> | <rules> |
-| Card / panel | <variants> | <states> | <rules> |
-| Table / list | <variants> | <states> | <rules> |
+| DS ID | Component | Variants | States | Upstream UI / ARCH IDs | Usage Rules |
+|---|---|---|---|---|---|
+| DS-COMP-001 | Button | <variants> | <states> | UI-001, ARCH-001 | <rules> |
+| DS-COMP-002 | Input | <variants> | <states> | UI-001 | <rules> |
+| DS-COMP-003 | Navigation | <variants> | <states> | UI-001 | <rules> |
+| DS-COMP-004 | Card / panel | <variants> | <states> | UI-001 | <rules> |
+| DS-COMP-005 | Table / list | <variants> | <states> | UI-001 | <rules> |
 | Modal / drawer | <variants> | <states> | <rules> |
 
 ## Shadows & Elevation

@@ -7,11 +7,15 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 ```json
 {
   "harness_plan": {
-    "schema_version": 3,
+    "schema_version": 4,
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
     "max_parallel_workers": 3,
+    "required_reviews": [
+      "frontend_code",
+      "visual"
+    ],
     "sources": [
       {
         "id": "SRC-001",
@@ -19,12 +23,14 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
         "location": "<repo-relative path or URL>",
         "owner": "<human or team>",
         "status": "frozen",
+        "content_sha256": "<lowercase SHA-256 of the frozen content, or null>",
+        "source_revision": "<immutable upstream revision, or null>",
         "notes": "<role or concise notes>"
       }
     ],
     "traces": [
       {
-        "id": "REQ-001",
+        "id": "PRD-001",
         "source_ids": [
           "SRC-001"
         ],
@@ -38,7 +44,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
       {
         "id": "UI-001",
         "trace_ids": [
-          "REQ-001"
+          "PRD-001"
         ],
         "route": "<route or screen>",
         "breakpoints": [
@@ -165,6 +171,153 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
         }
       ]
     },
+    "graph": {
+      "entry_nodes": [
+        "N-M1"
+      ],
+      "nodes": [
+        {
+          "id": "N-M1",
+          "kind": "mission",
+          "ref": "M1",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "xhigh"
+              },
+              "claude_code": {
+                "model": "claude-fable-5",
+                "reasoning_effort": "high"
+              }
+            }
+          }
+        },
+        {
+          "id": "N-FRONTEND-REVIEW",
+          "kind": "verifier",
+          "ref": "batch-cross-mission",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "fix_required",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "xhigh"
+              },
+              "claude_code": {
+                "model": "claude-fable-5",
+                "reasoning_effort": "xhigh"
+              }
+            }
+          },
+          "review": {
+            "type": "frontend_code",
+            "mission_ids": [
+              "M1"
+            ],
+            "scope": [
+              "src/example/**"
+            ],
+            "required_evidence": [
+              "reviewed_sha",
+              "path-and-line findings",
+              "pass or fix_required decision"
+            ]
+          }
+        },
+        {
+          "id": "N-VISUAL-REVIEW",
+          "kind": "verifier",
+          "ref": "e2e-primary-journey",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "fix_required",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "xhigh"
+              },
+              "claude_code": {
+                "model": "claude-fable-5",
+                "reasoning_effort": "high"
+              }
+            }
+          },
+          "review": {
+            "type": "visual",
+            "mission_ids": [
+              "M1"
+            ],
+            "scope": [
+              "src/example/**"
+            ],
+            "required_evidence": [
+              "reviewed_sha",
+              "required-breakpoint screenshots",
+              "visual findings and decision"
+            ]
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "E-M1-FRONTEND-REVIEW",
+          "kind": "dependency",
+          "from": "N-M1",
+          "to": "N-FRONTEND-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-FRONTEND-VISUAL-REVIEW",
+          "kind": "dependency",
+          "from": "N-FRONTEND-REVIEW",
+          "to": "N-VISUAL-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        }
+      ]
+    },
     "missions": [
       {
         "id": "M1",
@@ -172,9 +325,8 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
         "objective": "<vertical mission outcome>",
         "priority": 100,
         "merge_rank": 10,
-        "depends_on": [],
         "trace_ids": [
-          "REQ-001"
+          "PRD-001"
         ],
         "write_scope": [
           "src/example/**"
@@ -226,7 +378,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
               "<scenario or assertion that stays inside this task>"
             ],
             "trace_ids": [
-              "REQ-001"
+              "PRD-001"
             ],
             "depends_on": [],
             "parent_task": null,
@@ -256,11 +408,21 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 }
 ```
 
-The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v3. Keep the displayed `release` object only for a deployable Cloudflare plan; remove the whole object for non-Cloudflare or non-deployable work. Schema version exposes the field but does not enable it by itself. Schema v2 plans remain readable without `release`. Keep the JSON valid, increment `revision` after an accepted semantic plan change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
+The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v4. The graph is the canonical source for mission dependencies and routing; existing schema-v2 and schema-v3 plans remain readable. Keep the displayed `release` object only for a deployable Cloudflare plan; remove the whole object for non-Cloudflare or non-deployable work. Schema version exposes the field but does not enable it by itself. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
+
+For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes, backend implementation, and `backend_code` review, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning and keep Claude Code `sonnet` as the availability fallback. This UI-bearing example applies the frontend override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
+
+Every schema-v4 source must bind the frozen input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. Recompute the PLAN digest whenever source content or its immutable upstream revision changes.
+
+For frontend/UI implementation, preview, and final visual-review nodes, set Claude to the pinned `claude-fable-5` ID with `high` reasoning. Set `frontend_code` review nodes to `claude-fable-5` with `xhigh` reasoning. Use Codex `gpt-5.6-sol` with `xhigh` reasoning as the availability fallback for every frontend role. These role-specific options replace the generic fallback on those nodes.
+
+For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews, bind to one exact reviewed SHA in RUN, and route `fix_required` back to the matching bounded repair path. Combine reviews only when the scope is genuinely single-surface and record why.
+
+List every applicable review type in `required_reviews`. PLAN validation rejects a required type without a matching runtime-worker verifier node. Use an empty list only when the work has no frontend, backend, or visual review surface; explain that applicability decision in the human review map.
 
 Use immutable, flat task IDs such as `M1/T01`. Represent lineage only with `parent_task`; use `legacy_task_ids` only for real pre-existing identifiers. A generation-0 task may be replaced by generation-1 children, but generation-1 tasks must not split again without a mission-level replan. When accepted refinement replaces a task, set its `replaced_by`, give each child `parent_task`, `split_reason`, and `refinement_generation: 1`, then increment the plan revision and revalidate the complete graph.
 
-Task dependencies are same-mission only. Express every cross-mission ordering requirement in the mission DAG. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
+Task dependencies are same-mission only. In schema v4, express every cross-mission ordering requirement with `graph.edges` of kind `dependency`; do not retain a second `missions[].depends_on` source. Dependency edges must stay acyclic. Conditional `route` edges may form a correction loop only when every cyclic route has `max_traversals` and the cycle has an exit edge. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
 
 The manifest owns source identity/status, requirement priority/disposition, UI route/state/breakpoint evidence needs, risks, and stop conditions. Trace priorities are `must`, `should`, or `could`; dispositions are `planned`, `deferred`, or `out_of_scope`, with a non-null rationale for the latter two. UI evidence gates are `required`, `optional`, or `n/a`; risk impact is `high`, `medium`, or `low`. Use empty arrays for truly non-applicable UI or risk surfaces; do not move any field used by validation, readiness, scheduling, launch, or integration into the human tables below. Tables may add explanatory narrative that does not alter execution semantics. Worker verifiers run in the mission workspace, mission integration verifiers run after that mission reaches the integration head, batch verifiers run after a selected wave integrates, and final gates close the whole run.
 
@@ -268,14 +430,14 @@ Scope entries must be POSIX, repository-relative exact paths or subtrees ending 
 
 ## Source Map
 
-| Source | Path / URL | Status | Role / notes |
-|---|---|---|---|
-| Product requirements | <path> | draft / frozen / missing / n/a | <notes> |
-| Builder UX Direction | <PRD section, path, or URL> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
-| Architecture / API / data | <path> | draft / frozen / missing / n/a | <notes> |
-| Wireframe / flow | <path> | draft / frozen / missing / n/a | <notes> |
-| Design system / page UI | <path or URL> | draft / frozen / missing / n/a | <notes> |
-| Existing app baseline | <path or URL> | captured / missing / n/a | <notes> |
+| Source | Path / URL | Content SHA-256 / immutable revision | Status | Role / notes |
+|---|---|---|---|---|
+| Product requirements | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Builder UX Direction | <PRD section, path, or URL> | <hash or revision> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
+| Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Design system / page UI | <path or URL> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Existing app baseline | <path or URL> | <hash or revision> | captured / missing / n/a | <notes> |
 
 ## Delivery Context
 
@@ -297,7 +459,7 @@ These are planning expectations, not authorization. Record explicit action autho
 
 ### Must Have
 
-- `REQ-001` <requirement>
+- `PRD-001` <requirement>
 
 ### Should / Could / Deferred
 
@@ -320,7 +482,7 @@ These are planning expectations, not authorization. Record explicit action autho
 
 | Trace | Requirement | Mission / task | Pass signal |
 |---|---|---|---|
-| REQ-001 | <requirement> | M1 / M1/T01 | <literal signal> |
+| PRD-001 | <requirement> | M1 / M1/T01 | <literal signal> |
 | UX-001 | <critical task, interaction/recovery, or usability requirement> | M1 / M1/T02 | <direction, behavior, or usability signal> |
 
 ## Delivery Dependency Strategy
@@ -339,7 +501,7 @@ Chosen order and rationale:
 
 | Mission | Objective | Traces | Depends on | Write / deny scope | Resources | Exit verifier |
 |---|---|---|---|---|---|---|
-| M1 | <objective> | REQ-001 | none | <paths> | <typed claims> | <command/action> |
+| M1 | <objective> | PRD-001 | none | <paths> | <typed claims> | <command/action> |
 
 ## UI Surface Matrix
 
@@ -356,7 +518,7 @@ Include only when UI evidence is required or optional.
 | Every in-scope trace is planned, deferred, or out of scope | draft / PASS / BLOCKED | <note> |
 | Every must-have trace maps to a task and verifier | draft / PASS / BLOCKED | <note> |
 | Canonical sources, priorities, dispositions, risks, and stop conditions are complete | draft / PASS / BLOCKED | <note> |
-| Mission and task dependency graphs are explicit and acyclic | draft / PASS / BLOCKED | <note> |
+| Typed graph dependency edges and task dependencies are explicit and acyclic; route loops are bounded with exits | draft / PASS / BLOCKED | <note> |
 | Frontend/backend/data integration points are defined | draft / PASS / BLOCKED | <note> |
 | Shared foundations and migrations are ordered | draft / PASS / BLOCKED | <note> |
 | UI routes, breakpoints, states, and evidence are planned | draft / PASS / BLOCKED / n/a | <note> |

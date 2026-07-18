@@ -22,7 +22,7 @@ If a requested combination is unsupported, downgrade to sequential parent execut
 
 ## Runtime Adapter Routing
 
-Schemas v6 and v7 record the observed provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
+Schemas v6 through v8 record the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
 
 ```text
 provider: codex | claude_code | generic
@@ -43,6 +43,8 @@ The selected driver must match the axes recorded in RUN. `app_threads` maps to `
 Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
 Perform this detection proactively before the first production edit in every plan-backed multi-mission run. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
+
+Schema v8 may additionally record `external_runtimes`. This does not change the host provider. A Codex parent records external Claude Code as available only after `claude_runtime_bridge.py preflight` executes the Workflow tool and returns protocol-v1 evidence. A binary path and version are compatibility evidence only. Selecting external Claude for a node requires `invoke_external_runtime` for `runtime:claude_code` plus the normal worker/worktree actions.
 
 ## Default Plan-Backed Wave
 
@@ -185,6 +187,20 @@ When the accepted schema-v6-or-v7 wave routes to `claude_code` + `dynamic_workfl
 6. Validate every result against live worktree, branch, head, scope, and verifier facts. Integrate accepted mission heads serially and recompute the next wave.
 
 Claude Code currently supports nested subagents, but this schema-v6-or-v7 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, push, or land a PR. If Dynamic Workflow is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
+
+## Launch External Claude From A Codex Parent
+
+For a PLAN-v4/RUN-v8 node bound to external Claude Code:
+
+1. Keep the Codex task as the only PLAN/RUN writer and graph scheduler.
+2. Run the no-edit bridge preflight and record its command, version, completion channel, and evidence under `external_runtimes`.
+3. Recheck `invoke_external_runtime` for `runtime:claude_code`, `spawn_subagents`, and the parent-managed worktree/branch/commit grants.
+4. Allocate the node attempt, worker, lease, branch, and existing worktree from the fixed batch base.
+5. Build the exact graph wave request, including plan/graph identity, node IDs, attempt IDs, handoffs, permission mode, and explicit Claude tool allowlist.
+6. Invoke `claude_runtime_bridge.py run-wave`; it calls `CLAUDE_GRAPH_WORKFLOW.template.js` once and returns one node result per requested node through `agent_result`.
+7. Validate each node result, worker payload, actual head/diff/scope, and verifier evidence. Integrate passing mission heads serially and update graph state before another route or wave.
+
+Do not run two PLAN/RUN parents. Do not let Claude create a replacement worktree, edit parent state, integrate, push, open a PR, deploy, or clean up. A bridge process exit or structured response is not mission completion.
 
 ## Launch Selected Codex App Threads
 

@@ -41,8 +41,9 @@ Decision owner: [Human product/design owner or commissioning team]
 Builder approval proves direction conformance only. It does not prove usability; keep unsupported preferences provisional or assumed until separate user evidence exists.
 
 ## Product-Specific Visual Thesis
-| Cue / signature decision | Product or source basis | System expression | Avoid |
-| --- | --- | --- | --- |
+| DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |
+| --- | --- | --- | --- | --- | --- |
+| DS-001 | [Stable design decision] | [Evidence] | PRD-001, UI-001, UX-001 | [Expression] | [Avoid] |
 
 ## Taste & Anti-Slop Guardrails
 Taste statement: [One sentence naming the intended visual character and the concrete typography, composition, color, imagery, or interaction choices that create it.]
@@ -114,8 +115,8 @@ export function IconActions() {
 | --- | --- | --- |
 
 ## Component Styles
-| Component | Variants | States | Usage Rules |
-| --- | --- | --- | --- |
+| DS ID | Component | Variants | States | Upstream UI / ARCH IDs | Usage Rules |
+| --- | --- | --- | --- | --- | --- |
 
 ## Shadows & Elevation
 | Token | Value / Direction | Usage |
@@ -188,9 +189,9 @@ Use this structure:
 ```markdown
 # Page UI Matrix: [Product Name]
 
-| Page / route | UI source | Motion source | Breakpoints | States | Components | Data source | Acceptance evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| /example | ui-mockups.md#example | motion-showcase.html#example | mobile/tablet/desktop | ready/loading/error | cards/table/actions | API-001 | screenshot + motion review |
+| UI ID | Page / route | Upstream trace IDs | DS IDs | UI source | Motion source | Breakpoints | States | Components | Data source | TEST IDs / acceptance evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UI-001 | /example | PRD-001, UX-001, ARCH-001 | DS-001 | ui-mockups.md#example | motion-showcase.html#example | mobile/tablet/desktop | ready/loading/error | cards/table/actions | API-001 | TEST-VIS-001 + screenshot |
 
 ## State Coverage Notes
 - [Page]: [missing or derived states]
@@ -204,10 +205,14 @@ Use this structure:
 # UI Mockups: [Product Name]
 
 ## Mockup Index
-| Mockup ID | Page / route | Breakpoint | State | Source / artifact | Motion demo |
-| --- | --- | --- | --- | --- | --- |
+| Mockup ID | UI ID | Page / route | Breakpoint | State | Upstream trace IDs | DS IDs | Source / artifact | Motion demo |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 ## Mockup: [Page Name] - [Breakpoint] - [State]
+UI ID: UI-001
+
+Trace IDs: PRD-001, UX-001, ARCH-001, DS-001
+
 ### Purpose
 [What this screen accomplishes.]
 
@@ -259,28 +264,28 @@ Use this structure:
 # Visual Acceptance: [Product Name]
 
 ## Review Gates
-| Gate | Required | Expected Signal | Evidence |
-| --- | --- | --- | --- |
-| Design system conformance | yes | Components use approved tokens and variants | screenshot / code review |
-| Builder UX direction conformance | when a Builder UX Direction exists | Selected decisions are implemented; provisional or assumed decisions and conflicts remain explicit | source review / design review |
-| Page UI conformance | yes | Implemented page matches mockup source | screenshot / trace |
-| Responsive behavior | yes | No overflow or broken hierarchy at required breakpoints | screenshot |
-| State coverage | yes | Required loading/empty/error/disabled states exist | screenshot / test |
-| Accessibility basics | yes | Focus, contrast intent, labels, keyboard path checked | audit / screenshot |
-| Icon system conformance | yes | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
-| Motion system conformance | yes | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
-| Motion performance | yes | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
-| Taste and anti-slop review | yes | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
-| Rendered visual review loop | when visual artifacts or an implementation exist | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
-| Spec-only review path | when rendered visuals do not exist | The Markdown package was checked for taste, hierarchy, container and border purpose, responsive intent, and internal consistency; render evidence is marked unavailable and no visual-verification claim is made | text review notes |
-| Content specificity | yes | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
-| Container and border purpose | yes | Regions default to open layouts; every visible border, frame, rail, or elevation has a named hierarchy, interaction, state, data, or accessibility purpose | screenshot / border inventory / design review |
-| Landing-page simplicity | when applicable | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
-| Media and motion traceability | when applicable | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
+| TEST ID | Gate | Required | Upstream trace IDs | Expected Signal | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| TEST-VIS-001 | Design system conformance | yes | DS-* | Components use approved tokens and variants | screenshot / code review |
+| TEST-VIS-002 | Builder UX direction conformance | when a Builder UX Direction exists | UX-*, DS-* | Selected decisions are implemented; provisional or assumed decisions and conflicts remain explicit | source review / design review |
+| TEST-VIS-003 | Page UI conformance | yes | UI-*, DS-* | Implemented page matches mockup source | screenshot / trace |
+| TEST-VIS-004 | Responsive behavior | yes | UI-* | No overflow or broken hierarchy at required breakpoints | screenshot |
+| TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
+| TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, contrast intent, labels, keyboard path checked | audit / screenshot |
+| TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
+| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
+| TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
+| TEST-VIS-010 | Taste and anti-slop review | yes | DS-* | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
+| TEST-VIS-011 | Rendered visual review loop | when visual artifacts or an implementation exist | UI-*, DS-* | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
+| TEST-VIS-012 | Spec-only review path | when rendered visuals do not exist | UI-*, DS-* | The Markdown package was checked for taste, hierarchy, container and border purpose, responsive intent, and internal consistency; render evidence is marked unavailable and no visual-verification claim is made | text review notes |
+| TEST-VIS-013 | Content specificity | yes | PRD-*, UI-* | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
+| TEST-VIS-014 | Container and border purpose | yes | DS-*, UI-* | Regions default to open layouts; every visible border, frame, rail, or elevation has a named hierarchy, interaction, state, data, or accessibility purpose | screenshot / border inventory / design review |
+| TEST-VIS-015 | Landing-page simplicity | when applicable | PRD-*, UI-* | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
+| TEST-VIS-016 | Media and motion traceability | when applicable | UI-*, DS-* | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
 
 ## Page Acceptance
-| Page / route | Source | Required evidence | Status |
-| --- | --- | --- | --- |
+| UI ID | Page / route | Source | TEST IDs | Required evidence | Status |
+| --- | --- | --- | --- | --- | --- |
 
 ## Known Visual Risks
 | Risk | Impact | Decision |
@@ -292,6 +297,7 @@ Use this structure:
 Before finalizing, verify:
 
 - All four artifacts are present.
+- Upstream `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, and `TEST-*` IDs are preserved. Design decisions and components use stable `DS-*` IDs, and every page and visual gate carries the IDs it implements or verifies.
 - `design-system.md` defines overview, a product-specific visual thesis, taste and anti-slop guardrails, container and border rules, content/data realism, color palette, typography, iconography, spacing, component styles, shadows/elevation, a complete motion system, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules.
 - For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
 - Builder direction conformance is not presented as usability validation; unsupported preferences remain explicit hypotheses.
@@ -310,6 +316,7 @@ Before finalizing, verify:
 - `visual-acceptance.md` defines implementation-verifiable visual gates, including taste, unsupported AI-UI pattern clusters, and container and border purpose.
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.
+- The package is validated in `doc/.design-staging/<run-id>/`; exact overwrites and archive moves are authorized before publication, or the staged package remains unchanged awaiting approval.
 
 ## Taste & Anti-Slop Review Checklist
 

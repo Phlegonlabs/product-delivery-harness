@@ -370,6 +370,10 @@ def select_parallel_missions(
     plan_errors = validate_plan(plan)
     if plan_errors:
         raise _validation_error("PLAN", plan_errors)
+    if plan.get("schema_version") == 4:
+        raise SelectionError(
+            "schema v4 typed graphs must use select_ready_nodes.py"
+        )
 
     run_errors = validate_run(plan, run)
     fatal_run_errors = [
