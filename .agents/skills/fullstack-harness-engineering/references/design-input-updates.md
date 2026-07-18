@@ -20,6 +20,7 @@ Treat design and product inputs as versioned contract sources, not informal insp
 
 ```text
 Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
+Updated Builder UX Direction: changed experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, decision owner, or decision status
 Updated wireframe: screen structure, navigation, page regions, component hierarchy, state coverage
 Updated design system: tokens, typography, spacing, radius, color, component variants, interaction states
 Page UI reference: screenshot, Figma frame, mockup, handoff spec, per-page layout target
@@ -43,6 +44,7 @@ Rules:
 - Page UI references must map to routes/screens and responsive breakpoints.
 - Design-system deltas must map to affected components and variants.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
+- Builder UX Direction deltas must preserve their human owner and selected/provisional/assumed status, map to affected `UX-*`, `UI-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page UI Matrix
 
@@ -99,6 +101,7 @@ Use before/after captures for UI changes. The "before" side proves the current s
 Stop and ask when:
 
 - Updated PRD conflicts with updated wireframe.
+- Builder UX Direction conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
 - Updated design system conflicts with page UI mockups.
 - Page UI reference omits required states or breakpoints.
 - Updated input would remove existing app behavior without explicit acceptance.
@@ -114,4 +117,6 @@ Design-input verification should include:
 - State coverage: required states and breakpoints are checked.
 - Behavior conformance: PRD workflow and data/API behavior still pass.
 - Design-system conformance: tokens/components/variants follow the updated system.
+- Builder direction conformance: selected choices are reflected and provisional/assumed choices remain explicit; this proves direction conformance, not usability.
+- Usability evidence: when required, representative users or an approved equivalent complete the named task against the specified prototype or implementation; agent preference, screenshots, and automated E2E do not substitute for that evidence.
 - Regression: preserved routes, permissions, data behavior, content, analytics, and E2E journeys still pass.

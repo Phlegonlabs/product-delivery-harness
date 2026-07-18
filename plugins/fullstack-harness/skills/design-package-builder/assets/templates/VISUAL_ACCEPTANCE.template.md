@@ -5,6 +5,7 @@
 | Gate | Required | Expected Signal | Evidence |
 |---|---|---|---|
 | Design system conformance | yes | Components use approved tokens and variants | screenshot / code review |
+| Builder UX Direction conformance | when a Builder UX Direction exists | Selected decisions are implemented; provisional or assumed decisions and conflicts remain explicit | source review / design review |
 | Page UI conformance | yes | Implemented page matches mockup source | screenshot / trace |
 | Responsive behavior | yes | No overflow or broken hierarchy at required breakpoints | screenshot |
 | State coverage | yes | Required loading/empty/error/disabled states exist | screenshot / test |

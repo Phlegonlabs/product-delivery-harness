@@ -122,6 +122,22 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("Container and border purpose", visual_acceptance)
         self.assertIn("defaults ordinary regions to open layouts", agent)
 
+    def test_builder_ux_direction_is_preserved_without_claiming_usability(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/design-interview-guide.md")
+        guide = self.read("references/visual-decision-guide.md")
+        contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, interview, guide, contract, design_system, visual_acceptance, agent):
+            self.assertIn("Builder UX Direction", content)
+        self.assertIn("selected`, `provisional`, or `assumed`", skill)
+        self.assertIn("Builder approval proves direction conformance only", contract)
+        self.assertIn("does not prove usability", guide)
+        self.assertIn("Builder UX Direction conformance", visual_acceptance)
+
 
 if __name__ == "__main__":
     unittest.main()

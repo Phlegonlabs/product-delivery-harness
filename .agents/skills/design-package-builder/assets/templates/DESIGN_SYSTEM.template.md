@@ -12,6 +12,20 @@
 | Wireframes | <path> | structure source | <notes> |
 | Brand / reference | <path or URL> | visual source | <notes> |
 
+## Builder UX Direction Handoff
+
+Decision owner: <human product/design owner or commissioning team>
+
+| Dimension | Upstream direction | Status | Design-system expression | Evidence or validation need |
+|---|---|---|---|---|
+| Experience priority | <direction> | <selected / provisional / assumed> | <hierarchy, component, content, or interaction consequence> | <user evidence, prototype test, or none> |
+| Guidance and control | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
+| Information density | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
+| Interaction and layout | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
+| Confirmation and recovery | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
+
+Builder approval proves direction conformance only, not usability. Keep unsupported preferences provisional or assumed until separate user evidence exists.
+
 ## Product-Specific Visual Thesis
 
 | Cue / signature decision | Product or source basis | System expression | Avoid |

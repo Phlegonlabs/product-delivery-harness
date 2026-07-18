@@ -44,6 +44,16 @@ Establish this thesis before choosing tokens or composing pages:
 
 The result should remain usable without decoration and recognizable without relying only on the logo. Consistency does not require every section to use the same card, alignment, density, or rhythm.
 
+## Builder UX Direction Handoff
+
+Use the PRD's Builder UX Direction Decision before composing pages or choosing tokens. Preserve the named human owner and the status of every choice:
+
+- `selected`: carry it into the design system unless it conflicts with a product requirement, user evidence, platform convention, or accessibility requirement.
+- `provisional`: implement it as a reviewable direction and keep the validation need visible.
+- `assumed`: do not present it as the builder's decision; keep it easy to revisit.
+
+Translate preference into consequences for task hierarchy, guidance versus expert control, density, layout, feedback, confirmation, recovery, content, and motion. Builder approval proves that the design follows the intended direction. It does not prove usability for representative users or show that they can understand and complete the task.
+
 ## Taste & Anti-Slop Guardrails
 
 Taste here means product-specific judgment that is visible in the hierarchy, restraint, and recurring decisions. It is not a universal style or a longer blacklist.
@@ -163,6 +173,8 @@ If generating actual bitmap mockups or visual alternatives is requested and imag
 ## Conflict Rules
 
 - Product requirements beat visual preference.
+- User evidence and accessibility requirements beat unsupported builder preference. Record the conflict and the validation decision rather than silently changing either source.
+- A selected Builder UX Direction controls visual and interaction direction when higher-priority evidence does not conflict; provisional and assumed choices remain visibly unresolved.
 - Design system beats one-off mockup styling unless the user accepts an exception.
 - Page UI mockups beat low-fidelity wireframes for visual hierarchy and layout detail.
 - Low-fidelity wireframes remain authoritative for flow, required regions, supplied exact wording, and bounded display contracts.
