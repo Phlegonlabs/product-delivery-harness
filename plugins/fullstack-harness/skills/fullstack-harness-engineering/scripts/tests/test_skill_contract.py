@@ -142,6 +142,55 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("ref: ${{ env.E2E_HEAD_SHA }}", ci_template)
         self.assertIn("e2e-${{ env.E2E_HEAD_SHA }}", ci_template)
 
+    def test_cloudflare_release_uses_two_isolated_exact_sha_workers(self) -> None:
+        skill = self.read("SKILL.md")
+        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
+        plan_template = self.read("assets/templates/HARNESS_PLAN.template.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        deploy_workflow = self.read(
+            "assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml"
+        )
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("one repository and one codebase deployed to two isolated Workers", lifecycle)
+        self.assertIn("environment:development", lifecycle)
+        self.assertIn("environment:production", lifecycle)
+        self.assertIn("schema v3", plan_template)
+        self.assertIn('"release"', plan_template)
+        self.assertIn("schema v7", runbook)
+        self.assertIn('"deployments"', runbook)
+        self.assertIn("workflow_dispatch:", deploy_workflow)
+        self.assertIn("source_sha:", deploy_workflow)
+        self.assertIn("cloudflare/wrangler-action@v3", deploy_workflow)
+        self.assertIn("steps.cloudflare-deploy.outputs.deployment-url", deploy_workflow)
+        self.assertIn("steps.cloudflare-deploy.outputs.command-output", deploy_workflow)
+        self.assertIn("origin/<base-branch>", deploy_workflow)
+        self.assertNotIn("\n  push:", deploy_workflow)
+        for content in (skill, lifecycle, project_rules, agent):
+            self.assertIn("development", content.lower())
+            self.assertIn("production", content.lower())
+            self.assertIn("separate", content.lower())
+
+    def test_builder_ux_direction_is_ready_before_implementation_and_not_usability_proof(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/contract-and-traceability.md")
+        updates = self.read("references/design-input-updates.md")
+        verification = self.read("references/verification-gates.md")
+        plan_template = self.read("assets/templates/HARNESS_PLAN.template.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, contract, updates, verification, plan_template, runbook, e2e_template, goal, agent):
+            self.assertIn("Builder UX Direction", content)
+        self.assertIn("Every must-have `UX-*` trace", skill)
+        self.assertIn("## UX Direction And Usability Evidence", verification)
+        self.assertIn("Builder approval proves only direction conformance", verification)
+        self.assertIn("## UX Evidence", runbook)
+        self.assertIn("selected/provisional/assumed", agent)
+
 
 if __name__ == "__main__":
     unittest.main()

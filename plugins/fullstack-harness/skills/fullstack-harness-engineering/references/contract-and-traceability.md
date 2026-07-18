@@ -10,6 +10,7 @@ Required full-stack freeze fields:
 
 ```text
 Product: objective, users, workflows, must-have requirements, non-goals, success criteria
+Builder UX direction: human decision owner, experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, and selected/provisional/assumed status
 Architecture: module boundaries, data model, API/action contracts, auth, permissions, side effects
 UI structure: routes, screens, navigation, regions, data-to-UI mapping, states
 Visual design: design system, tokens, components, spacing, typography, breakpoints, interaction states
@@ -39,6 +40,7 @@ Record every canonical input and its status:
 | Source | Path / URL | Owner | Status | Notes |
 |---|---|---|---|---|
 | PRD | <path> | human / team | draft / frozen | <summary> |
+| Builder UX direction | <PRD section, path, or URL> | human decision owner | selected / provisional / assumed | <direction and validation needs> |
 | Wireframe | <path or URL> | human / team | draft / frozen | <screens> |
 | Design system | <path or URL> | human / team | draft / frozen | <tokens/components> |
 | Architecture | <path> | Codex / team | draft / frozen | <contract surfaces> |
@@ -84,6 +86,7 @@ Use stable IDs so implementation and verification can prove coverage:
 PRD-001 product requirement
 ARCH-001 data/API/permission contract
 UI-001 screen or journey requirement
+UX-001 critical task, interaction/recovery, or usability requirement
 DS-001 visual/component requirement
 TEST-001 verifier or acceptance evidence
 ```
@@ -92,7 +95,7 @@ Rules:
 
 - Upstream contract files mint IDs.
 - Mission tasks and acceptance rows reference existing IDs.
-- Every must-have PRD/UI/ARCH/DS ID needs at least one downstream task and one verification row.
+- Every must-have PRD/UI/UX/ARCH/DS ID needs at least one downstream task and one verification row.
 - A trace ID with no downstream coverage is a launch blocker unless the user accepts it as out of scope.
 - A task with no upstream trace ID is scope drift unless it is harness, test, cleanup, or explicitly approved.
 - Executable missions/tasks reference only traces with `disposition: planned`. `deferred` and `out_of_scope` traces require rationale and do not count as uncovered executable work until reclassified in a new plan revision.
@@ -144,6 +147,7 @@ Stop before implementation when:
 - `RUN.md` is not `ready`, the Plan Readiness Gate has required rows that are not `PASS`, or `execution_authorized` is false.
 - The requested action is false or absent in the authorization ledger. General execution permission does not imply task creation, worktree creation, commits, integration, push, PR, deploy, archival, or cleanup permission.
 - PRD and wireframe conflict on the primary flow.
+- Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.
 - The design system contradicts the wireframe in a user-visible way.
 - Auth, permissions, or destructive data behavior is ambiguous.
 - Required secrets, services, databases, or browser tools are unavailable.

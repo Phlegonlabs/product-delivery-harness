@@ -18,6 +18,8 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Billing / entitlements | yes / no | planned | | |
 | Audit / observability | yes / no | planned | | |
 | Browser journey | yes / no | planned | | |
+| Builder UX Direction conformance | yes / no | planned | | |
+| Usability / task success | yes / no | planned | | |
 | Responsive | yes / no | planned | | |
 | Console / network | yes / no | planned | | |
 | Accessibility | yes / no | planned | | |
@@ -30,7 +32,8 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Catalog / ecommerce | yes / no | planned | | |
 | Performance | yes / no | planned | | |
 | Automated E2E | yes / no | planned | | |
-| Deployment smoke | yes / no | planned | | |
+| Development deployment smoke | yes / no | planned | | |
+| Production deployment smoke | yes / no | planned | | |
 | Release impact | yes / no | planned | | |
 
 ## Automated E2E Contract
@@ -49,6 +52,8 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 
 A current-head E2E PASS may replace only a duplicate manual smoke for the same journey and equivalent environment. Keep deployment, external-integration, visual, or other materially different smoke checks required until they have their own proof.
 
+For a Cloudflare release, record development and production separately. Development evidence binds to the current PR head and isolated non-production resources. Production evidence binds to the exact merged base SHA and production resources; do not reuse development evidence as production proof.
+
 ## Primary Journey
 
 ```text
@@ -59,6 +64,14 @@ Expected result:
 Data created / modified:
 Cleanup:
 ```
+
+## UX Direction And Usability Evidence
+
+Builder approval proves direction conformance only. Use `UNVALIDATED` when only builder/agent review, screenshots, heuristic review, or automated E2E exists and the plan requires representative-user usability evidence.
+
+| UX trace | Critical task / scenario | Direction owner and status | Method | Representative participant / source | Target | Actual result | Redacted evidence | Bound version / SHA | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| UX-001 | <task and context> | <owner; selected/provisional/assumed> | <prototype review / likely-user test / benchmark / other> | <segment or approved source> | <success/failure signal> | <result> | <path/report/decision> | <version or SHA> | planned |
 
 ## Archetype Scenarios
 

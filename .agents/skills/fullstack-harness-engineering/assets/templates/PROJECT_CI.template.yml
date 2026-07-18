@@ -1,5 +1,9 @@
 name: project-ci
 
+# This workflow verifies code only. For Cloudflare CD, install the separate
+# PROJECT_CLOUDFLARE_DEPLOY.template.yml and dispatch it with an authorized
+# target environment plus an exact source SHA after the required gates pass.
+
 on:
   pull_request:
   merge_group:

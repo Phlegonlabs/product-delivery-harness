@@ -94,6 +94,19 @@ When these conditions hold, record the manual smoke disposition as `not required
 
 Manual smoke or another environment-specific check is still required when automated E2E is missing, skipped, failed, flaky, or materially narrower than the target; when a visual or external integration remains uncovered; or when the deployed environment differs from the tested environment. Deployment smoke remains a separate gate whenever deployment is in scope and current-head E2E did not run against that exact deployed release.
 
+## Cloudflare Development And Production Gates
+
+For a PLAN schema-v3 Cloudflare release, use two deployed-environment gates rather than treating a successful upload as release completion:
+
+| Gate | Source | Required proof |
+|---|---|---|
+| Development deployment | exact current PR head after current-head CI | development Worker/version/URL, migration PASS or not required, sandbox payment and development auth/data checks when applicable, deployed-environment E2E PASS, retained evidence |
+| Production deployment | exact merged `main` SHA after development and merge PASS | production Worker/version/URL, migration PASS or not required, live configuration boundary, critical-route and primary-journey smoke PASS, retained evidence, rollback version when available |
+
+Any new PR push invalidates the earlier development deployment PASS. Any new merged-base change invalidates production evidence that was not deployed from that exact SHA. Production cannot pass from the PR-head SHA after a squash merge; bind it to `landing.merged_sha` and retain the development PR-head evidence separately.
+
+For authentication, payment, entitlement, or customer-data products, development verification must prove sandbox/non-production boundaries and production smoke must avoid destructive live transactions. Never substitute production data access for a missing development fixture.
+
 ## UI Evidence Gate
 
 Required when:
@@ -111,6 +124,23 @@ Not required when:
 - Backend-only, cron, data pipeline, config, tests, refactor, docs-only, or API-only work has no browser-visible state.
 
 Prefer targeted viewport, element, region, or trace evidence over whole-page screenshots. Whole-page captures need a reason.
+
+## UX Direction And Usability Evidence
+
+Keep these proofs separate:
+
+| Proof | Question answered | Valid evidence |
+|---|---|---|
+| Builder UX Direction conformance | Did the result follow the named human builder's selected direction? | PRD/design source comparison, implementation review, screenshots |
+| Behavioral completion | Can the system technically complete the critical task? | deterministic browser E2E, API/data assertions, trace |
+| Accessibility | Can required users perceive and operate it under the declared standard? | automated checks plus required keyboard, assistive-technology, or human evaluation |
+| Usability | Can representative users understand and complete the task with the intended effort and confidence? | prototype or implementation testing with representative users, or another explicitly approved research method |
+
+Builder approval proves only direction conformance. Agent judgment, heuristic review, screenshots, and automated E2E may find problems, but none of them alone is representative-user usability evidence.
+
+For every required usability gate, record the `UX-*` trace, critical task and scenario, prototype or implementation version, validation method, representative participant/source, target success/failure signal, actual result, findings and decision, evidence location, and bound commit or prototype version. Store only redacted summaries in the repository unless the user explicitly approves participant data or recordings.
+
+Use `PASS` only when the declared method and target pass. Use `UNVALIDATED` when representative evidence is missing, the method is materially narrower than planned, or only builder/agent review exists. A required `UNVALIDATED` UX gate blocks final completion unless the named residual risk is explicitly accepted.
 
 ## Evidence Schema
 
@@ -178,5 +208,5 @@ Final PASS requires:
 - `merge_status: ready` is recorded only after the current-head landing gate passes, and `merged` preserves that evidence while adding the merged PR state and merge SHA. Actual merge and deploy remain separate authorized actions.
 - A schema-v4-through-v6 auto-merge request is recorded only after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Any changed head resets the request before fresh CI and review.
 - A PR closed without merge records `closed` / `closed_unmerged` with no merge SHA; it is not left in the reusable `not_ready` state.
-- In schema v5 or v6, a completed pull-request run records `post_merge_cleanup` as complete or deferred. Complete cleanup proves the merged SHA is reachable from the refreshed base, the exact local branch still matched the merged PR head before deletion, the primary checkout is clean on the base, and any exact parent-managed linked worktree was clean and is now absent. `not_applicable` requires no matching linked worktree in the current observation; app-managed lifecycle is deferred instead of manually removed.
+- In schemas v5 through v7, a completed pull-request run records `post_merge_cleanup` as complete or deferred. Complete cleanup proves the merged SHA is reachable from the refreshed base, the exact local branch still matched the merged PR head before deletion, the primary checkout is clean on the base, and any exact parent-managed linked worktree was clean and is now absent. `not_applicable` requires no matching linked worktree in the current observation; app-managed lifecycle is deferred instead of manually removed.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

@@ -7,7 +7,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 ```json
 {
   "harness_plan": {
-    "schema_version": 2,
+    "schema_version": 3,
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
@@ -85,6 +85,86 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
         "pass_signal": "<literal pass signal>"
       }
     ],
+    "release": {
+      "provider": "cloudflare",
+      "targets": [
+        {
+          "id": "development",
+          "source": "pr_head",
+          "worker_name": "<app-name>-development",
+          "wrangler_config_path": "<app-directory>/wrangler.jsonc",
+          "wrangler_environment": "development",
+          "data_mode": "isolated_non_production",
+          "payment_mode": "sandbox",
+          "auth_mode": "development",
+          "prerequisites": [
+            "current_head_ci"
+          ],
+          "migration_command": null,
+          "deploy_command": {
+            "id": "deploy-development",
+            "cwd": "<app-directory>",
+            "argv": [
+              "npx",
+              "wrangler",
+              "deploy",
+              "--env",
+              "development"
+            ],
+            "pass_signal": "Wrangler reports a successful development deployment"
+          },
+          "smoke_verifiers": [
+            {
+              "id": "smoke-development",
+              "cwd": ".",
+              "argv": [
+                "<smoke-runner>",
+                "<development-smoke-argument>"
+              ],
+              "pass_signal": "Development login, sandbox payment, and primary journey pass"
+            }
+          ]
+        },
+        {
+          "id": "production",
+          "source": "merged_main",
+          "worker_name": "<app-name>-production",
+          "wrangler_config_path": "<app-directory>/wrangler.jsonc",
+          "wrangler_environment": "production",
+          "data_mode": "production",
+          "payment_mode": "live",
+          "auth_mode": "production",
+          "prerequisites": [
+            "development_pass",
+            "merged_main"
+          ],
+          "migration_command": null,
+          "deploy_command": {
+            "id": "deploy-production",
+            "cwd": "<app-directory>",
+            "argv": [
+              "npx",
+              "wrangler",
+              "deploy",
+              "--env",
+              "production"
+            ],
+            "pass_signal": "Wrangler reports a successful production deployment"
+          },
+          "smoke_verifiers": [
+            {
+              "id": "smoke-production",
+              "cwd": ".",
+              "argv": [
+                "<smoke-runner>",
+                "<production-smoke-argument>"
+              ],
+              "pass_signal": "Production critical routes and primary journey pass"
+            }
+          ]
+        }
+      ]
+    },
     "missions": [
       {
         "id": "M1",
@@ -176,7 +256,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 }
 ```
 
-The exact fenced JSON block above is the canonical plan. Scripts read this block only. Keep it valid JSON, increment `revision` after an accepted semantic plan change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
+The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v3; schema v2 plans remain readable without `release`. Keep the JSON valid, increment `revision` after an accepted semantic plan change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
 
 Use immutable, flat task IDs such as `M1/T01`. Represent lineage only with `parent_task`; use `legacy_task_ids` only for real pre-existing identifiers. A generation-0 task may be replaced by generation-1 children, but generation-1 tasks must not split again without a mission-level replan. When accepted refinement replaces a task, set its `replaced_by`, give each child `parent_task`, `split_reason`, and `refinement_generation: 1`, then increment the plan revision and revalidate the complete graph.
 
@@ -191,6 +271,7 @@ Scope entries must be POSIX, repository-relative exact paths or subtrees ending 
 | Source | Path / URL | Status | Role / notes |
 |---|---|---|---|
 | Product requirements | <path> | draft / frozen / missing / n/a | <notes> |
+| Builder UX Direction | <PRD section, path, or URL> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
 | Architecture / API / data | <path> | draft / frozen / missing / n/a | <notes> |
 | Wireframe / flow | <path> | draft / frozen / missing / n/a | <notes> |
 | Design system / page UI | <path or URL> | draft / frozen / missing / n/a | <notes> |
@@ -204,8 +285,11 @@ Expected worker runtime: parent | subagent | app_task
 Expected workspace mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 Expected completion channel: agent_result | thread_poll | report_file | user_relay
 UI Evidence Gate: required | optional | n/a
+UX Validation Gate: required | optional | n/a
 Release target:
 ```
+
+For deployable Cloudflare applications, the canonical `release` object owns the development and production Worker names, Wrangler environments, isolated data/auth/payment modes, exact deployment commands, smoke verifiers, and promotion prerequisites. Use `migration_command: null` only when the target has no remote migration step. The development target binds to the current PR head after CI; production binds to the merged `main` SHA only after development passes.
 
 These are planning expectations, not authorization. Record explicit action authorization only in the `RUN.md` ledger.
 
@@ -228,6 +312,7 @@ These are planning expectations, not authorization. Record explicit action autho
 | Product behavior | <path/section> | frozen / draft / missing | <decision> |
 | Architecture / data / API | <path/section> | frozen / draft / missing / n/a | <decision> |
 | Identity / permissions | <path/section> | frozen / draft / missing / n/a | <decision> |
+| Builder UX Direction | <path/section> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, controlling decisions, validation need> |
 | UI flow and states | <path/section> | frozen / draft / missing / n/a | <decision> |
 | Verification | PLAN manifest | ready / partial | <decision> |
 
@@ -236,6 +321,7 @@ These are planning expectations, not authorization. Record explicit action autho
 | Trace | Requirement | Mission / task | Pass signal |
 |---|---|---|---|
 | REQ-001 | <requirement> | M1 / M1/T01 | <literal signal> |
+| UX-001 | <critical task, interaction/recovery, or usability requirement> | M1 / M1/T02 | <direction, behavior, or usability signal> |
 
 ## Delivery Dependency Strategy
 
@@ -274,9 +360,11 @@ Include only when UI evidence is required or optional.
 | Frontend/backend/data integration points are defined | draft / PASS / BLOCKED | <note> |
 | Shared foundations and migrations are ordered | draft / PASS / BLOCKED | <note> |
 | UI routes, breakpoints, states, and evidence are planned | draft / PASS / BLOCKED / n/a | <note> |
+| Builder UX Direction owner, decision statuses, conflicts, and UX validation depth are explicit | draft / PASS / BLOCKED / n/a | <note> |
 | Scopes use the supported grammar and resources are complete | draft / PASS / BLOCKED | <note> |
 | Worker, mission-integration, batch, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |
 | Blocking decisions and approval needs are surfaced | draft / PASS / BLOCKED | <note> |
+| Cloudflare development and production targets, isolated resources, migration order, promotion prerequisites, and smoke verifiers are complete | draft / PASS / BLOCKED / n/a | <note> |
 
 Implementation may start only after static validation passes, `RUN.md` records `plan_readiness: "ready"`, and the required actions have explicit user authorization. Readiness never grants authorization by itself.
 

@@ -2,6 +2,14 @@
 
 Use low-fidelity ASCII wireframes plus Mermaid flows. Do not produce Figma or HTML unless the user asks for them.
 
+## Builder UX Direction Gate
+
+Before drafting interface wireframes, ask one organized set of questions about the builder's intended experience. Resolve the builder to the human product/design decision owner or commissioning team; the implementation agent does not supply its own taste as a substitute.
+
+Record the resulting `Builder UX Direction Decision` in `PRD.md` and carry it into `wireframes.md`. It must cover experience priority, guided versus expert control, information density, familiar versus expressive interaction, primary layout preference, confirmation/recovery behavior, and validation depth. Mark every decision `selected`, `provisional`, or `assumed`.
+
+Builder preference controls direction, not usability claims. When preference conflicts with observed user needs, accessibility, or task evidence, preserve the conflict as a hypothesis and name the prototype or user test needed to resolve it. Never label a wireframe user-validated merely because the builder approved it.
+
 ## Direction And Configuration
 
 - Ask what overall visual character the user wants before drafting interface wireframes unless the prompt already answers it. Capture the answer as downstream design intent, not as permission to turn the wireframe into a high-fidelity mockup.

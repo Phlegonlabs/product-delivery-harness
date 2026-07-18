@@ -31,6 +31,11 @@ Ask only questions that are not already answered.
    - What must never happen?
    - What compliance, audit, or policy constraints apply?
 7. UX expectations
+   - Who is the builder or human product/design decision owner for the UX direction?
+   - What should the experience optimize first: speed, clarity, guided completion, expert control, exploration, conversion, or content comprehension?
+   - Should the product be guided or flexible, sparse or information-dense, and familiar or deliberately expressive? Which primary layout pattern does the builder prefer, and why does it fit the user's task?
+   - Which actions require confirmation, undo, recovery, progress feedback, or human intervention?
+   - What validation depth does the builder expect: documented assumptions, internal prototype review, testing with likely users, or recurring usability benchmarking?
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
    - What overall visual character should the finished interface convey? Ask the user to choose or describe a direction instead of assuming one. Offer compact examples only when useful: modern minimal, editorial, utilitarian and dense, warm and human, bold and expressive, or an existing brand reference.
@@ -68,6 +73,7 @@ Discovery is complete enough to draft when the agent can state:
 - The architecture assumptions and high-risk unknowns.
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - The UI screens or interaction points that need wireframes.
+- A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, interaction familiarity, preferred layout pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
 - Approved or draft exact wording and bounded display responsibilities for wireframed regions, or permission to derive them.
 - The requested overall interface style, or permission to record `modern-minimal` as a provisional assumption.
 - Required style and motion intent for visually important regions, or permission to derive it.
@@ -82,4 +88,5 @@ If the user asks for a first draft without more questions:
 - State that assumptions are being used.
 - Add an `Assumptions` section to every artifact where relevant.
 - Add unresolved items to `Open Questions`.
+- Record missing builder UX choices as `assumed`, never as selected or user-validated. Builder preference alone is not usability evidence.
 - Do not invent compliance requirements or pricing. A named frontend recommendation is allowed when it follows `frontend-stack-selection.md`, is supported by the known requirements, and clearly identifies assumptions and alternatives.

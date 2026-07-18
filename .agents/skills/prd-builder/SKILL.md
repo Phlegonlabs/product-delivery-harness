@@ -13,18 +13,19 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 
 1. Read `references/interview-guide.md` before asking discovery questions.
 2. Conduct a complete but concise product interview before drafting, unless the user explicitly says to skip questions, make assumptions, or produce a first draft immediately.
-3. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid.
-4. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`. For a web app, internal tool, public website, or hybrid with a browser frontend, also read `references/frontend-stack-selection.md`.
-5. Before drafting, inventory earlier documents related to the same product as described in `references/artifact-lifecycle.md`. Do not move anything yet.
-6. Draft the core Markdown package in the staging location defined by `references/artifact-lifecycle.md`:
+3. For a UI-bearing product, capture a `Builder UX Direction Decision` before drafting wireframes. Resolve the builder to the human product/design decision owner or commissioning team, then record experience priority, guidance versus expert control, information density, interaction familiarity, preferred layout pattern, visual cues, confirmation/recovery behavior, and validation depth. Mark every decision `selected`, `provisional`, or `assumed`.
+4. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid.
+5. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`. For a web app, internal tool, public website, or hybrid with a browser frontend, also read `references/frontend-stack-selection.md`.
+6. Before drafting, inventory earlier documents related to the same product as described in `references/artifact-lifecycle.md`. Do not move anything yet.
+7. Draft the core Markdown package in the staging location defined by `references/artifact-lifecycle.md`:
    - `PRD.md`
    - `architecture.md`
    - `wireframes.md`
-7. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
-8. Run the quality checklist in `references/output-contract.md` against the staged package.
-9. Only after the complete package passes validation, archive the previously inventoried superseded documents under `doc/archived/`, then publish the new package under `doc/`. Never archive documents when the workflow is incomplete, paused, or failing validation.
-10. Report the final artifact paths and every archived path.
-11. After reporting a completed PRD package, ask whether the user wants to run `$design-package-builder` next using the new package as its product input. Do not invoke the design skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, or failing validation.
+8. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
+9. Run the quality checklist in `references/output-contract.md` against the staged package.
+10. Only after the complete package passes validation, archive the previously inventoried superseded documents under `doc/archived/`, then publish the new package under `doc/`. Never archive documents when the workflow is incomplete, paused, or failing validation.
+11. Report the final artifact paths and every archived path.
+12. After reporting a completed PRD package, ask whether the user wants to run `$design-package-builder` next using the new package as its product input. Do not invoke the design skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, or failing validation.
 
 ## Interview Rules
 
@@ -33,13 +34,14 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Mark optional questions clearly when they would improve quality but should not block progress.
 - If the user authorizes assumptions, draft with explicit assumptions and open questions instead of continuing the interview.
 - If the user gives conflicting requirements, resolve them before drafting or call out the conflict in `open questions`.
+- Treat builder preference as a direction input, not as proof that users find the result usable. When it conflicts with user evidence or an accessibility requirement, record the conflict and validation need instead of silently following preference.
 
 ## Reference Routing
 
 - Use `references/interview-guide.md` for required discovery questions and readiness criteria.
 - Use `references/output-contract.md` for the exact artifact names, headings, and final quality checklist.
 - Use `references/artifact-lifecycle.md` for staging, final `doc/` locations, safe identification of superseded documents, and post-validation archival.
-- Use `references/architecture-playbook.md` for implementation-ready architecture content across web, mobile, internal tools, and automations.
+- Use `references/architecture-playbook.md` for implementation-ready architecture content across web, mobile, internal tools, and automations, including the default Cloudflare development-to-production release contract for deployable products.
 - Use `references/frontend-stack-selection.md` to separate frontend technology layers, recommend one product-fit stack, and verify current Cloudflare support when that platform is in scope.
 - Use `references/wireframe-guide.md` for ASCII wireframes, Mermaid flows, and required UI states.
 
@@ -48,6 +50,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Prefer specific, buildable requirements over vague product language.
 - Keep the current PRD package directly under `doc/`; reserve `doc/archived/` for superseded documents only.
 - Tie every major requirement to a user need, workflow, metric, or constraint.
+- For every UI-bearing product, record the Builder UX Direction Decision and carry it into `wireframes.md`. Do not let the implementation agent invent its own taste when the human decision owner has not answered; use an explicit provisional assumption only when assumption mode is authorized.
 - Include loading, empty, error, permission, and edge states when a UI or workflow has them.
 - Keep every low-fidelity wireframe structurally simple regardless of the intended final visual style. For browser or mobile interfaces, ask what overall style the user wants unless the prompt already answers it. If the user authorizes assumptions and gives no direction, record `modern-minimal` as a provisional baseline rather than silently treating it as approved design.
 - Keep public-site and landing-page wireframes simple: one clear value proposition and one primary action in the first viewport, one job per section, and secondary detail deferred instead of copying the whole PRD into the page.
@@ -57,6 +60,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Keep outputs in the product/spec layer. Do not produce design systems, high-fidelity UI mockups, visual tokens, or page-level visual acceptance specs.
 - Keep assumptions explicit and avoid hiding unresolved decisions in confident prose.
 - Architecture may remain technology-neutral overall. For every product with a browser frontend, record the required or already selected frontend stack, or recommend one explicit stack when the user has not chosen and discovery provides enough evidence. Label the decision status so a recommendation is not misrepresented as a fixed requirement. Record the deployment platform, rendering model, framework, UI library, build tool, and key supporting choices as separate layers.
+- For a deployable product, default the deployment platform to Cloudflare unless the user or current repository names another platform. Treat this as the organization default, not a reason to invent Cloudflare requirements for docs-only work. Record one codebase promoted through separate development and production Workers, exact release sources, isolated bindings and secrets, data/auth/payment modes, migration order, deployed-environment checks, and rollback.
 - Do not present Cloudflare, Astro, React, and Vite as peer alternatives: Cloudflare is a deployment/runtime platform, Astro is a web framework, React is a UI library, and Vite is a build tool that can be paired with React or used by frameworks.
 - Keep a decision technology-neutral only when evidence is genuinely insufficient. In that case, document the missing evidence, decision owner, decision deadline, and a time-boxed spike with pass/fail criteria.
 - When recommending a fast-moving hosted platform or framework, verify current official documentation and record the check date and sources in `architecture.md`.

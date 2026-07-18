@@ -11,7 +11,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 ```json
 {
   "harness_run": {
-    "schema_version": 6,
+    "schema_version": 7,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
@@ -172,6 +172,31 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       "auto_merge_requested": false,
       "auto_merge_head_sha": null
     },
+    "deployments": {
+      "provider": "cloudflare",
+      "development": {
+        "status": "not_started",
+        "source_sha": null,
+        "worker_name": null,
+        "url": null,
+        "version_id": null,
+        "migration_status": "not_started",
+        "verification_status": "not_started",
+        "rollback_version": null,
+        "evidence": []
+      },
+      "production": {
+        "status": "not_started",
+        "source_sha": null,
+        "worker_name": null,
+        "url": null,
+        "version_id": null,
+        "migration_status": "not_started",
+        "verification_status": "not_started",
+        "rollback_version": null,
+        "evidence": []
+      }
+    },
     "post_merge_cleanup": {
       "status": "not_started",
       "base": {
@@ -238,15 +263,17 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 The exact fenced JSON block above is the canonical run state. Scripts read this block only; Markdown tables later in this document are non-canonical human views. Update the JSON first, keep it valid, and never infer authorization from plan readiness, a template, or a Goal prompt.
 
-The action ledger has 16 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. At Plan Readiness, one prompt may request all missing execution, launch, branch, commit, integration, push, PR creation, review-management, and merge actions for exact targets, but every action remains a separate ledger entry. Use the schema-v6 `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` target for review and merge only until that PR is created. Repository configuration may join that checkpoint only for an observed exact setup change. Deploy, archive, worktree removal, and branch deletion remain outside the landing bundle.
+The action ledger has 16 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. At Plan Readiness, one prompt may request all missing execution, launch, branch, commit, integration, push, PR creation, review-management, and merge actions for exact targets, but every action remains a separate ledger entry. Use the schema-v6-or-v7 `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` target for review and merge only until that PR is created. Repository configuration may join that checkpoint only for an observed exact setup change. Deploy, archive, worktree removal, and branch deletion remain outside the landing bundle.
 
-`landing` is required in schemas v3 through v6. Schemas v4 through v6 include the auto-merge fields shown above; v3 remains readable without them. Schemas v5 and v6 include `post_merge_cleanup`; valid v2 through v5 files remain readable. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+`landing` is required in schemas v3 through v7. Schemas v4 through v7 include the auto-merge fields shown above; v3 remains readable without them. Schemas v5 through v7 include `post_merge_cleanup`. Schema v7 adds the Cloudflare `deployments` state and requires a schema-v3 PLAN release contract; valid RUN schemas v2 through v6 remain readable. Use `mode: "pull_request"` for the default shared-repository flow and `local_only` only when the user explicitly wants no remote landing; local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+
+For schema v7, deploy the current PR head to the development Worker only after current-head CI passes. Record its exact SHA, Worker, URL, Cloudflare version ID, migration result, deployed-environment verification, and evidence. Production may reach `PASS` only after development is `PASS`, the PR is merged, and the production source SHA equals `landing.merged_sha`. A complete Cloudflare run requires both targets to pass. Before either mutation, the `deploy` ledger must cover every run mission and the exact `environment:development` or `environment:production` target. One explicit readiness statement may authorize both targets, but deployment stays a separate ledger action from push, merge, and repository configuration.
 
 Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. At request time this requires `merge_status: "ready"`, current-head CI and Codex review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and unexpired `merge_pr` authorization whose mission scope covers the run and whose target is `pr:<full-PR-URL>` (or an explicitly run-wide `*`). If that entry began with `future-pr:`, retain it and verify that the exact PR has the same repository, base, and head before appending the exact target. Use `gh pr merge --auto --squash --match-head-commit <sha>` or an equivalent exact-head operation. After the PR reaches `merge_status: "merged"`, preserve the matching authorization evidence even when its `run_complete` boundary expires during final closeout. Any new push, changed integration head, canceled request, or closed-unmerged PR resets the fields to `false` and `null`.
 
 A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
 
-Schemas v5 and v6 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, fetch the base branch, prove `landing.merged_sha` is reachable from that base, re-observe a clean checkout, record `observed.git.parent_worktree_path`, and confirm the local feature branch still points to `landing.pr_head_sha`; when the primary checkout is on that branch, its observed `parent_head_sha` must match too. Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
+Schemas v5 through v7 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, fetch the base branch, prove `landing.merged_sha` is reachable from that base, re-observe a clean checkout, record `observed.git.parent_worktree_path`, and confirm the local feature branch still points to `landing.pr_head_sha`; when the primary checkout is on that branch, its observed `parent_head_sha` must match too. Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
 
 Create the final integration branch and PR from the parent checkout. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. The normal order is local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, resolve blocking threads, then enable SHA-bound auto-merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
 
@@ -271,7 +298,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-When an action is authorized, scope is required and must cover the current run, mission, and target; use `"*"` only when the user's approval is explicitly run-wide. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, or `environment:<name>` as appropriate. Schema v6 additionally permits `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr`; it must resolve to and retain the matching exact PR target before either mutation. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`; the coordinator evaluates that boundary against current RUN state. Treat an expired or nonmatching entry as unauthorized.
+When an action is authorized, scope is required and must cover the current run, mission, and target; use `"*"` only when the user's approval is explicitly run-wide. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, or `environment:<name>` as appropriate. Schemas v6 and v7 additionally permit `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr`; it must resolve to and retain the matching exact PR target before either mutation. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`; the coordinator evaluates that boundary against current RUN state. Treat an expired or nonmatching entry as unauthorized.
 
 Treat `wave_closed` as a one-use grant. On `closed` or `superseded`, reset matching action entries to unauthorized and clear an overall wave-scoped execution grant before replacing `active_wave`; never carry that source into the next wave.
 
@@ -285,7 +312,7 @@ Use these exact coordination enums:
 - `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
 - `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
 
-Schema v6 adds `runtime_capabilities.runtime_adapter`. The parent detects actual runtime capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available driver in `available_drivers`. Always include `sequential_parent`. Routing is deterministic: Codex prefers `app_threads`, then `subagents`, then `sequential_parent`; Claude Code prefers `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic runtimes use `subagents` or `sequential_parent`. Capability detection is not authorization.
+Schemas v6 and v7 require `runtime_capabilities.runtime_adapter`. The parent detects actual runtime capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available driver in `available_drivers`. Always include `sequential_parent`. Routing is deterministic: Codex prefers `app_threads`, then `subagents`, then `sequential_parent`; Claude Code prefers `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic runtimes use `subagents` or `sequential_parent`. Capability detection is not authorization.
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
 
@@ -384,6 +411,7 @@ If Goal mode is used, its prompt may record expected coordination and request au
 | Frontend/backend/data boundaries are defined | draft / PASS / BLOCKED | |
 | Scopes and typed resource inventories are complete | draft / PASS / BLOCKED | |
 | UI routes, states, breakpoints, and evidence are planned | draft / PASS / BLOCKED / n/a | |
+| Builder UX Direction owner/status and required UX validation are explicit | draft / PASS / BLOCKED / n/a | |
 | Worker, mission-integration, batch, final E2E, and release gates exist; E2E command, current-head check, evidence, environment, and smoke disposition are named | draft / PASS / BLOCKED | |
 | Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
 
@@ -420,6 +448,8 @@ For `app_task`, create one real task/thread for each selected mission and record
 | Focused behavior | yes / no | <literal signal> | planned | |
 | API / data / permissions | yes / no | <literal signal> | planned | |
 | Primary journey | yes / no | <literal signal> | planned | |
+| Builder UX direction conformance | yes / no | <literal signal> | planned | |
+| Usability / task success | yes / no | <literal signal or required human evidence> | planned | |
 | UI / responsive / states | yes / no | <literal signal> | planned | |
 | Console / network | yes / no | <literal signal> | planned | |
 | Accessibility | yes / no | <literal signal> | planned | |
@@ -450,6 +480,16 @@ Include only when UI evidence is required or optional.
 
 Store only real binary artifacts under `docs/goal/evidence/`. Do not create empty evidence folders.
 
+## UX Evidence
+
+Include when Builder UX Direction or a `UX-*` trace exists. Builder approval proves direction conformance only; screenshots, agent review, and automated E2E do not by themselves prove representative-user usability.
+
+| UX trace | Critical task / scenario | Direction source and status | Validation method | Representative participant / source | Target | Actual result | Redacted evidence | Status |
+|---|---|---|---|---|---|---|---|---|
+| UX-001 | <task and context> | <owner/source; selected/provisional/assumed> | <prototype review / likely-user test / benchmark / other> | <segment or approved source> | <success/failure signal> | <result> | <path/report/decision> | planned / PASS / FAIL / BLOCKED / UNVALIDATED |
+
+Do not store participant personal data, raw recordings, or unredacted transcripts in the repository without explicit approval.
+
 ## Attempt Log View
 
 | Observation | Mission / task | Action | Verification | Progress | Result / next action |
@@ -475,5 +515,7 @@ Changed files:
 Commits:
 Residual risk:
 Landing state:
+Development deployment state:
+Production deployment state:
 Post-merge cleanup state:
 ```

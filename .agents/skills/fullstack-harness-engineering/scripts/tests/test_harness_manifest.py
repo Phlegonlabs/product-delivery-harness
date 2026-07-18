@@ -181,6 +181,67 @@ def valid_plan() -> dict[str, object]:
     }
 
 
+def cloudflare_release() -> dict[str, object]:
+    return {
+        "provider": "cloudflare",
+        "targets": [
+            {
+                "id": "development",
+                "source": "pr_head",
+                "worker_name": "test-app-development",
+                "wrangler_config_path": "apps/web/wrangler.jsonc",
+                "wrangler_environment": "development",
+                "data_mode": "isolated_non_production",
+                "payment_mode": "sandbox",
+                "auth_mode": "development",
+                "prerequisites": ["current_head_ci"],
+                "migration_command": None,
+                "deploy_command": verifier(
+                    "deploy-development",
+                    "npx",
+                    "wrangler",
+                    "deploy",
+                    "--env",
+                    "development",
+                ),
+                "smoke_verifiers": [
+                    verifier("smoke-development", "tool", "smoke-development")
+                ],
+            },
+            {
+                "id": "production",
+                "source": "merged_main",
+                "worker_name": "test-app-production",
+                "wrangler_config_path": "apps/web/wrangler.jsonc",
+                "wrangler_environment": "production",
+                "data_mode": "production",
+                "payment_mode": "live",
+                "auth_mode": "production",
+                "prerequisites": ["development_pass", "merged_main"],
+                "migration_command": None,
+                "deploy_command": verifier(
+                    "deploy-production",
+                    "npx",
+                    "wrangler",
+                    "deploy",
+                    "--env",
+                    "production",
+                ),
+                "smoke_verifiers": [
+                    verifier("smoke-production", "tool", "smoke-production")
+                ],
+            },
+        ],
+    }
+
+
+def valid_release_plan() -> dict[str, object]:
+    plan = valid_plan()
+    plan["schema_version"] = 3
+    plan["release"] = cloudflare_release()
+    return plan
+
+
 def valid_run(plan: dict[str, object]) -> dict[str, object]:
     digest = plan_digest(plan)
     mission_ids = [item["id"] for item in plan["missions"]]
@@ -329,6 +390,37 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
     }
 
 
+def valid_release_run(plan: dict[str, object]) -> dict[str, object]:
+    run = valid_run(plan)
+    run["schema_version"] = 7
+    run["deployments"] = {
+        "provider": "cloudflare",
+        "development": {
+            "status": "not_started",
+            "source_sha": None,
+            "worker_name": None,
+            "url": None,
+            "version_id": None,
+            "migration_status": "not_started",
+            "verification_status": "not_started",
+            "rollback_version": None,
+            "evidence": [],
+        },
+        "production": {
+            "status": "not_started",
+            "source_sha": None,
+            "worker_name": None,
+            "url": None,
+            "version_id": None,
+            "migration_status": "not_started",
+            "verification_status": "not_started",
+            "rollback_version": None,
+            "evidence": [],
+        },
+    }
+    return run
+
+
 def markdown(heading: str, wrapper: str, value: dict[str, object]) -> str:
     payload = json.dumps({wrapper: value}, indent=2, ensure_ascii=False)
     return f"# Fixture\n\n{heading}\n\n```json\n{payload}\n```\n"
@@ -405,6 +497,42 @@ class PlanValidationTests(unittest.TestCase):
         plan = valid_plan()
         self.assertEqual(validate_plan(plan), [])
         self.assertEqual(topological_levels(plan), {"M1": 0, "M2": 1})
+
+    def test_schema_v3_cloudflare_release_contract(self) -> None:
+        plan = valid_release_plan()
+        self.assertEqual(validate_plan(plan), [])
+
+        same_worker = copy.deepcopy(plan)
+        same_worker["release"]["targets"][1]["worker_name"] = (
+            same_worker["release"]["targets"][0]["worker_name"]
+        )
+        self.assert_error_contains(same_worker, "worker_name must differ")
+
+        live_development = copy.deepcopy(plan)
+        live_development["release"]["targets"][0]["payment_mode"] = "live"
+        self.assert_error_contains(live_development, "must be sandbox or not_applicable")
+
+        missing_promotion_gate = copy.deepcopy(plan)
+        missing_promotion_gate["release"]["targets"][1]["prerequisites"] = [
+            "merged_main"
+        ]
+        self.assert_error_contains(missing_promotion_gate, "must include development_pass")
+
+    def test_schema_v3_release_rejects_malformed_values_without_crashing(self) -> None:
+        malformed_id = valid_release_plan()
+        malformed_id["release"]["targets"][0]["id"] = {}
+        self.assert_error_contains(malformed_id, "must be development or production")
+
+        malformed_config = valid_release_plan()
+        malformed_config["release"]["targets"][0]["wrangler_config_path"] = {}
+        self.assert_error_contains(malformed_config, "must be a non-empty string")
+
+        malformed_prerequisites = valid_release_plan()
+        malformed_prerequisites["release"]["targets"][0]["prerequisites"] = None
+        self.assert_error_contains(
+            malformed_prerequisites,
+            "must be a list of non-empty strings",
+        )
 
     def test_strict_unknown_keys(self) -> None:
         plan = valid_plan()
@@ -504,6 +632,105 @@ class RunValidationTests(unittest.TestCase):
 
         run["plan"]["digest_sha256"] = "0" * 64
         self.assert_run_error_contains(plan, run, "does not match semantic PLAN digest")
+
+    def test_schema_v7_promotes_exact_cloudflare_shas(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy development and production for this run",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": [
+                    "environment:development",
+                    "environment:production",
+                ],
+            },
+            "expires_when": "run_complete",
+        }
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+            }
+        )
+        run["deployments"]["development"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_A,
+                "worker_name": "test-app-development",
+                "url": "https://test-app-development.example.workers.dev",
+                "version_id": "dev-version-1",
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:development-smoke"],
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["deployments"]["production"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_B,
+                "worker_name": "test-app-production",
+                "url": "https://test-app-production.example.workers.dev",
+                "version_id": "prod-version-1",
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:production-smoke"],
+            }
+        )
+        self.assert_run_error_contains(plan, run, "bind to the merged main SHA")
+
+        run["landing"].update(
+            {
+                "pr_state": "merged",
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["deployments"]["production"]["worker_name"] = "wrong-production"
+        self.assert_run_error_contains(plan, run, "must match PLAN release target")
+
+    def test_release_plan_requires_schema_v7_run(self) -> None:
+        plan = valid_release_plan()
+        run = valid_run(plan)
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must equal 7 when PLAN declares release",
+        )
+
+    def test_schema_v7_rejects_malformed_deployment_values_without_crashing(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        run["deployments"]["development"].update(
+            {
+                "status": {},
+                "source_sha": [],
+                "worker_name": {},
+                "migration_status": [],
+                "verification_status": {},
+                "evidence": None,
+            }
+        )
+        errors = validate_run(plan, run)
+        self.assertTrue(any("has an unsupported value" in error for error in errors))
+        self.assertTrue(any("must be null or a non-empty string" in error for error in errors))
 
     def test_run_schema_v2_remains_compatible(self) -> None:
         plan = valid_plan()
@@ -1348,17 +1575,17 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             string_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, or 6",
+            "run.schema_version: must equal 2, 3, 4, 5, 6, or 7",
         )
 
         unsupported_schema = valid_run(plan)
-        unsupported_schema["schema_version"] = 7
+        unsupported_schema["schema_version"] = 8
         del unsupported_schema["landing"]
         del unsupported_schema["post_merge_cleanup"]
         self.assert_run_error_contains(
             plan,
             unsupported_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, or 6",
+            "run.schema_version: must equal 2, 3, 4, 5, 6, or 7",
         )
 
     def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:

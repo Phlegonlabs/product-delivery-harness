@@ -35,6 +35,19 @@ Use this structure:
 ## Problem Statement
 [Current pain, trigger, and why now.]
 
+## Builder UX Direction
+Decision owner: [Human product/design owner or commissioning team]
+
+| Dimension | Direction | Product / user rationale | Status | Validation needed |
+| --- | --- | --- | --- | --- |
+| Experience priority | [Speed / clarity / guided completion / expert control / exploration / conversion / comprehension] | [Why this fits the product and user task] | [selected / provisional / assumed] | [None / prototype review / likely-user test / benchmark] |
+| Guidance and control | [Guided / balanced / expert-flexible] | [Reason] | [selected / provisional / assumed] | [Method or none] |
+| Information density | [Sparse / balanced / dense] | [Reason] | [selected / provisional / assumed] | [Method or none] |
+| Interaction and layout | [Familiar / expressive; preferred primary pattern] | [Reason] | [selected / provisional / assumed] | [Method or none] |
+| Confirmation and recovery | [Confirm / undo / retry / escalation expectations] | [Reason] | [selected / provisional / assumed] | [Method or none] |
+
+Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
+
 ## User Journeys
 ### Journey 1: [Name]
 1. [Step]
@@ -45,7 +58,9 @@ Use this structure:
 | --- | --- | --- | --- |
 
 ## UX Requirements
-- [Screens, states, accessibility, notifications, responsive behavior]
+| ID | User / task | Requirement | Success and failure signal | Evidence status |
+| --- | --- | --- | --- | --- |
+| UX-001 | [User completing a critical task] | [Screens, states, accessibility, notifications, responsive behavior, or recovery] | [Observable success plus failure or abandonment signal] | [research-backed / prototype-reviewed / assumption] |
 
 ## Frontend Delivery Requirements
 - [Target devices and browsers, content/interactivity profile, SEO, rendering, performance, accessibility, localization, offline, and deployment constraints]
@@ -155,6 +170,15 @@ Use only when a stack layer cannot yet be decided.
 ## Deployment and Operations
 [Hosting, environments, config, migrations, queues, cron, rollback.]
 
+For deployable Cloudflare products, include this environment contract:
+
+| Target | Exact Release Source | Worker | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Development | [Current PR head after current-head CI] | [Distinct development Worker] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Command/order or not applicable] | [URL, version, checks, smoke, evidence] | [Prior development version] |
+| Production | [Exact merged base-branch SHA after development PASS] | [Distinct production Worker] | [Production resources] | [Production] | [Live or not applicable] | [Command/order or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
+
+State that both targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development.
+
 ## Observability
 [Logs, metrics, traces, alerts, dashboards, audit events.]
 
@@ -175,6 +199,8 @@ Use this structure:
 
 ## Wireframe Direction
 - Fidelity: Low
+- Builder UX direction source: [PRD.md#builder-ux-direction]
+- Decision status: [selected / provisional / assumed, with unresolved items]
 - Product style intent: [User-selected direction, or provisional modern-minimal assumption]
 - Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
 - High-fidelity decisions deferred: [Tokens, typefaces, palette, detailed art direction, and other design-package decisions]
@@ -263,13 +289,18 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 - All three core artifacts are present in the run-specific staging directory and are ready to publish under `doc/`.
 - `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
+- For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
+- Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
 - For a browser product, `PRD.md` defines frontend delivery requirements including content/interactivity, rendering, SEO, accessibility, performance, target devices, and deployment constraints where applicable.
 - `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
+- For a deployable product, `architecture.md` records the platform. Unless the user or repository names another platform, it uses the Cloudflare organization default and defines one codebase with separate development and production Workers.
+- For Cloudflare delivery, the environment contract names exact PR-head and merged-base release sources, distinct Worker names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. Development never uses production customer data, sessions, or live payment mutations.
 - For a browser product, `architecture.md` records the required/selected stack or recommends one frontend stack, separates its technology layers, maps rendering by route, explains rejected alternatives, and records official-source verification date and runtime constraints.
 - The frontend decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
 - Any unresolved frontend stack decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
 - `wireframes.md` records the user-selected interface style, or an explicit provisional `modern-minimal` assumption when the user authorized assumptions. A `modern` direction is translated into concrete hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences.
+- `wireframes.md` cites the Builder UX Direction Decision and preserves whether each controlling choice is selected, provisional, or assumed.
 - Every important screen names a layout pattern and density justified by its primary task and content shape.
 - Every visible wireframe region contains either exact UI wording or a display contract covering what to show, the intended takeaway or action, the source, and relevant constraints. Generic placeholders do not pass validation.
 - Every visually important wireframe region names its style direction and purpose. Every animated region labels motion as required, optional, or none and states what it communicates.

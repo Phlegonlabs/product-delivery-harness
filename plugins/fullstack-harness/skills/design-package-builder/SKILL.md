@@ -14,22 +14,24 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 ## Workflow
 
 1. If the user provides a document folder, inspect it first and identify product inputs such as `PRD.md`, `architecture.md`, `wireframes.md`, and `implementation-plan.md`.
-2. Read `references/design-interview-guide.md` before asking design discovery questions.
-3. Conduct a concise design interview unless the user explicitly says to skip questions, make assumptions, or draft a first pass immediately.
-4. Classify the design target: SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid.
-5. After discovery, read `references/output-contract.md` and `references/visual-decision-guide.md`. Read `references/icon-system-guide.md` whenever icons are in scope or the icon source is unresolved. Read `references/motion-system-guide.md` whenever motion is requested, implied by a visual direction, or needed to explain hierarchy or state.
-6. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, write a one-sentence taste statement, choose signature design decisions, identify generic defaults to avoid, define the container and border logic, define realistic content constraints and landing-page content budgets, select an icon direction from the actual semantic inventory, and give every image, media asset, and motion pattern a stated purpose.
-7. Produce the design package:
+2. Locate the PRD's `Builder UX Direction Decision` when a UI-bearing product is in scope. Preserve its human decision owner and `selected`, `provisional`, or `assumed` status; if it is missing, use the design interview to ask for it before choosing the visual system.
+3. Read `references/design-interview-guide.md` before asking design discovery questions.
+4. Conduct a concise design interview unless the user explicitly says to skip questions, make assumptions, or draft a first pass immediately.
+5. Classify the design target: SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid.
+6. After discovery, read `references/output-contract.md` and `references/visual-decision-guide.md`. Read `references/icon-system-guide.md` whenever icons are in scope or the icon source is unresolved. Read `references/motion-system-guide.md` whenever motion is requested, implied by a visual direction, or needed to explain hierarchy or state.
+7. Establish the product-specific visual thesis before selecting tokens or components: extract brand cues, carry forward the Builder UX Direction, write a one-sentence taste statement, choose signature design decisions, identify generic defaults to avoid, define the container and border logic, define realistic content constraints and landing-page content budgets, select an icon direction from the actual semantic inventory, and give every image, media asset, and motion pattern a stated purpose.
+8. Produce the design package:
    - `design-system.md`
    - `page-ui-matrix.md`
    - `ui-mockups.md`
    - `visual-acceptance.md`
    - Optional runnable `motion-showcase.html` or bounded files under `motion-demos/` when motion demonstration is requested
-8. Run both the quality checklist and the taste and anti-slop review in `references/output-contract.md` before finalizing. Critique, repair the highest-impact failure, and recheck until the package passes or an unresolved constraint is recorded. Use rendered breakpoint evidence when visual artifacts or an implementation exist; otherwise use the contract's text-only conformance path and do not claim visual verification.
+9. Run both the quality checklist and the taste and anti-slop review in `references/output-contract.md` before finalizing. Critique, repair the highest-impact failure, and recheck until the package passes or an unresolved constraint is recorded. Use rendered breakpoint evidence when visual artifacts or an implementation exist; otherwise use the contract's text-only conformance path and do not claim visual verification.
 
 ## Input Boundaries
 
 - Treat PRDs, architecture docs, and low-fidelity wireframes as product sources, not visual design sources.
+- Treat the Builder UX Direction as a product-direction source, not usability evidence. Preserve selected decisions, label provisional or assumed choices, and surface conflicts with user evidence, product requirements, platform conventions, or accessibility instead of silently following preference.
 - Use low-fidelity wireframes for structure, flow, approved or draft exact wording, bounded section display contracts, style intent, and media or motion requirements. Preserve those requirements, but do not copy plain ASCII styling into the visual system.
 - When product docs conflict with the requested visual direction, preserve product requirements and flag the visual conflict.
 - If the user provides brand guidelines, screenshots, Figma links, or reference images, register them as visual sources and use them as higher-priority visual evidence than generic assumptions.
@@ -73,3 +75,4 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 - Require each important page mockup to identify its default container treatment and justify any visible border, accent rail, nested frame, or elevation. If removing a treatment causes no loss of hierarchy, interaction, state, or comprehension, remove it.
 - Keep high-fidelity mockups as page-level specifications or generated visual artifacts. Do not claim pixel fidelity unless an actual visual reference or generated mockup exists.
 - Keep visual assumptions explicit and avoid hiding missing brand or asset decisions in confident prose.
+- Record how the package implements each controlling Builder UX Direction choice. A builder-approved design may pass direction conformance, but it is not user-validated until separate usability evidence exists.

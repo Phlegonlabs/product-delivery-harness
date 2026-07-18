@@ -10,7 +10,15 @@ Ask one organized interview message. Skip questions already answered by the user
 
 - What product or page set is this design package for?
 - Who uses it, and what are they trying to accomplish?
+- Who is the human builder or product/design decision owner for the UX direction?
 - Is the target a SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid?
+
+### Builder UX Direction
+
+- Does the PRD already contain a `Builder UX Direction Decision`? If so, which choices are selected, provisional, or assumed?
+- What should the experience optimize first: speed, clarity, guided completion, expert control, exploration, conversion, or content comprehension?
+- What guidance/control balance, information density, interaction familiarity, primary layout pattern, confirmation/recovery behavior, and validation depth does the builder prefer?
+- Which preferences are supported by user evidence, and which remain hypotheses that need prototype or usability testing?
 
 ### Visual Direction
 
@@ -51,6 +59,7 @@ Ask one organized interview message. Skip questions already answered by the user
 The design package is ready to draft when these are known or explicitly assumed:
 
 - Product archetype and target audience
+- Human Builder UX Direction owner plus concrete selected, provisional, or assumed choices for experience priority, guidance/control, density, interaction/layout, confirmation/recovery, and validation depth
 - Key pages/routes
 - Visual direction or allowed assumptions
 - Brand/context cues and anti-patterns, or permission to derive them
@@ -60,5 +69,6 @@ The design package is ready to draft when these are known or explicitly assumed:
 - Required states and breakpoints
 - Brand/source references or confirmation that none exist
 - Implementation constraints that affect components and layout
+- Any conflict between builder preference and user evidence, product requirements, platform conventions, or accessibility
 
 If the user authorizes assumptions, draft with explicit assumptions and open questions rather than continuing the interview.

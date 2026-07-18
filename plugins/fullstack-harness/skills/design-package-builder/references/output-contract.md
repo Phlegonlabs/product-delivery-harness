@@ -27,6 +27,19 @@ Use this structure:
 | Source | Path / URL | Role | Notes |
 | --- | --- | --- | --- |
 
+## Builder UX Direction Handoff
+Decision owner: [Human product/design owner or commissioning team]
+
+| Dimension | Upstream direction | Status | Design-system expression | Evidence or validation need |
+| --- | --- | --- | --- | --- |
+| Experience priority | [Speed / clarity / guided completion / expert control / exploration / conversion / comprehension] | [selected / provisional / assumed] | [Hierarchy, component, content, or interaction consequence] | [User evidence / prototype test / none] |
+| Guidance and control | [Direction] | [selected / provisional / assumed] | [System expression] | [Need] |
+| Information density | [Direction] | [selected / provisional / assumed] | [System expression] | [Need] |
+| Interaction and layout | [Direction] | [selected / provisional / assumed] | [System expression] | [Need] |
+| Confirmation and recovery | [Direction] | [selected / provisional / assumed] | [System expression] | [Need] |
+
+Builder approval proves direction conformance only. It does not prove usability; keep unsupported preferences provisional or assumed until separate user evidence exists.
+
 ## Product-Specific Visual Thesis
 | Cue / signature decision | Product or source basis | System expression | Avoid |
 | --- | --- | --- | --- |
@@ -249,6 +262,7 @@ Use this structure:
 | Gate | Required | Expected Signal | Evidence |
 | --- | --- | --- | --- |
 | Design system conformance | yes | Components use approved tokens and variants | screenshot / code review |
+| Builder UX direction conformance | when a Builder UX Direction exists | Selected decisions are implemented; provisional or assumed decisions and conflicts remain explicit | source review / design review |
 | Page UI conformance | yes | Implemented page matches mockup source | screenshot / trace |
 | Responsive behavior | yes | No overflow or broken hierarchy at required breakpoints | screenshot |
 | State coverage | yes | Required loading/empty/error/disabled states exist | screenshot / test |
@@ -279,6 +293,8 @@ Before finalizing, verify:
 
 - All four artifacts are present.
 - `design-system.md` defines overview, a product-specific visual thesis, taste and anti-slop guardrails, container and border rules, content/data realism, color palette, typography, iconography, spacing, component styles, shadows/elevation, a complete motion system, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules.
+- For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
+- Builder direction conformance is not presented as usability validation; unsupported preferences remain explicit hypotheses.
 - The visual thesis includes three to five concrete brand or context cues, at least two recurring signature decisions, and avoided defaults tied to product evidence or explicit assumptions.
 - The taste statement names a concrete visual character and the compositional choices that create it; it does not stop at generic adjectives.
 - The container and border table defaults ordinary regions to open layouts, chooses one primary grouping cue per nesting level, and gives every visible frame or elevation a named purpose.

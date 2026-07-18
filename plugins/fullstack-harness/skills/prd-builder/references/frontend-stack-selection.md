@@ -65,6 +65,8 @@ Verify these rules against current official documentation on the date the PRD is
 5. If SSR or full-stack React conventions are needed, select a framework that current Cloudflare docs support rather than assuming a build tool supplies routing, data loading, caching, or server behavior.
 6. For Worker-backed apps, document the `compatibility_date`, runtime compatibility flags, bindings, secrets, asset routing, local preview path, and build environment requirements.
 7. If authentication or middleware must run before protected assets, explicitly verify asset routing/order; never assume frontend route guards provide authorization.
+8. Use one codebase with separately named development and production Workers. Development deploys the current PR head only after current-head CI and uses isolated non-production bindings, data, auth, and sandbox payment credentials. Production deploys the exact merged base-branch SHA only after development passes and uses production bindings, auth, and live payment credentials.
+9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker. A successful upload alone is not release proof.
 
 Cloudflare and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `architecture.md`.
 
@@ -89,6 +91,7 @@ The `Frontend Technology Decision` section in `architecture.md` must include:
 - Alternatives and revisit triggers.
 - Official documentation links and verification date.
 - Cloudflare adapter/plugin, build runtime, compatibility date, asset routing, binding, auth, and local-preview constraints when applicable.
+- For deployable Cloudflare products, the distinct development and production Worker names, exact release sources, resource/auth/payment isolation, migration order, deployed-environment verification, and rollback path.
 - Owners, deadlines, spikes, and pass/fail criteria for any provisional decision.
 
 ## Official Sources to Recheck
