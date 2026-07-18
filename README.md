@@ -1,90 +1,93 @@
 <p align="center">
-  <img src="./assets/readme-banner.svg" alt="Full Stack Harness — private multi-runtime skill marketplace" width="100%">
+  <img src="./assets/readme-banner.svg" alt="Full Stack Harness" width="100%">
 </p>
 
 <p align="center">
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
-  <img alt="Codex multi-thread" src="https://img.shields.io/badge/Codex-multi--thread-2563EB?style=flat-square">
-  <img alt="Claude dynamic workflow" src="https://img.shields.io/badge/Claude-dynamic_workflow-D97706?style=flat-square">
-  <img alt="Windows" src="https://img.shields.io/badge/Windows-PowerShell-7C3AED?style=flat-square">
-  <img alt="macOS" src="https://img.shields.io/badge/macOS-zsh-334155?style=flat-square">
-  <img alt="Plugin version" src="https://img.shields.io/badge/plugin-v0.1.1-059669?style=flat-square">
+  <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
+  <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-059669?style=flat-square">
 </p>
 
-<p align="center">
-  <strong>語言 / 语言：</strong>
-  <a href="#繁體中文">繁體中文</a> ·
-  <a href="#简体中文">简体中文</a>
-</p>
+# Full Stack Harness
 
----
+Private skill marketplace for turning a product idea into a verified delivery flow with Codex or Claude Code.
 
-<a id="繁體中文"></a>
+It is not just a collection of prompts. The plugin separates product definition, visual design, and delivery orchestration so each stage has a clear source of truth and a safe handoff to the next.
 
-# Full Stack Goal Dev（繁體中文）
+## What is included
 
-> [繁體中文](#繁體中文) · [简体中文](#简体中文)
+| Skill | Use it for | Main output |
+| --- | --- | --- |
+| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `wireframes.md` |
+| `design-package-builder` | Design direction, tokens, icon and motion rules, page specs, and visual acceptance | `design-system.md`, `page-ui-matrix.md`, `ui-mockups.md`, `visual-acceptance.md` |
+| `fullstack-harness-engineering` | Traceable implementation planning, safe multi-agent execution, verification, and PR landing | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 
-這是一個供 Codex 和 Claude Code 使用的私人 skill marketplace。一個 plugin 會安裝以下三個 skills：
+The delivery skill chooses the lightest workflow that fits the task:
 
-- `fullstack-harness-engineering`
-- `prd-builder`
-- `design-package-builder`
+- Direct work for a small, explicit change.
+- `RUN.md` for a medium sequential task.
+- `PLAN.md` and `RUN.md` for a larger delivery with dependencies, multiple missions, or durable handoff.
 
-Harness 會偵測目前使用的 runtime。Codex 會將平行工作路由到 multi-thread waves；Claude Code 則會路由到 dynamic workflow。
+## How the system fits together
 
-## 安裝需求
+```mermaid
+flowchart LR
+  Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
+  PRD --> Design["design-package-builder\nVisual system and page rules"]
+  PRD --> Harness["fullstack-harness-engineering\nPlan, implement, verify, land"]
+  Design --> Harness
+  Harness --> Evidence["Tests, UI evidence, PR gates"]
+```
 
-- 具備私人 GitHub repository `Phlegonlabs/fullstack-goal-dev` 的存取權限
-- 已安裝 [GitHub CLI](https://cli.github.com/)，並使用 `gh auth login` 登入
-- 已安裝 Codex CLI、Claude Code，或兩者皆已安裝
-- 已使用 `gh auth setup-git` 設定 Git credential
-- macOS 如要使用共用更新 script，需安裝 PowerShell 7（`pwsh`）
+You can start at any stage. For example, use the Harness alone to fix an existing app, or use the design skill when a PRD already exists. The skills keep their responsibilities separate: the PRD skill does not invent a design system, and the design skill does not write a delivery plan.
 
-安裝前先確認 GitHub 存取權限：
+## Delivery model
+
+The Harness is built around explicit boundaries:
+
+1. Inspect the current project and identify the required work.
+2. Freeze the relevant contracts, sources, scope, and verification steps.
+3. Plan dependencies before starting implementation when the task is large enough to need it.
+4. Use parallel workers only when the work is independent, isolated, and explicitly authorized.
+5. Verify task results, integrations, UI journeys where relevant, and the final diff.
+6. Land through the repository's PR flow only with separate authorization for each GitHub action.
+
+For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, PR, review action, merge, deploy, or cleanup.
+
+## Install
+
+This is a private GitHub marketplace. You need access to `Phlegonlabs/fullstack-goal-dev`, GitHub CLI authentication, and either Codex, Claude Code, or both.
 
 ```bash
-gh auth status
+gh auth login
+gh auth setup-git
 git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 ```
 
-## 在另一部裝置快速安裝
+### One-command updater
 
-### Windows
+Clone the repository, then run the shared updater. It detects the installed runtimes, adds or updates the marketplace, and installs the plugin where supported.
 
-在 PowerShell 執行：
+Windows PowerShell:
 
 ```powershell
-gh auth login
-gh auth setup-git
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 Set-Location .\fullstack-goal-dev
 pwsh -File .\scripts\update-private-skills.ps1
 ```
 
-如果沒有 `pwsh`，請安裝 PowerShell 7，或使用下方的 plugin 直接安裝指令。
-
-### macOS
-
-在 Terminal 執行：
+macOS or Linux shell with PowerShell 7:
 
 ```bash
-gh auth login
-gh auth setup-git
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 cd fullstack-goal-dev
 pwsh -File ./scripts/update-private-skills.ps1
 ```
 
-可以使用 `brew install --cask powershell` 安裝 PowerShell，或不用 PowerShell，直接執行下方的 plugin 指令。
+Open a new Codex task after updating. Reload or restart Claude Code after updating its plugin.
 
-更新 script 會偵測已安裝的 runtimes、新增或重新整理 marketplace，並安裝或更新 plugin。第一次安裝後，請開啟新的 Codex task，並重新啟動 Claude Code。
-
-## 直接安裝 plugin
-
-以下指令在 Windows 和 macOS 相同。
-
-### Codex
+### Install directly in Codex
 
 ```bash
 codex plugin marketplace add Phlegonlabs/fullstack-goal-dev --ref main
@@ -92,9 +95,7 @@ codex plugin add fullstack-harness@fullstack-goal-dev
 codex plugin list
 ```
 
-安裝後請開啟新的 Codex task，讓新 skills 載入。
-
-### Claude Code
+### Install directly in Claude Code
 
 ```bash
 claude plugin marketplace add Phlegonlabs/fullstack-goal-dev --scope user
@@ -102,13 +103,11 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 claude plugin list
 ```
 
-在 Claude Code 內執行 `/reload-plugins`，或重新啟動 Claude Code。
+Run `/reload-plugins` or restart Claude Code once the plugin is installed.
 
-## 從本機 checkout 安裝
+### Use a local checkout during development
 
-開發 plugin 時使用這種方式。Marketplace 會追蹤目前 checkout 的檔案，而不是私人 Git remote。
-
-### Windows PowerShell
+Use a local marketplace when testing changes in this repository. Do not register the local and GitHub marketplace under the same name at the same time.
 
 ```powershell
 $repo = (Resolve-Path .).Path
@@ -118,485 +117,133 @@ claude plugin marketplace add $repo --scope user
 claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 ```
 
-### macOS Terminal
+## Typical prompts
 
-```bash
-codex plugin marketplace add "$PWD"
-codex plugin add fullstack-harness@fullstack-goal-dev
-claude plugin marketplace add "$PWD" --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
+```text
+Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
 ```
 
-不要同時使用名稱相同的本機 marketplace 和 Git marketplace。切換來源前，先透過相應 CLI 移除舊來源。
-
-## 更新已安裝的 plugin
-
-從最新的 repository clone 執行共用 updater：
-
-```powershell
-pwsh -File ./scripts/update-private-skills.ps1
+```text
+Use $design-package-builder to create a design package from doc/PRD.md and doc/wireframes.md.
 ```
 
-也可以分別更新每個 runtime：
-
-```bash
-# Codex
-codex plugin marketplace upgrade fullstack-goal-dev
-codex plugin add fullstack-harness@fullstack-goal-dev
-
-# Claude Code
-claude plugin marketplace update fullstack-goal-dev
-claude plugin update fullstack-harness@fullstack-goal-dev --scope user
+```text
+Use $fullstack-harness-engineering to review the existing app, plan the required work, and stop before implementation.
 ```
 
-## 自動更新
-
-### Claude Code 啟動時更新
-
-Claude Code 支援啟動時自動更新 marketplace。第三方 marketplace 不會預設開啟，請前往 `/plugin` → **Marketplaces** → **fullstack-goal-dev** → **Enable auto-update**。
-
-也可以把以下設定合併到使用者設定檔：
-
-- Windows：`%USERPROFILE%\.claude\settings.json`
-- macOS：`~/.claude/settings.json`
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "fullstack-goal-dev": {
-      "source": {
-        "source": "github",
-        "repo": "Phlegonlabs/fullstack-goal-dev"
-      },
-      "autoUpdate": true
-    }
-  },
-  "enabledPlugins": {
-    "fullstack-harness@fullstack-goal-dev": true
-  }
-}
+```text
+Use $fullstack-harness-engineering to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
-不要用這段內容覆蓋現有設定檔。只合併這些 keys，並保留其他設定。
+For a multi-mission delivery, state the complete launch and landing permissions in the request. Branch creation, commits, integration, push, PR creation, review management, merge, deployment, and cleanup are independent actions.
 
-背景存取私人 repository 時，啟動 Claude Code 的環境必須有 `GH_TOKEN` 或 `GITHUB_TOKEN`。不要把 token 儲存在這個 repository。若從 terminal 啟動 Claude Code，可以從已登入的 GitHub CLI session 取得 token：
+## Codex and Claude Code execution
 
-```powershell
-# Windows PowerShell profile
-$env:GH_TOKEN = gh auth token
-```
+The Harness records the actual runtime capability instead of assuming one from an installed CLI.
 
-```bash
-# macOS ~/.zshrc
-export GH_TOKEN="$(gh auth token)"
-```
-
-目前行為可參考 [Claude Code marketplace 指南](https://code.claude.com/docs/en/plugin-marketplaces)和[自動更新指南](https://code.claude.com/docs/en/discover-plugins)。
-
-### Codex 排程更新
-
-Codex CLI 目前提供明確的 marketplace upgrade 和 plugin install 指令。若要無人值守更新，可以讓作業系統定時執行共用更新 script。
-
-#### Windows Task Scheduler
-
-將 `<repo>` 換成 repository 的絕對路徑：
-
-```powershell
-$action = New-ScheduledTaskAction `
-  -Execute "pwsh.exe" `
-  -Argument '-NoProfile -File "<repo>\scripts\update-private-skills.ps1"'
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-Register-ScheduledTask `
-  -TaskName "Update Full Stack Harness Skills" `
-  -Action $action `
-  -Trigger $trigger `
-  -Description "Refresh the private Codex and Claude Code skill marketplace"
-```
-
-#### macOS launchd
-
-建立 `~/Library/LaunchAgents/com.phlegonlabs.fullstack-harness-update.plist`。使用 `pwd` 和 `command -v pwsh` 的結果替換 `<repo>` 與 `pwsh` 路徑：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.phlegonlabs.fullstack-harness-update</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/opt/homebrew/bin/pwsh</string>
-    <string>-NoProfile</string>
-    <string>-File</string>
-    <string>&lt;repo&gt;/scripts/update-private-skills.ps1</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/tmp/fullstack-harness-update.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/fullstack-harness-update-error.log</string>
-</dict>
-</plist>
-```
-
-載入一次：
-
-```bash
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.phlegonlabs.fullstack-harness-update.plist
-```
-
-## Windows 與 macOS 的差異
-
-| 項目 | Windows | macOS |
+| Runtime | Preferred parallel route | Fallback |
 | --- | --- | --- |
-| 預設 shell | PowerShell | zsh |
-| Repository 路徑 | `C:\path\fullstack-goal-dev` | `/Users/name/path/fullstack-goal-dev` |
-| 共用 updater | `pwsh -File .\scripts\update-private-skills.ps1` | `pwsh -File ./scripts/update-private-skills.ps1` |
-| 發布時的 Python 指令 | 通常是 `python` | 通常是 `python3` |
-| Git credentials | Git Credential Manager / `gh auth setup-git` | Keychain / `gh auth setup-git` |
-| 排程更新 | Task Scheduler | launchd |
-| Claude 設定檔 | `%USERPROFILE%\.claude\settings.json` | `~/.claude/settings.json` |
+| Codex app | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
+| Claude Code | Dynamic workflow with parent-managed worktrees | Direct subagents, then one sequential parent |
 
-Plugin 名稱、marketplace 名稱、版本，以及 Codex/Claude CLI 指令在兩個平台上相同。
+Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
-## 發布 skill 更新
+## Repository layout
 
-Canonical skills 位於 `.agents/skills`。不要直接修改自動產生的 plugin copies。
+```text
+.agents/skills/                   Canonical skill sources
+plugins/fullstack-harness/skills/ Generated plugin copies; do not edit directly
+.agents/plugins/marketplace.json  Codex marketplace definition
+.claude-plugin/marketplace.json   Claude Code marketplace definition
+scripts/sync_plugin_skills.py     Copies canonical skills into the plugin bundle
+scripts/update-private-skills.ps1 Updates installed marketplaces and plugin
+.github/workflows/harness-ci.yml  Contract, unit, and E2E checks
+```
+
+## Maintain the marketplace
+
+Edit only the canonical sources in `.agents/skills/`, then sync and verify the generated plugin bundle.
 
 ```bash
-# Windows 通常使用 python；macOS 沒有 python 時使用 python3。
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+python -m unittest discover -s .agents/skills/design-package-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+git diff --check
 ```
 
-開 pull request 前：
+Before a release, update the matching version in both plugin manifests and `.claude-plugin/marketplace.json`, inspect the entire diff, and use the repository PR flow. Do not push directly to `main`.
 
-1. 同時更新兩份 plugin manifests 和 `.claude-plugin/marketplace.json` 的版本。
-2. 執行所有 contract tests 和 E2E tests。
-3. 執行 `git diff --check`。
-4. 透過 repository 的 pull request 流程 merge。
+## Security and data safety
 
-其他裝置會在下一次手動或排程更新時收到新版本。
-
-## 疑難排解
-
-### 無法驗證私人 repository
-
-```bash
-gh auth status
-gh auth setup-git
-git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
-```
-
-### Marketplace 已存在，但指向錯誤來源
-
-```bash
-codex plugin marketplace list --json
-claude plugin marketplace list --json
-```
-
-透過相應 CLI 移除舊 marketplace，再加入正確的本機或 Git 來源。移除 Claude marketplace 也會移除從該來源安裝的 plugins。
-
-### 找不到 skills
-
-- Codex：開啟新的 task。
-- Claude Code：執行 `/reload-plugins` 或重新啟動 Claude Code。
-- 使用 `codex plugin list --json` 或 `claude plugin list --json`，確認 `fullstack-harness@fullstack-goal-dev` 已啟用。
-- `~/.codex/skills`、`~/.agents/skills` 或 `~/.claude/skills` 下的舊 standalone copies 可能造成 skill 名稱重複。在確認 plugin 版本正常前，不要刪除它們。
-
-<p align="right"><a href="#繁體中文">返回繁體中文版頂部</a> · <a href="#简体中文">切換到简体中文</a></p>
+- Keep GitHub tokens and other credentials out of this repository.
+- The updater uses your existing GitHub CLI session; it does not store a token in the project.
+- Do not delete old standalone skill copies until the plugin is confirmed to load correctly.
+- The orchestration skill requires explicit authorization for every state-changing GitHub or lifecycle action.
 
 ---
 
-<a id="简体中文"></a>
+## 繁體中文
 
-# Full Stack Goal Dev（简体中文）
+### 這是什麼
 
-> [繁體中文](#繁體中文) · [简体中文](#简体中文)
+Full Stack Harness 是給 Codex 與 Claude Code 使用的私有 skill marketplace。它把一個產品想法或既有系統改動，拆成三個可交接的階段：產品定義、視覺設計、以及可驗證的交付流程。
 
-这是一个供 Codex 和 Claude Code 使用的私有 skill marketplace。一个 plugin 会安装以下三个 skills：
+| Skill | 用途 | 主要產出 |
+| --- | --- | --- |
+| `prd-builder` | 產品需求、架構、前端技術選擇、低保真 wireframe | PRD、架構與 wireframe 文件 |
+| `design-package-builder` | 視覺方向、設計系統、icon 與 motion 規範、頁面規格 | Design system、頁面規格、視覺驗收條件 |
+| `fullstack-harness-engineering` | 既有系統盤點、實作規劃、多 agent 協作、驗證與 PR landing | 直接處理、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 
-- `fullstack-harness-engineering`
-- `prd-builder`
-- `design-package-builder`
+你可以從任何一段開始：已有 PRD 就直接做設計；已有產品就用 Harness 做盤點、規劃或實作。
 
-Harness 会检测当前使用的 runtime。Codex 会将并行工作路由到 multi-thread waves；Claude Code 则会路由到 dynamic workflow。
+### 安裝與更新
 
-## 安装要求
-
-- 具备私有 GitHub repository `Phlegonlabs/fullstack-goal-dev` 的访问权限
-- 已安装 [GitHub CLI](https://cli.github.com/)，并使用 `gh auth login` 登录
-- 已安装 Codex CLI、Claude Code，或两者都已安装
-- 已使用 `gh auth setup-git` 设置 Git credential
-- macOS 如需使用共用更新 script，需安装 PowerShell 7（`pwsh`）
-
-安装前先确认 GitHub 访问权限：
+需具備 `Phlegonlabs/fullstack-goal-dev` 的存取權限，並先登入 GitHub CLI：
 
 ```bash
-gh auth status
-git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
-```
-
-## 在另一台设备快速安装
-
-### Windows
-
-在 PowerShell 中运行：
-
-```powershell
 gh auth login
 gh auth setup-git
-git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-Set-Location .\fullstack-goal-dev
+```
+
+從 repository clone 後，在 Windows 或已安裝 PowerShell 7 的 macOS/Linux 執行：
+
+```powershell
 pwsh -File .\scripts\update-private-skills.ps1
 ```
 
-如果没有 `pwsh`，请安装 PowerShell 7，或使用下方的 plugin 直接安装命令。
+Updater 會偵測 Codex 與 Claude Code，更新 marketplace 並安裝 plugin。Codex 更新後請開新的 task；Claude Code 則執行 `/reload-plugins` 或重新啟動。
 
-### macOS
+### 使用方式
 
-在 Terminal 中运行：
+```text
+Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
+```
+
+```text
+Use $design-package-builder to create a design package from the current PRD and wireframes.
+```
+
+```text
+Use $fullstack-harness-engineering to review the existing app, plan the work, and stop before implementation.
+```
+
+### 交付原則
+
+Harness 會依任務大小選擇最小流程：小改動直接處理；中型工作使用 `RUN.md`；有多個任務、依賴或交接需求時使用 `PLAN.md` 與 `RUN.md`。
+
+多 agent 寫入預設最多三個 mission，且每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
+
+### 維護 repository
+
+只修改 `.agents/skills/` 下的 canonical skills。`plugins/fullstack-harness/skills/` 是產生檔，使用以下命令同步與驗證：
 
 ```bash
-gh auth login
-gh auth setup-git
-git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-cd fullstack-goal-dev
-pwsh -File ./scripts/update-private-skills.ps1
-```
-
-可以使用 `brew install --cask powershell` 安装 PowerShell，或不用 PowerShell，直接执行下方的 plugin 命令。
-
-更新 script 会检测已安装的 runtimes、添加或刷新 marketplace，并安装或更新 plugin。首次安装后，请打开新的 Codex task，并重启 Claude Code。
-
-## 直接安装 plugin
-
-以下命令在 Windows 和 macOS 上相同。
-
-### Codex
-
-```bash
-codex plugin marketplace add Phlegonlabs/fullstack-goal-dev --ref main
-codex plugin add fullstack-harness@fullstack-goal-dev
-codex plugin list
-```
-
-安装后请打开新的 Codex task，让新 skills 加载。
-
-### Claude Code
-
-```bash
-claude plugin marketplace add Phlegonlabs/fullstack-goal-dev --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-claude plugin list
-```
-
-在 Claude Code 中运行 `/reload-plugins`，或重启 Claude Code。
-
-## 从本地 checkout 安装
-
-开发 plugin 时使用这种方式。Marketplace 会跟踪当前 checkout 的文件，而不是私有 Git remote。
-
-### Windows PowerShell
-
-```powershell
-$repo = (Resolve-Path .).Path
-codex plugin marketplace add $repo
-codex plugin add fullstack-harness@fullstack-goal-dev
-claude plugin marketplace add $repo --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-```
-
-### macOS Terminal
-
-```bash
-codex plugin marketplace add "$PWD"
-codex plugin add fullstack-harness@fullstack-goal-dev
-claude plugin marketplace add "$PWD" --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-```
-
-不要同时使用名称相同的本地 marketplace 和 Git marketplace。切换来源前，先通过相应 CLI 移除旧来源。
-
-## 更新已安装的 plugin
-
-从最新的 repository clone 运行共用 updater：
-
-```powershell
-pwsh -File ./scripts/update-private-skills.ps1
-```
-
-也可以分别更新每个 runtime：
-
-```bash
-# Codex
-codex plugin marketplace upgrade fullstack-goal-dev
-codex plugin add fullstack-harness@fullstack-goal-dev
-
-# Claude Code
-claude plugin marketplace update fullstack-goal-dev
-claude plugin update fullstack-harness@fullstack-goal-dev --scope user
-```
-
-## 自动更新
-
-### Claude Code 启动时更新
-
-Claude Code 支持启动时自动更新 marketplace。第三方 marketplace 不会默认开启，请前往 `/plugin` → **Marketplaces** → **fullstack-goal-dev** → **Enable auto-update**。
-
-也可以把以下设置合并到用户设置文件：
-
-- Windows：`%USERPROFILE%\.claude\settings.json`
-- macOS：`~/.claude/settings.json`
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "fullstack-goal-dev": {
-      "source": {
-        "source": "github",
-        "repo": "Phlegonlabs/fullstack-goal-dev"
-      },
-      "autoUpdate": true
-    }
-  },
-  "enabledPlugins": {
-    "fullstack-harness@fullstack-goal-dev": true
-  }
-}
-```
-
-不要用这段内容覆盖现有设置文件。只合并这些 keys，并保留其他设置。
-
-后台访问私有 repository 时，启动 Claude Code 的环境必须有 `GH_TOKEN` 或 `GITHUB_TOKEN`。不要把 token 存储在这个 repository 中。如果从 terminal 启动 Claude Code，可以从已登录的 GitHub CLI session 获取 token：
-
-```powershell
-# Windows PowerShell profile
-$env:GH_TOKEN = gh auth token
-```
-
-```bash
-# macOS ~/.zshrc
-export GH_TOKEN="$(gh auth token)"
-```
-
-当前行为可参考 [Claude Code marketplace 指南](https://code.claude.com/docs/en/plugin-marketplaces)和[自动更新指南](https://code.claude.com/docs/en/discover-plugins)。
-
-### Codex 定时更新
-
-Codex CLI 目前提供明确的 marketplace upgrade 和 plugin install 命令。如需无人值守更新，可以让操作系统定时执行共用更新 script。
-
-#### Windows Task Scheduler
-
-将 `<repo>` 替换为 repository 的绝对路径：
-
-```powershell
-$action = New-ScheduledTaskAction `
-  -Execute "pwsh.exe" `
-  -Argument '-NoProfile -File "<repo>\scripts\update-private-skills.ps1"'
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-Register-ScheduledTask `
-  -TaskName "Update Full Stack Harness Skills" `
-  -Action $action `
-  -Trigger $trigger `
-  -Description "Refresh the private Codex and Claude Code skill marketplace"
-```
-
-#### macOS launchd
-
-创建 `~/Library/LaunchAgents/com.phlegonlabs.fullstack-harness-update.plist`。使用 `pwd` 和 `command -v pwsh` 的结果替换 `<repo>` 和 `pwsh` 路径：
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.phlegonlabs.fullstack-harness-update</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>/opt/homebrew/bin/pwsh</string>
-    <string>-NoProfile</string>
-    <string>-File</string>
-    <string>&lt;repo&gt;/scripts/update-private-skills.ps1</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>/tmp/fullstack-harness-update.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/fullstack-harness-update-error.log</string>
-</dict>
-</plist>
-```
-
-加载一次：
-
-```bash
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.phlegonlabs.fullstack-harness-update.plist
-```
-
-## Windows 与 macOS 的区别
-
-| 项目 | Windows | macOS |
-| --- | --- | --- |
-| 默认 shell | PowerShell | zsh |
-| Repository 路径 | `C:\path\fullstack-goal-dev` | `/Users/name/path/fullstack-goal-dev` |
-| 共用 updater | `pwsh -File .\scripts\update-private-skills.ps1` | `pwsh -File ./scripts/update-private-skills.ps1` |
-| 发布时的 Python 命令 | 通常是 `python` | 通常是 `python3` |
-| Git credentials | Git Credential Manager / `gh auth setup-git` | Keychain / `gh auth setup-git` |
-| 定时更新 | Task Scheduler | launchd |
-| Claude 设置文件 | `%USERPROFILE%\.claude\settings.json` | `~/.claude/settings.json` |
-
-Plugin 名称、marketplace 名称、版本，以及 Codex/Claude CLI 命令在两个平台上相同。
-
-## 发布 skill 更新
-
-Canonical skills 位于 `.agents/skills`。不要直接修改自动生成的 plugin copies。
-
-```bash
-# Windows 通常使用 python；macOS 没有 python 时使用 python3。
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+git diff --check
 ```
 
-打开 pull request 前：
-
-1. 同时更新两份 plugin manifests 和 `.claude-plugin/marketplace.json` 的版本。
-2. 运行所有 contract tests 和 E2E tests。
-3. 运行 `git diff --check`。
-4. 通过 repository 的 pull request 流程 merge。
-
-其他设备会在下一次手动或定时更新时收到新版本。
-
-## 故障排查
-
-### 无法验证私有 repository
-
-```bash
-gh auth status
-gh auth setup-git
-git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
-```
-
-### Marketplace 已存在，但指向错误来源
-
-```bash
-codex plugin marketplace list --json
-claude plugin marketplace list --json
-```
-
-通过相应 CLI 移除旧 marketplace，再添加正确的本地或 Git 来源。移除 Claude marketplace 也会移除从该来源安装的 plugins。
-
-### 找不到 skills
-
-- Codex：打开新的 task。
-- Claude Code：运行 `/reload-plugins` 或重启 Claude Code。
-- 使用 `codex plugin list --json` 或 `claude plugin list --json`，确认 `fullstack-harness@fullstack-goal-dev` 已启用。
-- `~/.codex/skills`、`~/.agents/skills` 或 `~/.claude/skills` 下的旧 standalone copies 可能造成 skill 名称重复。在确认 plugin 版本正常前，不要删除它们。
-
-<p align="right"><a href="#简体中文">返回简体中文版顶部</a> · <a href="#繁體中文">切換到繁體中文</a></p>
+版本發布前需同步更新兩份 plugin manifest 與 `.claude-plugin/marketplace.json` 的版本，跑完 CI 對應測試，並依 PR 流程合併。不要直接 push 到 `main`。
