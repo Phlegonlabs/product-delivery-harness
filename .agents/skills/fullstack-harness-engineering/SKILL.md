@@ -379,7 +379,7 @@ Final completion requires:
 - Skipped or `UNVALIDATED` gates include reason, risk, and acceptance status.
 - Primary journey and relevant platform gates pass.
 - Every `evidence_gate: required` UI surface has PASS screenshot coverage for its full planned breakpoint-by-state matrix, and each file exists under `docs/goal/evidence/` with the recorded SHA-256.
-- A complete pull-request run is merged with current-head CI and review evidence, and its `merge_pr` authorization covers every mission plus the exact `pr:<full-PR-URL>` target; a complete PLAN-v4 graph run has only terminal nodes and edges and no retained node blocker.
+- A complete pull-request run is merged with current-head CI and review evidence, and its `merge_pr` authorization covers every mission plus the exact `pr:<full-PR-URL>` target; a complete PLAN-v4 graph run has only succeeded, skipped, or superseded nodes, terminal edges, and no retained node blocker.
 - Required automated E2E is PASS on the current integration or PR head. Any duplicate manual smoke it replaces is recorded as `not required - covered by current-head E2E`; uncovered or environment-specific smoke still passes separately.
 - `RUN.md` records final status, evidence, changed files, commits, residual risk, and landing state.
 - In pull-request mode, the final branch was reviewed locally before push, and current-head CI plus GitHub review are recorded separately. A new push invalidates any earlier PASS tied to another SHA.

@@ -2427,9 +2427,12 @@ def _validate_ui_evidence(
         _add(errors, "run.ui_evidence", "must be a list")
         return
 
+    plan_surfaces = plan.get("ui_surfaces", [])
+    if not isinstance(plan_surfaces, list):
+        plan_surfaces = []
     surfaces = {
         surface["id"]: surface
-        for surface in plan.get("ui_surfaces", [])
+        for surface in plan_surfaces
         if isinstance(surface, dict) and _nonempty_string(surface.get("id"))
     }
     seen: set[tuple[str, str, str, str]] = set()
@@ -2460,11 +2463,17 @@ def _validate_ui_evidence(
         if surface is None:
             _add(errors, f"{path}.surface_id", "does not match a PLAN UI surface")
         else:
-            if item["route"] != surface["route"]:
+            surface_route = surface.get("route")
+            surface_breakpoints = surface.get("breakpoints")
+            surface_states = surface.get("states")
+            if not _nonempty_string(surface_route) or item["route"] != surface_route:
                 _add(errors, f"{path}.route", "does not match the PLAN UI surface")
-            if item["breakpoint"] not in surface["breakpoints"]:
+            if (
+                not isinstance(surface_breakpoints, list)
+                or item["breakpoint"] not in surface_breakpoints
+            ):
                 _add(errors, f"{path}.breakpoint", "is not planned for this UI surface")
-            if item["state"] not in surface["states"]:
+            if not isinstance(surface_states, list) or item["state"] not in surface_states:
                 _add(errors, f"{path}.state", "is not planned for this UI surface")
         key = (
             item["surface_id"],
@@ -2495,13 +2504,25 @@ def _validate_ui_evidence(
 
     if run.get("status") != "complete":
         return
-    required = {
-        (surface["id"], surface["route"], breakpoint, state)
-        for surface in surfaces.values()
-        if surface.get("evidence_gate") == "required"
-        for breakpoint in surface.get("breakpoints", [])
-        for state in surface.get("states", [])
-    }
+    required: set[tuple[str, str, str, str]] = set()
+    for surface in surfaces.values():
+        route = surface.get("route")
+        breakpoints = surface.get("breakpoints")
+        states = surface.get("states")
+        if (
+            surface.get("evidence_gate") != "required"
+            or not _nonempty_string(route)
+            or not isinstance(breakpoints, list)
+            or not isinstance(states, list)
+        ):
+            continue
+        required.update(
+            (surface["id"], route, breakpoint, state)
+            for breakpoint in breakpoints
+            if _nonempty_string(breakpoint)
+            for state in states
+            if _nonempty_string(state)
+        )
     for key in sorted(required - passed):
         _add(
             errors,
@@ -3792,13 +3813,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if not isinstance(node_states, dict) or any(
                 not isinstance(state, dict)
                 or state.get("phase")
-                not in {"succeeded", "failed", "skipped", "superseded"}
+                not in {"succeeded", "skipped", "superseded"}
                 for state in node_states.values()
             ):
                 _add(
                     errors,
                     "run.graph_state.node_states",
-                    "complete graph run requires every node to be terminal",
+                    "complete graph run requires every node to succeed, skip, or be superseded",
                 )
             if isinstance(node_states, dict) and any(
                 isinstance(state, dict) and bool(state.get("blockers"))

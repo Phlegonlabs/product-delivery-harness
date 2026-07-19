@@ -973,6 +973,38 @@ class RunValidationTests(unittest.TestCase):
                 errors = validate_run(plan, malformed)
                 self.assertTrue(any(f".{field}:" in error for error in errors))
 
+    def test_schema_v9_rejects_malformed_plan_ui_surfaces_without_crashing(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        evidence = {
+            "surface_id": "dashboard",
+            "route": "/dashboard",
+            "breakpoint": "desktop",
+            "state": "loaded",
+            "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
+            "artifact_sha256": "c" * 64,
+            "head_sha": SHA_A,
+            "status": "PASS",
+        }
+
+        for missing_field in ("route", "breakpoints", "states"):
+            with self.subTest(missing_field=missing_field):
+                malformed_plan = copy.deepcopy(plan)
+                del malformed_plan["ui_surfaces"][0][missing_field]
+                malformed_run = valid_closeout_run(malformed_plan)
+                malformed_run["ui_evidence"] = [copy.deepcopy(evidence)]
+                self.assertTrue(validate_plan(malformed_plan))
+                self.assertTrue(validate_run(malformed_plan, malformed_run))
+
     def test_complete_run_requires_ready_sources(self) -> None:
         plan = valid_plan()
         plan["sources"][0]["status"] = "missing"

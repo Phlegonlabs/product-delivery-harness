@@ -158,6 +158,25 @@ class GraphManifestTests(unittest.TestCase):
 
     def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
         plan = valid_graph_plan()
+        plan["graph"]["nodes"].append(
+            graph_node(
+                "N-FINAL",
+                "verifier",
+                "final",
+                "local_command",
+                ["pass", "retryable_failure"],
+            )
+        )
+        plan["graph"]["edges"].append(
+            {
+                "id": "E-M2-FINAL",
+                "kind": "dependency",
+                "from": "N-M2",
+                "to": "N-FINAL",
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            }
+        )
         run = valid_graph_run(plan)
         run["schema_version"] = 9
         run["batch_gate_results"] = [
@@ -183,7 +202,7 @@ class GraphManifestTests(unittest.TestCase):
         mark_complete(plan, run)
         errors = validate_run(plan, run)
         self.assertTrue(
-            any("every node to be terminal" in error for error in errors),
+            any("every node to succeed, skip, or be superseded" in error for error in errors),
             errors,
         )
         self.assertTrue(
@@ -199,15 +218,32 @@ class GraphManifestTests(unittest.TestCase):
                     "last_outcome": "pass",
                 }
             )
-        run["graph_state"]["edge_states"]["E-M1-M2"].update(
-            {
-                "status": "traversed",
-                "traversals": 1,
-                "source_attempt_id": "ATTEMPT-1",
-            }
-        )
+        attempt_by_node = {
+            node["id"]: f"ATTEMPT-{index}"
+            for index, node in enumerate(plan["graph"]["nodes"], start=1)
+        }
+        for edge in plan["graph"]["edges"]:
+            run["graph_state"]["edge_states"][edge["id"]].update(
+                {
+                    "status": "traversed",
+                    "traversals": 1,
+                    "source_attempt_id": attempt_by_node[edge["from"]],
+                }
+            )
 
         self.assertEqual([], validate_run(plan, run))
+        run["graph_state"]["node_states"]["N-FINAL"].update(
+            {
+                "phase": "failed",
+                "last_outcome": "retryable_failure",
+            }
+        )
+        self.assertTrue(
+            any(
+                "every node to succeed, skip, or be superseded" in error
+                for error in validate_run(plan, run)
+            )
+        )
 
     def test_schema_v4_source_content_is_bound_into_the_plan_digest(self) -> None:
         plan = valid_graph_plan()
