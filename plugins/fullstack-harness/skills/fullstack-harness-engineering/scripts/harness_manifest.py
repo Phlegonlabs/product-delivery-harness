@@ -2515,9 +2515,12 @@ def _validate_ui_evidence(
         if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
         elif item["status"] == "PASS":
-            passed.add(key)
-            if item["head_sha"] != integration_head:
+            if not is_full_sha(item["head_sha"]):
+                _add(errors, path, "PASS UI evidence requires head_sha")
+            elif not is_full_sha(integration_head) or item["head_sha"] != integration_head:
                 _add(errors, path, "PASS UI evidence must match integration_head_sha")
+            else:
+                passed.add(key)
 
     if run.get("status") != "complete":
         return
@@ -3796,8 +3799,24 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
         if isinstance(landing, dict) and landing.get("mode") == "pull_request":
             pr_url = landing.get("pr_url")
+            authorizations = run.get("authorizations")
+            merge_authorization = (
+                authorizations.get("merge_pr")
+                if isinstance(authorizations, dict)
+                else None
+            )
+            merge_scope = (
+                merge_authorization.get("scope")
+                if isinstance(merge_authorization, dict)
+                else None
+            )
+            merge_targets = (
+                merge_scope.get("targets") if isinstance(merge_scope, dict) else None
+            )
             if (
                 not _nonempty_string(pr_url)
+                or not isinstance(merge_targets, list)
+                or f"pr:{pr_url}" not in merge_targets
                 or not isinstance(mission_states, dict)
                 or not mission_states
                 or any(

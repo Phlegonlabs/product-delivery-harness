@@ -948,6 +948,13 @@ class RunValidationTests(unittest.TestCase):
         authorize_merge(run, "https://github.com/example/repo/pull/21")
         self.assertEqual(validate_run(plan, run), [])
 
+        run["authorizations"]["merge_pr"]["scope"]["targets"] = ["*"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "complete pull-request run requires merge authorization for the exact PR",
+        )
+
     def test_schema_v9_rejects_unhashable_gate_ids_without_crashing(self) -> None:
         plan = valid_plan()
         run = valid_closeout_run(plan)
@@ -1105,6 +1112,35 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan, run, "PASS UI evidence must match integration_head_sha"
         )
+
+    def test_running_ui_evidence_pass_requires_exact_head_sha(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        run["integration"]["integration_head_sha"] = None
+        run["ui_evidence"] = [
+            {
+                "surface_id": "dashboard",
+                "route": "/dashboard",
+                "breakpoint": "desktop",
+                "state": "loaded",
+                "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
+                "artifact_sha256": "c" * 64,
+                "head_sha": None,
+                "status": "PASS",
+            }
+        ]
+
+        self.assert_run_error_contains(plan, run, "PASS UI evidence requires head_sha")
 
     def test_ui_evidence_files_must_exist_and_match_sha256(self) -> None:
         plan = valid_plan()
