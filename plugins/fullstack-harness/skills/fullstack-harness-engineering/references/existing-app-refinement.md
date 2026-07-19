@@ -46,7 +46,7 @@ Code quality: duplication, unclear ownership, brittle state, dead code, overly b
 Release readiness: env vars, deploy smoke, migrations, rollback, monitoring, release impact
 ```
 
-Evidence can be command output, screenshots, traces, console logs, metrics, file references, or a rendered-page observation. Mark unverifiable surfaces as `UNVALIDATED`.
+Evidence can be command output, screenshots, traces, console logs, metrics, file references, or a rendered-page observation. When PLAN marks UI evidence required, retain a real screenshot for every planned breakpoint and state; the other evidence types are supplemental. Mark unverifiable surfaces as `UNVALIDATED`.
 
 ## Refinement Backlog Rows
 

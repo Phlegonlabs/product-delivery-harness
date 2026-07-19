@@ -25,7 +25,7 @@ from harness_manifest import (  # noqa: E402
     validate_run,
 )
 from select_ready_nodes import _runtime_binding, select_ready_nodes  # noqa: E402
-from test_harness_manifest import valid_plan, valid_run  # noqa: E402
+from test_harness_manifest import mark_complete, valid_plan, valid_run  # noqa: E402
 from validate_node_result import validate_node_result  # noqa: E402
 
 
@@ -155,6 +155,49 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], validate_plan(plan))
         self.assertEqual([], validate_run(plan, run))
         self.assertEqual({"M1": 0, "M2": 1}, topological_levels(plan))
+
+    def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        run["schema_version"] = 9
+        run["batch_gate_results"] = [
+            {
+                "id": gate["id"],
+                "status": "planned",
+                "head_sha": None,
+                "evidence": [],
+            }
+            for gate in plan["batch_verifiers"]
+        ]
+        run["final_gate_results"] = [
+            {
+                "id": gate["id"],
+                "status": "planned",
+                "head_sha": None,
+                "evidence": [],
+            }
+            for gate in plan["final_gates"]
+        ]
+        run["ui_evidence"] = []
+        mark_complete(plan, run)
+        for index, node in enumerate(plan["graph"]["nodes"], start=1):
+            run["graph_state"]["node_states"][node["id"]].update(
+                {
+                    "phase": "succeeded",
+                    "attempts": 1,
+                    "last_attempt_id": f"ATTEMPT-{index}",
+                    "last_outcome": "pass",
+                }
+            )
+        run["graph_state"]["edge_states"]["E-M1-M2"].update(
+            {
+                "status": "traversed",
+                "traversals": 1,
+                "source_attempt_id": "ATTEMPT-1",
+            }
+        )
+
+        self.assertEqual([], validate_run(plan, run))
 
     def test_schema_v4_source_content_is_bound_into_the_plan_digest(self) -> None:
         plan = valid_graph_plan()

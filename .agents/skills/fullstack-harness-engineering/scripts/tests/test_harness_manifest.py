@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import sys
 import tempfile
@@ -27,6 +28,7 @@ from harness_manifest import (  # noqa: E402
     topological_levels,
     validate_plan,
     validate_run,
+    validate_ui_evidence_files,
     validate_scope_claim,
 )
 
@@ -390,6 +392,36 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
     }
 
 
+def valid_closeout_run(plan: dict[str, object]) -> dict[str, object]:
+    run = valid_run(plan)
+    run["schema_version"] = 9
+    run["authorizations"]["invoke_external_runtime"] = {
+        "authorized": False,
+        "source": None,
+    }
+    run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = []
+    run["batch_gate_results"] = [
+        {
+            "id": gate["id"],
+            "status": "planned",
+            "head_sha": None,
+            "evidence": [],
+        }
+        for gate in plan["batch_verifiers"]
+    ]
+    run["final_gate_results"] = [
+        {
+            "id": gate["id"],
+            "status": "planned",
+            "head_sha": None,
+            "evidence": [],
+        }
+        for gate in plan["final_gates"]
+    ]
+    run["ui_evidence"] = []
+    return run
+
+
 def valid_release_run(plan: dict[str, object]) -> dict[str, object]:
     run = valid_run(plan)
     run["schema_version"] = 7
@@ -419,6 +451,36 @@ def valid_release_run(plan: dict[str, object]) -> dict[str, object]:
         },
     }
     return run
+
+
+def mark_complete(plan: dict[str, object], run: dict[str, object]) -> None:
+    run["status"] = "complete"
+    run["intent"] = "plan-then-execute"
+    run["plan_readiness"] = "ready"
+    for state in run["mission_states"].values():
+        state["phase"] = "integrated"
+        state["integration_gate"] = "PASS"
+        state["integrated_sha"] = run["integration"]["integration_head_sha"]
+    superseded = {
+        item["id"]
+        for current_mission in plan["missions"]
+        for item in current_mission["tasks"]
+        if item["replaced_by"]
+    }
+    for task_id, state in run["task_states"].items():
+        state["phase"] = "superseded" if task_id in superseded else "mission_recorded"
+        state["verifier_status"] = "PASS"
+    for results in (
+        run.get("batch_gate_results", []),
+        run.get("final_gate_results", []),
+    ):
+        for result in results:
+            result["status"] = "PASS"
+            result["head_sha"] = run["integration"]["integration_head_sha"]
+            result["evidence"] = ["gate passed"]
+    if run["post_merge_cleanup"]["status"] == "not_started":
+        run["post_merge_cleanup"]["status"] = "deferred"
+        run["post_merge_cleanup"]["deferred_reason"] = "fixture cleanup is deferred"
 
 
 def markdown(heading: str, wrapper: str, value: dict[str, object]) -> str:
@@ -752,6 +814,156 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("has an unsupported value" in error for error in errors))
         self.assertTrue(any("must be null or a non-empty string" in error for error in errors))
 
+    def test_complete_run_rejects_unfinished_missions_and_tasks(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        run["status"] = "complete"
+        run["intent"] = "plan-then-execute"
+        run["plan_readiness"] = "ready"
+        for results in (run["batch_gate_results"], run["final_gate_results"]):
+            for result in results:
+                result["status"] = "PASS"
+                result["head_sha"] = run["integration"]["integration_head_sha"]
+                result["evidence"] = ["gate passed"]
+
+        self.assert_run_error_contains(
+            plan, run, "complete run requires every mission to be integrated or superseded"
+        )
+        self.assert_run_error_contains(
+            plan, run, "complete run requires every task to be mission_recorded or superseded"
+        )
+
+    def test_complete_run_accepts_current_head_closeout_evidence(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["batch_gate_results"][0].update(
+            {"status": "planned", "head_sha": None, "evidence": []}
+        )
+        self.assert_run_error_contains(
+            plan, run, "complete run requires every batch gate to PASS"
+        )
+        run["batch_gate_results"][0].update(
+            {"status": "PASS", "head_sha": SHA_A, "evidence": ["gate passed"]}
+        )
+        run["final_gate_results"][0].update(
+            {"status": "planned", "head_sha": None, "evidence": []}
+        )
+        self.assert_run_error_contains(
+            plan, run, "complete run requires every final gate to PASS"
+        )
+
+    def test_complete_run_requires_ready_sources(self) -> None:
+        plan = valid_plan()
+        plan["sources"][0]["status"] = "missing"
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        self.assert_run_error_contains(
+            plan, run, "complete run requires every source to be frozen or delta accepted"
+        )
+
+    def test_complete_run_requires_full_ui_screenshot_matrix(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop", "mobile"],
+                "states": ["loaded", "empty"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "required UI screenshot coverage is missing dashboard|/dashboard|desktop|loaded",
+        )
+
+        for breakpoint in ("desktop", "mobile"):
+            for state in ("loaded", "empty"):
+                run["ui_evidence"].append(
+                    {
+                        "surface_id": "dashboard",
+                        "route": "/dashboard",
+                        "breakpoint": breakpoint,
+                        "state": state,
+                        "artifact_path": (
+                            f"docs/goal/evidence/dashboard-{breakpoint}-{state}.png"
+                        ),
+                        "artifact_sha256": "c" * 64,
+                        "head_sha": run["integration"]["integration_head_sha"],
+                        "status": "PASS",
+                    }
+                )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["ui_evidence"][0]["head_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan, run, "PASS UI evidence must match integration_head_sha"
+        )
+
+    def test_ui_evidence_files_must_exist_and_match_sha256(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        contents = b"\x89PNG\r\n\x1a\nfixture"
+        digest = hashlib.sha256(contents).hexdigest()
+        run["ui_evidence"] = [
+            {
+                "surface_id": "dashboard",
+                "route": "/dashboard",
+                "breakpoint": "desktop",
+                "state": "loaded",
+                "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
+                "artifact_sha256": digest,
+                "head_sha": run["integration"]["integration_head_sha"],
+                "status": "PASS",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / "docs" / "goal" / "evidence" / "dashboard-desktop-loaded.png"
+            self.assertTrue(
+                any("does not exist" in error for error in validate_ui_evidence_files(run, root))
+            )
+            evidence.parent.mkdir(parents=True)
+            evidence.write_bytes(contents)
+            self.assertEqual(validate_ui_evidence_files(run, root), [])
+            run["ui_evidence"][0]["artifact_sha256"] = "d" * 64
+            self.assertTrue(
+                any("sha256 does not match" in error for error in validate_ui_evidence_files(run, root))
+            )
+            invalid_contents = b"not an image"
+            evidence.write_bytes(invalid_contents)
+            run["ui_evidence"][0]["artifact_sha256"] = hashlib.sha256(
+                invalid_contents
+            ).hexdigest()
+            self.assertTrue(
+                any(
+                    "content does not match" in error
+                    for error in validate_ui_evidence_files(run, root)
+                )
+            )
+
     def test_run_schema_v2_remains_compatible(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -791,9 +1003,35 @@ class RunValidationTests(unittest.TestCase):
         del run["runtime_capabilities"]["runtime_adapter"]
         self.assertEqual(validate_run(plan, run), [])
 
+    def test_completed_run_schema_v2_through_v7_remains_compatible(self) -> None:
+        plan = valid_plan()
+        for version in range(2, 8):
+            with self.subTest(version=version):
+                run = valid_run(plan)
+                mark_complete(plan, run)
+                run["schema_version"] = version
+                if version < 6:
+                    del run["runtime_capabilities"]["runtime_adapter"]
+                if version < 5:
+                    del run["post_merge_cleanup"]
+                    del run["observed"]["git"]["parent_worktree_path"]
+                if version < 4:
+                    del run["landing"]["auto_merge_requested"]
+                    del run["landing"]["auto_merge_head_sha"]
+                if version < 3:
+                    del run["landing"]
+                    for action in (
+                        "configure_repository",
+                        "manage_pr_review",
+                        "merge_pr",
+                    ):
+                        del run["authorizations"][action]
+                self.assertEqual(validate_run(plan, run), [])
+
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
+        run["schema_version"] = 6
         run["runtime_capabilities"] = {
             "worker_runtime": "subagent",
             "workspace_mode": "parent_managed_worktree",
@@ -1008,7 +1246,7 @@ class RunValidationTests(unittest.TestCase):
                 "parent_head_sha": SHA_B,
             }
         )
-        run["status"] = "complete"
+        mark_complete(plan, run)
         self.assertEqual(validate_run(plan, run), [])
 
         run["observed"]["git"]["worktrees"] = [
@@ -1146,7 +1384,7 @@ class RunValidationTests(unittest.TestCase):
         run["post_merge_cleanup"]["local_branch"]["status"] = "deleted"
         run["post_merge_cleanup"]["evidence"] = ["worktree and local branch absent"]
         run["observed"]["git"]["worktrees"] = []
-        run["status"] = "complete"
+        mark_complete(plan, run)
         self.assertEqual(validate_run(plan, run), [])
 
         run["post_merge_cleanup"]["worktree"]["managed_by"] = "app"
@@ -1180,7 +1418,7 @@ class RunValidationTests(unittest.TestCase):
     def test_post_merge_cleanup_can_be_deferred_for_platform_lifecycle(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
-        run["status"] = "complete"
+        mark_complete(plan, run)
         run["post_merge_cleanup"].update(
             {
                 "status": "deferred",
@@ -1327,6 +1565,7 @@ class RunValidationTests(unittest.TestCase):
     def test_schema_v6_accepts_only_bounded_future_pr_authorization(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
+        run["schema_version"] = 6
         future_target = "future-pr:example/repo:base=main:head=codex/test"
         for action in ("manage_pr_review", "merge_pr"):
             run["authorizations"][action] = {
@@ -1488,7 +1727,7 @@ class RunValidationTests(unittest.TestCase):
             }
         )
         self.assertEqual(validate_run(plan, run), [])
-        run["status"] = "complete"
+        mark_complete(plan, run)
         run["post_merge_cleanup"]["status"] = "deferred"
         run["post_merge_cleanup"]["deferred_reason"] = "cleanup authorization is tested separately"
         self.assertEqual(validate_run(plan, run), [])
@@ -1591,21 +1830,21 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
 
         string_schema = valid_run(plan)
-        string_schema["schema_version"] = "6"
+        string_schema["schema_version"] = "7"
         self.assert_run_error_contains(
             plan,
             string_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, or 8",
+            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
         )
 
         unsupported_schema = valid_run(plan)
-        unsupported_schema["schema_version"] = 9
+        unsupported_schema["schema_version"] = 10
         del unsupported_schema["landing"]
         del unsupported_schema["post_merge_cleanup"]
         self.assert_run_error_contains(
             plan,
             unsupported_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, or 8",
+            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
         )
 
     def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:

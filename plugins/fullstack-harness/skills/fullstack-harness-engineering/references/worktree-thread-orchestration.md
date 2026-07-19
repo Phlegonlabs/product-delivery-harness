@@ -22,7 +22,7 @@ If a requested combination is unsupported, downgrade to sequential parent execut
 
 ## Runtime Adapter Routing
 
-Schemas v6 through v8 record the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
+Schemas v6 through v9 record the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
 
 ```text
 provider: codex | claude_code | generic

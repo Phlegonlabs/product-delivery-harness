@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -23,21 +24,29 @@ from test_select_parallel_missions import (  # noqa: E402
     mission,
     upgrade_to_schema_v6,
 )
+from test_harness_manifest import (  # noqa: E402
+    mark_complete,
+    valid_closeout_run,
+    valid_plan,
+)
 
 
 class HarnessCliE2ETests(unittest.TestCase):
     def run_cli(
         self, script: str, plan_path: Path, run_path: Path
     ) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            str(SCRIPTS_DIR / script),
+            "--plan",
+            str(plan_path),
+            "--run",
+            str(run_path),
+        ]
+        if script == "validate_harness_plan.py":
+            command.extend(["--repo-root", str(plan_path.parent)])
         return subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPTS_DIR / script),
-                "--plan",
-                str(plan_path),
-                "--run",
-                str(run_path),
-            ],
+            command,
             check=False,
             capture_output=True,
             text=True,
@@ -143,6 +152,58 @@ class HarnessCliE2ETests(unittest.TestCase):
             ["M1", "M2", "M3"],
             [item["mission_id"] for item in proposal["launch_directives"]],
         )
+
+    def test_validator_checks_schema_v9_screenshot_artifacts(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        contents = b"\x89PNG\r\n\x1a\nfixture"
+        run["ui_evidence"] = [
+            {
+                "surface_id": "dashboard",
+                "route": "/dashboard",
+                "breakpoint": "desktop",
+                "state": "loaded",
+                "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
+                "artifact_sha256": hashlib.sha256(contents).hexdigest(),
+                "head_sha": run["integration"]["integration_head_sha"],
+                "status": "PASS",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            run_path = root / "RUN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            run_path.write_text(
+                manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
+            )
+
+            missing = self.run_cli("validate_harness_plan.py", plan_path, run_path)
+            self.assertEqual(1, missing.returncode)
+            self.assertTrue(
+                any("does not exist" in error for error in json.loads(missing.stdout)["errors"])
+            )
+
+            screenshot = root / "docs" / "goal" / "evidence" / "dashboard-desktop-loaded.png"
+            screenshot.parent.mkdir(parents=True)
+            screenshot.write_bytes(contents)
+            present = self.run_cli("validate_harness_plan.py", plan_path, run_path)
+            self.assertEqual(0, present.returncode, present.stdout)
 
 
 if __name__ == "__main__":
