@@ -375,7 +375,7 @@ Final completion requires:
 - Every must-have trace has implementation and verification coverage.
 - Every required mission is `integrated` with a PASS integration gate, and its recorded integration SHA is on the current integration lineage.
 - Every required gate is `PASS`.
-- Schema-v9 `batch_gate_results` and `final_gate_results` IDs exactly match their PLAN verifier groups; every entry is PASS on `integration_head_sha` with non-empty evidence.
+- Schema-v9 `batch_gate_results` and `final_gate_results` IDs exactly match their PLAN verifier groups; every entry is PASS on `integration_head_sha` with non-empty evidence. A changed integration head invalidates an earlier PASS immediately, even before closeout.
 - Skipped or `UNVALIDATED` gates include reason, risk, and acceptance status.
 - Primary journey and relevant platform gates pass.
 - Every `evidence_gate: required` UI surface has PASS screenshot coverage for its full planned breakpoint-by-state matrix, and each file exists under `docs/goal/evidence/` with the recorded SHA-256.

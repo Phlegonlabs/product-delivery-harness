@@ -870,6 +870,24 @@ class RunValidationTests(unittest.TestCase):
             plan, run, "complete run requires every final gate to PASS"
         )
 
+    def test_passed_gate_results_must_match_the_current_integration_head(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        run["status"] = "running"
+        run["batch_gate_results"][0].update(
+            {
+                "status": "PASS",
+                "head_sha": SHA_B,
+                "evidence": ["gate passed on an older head"],
+            }
+        )
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "PASS batch gate must match integration_head_sha",
+        )
+
     def test_complete_run_allows_tasks_of_a_superseded_mission(self) -> None:
         plan = valid_plan()
         run = valid_closeout_run(plan)

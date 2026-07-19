@@ -2355,6 +2355,12 @@ def _validate_gate_results(
     seen: set[str] = set()
     valid_results: list[dict[str, Any]] = []
     result_keys = {"id", "status", "head_sha", "evidence"}
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
     for index, result in enumerate(results):
         path = f"{root_path}[{index}]"
         if not _keys(errors, path, result, result_keys):
@@ -2376,6 +2382,8 @@ def _validate_gate_results(
             result["head_sha"] is None or not evidence
         ):
             _add(errors, path, "PASS requires head_sha and non-empty evidence")
+        if result["status"] == "PASS" and result["head_sha"] != integration_head:
+            _add(errors, path, f"PASS {label} must match integration_head_sha")
         valid_results.append(result)
 
     if seen != expected_ids:
@@ -2383,7 +2391,6 @@ def _validate_gate_results(
 
     if run.get("status") != "complete":
         return
-    integration_head = run.get("integration", {}).get("integration_head_sha")
     if any(result.get("status") != "PASS" for result in valid_results):
         _add(errors, root_path, f"complete run requires every {label} to PASS")
     if any(result.get("head_sha") != integration_head for result in valid_results):

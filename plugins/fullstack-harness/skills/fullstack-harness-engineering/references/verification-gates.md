@@ -161,7 +161,7 @@ Status: PASS | FAIL | BLOCKED | UNVALIDATED
 Notes:
 ```
 
-Every schema-v9 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. Markdown evidence rows do not replace these canonical closeout records.
+Every schema-v9 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. A PASS is stale as soon as the integration head changes, regardless of the RUN lifecycle state. Markdown evidence rows do not replace these canonical closeout records.
 
 ## Worker Result Gate
 
