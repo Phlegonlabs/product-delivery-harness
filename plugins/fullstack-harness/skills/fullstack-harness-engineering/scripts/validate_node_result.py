@@ -20,12 +20,14 @@ from harness_manifest import (
 
 
 RESULT_KEYS = {
+    "run_id",
     "node_id",
     "attempt_id",
     "plan_id",
     "plan_revision",
     "plan_digest_sha256",
     "graph_revision",
+    "batch_base_sha",
     "status",
     "outcome",
     "worker_result",
@@ -50,11 +52,17 @@ def validate_node_result(
     if not isinstance(result, dict) or set(result) != RESULT_KEYS:
         return ["node_result must contain the exact typed graph result fields"]
     node_map = {node["id"]: node for node in plan["graph"]["nodes"]}
-    node = node_map.get(result["node_id"])
+    node_id = result["node_id"]
+    if not isinstance(node_id, str) or not node_id:
+        errors.append("node_result.node_id: must be a non-empty string")
+        return sorted(set(errors))
+    node = node_map.get(node_id)
     if node is None:
         errors.append("node_result.node_id: unknown PLAN node")
         return sorted(set(errors))
-    state = run["graph_state"]["node_states"][result["node_id"]]
+    state = run["graph_state"]["node_states"][node_id]
+    if result["run_id"] != run["run_id"]:
+        errors.append("node_result.run_id: does not match RUN")
     if result["plan_id"] != plan["plan_id"]:
         errors.append("node_result.plan_id: does not match PLAN")
     if result["plan_revision"] != plan["revision"]:
@@ -63,16 +71,19 @@ def validate_node_result(
         errors.append("node_result.plan_digest_sha256: does not match PLAN")
     if result["graph_revision"] != run["graph_state"]["graph_revision"]:
         errors.append("node_result.graph_revision: is stale")
+    if result["batch_base_sha"] != run["integration"]["batch_base_sha"]:
+        errors.append("node_result.batch_base_sha: does not match RUN")
     if state["phase"] != "running":
         errors.append("node_result.node_id: node is not running")
     if result["attempt_id"] != state["last_attempt_id"]:
         errors.append("node_result.attempt_id: does not match the active attempt")
     status = result["status"]
-    if status not in STATUS_OUTCOMES:
+    outcome = result["outcome"]
+    if not isinstance(status, str) or status not in STATUS_OUTCOMES:
         errors.append("node_result.status: has an unsupported value")
-    elif result["outcome"] not in STATUS_OUTCOMES[status]:
+    elif not isinstance(outcome, str) or outcome not in STATUS_OUTCOMES[status]:
         errors.append("node_result.outcome: does not match status")
-    if result["outcome"] not in node["allowed_outcomes"]:
+    if not isinstance(outcome, str) or outcome not in node["allowed_outcomes"]:
         errors.append("node_result.outcome: is not declared by the PLAN node")
     if not isinstance(result["evidence_paths"], list) or any(
         not isinstance(item, str) or not item for item in result["evidence_paths"]

@@ -23,7 +23,7 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "ask whether the user wants to run `$design-package-builder` next",
+            "ask whether the user wants to run the `design-package-builder` skill next",
             skill,
         )
         self.assertIn("Do not invoke the design skill without an explicit yes", skill)
@@ -162,6 +162,28 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("| TEST ID | Test Type", contract)
         self.assertIn("Passing validation does not authorize an overwrite, move, or archive", lifecycle)
         self.assertIn("keep the staged package", lifecycle)
+
+    def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/dynamic-workflow.md")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("stable PRD roles as an org graph", skill)
+        self.assertIn("The stable org graph", guide)
+        self.assertIn("The temporary work graph", guide)
+        self.assertIn('typeof args === "string" ? JSON.parse(args) : args', workflow)
+        self.assertIn('phase("Analyze")', workflow)
+        self.assertIn("await parallel", workflow)
+        self.assertIn('phase("Synthesize")', workflow)
+        self.assertIn('phase("Verify")', workflow)
+        self.assertIn("workflow-agent-null", workflow)
+        self.assertIn("workflow-role-mismatch", workflow)
+        self.assertIn("builder_readonly", workflow)
+        self.assertIn("machine-enforced `builder_readonly`", guide)
+        self.assertIn("Read only. Do not edit, create, move, or publish files", workflow)
+        self.assertIn("## Harness Handoff Signals", contract)
+        self.assertIn("not a canonical Harness PLAN or RUN graph", contract)
 
 
 if __name__ == "__main__":

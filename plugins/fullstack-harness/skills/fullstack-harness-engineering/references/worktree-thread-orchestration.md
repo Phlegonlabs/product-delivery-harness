@@ -155,7 +155,7 @@ linked-worktree Git metadata, temp/cache, network, local-binding, and socket req
 
 Also inspect the current Git status, worktree list, existing branches/refs, and intended integration head. Stop before overwriting, moving, deleting, resetting, or cleaning anything.
 
-Branch and worktree identities are runtime allocations, not static PLAN truth. Derive collision-resistant names from the plan/run plus immutable mission ID, for example `codex/<plan-slug>-m1`, then compare the exact proposed branch and path with observed refs/worktrees before creation. Never reuse a branch or directory merely because its human alias looks related. Record the final allocation in RUN worker state.
+Branch and worktree identities are runtime allocations, not static PLAN truth. Derive collision-resistant names from the run, mission, and attempt, then compare the exact proposed branch and path with observed refs/worktrees before creation. For Claude Dynamic Workflow, place parent-managed worktrees under `.claude/worktrees/<run>-<mission>-<attempt>/` so `EnterWorktree` can bind the child without the outside-worktree confirmation added in current Claude Code releases. Never reuse a branch or directory merely because its human alias looks related. Record the final allocation in RUN worker state.
 
 ## Select And Confirm A Wave
 
@@ -181,7 +181,7 @@ When the accepted schema-v6-or-v7 wave routes to `claude_code` + `dynamic_workfl
 
 1. Confirm Dynamic Workflow is available in the current Claude Code runtime. Treat version support and observed command availability as capability evidence, not authorization.
 2. Allocate one authorized parent-managed worktree, durable branch, worker ID, and lease per selected mission from the fixed `batch_base_sha`. The parent owns these mutations and records the concrete identities in RUN.
-3. Render the workflow arguments from the accepted selector result and `WORKER_GOAL.template.md` handoffs. Each mission receives its lease ID, branch ref, assigned existing worktree path, scope, tasks, resources, verifiers, permission boundary, and frozen plan/base identity. The mission agent must enter that existing worktree before any repository action and return blocked if it cannot bind; it never creates a replacement worktree or writes in the parent checkout.
+3. Render the workflow arguments from the accepted selector result and `WORKER_GOAL.template.md` handoffs. Each mission receives its lease ID, branch ref, assigned existing worktree path, scope, tasks, resources, verifiers, permission boundary, and frozen plan/base identity. Include `EnterWorktree` in the mission wave tool allowlist. Before any repository read, write, or shell action, the mission agent calls `EnterWorktree` with that exact existing path, then verifies repository root, branch, and batch base. It returns blocked if it cannot bind; it never creates a replacement worktree or writes in the parent checkout.
 4. Invoke the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted wave supplied as structured `args`. Its `pipeline()` starts sibling mission agents and returns one complete `WORKER_RESULT` or `REFINEMENT_REQUEST` object per mission through `agent_result`. Save a reusable rendered copy under `.claude/workflows/` only when that project file write is planned and authorized.
 5. Do not ask for user input inside the workflow. A mission that needs a contract decision or refined tasks returns a blocked/refinement result; the parent updates PLAN/RUN and starts a later workflow after the decision.
 6. Validate every result against live worktree, branch, head, scope, and verifier facts. Integrate accepted mission heads serially and recompute the next wave.
@@ -196,8 +196,8 @@ For a PLAN-v4/RUN-v8 node bound to external Claude Code:
 2. Run the no-edit bridge preflight and record its command, version, completion channel, and evidence under `external_runtimes`.
 3. Recheck `invoke_external_runtime` for `runtime:claude_code`, `spawn_subagents`, and the parent-managed worktree/branch/commit grants.
 4. Allocate the node attempt, worker, lease, branch, and existing worktree from the fixed batch base.
-5. Build the exact graph wave request, including plan/graph identity, node IDs, attempt IDs, handoffs, permission mode, and explicit Claude tool allowlist.
-6. Invoke `claude_runtime_bridge.py run-wave`; it calls `CLAUDE_GRAPH_WORKFLOW.template.js` once and returns one node result per requested node through `agent_result`.
+5. Build the exact graph wave request, including run/plan/graph/base identity, node IDs, attempt IDs, handoffs, permission mode, and the node-role tool profile. Mission profiles include `EnterWorktree`; read-only review profiles omit write tools.
+6. Invoke `claude_runtime_bridge.py run-wave`; it calls `CLAUDE_GRAPH_WORKFLOW.template.js` once and returns one node result per requested node through `agent_result`. Every result repeats the run and batch-base identity, and a missing agent result becomes an explicit failure candidate rather than disappearing.
 7. Validate each node result, worker payload, actual head/diff/scope, and verifier evidence. Integrate passing mission heads serially and update graph state before another route or wave.
 
 Do not run two PLAN/RUN parents. Do not let Claude create a replacement worktree, edit parent state, integrate, push, open a PR, deploy, or clean up. A bridge process exit or structured response is not mission completion.

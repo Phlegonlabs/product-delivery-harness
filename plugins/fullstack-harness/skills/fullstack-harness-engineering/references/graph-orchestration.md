@@ -4,6 +4,7 @@ Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing,
 
 ## Contents
 
+- Org graph and work graph
 - Authority and projection
 - Nodes and executors
 - Dependency and route edges
@@ -12,6 +13,15 @@ Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing,
 - Claude external runtime
 - Retry and replay
 - Validation and integration
+
+## Org Graph And Work Graph
+
+Use graph engineering as two layers without adding another scheduler:
+
+- The stable org graph is the role contract: planner, mission worker, frontend reviewer, backend reviewer, visual reviewer, approval owner, integrator, and lifecycle owner. Roles define responsibility, context, tools, and handoff shape; they are not persistent live processes.
+- The temporary work graph is the canonical PLAN graph plus RUN graph state for one delivery. It owns current nodes, dependencies, routes, attempts, evidence, and runtime bindings.
+
+Instantiate stable roles through existing node kinds, executors, review types, mission contracts, and parent ownership. Change the work graph only through a parent-owned PLAN revision, accepted refinement, bounded route, retry, cancellation, or supersession. Do not let a workflow script or worker mutate graph state directly.
 
 ## Authority And Projection
 
@@ -87,6 +97,8 @@ A route cycle is valid only when:
 
 Do not add an expression language. Put complex decisions in a verifier node and route on its declared outcome.
 
+Every `runtime_worker` or parent-executed mission declares at least one failure outcome: prefer `retryable_failure`, otherwise use `blocked`. The selector copies that permitted `failure_outcome` into the immutable workflow handoff so a null or failed agent never emits an outcome the PLAN forbids.
+
 ## Readiness And Outcomes
 
 Run `scripts/select_ready_nodes.py` for PLAN v4 and RUN v8. A node is logically ready only when:
@@ -127,6 +139,10 @@ After choosing a provider, the selector binds that provider's PLAN options. If n
 
 Codex app threads and Claude Dynamic Workflow remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
 
+Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group external Claude waves by model, reasoning effort, and tool profile. Every profile uses an exact allowlist. Mission profiles require `EnterWorktree` and the bounded write tools. Review profiles omit `EnterWorktree`, `Edit`, `Write`, `NotebookEdit`, and `Bash`; visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted in the bridge.
+
+Current Claude Code workflow agents inherit the outer allowlist, so the outer process's required `Workflow` permission is also visible to mission agents. The flat no-delegation rule is therefore enforced by the mission contract, structured result, scope/Git validation, and rejection of unplanned child work rather than by removing the `Workflow` tool from the child. Record this runtime limitation; do not claim permission-level delegation prevention.
+
 ## Claude External Runtime
 
 When Codex remains the parent and Claude Code is a worker provider:
@@ -136,8 +152,8 @@ When Codex remains the parent and Claude Code is a worker provider:
 3. Require `invoke_external_runtime` for `runtime:claude_code` in addition to `spawn_subagents`. Write missions also require their normal worktree, branch, and commit actions; read-only review nodes do not.
 4. Select ready Claude nodes. Allocate worktrees, branches, leases, and attempt IDs for write missions. Allocate a `review_workers[]` record with exact SHA, path, scope, and attempt ID for reviews.
 5. Build one immutable wave request and call `claude_runtime_bridge.py run-wave`.
-6. The bridge invokes `CLAUDE_GRAPH_WORKFLOW.template.js`; Claude agents use only assigned worktrees and return one node result per node.
-7. Validate the wrapper with `validate_node_result.py`. Then validate mission worker payloads and observed Git facts with the existing worker validator, or validate review findings against the recorded review attempt and reviewed SHA.
+6. The bridge invokes `CLAUDE_GRAPH_WORKFLOW.template.js`; Claude agents use only assigned worktrees and return one node result per node. Record the real Workflow run/task ID, script digest, node group, runtime options, tool profile, and status in optional RUN `workflow_runs` state when the runtime exposes them.
+7. Validate the wrapper with `validate_node_result.py`. Then validate mission worker payloads and observed Git facts with the existing worker validator, or validate review findings against the recorded review attempt and reviewed SHA. Every node result repeats run and batch-base identity.
 8. Integrate accepted commits serially and update RUN before routing another edge.
 
 The outer Claude process and workflow agents inherit the supplied tool allowlist. Never use a broad permission bypass as a connectivity shortcut. A preflight proves only runtime availability; it does not authorize a production wave.

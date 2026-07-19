@@ -42,6 +42,24 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Passing validation does not authorize", prd_lifecycle)
         self.assertIn("Passing validation does not authorize", design_lifecycle)
 
+    def test_builder_workflows_preserve_trace_contracts_for_the_harness(self) -> None:
+        prd_workflow = self.read(
+            ".agents/skills/prd-builder/assets/templates/CLAUDE_PRD_WORKFLOW.template.js"
+        )
+        design_workflow = self.read(
+            ".agents/skills/design-package-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        )
+        plan = self.read(
+            ".agents/skills/fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md"
+        )
+
+        for trace in ("PRD", "ARCH", "UI", "UX", "TEST"):
+            self.assertIn(trace, prd_workflow)
+            self.assertIn(trace, design_workflow)
+        self.assertIn("DS IDs", design_workflow)
+        self.assertIn('"trace_ids"', plan)
+        self.assertIn('"required_reviews"', plan)
+
     def test_frontend_review_falls_back_to_codex_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(

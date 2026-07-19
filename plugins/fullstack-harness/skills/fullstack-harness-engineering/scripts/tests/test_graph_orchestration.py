@@ -24,7 +24,11 @@ from harness_manifest import (  # noqa: E402
     validate_plan,
     validate_run,
 )
-from select_ready_nodes import _runtime_binding, select_ready_nodes  # noqa: E402
+from select_ready_nodes import (  # noqa: E402
+    _external_wave_launches,
+    _runtime_binding,
+    select_ready_nodes,
+)
 from test_harness_manifest import mark_complete, valid_plan, valid_run  # noqa: E402
 from validate_node_result import validate_node_result  # noqa: E402
 
@@ -156,6 +160,85 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], validate_run(plan, run))
         self.assertEqual({"M1": 0, "M2": 1}, topological_levels(plan))
 
+    def test_workflow_run_binding_is_optional_and_validated(self) -> None:
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": "ATT-N-M1-1",
+                "bound_worker_id": "W-M1",
+            }
+        )
+        run["mission_states"]["M1"].update(
+            {
+                "phase": "worker_running",
+                "lease_id": "LEASE-M1-1",
+                "lease_plan_revision": plan["revision"],
+                "lease_plan_digest_sha256": digest,
+                "worker_id": "W-M1",
+                "base_sha": run["integration"]["batch_base_sha"],
+            }
+        )
+        run["workflow_runs"] = [
+            {
+                "workflow_run_id": "wf_test",
+                "workflow_task_id": "task-test",
+                "resume_from_run_id": None,
+                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
+                "script_sha256": "c" * 64,
+                "run_id": run["run_id"],
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": plan_digest(plan),
+                "graph_revision": run["graph_state"]["graph_revision"],
+                "batch_base_sha": run["integration"]["batch_base_sha"],
+                "node_ids": ["N-M1"],
+                "attempt_ids": {"N-M1": "ATT-N-M1-1"},
+                "provider": "claude_code",
+                "driver": "dynamic_workflow",
+                "model": "sonnet",
+                "reasoning_effort": None,
+                "tool_profile": "mission_write",
+                "status": "running",
+                "result_evidence": [],
+                "metrics": {"duration_ms": None, "token_count": None},
+            }
+        ]
+
+        self.assertEqual([], validate_run(plan, run))
+        run["workflow_runs"][0]["batch_base_sha"] = "b" * 40
+        self.assertTrue(
+            any("running workflow must match RUN" in error for error in validate_run(plan, run))
+        )
+        run["workflow_runs"][0]["batch_base_sha"] = run["integration"]["batch_base_sha"]
+        run["workflow_runs"][0]["attempt_ids"]["N-M1"] = "ATT-STALE"
+        self.assertTrue(
+            any("active running node attempt" in error for error in validate_run(plan, run))
+        )
+        run["workflow_runs"][0]["attempt_ids"]["N-M1"] = "ATT-N-M1-1"
+        run["status"] = "complete"
+        self.assertTrue(
+            any("complete RUN cannot retain a running workflow" in error for error in validate_run(plan, run))
+        )
+        run["status"] = "draft"
+        run["workflow_runs"][0]["tool_profile"] = "visual_review_readonly"
+        self.assertTrue(
+            any("does not match its review node types" in error for error in validate_run(plan, run))
+        )
+        run["workflow_runs"][0].update(
+            {
+                "status": "completed",
+                "tool_profile": "mission_write",
+                "node_ids": ["N-HISTORICAL"],
+                "attempt_ids": {"N-HISTORICAL": "ATT-HISTORICAL-1"},
+            }
+        )
+        self.assertFalse(
+            any("unknown graph nodes" in error for error in validate_run(plan, run))
+        )
+
     def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"].append(
@@ -257,6 +340,20 @@ class GraphManifestTests(unittest.TestCase):
             )
         )
 
+    def test_malformed_graph_scalars_return_errors_without_crashing(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["id"] = []
+        self.assertTrue(any("flat uppercase identifier" in error for error in validate_plan(plan)))
+
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["kind"] = []
+        self.assertTrue(any("unsupported value" in error for error in validate_plan(plan)))
+
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        run["graph_state"] = []
+        self.assertTrue(any("run.graph_state" in error for error in validate_run(plan, run)))
+
     def test_schema_v4_source_content_is_bound_into_the_plan_digest(self) -> None:
         plan = valid_graph_plan()
         original_digest = plan_digest(plan)
@@ -267,6 +364,17 @@ class GraphManifestTests(unittest.TestCase):
         plan["sources"][0]["source_revision"] = None
         self.assertTrue(
             any("require content_sha256 or source_revision" in error for error in validate_plan(plan))
+        )
+
+    def test_runtime_nodes_require_a_declared_workflow_failure_outcome(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["allowed_outcomes"] = ["pass"]
+
+        self.assertTrue(
+            any(
+                "runtime or parent execution requires retryable_failure or blocked" in error
+                for error in validate_plan(plan)
+            )
         )
 
     def test_required_review_type_needs_a_matching_runtime_review_node(self) -> None:
@@ -450,6 +558,113 @@ class GraphManifestTests(unittest.TestCase):
         errors = validate_plan(route_cycle)
         self.assertTrue(any("route cycles require an explicit traversal bound" in error for error in errors))
 
+    def test_harness_parent_mission_emits_parent_directive(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["executor"] = "harness_parent"
+        plan["graph"]["nodes"][0]["runtime"] = None
+        run = valid_graph_run(plan)
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M1"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual("run_parent", result["dispatchable_nodes"][0]["launch_kind"])
+        self.assertEqual("parent", result["dispatchable_nodes"][0]["worker_runtime"])
+
+    def test_shared_checkout_caps_parent_writers_at_one(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
+        plan["graph"]["edges"] = []
+        plan["max_parallel_workers"] = 2
+        for node in plan["graph"]["nodes"]:
+            node["executor"] = "harness_parent"
+            node["runtime"] = None
+        run = valid_graph_run(plan)
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M1", "M2"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        run["runtime_capabilities"]["max_parallel_workers"] = 2
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 2, "isolation_capacity": 2}
+        )
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("write_conflict", deferred["N-M2"])
+        self.assertIn("workspace_not_isolated", result["conflict_edges"][0]["reason_codes"])
+
+    def test_unauthorized_mission_does_not_consume_write_budget(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
+        plan["graph"]["edges"] = []
+        run = valid_graph_run(plan)
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested M2 execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M2"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 1,
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"] = {
+            "provider": "claude_code",
+            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "detection_source": "observed",
+            "external_runtimes": [],
+        }
+        for action in (
+            "spawn_subagents",
+            "create_local_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize(run, action, ["M2"], "*")
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(["N-M2"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("execution_not_authorized", deferred["N-M1"])
+
     def test_codex_parent_selects_external_claude_graph_wave(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["runtime"] = {
@@ -508,9 +723,51 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual(["N-M1"], result["ready_frontier"])
         self.assertEqual("run_external_dynamic_workflow", result["dispatchable_nodes"][0]["launch_kind"])
         self.assertEqual("claude_code", result["dispatchable_nodes"][0]["runtime_provider"])
+        self.assertEqual("mission_write", result["dispatchable_nodes"][0]["tool_profile"])
+        self.assertEqual("retryable_failure", result["dispatchable_nodes"][0]["failure_outcome"])
         self.assertEqual("opus", result["dispatchable_nodes"][0]["runtime_binding"]["model"])
         self.assertEqual("opus", result["wave_launches"][0]["model"])
         self.assertEqual(["N-M1"], result["wave_launches"][0]["node_ids"])
+        self.assertEqual("mission_write", result["wave_launches"][0]["tool_profile"])
+
+        run["observed"]["runtime"]["completion_channel_available"] = False
+        blocked = select_ready_nodes(plan, run)
+        self.assertIn(
+            "completion_channel_unavailable",
+            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
+        )
+        run["observed"]["runtime"]["completion_channel_available"] = True
+        run["runtime_capabilities"]["permission_boundary"] = {
+            "selected_mode": "unknown",
+            "profile_name": None,
+            "approval_policy": "unknown",
+            "filesystem_scope": "unknown",
+            "network_scope": "unknown",
+            "local_binding": "unknown",
+            "worker_inheritance": "unknown",
+            "status": "blocked",
+        }
+        blocked = select_ready_nodes(plan, run)
+        self.assertIn(
+            "permission_boundary_not_ready",
+            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
+        )
+        del run["runtime_capabilities"]["permission_boundary"]
+        plan["missions"][0]["resource_inventory_complete"] = False
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        blocked = select_ready_nodes(plan, run)
+        self.assertIn(
+            "incomplete_resource_inventory",
+            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
+        )
+        plan["missions"][0]["resource_inventory_complete"] = True
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        run["observed"]["git"]["parent_dirty"] = True
+        blocked = select_ready_nodes(plan, run)
+        self.assertIn(
+            "blocker_present",
+            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
+        )
 
     def test_runtime_reviews_require_authorization_and_share_runtime_capacity(self) -> None:
         plan = valid_graph_plan()
@@ -619,6 +876,10 @@ class GraphManifestTests(unittest.TestCase):
             ["invoke_external_runtime", "spawn_subagents"],
             selected["dispatchable_nodes"][0]["required_actions"],
         )
+        self.assertEqual(
+            "code_review_readonly",
+            selected["dispatchable_nodes"][0]["tool_profile"],
+        )
         review_deferred = {
             item["node_id"]: item["reason_codes"] for item in selected["deferred_nodes"]
         }
@@ -692,12 +953,14 @@ class GraphManifestTests(unittest.TestCase):
         )
         run["status"] = "draft"
         result = {
+            "run_id": run["run_id"],
             "node_id": review["id"],
             "attempt_id": "ATT-REVIEW-1",
             "plan_id": plan["plan_id"],
             "plan_revision": plan["revision"],
             "plan_digest_sha256": plan_digest(plan),
             "graph_revision": run["graph_state"]["graph_revision"],
+            "batch_base_sha": run["integration"]["batch_base_sha"],
             "status": "succeeded",
             "outcome": "pass",
             "worker_result": {
@@ -737,12 +1000,14 @@ class GraphManifestTests(unittest.TestCase):
             }
         )
         result = {
+            "run_id": run["run_id"],
             "node_id": "N-M1",
             "attempt_id": "ATT-N-M1-1",
             "plan_id": plan["plan_id"],
             "plan_revision": plan["revision"],
             "plan_digest_sha256": digest,
             "graph_revision": run["graph_state"]["graph_revision"],
+            "batch_base_sha": run["integration"]["batch_base_sha"],
             "status": "succeeded",
             "outcome": "pass",
             "worker_result": {"status": "PASS"},
@@ -751,9 +1016,64 @@ class GraphManifestTests(unittest.TestCase):
         }
 
         self.assertEqual([], validate_node_result(plan, run, result))
+        malformed = copy.deepcopy(result)
+        malformed["node_id"] = []
+        self.assertTrue(
+            any("must be a non-empty string" in error for error in validate_node_result(plan, run, malformed))
+        )
+        malformed = copy.deepcopy(result)
+        malformed["status"] = []
+        self.assertTrue(
+            any("unsupported value" in error for error in validate_node_result(plan, run, malformed))
+        )
         result["attempt_id"] = "ATT-STALE"
         self.assertTrue(
             any("active attempt" in error for error in validate_node_result(plan, run, result))
+        )
+        result["attempt_id"] = "ATT-N-M1-1"
+        result["run_id"] = "RUN-STALE"
+        self.assertTrue(
+            any("does not match RUN" in error for error in validate_node_result(plan, run, result))
+        )
+        result["run_id"] = run["run_id"]
+        result["batch_base_sha"] = "b" * 40
+        self.assertTrue(
+            any("batch_base_sha" in error for error in validate_node_result(plan, run, result))
+        )
+
+    def test_external_claude_waves_split_by_tool_profile(self) -> None:
+        binding = {
+            "provider": "claude_code",
+            "driver": "external_dynamic_workflow",
+            "source": "external_bridge",
+            "model": "sonnet",
+            "reasoning_effort": "high",
+            "option_source": "plan_provider_options",
+        }
+        launches = _external_wave_launches(
+            [
+                {
+                    "launch_kind": "run_external_dynamic_workflow",
+                    "node_id": "N-CODE-REVIEW",
+                    "runtime_binding": binding,
+                    "tool_profile": "code_review_readonly",
+                },
+                {
+                    "launch_kind": "run_external_dynamic_workflow",
+                    "node_id": "N-VISUAL-REVIEW",
+                    "runtime_binding": binding,
+                    "tool_profile": "visual_review_readonly",
+                },
+            ]
+        )
+
+        self.assertEqual(
+            ["code_review_readonly", "visual_review_readonly"],
+            [launch["tool_profile"] for launch in launches],
+        )
+        self.assertEqual(
+            [["N-CODE-REVIEW"], ["N-VISUAL-REVIEW"]],
+            [launch["node_ids"] for launch in launches],
         )
 
     def test_external_claude_nodes_are_grouped_by_plan_selected_model(self) -> None:
@@ -820,6 +1140,10 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertEqual(["opus", "sonnet"], [wave["model"] for wave in result["wave_launches"]])
         self.assertEqual([["N-M2"], ["N-M1"]], [wave["node_ids"] for wave in result["wave_launches"]])
+        self.assertEqual(
+            ["mission_write", "mission_write"],
+            [wave["tool_profile"] for wave in result["wave_launches"]],
+        )
 
 
 class ClaudeBridgeTests(unittest.TestCase):
@@ -872,6 +1196,8 @@ class ClaudeBridgeTests(unittest.TestCase):
             "driver": "dynamic_workflow",
             "protocol_version": 1,
             "status": "available",
+            "probe_count": 2,
+            "probe_labels": ["probe-a", "probe-b"],
         }
         result = bridge.preflight(
             claude="claude",
@@ -885,6 +1211,33 @@ class ClaudeBridgeTests(unittest.TestCase):
         command = invoke.call_args.args[0]
         self.assertEqual("haiku", command[command.index("--model") + 1])
 
+    def test_tool_profiles_require_enter_worktree_and_reject_review_writes(self) -> None:
+        mission = [{"node_kind": "mission"}]
+        mission_tools = sorted(bridge.TOOL_PROFILE_REQUIREMENTS["mission_write"])
+        bridge._validate_tool_profile("mission_write", mission_tools, mission)
+        with self.assertRaisesRegex(bridge.BridgeError, "EnterWorktree"):
+            bridge._validate_tool_profile(
+                "mission_write",
+                [tool for tool in mission_tools if tool != "EnterWorktree"],
+                mission,
+            )
+
+        review = [{"node_kind": "review", "review_type": "frontend_code"}]
+        review_tools = sorted(bridge.TOOL_PROFILE_REQUIREMENTS["code_review_readonly"])
+        bridge._validate_tool_profile("code_review_readonly", review_tools, review)
+        with self.assertRaisesRegex(bridge.BridgeError, "write-capable tools"):
+            bridge._validate_tool_profile(
+                "code_review_readonly",
+                [*review_tools, "Edit"],
+                review,
+            )
+        with self.assertRaisesRegex(bridge.BridgeError, "unexpected tools"):
+            bridge._validate_tool_profile(
+                "code_review_readonly",
+                [*review_tools, "mcp__filesystem__write_file"],
+                review,
+            )
+
     def test_wave_request_rejects_missing_runtime_policy(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "wave.json"
@@ -892,10 +1245,24 @@ class ClaudeBridgeTests(unittest.TestCase):
             with self.assertRaisesRegex(bridge.BridgeError, "top-level fields"):
                 bridge._load_wave_request(path)
 
-    def test_graph_workflow_accepts_runtime_stringified_args(self) -> None:
+    def test_workflow_templates_accept_stringified_args_and_bind_results(self) -> None:
         workflow = bridge.DEFAULT_GRAPH_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn('typeof args === "string" ? JSON.parse(args) : args', workflow)
+        preflight = bridge.DEFAULT_PREFLIGHT.read_text(encoding="utf-8")
+        legacy = (
+            bridge.DEFAULT_GRAPH_WORKFLOW.parent / "CLAUDE_DYNAMIC_WORKFLOW.template.js"
+        ).read_text(encoding="utf-8")
+
+        for content in (workflow, preflight, legacy):
+            self.assertIn('typeof args === "string" ? JSON.parse(args) : args', content)
         self.assertIn("pipeline(workflowArgs.nodes", workflow)
+        self.assertIn('"run_id"', workflow)
+        self.assertIn('"batch_base_sha"', workflow)
+        self.assertIn("call EnterWorktree with that exact path", workflow)
+        self.assertIn("workflow-agent-null", workflow)
+        self.assertIn('"tool_profile"', workflow)
+        self.assertIn('phase: phaseName', workflow)
+        self.assertIn('const labels = ["probe-a", "probe-b"]', preflight)
+        self.assertIn("pipeline(labels", preflight)
 
     @mock.patch.object(bridge, "_invoke")
     @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
@@ -907,7 +1274,11 @@ class ClaudeBridgeTests(unittest.TestCase):
         invoke: mock.Mock,
     ) -> None:
         invoke.return_value = {
-            "results": [{"node_result": {"node_id": "N-M1"}}]
+            "workflow_run_id": "wf-test",
+            "workflow_task_id": "task-test",
+            "workflow_script_path": str(bridge.DEFAULT_GRAPH_WORKFLOW),
+            "workflow_error": None,
+            "results": [{"node_result": {"node_id": "N-M1"}}],
         }
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "wave.json"
@@ -929,10 +1300,21 @@ class ClaudeBridgeTests(unittest.TestCase):
                                 "lease_id": "LEASE-1",
                                 "branch_ref": "refs/heads/codex/test",
                                 "worktree_path": "C:/repo/worktree",
+                                "failure_outcome": "retryable_failure",
                                 "worker_prompt": "Do the task",
                             }
                         ],
-                        "allowed_tools": ["Workflow"],
+                        "tool_profile": "mission_write",
+                        "allowed_tools": [
+                            "Workflow",
+                            "EnterWorktree",
+                            "Read",
+                            "Glob",
+                            "Grep",
+                            "Edit",
+                            "Write",
+                            "Bash",
+                        ],
                         "permission_mode": "dontAsk",
                         "model": "sonnet",
                         "reasoning_effort": "high",
@@ -940,7 +1322,7 @@ class ClaudeBridgeTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            bridge.run_wave(
+            result = bridge.run_wave(
                 claude="claude",
                 script=bridge.DEFAULT_GRAPH_WORKFLOW,
                 request_path=path,
@@ -954,6 +1336,9 @@ class ClaudeBridgeTests(unittest.TestCase):
         command = invoke.call_args.args[0]
         self.assertEqual("sonnet", command[command.index("--model") + 1])
         self.assertEqual("high", command[command.index("--effort") + 1])
+        self.assertEqual("wf-test", result["runtime"]["workflow_run_id"])
+        self.assertEqual("task-test", result["runtime"]["workflow_task_id"])
+        self.assertEqual("mission_write", result["runtime"]["tool_profile"])
 
     @mock.patch.object(bridge, "_invoke")
     @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
@@ -982,10 +1367,21 @@ class ClaudeBridgeTests(unittest.TestCase):
                         "lease_id": "LEASE-1",
                         "branch_ref": "refs/heads/codex/test",
                         "worktree_path": "C:/repo/worktree",
+                        "failure_outcome": "retryable_failure",
                         "worker_prompt": "Do the task",
                     }
                 ],
-                "allowed_tools": ["Workflow"],
+                "tool_profile": "mission_write",
+                "allowed_tools": [
+                    "Workflow",
+                    "EnterWorktree",
+                    "Read",
+                    "Glob",
+                    "Grep",
+                    "Edit",
+                    "Write",
+                    "Bash",
+                ],
                 "permission_mode": "dontAsk",
                 "model": "sonnet",
                 "reasoning_effort": None,

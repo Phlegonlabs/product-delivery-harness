@@ -17,19 +17,43 @@ DEFAULT_PREFLIGHT = SKILL_ROOT / "assets" / "templates" / "CLAUDE_RUNTIME_PREFLI
 DEFAULT_GRAPH_WORKFLOW = SKILL_ROOT / "assets" / "templates" / "CLAUDE_GRAPH_WORKFLOW.template.js"
 PREFLIGHT_SCHEMA = {
     "type": "object",
-    "required": ["provider", "driver", "protocol_version", "status"],
+    "required": [
+        "provider",
+        "driver",
+        "protocol_version",
+        "status",
+        "probe_count",
+        "probe_labels",
+    ],
     "properties": {
         "provider": {"const": "claude_code"},
         "driver": {"const": "dynamic_workflow"},
         "protocol_version": {"const": 1},
         "status": {"const": "available"},
+        "probe_count": {"const": 2},
+        "probe_labels": {
+            "type": "array",
+            "prefixItems": [{"const": "probe-a"}, {"const": "probe-b"}],
+            "minItems": 2,
+            "maxItems": 2,
+        },
     },
     "additionalProperties": False,
 }
 WAVE_SCHEMA = {
     "type": "object",
-    "required": ["results"],
+    "required": [
+        "workflow_task_id",
+        "workflow_run_id",
+        "workflow_script_path",
+        "workflow_error",
+        "results",
+    ],
     "properties": {
+        "workflow_task_id": {"type": "string", "minLength": 1},
+        "workflow_run_id": {"type": ["string", "null"]},
+        "workflow_script_path": {"type": "string", "minLength": 1},
+        "workflow_error": {"type": ["string", "null"]},
         "results": {
             "type": "array",
             "items": {
@@ -50,6 +74,21 @@ PERMISSION_MODES = {
     "dontAsk",
     "plan",
 }
+TOOL_PROFILE_REQUIREMENTS = {
+    "mission_write": {
+        "Workflow",
+        "EnterWorktree",
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Bash",
+    },
+    "code_review_readonly": {"Workflow", "Read", "Glob", "Grep"},
+    "visual_review_readonly": {"Workflow", "Read", "Glob", "Grep"},
+}
+REVIEW_FORBIDDEN_TOOLS = {"EnterWorktree", "Edit", "Write", "NotebookEdit", "Bash"}
 
 
 class BridgeError(RuntimeError):
@@ -199,6 +238,8 @@ def preflight(
         "driver": "dynamic_workflow",
         "protocol_version": 1,
         "status": "available",
+        "probe_count": 2,
+        "probe_labels": ["probe-a", "probe-b"],
     }
     if result != expected:
         raise BridgeError(f"Unexpected Dynamic Workflow preflight result: {_compact(result)}")
@@ -215,6 +256,48 @@ def preflight(
     }
 
 
+def _validate_tool_profile(
+    profile: str, tools: list[str], nodes: list[dict[str, Any]]
+) -> None:
+    required = TOOL_PROFILE_REQUIREMENTS.get(profile)
+    if required is None:
+        raise BridgeError(f"Unsupported Claude tool profile: {profile}")
+    tool_set = set(tools)
+    missing = sorted(required - tool_set)
+    if missing:
+        raise BridgeError(
+            f"Tool profile {profile} is missing required tools: {', '.join(missing)}"
+        )
+    unexpected = sorted(tool_set - required)
+    if unexpected:
+        forbidden = sorted(REVIEW_FORBIDDEN_TOOLS & set(unexpected))
+        if profile != "mission_write" and forbidden:
+            raise BridgeError(
+                f"Read-only tool profile {profile} contains write-capable tools: {', '.join(forbidden)}"
+            )
+        raise BridgeError(
+            f"Tool profile {profile} contains unexpected tools: {', '.join(unexpected)}"
+        )
+    if profile == "mission_write":
+        if any(node.get("node_kind") != "mission" for node in nodes):
+            raise BridgeError("mission_write tool profile may contain only mission nodes")
+        return
+    forbidden = sorted(REVIEW_FORBIDDEN_TOOLS & tool_set)
+    if forbidden:
+        raise BridgeError(
+            f"Read-only tool profile {profile} contains write-capable tools: {', '.join(forbidden)}"
+        )
+    if any(node.get("node_kind") != "review" for node in nodes):
+        raise BridgeError(f"{profile} tool profile may contain only review nodes")
+    review_types = {node.get("review_type") for node in nodes}
+    if profile == "visual_review_readonly" and review_types != {"visual"}:
+        raise BridgeError("visual_review_readonly requires only visual review nodes")
+    if profile == "code_review_readonly" and not review_types.issubset(
+        {"frontend_code", "backend_code"}
+    ):
+        raise BridgeError("code_review_readonly requires frontend_code or backend_code reviews")
+
+
 def _load_wave_request(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -228,6 +311,7 @@ def _load_wave_request(path: Path) -> dict[str, Any]:
         "graph_revision",
         "batch_base_sha",
         "nodes",
+        "tool_profile",
         "allowed_tools",
         "permission_mode",
         "model",
@@ -246,6 +330,7 @@ def _load_wave_request(path: Path) -> dict[str, Any]:
         "lease_id",
         "branch_ref",
         "worktree_path",
+        "failure_outcome",
         "worker_prompt",
     }
     review_required = {
@@ -253,10 +338,12 @@ def _load_wave_request(path: Path) -> dict[str, Any]:
         "node_id",
         "attempt_id",
         "review_id",
+        "review_type",
         "reviewed_sha",
         "review_path",
         "review_scope",
         "required_evidence",
+        "failure_outcome",
         "worker_prompt",
     }
     for node in value["nodes"]:
@@ -270,6 +357,8 @@ def _load_wave_request(path: Path) -> dict[str, Any]:
             raise BridgeError("Every scalar wave node field must be a non-empty string")
         if node["node_kind"] not in {"mission", "review"}:
             raise BridgeError("Wave node_kind must be mission or review")
+        if node["failure_outcome"] not in {"retryable_failure", "blocked"}:
+            raise BridgeError("Every wave node requires retryable_failure or blocked failure_outcome")
         for field in ("review_scope", "required_evidence"):
             if field in node and (
                 not isinstance(node[field], list)
@@ -285,6 +374,7 @@ def _load_wave_request(path: Path) -> dict[str, Any]:
         raise BridgeError("allowed_tools must be a list of non-empty strings")
     if "Workflow" not in tools:
         raise BridgeError("allowed_tools must include Workflow")
+    _validate_tool_profile(value["tool_profile"], tools, value["nodes"])
     if value["permission_mode"] not in PERMISSION_MODES:
         raise BridgeError("Wave request has an unsupported permission_mode")
     if not isinstance(value["model"], str) or not value["model"].strip():
@@ -323,7 +413,11 @@ def run_wave(
         "Use the Workflow tool exactly once. "
         f"Set scriptPath to {script.resolve()} and args to this exact JSON object: {_compact(workflow_args)}. "
         "Pass args as an actual object, not as a JSON-encoded string. "
-        "Do not change the arguments. Return {\"results\": <workflow result>} as the final structured output."
+        f"The accepted tool profile is {request['tool_profile']}; do not widen its tool allowlist. "
+        "Do not change the arguments. Read the real taskId, optional runId, scriptPath, and optional error from the Workflow tool result; do not invent them. "
+        "Return {\"workflow_task_id\": <taskId>, \"workflow_run_id\": <runId or null>, "
+        "\"workflow_script_path\": <scriptPath>, \"workflow_error\": <error or null>, "
+        "\"results\": <workflow result, or [] when error is non-null>} as the final structured output."
     )
     result = _invoke(
         _build_command(
@@ -339,8 +433,12 @@ def run_wave(
         cwd=cwd,
         timeout=timeout,
     )
+    if not isinstance(result, dict):
+        raise BridgeError("Claude graph wave did not return a structured wrapper")
+    if result.get("workflow_error"):
+        raise BridgeError(f"Claude Workflow launch failed: {result['workflow_error']}")
     expected_ids = {node["node_id"] for node in request["nodes"]}
-    results = result.get("results", []) if isinstance(result, dict) else []
+    results = result.get("results", [])
     actual_ids = {
         item.get("node_result", {}).get("node_id")
         for item in results
@@ -358,6 +456,11 @@ def run_wave(
             "completion_channel": "agent_result",
             "model": requested_model,
             "reasoning_effort": request["reasoning_effort"],
+            "tool_profile": request["tool_profile"],
+            "workflow_run_id": result["workflow_run_id"],
+            "workflow_task_id": result["workflow_task_id"],
+            "workflow_script_path": result["workflow_script_path"],
+            "workflow_error": None,
         },
         "results": results,
     }

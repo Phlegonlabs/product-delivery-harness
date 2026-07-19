@@ -2085,6 +2085,21 @@ class RunValidationTests(unittest.TestCase):
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
 
+    def test_non_graph_schema_v9_rejects_workflow_runs(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        run["workflow_runs"] = []
+        self.assert_run_error_contains(plan, run, "unknown keys: workflow_runs")
+
+    def test_non_graph_schema_v8_is_rejected(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["schema_version"] = 8
+        run["workflow_runs"] = []
+        errors = validate_run(plan, run)
+        self.assertTrue(any("schema v8 requires a schema v4 graph PLAN" in error for error in errors))
+        self.assertTrue(any("unknown keys: workflow_runs" in error for error in errors))
+
     def test_invalid_run_schema_does_not_crash_auto_merge_validation(self) -> None:
         plan = valid_plan()
 
