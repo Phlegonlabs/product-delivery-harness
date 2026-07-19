@@ -13,7 +13,7 @@ Keep `prd-builder` and `design-package-builder` as separate upstream skills. If 
 
 ## Project Size Gate
 
-Before invoking the planner, graph scheduler, worker allocator, external-runtime bridge, or any PLAN/RUN workflow, perform one bounded read-only scope scan and classify the work as `small` or `large`. This is a routing decision, not implementation authorization. An explicit user request to use or skip planning controls the route unless it would bypass a required safety or authorization boundary.
+Before invoking the planner, graph scheduler, worker allocator, external-runtime bridge, or any PLAN/RUN workflow, perform one bounded read-only scope scan and classify the work as `small` or `large`. This is a routing decision, not implementation authorization. An explicit user request to use planning controls the route. A request to skip planning keeps only qualifying small work direct; it cannot override a `large` classification or a required safety or authorization boundary.
 
 Classify the work as `small` only when all of these are true:
 

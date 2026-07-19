@@ -32,6 +32,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Project Size Gate", skill)
         self.assertIn("small -> direct inspect", skill)
         self.assertIn("large -> planner", skill)
+        self.assertIn("cannot override a `large` classification", skill)
         self.assertIn("Small work creates no PLAN/RUN files", skill)
         self.assertIn("scheduler fan-out only when", skill)
         self.assertIn("two-way project-size gate", research)
