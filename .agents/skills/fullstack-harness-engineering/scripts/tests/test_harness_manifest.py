@@ -484,6 +484,19 @@ def mark_complete(plan: dict[str, object], run: dict[str, object]) -> None:
         run["post_merge_cleanup"]["deferred_reason"] = "fixture cleanup is deferred"
 
 
+def authorize_merge(run: dict[str, object], pr_url: str) -> None:
+    run["authorizations"]["merge_pr"] = {
+        "authorized": True,
+        "source": "user: merge the reviewed pull request",
+        "scope": {
+            "run_id": run["run_id"],
+            "mission_ids": list(run["mission_states"]),
+            "targets": [f"pr:{pr_url}"],
+        },
+        "expires_when": "run_complete",
+    }
+
+
 def markdown(heading: str, wrapper: str, value: dict[str, object]) -> str:
     payload = json.dumps({wrapper: value}, indent=2, ensure_ascii=False)
     return f"# Fixture\n\n{heading}\n\n```json\n{payload}\n```\n"
@@ -887,6 +900,18 @@ class RunValidationTests(unittest.TestCase):
             }
         )
 
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "complete pull-request run requires merge authorization for the exact PR",
+        )
+        authorize_merge(run, "https://github.com/example/repo/pull/22")
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "complete pull-request run requires merge authorization for the exact PR",
+        )
+        authorize_merge(run, "https://github.com/example/repo/pull/21")
         self.assertEqual(validate_run(plan, run), [])
 
     def test_schema_v9_rejects_unhashable_gate_ids_without_crashing(self) -> None:
@@ -1221,6 +1246,7 @@ class RunValidationTests(unittest.TestCase):
             },
             "expires_when": "run_complete",
         }
+        authorize_merge(run, "https://github.com/example/repo/pull/7")
         run["post_merge_cleanup"] = {
             "status": "ready",
             "base": {
@@ -1382,6 +1408,7 @@ class RunValidationTests(unittest.TestCase):
                 },
                 "expires_when": "run_complete",
             }
+        authorize_merge(run, "https://github.com/example/repo/pull/7")
         run["post_merge_cleanup"] = {
             "status": "ready",
             "base": {
@@ -1499,6 +1526,7 @@ class RunValidationTests(unittest.TestCase):
                 "deferred_reason": "Codex manages this worktree through app retention",
             }
         )
+        authorize_merge(run, "https://github.com/example/repo/pull/21")
         self.assertEqual(validate_run(plan, run), [])
 
     def test_landing_ready_binds_checks_and_review_to_current_pr_head(self) -> None:

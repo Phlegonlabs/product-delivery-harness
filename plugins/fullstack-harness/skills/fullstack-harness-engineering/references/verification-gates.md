@@ -207,7 +207,7 @@ Final PASS requires:
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
 - Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker or open wave remains.
 - The final integration head still descends from every recorded required mission integration SHA.
-- Landing state is recorded: explicitly left local, or the pull request is merged with current-head evidence.
+- Landing state is recorded: explicitly left local, or the pull request is merged with current-head evidence and `merge_pr` authorization covering every mission plus the exact `pr:<full-PR-URL>` target.
 - In pull-request mode, local diff review passed before push; integration head, current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer local integration or push resets this gate.
 - For PLAN-v4 graph runs, every node is terminal with no retained blocker and every edge is traversed, exhausted, or skipped; no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.

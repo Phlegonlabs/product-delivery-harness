@@ -3751,6 +3751,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "complete pull-request run requires merged current-head landing",
             )
+        if isinstance(landing, dict) and landing.get("mode") == "pull_request":
+            pr_url = landing.get("pr_url")
+            if (
+                not _nonempty_string(pr_url)
+                or not isinstance(mission_states, dict)
+                or not mission_states
+                or any(
+                    not authorization_covers(
+                        run,
+                        "merge_pr",
+                        mission_id,
+                        f"pr:{pr_url}",
+                        preserve_completed_run_expiry=True,
+                    )
+                    for mission_id in mission_states
+                )
+            ):
+                _add(
+                    errors,
+                    "run.authorizations.merge_pr",
+                    "complete pull-request run requires merge authorization for the exact PR",
+                )
         if graph_run:
             graph_state = run.get("graph_state")
             node_states = (
