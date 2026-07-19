@@ -940,6 +940,11 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("must be a non-empty string" in error for error in errors))
         self.assertTrue(any("IDs must exactly match" in error for error in errors))
 
+        run = valid_closeout_run(plan)
+        run["batch_gate_results"][0]["status"] = []
+        errors = validate_run(plan, run)
+        self.assertTrue(any(".status: has an unsupported gate value" in error for error in errors))
+
     def test_schema_v9_rejects_unhashable_ui_evidence_scalars_without_crashing(self) -> None:
         plan = valid_plan()
         plan["ui_surfaces"] = [

@@ -2368,7 +2368,7 @@ def _validate_gate_results(
             elif gate_id in seen:
                 _add(errors, f"{path}.id", "must be unique")
             seen.add(gate_id)
-        if result["status"] not in GATE_VALUES:
+        if not isinstance(result["status"], str) or result["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
         _optional_sha(errors, f"{path}.head_sha", result["head_sha"])
         evidence = _strings(errors, f"{path}.evidence", result["evidence"])
@@ -3918,5 +3918,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             for worker in workers
         ):
             _add(errors, "run.workers", "complete run cannot retain active or blocked workers")
+        review_workers = run.get("review_workers")
+        if graph_run and isinstance(review_workers, list) and any(
+            isinstance(worker, dict)
+            and worker.get("phase") in {"leased", "worker_running", "blocked"}
+            for worker in review_workers
+        ):
+            _add(
+                errors,
+                "run.review_workers",
+                "complete run cannot retain active or blocked review workers",
+            )
 
     return sorted(set(errors))

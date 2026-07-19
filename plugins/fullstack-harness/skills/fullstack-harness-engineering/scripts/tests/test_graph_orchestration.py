@@ -671,6 +671,14 @@ class GraphManifestTests(unittest.TestCase):
             }
         ]
         self.assertEqual([], validate_run(plan, run))
+        run["status"] = "complete"
+        self.assertTrue(
+            any(
+                "cannot retain active or blocked review workers" in error
+                for error in validate_run(plan, run)
+            )
+        )
+        run["status"] = "draft"
         result = {
             "node_id": review["id"],
             "attempt_id": "ATT-REVIEW-1",
