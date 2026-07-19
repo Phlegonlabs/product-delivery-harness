@@ -3835,12 +3835,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         ):
             _add(errors, "run.mission_states", "complete run cannot retain mission blockers")
 
+        superseded_mission_ids = (
+            {
+                mission_id
+                for mission_id, state in mission_states.items()
+                if isinstance(state, dict) and state.get("phase") == "superseded"
+            }
+            if isinstance(mission_states, dict)
+            else set()
+        )
         superseded_task_ids = {
             item["id"]
             for current_mission in plan.get("missions", [])
             if isinstance(current_mission, dict)
             for item in current_mission.get("tasks", [])
-            if isinstance(item, dict) and item.get("replaced_by")
+            if (
+                isinstance(item, dict)
+                and _nonempty_string(item.get("id"))
+                and (
+                    item.get("replaced_by")
+                    or current_mission.get("id") in superseded_mission_ids
+                )
+            )
         }
         task_closeout_invalid = not isinstance(task_states, dict)
         if isinstance(task_states, dict):

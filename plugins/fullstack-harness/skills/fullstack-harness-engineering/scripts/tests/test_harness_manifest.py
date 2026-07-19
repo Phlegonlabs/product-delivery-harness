@@ -870,6 +870,22 @@ class RunValidationTests(unittest.TestCase):
             plan, run, "complete run requires every final gate to PASS"
         )
 
+    def test_complete_run_allows_tasks_of_a_superseded_mission(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        run["mission_states"]["M2"].update(
+            {
+                "phase": "superseded",
+                "integration_gate": "planned",
+                "integrated_sha": None,
+            }
+        )
+        for task in plan["missions"][1]["tasks"]:
+            run["task_states"][task["id"]]["phase"] = "superseded"
+
+        self.assertEqual(validate_run(plan, run), [])
+
     def test_complete_pull_request_run_requires_merged_current_head(self) -> None:
         plan = valid_plan()
         run = valid_closeout_run(plan)
