@@ -963,6 +963,16 @@ class RunValidationTests(unittest.TestCase):
         errors = validate_run(plan, run)
         self.assertTrue(any(".status: has an unsupported gate value" in error for error in errors))
 
+    def test_schema_v9_rejects_malformed_plan_gate_lists_without_crashing(self) -> None:
+        for field in ("batch_verifiers", "final_gates"):
+            with self.subTest(field=field):
+                plan = valid_plan()
+                run = valid_closeout_run(plan)
+                plan[field] = None
+
+                self.assertTrue(validate_plan(plan))
+                self.assertTrue(validate_run(plan, run))
+
     def test_schema_v9_rejects_unhashable_ui_evidence_scalars_without_crashing(self) -> None:
         plan = valid_plan()
         plan["ui_surfaces"] = [
@@ -1042,6 +1052,15 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan, run, "complete run requires every source to be frozen or delta accepted"
         )
+
+    def test_complete_run_rejects_malformed_plan_sources_without_crashing(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        plan["sources"] = None
+
+        self.assertTrue(validate_plan(plan))
+        self.assertIsInstance(validate_run(plan, run), list)
 
     def test_complete_run_requires_full_ui_screenshot_matrix(self) -> None:
         plan = valid_plan()

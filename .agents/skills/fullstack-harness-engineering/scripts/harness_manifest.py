@@ -2343,11 +2343,16 @@ def _validate_gate_results(
 ) -> None:
     results = run[run_key]
     root_path = f"run.{run_key}"
-    expected_ids = {
-        gate["id"]
-        for gate in plan.get(plan_key, [])
-        if isinstance(gate, dict) and _nonempty_string(gate.get("id"))
-    }
+    plan_gates = plan.get(plan_key)
+    expected_ids = (
+        {
+            gate["id"]
+            for gate in plan_gates
+            if isinstance(gate, dict) and _nonempty_string(gate.get("id"))
+        }
+        if isinstance(plan_gates, list)
+        else set()
+    )
     if not isinstance(results, list):
         _add(errors, root_path, "must be a list")
         return
@@ -3758,9 +3763,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.intent", "complete run requires execution intent")
         if run.get("plan_readiness") != "ready":
             _add(errors, "run.plan_readiness", "complete run requires ready plan")
-        if any(
+        plan_sources = plan.get("sources")
+        if isinstance(plan_sources, list) and any(
             source.get("status") not in {"frozen", "delta accepted"}
-            for source in plan.get("sources", [])
+            for source in plan_sources
             if isinstance(source, dict)
         ):
             _add(
