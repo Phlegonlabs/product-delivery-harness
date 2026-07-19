@@ -395,6 +395,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
 def valid_closeout_run(plan: dict[str, object]) -> dict[str, object]:
     run = valid_run(plan)
     run["schema_version"] = 9
+    run["landing"]["mode"] = "local_only"
     run["authorizations"]["invoke_external_runtime"] = {
         "authorized": False,
         "source": None,
@@ -856,6 +857,48 @@ class RunValidationTests(unittest.TestCase):
             plan, run, "complete run requires every final gate to PASS"
         )
 
+    def test_complete_pull_request_run_requires_merged_current_head(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        run["landing"]["mode"] = "pull_request"
+        mark_complete(plan, run)
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "complete pull-request run requires merged current-head landing",
+        )
+
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 21,
+                "pr_url": "https://github.com/example/repo/pull/21",
+                "pr_state": "merged",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_schema_v9_rejects_unhashable_gate_ids_without_crashing(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        run["batch_gate_results"][0]["id"] = []
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(any("must be a non-empty string" in error for error in errors))
+        self.assertTrue(any("IDs must exactly match" in error for error in errors))
+
     def test_complete_run_requires_ready_sources(self) -> None:
         plan = valid_plan()
         plan["sources"][0]["status"] = "missing"
@@ -1008,6 +1051,7 @@ class RunValidationTests(unittest.TestCase):
         for version in range(2, 8):
             with self.subTest(version=version):
                 run = valid_run(plan)
+                run["landing"]["mode"] = "local_only"
                 mark_complete(plan, run)
                 run["schema_version"] = version
                 if version < 6:
@@ -1419,6 +1463,23 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         mark_complete(plan, run)
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 21,
+                "pr_url": "https://github.com/example/repo/pull/21",
+                "pr_state": "merged",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
         run["post_merge_cleanup"].update(
             {
                 "status": "deferred",

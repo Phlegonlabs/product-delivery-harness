@@ -2362,11 +2362,12 @@ def _validate_gate_results(
         gate_id = result["id"]
         if not _nonempty_string(gate_id):
             _add(errors, f"{path}.id", "must be a non-empty string")
-        elif gate_id not in expected_ids:
-            _add(errors, f"{path}.id", f"unknown {label} {gate_id!r}")
-        elif gate_id in seen:
-            _add(errors, f"{path}.id", "must be unique")
-        seen.add(gate_id)
+        else:
+            if gate_id not in expected_ids:
+                _add(errors, f"{path}.id", f"unknown {label} {gate_id!r}")
+            elif gate_id in seen:
+                _add(errors, f"{path}.id", "must be unique")
+            seen.add(gate_id)
         if result["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
         _optional_sha(errors, f"{path}.head_sha", result["head_sha"])
@@ -3736,6 +3737,62 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.integration.integration_head_sha",
                 "complete run requires an integration head",
             )
+        landing = run.get("landing")
+        if (
+            isinstance(landing, dict)
+            and landing.get("mode") == "pull_request"
+            and (
+                landing.get("pr_state") != "merged"
+                or landing.get("merge_status") != "merged"
+            )
+        ):
+            _add(
+                errors,
+                "run.landing",
+                "complete pull-request run requires merged current-head landing",
+            )
+        if graph_run:
+            graph_state = run.get("graph_state")
+            node_states = (
+                graph_state.get("node_states", {})
+                if isinstance(graph_state, dict)
+                else {}
+            )
+            edge_states = (
+                graph_state.get("edge_states", {})
+                if isinstance(graph_state, dict)
+                else {}
+            )
+            if not isinstance(node_states, dict) or any(
+                not isinstance(state, dict)
+                or state.get("phase")
+                not in {"succeeded", "failed", "skipped", "superseded"}
+                for state in node_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run requires every node to be terminal",
+                )
+            if isinstance(node_states, dict) and any(
+                isinstance(state, dict) and bool(state.get("blockers"))
+                for state in node_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run cannot retain node blockers",
+                )
+            if not isinstance(edge_states, dict) or any(
+                not isinstance(state, dict)
+                or state.get("status") not in {"traversed", "exhausted", "skipped"}
+                for state in edge_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.edge_states",
+                    "complete graph run requires every edge to be terminal",
+                )
         if not isinstance(mission_states, dict) or any(
             not isinstance(state, dict)
             or state.get("phase") not in {"integrated", "superseded"}

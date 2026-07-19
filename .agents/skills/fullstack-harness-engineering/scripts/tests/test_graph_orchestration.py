@@ -179,7 +179,17 @@ class GraphManifestTests(unittest.TestCase):
             for gate in plan["final_gates"]
         ]
         run["ui_evidence"] = []
+        run["landing"]["mode"] = "local_only"
         mark_complete(plan, run)
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("every node to be terminal" in error for error in errors),
+            errors,
+        )
+        self.assertTrue(
+            any("every edge to be terminal" in error for error in errors),
+            errors,
+        )
         for index, node in enumerate(plan["graph"]["nodes"], start=1):
             run["graph_state"]["node_states"][node["id"]].update(
                 {
