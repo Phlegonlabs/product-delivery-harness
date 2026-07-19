@@ -3867,6 +3867,17 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.graph_state.node_states",
                     "complete graph run cannot retain node blockers",
                 )
+            if isinstance(node_states, dict) and any(
+                isinstance(state, dict)
+                and state.get("phase") == "succeeded"
+                and state.get("last_outcome") != "pass"
+                for state in node_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run requires every succeeded node to have pass outcome",
+                )
             if not isinstance(edge_states, dict) or any(
                 not isinstance(state, dict)
                 or state.get("status") not in {"traversed", "exhausted", "skipped"}

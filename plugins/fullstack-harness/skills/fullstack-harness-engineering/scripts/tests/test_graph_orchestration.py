@@ -244,6 +244,18 @@ class GraphManifestTests(unittest.TestCase):
                 for error in validate_run(plan, run)
             )
         )
+        run["graph_state"]["node_states"]["N-FINAL"].update(
+            {
+                "phase": "succeeded",
+                "last_outcome": "retryable_failure",
+            }
+        )
+        self.assertTrue(
+            any(
+                "every succeeded node to have pass outcome" in error
+                for error in validate_run(plan, run)
+            )
+        )
 
     def test_schema_v4_source_content_is_bound_into_the_plan_digest(self) -> None:
         plan = valid_graph_plan()
