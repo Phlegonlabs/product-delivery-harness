@@ -2454,7 +2454,12 @@ def _validate_ui_evidence(
         "head_sha",
         "status",
     }
-    integration_head = run.get("integration", {}).get("integration_head_sha")
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
     for index, item in enumerate(evidence_items):
         path = f"run.ui_evidence[{index}]"
         if not _keys(errors, path, item, evidence_keys):

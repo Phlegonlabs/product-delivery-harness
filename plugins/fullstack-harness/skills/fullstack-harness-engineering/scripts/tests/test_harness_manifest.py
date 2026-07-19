@@ -996,6 +996,11 @@ class RunValidationTests(unittest.TestCase):
                 errors = validate_run(plan, malformed)
                 self.assertTrue(any(f".{field}:" in error for error in errors))
 
+        malformed = copy.deepcopy(run)
+        malformed["integration"] = []
+        errors = validate_run(plan, malformed)
+        self.assertTrue(any("run.integration: must be an object" in error for error in errors))
+
     def test_schema_v9_rejects_malformed_plan_ui_surfaces_without_crashing(self) -> None:
         plan = valid_plan()
         plan["ui_surfaces"] = [
