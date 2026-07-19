@@ -2449,9 +2449,13 @@ def _validate_ui_evidence(
         path = f"run.ui_evidence[{index}]"
         if not _keys(errors, path, item, evidence_keys):
             continue
+        scalar_fields_valid = True
         for key in ("surface_id", "route", "breakpoint", "state"):
             if not _nonempty_string(item[key]):
                 _add(errors, f"{path}.{key}", "must be a non-empty string")
+                scalar_fields_valid = False
+        if not scalar_fields_valid:
+            continue
         surface = surfaces.get(item["surface_id"])
         if surface is None:
             _add(errors, f"{path}.surface_id", "does not match a PLAN UI surface")
@@ -2482,9 +2486,9 @@ def _validate_ui_evidence(
         ):
             _add(errors, f"{path}.artifact_sha256", "must be a lowercase SHA-256")
         _optional_sha(errors, f"{path}.head_sha", item["head_sha"])
-        if item["status"] not in GATE_VALUES:
+        if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
-        if item["status"] == "PASS":
+        elif item["status"] == "PASS":
             passed.add(key)
             if item["head_sha"] != integration_head:
                 _add(errors, path, "PASS UI evidence must match integration_head_sha")

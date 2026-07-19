@@ -924,6 +924,39 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("must be a non-empty string" in error for error in errors))
         self.assertTrue(any("IDs must exactly match" in error for error in errors))
 
+    def test_schema_v9_rejects_unhashable_ui_evidence_scalars_without_crashing(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        run["ui_evidence"] = [
+            {
+                "surface_id": "dashboard",
+                "route": "/dashboard",
+                "breakpoint": "desktop",
+                "state": "loaded",
+                "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
+                "artifact_sha256": "c" * 64,
+                "head_sha": run["integration"]["integration_head_sha"],
+                "status": "PASS",
+            }
+        ]
+
+        for field in ("surface_id", "route", "breakpoint", "state", "status"):
+            with self.subTest(field=field):
+                malformed = copy.deepcopy(run)
+                malformed["ui_evidence"][0][field] = []
+                errors = validate_run(plan, malformed)
+                self.assertTrue(any(f".{field}:" in error for error in errors))
+
     def test_complete_run_requires_ready_sources(self) -> None:
         plan = valid_plan()
         plan["sources"][0]["status"] = "missing"
