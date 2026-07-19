@@ -52,9 +52,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         agent = self.read("agents/openai.yaml")
 
         self.assertIn("Do not probe an external runtime merely because it may be available", skill)
-        self.assertIn("only when the user or selected ready-node policy calls for external Claude", skill)
+        self.assertIn("run the bridge preflight before ready-node selection", skill)
+        self.assertIn("a ready node's PLAN runtime policy calls for external Claude", skill)
         self.assertIn("does not preflight Claude merely because its CLI is installed", research)
-        self.assertIn("preflight Claude only for a selected Claude route", agent)
+        self.assertIn("preflight Claude before selection only when a ready PLAN node needs that route", agent)
 
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
         skill = self.read("SKILL.md")
