@@ -122,10 +122,10 @@ Rules:
 When no repo convention exists, enforce this file budget:
 
 ```text
-direct work        -> no management files
-medium work        -> docs/goal/RUN.md
-long/multi-mission -> docs/goal/PLAN.md + docs/goal/RUN.md
-real binary proof  -> docs/goal/evidence/** only when needed
+small direct work      -> no management files
+large sequential work -> docs/goal/RUN.md
+large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md
+real binary proof     -> docs/goal/evidence/** only when needed
 ```
 
 Keep Goal text, checkpoint, task state, verification, evidence links, blockers, and closeout together in `RUN.md`. Use temporary `docs/goal/evidence/<mission>/REPORT.md` files only for parallel worker integration, then fold their durable result into `RUN.md`.

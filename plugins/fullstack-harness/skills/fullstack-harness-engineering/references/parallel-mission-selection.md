@@ -2,6 +2,8 @@
 
 Use this reference after plan readiness passes and before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, PRs, deployments, or cleanup actions.
 
+The Project Size Gate runs first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted plan and execute it with the sequential parent.
+
 This file defines the legacy PLAN-v2/v3 mission-DAG selector. PLAN v4 and RUN v8 use `scripts/select_ready_nodes.py`: it computes the typed graph frontier first, then applies these same scope/resource conflicts and deterministic write budget to ready mission nodes. Never run the legacy selector directly against a schema-v4 plan.
 
 For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, use three as the configured maximum unless the user sets a lower limit, and run the selector before any production task. The selected wave may contain fewer than three missions when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization require it.

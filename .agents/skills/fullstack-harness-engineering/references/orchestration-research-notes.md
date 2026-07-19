@@ -20,6 +20,8 @@ Schema v6 adds a small runtime adapter beside those axes. It records `provider`,
 
 The portable default remains serialized writes in one checkout. Read-only work may fan out. Parallel writes require isolated eligible worktrees, complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
 
+Before any planner, scheduler, worker-capability scan, or external-runtime preflight, the skill uses a two-way project-size gate. Small work stays in the current parent with no PLAN/RUN or delegation by default. Large work enters managed planning, but it still uses the sequential parent unless at least two dependency-ready nonconflicting missions make scheduler fan-out useful. Size means coordination scope and blast radius, not a raw file or line count. If direct work grows, checkpoint completed work and plan only the remainder.
+
 For plan-backed multi-mission execution, runtime detection is now proactive and deterministic selection is the default immediately after Plan Readiness. The configured write-worker maximum is three, while the effective wave can be smaller. Capability observation remains independent from authorization: a missing task/worktree/branch/commit grant triggers one bundled request and reselection, not a false claim that the preferred driver is unavailable. Shared-checkout writes remain serialized.
 
 The skill uses a parent-to-mission-writer shape and keeps task implementation sequential within each mission. An app-task mission writer may now use bounded direct subagents for independent read-only exploration, research, test analysis, and review. This adds useful nesting without creating a second writer or changing the mission DAG.
@@ -28,7 +30,7 @@ The selector now emits deterministic, tool-agnostic launch directives for select
 
 In Claude Code with Dynamic Workflow available, the selector also emits one wave-level launch bundle. The parent allocates mission branches/worktrees first, then runs a flat JavaScript workflow that starts sibling mission agents and returns structured result candidates. The workflow is an adapter over the same mission, authorization, result, and integration gates; it is not a second planning system.
 
-Schema v8 adds a typed graph and a bounded external-runtime bridge. The host provider remains the session running PLAN/RUN. A Codex parent may bind an individual graph node to external Claude Code only after a no-edit Workflow preflight. This is not native Codex delegation: the bridge starts a separate Claude Code process, passes one immutable wave, and returns result candidates. `invoke_external_runtime` remains separate from worker, worktree, branch, commit, and integration authorization.
+Schema v8 adds a typed graph and a bounded external-runtime bridge. The host provider remains the session running PLAN/RUN. A Codex parent does not preflight Claude merely because its CLI is installed or a fallback is listed. Before ready-node selection, it runs the no-edit Workflow preflight only when the user explicitly requests Claude, a ready node's PLAN runtime policy prefers or requires Claude, or the host cannot satisfy a ready node whose declared fallback allows Claude. This lets the selector bind Claude-only and Claude-preferred nodes without probing Claude for small work, unready nodes, or unused fallbacks. This is not native Codex delegation: the bridge starts a separate Claude Code process, passes one immutable wave, and returns result candidates. `invoke_external_runtime` remains separate from worker, worktree, branch, commit, and integration authorization.
 
 The current Codex app task creation surface accepts an explicit model and reasoning effort per task. Claude Code accepts a model through its CLI, while its Dynamic Workflow siblings inherit the outer invocation. The portable graph therefore stores provider-specific model options in PLAN, emits them in the runtime binding, and groups external Claude nodes by model. It does not hard-code a Codex model catalog because the destination host validates that evolving catalog at launch.
 
@@ -128,6 +130,7 @@ These are examples, not an exhaustive compatibility table. The parent must prove
 
 Before changing orchestration guidance, re-check:
 
+- The size gate still runs before managed planning and does not probe workers or external runtimes for small direct work.
 - Codex subagent configuration keys, current defaults, delegation behavior, result/failure delivery, and effective thread/depth limits.
 - Codex app worktree detached-HEAD behavior, permanent versus task-scoped worktrees, `.worktreeinclude`, and retention policy.
 - Available thread/task tools in the current product surface and whether they support polling, messaging, creation, or only navigation.

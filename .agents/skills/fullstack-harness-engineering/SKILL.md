@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-engineering
-description: "Plan, then optionally run Codex or Claude Code full-stack delivery from product ideas, PRDs, wireframes, design systems, architecture notes, or existing apps. Use for PRD implementation planning, typed graph orchestration, conditional routing, bounded correction loops, frontend/backend sequencing, end-to-end implementation, Goal planning, long-running work, mission decomposition, deterministic parallel selection, mixed-runtime binding, UI evidence, verification gates, worktree orchestration, or acceptance. Plan-backed graph runs detect host and external runtimes and, after Plan Readiness, select up to three dependency-ready nonconflicting missions for isolated execution. Selecting this skill grants no implementation or lifecycle permission: external invocation, spawn, task, worktree, commit, integration, landing, deploy, archival, and cleanup actions each require recorded authorization. Use no management files for direct work, RUN.md for medium work, and PLAN.md plus RUN.md for long or multi-mission work."
+description: "Classify work as small or large before optionally running Codex or Claude Code full-stack delivery from product ideas, PRDs, wireframes, design systems, architecture notes, or existing apps. Small work stays direct without planner, scheduler, PLAN/RUN, or external-runtime preflight. Large work may use PRD implementation planning, typed graph orchestration, conditional routing, bounded correction loops, frontend/backend sequencing, long-running work, mission decomposition, deterministic parallel selection, mixed-runtime binding, UI evidence, verification gates, worktree orchestration, or acceptance. Selecting this skill grants no implementation or lifecycle permission: external invocation, spawn, task, worktree, commit, integration, landing, deploy, archival, and cleanup actions each require recorded authorization."
 ---
 
 # Full-Stack Harness Engineering
@@ -10,6 +10,33 @@ description: "Plan, then optionally run Codex or Claude Code full-stack delivery
 Plan the complete delivery path before implementation, then run it only when execution is explicitly authorized. Reuse product and design sources instead of duplicating them. Preserve repository clarity while keeping enough durable state for compaction, resume, handoff, and long-running Goal execution.
 
 Keep `prd-builder` and `design-package-builder` as separate upstream skills. If required product, Builder UX Direction, or visual inputs are missing, route to the matching skill, use user-authorized assumptions, or record the gap as `UNVALIDATED`. Builder direction comes from the named human product/design owner or commissioning team; an implementation agent does not invent it.
+
+## Project Size Gate
+
+Before invoking the planner, graph scheduler, worker allocator, external-runtime bridge, or any PLAN/RUN workflow, perform one bounded read-only scope scan and classify the work as `small` or `large`. This is a routing decision, not implementation authorization. An explicit user request to use planning controls the route. A request to skip planning keeps only qualifying small work direct; it cannot override a `large` classification or a required safety or authorization boundary.
+
+Classify the work as `small` only when all of these are true:
+
+- It has one primary outcome in one bounded component or repository area.
+- One writer can complete it without parallel missions, durable handoff, or cross-task coordination.
+- It has no broad schema migration, multi-environment release, destructive data operation, or independently staged deployment.
+- It does not require a frozen multi-surface contract, conditional correction graph, or multiple dependent implementation missions.
+- One coherent test and review pass can verify the result.
+
+Classify the work as `large` when any small-work condition fails. Full PRDs, multiple independently writable missions, frontend/backend/data delivery across separate boundaries, long-running handoff, migration or release promotion, conditional routing, or mixed-runtime execution are large. Judge size by coordination scope and blast radius, not changed-line or file count alone.
+
+Route the result as follows:
+
+```text
+small -> direct inspect -> implement -> verify -> review -> authorized Git actions
+large -> planner -> readiness -> sequential execution or scheduler when parallel work is useful
+```
+
+- Small work creates no PLAN/RUN files, performs no scheduler or worker-capability scan, launches no subagent by default, and does not preflight an external Claude bridge. Use the current parent and the smallest relevant verification surface.
+- Large work enters Intake And Route and uses the file budget below. Planning does not automatically require parallel execution.
+- Enable scheduler fan-out only when the large plan has at least two dependency-ready, nonconflicting missions and the isolation, capacity, permission, and action gates pass. A large plan with one ready execution path stays with the sequential parent.
+- Preflight external Claude before ready-node selection only when the user explicitly requests it, a ready node's current PLAN runtime policy prefers or requires Claude, or the host cannot satisfy a ready node whose declared fallback allows Claude. An installed CLI, an unready node, or an unselected fallback is not enough.
+- If small work crosses a large-work condition during execution, stop at a safe checkpoint, preserve completed edits and verification, and plan only the remaining work. Promotion does not restart completed work.
 
 For plan-backed orchestration, keep four layers separate:
 
@@ -39,11 +66,11 @@ For plan-backed orchestration, keep four layers separate:
 ## File Budget
 
 ```text
-direct work        -> no management files
-medium work        -> docs/goal/RUN.md
-long/multi-mission -> docs/goal/PLAN.md + docs/goal/RUN.md
-binary UI evidence -> docs/goal/evidence/** only when artifacts exist
-worktree workers   -> temporary per-mission reports only while integration needs them
+small direct work      -> no management files
+large sequential work -> docs/goal/RUN.md
+large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md
+binary UI evidence    -> docs/goal/evidence/** only when artifacts exist
+worktree workers      -> temporary per-mission reports only while integration needs them
 ```
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
@@ -68,10 +95,10 @@ These validators, selectors, and bridge helpers are Python-stdlib-only. The vali
 
 ## Default Runtime And Wave Policy
 
-Apply this policy to every plan-backed multi-mission execution unless the user explicitly requests a lower worker budget:
+Apply this policy only after the Project Size Gate classifies the work as large and the accepted plan contains multiple missions, unless the user explicitly requests a lower worker budget:
 
 1. Before the first production edit or worker launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, worktree isolation, completion channel, Git state, and runtime resources. Do not wait until delegation appears useful.
-2. Record every observed host driver independently of authorization. In Codex, usable project lookup plus thread create/read/message surfaces prove `app_threads`; child-agent tools prove `subagents`. In schema v8, record Claude Code under `runtime_adapter.external_runtimes` only after the bridge preflight executes the Workflow tool. A CLI path or version alone is not proof. Missing authorization must never make an available driver disappear.
+2. Record every observed host driver independently of authorization. In Codex, usable project lookup plus thread create/read/message surfaces prove `app_threads`; child-agent tools prove `subagents`. Do not probe an external runtime merely because it may be available. In schema v8, run the bridge preflight before ready-node selection and record Claude Code under `runtime_adapter.external_runtimes` only when the user request or current ready frontier's PLAN runtime policy calls for that route. A CLI path or version alone is not proof. Missing authorization must never make an available driver disappear.
 3. Use three as the configured plan-backed write-worker maximum. The effective wave may contain fewer missions because it is still capped by observed slots, isolation capacity, dependency readiness, conflicts, permission boundaries, and the user's lower explicit limit.
 4. For new PLAN-v4 runtime-worker nodes, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning for general-purpose nodes, backend implementation, and `backend_code` review; keep Claude Code `sonnet` as the availability fallback for those roles. For frontend/UI implementation, use the pinned Claude model `claude-fable-5` with `high` reasoning. For `frontend_code` review nodes, use `claude-fable-5` with `xhigh` reasoning. For preview or final visual-review nodes, use `claude-fable-5` with `high` reasoning. All three frontend roles use Codex `gpt-5.6-sol` with `xhigh` reasoning when Claude is unavailable. Preserve any explicit user choice and let Plan Mode replace these defaults per node when mission complexity, risk, latency, or cost calls for a different observed option.
 5. Immediately after `plan_readiness: ready`, validate PLAN/RUN and compute the dependency-ready conflict graph. For PLAN v4/RUN v8, run `select_ready_nodes.py`; for older readable plans, run `select_parallel_missions.py`. Select up to three nonconflicting write missions in deterministic order before starting a production task.
@@ -144,7 +171,8 @@ Existing inputs:
 Existing app state: greenfield | built | deployed | legacy | partial
 Product archetype:
 Critical surfaces:
-Scale: small | medium | multi-mission | program
+Project size: small | large
+Size-gate evidence:
 Contract state: missing | draft | frozen | delta proposed | delta accepted
 Design input state: missing | provided | partial | conflicting | frozen | updated
 Builder UX Direction state: missing | selected | provisional | assumed | conflicting | updated
@@ -174,9 +202,9 @@ File budget: 0 | RUN.md | PLAN.md + RUN.md | optional evidence/
 Stop or ask when:
 ```
 
-- Use Direct Work only when the task is bounded and execution is explicit.
-- Use `RUN.md` for several verified sequential steps or work likely to cross compaction.
-- Add `PLAN.md` for a full PRD, multiple missions, frontend/backend sequencing, high risk, or durable handoff.
+- Use Direct Work for small work when execution is explicit.
+- Use `RUN.md` for large work with several verified sequential steps or work likely to cross compaction.
+- Add `PLAN.md` for large work with a full PRD, multiple missions, frontend/backend sequencing, high risk, or durable handoff.
 - Promote RUN-only work before delegating a write mission, accepting execution-time refinement, or selecting parallel work.
 - For unclear existing-app improvement, audit first and record ranked candidates in `RUN.md`.
 - For plan-backed multi-mission execution, set the configured worker budget to three by default, then reduce it only from observed capacity, conflicts, dependencies, permissions, or an explicit user limit.
@@ -258,7 +286,7 @@ observe -> confirm plan/graph/digest/authorization -> allocate node attempt -> l
 Keep one parent-owned `PLAN.md` and `RUN.md`; workers never edit either.
 
 - Fan out read-only planning only when `spawn_subagents` is authorized. Keep mutating generators and shared-state tests serialized even when their intended source edits are read-only.
-- Before choosing a launch primitive, proactively detect the host session and record a runtime adapter capability snapshot before the first production edit. Native Codex project/thread tools prove `app_threads`; the Workflow tool in a Claude Code host proves `dynamic_workflow`; current-session child-agent tools prove `subagents`. In schema v8, a Codex parent may additionally run the no-edit Claude bridge preflight and record Claude under `external_runtimes`. An installed binary, version, directory name, model name, or missing authorization never proves or removes a runtime capability. Capability detection never grants authorization.
+- Before choosing a launch primitive for large work, proactively detect the host session and record a runtime adapter capability snapshot before the first production edit. Native Codex project/thread tools prove `app_threads`; the Workflow tool in a Claude Code host proves `dynamic_workflow`; current-session child-agent tools prove `subagents`. In schema v8, a Codex parent runs the no-edit Claude bridge preflight before ready-node selection and records Claude under `external_runtimes` only when the user request or a ready node's PLAN runtime policy calls for external Claude. An installed binary, version, directory name, model name, or missing authorization never proves or removes a runtime capability. Capability detection never grants authorization.
 - Default plan-backed multi-mission execution to a configured maximum of three isolated write workers. `worker_runtime: parent`, `workspace_mode: shared_checkout`, and one writer remain the compact or evidence-forced fallback. For authorized multi-mission or program execution in the Codex app, prefer `app_task` + `app_managed_worktree` + `thread_poll` when current thread tools, isolation, and completion polling are available.
 - For parallel writes, first validate PLAN/RUN. Use `scripts/select_ready_nodes.py` for PLAN v4/RUN v8 and `scripts/select_parallel_missions.py` for older readable schemas, then bind the proposed wave to the current plan/graph revision, digest, and fixed batch base SHA.
 - For PLAN-v4 graph workers, consume the selector's complete runtime binding. Copy mission bindings to `workers[]` and read-only verifier bindings to `review_workers[]`. Pass non-null Codex model/reasoning values to task creation as `model`/`thinking`, pass non-null Claude effort as `--effort`, and group external Claude nodes into separate immutable waves by selected model and effort. Do not silently substitute a model or effort rejected by the destination host; revise the affected PLAN policy and reselect.
@@ -360,6 +388,7 @@ Final completion requires:
 
 ```text
 Intent and execution authorization:
+Project size and size-gate evidence:
 Action authorization gaps:
 Route and file budget:
 Complete mission order and rationale:

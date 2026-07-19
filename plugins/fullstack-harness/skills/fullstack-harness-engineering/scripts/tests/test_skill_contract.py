@@ -5,9 +5,57 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 
 
+def find_repo_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (
+            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
+            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+        ):
+            return candidate
+    return None
+
+
+REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
+
+
 class FullstackHarnessSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def test_project_size_gate_keeps_small_work_direct(self) -> None:
+        skill = self.read("SKILL.md")
+        research = self.read("references/orchestration-research-notes.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("## Project Size Gate", skill)
+        self.assertIn("small -> direct inspect", skill)
+        self.assertIn("large -> planner", skill)
+        self.assertIn("cannot override a `large` classification", skill)
+        self.assertIn("Small work creates no PLAN/RUN files", skill)
+        self.assertIn("scheduler fan-out only when", skill)
+        self.assertIn("two-way project-size gate", research)
+        self.assertIn("Small work never reaches this selector", selector)
+        self.assertIn("Small direct work does not instantiate this file", runbook)
+        self.assertIn("classify the project as small or large", agent)
+
+    @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_readme_explains_the_project_size_gate(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("The delivery skill makes one size decision", readme)
+
+    def test_external_claude_bridge_is_preflighted_on_demand(self) -> None:
+        skill = self.read("SKILL.md")
+        research = self.read("references/orchestration-research-notes.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("Do not probe an external runtime merely because it may be available", skill)
+        self.assertIn("run the bridge preflight before ready-node selection", skill)
+        self.assertIn("a ready node's PLAN runtime policy calls for external Claude", skill)
+        self.assertIn("does not preflight Claude merely because its CLI is installed", research)
+        self.assertIn("preflight Claude before selection only when a ready PLAN node needs that route", agent)
 
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
         skill = self.read("SKILL.md")
