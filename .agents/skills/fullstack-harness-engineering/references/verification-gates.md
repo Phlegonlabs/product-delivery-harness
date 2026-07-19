@@ -123,7 +123,9 @@ Not required when:
 
 - Backend-only, cron, data pipeline, config, tests, refactor, docs-only, or API-only work has no browser-visible state.
 
-Prefer targeted viewport, element, region, or trace evidence over whole-page screenshots. Whole-page captures need a reason.
+Prefer targeted viewport, element, or region screenshots over whole-page captures. Whole-page captures need a reason. Traces, console logs, and browser reports are supplemental; they do not replace a required screenshot.
+
+For every PLAN surface with `evidence_gate: required`, capture one screenshot for each planned route-by-breakpoint-by-state combination. Schema-v9 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash.
 
 ## UX Direction And Usability Evidence
 
@@ -158,6 +160,8 @@ Commit subject:
 Status: PASS | FAIL | BLOCKED | UNVALIDATED
 Notes:
 ```
+
+Every schema-v9 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. A PASS is stale as soon as the integration head changes, regardless of the RUN lifecycle state. Markdown evidence rows do not replace these canonical closeout records.
 
 ## Worker Result Gate
 
@@ -195,18 +199,20 @@ Final PASS requires:
 
 - Every must-have trace ID is covered.
 - Every required gate is PASS.
+- Schema-v9 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
 - Every skipped gate is justified.
 - Every `UNVALIDATED` surface is named.
-- Evidence paths exist or the user accepted non-file evidence.
+- Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; accepted non-file evidence applies only to gates that do not require screenshots.
 - Baseline and skipped-check justifications are recorded when relevant.
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
-- Every mission required for completion is `integrated`; no `leased`, `worker_running`, `worker_passed`, or `integrating` state remains.
+- Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
 - The final integration head still descends from every recorded required mission integration SHA.
-- Landing state is recorded: explicitly left local, or final branch pushed and PR opened with user approval.
+- Landing state is recorded: explicitly left local, or the pull request is merged with current-head evidence and `merge_pr` authorization covering every mission plus the exact `pr:<full-PR-URL>` target.
 - In pull-request mode, local diff review passed before push; integration head, current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer local integration or push resets this gate.
+- For PLAN-v4 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - `merge_status: ready` is recorded only after the current-head landing gate passes, and `merged` preserves that evidence while adding the merged PR state and merge SHA. Actual merge and deploy remain separate authorized actions.
-- A schema-v4-through-v6 auto-merge request is recorded only after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Any changed head resets the request before fresh CI and review.
+- A schema-v4-through-v9 auto-merge request is recorded only after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Any changed head resets the request before fresh CI and review.
 - A PR closed without merge records `closed` / `closed_unmerged` with no merge SHA; it is not left in the reusable `not_ready` state.
-- In schemas v5 through v7, a completed pull-request run records `post_merge_cleanup` as complete or deferred. Complete cleanup proves the merged SHA is reachable from the refreshed base, the exact local branch still matched the merged PR head before deletion, the primary checkout is clean on the base, and any exact parent-managed linked worktree was clean and is now absent. `not_applicable` requires no matching linked worktree in the current observation; app-managed lifecycle is deferred instead of manually removed.
+- In schemas v5 through v9, a completed pull-request run records `post_merge_cleanup` as complete or deferred. Complete cleanup proves the merged SHA is reachable from the refreshed base, the exact local branch still matched the merged PR head before deletion, the primary checkout is clean on the base, and any exact parent-managed linked worktree was clean and is now absent. `not_applicable` requires no matching linked worktree in the current observation; app-managed lifecycle is deferred instead of manually removed.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

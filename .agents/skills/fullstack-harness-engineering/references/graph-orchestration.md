@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for PLAN schema v4, RUN schema v8, conditional routing, retries, graph traces, or mixed Codex and Claude execution.
+Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing, retries, graph traces, or mixed Codex and Claude execution.
 
 ## Contents
 

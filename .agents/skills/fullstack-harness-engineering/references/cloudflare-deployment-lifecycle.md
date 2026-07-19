@@ -22,7 +22,7 @@ Use the repository's Wrangler config as the application deployment source of tru
 
 ## Live Deployment State
 
-Every schema-v4 PLAN that declares a release uses a schema-v8 RUN with `deployments`; existing schema-v3 release plans continue to use schema v7. A RUN without a release PLAN omits `deployments`. `deployments.development` and `deployments.production` record:
+Every new schema-v4 PLAN that declares a release uses a schema-v9 RUN with `deployments`; existing schema-v4/schema-v8 and schema-v3/schema-v7 pairs remain readable. A RUN without a release PLAN omits `deployments`. `deployments.development` and `deployments.production` record:
 
 ```text
 status

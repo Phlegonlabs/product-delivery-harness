@@ -127,6 +127,8 @@ CLEANUP_BRANCH_STATUSES = {
     "deferred",
     "not_applicable",
 }
+SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9}
+UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 RUNTIME_PROVIDERS = {"codex", "claude_code", "generic"}
 RUNTIME_REASONING_EFFORTS = {
     "none",
@@ -2330,6 +2332,256 @@ def _validate_graph_state(
                 _add(errors, state_path, "traversed edge requires traversal count and source attempt")
 
 
+def _validate_gate_results(
+    errors: list[str],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    plan_key: str,
+    run_key: str,
+    label: str,
+) -> None:
+    results = run[run_key]
+    root_path = f"run.{run_key}"
+    plan_gates = plan.get(plan_key)
+    expected_ids = (
+        {
+            gate["id"]
+            for gate in plan_gates
+            if isinstance(gate, dict) and _nonempty_string(gate.get("id"))
+        }
+        if isinstance(plan_gates, list)
+        else set()
+    )
+    if not isinstance(results, list):
+        _add(errors, root_path, "must be a list")
+        return
+
+    seen: set[str] = set()
+    valid_results: list[dict[str, Any]] = []
+    result_keys = {"id", "status", "head_sha", "evidence"}
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    for index, result in enumerate(results):
+        path = f"{root_path}[{index}]"
+        if not _keys(errors, path, result, result_keys):
+            continue
+        gate_id = result["id"]
+        if not _nonempty_string(gate_id):
+            _add(errors, f"{path}.id", "must be a non-empty string")
+        else:
+            if gate_id not in expected_ids:
+                _add(errors, f"{path}.id", f"unknown {label} {gate_id!r}")
+            elif gate_id in seen:
+                _add(errors, f"{path}.id", "must be unique")
+            seen.add(gate_id)
+        if not isinstance(result["status"], str) or result["status"] not in GATE_VALUES:
+            _add(errors, f"{path}.status", "has an unsupported gate value")
+        _optional_sha(errors, f"{path}.head_sha", result["head_sha"])
+        evidence = _strings(errors, f"{path}.evidence", result["evidence"])
+        if result["status"] == "PASS" and (
+            result["head_sha"] is None or not evidence
+        ):
+            _add(errors, path, "PASS requires head_sha and non-empty evidence")
+        if result["status"] == "PASS" and result["head_sha"] != integration_head:
+            _add(errors, path, f"PASS {label} must match integration_head_sha")
+        valid_results.append(result)
+
+    if seen != expected_ids:
+        _add(errors, root_path, f"IDs must exactly match PLAN {plan_key}")
+
+    if run.get("status") != "complete":
+        return
+    if any(result.get("status") != "PASS" for result in valid_results):
+        _add(errors, root_path, f"complete run requires every {label} to PASS")
+    if any(result.get("head_sha") != integration_head for result in valid_results):
+        _add(
+            errors,
+            root_path,
+            f"complete run {label} results must match integration_head_sha",
+        )
+
+
+def _valid_ui_artifact_path(value: Any) -> bool:
+    if not _nonempty_string(value) or "\\" in value or value.startswith("/"):
+        return False
+    if re.match(r"^[A-Za-z]:", value):
+        return False
+    parts = value.split("/")
+    return (
+        len(parts) >= 4
+        and parts[:3] == ["docs", "goal", "evidence"]
+        and all(part not in {"", ".", ".."} for part in parts)
+        and Path(value).suffix.lower() in UI_EVIDENCE_IMAGE_SUFFIXES
+    )
+
+
+def _has_ui_image_signature(path: Path) -> bool:
+    with path.open("rb") as handle:
+        header = handle.read(12)
+    suffix = path.suffix.lower()
+    if suffix == ".png":
+        return header.startswith(b"\x89PNG\r\n\x1a\n")
+    if suffix in {".jpg", ".jpeg"}:
+        return header.startswith(b"\xff\xd8\xff")
+    return suffix == ".webp" and header[:4] == b"RIFF" and header[8:12] == b"WEBP"
+
+
+def _validate_ui_evidence(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    evidence_items = run["ui_evidence"]
+    if not isinstance(evidence_items, list):
+        _add(errors, "run.ui_evidence", "must be a list")
+        return
+
+    plan_surfaces = plan.get("ui_surfaces", [])
+    if not isinstance(plan_surfaces, list):
+        plan_surfaces = []
+    surfaces = {
+        surface["id"]: surface
+        for surface in plan_surfaces
+        if isinstance(surface, dict) and _nonempty_string(surface.get("id"))
+    }
+    seen: set[tuple[str, str, str, str]] = set()
+    passed: set[tuple[str, str, str, str]] = set()
+    evidence_keys = {
+        "surface_id",
+        "route",
+        "breakpoint",
+        "state",
+        "artifact_path",
+        "artifact_sha256",
+        "head_sha",
+        "status",
+    }
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    for index, item in enumerate(evidence_items):
+        path = f"run.ui_evidence[{index}]"
+        if not _keys(errors, path, item, evidence_keys):
+            continue
+        scalar_fields_valid = True
+        for key in ("surface_id", "route", "breakpoint", "state"):
+            if not _nonempty_string(item[key]):
+                _add(errors, f"{path}.{key}", "must be a non-empty string")
+                scalar_fields_valid = False
+        if not scalar_fields_valid:
+            continue
+        surface = surfaces.get(item["surface_id"])
+        if surface is None:
+            _add(errors, f"{path}.surface_id", "does not match a PLAN UI surface")
+        else:
+            surface_route = surface.get("route")
+            surface_breakpoints = surface.get("breakpoints")
+            surface_states = surface.get("states")
+            if not _nonempty_string(surface_route) or item["route"] != surface_route:
+                _add(errors, f"{path}.route", "does not match the PLAN UI surface")
+            if (
+                not isinstance(surface_breakpoints, list)
+                or item["breakpoint"] not in surface_breakpoints
+            ):
+                _add(errors, f"{path}.breakpoint", "is not planned for this UI surface")
+            if not isinstance(surface_states, list) or item["state"] not in surface_states:
+                _add(errors, f"{path}.state", "is not planned for this UI surface")
+        key = (
+            item["surface_id"],
+            item["route"],
+            item["breakpoint"],
+            item["state"],
+        )
+        if key in seen:
+            _add(errors, path, "duplicates a UI surface/route/breakpoint/state record")
+        seen.add(key)
+        if not _valid_ui_artifact_path(item["artifact_path"]):
+            _add(
+                errors,
+                f"{path}.artifact_path",
+                "must be a repo-relative image under docs/goal/evidence/",
+            )
+        if not _nonempty_string(item["artifact_sha256"]) or not SHA256_RE.fullmatch(
+            item["artifact_sha256"]
+        ):
+            _add(errors, f"{path}.artifact_sha256", "must be a lowercase SHA-256")
+        _optional_sha(errors, f"{path}.head_sha", item["head_sha"])
+        if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
+            _add(errors, f"{path}.status", "has an unsupported gate value")
+        elif item["status"] == "PASS":
+            if not is_full_sha(item["head_sha"]):
+                _add(errors, path, "PASS UI evidence requires head_sha")
+            elif not is_full_sha(integration_head) or item["head_sha"] != integration_head:
+                _add(errors, path, "PASS UI evidence must match integration_head_sha")
+            else:
+                passed.add(key)
+
+    if run.get("status") != "complete":
+        return
+    required: set[tuple[str, str, str, str]] = set()
+    for surface in surfaces.values():
+        route = surface.get("route")
+        breakpoints = surface.get("breakpoints")
+        states = surface.get("states")
+        if (
+            surface.get("evidence_gate") != "required"
+            or not _nonempty_string(route)
+            or not isinstance(breakpoints, list)
+            or not isinstance(states, list)
+        ):
+            continue
+        required.update(
+            (surface["id"], route, breakpoint, state)
+            for breakpoint in breakpoints
+            if _nonempty_string(breakpoint)
+            for state in states
+            if _nonempty_string(state)
+        )
+    for key in sorted(required - passed):
+        _add(
+            errors,
+            "run.ui_evidence",
+            f"required UI screenshot coverage is missing {'|'.join(key)}",
+        )
+
+
+def validate_ui_evidence_files(
+    run: dict[str, Any], repo_root: str | Path
+) -> list[str]:
+    """Verify schema-v9 screenshot files and hashes without mutating the workspace."""
+
+    if run.get("schema_version") != 9 or not isinstance(run.get("ui_evidence"), list):
+        return []
+    errors: list[str] = []
+    root = Path(repo_root).resolve()
+    for index, item in enumerate(run["ui_evidence"]):
+        if not isinstance(item, dict) or not _valid_ui_artifact_path(
+            item.get("artifact_path")
+        ):
+            continue
+        path = f"run.ui_evidence[{index}].artifact_path"
+        artifact = (root / item["artifact_path"]).resolve()
+        if not artifact.is_relative_to(root):
+            _add(errors, path, "resolves outside the repository root")
+        elif not artifact.is_file():
+            _add(errors, path, f"does not exist: {item['artifact_path']}")
+        elif artifact.stat().st_size == 0:
+            _add(errors, path, "must not be empty")
+        elif not _has_ui_image_signature(artifact):
+            _add(errors, path, "content does not match the image file extension")
+        elif _nonempty_string(item.get("artifact_sha256")):
+            actual = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            if actual != item["artifact_sha256"]:
+                _add(errors, path, "sha256 does not match artifact_sha256")
+    return sorted(set(errors))
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -2358,21 +2610,34 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     plan_declares_release = (
         plan.get("schema_version") in {3, 4} and "release" in plan
     )
-    if schema_version == 8:
+    graph_run = schema_version == 8 or (
+        schema_version == 9 and plan.get("schema_version") == 4
+    )
+    if graph_run:
         run_keys.update({"graph_state", "review_workers"})
-    if schema_version in {3, 4, 5, 6, 7, 8}:
+    if schema_version in {3, 4, 5, 6, 7, 8, 9}:
         run_keys.add("landing")
-    if schema_version in {5, 6, 7, 8}:
+    if schema_version in {5, 6, 7, 8, 9}:
         run_keys.add("post_merge_cleanup")
-    if schema_version in {7, 8} and plan_declares_release:
+    if schema_version in {7, 8, 9} and plan_declares_release:
         run_keys.add("deployments")
-    if schema_version not in {2, 3, 4, 5, 6, 7, 8}:
-        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, 7, or 8")
-    if plan.get("schema_version") == 4 and schema_version != 8:
-        _add(errors, "run.schema_version", "must equal 8 for a schema v4 graph PLAN")
-    elif plan_declares_release and plan.get("schema_version") == 3 and schema_version != 7:
-        _add(errors, "run.schema_version", "must equal 7 when a schema v3 PLAN declares release")
-    optional_run_keys = {"deployments"} if schema_version in {7, 8} else set()
+    if schema_version == 9:
+        run_keys.update({"batch_gate_results", "final_gate_results", "ui_evidence"})
+    if schema_version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
+        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, 7, 8, or 9")
+    if plan.get("schema_version") == 4 and schema_version not in {8, 9}:
+        _add(errors, "run.schema_version", "must equal 8 or 9 for a schema v4 graph PLAN")
+    elif (
+        plan_declares_release
+        and plan.get("schema_version") == 3
+        and schema_version not in {7, 9}
+    ):
+        _add(
+            errors,
+            "run.schema_version",
+            "must equal 7 or 9 when a schema v3 PLAN declares release",
+        )
+    optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
@@ -2419,9 +2684,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
     authorization_keys = (
         AUTHORIZATION_KEYS_V8
-        if schema_version == 8
+        if schema_version in {8, 9}
         else AUTHORIZATION_KEYS
-        if schema_version in {3, 4, 5, 6, 7, 8}
+        if schema_version in {3, 4, 5, 6, 7, 8, 9}
         else AUTHORIZATION_KEYS_V2
     )
     authorizations = run["authorizations"]
@@ -2455,7 +2720,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         entry["scope"],
                         action=True,
                         action_name=action,
-                        allow_future_pr=(schema_version in {6, 7, 8}),
+                        allow_future_pr=(schema_version in {6, 7, 8, 9}),
                     )
                     if isinstance(entry["scope"], dict) and entry["scope"].get("run_id") != run["run_id"]:
                         _add(errors, f"{path}.scope.run_id", "must match run_id")
@@ -2471,10 +2736,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
 
-    if schema_version in {3, 4, 5, 6, 7, 8}:
+    if schema_version in {3, 4, 5, 6, 7, 8, 9}:
         _validate_landing(errors, run["landing"], schema_version)
     if (
-        schema_version in {4, 5, 6, 7, 8}
+        schema_version in {4, 5, 6, 7, 8, 9}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
@@ -2517,9 +2782,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested exact PR does not match its authorized future PR binding",
             )
-    if schema_version in {5, 6, 7, 8}:
+    if schema_version in {5, 6, 7, 8, 9}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
-    if schema_version in {7, 8} and "deployments" in run:
+    if schema_version in {7, 8, 9} and "deployments" in run:
         _validate_deployments(errors, run["deployments"], run, plan)
 
     runtime_keys = {
@@ -2529,7 +2794,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "max_parallel_workers",
         "platform_lifecycle",
     }
-    if schema_version in {6, 7, 8}:
+    if schema_version in {6, 7, 8, 9}:
         runtime_keys.add("runtime_adapter")
     runtime = run["runtime_capabilities"]
     if _keys(
@@ -2558,7 +2823,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
         adapter = runtime.get("runtime_adapter")
         adapter_path = "run.runtime_capabilities.runtime_adapter"
-        if schema_version in {6, 7, 8} and adapter is None:
+        if schema_version in {6, 7, 8, 9} and adapter is None:
             _add(errors, adapter_path, "must be an object")
         elif adapter is not None and _keys(
             errors,
@@ -2568,7 +2833,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "provider",
                 "available_drivers",
                 "detection_source",
-                *({"external_runtimes"} if schema_version == 8 else set()),
+                *({"external_runtimes"} if schema_version in {8, 9} else set()),
             },
         ):
             provider = adapter["provider"]
@@ -2644,7 +2909,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "must be omitted for flat dynamic-workflow orchestration",
                 )
             external_runtimes = adapter.get("external_runtimes", [])
-            if schema_version == 8:
+            if schema_version in {8, 9}:
                 if not isinstance(external_runtimes, list):
                     _add(errors, f"{adapter_path}.external_runtimes", "must be a list")
                 else:
@@ -2830,10 +3095,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "parent_dirty",
             "worktrees",
         }
-        if schema_version in {5, 6, 7, 8}:
+        if schema_version in {5, 6, 7, 8, 9}:
             observed_git_keys.add("parent_worktree_path")
         if _keys(errors, "run.observed.git", git, observed_git_keys):
-            if schema_version in {5, 6, 7, 8}:
+            if schema_version in {5, 6, 7, 8, 9}:
                 _optional_string(
                     errors,
                     "run.observed.git.parent_worktree_path",
@@ -2871,7 +3136,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
         if (
-            schema_version in {3, 4, 5, 6, 7, 8}
+            schema_version in {3, 4, 5, 6, 7, 8, 9}
             and isinstance(run["landing"], dict)
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
@@ -2887,7 +3152,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "pull_request mode requires integration.branch to match head_branch",
             )
         if (
-            schema_version in {3, 4, 5, 6, 7, 8}
+            schema_version in {3, 4, 5, 6, 7, 8, 9}
             and isinstance(run["landing"], dict)
             and (
                 run["landing"].get("checks_status") == "PASS"
@@ -2956,7 +3221,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             ):
                 _add(errors, path, "integrated mission requires PASS gate and integrated_sha")
 
-    if schema_version == 8:
+    if graph_run:
         _validate_graph_state(errors, plan, run)
 
     task_states = run["task_states"]
@@ -3095,7 +3360,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if worker["phase"] not in WORKER_PHASES:
                 _add(errors, f"{path}.phase", "has an unsupported value")
             runtime_binding = worker.get("runtime_binding")
-            if schema_version == 8 and worker["mission_id"] in graph_nodes_by_mission and runtime_binding is None:
+            if graph_run and worker["mission_id"] in graph_nodes_by_mission and runtime_binding is None:
                 _add(
                     errors,
                     f"{path}.runtime_binding",
@@ -3181,7 +3446,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
             if (
-                schema_version in {6, 7, 8}
+                schema_version in {6, 7, 8, 9}
                 and isinstance(runtime, dict)
                 and route_runtime_driver(runtime) == "dynamic_workflow"
                 and nested_policy is not None
@@ -3313,7 +3578,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             "must be empty when disabled",
                         )
 
-    if schema_version == 8:
+    if graph_run:
         review_workers = run["review_workers"]
         review_nodes = {
             node.get("id"): node
@@ -3484,5 +3749,241 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if attempt["task_id"] is not None and attempt["task_id"] not in task_ids:
                 _add(errors, f"{path}.task_id", "is unknown")
             _strings(errors, f"{path}.evidence", attempt["evidence"])
+
+    if schema_version == 9:
+        _validate_gate_results(
+            errors,
+            plan,
+            run,
+            plan_key="batch_verifiers",
+            run_key="batch_gate_results",
+            label="batch gate",
+        )
+        _validate_gate_results(
+            errors,
+            plan,
+            run,
+            plan_key="final_gates",
+            run_key="final_gate_results",
+            label="final gate",
+        )
+        _validate_ui_evidence(errors, plan, run)
+
+    if schema_version in {8, 9} and run.get("status") == "complete":
+        if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:
+            _add(errors, "run.intent", "complete run requires execution intent")
+        if run.get("plan_readiness") != "ready":
+            _add(errors, "run.plan_readiness", "complete run requires ready plan")
+        plan_sources = plan.get("sources")
+        if isinstance(plan_sources, list) and any(
+            source.get("status") not in {"frozen", "delta accepted"}
+            for source in plan_sources
+            if isinstance(source, dict)
+        ):
+            _add(
+                errors,
+                "plan.sources",
+                "complete run requires every source to be frozen or delta accepted",
+            )
+        if not isinstance(integration, dict) or integration.get("integration_head_sha") is None:
+            _add(
+                errors,
+                "run.integration.integration_head_sha",
+                "complete run requires an integration head",
+            )
+        landing = run.get("landing")
+        if (
+            isinstance(landing, dict)
+            and landing.get("mode") == "pull_request"
+            and (
+                landing.get("pr_state") != "merged"
+                or landing.get("merge_status") != "merged"
+            )
+        ):
+            _add(
+                errors,
+                "run.landing",
+                "complete pull-request run requires merged current-head landing",
+            )
+        if isinstance(landing, dict) and landing.get("mode") == "pull_request":
+            pr_url = landing.get("pr_url")
+            authorizations = run.get("authorizations")
+            merge_authorization = (
+                authorizations.get("merge_pr")
+                if isinstance(authorizations, dict)
+                else None
+            )
+            merge_scope = (
+                merge_authorization.get("scope")
+                if isinstance(merge_authorization, dict)
+                else None
+            )
+            merge_targets = (
+                merge_scope.get("targets") if isinstance(merge_scope, dict) else None
+            )
+            if (
+                not _nonempty_string(pr_url)
+                or not isinstance(merge_targets, list)
+                or f"pr:{pr_url}" not in merge_targets
+                or not isinstance(mission_states, dict)
+                or not mission_states
+                or any(
+                    not authorization_covers(
+                        run,
+                        "merge_pr",
+                        mission_id,
+                        f"pr:{pr_url}",
+                        preserve_completed_run_expiry=True,
+                    )
+                    for mission_id in mission_states
+                )
+            ):
+                _add(
+                    errors,
+                    "run.authorizations.merge_pr",
+                    "complete pull-request run requires merge authorization for the exact PR",
+                )
+        if graph_run:
+            graph_state = run.get("graph_state")
+            node_states = (
+                graph_state.get("node_states", {})
+                if isinstance(graph_state, dict)
+                else {}
+            )
+            edge_states = (
+                graph_state.get("edge_states", {})
+                if isinstance(graph_state, dict)
+                else {}
+            )
+            if not isinstance(node_states, dict) or any(
+                not isinstance(state, dict)
+                or state.get("phase")
+                not in {"succeeded", "skipped", "superseded"}
+                for state in node_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run requires every node to succeed, skip, or be superseded",
+                )
+            if isinstance(node_states, dict) and any(
+                isinstance(state, dict) and bool(state.get("blockers"))
+                for state in node_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run cannot retain node blockers",
+                )
+            if isinstance(node_states, dict) and any(
+                isinstance(state, dict)
+                and state.get("phase") == "succeeded"
+                and state.get("last_outcome") != "pass"
+                for state in node_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run requires every succeeded node to have pass outcome",
+                )
+            if not isinstance(edge_states, dict) or any(
+                not isinstance(state, dict)
+                or state.get("status") not in {"traversed", "exhausted", "skipped"}
+                for state in edge_states.values()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.edge_states",
+                    "complete graph run requires every edge to be terminal",
+                )
+        if not isinstance(mission_states, dict) or any(
+            not isinstance(state, dict)
+            or state.get("phase") not in {"integrated", "superseded"}
+            for state in mission_states.values()
+        ):
+            _add(
+                errors,
+                "run.mission_states",
+                "complete run requires every mission to be integrated or superseded",
+            )
+        if isinstance(mission_states, dict) and any(
+            isinstance(state, dict) and bool(state.get("blockers"))
+            for state in mission_states.values()
+        ):
+            _add(errors, "run.mission_states", "complete run cannot retain mission blockers")
+
+        superseded_mission_ids = (
+            {
+                mission_id
+                for mission_id, state in mission_states.items()
+                if isinstance(state, dict) and state.get("phase") == "superseded"
+            }
+            if isinstance(mission_states, dict)
+            else set()
+        )
+        superseded_task_ids = {
+            item["id"]
+            for current_mission in plan.get("missions", [])
+            if isinstance(current_mission, dict)
+            for item in current_mission.get("tasks", [])
+            if (
+                isinstance(item, dict)
+                and _nonempty_string(item.get("id"))
+                and (
+                    item.get("replaced_by")
+                    or current_mission.get("id") in superseded_mission_ids
+                )
+            )
+        }
+        task_closeout_invalid = not isinstance(task_states, dict)
+        if isinstance(task_states, dict):
+            for task_id, state in task_states.items():
+                expected_phase = (
+                    "superseded" if task_id in superseded_task_ids else "mission_recorded"
+                )
+                if not isinstance(state, dict) or state.get("phase") != expected_phase:
+                    task_closeout_invalid = True
+                    break
+        if task_closeout_invalid:
+            _add(
+                errors,
+                "run.task_states",
+                "complete run requires every task to be mission_recorded or superseded",
+            )
+        if isinstance(task_states, dict) and any(
+            isinstance(state, dict)
+            and state.get("phase") == "mission_recorded"
+            and state.get("verifier_status") != "PASS"
+            for state in task_states.values()
+        ):
+            _add(
+                errors,
+                "run.task_states",
+                "complete run requires every recorded task verifier to PASS",
+            )
+        if isinstance(task_states, dict) and any(
+            isinstance(state, dict) and bool(state.get("blockers"))
+            for state in task_states.values()
+        ):
+            _add(errors, "run.task_states", "complete run cannot retain task blockers")
+        if isinstance(wave, dict) and wave.get("status") in {"proposed", "active"}:
+            _add(errors, "run.active_wave", "complete run cannot retain an open wave")
+        if isinstance(workers, list) and any(
+            isinstance(worker, dict)
+            and worker.get("phase") in {"leased", "worker_running", "blocked"}
+            for worker in workers
+        ):
+            _add(errors, "run.workers", "complete run cannot retain active or blocked workers")
+        review_workers = run.get("review_workers")
+        if graph_run and isinstance(review_workers, list) and any(
+            isinstance(worker, dict)
+            and worker.get("phase") in {"leased", "worker_running", "blocked"}
+            for worker in review_workers
+        ):
+            _add(
+                errors,
+                "run.review_workers",
+                "complete run cannot retain active or blocked review workers",
+            )
 
     return sorted(set(errors))

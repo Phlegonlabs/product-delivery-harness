@@ -127,7 +127,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
 
-        self.assertIn("Keep all 17 schema-v8 RUN authorization entries false", goal)
+        self.assertIn("Keep all 17 schema-v9 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("create one worktree thread per selected mission", goal)
 
@@ -207,7 +207,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("environment:production", lifecycle)
         self.assertIn("schema v4", plan_template)
         self.assertIn('"release"', plan_template)
-        self.assertIn("schema v8", runbook)
+        self.assertIn("schema v9", runbook)
         self.assertIn('"deployments"', runbook)
         self.assertIn("version support does not enable Cloudflare release state by itself", runbook)
         self.assertIn("required only when the matching PLAN declares `release`", runbook)
@@ -255,7 +255,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, graph, run):
             self.assertIn("invoke_external_runtime", content)
         self.assertIn('"schema_version": 4', plan)
-        self.assertIn('"schema_version": 8', run)
+        self.assertIn('"schema_version": 9', run)
         self.assertIn('"graph_state"', run)
         self.assertIn("dependency", graph)
         self.assertIn("max_traversals", graph)
@@ -299,6 +299,23 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("task creation `model` and `thinking`", run)
         self.assertIn('"runtime_binding": binding', selector)
         self.assertIn("PLAN-selected wave model", bridge)
+
+    def test_schema_v9_closes_only_with_real_ui_evidence(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        verification = self.read("references/verification-gates.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertIn('"schema_version": 9', runbook)
+        self.assertIn('"batch_gate_results"', runbook)
+        self.assertIn('"final_gate_results"', runbook)
+        self.assertIn('"ui_evidence"', runbook)
+        self.assertIn("New plan-backed files use PLAN schema v4 and RUN schema v9", skill)
+        self.assertIn("complete` is an execution closeout state", state)
+        for content in (skill, verification, runbook):
+            self.assertIn("breakpoint-by-state", content)
+            self.assertIn("SHA-256", content)
+            self.assertIn("docs/goal/evidence/", content)
 
 
 if __name__ == "__main__":

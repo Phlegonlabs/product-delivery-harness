@@ -307,7 +307,7 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
     run_errors = validate_run(plan, run)
     if run_errors:
         raise _validation_error("RUN", run_errors)
-    if plan.get("schema_version") != 4 or run.get("schema_version") != 8:
+    if plan.get("schema_version") != 4 or run.get("schema_version") not in {8, 9}:
         raise GraphSelectionError("typed graph selection requires PLAN v4 and RUN v8")
 
     dependencies, routes = _incoming(plan)
