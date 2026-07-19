@@ -5,6 +5,19 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 
 
+def find_repo_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (
+            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
+            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+        ):
+            return candidate
+    return None
+
+
+REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
+
+
 class FullstackHarnessSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
@@ -15,7 +28,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         selector = self.read("references/parallel-mission-selection.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         agent = self.read("agents/openai.yaml")
-        readme = (SKILL_ROOT.parents[2] / "README.md").read_text(encoding="utf-8")
 
         self.assertIn("## Project Size Gate", skill)
         self.assertIn("small -> direct inspect", skill)
@@ -26,6 +38,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Small work never reaches this selector", selector)
         self.assertIn("Small direct work does not instantiate this file", runbook)
         self.assertIn("classify the project as small or large", agent)
+
+    @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_readme_explains_the_project_size_gate(self) -> None:
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
         self.assertIn("The delivery skill makes one size decision", readme)
 
     def test_external_claude_bridge_is_preflighted_on_demand(self) -> None:
