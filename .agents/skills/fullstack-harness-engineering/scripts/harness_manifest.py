@@ -2627,8 +2627,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, 7, 8, or 9")
     if plan.get("schema_version") == 4 and schema_version not in {8, 9}:
         _add(errors, "run.schema_version", "must equal 8 or 9 for a schema v4 graph PLAN")
-    elif plan_declares_release and plan.get("schema_version") == 3 and schema_version != 7:
-        _add(errors, "run.schema_version", "must equal 7 when a schema v3 PLAN declares release")
+    elif (
+        plan_declares_release
+        and plan.get("schema_version") == 3
+        and schema_version not in {7, 9}
+    ):
+        _add(
+            errors,
+            "run.schema_version",
+            "must equal 7 or 9 when a schema v3 PLAN declares release",
+        )
     optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
@@ -3761,7 +3769,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         _validate_ui_evidence(errors, plan, run)
 
-    if schema_version >= 8 and run.get("status") == "complete":
+    if schema_version in {8, 9} and run.get("status") == "complete":
         if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:
             _add(errors, "run.intent", "complete run requires execution intent")
         if run.get("plan_readiness") != "ready":

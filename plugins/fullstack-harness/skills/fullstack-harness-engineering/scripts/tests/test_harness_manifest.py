@@ -782,17 +782,21 @@ class RunValidationTests(unittest.TestCase):
         run["deployments"]["production"]["worker_name"] = "wrong-production"
         self.assert_run_error_contains(plan, run, "must match PLAN release target")
 
-    def test_release_plan_requires_schema_v7_run(self) -> None:
+    def test_release_plan_requires_schema_v7_or_v9_run(self) -> None:
         plan = valid_release_plan()
         run = valid_run(plan)
         self.assert_run_error_contains(
             plan,
             run,
-            "must equal 7 when a schema v3 PLAN declares release",
+            "must equal 7 or 9 when a schema v3 PLAN declares release",
         )
 
         run["schema_version"] = 7
         self.assert_run_error_contains(plan, run, "missing keys: deployments")
+
+        run = valid_closeout_run(plan)
+        run["deployments"] = valid_release_run(plan)["deployments"]
+        self.assertEqual(validate_run(plan, run), [])
 
     def test_schema_v3_and_v7_do_not_enable_release_fields_by_version_alone(self) -> None:
         plan = valid_plan()
@@ -2089,6 +2093,21 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             string_schema,
+            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
+        )
+
+        complete_string_schema = valid_run(plan)
+        complete_string_schema["schema_version"] = "9"
+        complete_string_schema["status"] = "complete"
+        del complete_string_schema["runtime_capabilities"]["runtime_adapter"]
+        del complete_string_schema["landing"]
+        del complete_string_schema["post_merge_cleanup"]
+        del complete_string_schema["observed"]["git"]["parent_worktree_path"]
+        for action in ("configure_repository", "manage_pr_review", "merge_pr"):
+            del complete_string_schema["authorizations"][action]
+        self.assert_run_error_contains(
+            plan,
+            complete_string_schema,
             "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
         )
 
