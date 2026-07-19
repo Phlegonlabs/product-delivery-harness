@@ -1207,6 +1207,8 @@ class RunValidationTests(unittest.TestCase):
         for action in ("configure_repository", "manage_pr_review", "merge_pr"):
             del run["authorizations"][action]
         self.assertEqual(validate_run(plan, run), [])
+        run["status"] = "complete"
+        self.assertEqual(validate_run(plan, run), [])
 
     def test_run_schema_v3_remains_compatible(self) -> None:
         plan = valid_plan()

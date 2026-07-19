@@ -3761,7 +3761,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         _validate_ui_evidence(errors, plan, run)
 
-    if run.get("status") == "complete":
+    if schema_version >= 8 and run.get("status") == "complete":
         if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:
             _add(errors, "run.intent", "complete run requires execution intent")
         if run.get("plan_readiness") != "ready":
