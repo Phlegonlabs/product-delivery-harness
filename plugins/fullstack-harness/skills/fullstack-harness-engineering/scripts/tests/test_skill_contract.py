@@ -288,14 +288,21 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Plan Mode chooses", graph)
         self.assertIn("provider-specific model options", skill)
         self.assertIn(
-            "prefer Codex `gpt-5.6-terra` with `xhigh` reasoning for general-purpose nodes, backend implementation, and `backend_code` review",
+            "prefer Codex `gpt-5.6-terra` with `xhigh` reasoning for general-purpose nodes and backend implementation",
             skill,
         )
         self.assertIn(
-            "For general-purpose nodes, backend implementation, and `backend_code` review, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning",
+            "For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning",
             plan,
         )
-        self.assertIn("For `frontend_code` review nodes, use `claude-fable-5` with `xhigh` reasoning", skill)
+        self.assertIn(
+            "routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`",
+            skill,
+        )
+        self.assertIn(
+            "routine `frontend_code` review uses `claude-fable-5` with `medium`",
+            skill,
+        )
         for content in (skill, graph, plan):
             self.assertIn("claude-fable-5", content)
             self.assertIn("gpt-5.6-sol", content)
@@ -304,6 +311,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("task creation `model` and `thinking`", run)
         self.assertIn('"runtime_binding": binding', selector)
         self.assertIn("PLAN-selected wave model", bridge)
+
+    def test_verification_policy_selects_and_reuses_only_exact_focused_checks(self) -> None:
+        skill = self.read("SKILL.md")
+        verification = self.read("references/verification-gates.md")
+        graph = self.read("references/graph-orchestration.md")
+        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+
+        for content in (skill, verification, plan, worker):
+            self.assertIn('selection.mode: "changed_files"', content)
+            self.assertIn("parent-observed changed files", content)
+        for content in (skill, verification, plan, run):
+            self.assertIn("session_exact", content)
+            self.assertIn("repository-external", content)
+        self.assertIn("real cross-mission", verification)
+        self.assertIn("broad regression, browser E2E", skill)
+        self.assertIn("after exact-SHA code review and repair loops converge", plan)
+        self.assertIn("A failed forced refresh revokes stale disk reuse", graph)
+        self.assertIn("Do not retry an ambiguous production Workflow", run)
 
     def test_schema_v9_closes_only_with_real_ui_evidence(self) -> None:
         skill = self.read("SKILL.md")

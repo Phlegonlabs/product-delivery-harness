@@ -6,9 +6,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import platform
+import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +107,10 @@ TOOL_PROFILE_REQUIREMENTS = {
     "visual_review_readonly": {"Workflow", "EnterWorktree", "Read", "Glob", "Grep"},
 }
 REVIEW_FORBIDDEN_TOOLS = {"Edit", "Write", "NotebookEdit", "Bash"}
+BRIDGE_PROTOCOL_VERSION = 1
+SESSION_CACHE_PROTOCOL = "claude-runtime-session-cache-v1"
+_VERSION_CACHE: dict[str, str] = {}
+_PREFLIGHT_CACHE: dict[str, dict[str, Any]] = {}
 
 
 class BridgeError(RuntimeError):
@@ -119,7 +128,179 @@ def _resolve_claude(command: str) -> str:
     return resolved
 
 
-def _claude_version(command: str, timeout: int) -> str:
+def _canonical_digest(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _executable_identity(command: str) -> dict[str, Any] | None:
+    try:
+        path = Path(command).resolve(strict=True)
+        stat = path.stat()
+    except OSError:
+        return None
+    return {
+        "path": os.path.normcase(str(path)),
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "device": stat.st_dev,
+        "inode": stat.st_ino,
+    }
+
+
+def _cache_file(
+    session_cache_root: Path | None,
+    category: str,
+    key: str,
+) -> Path | None:
+    if session_cache_root is None:
+        return None
+    return session_cache_root.resolve() / SESSION_CACHE_PROTOCOL / category / f"{key}.json"
+
+
+def _memory_cache_key(session_cache_root: Path | None, key: str) -> str:
+    session = (
+        os.path.normcase(str(session_cache_root.resolve()))
+        if session_cache_root is not None
+        else "<process-session>"
+    )
+    return f"{session}:{key}"
+
+
+def _repository_checkout_root(cwd: Path) -> Path | None:
+    candidate = cwd.resolve()
+    if not candidate.is_dir():
+        candidate = candidate.parent
+    for root in (candidate, *candidate.parents):
+        git_marker = root / ".git"
+        if git_marker.exists() or git_marker.is_symlink():
+            return root
+    return None
+
+
+def _validate_session_cache_root(
+    session_cache_root: Path | None,
+    cwd: Path,
+) -> None:
+    if session_cache_root is None:
+        return
+    resolved_cache = session_cache_root.resolve()
+    checkout_roots = {
+        root
+        for root in (
+            _repository_checkout_root(cwd),
+            _repository_checkout_root(resolved_cache),
+        )
+        if root is not None
+    }
+    for checkout_root in checkout_roots:
+        try:
+            resolved_cache.relative_to(checkout_root)
+        except ValueError:
+            continue
+        raise BridgeError(
+            "Claude runtime session cache root must be outside the repository checkout"
+        )
+
+
+def _read_cache_file(path: Path | None) -> dict[str, Any] | None:
+    if path is None or not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _write_cache_file(path: Path | None, value: dict[str, Any]) -> bool:
+    if path is None:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            json.dump(value, handle, sort_keys=True, separators=(",", ":"))
+            handle.write("\n")
+    except FileExistsError:
+        return False
+    return True
+
+
+def _replace_cache_file(path: Path | None, value: dict[str, Any]) -> bool:
+    if path is None:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            dir=path.parent,
+            prefix=f"{path.name}.",
+            encoding="utf-8",
+            newline="\n",
+            delete=False,
+        ) as temporary:
+            json.dump(value, temporary, sort_keys=True, separators=(",", ":"))
+            temporary.write("\n")
+            temporary_path = Path(temporary.name)
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+    return True
+
+
+def _version_cache_key(identity: dict[str, Any]) -> str:
+    return _canonical_digest(
+        {
+            "protocol": SESSION_CACHE_PROTOCOL,
+            "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+            "platform": {
+                "system": platform.system(),
+                "machine": platform.machine(),
+            },
+            "executable_identity": identity,
+        }
+    )
+
+
+def _claude_version(
+    command: str,
+    timeout: int,
+    *,
+    session_cache_root: Path | None = None,
+    force_refresh: bool = False,
+) -> str:
+    identity = _executable_identity(command)
+    cache_key = _version_cache_key(identity) if identity is not None else None
+    memory_key = (
+        _memory_cache_key(session_cache_root, cache_key)
+        if cache_key is not None
+        else None
+    )
+    if cache_key is not None and memory_key is not None and not force_refresh:
+        cached_version = _VERSION_CACHE.get(memory_key)
+        if cached_version is not None:
+            return cached_version
+        cached = _read_cache_file(
+            _cache_file(session_cache_root, "versions", cache_key)
+        )
+        if (
+            cached is not None
+            and cached.get("protocol") == SESSION_CACHE_PROTOCOL
+            and cached.get("cache_key") == cache_key
+            and cached.get("executable_identity") == identity
+            and isinstance(cached.get("version"), str)
+            and cached["version"].strip()
+        ):
+            _VERSION_CACHE[memory_key] = cached["version"]
+            return cached["version"]
+
     completed = subprocess.run(
         [command, "--version"],
         check=False,
@@ -131,7 +312,19 @@ def _claude_version(command: str, timeout: int) -> str:
     )
     if completed.returncode != 0 or not completed.stdout.strip():
         raise BridgeError("Claude Code version check failed")
-    return completed.stdout.strip()
+    version = completed.stdout.strip()
+    if cache_key is not None and memory_key is not None:
+        _VERSION_CACHE[memory_key] = version
+        _write_cache_file(
+            _cache_file(session_cache_root, "versions", cache_key),
+            {
+                "protocol": SESSION_CACHE_PROTOCOL,
+                "cache_key": cache_key,
+                "executable_identity": identity,
+                "version": version,
+            },
+        )
+    return version
 
 
 def _extract_structured(stdout: str) -> Any:
@@ -374,47 +567,171 @@ def _invoke(command: list[str], *, cwd: Path, timeout: int) -> Any:
     return _extract_structured(completed.stdout)
 
 
-def preflight(
+def _preflight_cache_key(
     *,
-    claude: str,
-    script: Path,
-    cwd: Path,
-    timeout: int,
-    max_budget_usd: float,
-    model: str = "haiku",
+    identity: dict[str, Any],
+    version: str,
+    script_sha256: str,
+    model: str,
+) -> str:
+    return _canonical_digest(
+        {
+            "protocol": SESSION_CACHE_PROTOCOL,
+            "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+            "platform": {
+                "system": platform.system(),
+                "machine": platform.machine(),
+            },
+            "executable_identity": identity,
+            "version": version,
+            "preflight_script_sha256": script_sha256,
+            "model": model,
+        }
+    )
+
+
+def _preflight_scope_key(
+    *,
+    identity: dict[str, Any],
+    script_sha256: str,
+    model: str,
+) -> str:
+    return _canonical_digest(
+        {
+            "protocol": SESSION_CACHE_PROTOCOL,
+            "bridge_protocol_version": BRIDGE_PROTOCOL_VERSION,
+            "platform": {
+                "system": platform.system(),
+                "machine": platform.machine(),
+            },
+            "executable_identity": identity,
+            "preflight_script_sha256": script_sha256,
+            "model": model,
+        }
+    )
+
+
+def _preflight_revocation_file(
+    session_cache_root: Path | None,
+    scope_key: str | None,
+) -> Path | None:
+    if scope_key is None:
+        return None
+    return _cache_file(session_cache_root, "preflight-revocations", scope_key)
+
+
+def _preflight_restoration_file(
+    session_cache_root: Path | None,
+    scope_key: str | None,
+) -> Path | None:
+    if scope_key is None:
+        return None
+    return _cache_file(session_cache_root, "preflight-restorations", scope_key)
+
+
+def _preflight_revocation_identity(
+    session_cache_root: Path | None,
+    scope_key: str | None,
+) -> str | None:
+    path = _preflight_revocation_file(session_cache_root, scope_key)
+    if path is None or not path.is_file():
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return "unreadable"
+
+
+def _revoke_preflight_disk_cache(
+    session_cache_root: Path | None,
+    scope_key: str | None,
+) -> None:
+    if scope_key is None:
+        return
+    _replace_cache_file(
+        _preflight_revocation_file(session_cache_root, scope_key),
+        {
+            "protocol": SESSION_CACHE_PROTOCOL,
+            "scope_key": scope_key,
+            "status": "revoked_after_failed_force_refresh",
+            "nonce": secrets.token_hex(16),
+        },
+    )
+
+
+def _preflight_disk_revoked(
+    session_cache_root: Path | None,
+    scope_key: str | None,
+    cache_key: str,
+) -> bool:
+    revocation_identity = _preflight_revocation_identity(
+        session_cache_root,
+        scope_key,
+    )
+    if revocation_identity is None:
+        return False
+    restoration = _read_cache_file(
+        _preflight_restoration_file(session_cache_root, scope_key)
+    )
+    return not (
+        isinstance(restoration, dict)
+        and restoration.get("protocol") == SESSION_CACHE_PROTOCOL
+        and restoration.get("scope_key") == scope_key
+        and restoration.get("cache_key") == cache_key
+        and restoration.get("revocation_identity") == revocation_identity
+        and restoration.get("status") == "restored_after_fresh_pass"
+    )
+
+
+def _restore_preflight_disk_cache(
+    session_cache_root: Path | None,
+    scope_key: str | None,
+    cache_key: str,
+    observed_revocation_identity: str | None,
+) -> None:
+    if scope_key is None or observed_revocation_identity is None:
+        return
+    _replace_cache_file(
+        _preflight_restoration_file(session_cache_root, scope_key),
+        {
+            "protocol": SESSION_CACHE_PROTOCOL,
+            "scope_key": scope_key,
+            "cache_key": cache_key,
+            "revocation_identity": observed_revocation_identity,
+            "status": "restored_after_fresh_pass",
+        },
+    )
+
+
+def _evict_preflight_memory(
+    *,
+    identity: dict[str, Any] | None,
+    script_sha256: str,
+    model: str,
+) -> None:
+    stale_keys = [
+        key
+        for key, entry in _PREFLIGHT_CACHE.items()
+        if entry.get("executable_identity") == identity
+        and entry.get("preflight_script_sha256") == script_sha256
+        and entry.get("model") == model
+    ]
+    for key in stale_keys:
+        _PREFLIGHT_CACHE.pop(key, None)
+
+
+def _preflight_result(
+    *,
+    command: str,
+    version: str,
+    reused: bool,
+    duration_ms: int,
 ) -> dict[str, Any]:
-    command = _resolve_claude(claude)
-    if not script.is_file():
-        raise BridgeError(f"Preflight workflow is missing: {script}")
-    version = _claude_version(command, timeout)
-    prompt = (
-        "Use the Workflow tool exactly once. "
-        f"Set scriptPath to {script.resolve()} and args to {{\"protocol_version\":1}}. "
-        "Do not use any other tool. Return the workflow result as the final structured output."
+    evidence = (
+        "Reused the exact successful protocol-v1 preflight from this session"
+        if reused
+        else "Workflow agent returned the protocol-v1 structured preflight result"
     )
-    result = _invoke(
-        _build_command(
-            command=command,
-            prompt=prompt,
-            schema=PREFLIGHT_SCHEMA,
-            allowed_tools=["Workflow"],
-            permission_mode="dontAsk",
-            max_budget_usd=max_budget_usd,
-            model=model,
-        ),
-        cwd=cwd,
-        timeout=timeout,
-    )
-    expected = {
-        "provider": "claude_code",
-        "driver": "dynamic_workflow",
-        "protocol_version": 1,
-        "status": "available",
-        "probe_count": 2,
-        "probe_labels": ["probe-a", "probe-b"],
-    }
-    if result != expected:
-        raise BridgeError(f"Unexpected Dynamic Workflow preflight result: {_compact(result)}")
     return {
         "status": "PASS",
         "runtime": {
@@ -424,8 +741,177 @@ def preflight(
             "version": version,
             "completion_channel": "agent_result",
         },
-        "evidence": ["Workflow agent returned the protocol-v1 structured preflight result"],
+        "evidence": [evidence],
+        "metrics": {
+            "duration_ms": duration_ms,
+            "preflight_executed": 0 if reused else 1,
+            "preflight_reused": 1 if reused else 0,
+        },
     }
+
+
+def preflight(
+    *,
+    claude: str,
+    script: Path,
+    cwd: Path,
+    timeout: int,
+    max_budget_usd: float,
+    model: str = "haiku",
+    session_cache_root: Path | None = None,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    started = time.perf_counter()
+    _validate_session_cache_root(session_cache_root, cwd)
+    command = _resolve_claude(claude)
+    if not script.is_file():
+        raise BridgeError(f"Preflight workflow is missing: {script}")
+    script_path = script.resolve()
+    script_sha256 = hashlib.sha256(script_path.read_bytes()).hexdigest()
+    identity = _executable_identity(command)
+    scope_key = (
+        _preflight_scope_key(
+            identity=identity,
+            script_sha256=script_sha256,
+            model=model,
+        )
+        if identity is not None
+        else None
+    )
+    observed_revocation_identity = _preflight_revocation_identity(
+        session_cache_root,
+        scope_key,
+    )
+    try:
+        version = _claude_version(
+            command,
+            timeout,
+            session_cache_root=session_cache_root,
+            force_refresh=force_refresh,
+        )
+    except Exception:
+        if force_refresh:
+            _evict_preflight_memory(
+                identity=identity,
+                script_sha256=script_sha256,
+                model=model,
+            )
+            _revoke_preflight_disk_cache(session_cache_root, scope_key)
+        raise
+    cache_key = (
+        _preflight_cache_key(
+            identity=identity,
+            version=version,
+            script_sha256=script_sha256,
+            model=model,
+        )
+        if identity is not None
+        else None
+    )
+    memory_key = (
+        _memory_cache_key(session_cache_root, cache_key)
+        if cache_key is not None
+        else None
+    )
+    if cache_key is not None and memory_key is not None and not force_refresh:
+        cached = _PREFLIGHT_CACHE.get(memory_key)
+        if cached is None and not _preflight_disk_revoked(
+            session_cache_root,
+            scope_key,
+            cache_key,
+        ):
+            cached = _read_cache_file(
+                _cache_file(session_cache_root, "preflights", cache_key)
+            )
+        if (
+            isinstance(cached, dict)
+            and cached.get("protocol") == SESSION_CACHE_PROTOCOL
+            and cached.get("cache_key") == cache_key
+            and cached.get("executable_identity") == identity
+            and cached.get("version") == version
+            and cached.get("preflight_script_sha256") == script_sha256
+            and cached.get("model") == model
+            and cached.get("status") == "available"
+        ):
+            _PREFLIGHT_CACHE[memory_key] = cached
+            return _preflight_result(
+                command=command,
+                version=version,
+                reused=True,
+                duration_ms=max(
+                    0,
+                    round((time.perf_counter() - started) * 1000),
+                ),
+            )
+
+    prompt = (
+        "Use the Workflow tool exactly once. "
+        f"Set scriptPath to {script_path} and args to {{\"protocol_version\":1}}. "
+        "Do not use any other tool. Return the workflow result as the final structured output."
+    )
+    try:
+        result = _invoke(
+            _build_command(
+                command=command,
+                prompt=prompt,
+                schema=PREFLIGHT_SCHEMA,
+                allowed_tools=["Workflow"],
+                permission_mode="dontAsk",
+                max_budget_usd=max_budget_usd,
+                model=model,
+            ),
+            cwd=cwd,
+            timeout=timeout,
+        )
+        expected = {
+            "provider": "claude_code",
+            "driver": "dynamic_workflow",
+            "protocol_version": 1,
+            "status": "available",
+            "probe_count": 2,
+            "probe_labels": ["probe-a", "probe-b"],
+        }
+        if result != expected:
+            raise BridgeError(
+                f"Unexpected Dynamic Workflow preflight result: {_compact(result)}"
+            )
+    except Exception:
+        if force_refresh:
+            _evict_preflight_memory(
+                identity=identity,
+                script_sha256=script_sha256,
+                model=model,
+            )
+            _revoke_preflight_disk_cache(session_cache_root, scope_key)
+        raise
+    if cache_key is not None and memory_key is not None:
+        entry = {
+            "protocol": SESSION_CACHE_PROTOCOL,
+            "cache_key": cache_key,
+            "executable_identity": identity,
+            "version": version,
+            "preflight_script_sha256": script_sha256,
+            "model": model,
+            "status": "available",
+        }
+        _PREFLIGHT_CACHE[memory_key] = entry
+        persisted = _replace_cache_file(
+            _cache_file(session_cache_root, "preflights", cache_key),
+            entry,
+        )
+        if persisted:
+            _restore_preflight_disk_cache(
+                session_cache_root,
+                scope_key,
+                cache_key,
+                observed_revocation_identity,
+            )
+    return _preflight_result(
+        command=command,
+        version=version,
+        reused=False,
+        duration_ms=max(0, round((time.perf_counter() - started) * 1000)),
+    )
 
 
 def _validate_tool_profile(
@@ -862,6 +1348,7 @@ def run_wave(
     timeout: int,
     max_budget_usd: float,
     model: str | None = None,
+    session_cache_root: Path | None = None,
 ) -> dict[str, Any]:
     request = _load_wave_request(request_path)
     requested_model = request["model"]
@@ -870,12 +1357,17 @@ def run_wave(
     plan = load_plan(plan_path)
     run = load_run(run_path)
     _validate_current_wave_binding(request, plan, run)
+    _validate_session_cache_root(session_cache_root, cwd)
     command = _resolve_claude(claude)
     if not script.is_file():
         raise BridgeError(f"Graph workflow is missing: {script}")
     workflow_script_path = script.resolve()
     workflow_script_sha256 = hashlib.sha256(workflow_script_path.read_bytes()).hexdigest()
-    version = _claude_version(command, timeout)
+    version = _claude_version(
+        command,
+        timeout,
+        session_cache_root=session_cache_root,
+    )
     workflow_args = {
         key: value
         for key, value in request.items()
@@ -892,6 +1384,7 @@ def run_wave(
         "\"workflow_script_path\": <scriptPath>, \"workflow_error\": <error or null>, "
         "\"results\": <workflow result, or [] when error is non-null>} as the final structured output."
     )
+    workflow_started = time.perf_counter()
     result, workflow_runtime, tool_input = _invoke(
         _build_command(
             command=command,
@@ -907,6 +1400,10 @@ def run_wave(
         ),
         cwd=cwd,
         timeout=timeout,
+    )
+    workflow_duration_ms = max(
+        0,
+        round((time.perf_counter() - workflow_started) * 1000),
     )
     if not isinstance(result, dict):
         raise BridgeError("Claude graph wave did not return a structured wrapper")
@@ -958,6 +1455,7 @@ def run_wave(
             "workflow_error": None,
         },
         "results": results,
+        "metrics": {"workflow_duration_ms": workflow_duration_ms},
     }
 
 
@@ -968,9 +1466,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--max-budget-usd", type=float, default=0.25)
     parser.add_argument("--model", default=None)
+    parser.add_argument("--session-cache-root", type=Path)
     subparsers = parser.add_subparsers(dest="command", required=True)
     preflight_parser = subparsers.add_parser("preflight")
     preflight_parser.add_argument("--script", type=Path, default=DEFAULT_PREFLIGHT)
+    preflight_parser.add_argument("--force-refresh", action="store_true")
     wave_parser = subparsers.add_parser("run-wave")
     wave_parser.add_argument("--script", type=Path, default=DEFAULT_GRAPH_WORKFLOW)
     wave_parser.add_argument("--plan", required=True, type=Path)
@@ -990,6 +1490,8 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=args.timeout,
                 max_budget_usd=args.max_budget_usd,
                 model=args.model or "haiku",
+                session_cache_root=args.session_cache_root,
+                force_refresh=args.force_refresh,
             )
         else:
             result = run_wave(
@@ -1002,6 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=args.timeout,
                 max_budget_usd=args.max_budget_usd,
                 model=args.model,
+                session_cache_root=args.session_cache_root,
             )
     except (BridgeError, ManifestError, OSError, subprocess.TimeoutExpired) as exc:
         print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True, indent=2))
