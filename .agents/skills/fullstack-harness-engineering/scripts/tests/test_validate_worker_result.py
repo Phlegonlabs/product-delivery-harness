@@ -481,7 +481,35 @@ class ValidateWorkerResultTests(unittest.TestCase):
             "observed_branch_ref": BRANCH_REF,
             "git_common_dir_confirmed": True,
         }
-        self.assertEqual(validate(self.plan, run, self.result, **observations), [])
+        result = copy.deepcopy(self.result)
+        result["subagent_activity"] = {
+            "status": "not_applicable",
+            "skip_reason": "external_codex_agent uses flat parent orchestration",
+            "children": [],
+        }
+        self.assertEqual(validate(self.plan, run, result, **observations), [])
+
+        missing_activity = copy.deepcopy(result)
+        del missing_activity["subagent_activity"]
+        errors = validate(self.plan, run, missing_activity, **observations)
+        self.assertTrue(
+            any(
+                error["code"] == "missing_field"
+                and error["path"] == "worker_result.subagent_activity"
+                for error in errors
+            )
+        )
+
+        wrong_activity = copy.deepcopy(result)
+        wrong_activity["subagent_activity"]["skip_reason"] = "nested work was skipped"
+        errors = validate(self.plan, run, wrong_activity, **observations)
+        self.assertTrue(
+            any(
+                error["code"] == "invalid_value"
+                and error["path"] == "worker_result.subagent_activity"
+                for error in errors
+            )
+        )
 
         for action in targets:
             with self.subTest(action=action):
@@ -489,7 +517,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 unauthorized["authorizations"][action] = authorization(
                     action, enabled=False
                 )
-                errors = validate(self.plan, unauthorized, self.result, **observations)
+                errors = validate(self.plan, unauthorized, result, **observations)
                 self.assertIn("external_launch_not_authorized", error_codes(errors))
                 self.assertTrue(
                     any(

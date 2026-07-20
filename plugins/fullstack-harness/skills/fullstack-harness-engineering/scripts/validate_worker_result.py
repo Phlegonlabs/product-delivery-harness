@@ -70,6 +70,7 @@ SUBAGENT_CHILD_FIELDS = {
     "evidence_paths",
 }
 ISOLATED_WORKSPACES = {"parent_managed_worktree", "app_managed_worktree"}
+EXTERNAL_CODEX_SKIP_REASON = "external_codex_agent uses flat parent orchestration"
 
 
 def _issue(
@@ -389,23 +390,46 @@ def validate_worker_result_data(
     else:
         worker = worker_matches[0]
 
+    runtime_binding = worker.get("runtime_binding") if worker else None
+    external_codex = (
+        isinstance(runtime_binding, dict)
+        and runtime_binding.get("driver") == "external_codex_agent"
+    )
     nested_policy = (
         worker.get("nested_subagent_policy") if isinstance(worker, dict) else None
     )
-    if isinstance(nested_policy, dict):
-        if "subagent_activity" not in result:
-            _issue(
-                errors,
-                "missing_field",
-                "worker_result.subagent_activity",
-                "is required when the worker records a nested-subagent policy",
-            )
+    if (isinstance(nested_policy, dict) or external_codex) and "subagent_activity" not in result:
+        reason = (
+            "the external Codex worker contract"
+            if external_codex
+            else "the worker records a nested-subagent policy"
+        )
+        _issue(
+            errors,
+            "missing_field",
+            "worker_result.subagent_activity",
+            f"is required because {reason}",
+        )
     if "subagent_activity" in result:
+        activity = result.get("subagent_activity")
         _validate_subagent_activity(
-            result.get("subagent_activity"),
+            activity,
             policy=nested_policy if isinstance(nested_policy, dict) else None,
             errors=errors,
         )
+        if external_codex and isinstance(activity, dict):
+            expected_activity = {
+                "status": "not_applicable",
+                "skip_reason": EXTERNAL_CODEX_SKIP_REASON,
+                "children": [],
+            }
+            if activity != expected_activity:
+                _issue(
+                    errors,
+                    "invalid_value",
+                    "worker_result.subagent_activity",
+                    "external Codex requires the exact flat-orchestration activity record",
+                )
 
     worker_id = mission_state.get("worker_id")
     binding_checks = [
@@ -431,11 +455,6 @@ def validate_worker_result_data(
     if worker and mission_state.get("worker_id") != worker.get("worker_id"):
         _issue(errors, "worker_record_mismatch", "harness_run.mission_states.worker_id", "does not match worker record")
     runtime_capabilities = run.get("runtime_capabilities", {})
-    runtime_binding = worker.get("runtime_binding") if worker else None
-    external_codex = (
-        isinstance(runtime_binding, dict)
-        and runtime_binding.get("driver") == "external_codex_agent"
-    )
     if external_codex:
         expected_runtime_axes = {
             "worker_runtime": "subagent",
