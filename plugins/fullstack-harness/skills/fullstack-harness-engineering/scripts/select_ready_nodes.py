@@ -518,6 +518,12 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
             deferred.append({"node_id": node["id"], "reason_codes": reasons})
         else:
             binding = _runtime_binding(node, run["runtime_capabilities"])
+            if (
+                run.get("schema_version") != 9
+                and isinstance(binding, dict)
+                and binding.get("driver") == "external_codex_agent"
+            ):
+                binding = None
             logical_ready.append({"node": node, "binding": binding})
 
     dispatch_ready: list[dict[str, Any]] = []

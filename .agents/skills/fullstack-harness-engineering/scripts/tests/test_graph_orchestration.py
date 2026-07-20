@@ -1059,6 +1059,25 @@ class GraphManifestTests(unittest.TestCase):
             authorize(run, action, mission_ids, "*")
         authorize(run, "invoke_external_runtime", mission_ids, "runtime:codex")
 
+        schema_v8 = select_ready_nodes(plan, run)
+        schema_v8_deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in schema_v8["deferred_nodes"]
+        }
+        self.assertEqual([], schema_v8["dispatchable_nodes"])
+        self.assertIn("runtime_unavailable", schema_v8_deferred["N-M1"])
+        self.assertIn("runtime_unavailable", schema_v8_deferred["N-M2"])
+
+        run["schema_version"] = 9
+        run["batch_gate_results"] = [
+            {"id": item["id"], "status": "planned", "head_sha": None, "evidence": []}
+            for item in plan["batch_verifiers"]
+        ]
+        run["final_gate_results"] = [
+            {"id": item["id"], "status": "planned", "head_sha": None, "evidence": []}
+            for item in plan["final_gates"]
+        ]
+        run["ui_evidence"] = []
         result = select_ready_nodes(plan, run)
 
         self.assertEqual(["N-M1", "N-M2"], result["ready_frontier"])
