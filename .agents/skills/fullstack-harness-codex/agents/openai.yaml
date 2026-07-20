@@ -1,0 +1,6 @@
+interface:
+  display_name: "Harness Codex Adapter"
+  short_description: "Run Harness missions from a Codex host"
+  default_prompt: "Use $fullstack-harness-codex with the shared Harness core for a Codex-hosted large run. Prefer authorized app tasks in app-managed worktrees, keep nested helpers read-only, preflight external Claude only when a ready PLAN node needs it, and return all verification and integration decisions to the Codex parent."
+policy:
+  allow_implicit_invocation: true

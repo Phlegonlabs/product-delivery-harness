@@ -110,9 +110,11 @@ Official Codex review documentation establishes these current facts:
 - GitHub auto-merge merges a PR only after its required reviews and status checks pass, and the repository must have auto-merge enabled first.
 - GitHub CLI supports an exact-head merge guard through `gh pr merge --match-head-commit <SHA>` and can combine it with squash and auto-merge.
 
-The harness therefore records local diff review separately from GitHub review and binds GitHub CI/review evidence to the exact PR head SHA. A later push invalidates earlier evidence even if the PR number is unchanged. The parent should request review again after the new checks pass.
+The harness therefore records local diff review separately from GitHub review and binds GitHub CI/review evidence to the exact PR head SHA. A later push invalidates earlier evidence even if the PR number is unchanged. Because CI and Codex review are independent merge gates, the parent starts or observes both for the final pushed head as soon as PR state and authorization allow, polls them concurrently, and restarts both after a new push.
 
-A skill can direct the interactive parent to run a persistent GitHub tool loop: create the PR, poll checks, request Codex review, poll findings and threads, and submit an exact-head merge after every gate passes. The skill cannot turn on repository Automatic reviews or auto-merge by itself. Those remain repository settings, and changing them requires separate authorization; when Automatic reviews are not observed, the portable review trigger is `@codex review`.
+A landing adapter can direct the interactive parent to run a persistent GitHub loop: create or ready the PR, start or observe checks and Codex review in parallel, poll both, and submit an exact-head merge after every gate passes. The skill cannot turn on repository Automatic reviews or auto-merge by itself. Those remain repository settings, and changing them requires separate authorization; when Automatic reviews are not observed, the portable review trigger is `@codex review`.
+
+The runtime adapters remain separate from this landing adapter. A Codex parent loads only the Codex adapter, including its guarded external-Claude route; a Claude Code parent loads only the Claude Code adapter, including its guarded cc-codex route. Local-only work does not load the GitHub adapter. This preserves one PLAN/RUN control plane while reducing default skill context and remote waiting.
 
 For plan-backed shared-repository execution, the harness now surfaces the full launch and landing authorization set in one Plan Readiness checkpoint. Every action still has its own ledger entry and live pre-mutation recheck; the checkpoint only removes repeated prompts after the user has approved the exact path.
 

@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
+SKILLS_ROOT = SKILL_ROOT.parent
 
 
 def find_repo_root(start: Path) -> Path | None:
@@ -21,6 +22,30 @@ REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 class FullstackHarnessSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def read_sibling_skill(self, name: str) -> str:
+        return (SKILLS_ROOT / name / "SKILL.md").read_text(encoding="utf-8")
+
+    def read_sibling_agent(self, name: str) -> str:
+        return (SKILLS_ROOT / name / "agents" / "openai.yaml").read_text(
+            encoding="utf-8"
+        )
+
+    def test_runtime_and_landing_adapters_load_lazily(self) -> None:
+        core = self.read("SKILL.md")
+        codex = self.read_sibling_skill("fullstack-harness-codex")
+        claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        landing = self.read_sibling_skill("fullstack-harness-github-landing")
+
+        self.assertIn("Do not load all adapters in one run", core)
+        self.assertIn("Do not also read the Claude Code adapter", core)
+        self.assertIn("Do not also read the Codex adapter", core)
+        self.assertIn("only when the requested outcome includes push", core)
+        self.assertIn("Do not load the Claude Code adapter in the same parent", codex)
+        self.assertIn("Do not load the Codex adapter in the same parent", claude)
+        self.assertIn("Local branch, commit, or integration work stays `local_only`", landing)
+        self.assertNotIn("## Authorized Automatic Pull-Request Landing", codex)
+        self.assertNotIn("## Authorized Automatic Pull-Request Landing", claude)
 
     def test_project_size_gate_keeps_small_work_direct(self) -> None:
         skill = self.read("SKILL.md")
@@ -44,28 +69,28 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
-        self.assertIn("The delivery skill makes one size decision", readme)
+        self.assertIn("The delivery core makes one size decision", readme)
 
     def test_external_claude_bridge_is_preflighted_on_demand(self) -> None:
-        skill = self.read("SKILL.md")
+        skill = self.read_sibling_skill("fullstack-harness-codex")
         research = self.read("references/orchestration-research-notes.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_sibling_agent("fullstack-harness-codex")
 
         self.assertIn("Do not probe an external runtime merely because it may be available", skill)
-        self.assertIn("run the bridge preflight before ready-node selection", skill)
-        self.assertIn("a ready node's PLAN runtime policy calls for external Claude", skill)
+        self.assertIn("Preflight Claude before selection only when a ready PLAN node needs that route", skill)
+        self.assertIn("Do not probe an external runtime merely because it may be available", skill)
         self.assertIn("does not preflight Claude merely because its CLI is installed", research)
-        self.assertIn("preflight Claude before selection only when a ready PLAN node needs that route", agent)
+        self.assertIn("preflight external Claude only when a ready PLAN node needs it", agent)
 
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
-        skill = self.read("SKILL.md")
+        skill = self.read_sibling_skill("fullstack-harness-codex")
         orchestration = self.read("references/worktree-thread-orchestration.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_sibling_agent("fullstack-harness-codex")
 
         self.assertIn("Do not stop after printing a non-empty app-task wave", skill)
         self.assertIn("consume every `launch_directives` entry", skill)
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
-        self.assertIn("typed PLAN/RUN graph", agent)
+        self.assertIn("Codex-hosted large run", agent)
 
     def test_plan_backed_runs_detect_then_select_up_to_three(self) -> None:
         skill = self.read("SKILL.md")
@@ -105,7 +130,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         )
 
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
-        skill = self.read("SKILL.md")
+        skill = self.read_sibling_skill("fullstack-harness-claude-code")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
         selector_reference = self.read("references/parallel-mission-selection.md")
@@ -132,13 +157,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("create one worktree thread per selected mission", goal)
 
     def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
-        skill = self.read("SKILL.md")
+        skill = self.read_sibling_skill("fullstack-harness-github-landing")
         goal = self.read("assets/templates/GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         agent = self.read("agents/openai.yaml")
 
-        self.assertIn("#### Authorized Automatic Pull-Request Landing", skill)
+        self.assertIn("## Authorized Automatic Pull-Request Landing", skill)
         self.assertIn("do not stop after local verification", skill)
         self.assertIn("do not stop after verification or PR creation", goal)
         self.assertIn("one continuous parent-owned landing loop", runbook)
@@ -146,10 +171,25 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, goal, runbook, project_rules):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())
-        self.assertIn("integrate verified work", agent)
+        self.assertIn("integrate passing work", agent)
+
+    def test_remote_verification_is_final_head_and_parallel(self) -> None:
+        core = self.read("SKILL.md")
+        landing = self.read_sibling_skill("fullstack-harness-github-landing")
+        verification = self.read("references/verification-gates.md")
+        state = self.read("references/execution-state-model.md")
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("does not wait for GitHub CI or GitHub review", core)
+        self.assertIn("Do not push intermediate worker heads merely to obtain CI", landing)
+        self.assertIn("poll both concurrently", landing)
+        self.assertIn("sibling remote gates", landing)
+        self.assertIn("run or observe current-head CI and current-head Codex review concurrently", verification)
+        self.assertIn("CI and review are independent sibling gates", state)
+        self.assertIn("Poll both gates concurrently", project_rules)
 
     def test_plan_readiness_requests_review_and_merge_once(self) -> None:
-        skill = self.read("SKILL.md")
+        skill = self.read_sibling_skill("fullstack-harness-github-landing")
         state = self.read("references/execution-state-model.md")
         goal = self.read("assets/templates/GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
@@ -271,7 +311,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("--allowedTools", bridge)
 
     def test_plan_provider_options_bind_worker_models(self) -> None:
-        skill = self.read("SKILL.md")
+        skill = "\n".join(
+            (
+                self.read("SKILL.md"),
+                self.read_sibling_skill("fullstack-harness-codex"),
+                self.read_sibling_skill("fullstack-harness-claude-code"),
+            )
+        )
         graph = self.read("references/graph-orchestration.md")
         state = self.read("references/execution-state-model.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")

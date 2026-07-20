@@ -1,0 +1,6 @@
+interface:
+  display_name: "Harness Claude Code Adapter"
+  short_description: "Run Harness missions from a Claude Code host"
+  default_prompt: "Use $fullstack-harness-claude-code with the shared Harness core for a Claude Code-hosted large run. Use exact-base Dynamic Workflow worktrees when authorized, keep mission agents flat, and invoke codex:codex-rescue only through the guarded fresh worktree route when a ready PLAN node needs Codex."
+policy:
+  allow_implicit_invocation: true
