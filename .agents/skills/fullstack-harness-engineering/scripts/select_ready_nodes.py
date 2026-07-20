@@ -109,7 +109,12 @@ def _external_runtime(runtime: dict[str, Any], provider: str) -> dict[str, Any] 
     return None
 
 
-def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any] | None:
+def _runtime_binding(
+    node: dict[str, Any],
+    runtime: dict[str, Any],
+    *,
+    allow_external_codex: bool = True,
+) -> dict[str, Any] | None:
     policy = node.get("runtime")
     if node.get("executor") != "runtime_worker" or not isinstance(policy, dict):
         return None
@@ -137,6 +142,8 @@ def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str,
             }.get(external.get("driver"))
             if external_binding is not None:
                 driver, source = external_binding
+                if driver == "external_codex_agent" and not allow_external_codex:
+                    continue
                 if node.get("kind") == "verifier" and driver == "external_codex_agent":
                     continue
                 return {
@@ -517,13 +524,11 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
         if reasons:
             deferred.append({"node_id": node["id"], "reason_codes": reasons})
         else:
-            binding = _runtime_binding(node, run["runtime_capabilities"])
-            if (
-                run.get("schema_version") != 9
-                and isinstance(binding, dict)
-                and binding.get("driver") == "external_codex_agent"
-            ):
-                binding = None
+            binding = _runtime_binding(
+                node,
+                run["runtime_capabilities"],
+                allow_external_codex=run.get("schema_version") == 9,
+            )
             logical_ready.append({"node": node, "binding": binding})
 
     dispatch_ready: list[dict[str, Any]] = []

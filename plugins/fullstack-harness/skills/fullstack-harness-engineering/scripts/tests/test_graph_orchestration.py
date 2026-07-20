@@ -1068,6 +1068,28 @@ class GraphManifestTests(unittest.TestCase):
         self.assertIn("runtime_unavailable", schema_v8_deferred["N-M1"])
         self.assertIn("runtime_unavailable", schema_v8_deferred["N-M2"])
 
+        for node in plan["graph"]["nodes"]:
+            node["runtime"]["allowed_providers"] = ["codex", "claude_code"]
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        authorize(run, "spawn_subagents", mission_ids, "*")
+        authorize(run, "create_local_worktrees", mission_ids, "*")
+        schema_v8_fallback = select_ready_nodes(plan, run)
+        self.assertEqual(
+            ["run_dynamic_workflow", "run_dynamic_workflow"],
+            [item["launch_kind"] for item in schema_v8_fallback["dispatchable_nodes"]],
+        )
+        self.assertTrue(
+            all(
+                item["runtime_provider"] == "claude_code"
+                and item["runtime_source"] == "host"
+                for item in schema_v8_fallback["dispatchable_nodes"]
+            )
+        )
+        for node in plan["graph"]["nodes"]:
+            node["runtime"]["allowed_providers"] = ["codex"]
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        authorize(run, "spawn_subagents", mission_ids, "worker:preallocation")
+
         run["schema_version"] = 9
         run["batch_gate_results"] = [
             {"id": item["id"], "status": "planned", "head_sha": None, "evidence": []}
