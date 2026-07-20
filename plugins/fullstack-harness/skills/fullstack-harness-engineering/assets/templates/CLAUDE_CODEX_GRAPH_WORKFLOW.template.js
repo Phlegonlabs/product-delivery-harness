@@ -229,7 +229,7 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
     `Do not wait for user input. Return contract_gap with REFINEMENT_REQUEST when a decision is required.\n` +
     `Your final message must contain exactly one marked JSON result. The marked object must contain only node_result and runtime_evidence. ` +
     `node_result must use the exact Harness typed-node fields. runtime_evidence must contain non-empty worktree_path, branch_ref, and head_sha observed from Git. ` +
-    `A mission worker_result must use the WORKER_RESULT contract, include changed_files, task and verifier evidence, durable commit SHAs, and subagent_activity with status not_applicable and no children.\n` +
+    `A mission worker_result must use the WORKER_RESULT contract, include changed_files, task and verifier evidence, durable commit SHAs, and subagent_activity with status "not_applicable", skip_reason "external_codex_agent uses flat parent orchestration", and children [].\n` +
     `Output ${beginMarker}, then the JSON object, then ${endMarker}. Do not place either marker anywhere else.`;
 
   const agentOptions = {

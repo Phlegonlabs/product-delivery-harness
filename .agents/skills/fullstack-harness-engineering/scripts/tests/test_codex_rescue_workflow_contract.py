@@ -44,6 +44,10 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
         self.assertIn("durable commits", workflow)
         self.assertIn("Do not integrate, push, open or modify a PR, deploy", workflow)
         self.assertIn("or delegate to another agent", workflow)
+        self.assertIn(
+            'skip_reason "external_codex_agent uses flat parent orchestration"',
+            workflow,
+        )
         self.assertIn("Do not wait for user input", workflow)
 
     @unittest.skipUnless(NODE, "node is required to execute Workflow template contracts")
