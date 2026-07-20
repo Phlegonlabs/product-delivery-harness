@@ -41,7 +41,11 @@ def _exact_authorized(run: dict[str, Any], action: str, mission_id: str, target:
     return mission_id in missions and target in targets
 
 
-def _external_codex_available(run: dict[str, Any]) -> bool:
+def _external_codex_record(
+    run: dict[str, Any], *, require_available: bool
+) -> dict[str, Any] | None:
+    """Return the unique observed cc-codex record for this launch phase."""
+
     adapter = run.get("runtime_capabilities", {}).get("runtime_adapter", {})
     records = adapter.get("external_runtimes", []) if isinstance(adapter, dict) else []
     matches = [
@@ -50,12 +54,19 @@ def _external_codex_available(run: dict[str, Any]) -> bool:
         if isinstance(record, dict)
         and record.get("provider") == "codex"
         and record.get("driver") == "codex_rescue_agent"
-        and record.get("status") == "available"
         and record.get("command") == "agent:codex:codex-rescue"
-        and record.get("contract_version") == "harness-node-result-v1"
+        and isinstance(record.get("version"), str)
+        and record.get("version")
         and record.get("completion_channel") == "agent_result"
+        and (
+            not require_available
+            or (
+                record.get("status") == "available"
+                and record.get("contract_version") == "harness-node-result-v1"
+            )
+        )
     ]
-    return len(matches) == 1
+    return matches[0] if len(matches) == 1 else None
 
 
 def _mission_nodes(plan: dict[str, Any], node_ids: list[str]) -> list[dict[str, Any]]:
@@ -77,7 +88,9 @@ def _mission_nodes(plan: dict[str, Any], node_ids: list[str]) -> list[dict[str, 
     return selected
 
 
-def _base_checks(plan: dict[str, Any], run: dict[str, Any]) -> None:
+def _base_checks(
+    plan: dict[str, Any], run: dict[str, Any], *, require_available: bool
+) -> dict[str, Any]:
     errors = [f"PLAN: {error}" for error in validate_plan(plan)]
     errors.extend(f"RUN: {error}" for error in validate_run(plan, run))
     if plan.get("schema_version") != 4:
@@ -89,8 +102,13 @@ def _base_checks(plan: dict[str, Any], run: dict[str, Any]) -> None:
     runtime = run.get("runtime_capabilities", {})
     if runtime.get("permission_boundary", {}).get("status") != "ready":
         errors.append("runtime permission boundary must be ready")
-    if not _external_codex_available(run):
-        errors.append("exact external Codex capability is not available")
+    codex_record = _external_codex_record(run, require_available=require_available)
+    if codex_record is None:
+        errors.append(
+            "exact external Codex capability is not available"
+            if require_available
+            else "cc-codex plugin metadata is not observed"
+        )
     integration = run.get("integration", {})
     observed_git = run.get("observed", {}).get("git", {})
     base = integration.get("batch_base_sha")
@@ -100,6 +118,8 @@ def _base_checks(plan: dict[str, Any], run: dict[str, Any]) -> None:
         errors.append("observed parent Git state is not a clean batch base")
     if errors:
         _fail(errors)
+    assert codex_record is not None
+    return codex_record
 
 
 def _ensure_codex_policy(node: dict[str, Any]) -> dict[str, Any]:
@@ -230,24 +250,16 @@ def validate_codex_wave(
 ) -> dict[str, Any]:
     """Return canonical Workflow arguments without changing PLAN, RUN, Git, or runtime."""
 
-    _base_checks(plan, run)
+    if mode not in {"preflight", "wave"}:
+        _fail(["mode must be preflight or wave"])
+    codex_record = _base_checks(plan, run, require_available=mode == "wave")
     nodes = _mission_nodes(plan, node_ids)
     if mode == "preflight":
         _validate_preflight(plan, run, nodes)
         return {
-            "run_id": run["run_id"],
-            "plan_id": plan["plan_id"],
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": plan_digest(plan),
-            "graph_revision": run["graph_state"]["graph_revision"],
-            "batch_base_sha": run["integration"]["batch_base_sha"],
-            "tool_profile": "mission_write",
-            "model": None,
-            "reasoning_effort": None,
-            "nodes": [],
+            "contract_version": "harness-node-result-v1",
+            "plugin_version": codex_record["version"],
         }
-    if mode != "wave":
-        _fail(["mode must be preflight or wave"])
     wave = run.get("active_wave", {})
     digest = plan_digest(plan)
     if (

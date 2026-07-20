@@ -200,7 +200,17 @@ class ValidateCodexWaveTests(unittest.TestCase):
         )
         run["workers"] = []
         authorize(run, "spawn_subagents", ["M1"], "worker:preallocation")
-        self.assertIsInstance(validate_codex_wave(plan, run, ["N-M1"], mode="preflight"), dict)
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"][0].update(
+            {"status": "unknown", "contract_version": None, "evidence": []}
+        )
+        preflight_args = validate_codex_wave(plan, run, ["N-M1"], mode="preflight")
+        self.assertEqual(
+            {
+                "contract_version": "harness-node-result-v1",
+                "plugin_version": "1.0.4",
+            },
+            preflight_args,
+        )
         run["authorizations"]["spawn_subagents"] = {"authorized": False, "source": None}
         with self.assertRaises(CodexWaveError):
             validate_codex_wave(plan, run, ["N-M1"], mode="preflight")
