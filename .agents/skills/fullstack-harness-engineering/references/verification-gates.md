@@ -9,12 +9,13 @@ Use the smallest reliable proof first:
 ```text
 1. Reproduce or define the observable target.
 2. Identify the smallest deterministic check.
-3. Add focused regression coverage when behavior changes.
-4. Run broader build/lint/type/unit checks.
-5. Run API/data/integration checks.
-6. Run browser E2E and visual/UI checks when UI changes.
-7. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
-8. If deterministic checks are impossible, use structured review and name residual risk.
+3. Run affected task and worker checks from parent-observed changed files.
+4. Run the mission integration surface after serial integration.
+5. Run only real cross-mission checks at the batch gate.
+6. Converge runtime code review and repairs on an exact head.
+7. Run broad regression, browser E2E, and visual/UI checks on the final current head.
+8. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
+9. If deterministic checks are impossible, use structured review and name residual risk.
 ```
 
 ## Gate Levels
@@ -22,13 +23,14 @@ Use the smallest reliable proof first:
 Task gate:
 
 - Proves one task changed the intended behavior.
+- Runs focused checks selected from parent-observed changed files when the verifier declares `selection.mode: "changed_files"`; omitted selection metadata means `always`.
 - Must pass before a worker result can become `worker_passed` and before a task commit when commits are authorized.
 - After it passes, create at most one coherent task commit using `commit-convention.md`; split the task first when independent outcomes remain.
 
 Worker mission gate:
 
 - Proves all task acceptance rows for one mission.
-- Includes UI evidence if the mission changes UI, layout, navigation, or a user journey.
+- Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
 Mission integration gate:
@@ -40,7 +42,13 @@ Mission integration gate:
 Batch integration gate:
 
 - Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
+- Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
+
+Final/current-head gate:
+
+- Runs broad regression, browser E2E, visual/UI evidence, and release gates only after local code-review and repair loops converge.
+- Binds every PASS to the exact integration or PR head. Any later code or configuration change invalidates the affected proof.
 
 E2E gate:
 
@@ -78,6 +86,31 @@ Use or adapt this matrix:
 | Deployment smoke | deployment in scope | deployed URL and critical routes pass | command/trace |
 | Release impact | user/operator-visible change | impact recorded | release note or mission row |
 ```
+
+## Changed-File Selection And Exact Execution Reuse
+
+Changed-file selection is allowed only for task and worker verifiers. The declared selection scopes must stay inside the owning task or mission write scope. Integration, batch, final, migration, deployment, and smoke gates always run when their stage applies.
+
+The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
+
+A local verifier may declare:
+
+```json
+{
+  "selection": {
+    "mode": "changed_files",
+    "scopes": ["apps/api/**"]
+  },
+  "cache": {
+    "mode": "session_exact",
+    "environment_keys": ["CI"]
+  }
+}
+```
+
+`session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`. The parent must also mark the command deterministic and local, supply a clean checkout, and place the session cache in a repository-external path. The execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, executable identity, OS/architecture, pass signal, and selected environment-value digests.
+
+Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Verifier IDs are not in the execution key, so two gates may cite one exact execution while each keeps its own PASS record and evidence key. Never use this cache for runtime review, browser capture, deployment, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
 
 ## Automated E2E And Smoke Reuse
 

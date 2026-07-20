@@ -119,10 +119,10 @@ PLAN runtime policy declares `allowed_providers`, an optional `preferred_provide
 Use this Plan Mode order:
 
 1. Preserve an explicit user-selected provider, model, or reasoning effort.
-2. For high-risk architecture, security, migration, difficult debugging, or final synthesis, choose the strongest suitable observed option and higher reasoning.
-3. For general-purpose nodes, backend implementation, and `backend_code` review, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning; keep Claude Code `sonnet` as the availability fallback.
-4. Frontend/UI implementation uses the pinned Claude model `claude-fable-5` with `high` reasoning. `frontend_code` review uses `claude-fable-5` with `xhigh` reasoning.
-5. Preview and final visual-review nodes use `claude-fable-5` with `high` reasoning. All three frontend roles use Codex `gpt-5.6-sol` with `xhigh` reasoning when Claude is unavailable.
+2. For high-risk architecture, security, migration, difficult debugging, difficult correctness, or final synthesis, choose the strongest suitable observed option and higher reasoning.
+3. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning; keep Claude Code `sonnet` as the availability fallback.
+4. Frontend/UI implementation uses the pinned Claude model `claude-fable-5` with `high` reasoning and Codex `gpt-5.6-sol` with `xhigh` reasoning as the availability fallback.
+5. Choose review effort from risk. Routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`; routine `frontend_code` review uses `claude-fable-5` with `medium`; routine visual review uses `claude-fable-5` with `medium`. Raise review effort to `high` or `xhigh` only for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment.
 6. For bounded mechanical edits, discovery, or inexpensive preflight work, prefer a fast model with low or medium reasoning.
 7. When the current catalog or destination support is not observed, leave Codex values null for the host default or use Claude's portable `sonnet` default. Do not invent a model identifier.
 
@@ -147,8 +147,8 @@ Current Claude Code workflow agents inherit the outer allowlist, so the outer pr
 
 When Codex remains the parent and Claude Code is a worker provider:
 
-1. Run `scripts/claude_runtime_bridge.py preflight` with the no-edit preflight workflow. Capability preflight defaults to `haiku`. Production uses the PLAN-selected wave model and defaults to `sonnet` only when PLAN omits a Claude option.
-2. Record an available external runtime only after the Workflow tool executes the protocol-v1 script.
+1. Run `scripts/claude_runtime_bridge.py preflight` with the no-edit preflight workflow. Capability preflight defaults to `haiku`. Production uses the PLAN-selected wave model and defaults to `sonnet` only when PLAN omits a Claude option. Pass one explicit repository-external `--session-cache-root` for the harness session. The bridge reuses only an exact successful preflight bound to executable identity, CLI version, script digest, protocol, model, OS, and architecture.
+2. Record an available external runtime only after the Workflow tool executes the protocol-v1 script or the bridge returns an exact session cache hit. A cache hit proves capability only. A failed forced refresh revokes stale disk reuse for that executable/script/model scope; invoke it as `preflight --force-refresh`. A later fresh PASS replaces the stale entry and restores exact disk reuse. Do not automatically retry an ambiguous production Workflow launch; force-refresh capability only after the parent proves no production workflow was created, then follow the normal attempt policy.
 3. Require `invoke_external_runtime` for `runtime:claude_code` in addition to `spawn_subagents`. Write missions also require their normal worktree, branch, and commit actions; read-only review nodes do not.
 4. Select ready Claude nodes. Allocate worktrees, branches, leases, and attempt IDs for write missions. Allocate a `review_workers[]` record with exact SHA, path, scope, and attempt ID for reviews.
 5. Build one immutable wave request and call `claude_runtime_bridge.py run-wave --plan <PLAN.md> --run <RUN.md> --request <wave.json>`. PLAN and RUN paths are required; the request alone is not launch authority.

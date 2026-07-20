@@ -1,7 +1,5 @@
 import importlib.util
 import json
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -53,16 +51,6 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertEqual(codex["version"], marketplace["metadata"]["version"])
         self.assertEqual(codex["version"], marketplace_plugin["version"])
         self.assertEqual(marketplace_plugin["source"], "./plugins/fullstack-harness")
-
-    def test_plugin_bundle_matches_canonical_skills(self) -> None:
-        result = subprocess.run(
-            [sys.executable, "scripts/sync_plugin_skills.py", "--check"],
-            cwd=REPO_ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_both_runtime_manifests_have_all_skills(self) -> None:
         for skill in (

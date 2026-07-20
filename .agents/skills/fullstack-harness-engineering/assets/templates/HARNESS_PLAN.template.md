@@ -227,11 +227,11 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             "provider_options": {
               "codex": {
                 "model": "gpt-5.6-sol",
-                "reasoning_effort": "xhigh"
+                "reasoning_effort": "medium"
               },
               "claude_code": {
                 "model": "claude-fable-5",
-                "reasoning_effort": "xhigh"
+                "reasoning_effort": "medium"
               }
             }
           },
@@ -271,11 +271,11 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             "provider_options": {
               "codex": {
                 "model": "gpt-5.6-sol",
-                "reasoning_effort": "xhigh"
+                "reasoning_effort": "medium"
               },
               "claude_code": {
                 "model": "claude-fable-5",
-                "reasoning_effort": "high"
+                "reasoning_effort": "medium"
               }
             }
           },
@@ -355,7 +355,19 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
               "<runner>",
               "<mission-argument>"
             ],
-            "pass_signal": "<literal pass signal>"
+            "pass_signal": "exit 0",
+            "selection": {
+              "mode": "changed_files",
+              "scopes": [
+                "src/example/**"
+              ]
+            },
+            "cache": {
+              "mode": "session_exact",
+              "environment_keys": [
+                "CI"
+              ]
+            }
           }
         ],
         "integration_verifiers": [
@@ -397,7 +409,19 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
                   "<runner>",
                   "<task-argument>"
                 ],
-                "pass_signal": "<literal pass signal>"
+                "pass_signal": "exit 0",
+                "selection": {
+                  "mode": "changed_files",
+                  "scopes": [
+                    "src/example/**"
+                  ]
+                },
+                "cache": {
+                  "mode": "session_exact",
+                  "environment_keys": [
+                    "CI"
+                  ]
+                }
               }
             ]
           }
@@ -410,11 +434,11 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 
 The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v4. The graph is the canonical source for mission dependencies and routing; existing schema-v2 and schema-v3 plans remain readable. Keep the displayed `release` object only for a deployable Cloudflare plan; remove the whole object for non-Cloudflare or non-deployable work. Schema version exposes the field but does not enable it by itself. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
 
-For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes, backend implementation, and `backend_code` review, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning and keep Claude Code `sonnet` as the availability fallback. This UI-bearing example applies the frontend override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
+For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning and keep Claude Code `sonnet` as the availability fallback. Choose review effort by risk: routine deterministic `backend_code`, `frontend_code`, and visual reviews use `medium`; reserve `high` or `xhigh` for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment. This UI-bearing example applies the frontend model override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
 
 Every schema-v4 source must bind the frozen input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. Recompute the PLAN digest whenever source content or its immutable upstream revision changes.
 
-For frontend/UI implementation, preview, and final visual-review nodes, set Claude to the pinned `claude-fable-5` ID with `high` reasoning. Set `frontend_code` review nodes to `claude-fable-5` with `xhigh` reasoning. Use Codex `gpt-5.6-sol` with `xhigh` reasoning as the availability fallback for every frontend role. These role-specific options replace the generic fallback on those nodes.
+For frontend/UI implementation, set Claude to the pinned `claude-fable-5` ID with `high` reasoning and use Codex `gpt-5.6-sol` with `xhigh` reasoning as the availability fallback. Routine `frontend_code` and visual-review nodes use the same models with `medium` reasoning unless the recorded review risk justifies a higher effort. These role-specific options replace the generic fallback on those nodes.
 
 For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews, bind to one exact reviewed SHA in RUN, and route `fix_required` back to the matching bounded repair path. Combine reviews only when the scope is genuinely single-surface and record why.
 
@@ -425,6 +449,10 @@ Use immutable, flat task IDs such as `M1/T01`. Represent lineage only with `pare
 Task dependencies are same-mission only. In schema v4, express every cross-mission ordering requirement with `graph.edges` of kind `dependency`; do not retain a second `missions[].depends_on` source. Dependency edges must stay acyclic. Conditional `route` edges may form a correction loop only when every cyclic route has `max_traversals` and the cycle has an exit edge. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
 
 The manifest owns source identity/status, requirement priority/disposition, UI route/state/breakpoint evidence needs, risks, and stop conditions. Trace priorities are `must`, `should`, or `could`; dispositions are `planned`, `deferred`, or `out_of_scope`, with a non-null rationale for the latter two. UI evidence gates are `required`, `optional`, or `n/a`; risk impact is `high`, `medium`, or `low`. Use empty arrays for truly non-applicable UI or risk surfaces; do not move any field used by validation, readiness, scheduling, launch, or integration into the human tables below. Tables may add explanatory narrative that does not alter execution semantics. Worker verifiers run in the mission workspace, mission integration verifiers run after that mission reaches the integration head, batch verifiers run after a selected wave integrates, and final gates close the whole run.
+
+Task and worker verifiers may declare `selection.mode: "changed_files"`; keep every selection scope inside the owning task or mission write scope. The parent-observed changed files decide applicability. Integration, batch, and final verifiers remain `always`. Omit `selection` for the existing always-run behavior. `cache.mode: "session_exact"` is only for deterministic local `exit 0` commands. List every environment key that can affect the result, and use a repository-external session cache root. Omit `cache` or use `disabled` for network, shared database, time/random, browser, review, migration, deployment, smoke, or other mutable checks.
+
+Plan focused checks at task/worker level, the mission's integration surface at integration level, true cross-mission checks at batch level, and broad regression/browser/UI/release proof at final level. Place expensive final browser and screenshot work after exact-SHA code review and repair loops converge.
 
 Scope entries must be POSIX, repository-relative exact paths or subtrees ending in `/**`. Reject absolute paths, `..`, backslashes, negation, and other wildcard syntax. Use `runtime_resources: []` when no runtime resource applies; never use a string such as `"none"`. Allowed access values are `exclusive` and `shared_read`. Treat an incomplete or unsupported resource inventory as unsafe for parallel write execution.
 

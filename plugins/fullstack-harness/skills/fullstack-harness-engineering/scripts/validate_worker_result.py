@@ -24,6 +24,11 @@ from harness_manifest import (
     validate_plan,
     validate_run,
 )
+from select_verifiers import (
+    VerifierSelectionError,
+    applicable_targeted_verifiers,
+    canonical_changed_path,
+)
 
 
 SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -238,17 +243,11 @@ def _require_sha(
 def _canonical_changed_path(
     value: Any, path: str, errors: list[dict[str, str]]
 ) -> str | None:
-    checked = _require_string(value, path, errors)
-    if checked is None:
+    try:
+        return canonical_changed_path(value)
+    except VerifierSelectionError as exc:
+        _issue(errors, "invalid_changed_path", path, str(exc))
         return None
-    problem = validate_scope_claim(checked)
-    if problem:
-        _issue(errors, "invalid_changed_path", path, problem)
-        return None
-    if checked.endswith("/**"):
-        _issue(errors, "invalid_changed_path", path, "changed files must be exact paths, not subtrees")
-        return None
-    return checked
 
 
 def _find_mission(plan: dict[str, Any], mission_id: Any) -> dict[str, Any] | None:
@@ -609,23 +608,49 @@ def validate_worker_result_data(
             for verifier in mission.get("worker_verifiers", [])
             if isinstance(verifier, dict) and isinstance(verifier.get("id"), str)
         }
-        for verifier_id in sorted(required_worker_verifiers):
-            verifier = verifier_results.get(verifier_id)
-            if verifier is None or verifier.get("status") != "PASS":
-                _issue(errors, "required_verifier_missing", "worker_result.verifiers", f"required worker verifier {verifier_id} is not PASS")
-        for task_id, task in executable_tasks.items():
-            task_result = task_results.get(task_id)
-            if task_result is None:
-                continue
-            required_task_verifiers = {
+        required_task_verifiers = {
+            task_id: {
                 verifier.get("id")
                 for verifier in task.get("verifiers", [])
                 if isinstance(verifier, dict) and isinstance(verifier.get("id"), str)
             }
+            for task_id, task in executable_tasks.items()
+        }
+        observed_diff_is_valid = (
+            observed_changed_files is not None
+            and len(observed_paths) == len(observed_changed_files)
+            and len(observed_paths) == len(set(observed_paths))
+        )
+        if observed_diff_is_valid:
+            try:
+                applicability = applicable_targeted_verifiers(mission, observed_paths)
+                required_worker_verifiers = set(applicability["worker_verifier_ids"])
+                required_task_verifiers = {
+                    task_id: set(verifier_ids)
+                    for task_id, verifier_ids in applicability[
+                        "task_verifier_ids"
+                    ].items()
+                }
+            except VerifierSelectionError as exc:
+                _issue(
+                    errors,
+                    "invalid_verifier_selection",
+                    "harness_plan.missions",
+                    str(exc),
+                )
+        for verifier_id in sorted(required_worker_verifiers):
+            verifier = verifier_results.get(verifier_id)
+            if verifier is None or verifier.get("status") != "PASS":
+                _issue(errors, "required_verifier_missing", "worker_result.verifiers", f"required worker verifier {verifier_id} is not PASS")
+        for task_id in executable_tasks:
+            task_result = task_results.get(task_id)
+            if task_result is None:
+                continue
+            task_verifier_ids = required_task_verifiers.get(task_id, set())
             reported_ids = set(task_result.get("verifier_ids", []))
-            for verifier_id in sorted(required_task_verifiers - reported_ids):
+            for verifier_id in sorted(task_verifier_ids - reported_ids):
                 _issue(errors, "required_verifier_missing", f"worker_result.task_results.{task_id}.verifier_ids", f"required task verifier {verifier_id} is missing")
-            for verifier_id in sorted(required_task_verifiers):
+            for verifier_id in sorted(task_verifier_ids):
                 verifier = verifier_results.get(verifier_id)
                 if verifier is None or verifier.get("status") != "PASS":
                     _issue(errors, "required_verifier_missing", "worker_result.verifiers", f"required task verifier {verifier_id} is not PASS")

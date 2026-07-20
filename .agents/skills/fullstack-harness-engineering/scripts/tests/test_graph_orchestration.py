@@ -2300,6 +2300,33 @@ class ClaudeBridgeTests(unittest.TestCase):
         self.assertEqual("wf-review", result["runtime"]["workflow_run_id"])
         self.assertEqual("code_review_readonly", result["runtime"]["tool_profile"])
 
+    def test_cached_capability_cannot_bypass_current_wave_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan, run, request = self.mission_bridge_fixture(root)
+            request["plan_digest_sha256"] = "f" * 64
+            plan_path, run_path, request_path = self.write_bridge_fixture(
+                root, plan, run, request
+            )
+            with (
+                mock.patch.object(bridge, "_resolve_claude") as resolve,
+                mock.patch.object(bridge, "_invoke") as invoke,
+                self.assertRaisesRegex(bridge.BridgeError, "plan_digest_sha256"),
+            ):
+                bridge.run_wave(
+                    claude="claude",
+                    script=bridge.DEFAULT_GRAPH_WORKFLOW,
+                    plan_path=plan_path,
+                    run_path=run_path,
+                    request_path=request_path,
+                    cwd=Path.cwd(),
+                    timeout=30,
+                    max_budget_usd=0.1,
+                    session_cache_root=root / "session-cache",
+                )
+        resolve.assert_not_called()
+        invoke.assert_not_called()
+
     def test_wave_binding_rejects_stale_plan_and_run_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

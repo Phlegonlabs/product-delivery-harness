@@ -358,6 +358,57 @@ class ValidateWorkerResultTests(unittest.TestCase):
         self.assertEqual(validate_run(self.plan, self.run), [])
         self.assertEqual(validate(self.plan, self.run, self.result), [])
 
+    def test_parent_observed_diff_selects_required_verifiers(self) -> None:
+        plan = copy.deepcopy(self.plan)
+        selection = {
+            "mode": "changed_files",
+            "scopes": ["src/m1/backend/**"],
+        }
+        plan["missions"][0]["tasks"][0]["verifiers"][0]["selection"] = selection
+        plan["missions"][0]["worker_verifiers"][0]["selection"] = selection
+        run = make_run(plan)
+        result = make_result(plan)
+        result["task_results"][0]["verifier_ids"] = []
+        result["verifiers"] = []
+        self.assertEqual(validate(plan, run, result), [])
+
+        applicable = copy.deepcopy(plan)
+        applicable_selection = {
+            "mode": "changed_files",
+            "scopes": ["src/m1/**"],
+        }
+        applicable["missions"][0]["tasks"][0]["verifiers"][0][
+            "selection"
+        ] = applicable_selection
+        applicable["missions"][0]["worker_verifiers"][0][
+            "selection"
+        ] = applicable_selection
+        applicable_run = make_run(applicable)
+        applicable_result = make_result(applicable)
+        applicable_result["task_results"][0]["verifier_ids"] = []
+        applicable_result["verifiers"] = []
+        self.assertIn(
+            "required_verifier_missing",
+            error_codes(validate(applicable, applicable_run, applicable_result)),
+        )
+
+    def test_worker_claim_does_not_control_verifier_selection(self) -> None:
+        plan = copy.deepcopy(self.plan)
+        selection = {
+            "mode": "changed_files",
+            "scopes": ["src/m1/backend/**"],
+        }
+        plan["missions"][0]["tasks"][0]["verifiers"][0]["selection"] = selection
+        plan["missions"][0]["worker_verifiers"][0]["selection"] = selection
+        run = make_run(plan)
+        result = make_result(plan)
+        result["changed_files"] = ["src/m1/backend/feature.py"]
+        result["task_results"][0]["verifier_ids"] = []
+        result["verifiers"] = []
+        codes = error_codes(validate(plan, run, result))
+        self.assertIn("observed_diff_mismatch", codes)
+        self.assertNotIn("required_verifier_missing", codes)
+
     def test_stale_binding_observed_diff_and_ancestry_are_rejected(self) -> None:
         result = copy.deepcopy(self.result)
         result["lease_id"] = "STALE"

@@ -574,6 +574,60 @@ class PlanValidationTests(unittest.TestCase):
         self.assertEqual(validate_plan(plan), [])
         self.assertEqual(topological_levels(plan), {"M1": 0, "M2": 1})
 
+    def test_targeted_verifier_metadata_is_bounded(self) -> None:
+        plan = valid_plan()
+        task_verifier = plan["missions"][0]["tasks"][0]["verifiers"][0]
+        task_verifier["selection"] = {
+            "mode": "changed_files",
+            "scopes": ["src/a/one.py"],
+        }
+        task_verifier["cache"] = {
+            "mode": "session_exact",
+            "environment_keys": ["CI"],
+        }
+        worker_verifier = plan["missions"][0]["worker_verifiers"][0]
+        worker_verifier["selection"] = {
+            "mode": "changed_files",
+            "scopes": ["src/a/**"],
+        }
+        self.assertEqual(validate_plan(plan), [])
+
+        escaped = copy.deepcopy(plan)
+        escaped["missions"][0]["tasks"][0]["verifiers"][0]["selection"][
+            "scopes"
+        ] = ["src/ab/**"]
+        self.assert_error_contains(escaped, "escapes the owning write scope")
+
+        integration = copy.deepcopy(plan)
+        integration["missions"][0]["integration_verifiers"][0]["selection"] = {
+            "mode": "changed_files",
+            "scopes": ["src/a/**"],
+        }
+        self.assert_error_contains(
+            integration,
+            "changed_files is allowed only for task and worker verifiers",
+        )
+
+        cached_nonzero = copy.deepcopy(plan)
+        cached_nonzero["missions"][0]["tasks"][0]["verifiers"][0][
+            "pass_signal"
+        ] = "custom success"
+        self.assert_error_contains(
+            cached_nonzero,
+            "session_exact requires the literal pass signal exit 0",
+        )
+
+    def test_release_verifiers_cannot_use_session_cache(self) -> None:
+        plan = valid_release_plan()
+        plan["release"]["targets"][0]["deploy_command"]["cache"] = {
+            "mode": "session_exact",
+            "environment_keys": [],
+        }
+        self.assert_error_contains(
+            plan,
+            "session_exact is not allowed for release or deployment verifiers",
+        )
+
     def test_schema_v3_cloudflare_release_contract(self) -> None:
         plan = valid_release_plan()
         self.assertEqual(validate_plan(plan), [])

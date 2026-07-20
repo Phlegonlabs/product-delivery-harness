@@ -522,14 +522,71 @@ def _strings(
     return value
 
 
-def _validate_verifier(errors: list[str], path: str, value: Any) -> None:
+def _validate_verifier(
+    errors: list[str],
+    path: str,
+    value: Any,
+    *,
+    selection_scopes: Iterable[str] | None = None,
+    cache_allowed: bool = True,
+) -> None:
     required = {"id", "cwd", "argv", "pass_signal"}
-    if not _keys(errors, path, value, required):
+    optional = {"selection", "cache"}
+    if not _keys(errors, path, value, required, optional):
         return
     for key in ("id", "cwd", "pass_signal"):
         if not _nonempty_string(value[key]):
             _add(errors, f"{path}.{key}", "must be a non-empty string")
     _strings(errors, f"{path}.argv", value["argv"], nonempty=True)
+
+    selection = value.get("selection")
+    if selection is not None:
+        selection_path = f"{path}.selection"
+        if _keys(errors, selection_path, selection, {"mode", "scopes"}):
+            mode = selection["mode"]
+            if mode not in {"always", "changed_files"}:
+                _add(errors, f"{selection_path}.mode", "must be always or changed_files")
+            scopes = _validate_scope_list(
+                errors,
+                f"{selection_path}.scopes",
+                selection["scopes"],
+                nonempty=mode == "changed_files",
+            )
+            if mode == "always" and scopes:
+                _add(errors, f"{selection_path}.scopes", "must be empty for always mode")
+            if mode == "changed_files":
+                if selection_scopes is None:
+                    _add(errors, selection_path, "changed_files is allowed only for task and worker verifiers")
+                else:
+                    owner_scopes = list(selection_scopes)
+                    for claim in scopes:
+                        if not any(scope_contains(owner, claim) for owner in owner_scopes):
+                            _add(
+                                errors,
+                                f"{selection_path}.scopes",
+                                f"claim {claim!r} escapes the owning write scope",
+                            )
+
+    cache = value.get("cache")
+    if cache is not None:
+        cache_path = f"{path}.cache"
+        if _keys(errors, cache_path, cache, {"mode", "environment_keys"}):
+            mode = cache["mode"]
+            if mode not in {"disabled", "session_exact"}:
+                _add(errors, f"{cache_path}.mode", "must be disabled or session_exact")
+            environment_keys = _strings(
+                errors,
+                f"{cache_path}.environment_keys",
+                cache["environment_keys"],
+            )
+            if any(not key.strip() for key in environment_keys):
+                _add(errors, f"{cache_path}.environment_keys", "contains an empty key")
+            if mode == "disabled" and environment_keys:
+                _add(errors, f"{cache_path}.environment_keys", "must be empty when cache is disabled")
+            if mode == "session_exact" and not cache_allowed:
+                _add(errors, cache_path, "session_exact is not allowed for release or deployment verifiers")
+            if mode == "session_exact" and value.get("pass_signal") != "exit 0":
+                _add(errors, f"{path}.pass_signal", "session_exact requires the literal pass signal exit 0")
 
 
 def _validate_release(errors: list[str], value: Any) -> None:
@@ -591,8 +648,18 @@ def _validate_release(errors: list[str], value: Any) -> None:
             nonempty=True,
         )
         if target["migration_command"] is not None:
-            _validate_verifier(errors, f"{target_path}.migration_command", target["migration_command"])
-        _validate_verifier(errors, f"{target_path}.deploy_command", target["deploy_command"])
+            _validate_verifier(
+                errors,
+                f"{target_path}.migration_command",
+                target["migration_command"],
+                cache_allowed=False,
+            )
+        _validate_verifier(
+            errors,
+            f"{target_path}.deploy_command",
+            target["deploy_command"],
+            cache_allowed=False,
+        )
         smoke = target["smoke_verifiers"]
         if not isinstance(smoke, list) or not smoke:
             _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
@@ -602,6 +669,7 @@ def _validate_release(errors: list[str], value: Any) -> None:
                     errors,
                     f"{target_path}.smoke_verifiers[{verifier_index}]",
                     verifier,
+                    cache_allowed=False,
                 )
 
     if set(targets) != {"development", "production"}:
@@ -1340,6 +1408,9 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                         errors,
                         f"{mission_path}.{verifier_group}[{verifier_index}]",
                         verifier,
+                        selection_scopes=(
+                            mission_write if verifier_group == "worker_verifiers" else None
+                        ),
                     )
                     if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
                         if verifier["id"] in ids:
@@ -1446,7 +1517,12 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         else:
             verifier_ids: set[str] = set()
             for verifier_index, verifier in enumerate(task["verifiers"]):
-                _validate_verifier(errors, f"{path}.verifiers[{verifier_index}]", verifier)
+                _validate_verifier(
+                    errors,
+                    f"{path}.verifiers[{verifier_index}]",
+                    verifier,
+                    selection_scopes=task_scopes,
+                )
                 if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
                     if verifier["id"] in verifier_ids:
                         _add(errors, f"{path}.verifiers[{verifier_index}].id", "must be unique")
