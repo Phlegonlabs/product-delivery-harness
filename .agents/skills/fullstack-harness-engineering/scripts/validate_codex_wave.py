@@ -30,7 +30,7 @@ def _fail(errors: list[str]) -> None:
 
 
 def _exact_authorized(run: dict[str, Any], action: str, mission_id: str, target: str) -> bool:
-    """Require a live authorization whose mission and target are both concrete."""
+    """Require an exact target and an explicit mission or run-wide mission scope."""
 
     if not authorization_covers(run, action, mission_id, target):
         return False
@@ -38,7 +38,7 @@ def _exact_authorized(run: dict[str, Any], action: str, mission_id: str, target:
     scope = entry.get("scope", {}) if isinstance(entry, dict) else {}
     missions = scope.get("mission_ids", []) if isinstance(scope, dict) else []
     targets = scope.get("targets", []) if isinstance(scope, dict) else []
-    return mission_id in missions and target in targets
+    return (mission_id in missions or "*" in missions) and target in targets
 
 
 def _external_codex_record(
@@ -59,11 +59,12 @@ def _external_codex_record(
         and record.get("version")
         and record.get("completion_channel") == "agent_result"
         and (
-            not require_available
-            or (
-                record.get("status") == "available"
+            (
+                require_available
+                and record.get("status") == "available"
                 and record.get("contract_version") == "harness-node-result-v1"
             )
+            or (not require_available and record.get("status") == "unknown")
         )
     ]
     return matches[0] if len(matches) == 1 else None
@@ -144,8 +145,15 @@ def _validate_preflight(plan: dict[str, Any], run: dict[str, Any], nodes: list[d
             errors.append(f"mission {mission_id} lacks execution authorization")
         if not _exact_authorized(run, "invoke_external_runtime", mission_id, "runtime:codex"):
             errors.append(f"mission {mission_id} lacks exact Codex runtime authorization")
-        if not _exact_authorized(run, "spawn_subagents", mission_id, "worker:preallocation"):
-            errors.append(f"mission {mission_id} lacks preallocation subagent authorization")
+        for action, target in (
+            ("spawn_subagents", "worker:preallocation"),
+            ("create_app_managed_worktrees", "*"),
+            ("create_local_branches", "*"),
+        ):
+            if not _exact_authorized(run, action, mission_id, target):
+                errors.append(
+                    f"mission {mission_id} lacks preflight {action} authorization for {target}"
+                )
     if errors:
         _fail(errors)
 
@@ -203,20 +211,18 @@ def _wave_node(plan: dict[str, Any], run: dict[str, Any], node: dict[str, Any]) 
             or binding.get("option_source") != expected["option_source"]
         ):
             errors.append(f"worker {worker_id} is not the canonical external Codex allocation")
-        worktree_path = worker.get("worktree_path")
-        branch_ref = worker.get("branch_ref")
-        if not isinstance(worktree_path, str) or not worktree_path:
-            errors.append(f"worker {worker_id} lacks an allocated worktree path")
-        if not isinstance(branch_ref, str) or not branch_ref:
-            errors.append(f"worker {worker_id} lacks an allocated branch ref")
+        if worker.get("worktree_path") is not None or worker.get("branch_ref") is not None:
+            errors.append(
+                f"worker {worker_id} must await its runtime-assigned worktree and branch"
+            )
         if not execution_covers(run, mission_id):
             errors.append(f"mission {mission_id} lacks execution authorization")
         for action, target in (
             ("invoke_external_runtime", "runtime:codex"),
             ("spawn_subagents", f"worker:{worker_id}"),
-            ("create_app_managed_worktrees", f"worktree:{worktree_path}"),
-            ("create_local_branches", f"branch:{branch_ref}"),
-            ("create_local_commits", f"branch:{branch_ref}"),
+            ("create_app_managed_worktrees", "*"),
+            ("create_local_branches", "*"),
+            ("create_local_commits", "*"),
         ):
             if not _exact_authorized(run, action, mission_id, target):
                 errors.append(f"mission {mission_id} lacks exact {action} authorization for {target}")

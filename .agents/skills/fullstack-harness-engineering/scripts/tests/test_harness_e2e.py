@@ -410,6 +410,18 @@ class HarnessCliE2ETests(unittest.TestCase):
                     base_sha,
                     heads[mission_id],
                 ).stdout.splitlines()
+                parent_common = Path(
+                    self.git(repository, "rev-parse", "--git-common-dir").stdout.strip()
+                )
+                if not parent_common.is_absolute():
+                    parent_common = repository / parent_common
+                worker_common = Path(
+                    self.git(
+                        worktrees[mission_id], "rev-parse", "--git-common-dir"
+                    ).stdout.strip()
+                )
+                if not worker_common.is_absolute():
+                    worker_common = worktrees[mission_id] / worker_common
                 self.assertEqual(
                     [],
                     validate_worker_result_data(
@@ -419,6 +431,11 @@ class HarnessCliE2ETests(unittest.TestCase):
                         observed_head_sha=heads[mission_id],
                         observed_changed_files=observed_files,
                         ancestry_confirmed=ancestry,
+                        observed_worktree_path=str(worktrees[mission_id]),
+                        observed_branch_ref=branches[mission_id],
+                        git_common_dir_confirmed=(
+                            parent_common.resolve() == worker_common.resolve()
+                        ),
                     ),
                 )
                 self.assertEqual(

@@ -278,6 +278,9 @@ def validate_worker_result_data(
     observed_head_sha: str | None,
     observed_changed_files: list[str] | None,
     ancestry_confirmed: bool,
+    observed_worktree_path: str | None = None,
+    observed_branch_ref: str | None = None,
+    git_common_dir_confirmed: bool = False,
 ) -> list[dict[str, str]]:
     """Return deterministic validation issues for one integration candidate."""
 
@@ -429,7 +432,11 @@ def validate_worker_result_data(
         _issue(errors, "worker_record_mismatch", "harness_run.mission_states.worker_id", "does not match worker record")
     runtime_capabilities = run.get("runtime_capabilities", {})
     runtime_binding = worker.get("runtime_binding") if worker else None
-    if isinstance(runtime_binding, dict) and runtime_binding.get("driver") == "external_codex_agent":
+    external_codex = (
+        isinstance(runtime_binding, dict)
+        and runtime_binding.get("driver") == "external_codex_agent"
+    )
+    if external_codex:
         expected_runtime_axes = {
             "worker_runtime": "subagent",
             "workspace_mode": "app_managed_worktree",
@@ -613,7 +620,42 @@ def validate_worker_result_data(
         if not isinstance(branch_ref, str) or not branch_ref:
             _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.branch_ref", "isolated worker needs a durable branch/ref")
         branch_target = f"branch:{branch_ref}" if isinstance(branch_ref, str) and branch_ref else None
-        if isinstance(runtime_binding, dict) and runtime_binding.get("driver") == "external_codex_agent":
+        if external_codex:
+            if not isinstance(observed_worktree_path, str) or not observed_worktree_path:
+                _issue(
+                    errors,
+                    "observed_worktree_missing",
+                    "observed.worktree_path",
+                    "parent-observed worktree path is required for external Codex",
+                )
+            elif observed_worktree_path != worktree_path:
+                _issue(
+                    errors,
+                    "observed_worktree_mismatch",
+                    "harness_run.workers.worktree_path",
+                    "does not match the parent-observed external Codex worktree",
+                )
+            if not isinstance(observed_branch_ref, str) or not observed_branch_ref:
+                _issue(
+                    errors,
+                    "observed_branch_missing",
+                    "observed.branch_ref",
+                    "parent-observed branch ref is required for external Codex",
+                )
+            elif observed_branch_ref != branch_ref:
+                _issue(
+                    errors,
+                    "observed_branch_mismatch",
+                    "harness_run.workers.branch_ref",
+                    "does not match the parent-observed external Codex branch",
+                )
+            if not git_common_dir_confirmed:
+                _issue(
+                    errors,
+                    "git_common_dir_unconfirmed",
+                    "observed.git_common_dir",
+                    "parent must confirm the external Codex worktree belongs to this repository",
+                )
             external_actions = [
                 ("invoke_external_runtime", "runtime:codex"),
                 (
@@ -692,6 +734,19 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Assert the parent observed base as an ancestor of the worker head",
     )
+    parser.add_argument(
+        "--observed-worktree-path",
+        help="Parent-observed retained worker worktree path",
+    )
+    parser.add_argument(
+        "--observed-branch-ref",
+        help="Parent-observed retained worker branch ref",
+    )
+    parser.add_argument(
+        "--git-common-dir-confirmed",
+        action="store_true",
+        help="Assert the retained worktree belongs to the parent repository",
+    )
     return parser
 
 
@@ -721,6 +776,9 @@ def main(argv: list[str] | None = None) -> int:
                 observed_head_sha=args.observed_head_sha,
                 observed_changed_files=args.observed_changed_file,
                 ancestry_confirmed=args.ancestry_confirmed,
+                observed_worktree_path=args.observed_worktree_path,
+                observed_branch_ref=args.observed_branch_ref,
+                git_common_dir_confirmed=args.git_common_dir_confirmed,
             )
         )
 

@@ -16,6 +16,7 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
         preflight = PREFLIGHT_PATH.read_text(encoding="utf-8")
 
         self.assertIn('agentType: "codex:codex-rescue"', preflight)
+        self.assertIn('isolation: "worktree"', preflight)
         self.assertIn("`--wait --fresh\\n`", preflight)
         self.assertIn("read-only Harness runtime handshake", preflight)
         self.assertIn("Do not edit files, create commits, or inspect repository content", preflight)

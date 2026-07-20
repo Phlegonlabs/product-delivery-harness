@@ -34,6 +34,7 @@ const rawResult = await agent(
     label: "harness-codex-preflight",
     phase: "Probe",
     agentType: "codex:codex-rescue",
+    isolation: "worktree",
   },
 );
 

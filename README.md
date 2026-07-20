@@ -76,7 +76,7 @@ External Claude waves are separated by model, reasoning effort, and tool profile
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
-Claude Code can also delegate guarded graph write missions to Codex through the installed `codex:codex-rescue` Agent. The Harness preflights that exact Agent only when a ready node needs Codex, then reloads canonical PLAN v4/RUN v9 through a parent-side guard before each launch. The guard requires the preallocation and allocated-wave authorizations, derives the Workflow arguments from canonical state, and gives each write mission its own Agent worktree. External Codex reviews are disabled in v1; select another allowed provider or defer. The route returns marked candidates through `agent_result`; it does not expose an inner Codex thread ID or add another App Server client. Claude remains the only PLAN/RUN writer and owns validation, serial integration, PR landing, deployment, and cleanup decisions.
+Claude Code can also delegate guarded graph write missions to Codex through the installed `codex:codex-rescue` Agent. The Harness preflights that exact Agent in an isolated worktree only when a ready node needs Codex, then reloads canonical PLAN v4/RUN v9 through a parent-side guard before each launch. The write guard requires a pending worker record and explicit runtime allocation grants because Agent isolation assigns each mission's worktree and branch at launch. The parent verifies the returned path, branch, head, and Git common directory before recording the allocation and accepting the worker result. External Codex reviews are disabled in v1; select another allowed provider or defer. The route returns marked candidates through `agent_result`; it does not expose an inner Codex thread ID or add another App Server client. Claude remains the only PLAN/RUN writer and owns validation, serial integration, PR landing, deployment, and cleanup decisions.
 
 ## Install
 
@@ -267,7 +267,7 @@ Graph engineering 分成兩層：org graph 定義長期穩定的產品、架構�
 
 多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才配置 worktree。原生 Claude 與外部 Claude route 會在 `.claude/worktrees/` 建立 exact-base worktree，Claude worker 必須先用 `EnterWorktree` 進入指定路徑。外部 Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
 
-Claude Code parent 也可透過 `codex:codex-rescue` 把選定節點交給 Codex。每個寫入 mission 會使用獨立的 Agent worktree，request 固定採 foreground 與 fresh route，並回傳 path、branch、head 與標記過的 result candidate。這條 route 不建立 user-owned Codex app task，也不提供內部 Codex thread ID；Claude 仍是唯一的 PLAN/RUN writer，並負責 Git 驗證、依序整合、PR landing 與部署。
+Claude Code parent 也可透過 `codex:codex-rescue` 把選定節點交給 Codex。Preflight 會在隔離的 Agent worktree 中執行；每個寫入 mission 的 worktree 與 branch 則由 Agent runtime 在啟動時配置。Parent 會先驗證回傳的 path、branch、head 與 Git common directory，再寫入 RUN 並接受 worker result。Request 固定採 foreground 與 fresh route。這條 route 不建立 user-owned Codex app task，也不提供內部 Codex thread ID；Claude 仍是唯一的 PLAN/RUN writer，並負責 Git 驗證、依序整合、PR landing 與部署。
 
 每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
 

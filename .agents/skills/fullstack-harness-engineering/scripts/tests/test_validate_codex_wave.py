@@ -127,8 +127,8 @@ class ValidateCodexWaveTests(unittest.TestCase):
                 "workspace_mode": "app_managed_worktree",
                 "completion_channel": "agent_result",
                 "task_thread_id": None,
-                "worktree_path": "C:/repo/worktrees/W-M1",
-                "branch_ref": "refs/heads/codex/W-M1",
+                "worktree_path": None,
+                "branch_ref": None,
                 "report_path": None,
                 "phase": "worker_running",
                 "worker_head_sha": None,
@@ -138,9 +138,9 @@ class ValidateCodexWaveTests(unittest.TestCase):
         for action, target in (
             ("invoke_external_runtime", "runtime:codex"),
             ("spawn_subagents", "worker:W-M1"),
-            ("create_app_managed_worktrees", "worktree:C:/repo/worktrees/W-M1"),
-            ("create_local_branches", "branch:refs/heads/codex/W-M1"),
-            ("create_local_commits", "branch:refs/heads/codex/W-M1"),
+            ("create_app_managed_worktrees", "*"),
+            ("create_local_branches", "*"),
+            ("create_local_commits", "*"),
         ):
             authorize(run, action, ["M1"], target)
         return plan, run
@@ -165,6 +165,8 @@ class ValidateCodexWaveTests(unittest.TestCase):
             ("base", lambda value: value["active_wave"].update({"batch_base_sha": "b" * 40})),
             ("binding", lambda value: value["workers"][0]["runtime_binding"].update({"driver": "subagents"})),
             ("unsafe_model", lambda value: value["workers"][0]["runtime_binding"].update({"model": "gpt --effort max"})),
+            ("allocated_worktree", lambda value: value["workers"][0].update({"worktree_path": "C:/repo/worktrees/W-M1"})),
+            ("allocated_branch", lambda value: value["workers"][0].update({"branch_ref": "refs/heads/codex/W-M1"})),
         ]
         for name, mutate in cases:
             with self.subTest(name=name):
@@ -173,7 +175,7 @@ class ValidateCodexWaveTests(unittest.TestCase):
                 with self.assertRaises(CodexWaveError):
                     validate_codex_wave(plan, invalid, ["N-M1"])
 
-    def test_requires_exact_wave_authorizations(self) -> None:
+    def test_accepts_run_wide_mission_scope_with_exact_targets(self) -> None:
         plan, run = self.canonical_wave()
         for action in (
             "invoke_external_runtime",
@@ -182,9 +184,26 @@ class ValidateCodexWaveTests(unittest.TestCase):
             "create_local_branches",
             "create_local_commits",
         ):
+            run["authorizations"][action]["scope"]["mission_ids"] = ["*"]
+
+        self.assertEqual(
+            "mission_write",
+            validate_codex_wave(plan, run, ["N-M1"])["tool_profile"],
+        )
+
+    def test_requires_exact_wave_authorizations(self) -> None:
+        plan, run = self.canonical_wave()
+        invalid_targets = {
+            "invoke_external_runtime": "*",
+            "spawn_subagents": "*",
+            "create_app_managed_worktrees": "worktree:C:/repo/worktrees/W-M1",
+            "create_local_branches": "branch:refs/heads/codex/W-M1",
+            "create_local_commits": "branch:refs/heads/codex/W-M1",
+        }
+        for action, target in invalid_targets.items():
             with self.subTest(action=action):
                 invalid = copy.deepcopy(run)
-                invalid["authorizations"][action]["scope"]["targets"] = ["*"]
+                invalid["authorizations"][action]["scope"]["targets"] = [target]
                 with self.assertRaises(CodexWaveError):
                     validate_codex_wave(plan, invalid, ["N-M1"])
 
@@ -211,9 +230,39 @@ class ValidateCodexWaveTests(unittest.TestCase):
             },
             preflight_args,
         )
-        run["authorizations"]["spawn_subagents"] = {"authorized": False, "source": None}
+        run_wide = copy.deepcopy(run)
+        for action in (
+            "invoke_external_runtime",
+            "spawn_subagents",
+            "create_app_managed_worktrees",
+            "create_local_branches",
+        ):
+            run_wide["authorizations"][action]["scope"]["mission_ids"] = ["*"]
+        self.assertEqual(
+            preflight_args,
+            validate_codex_wave(plan, run_wide, ["N-M1"], mode="preflight"),
+        )
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"][0][
+            "status"
+        ] = "unavailable"
         with self.assertRaises(CodexWaveError):
             validate_codex_wave(plan, run, ["N-M1"], mode="preflight")
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"][0][
+            "status"
+        ] = "unknown"
+        for action in (
+            "spawn_subagents",
+            "create_app_managed_worktrees",
+            "create_local_branches",
+        ):
+            with self.subTest(preflight_action=action):
+                invalid = copy.deepcopy(run)
+                invalid["authorizations"][action] = {
+                    "authorized": False,
+                    "source": None,
+                }
+                with self.assertRaises(CodexWaveError):
+                    validate_codex_wave(plan, invalid, ["N-M1"], mode="preflight")
 
 
 if __name__ == "__main__":
