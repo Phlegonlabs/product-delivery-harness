@@ -52,7 +52,7 @@ Claude Dynamic Workflow cannot wait for human sign-off between stages. If implem
 
 ## Claude To cc-codex Rules
 
-When `runtime_driver` is `external_codex_agent`, Claude Code remains the Harness parent and this Codex run is one child Agent inside the outer Dynamic Workflow. The prompt begins with `--wait --fresh`; never resume a prior Codex thread. Do not spawn or delegate, and report `subagent_activity` as `not_applicable` with no children.
+When `runtime_driver` is `external_codex_agent`, Claude Code remains the Harness parent and this Codex run is one guarded child Agent inside the outer Dynamic Workflow. The parent must have emitted this mission's arguments from `validate_codex_wave.py`. The prompt begins with `--wait --fresh`; never resume a prior Codex thread. Do not spawn or delegate, and report `subagent_activity` as `not_applicable` with no children.
 
 Treat the current directory as the runtime-assigned worktree. Before any edit, verify its repository root, current branch/ref, and exact initial HEAD. Do not switch the branch or worktree. A successful result requires committed task handoff, exact changed-file reporting, verifier evidence, and the final worktree path, branch/ref, and head SHA in `runtime_evidence`. The parent independently checks the Git object, ancestry, diff, scope, and retained worktree before integration.
 
