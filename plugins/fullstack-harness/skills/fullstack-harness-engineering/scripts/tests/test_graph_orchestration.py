@@ -653,6 +653,55 @@ class GraphManifestTests(unittest.TestCase):
             any("must match the matching PLAN provider option" in error for error in validate_run(plan, run))
         )
 
+    def test_external_codex_worker_requires_agent_result_axes(self) -> None:
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        worker = {
+            "worker_id": "W-M1-CODEX",
+            "mission_id": "M1",
+            "lease_id": "LEASE-M1-CODEX",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "batch_base_sha": "a" * 40,
+            "worker_runtime": "subagent",
+            "workspace_mode": "app_managed_worktree",
+            "completion_channel": "agent_result",
+            "runtime_binding": {
+                "provider": "codex",
+                "driver": "external_codex_agent",
+                "source": "external_agent",
+                "model": None,
+                "reasoning_effort": None,
+                "option_source": "provider_default",
+            },
+            "task_thread_id": None,
+            "worktree_path": None,
+            "branch_ref": None,
+            "report_path": None,
+            "phase": "leased",
+            "worker_head_sha": None,
+        }
+        run["workers"].append(worker)
+
+        self.assertEqual([], validate_run(plan, run))
+        invalid_values = {
+            "worker_runtime": "app_task",
+            "workspace_mode": "shared_checkout",
+            "completion_channel": "thread_poll",
+            "task_thread_id": "thread-codex-inner",
+        }
+        for field, value in invalid_values.items():
+            with self.subTest(field=field):
+                invalid = copy.deepcopy(run)
+                invalid["workers"][0][field] = value
+                self.assertTrue(
+                    any(
+                        "external_agent requires subagent/app_managed_worktree/agent_result with no task thread"
+                        in error
+                        for error in validate_run(plan, invalid)
+                    )
+                )
+
     def test_dependency_cycles_and_unbounded_route_cycles_are_rejected(self) -> None:
         dependency_cycle = valid_graph_plan()
         dependency_cycle["graph"]["edges"].append(

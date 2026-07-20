@@ -3680,15 +3680,27 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.runtime_binding",
                         "external_bridge requires claude_code/external_dynamic_workflow",
                     )
-                if runtime_binding["source"] == "external_agent" and (
-                    runtime_binding["provider"] != "codex"
-                    or runtime_binding["driver"] != "external_codex_agent"
-                ):
-                    _add(
-                        errors,
-                        f"{path}.runtime_binding",
-                        "external_agent requires codex/external_codex_agent",
-                    )
+                if runtime_binding["source"] == "external_agent":
+                    if (
+                        runtime_binding["provider"] != "codex"
+                        or runtime_binding["driver"] != "external_codex_agent"
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding",
+                            "external_agent requires codex/external_codex_agent",
+                        )
+                    if (
+                        worker["worker_runtime"] != "subagent"
+                        or worker["workspace_mode"] != "app_managed_worktree"
+                        or worker["completion_channel"] != "agent_result"
+                        or worker["task_thread_id"] is not None
+                    ):
+                        _add(
+                            errors,
+                            path,
+                            "external_agent requires subagent/app_managed_worktree/agent_result with no task thread",
+                        )
                 if runtime_binding["option_source"] not in {
                     "plan_provider_options",
                     "provider_default",
