@@ -428,13 +428,23 @@ def validate_worker_result_data(
     if worker and mission_state.get("worker_id") != worker.get("worker_id"):
         _issue(errors, "worker_record_mismatch", "harness_run.mission_states.worker_id", "does not match worker record")
     runtime_capabilities = run.get("runtime_capabilities", {})
+    runtime_binding = worker.get("runtime_binding") if worker else None
+    if isinstance(runtime_binding, dict) and runtime_binding.get("driver") == "external_codex_agent":
+        expected_runtime_axes = {
+            "worker_runtime": "subagent",
+            "workspace_mode": "app_managed_worktree",
+            "completion_channel": "agent_result",
+        }
+    else:
+        expected_runtime_axes = runtime_capabilities
     for field in ("worker_runtime", "workspace_mode", "completion_channel"):
-        if worker and worker.get(field) != runtime_capabilities.get(field):
+        if worker and worker.get(field) != expected_runtime_axes.get(field):
+            source = "external Codex runtime binding" if expected_runtime_axes is not runtime_capabilities else "RUN runtime capabilities"
             _issue(
                 errors,
                 "worker_record_mismatch",
                 f"harness_run.workers.{field}",
-                "does not match RUN runtime capabilities",
+                f"does not match {source}",
             )
 
     active_wave = run.get("active_wave", {})
@@ -596,12 +606,38 @@ def validate_worker_result_data(
 
     workspace_mode = worker.get("workspace_mode")
     if workspace_mode in ISOLATED_WORKSPACES:
-        if not isinstance(worker.get("worktree_path"), str) or not worker.get("worktree_path"):
+        worktree_path = worker.get("worktree_path")
+        if not isinstance(worktree_path, str) or not worktree_path:
             _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.worktree_path", "isolated worker needs a worktree path")
-        if not isinstance(worker.get("branch_ref"), str) or not worker.get("branch_ref"):
-            _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.branch_ref", "isolated worker needs a durable branch/ref")
         branch_ref = worker.get("branch_ref")
+        if not isinstance(branch_ref, str) or not branch_ref:
+            _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.branch_ref", "isolated worker needs a durable branch/ref")
         branch_target = f"branch:{branch_ref}" if isinstance(branch_ref, str) and branch_ref else None
+        if isinstance(runtime_binding, dict) and runtime_binding.get("driver") == "external_codex_agent":
+            external_actions = [
+                ("invoke_external_runtime", "runtime:codex"),
+                (
+                    "spawn_subagents",
+                    f"worker:{worker_id}" if isinstance(worker_id, str) and worker_id else None,
+                ),
+                (
+                    "create_app_managed_worktrees",
+                    f"worktree:{worktree_path}"
+                    if isinstance(worktree_path, str) and worktree_path
+                    else None,
+                ),
+                ("create_local_branches", branch_target),
+            ]
+            for action, target in external_actions:
+                if mission_id is None or target is None or not authorization_covers(
+                    run, action, mission_id, target
+                ):
+                    _issue(
+                        errors,
+                        "external_launch_not_authorized",
+                        f"harness_run.authorizations.{action}",
+                        f"external Codex handoff requires {action} authorization covering {target or 'its allocation'}",
+                    )
         if mission_id is None or not authorization_covers(
             run, "create_local_commits", mission_id, branch_target
         ):

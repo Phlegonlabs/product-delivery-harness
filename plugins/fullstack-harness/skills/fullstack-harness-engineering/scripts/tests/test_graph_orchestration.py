@@ -240,6 +240,134 @@ class GraphManifestTests(unittest.TestCase):
             any("unknown graph nodes" in error for error in validate_run(plan, run))
         )
 
+    def test_external_codex_workflow_run_binds_provider_options_and_attempt(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["runtime"] = {
+            "preferred_provider": "codex",
+            "allowed_providers": ["codex"],
+        }
+        run = valid_graph_run(plan)
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": "ATT-N-M1-CODEX-1",
+                "bound_worker_id": "W-M1-CODEX",
+            }
+        )
+        run["mission_states"]["M1"].update(
+            {
+                "phase": "worker_running",
+                "lease_id": "LEASE-M1-CODEX-1",
+                "lease_plan_revision": plan["revision"],
+                "lease_plan_digest_sha256": digest,
+                "worker_id": "W-M1-CODEX",
+                "base_sha": run["integration"]["batch_base_sha"],
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = [
+            {
+                "provider": "codex",
+                "driver": "codex_rescue_agent",
+                "status": "available",
+                "command": "agent:codex:codex-rescue",
+                "version": "1.0.4",
+                "contract_version": "harness-node-result-v1",
+                "completion_channel": "agent_result",
+                "evidence": ["foreground preflight passed"],
+            }
+        ]
+        workflow = {
+            "workflow_run_id": "wf_codex_test",
+            "workflow_task_id": "task-codex-test",
+            "resume_from_run_id": None,
+            "script_path": "assets/templates/CLAUDE_CODEX_GRAPH_WORKFLOW.template.js",
+            "script_sha256": "d" * 64,
+            "run_id": run["run_id"],
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "batch_base_sha": run["integration"]["batch_base_sha"],
+            "node_ids": ["N-M1"],
+            "attempt_ids": {"N-M1": "ATT-N-M1-CODEX-1"},
+            "provider": "codex",
+            "driver": "external_codex_agent",
+            "model": None,
+            "reasoning_effort": None,
+            "tool_profile": "mission_write",
+            "status": "running",
+            "result_evidence": [],
+            "metrics": {"duration_ms": None, "token_count": None},
+        }
+        run["workflow_runs"] = [workflow]
+
+        self.assertEqual([], validate_run(plan, run))
+
+        workflow["driver"] = "external_dynamic_workflow"
+        self.assertTrue(
+            any("does not match the workflow provider" in error for error in validate_run(plan, run))
+        )
+        workflow["driver"] = "external_codex_agent"
+        workflow["model"] = "gpt-5.6-terra"
+        self.assertTrue(
+            any("does not match node N-M1" in error for error in validate_run(plan, run))
+        )
+        workflow["model"] = None
+        workflow["attempt_ids"]["N-M1"] = "ATT-STALE"
+        self.assertTrue(
+            any("active running node attempt" in error for error in validate_run(plan, run))
+        )
+
+        explicit_plan = valid_graph_plan()
+        explicit_plan["graph"]["nodes"][0]["runtime"] = {
+            "preferred_provider": "codex",
+            "allowed_providers": ["codex"],
+            "provider_options": {
+                "codex": {
+                    "model": "gpt-5.6-terra",
+                    "reasoning_effort": "xhigh",
+                }
+            },
+        }
+        explicit_run = valid_graph_run(explicit_plan)
+        explicit_digest = plan_digest(explicit_plan)
+        explicit_run["graph_state"]["node_states"]["N-M1"].update(
+            {
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": "ATT-N-M1-CODEX-2",
+                "bound_worker_id": "W-M1-CODEX-2",
+            }
+        )
+        explicit_run["mission_states"]["M1"].update(
+            {
+                "phase": "worker_running",
+                "lease_id": "LEASE-M1-CODEX-2",
+                "lease_plan_revision": explicit_plan["revision"],
+                "lease_plan_digest_sha256": explicit_digest,
+                "worker_id": "W-M1-CODEX-2",
+                "base_sha": explicit_run["integration"]["batch_base_sha"],
+            }
+        )
+        explicit_workflow = copy.deepcopy(workflow)
+        explicit_workflow.update(
+            {
+                "workflow_run_id": "wf_codex_explicit",
+                "workflow_task_id": "task-codex-explicit",
+                "run_id": explicit_run["run_id"],
+                "plan_revision": explicit_plan["revision"],
+                "plan_digest_sha256": explicit_digest,
+                "graph_revision": explicit_run["graph_state"]["graph_revision"],
+                "batch_base_sha": explicit_run["integration"]["batch_base_sha"],
+                "attempt_ids": {"N-M1": "ATT-N-M1-CODEX-2"},
+                "model": "gpt-5.6-terra",
+                "reasoning_effort": "xhigh",
+            }
+        )
+        explicit_run["workflow_runs"] = [explicit_workflow]
+        self.assertEqual([], validate_run(explicit_plan, explicit_run))
+
     def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"].append(
@@ -813,6 +941,207 @@ class GraphManifestTests(unittest.TestCase):
         self.assertIn(
             "blocker_present",
             {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
+        )
+
+    def test_claude_parent_selects_external_codex_agents_in_isolated_worktrees(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
+        plan["graph"]["edges"] = []
+        plan["max_parallel_workers"] = 2
+        for node in plan["graph"]["nodes"]:
+            node["runtime"] = {
+                "preferred_provider": "codex",
+                "allowed_providers": ["codex"],
+            }
+        run = valid_graph_run(plan)
+        mission_ids = ["M1", "M2"]
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": mission_ids,
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"] = {
+            "provider": "claude_code",
+            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "detection_source": "observed",
+            "external_runtimes": [
+                {
+                    "provider": "codex",
+                    "driver": "codex_rescue_agent",
+                    "status": "available",
+                    "command": "agent:codex:codex-rescue",
+                    "version": "1.0.4",
+                    "contract_version": "harness-node-result-v1",
+                    "completion_channel": "agent_result",
+                    "evidence": ["foreground preflight passed"],
+                }
+            ],
+        }
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 2, "isolation_capacity": 2}
+        )
+        for action in (
+            "spawn_subagents",
+            "create_app_managed_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize(run, action, mission_ids, "*")
+        authorize(run, "invoke_external_runtime", mission_ids, "runtime:codex")
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(["N-M1", "N-M2"], result["ready_frontier"])
+        self.assertEqual(
+            ["run_external_codex_agent", "run_external_codex_agent"],
+            [item["launch_kind"] for item in result["dispatchable_nodes"]],
+        )
+        for directive in result["dispatchable_nodes"]:
+            self.assertEqual("codex:codex-rescue", directive["agent_type"])
+            self.assertEqual("app_managed_worktree", directive["workspace_mode"])
+            self.assertEqual("agent_result", directive["completion_channel"])
+            self.assertEqual(None, directive["runtime_binding"]["model"])
+            self.assertEqual(None, directive["runtime_binding"]["reasoning_effort"])
+            self.assertEqual("external_agent", directive["runtime_binding"]["source"])
+            self.assertEqual(
+                [
+                    "invoke_external_runtime",
+                    "spawn_subagents",
+                    "create_app_managed_worktrees",
+                    "create_local_branches",
+                    "create_local_commits",
+                ],
+                directive["required_actions"],
+            )
+            self.assertNotIn("create_user_owned_tasks", directive["required_actions"])
+        self.assertEqual(1, len(result["wave_launches"]))
+        self.assertEqual("run_external_codex_agent", result["wave_launches"][0]["launch_kind"])
+        self.assertEqual(["N-M1", "N-M2"], result["wave_launches"][0]["node_ids"])
+        self.assertEqual("codex:codex-rescue", result["wave_launches"][0]["agent_type"])
+
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"][0][
+            "status"
+        ] = "unavailable"
+        unavailable = select_ready_nodes(plan, run)
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in unavailable["deferred_nodes"]
+        }
+        self.assertIn("runtime_unavailable", deferred["N-M1"])
+        self.assertIn("runtime_unavailable", deferred["N-M2"])
+
+    def test_external_codex_review_requires_no_write_authorization(self) -> None:
+        plan = valid_graph_plan()
+        review = graph_node(
+            "N-BACKEND-REVIEW",
+            "verifier",
+            "batch",
+            "runtime_worker",
+            ["pass", "fix_required", "retryable_failure", "blocked", "contract_gap"],
+            providers=["codex"],
+            preferred="codex",
+        )
+        review["review"] = {
+            "type": "backend_code",
+            "mission_ids": ["M1"],
+            "scope": ["src/a/**"],
+            "required_evidence": ["reviewed_sha", "findings"],
+        }
+        plan["graph"]["nodes"].append(review)
+        plan["graph"]["edges"].append(
+            {
+                "id": "E-M1-BACKEND-REVIEW",
+                "kind": "dependency",
+                "from": "N-M1",
+                "to": review["id"],
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            }
+        )
+        plan["required_reviews"] = ["backend_code"]
+        run = valid_graph_run(plan)
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested review",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M1"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {"phase": "succeeded", "attempts": 1, "last_attempt_id": "A-M1", "last_outcome": "pass"}
+        )
+        run["graph_state"]["node_states"]["N-M2"].update(
+            {
+                "phase": "blocked",
+                "attempts": 1,
+                "last_attempt_id": "A-M2",
+                "last_outcome": "blocked",
+                "blockers": ["not selected"],
+            }
+        )
+        run["mission_states"]["M1"].update(
+            {"phase": "integrated", "integration_gate": "PASS", "integrated_sha": "a" * 40}
+        )
+        run["mission_states"]["M2"]["phase"] = "blocked"
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"] = {
+            "provider": "claude_code",
+            "available_drivers": ["dynamic_workflow", "sequential_parent"],
+            "detection_source": "observed",
+            "external_runtimes": [
+                {
+                    "provider": "codex",
+                    "driver": "codex_rescue_agent",
+                    "status": "available",
+                    "command": "agent:codex:codex-rescue",
+                    "version": "1.0.4",
+                    "contract_version": "harness-node-result-v1",
+                    "completion_channel": "agent_result",
+                    "evidence": ["foreground preflight passed"],
+                }
+            ],
+        }
+        authorize(run, "invoke_external_runtime", ["M1"], "runtime:codex")
+        authorize(run, "spawn_subagents", ["M1"], "*")
+
+        result = select_ready_nodes(plan, run)
+
+        directive = result["dispatchable_nodes"][0]
+        self.assertEqual("run_external_codex_agent", directive["launch_kind"])
+        self.assertEqual("shared_checkout", directive["workspace_mode"])
+        self.assertEqual(
+            ["invoke_external_runtime", "spawn_subagents"],
+            directive["required_actions"],
         )
 
     def test_runtime_reviews_require_authorization_and_share_runtime_capacity(self) -> None:

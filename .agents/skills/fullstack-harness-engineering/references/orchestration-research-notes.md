@@ -1,6 +1,6 @@
 # Multi-Thread Orchestration Research Notes
 
-Last reviewed: 2026-07-18. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources and the current local CLI surface before changing behavior because Codex and Claude Code configuration, product behavior, and defaults can change independently of this skill.
+Last reviewed: 2026-07-19. These notes capture capability facts behind the skill's orchestration guidance. Re-check the linked official sources and the current local CLI and plugin surfaces before changing behavior because Codex, Claude Code, and cc-codex configuration, product behavior, and defaults can change independently of this skill.
 
 Do not hard-code a local `codex-cli` version into portable guidance. Record the observed version in RUN evidence only when a specific behavior depends on it.
 
@@ -30,9 +30,11 @@ The selector now emits deterministic, tool-agnostic launch directives for select
 
 In Claude Code with Dynamic Workflow available, the selector also emits one wave-level launch bundle. The parent allocates mission branches/worktrees first, then runs a flat JavaScript workflow that starts sibling mission agents and returns structured result candidates. The workflow is an adapter over the same mission, authorization, result, and integration gates; it is not a second planning system.
 
-Schema v8 adds a typed graph and a bounded external-runtime bridge. The host provider remains the session running PLAN/RUN. A Codex parent does not preflight Claude merely because its CLI is installed or a fallback is listed. Before ready-node selection, it runs the no-edit Workflow preflight only when the user explicitly requests Claude, a ready node's PLAN runtime policy prefers or requires Claude, or the host cannot satisfy a ready node whose declared fallback allows Claude. This lets the selector bind Claude-only and Claude-preferred nodes without probing Claude for small work, unready nodes, or unused fallbacks. This is not native Codex delegation: the bridge starts a separate Claude Code process, passes one immutable wave, and returns result candidates. `invoke_external_runtime` remains separate from worker, worktree, branch, commit, and integration authorization.
+Schema v8 adds a typed graph and bounded external-runtime routes. The host provider remains the session running PLAN/RUN. A Codex parent does not preflight Claude merely because its CLI is installed or a fallback is listed. Before ready-node selection, it runs the no-edit Workflow preflight only when the user explicitly requests Claude, a ready node's PLAN runtime policy prefers or requires Claude, or the host cannot satisfy a ready node whose declared fallback allows Claude. This lets the selector bind Claude-only and Claude-preferred nodes without probing Claude for small work, unready nodes, or unused fallbacks. This is not native Codex delegation: the bridge starts a separate Claude Code process, passes one immutable wave, and returns result candidates.
 
-The current Codex app task creation surface accepts an explicit model and reasoning effort per task. Claude Code accepts a model through its CLI, while its Dynamic Workflow siblings inherit the outer invocation. The portable graph therefore stores provider-specific model options in PLAN, emits them in the runtime binding, and groups external Claude nodes by model. It does not hard-code a Codex model catalog because the destination host validates that evolving catalog at launch.
+The reverse route keeps Claude Code as the only PLAN/RUN parent and invokes the installed `codex:codex-rescue` Agent from a flat Dynamic Workflow. A preflight proves the Agent type, Codex CLI/auth path, foreground completion, and marker contract. Each write node receives its own Agent-isolated worktree and returns runtime evidence plus a marked node result. This route does not create a user-owned Codex app task and does not expose the inner Codex thread ID. The Harness therefore records outer Workflow identity, validates Git facts itself, integrates serially, and starts every retry as a new graph attempt with `--fresh`. It does not add another Codex App Server client or use private cc-codex status/result/cancel commands.
+
+`invoke_external_runtime` remains separate from worker, worktree, branch, commit, and integration authorization in both directions. The current Codex app task creation surface accepts an explicit model and reasoning effort per task. Claude Code accepts a model through its CLI, while its Dynamic Workflow siblings inherit the outer invocation. The cc-codex forwarder accepts explicit model/effort routing but otherwise uses Codex defaults. The portable graph therefore stores provider-specific model options in PLAN, emits them in the runtime binding, and groups external waves by model, effort, and tool profile. It does not hard-code a Codex model catalog because the destination host validates that evolving catalog at launch.
 
 ## Claude Code Dynamic Workflow
 
@@ -48,6 +50,20 @@ Official Claude Code documentation establishes these current facts:
 - Documented concurrency and per-run agent limits are product ceilings, not Harness budgets. Observe current capacity and keep the configured Harness worker maximum instead of hard-coding those ceilings.
 
 The workflow template returns a structured array of complete `WORKER_RESULT` or `REFINEMENT_REQUEST` objects keyed internally by mission ID. The parent still verifies leases, base/head ancestry, actual paths, verifier evidence, and current Git state before integration. Claude Code's `Workflow` tool accepts the asset through `scriptPath` and the accepted wave through structured `args`; reusable named commands live under `.claude/workflows/`, and creating one remains a planned project write.
+
+## cc-codex Agent Contract
+
+The current installed cc-codex plugin establishes these route-specific facts:
+
+- `codex:codex-rescue` is the public Agent entry point. The Harness must not invoke its internal CLI-runtime skill directly.
+- The rescue Agent forwards one request to the Codex companion and returns companion stdout unchanged. It is not a second planner or integration owner.
+- `--wait` requests foreground completion and `--fresh` prevents an unrelated prior thread from being resumed. The Harness uses both for preflight, production nodes, and retries.
+- Model and effort stay unset unless PLAN explicitly selects them.
+- A write-capable Workflow Agent can request `isolation: "worktree"`; the Agent runtime supplies the worktree, while the Codex worker reports and commits the handoff.
+- Companion stdout does not provide a Harness-stable inner thread ID. Cross-session continuation therefore starts from PLAN/RUN and Git with a new attempt, not from an invented or private cc-codex thread handle.
+- Because stdout is forwarded unchanged, the Harness uses exact begin/end markers around one JSON envelope and converts malformed or mismatched output into a failed or blocked candidate.
+
+These are plugin-contract observations, not portable Codex platform guarantees. Re-check the installed plugin contract when its version changes.
 
 ## Codex Subagents
 
@@ -118,11 +134,12 @@ True event-driven Codex integration is an App Server client capability. App Serv
 | `parent` | `shared_checkout` | `agent_result` | one write mission at a time |
 | `subagent` | `shared_checkout` | `agent_result` | serialize writes; read-only fan-out is allowed |
 | `subagent` | `parent_managed_worktree` | `agent_result` or `report_file` | parallel writes only after full fan-out gate |
+| `subagent` | `app_managed_worktree` | `agent_result` | external Codex Agent writes only after full fan-out gate; no user-owned task |
 | `app_task` | `app_managed_worktree` | `thread_poll`, `report_file`, or `user_relay` | parallel writes only after full fan-out gate and lifecycle acknowledgement |
 
-The `subagent` + `parent_managed_worktree` + `agent_result` row covers both direct parent-owned subagents and Claude Dynamic Workflow mission agents. The runtime adapter distinguishes those launch drivers without changing the portable axes.
+The `subagent` + `parent_managed_worktree` + `agent_result` row covers both direct parent-owned subagents and Claude Dynamic Workflow mission agents. The `subagent` + `app_managed_worktree` + `agent_result` row covers Claude-hosted `external_codex_agent` workers. The runtime binding distinguishes those launch drivers without changing the portable axes.
 
-Inside the last row, the app task may coordinate up to three direct read-only helpers when the RUN policy and `spawn_subagents` authorization permit it. Those helpers return `agent_result` to the app task; they are not additional app tasks or write workers.
+Inside the last row, the app task may coordinate up to three direct read-only helpers when the RUN policy and `spawn_subagents` authorization permit it. Those helpers return `agent_result` to the app task; they are not additional app tasks or write workers. The external Codex Agent row remains flat and prohibits nested delegation.
 
 These are examples, not an exhaustive compatibility table. The parent must prove that the chosen combination exists in the current environment. If a completion channel or workspace primitive is missing, fall back to sequential execution.
 
@@ -138,6 +155,7 @@ Before changing orchestration guidance, re-check:
 - Codex best-practice warnings for concurrent work on the same files and the current recommended use of worktrees.
 - Claude Code Dynamic Workflow version gate, workflow directory, `agent()`/`pipeline()` contract, result schemas, pause/resume behavior, tool inheritance, and current capacity ceilings.
 - Claude Code subagent nesting and worktree-isolation behavior before changing the flat workflow shape.
+- The installed cc-codex Agent name, foreground/fresh routing flags, stdout forwarding, model/effort behavior, worktree isolation, and inner thread-identity limitations before changing the external Codex route.
 - Any other runtime's worker nesting, isolation, completion, and cleanup behavior before mapping it to these axes.
 
 Record environment-specific observations in RUN evidence. Keep this reference about portable capability semantics.

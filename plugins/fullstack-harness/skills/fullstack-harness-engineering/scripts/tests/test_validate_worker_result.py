@@ -442,6 +442,51 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, run, self.result)
         self.assertIn("commit_not_authorized", error_codes(errors))
 
+    def test_external_codex_handoff_rechecks_launch_authorizations(self) -> None:
+        run = copy.deepcopy(self.run)
+        worker = run["workers"][0]
+        worker.update(
+            {
+                "workspace_mode": "app_managed_worktree",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "external_codex_agent",
+                    "source": "external_agent",
+                    "model": None,
+                    "reasoning_effort": None,
+                    "option_source": "provider_default",
+                },
+                "task_thread_id": None,
+            }
+        )
+        run["observed"]["git"]["worktrees"][0]["managed_by"] = "app"
+        targets = {
+            "invoke_external_runtime": "runtime:codex",
+            "spawn_subagents": "worker:W1",
+            "create_app_managed_worktrees": "worktree:/tmp/worker-m1",
+            "create_local_branches": f"branch:{BRANCH_REF}",
+        }
+        for action, target in targets.items():
+            run["authorizations"][action] = authorization(
+                action, enabled=True, target=target
+            )
+        self.assertEqual(validate(self.plan, run, self.result), [])
+
+        for action in targets:
+            with self.subTest(action=action):
+                unauthorized = copy.deepcopy(run)
+                unauthorized["authorizations"][action] = authorization(
+                    action, enabled=False
+                )
+                errors = validate(self.plan, unauthorized, self.result)
+                self.assertIn("external_launch_not_authorized", error_codes(errors))
+                self.assertTrue(
+                    any(
+                        error["path"] == f"harness_run.authorizations.{action}"
+                        for error in errors
+                    )
+                )
+
     def test_unknown_result_field_is_rejected(self) -> None:
         result = copy.deepcopy(self.result)
         result["unexpected"] = True

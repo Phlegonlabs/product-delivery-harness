@@ -137,7 +137,7 @@ For a runtime worker, select deterministically:
 
 After choosing a provider, the selector binds that provider's PLAN options. If none were declared, Codex keeps null model/effort values for the host default and Claude production waves use `sonnet`. Every launch directive includes the complete binding and the parent copies it to the allocated RUN mission or review worker. Codex task creation maps non-null `model` and `reasoning_effort` to `model` and `thinking`. Claude nodes are grouped into one wave per selected model and effort; the immutable wave request carries both, and the bridge passes non-null effort with `--effort`. A bridge CLI model override must match the PLAN-selected model.
 
-Codex app threads and Claude Dynamic Workflow remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
+Codex app threads, Claude Dynamic Workflow, the external-Claude bridge, and the cc-codex Agent route remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
 
 Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group external Claude waves by model, reasoning effort, and tool profile. Every profile uses an exact allowlist. Mission profiles require `EnterWorktree` and the bounded write tools. Review profiles require `EnterWorktree` to bind reads to the validated `review_path`, but omit `Edit`, `Write`, `NotebookEdit`, and `Bash`; visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted in the bridge.
 
@@ -159,6 +159,21 @@ When Codex remains the parent and Claude Code is a worker provider:
 The outer Claude process and workflow agents inherit the supplied tool allowlist. Never use a broad permission bypass as a connectivity shortcut. A preflight proves only runtime availability; it does not authorize a production wave.
 
 When the user explicitly selected Claude Code full access and RUN records a ready `full_access` boundary, set the wave request `permission_mode` to `bypassPermissions`. The bridge emits `--dangerously-skip-permissions` while retaining the explicit tool allowlist. Do not invoke a local shell function such as `CC` through a shell; resolve the Claude executable directly and reproduce the recorded permission semantics without shell expansion.
+
+## Codex External Runtime
+
+When Claude Code remains the parent and Codex is a worker provider:
+
+1. Run `CLAUDE_CODEX_PREFLIGHT.template.js` only when a ready node prefers or requires Codex and `invoke_external_runtime` covers `runtime:codex`. It must make one read-only foreground call to `agentType: "codex:codex-rescue"` with `--wait --fresh` and accept only the exact preflight marker contract.
+2. Record `provider: codex`, `driver: codex_rescue_agent`, `command: agent:codex:codex-rescue`, `contract_version: harness-node-result-v1`, `completion_channel: agent_result`, the observed plugin version, and preflight evidence. Plugin files or a CLI version alone do not make the route available.
+3. Select ready Codex nodes with `driver: external_codex_agent` and `source: external_agent`. Keep model and effort null unless PLAN explicitly selected them. Group a wave by provider, model, effort, and tool profile.
+4. Require `invoke_external_runtime` and `spawn_subagents` for every node. A write mission also requires `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; it does not require `create_user_owned_tasks`. A read-only review does not request write actions.
+5. Build one immutable wave request and invoke `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js`. The flat workflow uses `pipeline()` and launches one `codex:codex-rescue` Agent per node. Every request begins with `--wait --fresh`; each write mission also uses `isolation: "worktree"`. Codex verifies its initial HEAD before editing, stays on the assigned branch, creates durable attributed task commits, does not delegate further, and never edits PLAN/RUN, integrates, pushes, opens a PR, deploys, or cleans up.
+6. Require exactly one `HARNESS_NODE_RESULT_V1_BEGIN` / `HARNESS_NODE_RESULT_V1_END` pair around an envelope containing `node_result` and `runtime_evidence`. Missing, duplicate, malformed, or identity-mismatched output becomes a deterministic failed or blocked candidate. One failed node does not cancel successful siblings.
+7. Validate typed node identity, then independently verify commit existence, base ancestry, exact changed files, scope and deny rules, PLAN/RUN exclusion, task commit attribution, verifier evidence, and retained worktree repository/branch/head facts. A successful Agent or Workflow result alone never satisfies a graph dependency.
+8. Integrate accepted commits serially, run the integration gate, update RUN, and recompute the frontier. A retry creates a new graph attempt and always uses `--fresh`.
+
+The outer Claude Workflow run/task ID is the available runtime identity. The cc-codex foreground contract does not expose the inner Codex thread ID, so leave it null and do not invent, poll, resume, or cancel it. Preserve failed and cancelled worktree evidence. The Harness must not call private cc-codex status/result/cancel commands or add a duplicate Codex App Server client.
 
 ## Retry And Replay
 

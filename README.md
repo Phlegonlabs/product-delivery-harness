@@ -66,7 +66,7 @@ The skills use two graph layers:
 
 Interviews and approvals stay outside running workflows because Claude Code Dynamic Workflows cannot ask for mid-run user input. The parent freezes inputs first, runs a bounded workflow, then owns staged writes, conflict resolution, approval, and publication.
 
-For engineering, the Harness validates and selects the dependency-ready frontier before creating worktrees. It then proactively creates one parent-managed worktree per selected write mission under `.claude/worktrees/`, binds every worker to the exact batch base, and requires `EnterWorktree` before any repository action. The parent integrates accepted commits serially and recomputes the graph frontier.
+For engineering, the Harness validates and selects the dependency-ready frontier before creating or requesting worktrees. Native Claude and external-Claude missions use parent-managed worktrees under `.claude/worktrees/`, bind every worker to the exact batch base, and require `EnterWorktree` before repository access. Claude-hosted cc-codex missions request one Agent-isolated worktree per write node. In every route, the parent validates the returned commit and actual Git diff, integrates accepted commits serially, and recomputes the graph frontier.
 
 External Claude waves are separated by model, reasoning effort, and tool profile:
 
@@ -75,6 +75,8 @@ External Claude waves are separated by model, reasoning effort, and tool profile
 - `visual_review_readonly` uses the exact read/search allowlist and reviews retained screenshots or other existing evidence. New browser tools must be vetted and added to the profile before use.
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
+
+Claude Code can also delegate selected graph nodes to Codex through the installed `codex:codex-rescue` Agent. The Harness preflights that exact Agent only when a ready node needs Codex, launches every request with foreground/fresh routing, and gives each write mission its own Agent worktree. The route returns marked candidates through `agent_result`; it does not expose an inner Codex thread ID or add another App Server client. Claude remains the only PLAN/RUN writer and owns validation, serial integration, PR landing, deployment, and cleanup decisions.
 
 ## Install
 
@@ -168,8 +170,9 @@ The Harness records the actual runtime capability instead of assuming one from a
 | --- | --- | --- |
 | Codex app | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
 | Claude Code | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
+| Claude Code → cc-codex | One `codex:codex-rescue` Agent per node; isolated Agent worktree for writes | Another PLAN-allowed provider, then the recorded sequential route |
 
-Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are created only after ready-frontier selection, and each Claude mission must enter its assigned worktree before repository access. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree; external Codex write missions report their Agent-managed path, branch, and head for independent verification. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 
@@ -256,13 +259,15 @@ Use $fullstack-harness-engineering to review the existing app, plan the work, an
 
 ### 交付原則
 
-Harness 會先把工作分成小項目或大項目。小項目直接處理，預設不啟動 planner、scheduler、PLAN/RUN、subagent 或外部 runtime preflight。大項目才進入 managed planning；只有存在兩個以上可獨立執行的 ready missions 時才啟動 scheduler。Claude bridge 也只會在選定的 route 確實需要 Claude 時 preflight。
+Harness 會先把工作分成小項目或大項目。小項目直接處理，預設不啟動 planner、scheduler、PLAN/RUN、subagent 或外部 runtime preflight。大項目才進入 managed planning；只有存在兩個以上可獨立執行的 ready missions 時才啟動 scheduler。外部 runtime 也只會在選定的 ready route 確實需要時 preflight：Codex parent 可檢查外部 Claude，Claude Code parent 也可檢查 `codex:codex-rescue`。
 
 大小看的是協調範圍與影響面，不是單純計算檔案數或程式碼行數。小項目途中變大時，Harness 會保留已完成的工作，只規劃剩餘範圍。
 
 Graph engineering 分成兩層：org graph 定義長期穩定的產品、架構、UX、設計、worker、review、approval 與 integration 職責；work graph 則是單次工作的暫時節點、依賴、route、attempt 與 evidence。PRD 與 design workflow 只有在 host 能強制 `builder_readonly` tool profile 時才執行；否則回到 sequential parent。工程 work graph 仍以 PLAN v4 與 RUN v9 為唯一控制面。
 
-多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才在 `.claude/worktrees/` 主動建立每個 mission 的 exact-base worktree。Claude worker 必須先用 `EnterWorktree` 進入指定路徑。外部 Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
+多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才配置 worktree。原生 Claude 與外部 Claude route 會在 `.claude/worktrees/` 建立 exact-base worktree，Claude worker 必須先用 `EnterWorktree` 進入指定路徑。外部 Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
+
+Claude Code parent 也可透過 `codex:codex-rescue` 把選定節點交給 Codex。每個寫入 mission 會使用獨立的 Agent worktree，request 固定採 foreground 與 fresh route，並回傳 path、branch、head 與標記過的 result candidate。這條 route 不建立 user-owned Codex app task，也不提供內部 Codex thread ID；Claude 仍是唯一的 PLAN/RUN writer，並負責 Git 驗證、依序整合、PR landing 與部署。
 
 每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
 
