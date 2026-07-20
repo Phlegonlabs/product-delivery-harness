@@ -212,13 +212,13 @@ Do not run two PLAN/RUN parents. Do not let Claude create a replacement worktree
 
 ## Launch External Codex From A Claude Code Parent
 
-For a PLAN-v4/RUN-v8-or-v9 node bound to external Codex:
+For a guarded PLAN-v4/RUN-v9 write mission bound to external Codex:
 
 1. Keep the Claude Code task as the only PLAN/RUN writer, graph scheduler, integration owner, and landing/deployment owner.
 2. Run `CLAUDE_CODEX_PREFLIGHT.template.js` only when a ready node prefers or requires Codex and `invoke_external_runtime` covers `runtime:codex`. Record `codex_rescue_agent` as available only after one read-only `codex:codex-rescue` Agent returns the exact preflight marker in foreground mode.
-3. Recheck `spawn_subagents`. For write missions also recheck `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; do not require `create_user_owned_tasks`. A read-only review needs no write grant.
-4. Create a new node attempt and immutable wave request. Group nodes by provider, model, reasoning effort, and tool profile. Leave model and effort null unless PLAN explicitly selected them.
-5. Invoke `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js`. It uses `pipeline()` and starts one `codex:codex-rescue` Agent per node. Every request begins with `--wait --fresh`; a write mission also sets Agent `isolation: "worktree"`. Reviews are explicitly read-only. The Codex worker must not delegate further.
+3. Run `scripts/validate_codex_wave.py --mode preflight` before allocation. It requires exact `runtime:codex` and `worker:preallocation` authorizations. After the parent records the active wave, lease, worker, worktree path, and branch ref, run it again in wave mode. The wave guard requires exact worker, worktree, and branch authorization for `spawn_subagents`, worktree creation, branch creation, and commits. It never edits RUN, starts an Agent, or runs Git.
+4. Invoke `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js` only with the guard's JSON. It uses `pipeline()` and starts one `codex:codex-rescue` Agent per mission with `--wait --fresh` and `isolation: "worktree"`. The Codex worker must not delegate further. External Codex reviews are disabled in v1; choose another allowed provider or defer.
+5. Leave model and effort null unless PLAN explicitly selected safe values.
 6. Require exactly one `HARNESS_NODE_RESULT_V1_BEGIN` / `HARNESS_NODE_RESULT_V1_END` pair around the candidate JSON. Missing, duplicate, malformed, or identity-mismatched markers become explicit retryable or blocked candidates; they never count as success.
 7. For a write candidate, verify the reported commit exists, the fixed batch base is its ancestor, the observed changed-file set exactly matches the report, every path stays in scope and avoids PLAN/RUN, every task commit is attributed once, and the retained worktree path/ref/head matches the same repository when it is still observable. Validate task and mission verifiers before integration.
 8. Integrate accepted commits serially, run the integration gate, update canonical RUN state, and only then release downstream dependencies. One failed node does not cancel passing siblings.

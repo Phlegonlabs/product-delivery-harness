@@ -137,6 +137,8 @@ def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str,
             }.get(external.get("driver"))
             if external_binding is not None:
                 driver, source = external_binding
+                if node.get("kind") == "verifier" and driver == "external_codex_agent":
+                    continue
                 return {
                     "provider": provider,
                     "driver": driver,
@@ -246,16 +248,15 @@ def _required_actions(
             )
         return actions
     if binding["driver"] == "external_codex_agent":
-        actions = ["invoke_external_runtime", "spawn_subagents"]
-        if not read_only_review:
-            actions.extend(
-                [
-                    "create_app_managed_worktrees",
-                    "create_local_branches",
-                    "create_local_commits",
-                ]
-            )
-        return actions
+        if read_only_review:
+            raise GraphSelectionError("external Codex reviews are disabled in v1")
+        return [
+            "invoke_external_runtime",
+            "spawn_subagents",
+            "create_app_managed_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ]
     driver = binding["driver"]
     actions: list[str] = []
     if driver in {"subagents", "dynamic_workflow"}:
@@ -324,7 +325,11 @@ def _dispatch_reasons(
     if authorization_missions and binding is not None:
         for action in _required_actions(node, binding, run["runtime_capabilities"]):
             target = (
-                f"runtime:{binding['provider']}" if action == "invoke_external_runtime" else "*"
+                f"runtime:{binding['provider']}"
+                if action == "invoke_external_runtime"
+                else "worker:preallocation"
+                if binding["driver"] == "external_codex_agent" and action == "spawn_subagents"
+                else "*"
             )
             if any(
                 not _action_authorized(run, action, mission_id, target)
@@ -369,7 +374,7 @@ def _directive(
         "sequential_parent": "run_parent",
         "dynamic_workflow": "run_dynamic_workflow",
         "external_dynamic_workflow": "run_external_dynamic_workflow",
-        "external_codex_agent": "run_external_codex_agent",
+        "external_codex_agent": "run_guarded_external_codex_agent",
     }[driver]
     directive = {
         **base,
@@ -400,12 +405,11 @@ def _directive(
         directive.update(
             {
                 "worker_runtime": "subagent",
-                "workspace_mode": (
-                    "shared_checkout" if node["kind"] == "verifier" else "app_managed_worktree"
-                ),
+                "workspace_mode": "app_managed_worktree",
                 "completion_channel": "agent_result",
                 "agent_type": "codex:codex-rescue",
                 "contract_version": "harness-node-result-v1",
+                "guard_path": "scripts/validate_codex_wave.py",
                 "script_path": "assets/templates/CLAUDE_CODEX_GRAPH_WORKFLOW.template.js",
             }
         )
@@ -427,7 +431,7 @@ def _external_wave_launches(dispatchable: list[dict[str, Any]]) -> list[dict[str
     ] = {}
     supported_launches = {
         "run_external_dynamic_workflow",
-        "run_external_codex_agent",
+        "run_guarded_external_codex_agent",
     }
     for item in dispatchable:
         launch_kind = item["launch_kind"]
@@ -475,6 +479,7 @@ def _external_wave_launches(dispatchable: list[dict[str, Any]]) -> list[dict[str
                 {
                     "agent_type": "codex:codex-rescue",
                     "contract_version": "harness-node-result-v1",
+                    "guard_path": "scripts/validate_codex_wave.py",
                     "script_path": "assets/templates/CLAUDE_CODEX_GRAPH_WORKFLOW.template.js",
                 }
             )

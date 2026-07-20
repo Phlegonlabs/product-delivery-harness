@@ -313,6 +313,10 @@ class GraphManifestTests(unittest.TestCase):
         self.assertTrue(
             any("does not match node N-M1" in error for error in validate_run(plan, run))
         )
+        workflow["model"] = "gpt-5 --effort max"
+        self.assertTrue(
+            any("safe model token" in error for error in validate_run(plan, run))
+        )
         workflow["model"] = None
         workflow["attempt_ids"]["N-M1"] = "ATT-STALE"
         self.assertTrue(
@@ -997,8 +1001,8 @@ class GraphManifestTests(unittest.TestCase):
         run["observed"]["runtime"].update(
             {"available_worker_slots": 2, "isolation_capacity": 2}
         )
+        authorize(run, "spawn_subagents", mission_ids, "worker:preallocation")
         for action in (
-            "spawn_subagents",
             "create_app_managed_worktrees",
             "create_local_branches",
             "create_local_commits",
@@ -1010,11 +1014,12 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertEqual(["N-M1", "N-M2"], result["ready_frontier"])
         self.assertEqual(
-            ["run_external_codex_agent", "run_external_codex_agent"],
+            ["run_guarded_external_codex_agent", "run_guarded_external_codex_agent"],
             [item["launch_kind"] for item in result["dispatchable_nodes"]],
         )
         for directive in result["dispatchable_nodes"]:
             self.assertEqual("codex:codex-rescue", directive["agent_type"])
+            self.assertEqual("scripts/validate_codex_wave.py", directive["guard_path"])
             self.assertEqual("app_managed_worktree", directive["workspace_mode"])
             self.assertEqual("agent_result", directive["completion_channel"])
             self.assertEqual(None, directive["runtime_binding"]["model"])
@@ -1032,9 +1037,10 @@ class GraphManifestTests(unittest.TestCase):
             )
             self.assertNotIn("create_user_owned_tasks", directive["required_actions"])
         self.assertEqual(1, len(result["wave_launches"]))
-        self.assertEqual("run_external_codex_agent", result["wave_launches"][0]["launch_kind"])
+        self.assertEqual("run_guarded_external_codex_agent", result["wave_launches"][0]["launch_kind"])
         self.assertEqual(["N-M1", "N-M2"], result["wave_launches"][0]["node_ids"])
         self.assertEqual("codex:codex-rescue", result["wave_launches"][0]["agent_type"])
+        self.assertEqual("scripts/validate_codex_wave.py", result["wave_launches"][0]["guard_path"])
 
         run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"][0][
             "status"
@@ -1047,7 +1053,7 @@ class GraphManifestTests(unittest.TestCase):
         self.assertIn("runtime_unavailable", deferred["N-M1"])
         self.assertIn("runtime_unavailable", deferred["N-M2"])
 
-    def test_external_codex_review_requires_no_write_authorization(self) -> None:
+    def test_external_codex_review_defers_without_another_provider(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(
             "N-BACKEND-REVIEW",
@@ -1132,17 +1138,13 @@ class GraphManifestTests(unittest.TestCase):
             ],
         }
         authorize(run, "invoke_external_runtime", ["M1"], "runtime:codex")
-        authorize(run, "spawn_subagents", ["M1"], "*")
+        authorize(run, "spawn_subagents", ["M1"], "worker:preallocation")
 
         result = select_ready_nodes(plan, run)
 
-        directive = result["dispatchable_nodes"][0]
-        self.assertEqual("run_external_codex_agent", directive["launch_kind"])
-        self.assertEqual("shared_checkout", directive["workspace_mode"])
-        self.assertEqual(
-            ["invoke_external_runtime", "spawn_subagents"],
-            directive["required_actions"],
-        )
+        self.assertEqual([], result["dispatchable_nodes"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("runtime_unavailable", deferred["N-BACKEND-REVIEW"])
 
     def test_runtime_reviews_require_authorization_and_share_runtime_capacity(self) -> None:
         plan = valid_graph_plan()

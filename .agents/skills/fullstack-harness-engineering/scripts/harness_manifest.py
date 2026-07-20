@@ -140,6 +140,7 @@ RUNTIME_REASONING_EFFORTS = {
     "max",
     "ultra",
 }
+MODEL_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 RUNTIME_DRIVERS = {
     "app_threads",
     "dynamic_workflow",
@@ -322,6 +323,10 @@ def canonical_json(value: Any) -> str:
 
 def is_full_sha(value: Any) -> bool:
     return isinstance(value, str) and SHA_RE.fullmatch(value) is not None
+
+
+def is_safe_model_token(value: Any) -> bool:
+    return isinstance(value, str) and MODEL_TOKEN_RE.fullmatch(value) is not None
 
 
 def validate_scope_claim(claim: Any) -> str | None:
@@ -899,8 +904,8 @@ def _validate_graph(
                             ):
                                 continue
                             model = options["model"]
-                            if model is not None and not _nonempty_string(model):
-                                _add(errors, f"{option_path}.model", "must be null or a non-empty string")
+                            if model is not None and not is_safe_model_token(model):
+                                _add(errors, f"{option_path}.model", "must be null or a safe model token")
                             effort = options["reasoning_effort"]
                             if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
                                 _add(
@@ -2743,8 +2748,8 @@ def _validate_workflow_runs(
         ):
             _add(errors, f"{path}.driver", "does not match the workflow provider")
         model = item["model"]
-        if model is not None and not _nonempty_string(model):
-            _add(errors, f"{path}.model", "must be null or a non-empty string")
+        if model is not None and not is_safe_model_token(model):
+            _add(errors, f"{path}.model", "must be null or a safe model token")
         if provider == "claude_code" and model is None:
             _add(errors, f"{path}.model", "must be a non-empty string for claude_code")
         effort = item["reasoning_effort"]
@@ -2777,6 +2782,12 @@ def _validate_workflow_runs(
                 graph_nodes.get(node_id, {}).get("kind") != "mission" for node_id in node_ids
             ):
                 _add(errors, f"{path}.tool_profile", "mission_write requires only mission nodes")
+            if provider == "codex" and (
+                driver != "external_codex_agent"
+                or profile != "mission_write"
+                or any(graph_nodes.get(node_id, {}).get("kind") != "mission" for node_id in node_ids)
+            ):
+                _add(errors, path, "external Codex workflows support mission_write missions only")
             if profile in {"code_review_readonly", "visual_review_readonly"}:
                 review_types: set[Any] = set()
                 for node_id in node_ids:
@@ -3684,8 +3695,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 }:
                     _add(errors, f"{path}.runtime_binding.option_source", "has an unsupported value")
                 model = runtime_binding["model"]
-                if model is not None and not _nonempty_string(model):
-                    _add(errors, f"{path}.runtime_binding.model", "must be null or a non-empty string")
+                if model is not None and not is_safe_model_token(model):
+                    _add(errors, f"{path}.runtime_binding.model", "must be null or a safe model token")
                 effort = runtime_binding["reasoning_effort"]
                 if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
                     _add(
@@ -4011,6 +4022,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.runtime_binding",
                             "external_agent requires codex/external_codex_agent",
                         )
+                    if binding["source"] == "external_agent":
+                        _add(errors, f"{path}.runtime_binding", "external Codex reviews are disabled in v1")
                     expected_options = (
                         resolve_runtime_options(policy, provider)
                         if isinstance(policy, dict)
@@ -4020,6 +4033,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             "option_source": "provider_default",
                         }
                     )
+                    if binding["model"] is not None and not is_safe_model_token(binding["model"]):
+                        _add(errors, f"{path}.runtime_binding.model", "must be null or a safe model token")
                     if binding["model"] != expected_options["model"]:
                         _add(errors, f"{path}.runtime_binding.model", "must match the review node")
                     if binding["reasoning_effort"] != expected_options["reasoning_effort"]:

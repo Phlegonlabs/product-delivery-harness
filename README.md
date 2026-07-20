@@ -76,7 +76,7 @@ External Claude waves are separated by model, reasoning effort, and tool profile
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
-Claude Code can also delegate selected graph nodes to Codex through the installed `codex:codex-rescue` Agent. The Harness preflights that exact Agent only when a ready node needs Codex, launches every request with foreground/fresh routing, and gives each write mission its own Agent worktree. The route returns marked candidates through `agent_result`; it does not expose an inner Codex thread ID or add another App Server client. Claude remains the only PLAN/RUN writer and owns validation, serial integration, PR landing, deployment, and cleanup decisions.
+Claude Code can also delegate guarded graph write missions to Codex through the installed `codex:codex-rescue` Agent. The Harness preflights that exact Agent only when a ready node needs Codex, then reloads canonical PLAN v4/RUN v9 through a parent-side guard before each launch. The guard requires the preallocation and allocated-wave authorizations, derives the Workflow arguments from canonical state, and gives each write mission its own Agent worktree. External Codex reviews are disabled in v1; select another allowed provider or defer. The route returns marked candidates through `agent_result`; it does not expose an inner Codex thread ID or add another App Server client. Claude remains the only PLAN/RUN writer and owns validation, serial integration, PR landing, deployment, and cleanup decisions.
 
 ## Install
 

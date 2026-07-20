@@ -30,10 +30,13 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
 
         self.assertIn("pipeline(workflowArgs.nodes", workflow)
         self.assertIn('agentType: "codex:codex-rescue"', workflow)
-        self.assertIn('agentOptions.isolation = "worktree"', workflow)
+        self.assertIn('isolation: "worktree"', workflow)
         self.assertIn('const routeFlags = ["--wait", "--fresh"]', workflow)
-        self.assertIn("if (workflowArgs.model)", workflow)
-        self.assertIn("if (workflowArgs.reasoning_effort)", workflow)
+        self.assertIn("const modelToken", workflow)
+        self.assertIn("const reasoningEfforts", workflow)
+        self.assertIn("mission_write only", workflow)
+        self.assertNotIn("code_review_readonly", workflow)
+        self.assertNotIn("visual_review_readonly", workflow)
         self.assertNotIn("--resume", workflow)
         self.assertIn("Do not switch branches", workflow)
         self.assertIn("Never edit PLAN.md or RUN.md", workflow)
@@ -41,6 +44,23 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
         self.assertIn("Do not integrate, push, open or modify a PR, deploy", workflow)
         self.assertIn("or delegate to another agent", workflow)
         self.assertIn("Do not wait for user input", workflow)
+
+    @unittest.skipUnless(NODE, "node is required to execute Workflow template contracts")
+    def test_workflow_rejects_reviews_and_unsafe_options(self) -> None:
+        cases = []
+        review = self.workflow_args()
+        review["tool_profile"] = "code_review_readonly"
+        review["nodes"][0]["node_kind"] = "review"
+        cases.append(review)
+        unsafe_model = self.workflow_args()
+        unsafe_model["model"] = "gpt-5 --effort max"
+        cases.append(unsafe_model)
+        unsafe_effort = self.workflow_args()
+        unsafe_effort["reasoning_effort"] = "dangerous"
+        cases.append(unsafe_effort)
+        for args in cases:
+            with self.subTest(args=args):
+                self.assertNotEqual(0, self.run_graph_workflow_raw(args, "{}") [0])
 
     @unittest.skipUnless(NODE, "node is required to execute Workflow template contracts")
     def test_marker_parser_accepts_one_valid_result_and_rejects_bad_results(self) -> None:
@@ -54,8 +74,8 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
 
         mismatched = self.candidate()
         mismatched["node_result"]["node_id"] = "N-WRONG"
-        wrong_review_head = self.candidate()
-        wrong_review_head["runtime_evidence"]["head_sha"] = "c" * 40
+        wrong_mission_head = self.candidate()
+        wrong_mission_head["node_result"]["worker_result"]["head_sha"] = "c" * 40
         cases = {
             "missing": "{}",
             "malformed": "HARNESS_NODE_RESULT_V1_BEGIN\n{\nHARNESS_NODE_RESULT_V1_END",
@@ -65,7 +85,7 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
                 "HARNESS_NODE_RESULT_V1_END"
             ),
             "identity": self.marked(mismatched),
-            "review_head": self.marked(wrong_review_head),
+            "mission_head": self.marked(wrong_mission_head),
         }
         for name, raw_result in cases.items():
             with self.subTest(name=name):
@@ -87,22 +107,22 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
             "plan_digest_sha256": "d" * 64,
             "graph_revision": 1,
             "batch_base_sha": "a" * 40,
-            "tool_profile": "code_review_readonly",
+            "tool_profile": "mission_write",
             "model": None,
             "reasoning_effort": None,
             "nodes": [
                 {
-                    "node_id": "N-REVIEW",
-                    "attempt_id": "ATT-N-REVIEW-1",
-                    "node_kind": "review",
+                    "node_id": "N-MISSION",
+                    "attempt_id": "ATT-N-MISSION-1",
+                    "node_kind": "mission",
                     "failure_outcome": "retryable_failure",
-                    "worker_prompt": "Review the assigned change.",
-                    "review_id": "REVIEW-1",
-                    "review_type": "backend_code",
-                    "reviewed_sha": "b" * 40,
-                    "review_path": ".",
-                    "review_scope": ["src/**"],
-                    "required_evidence": ["findings"],
+                    "worker_prompt": "Complete the assigned mission.",
+                    "mission_id": "M1",
+                    "lease_id": "LEASE-M1-1",
+                    "write_scope": ["src/**"],
+                    "deny_scope": ["docs/goal/**"],
+                    "task_ids": ["M1/T01"],
+                    "verifier_ids": ["verify-m1"],
                 }
             ],
         }
@@ -123,17 +143,18 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
                 "status": "succeeded",
                 "outcome": "pass",
                 "worker_result": {
-                    "reviewed_sha": node["reviewed_sha"],
-                    "findings": [],
-                    "evidence_summary": "No blocking findings.",
+                    "mission_id": node["mission_id"],
+                    "lease_id": node["lease_id"],
+                    "base_sha": args["batch_base_sha"],
+                    "head_sha": args["batch_base_sha"],
                 },
                 "refinement_request": None,
                 "evidence_paths": ["review complete"],
             },
             "runtime_evidence": {
-                "worktree_path": "C:/repo/worktrees/review",
-                "branch_ref": "refs/heads/main",
-                "head_sha": node["reviewed_sha"],
+                "worktree_path": "C:/repo/worktrees/mission",
+                "branch_ref": "refs/heads/codex/mission",
+                "head_sha": args["batch_base_sha"],
             },
         }
 
@@ -146,6 +167,13 @@ class CodexRescueWorkflowContractTests(unittest.TestCase):
         )
 
     def run_graph_workflow(self, raw_result: str) -> object:
+        returncode, stdout, stderr = self.run_graph_workflow_raw(self.workflow_args(), raw_result)
+        self.assertEqual(0, returncode, stderr)
+        return json.loads(stdout)
+
+    def run_graph_workflow_raw(
+        self, workflow_args: dict[str, object], raw_result: str
+    ) -> tuple[int, str, str]:
         runner = r"""
 const fs = require("fs");
 const payload = JSON.parse(fs.readFileSync(0, "utf8"));
@@ -168,7 +196,7 @@ execute(payload.args, pipeline, agent, () => {}).then(
             input=json.dumps(
                 {
                     "template_path": str(GRAPH_WORKFLOW_PATH),
-                    "args": self.workflow_args(),
+                    "args": workflow_args,
                     "raw_result": raw_result,
                 }
             ),
@@ -176,8 +204,7 @@ execute(payload.args, pipeline, agent, () => {}).then(
             capture_output=True,
             check=False,
         )
-        self.assertEqual(0, completed.returncode, completed.stderr)
-        return json.loads(completed.stdout)
+        return completed.returncode, completed.stdout, completed.stderr
 
 
 if __name__ == "__main__":

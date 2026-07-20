@@ -3,7 +3,6 @@ export const meta = {
   description: "Run one typed-graph wave through isolated cc-codex agents.",
   phases: [
     { title: "Execute", detail: "Run isolated Codex write missions" },
-    { title: "Review", detail: "Run SHA-bound read-only Codex reviews" },
   ],
 };
 
@@ -25,28 +24,27 @@ for (const field of [
 if (!Array.isArray(workflowArgs.nodes) || workflowArgs.nodes.length === 0) {
   throw new Error("harness-codex-graph-wave requires a non-empty args.nodes array");
 }
-if (workflowArgs.model !== null && workflowArgs.model !== undefined && typeof workflowArgs.model !== "string") {
-  throw new Error("harness-codex-graph-wave args.model must be null or a string");
+const modelToken = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const reasoningEfforts = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
+if (
+  workflowArgs.model !== null &&
+  workflowArgs.model !== undefined &&
+  (typeof workflowArgs.model !== "string" || !modelToken.test(workflowArgs.model))
+) {
+  throw new Error("harness-codex-graph-wave args.model must be null or a safe model token");
 }
 if (
   workflowArgs.reasoning_effort !== null &&
   workflowArgs.reasoning_effort !== undefined &&
-  typeof workflowArgs.reasoning_effort !== "string"
+  (typeof workflowArgs.reasoning_effort !== "string" || !reasoningEfforts.has(workflowArgs.reasoning_effort))
 ) {
-  throw new Error("harness-codex-graph-wave args.reasoning_effort must be null or a string");
+  throw new Error("harness-codex-graph-wave args.reasoning_effort has an unsupported value");
 }
-
-const toolProfiles = {
-  mission_write: new Set(["mission"]),
-  code_review_readonly: new Set(["review"]),
-  visual_review_readonly: new Set(["review"]),
-};
-const allowedNodeKinds = toolProfiles[workflowArgs.tool_profile];
-if (!allowedNodeKinds) {
-  throw new Error(`harness-codex-graph-wave has unsupported tool profile ${workflowArgs.tool_profile}`);
+if (workflowArgs.tool_profile !== "mission_write") {
+  throw new Error("harness-codex-graph-wave supports mission_write only");
 }
-if (workflowArgs.nodes.some((node) => !allowedNodeKinds.has(node.node_kind))) {
-  throw new Error(`harness-codex-graph-wave tool profile ${workflowArgs.tool_profile} does not match every node`);
+if (workflowArgs.nodes.some((node) => !node || node.node_kind !== "mission")) {
+  throw new Error("harness-codex-graph-wave supports mission nodes only");
 }
 
 const beginMarker = "HARNESS_NODE_RESULT_V1_BEGIN";
@@ -167,19 +165,6 @@ const validateCandidate = (node, candidate) => {
       throw new Error("worker_result.head_sha does not match runtime evidence");
     }
   }
-  if (node.node_kind === "review" && result.status === "succeeded") {
-    const reviewResult = result.worker_result;
-    if (
-      !reviewResult ||
-      reviewResult.reviewed_sha !== node.reviewed_sha ||
-      runtimeEvidence.head_sha !== node.reviewed_sha ||
-      !Array.isArray(reviewResult.findings) ||
-      typeof reviewResult.evidence_summary !== "string" ||
-      !reviewResult.evidence_summary
-    ) {
-      throw new Error("succeeded review has an invalid worker_result or runtime evidence");
-    }
-  }
   return candidate;
 };
 
@@ -218,42 +203,20 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
     throw new Error("each cc-codex graph node requires a workflow failure outcome");
   }
 
-  let binding;
-  if (node.node_kind === "mission") {
-    for (const field of ["mission_id", "lease_id", "write_scope", "deny_scope", "task_ids", "verifier_ids"]) {
-      if (node[field] === undefined || node[field] === null) {
-        throw new Error(`each cc-codex mission requires ${field}`);
-      }
+  for (const field of ["mission_id", "lease_id", "write_scope", "deny_scope", "task_ids", "verifier_ids"]) {
+    if (node[field] === undefined || node[field] === null) {
+      throw new Error(`each cc-codex mission requires ${field}`);
     }
-    binding =
-      `This is write-capable mission ${node.mission_id} under lease ${node.lease_id}.\n` +
-      `Your current working directory is the assigned Claude-managed isolated worktree. Before editing, verify its initial HEAD is exactly ${workflowArgs.batch_base_sha}; if not, return blocked without changing files.\n` +
-      `Do not switch branches, pull, fetch-and-merge, rebase, merge, create another worktree, or delegate to another agent.\n` +
-      `Write scope: ${JSON.stringify(node.write_scope)}. Deny scope: ${JSON.stringify(node.deny_scope)}. Never edit PLAN.md or RUN.md.\n` +
-      `Tasks: ${JSON.stringify(node.task_ids)}. Required verifiers: ${JSON.stringify(node.verifier_ids)}.\n` +
-      `A successful isolated handoff requires durable commits, with every commit attributed to exactly one task and the final commit equal to worker_result.head_sha.\n` +
-      `Do not integrate, push, open or modify a PR, deploy, clean up worktrees, or delete branches.\n` +
-      `Report worker_passed only. The parent alone may validate and mark integrated.\n`;
-  } else if (node.node_kind === "review") {
-    for (const field of [
-      "review_id",
-      "review_type",
-      "reviewed_sha",
-      "review_path",
-      "review_scope",
-      "required_evidence",
-    ]) {
-      if (node[field] === undefined || node[field] === null) {
-        throw new Error(`each cc-codex review requires ${field}`);
-      }
-    }
-    binding =
-      `This is a read-only ${node.review_type} review ${node.review_id}. Do not edit files, create commits or branches, run mutating tools, or delegate.\n` +
-      `Review exact SHA ${node.reviewed_sha} at ${node.review_path}. Review scope: ${JSON.stringify(node.review_scope)}.\n` +
-      `Required evidence: ${JSON.stringify(node.required_evidence)}.\n`;
-  } else {
-    throw new Error("cc-codex graph nodes must be mission or review");
   }
+  const binding =
+    `This is write-capable mission ${node.mission_id} under lease ${node.lease_id}.\n` +
+    `Your current working directory is the assigned Claude-managed isolated worktree. Before editing, verify its initial HEAD is exactly ${workflowArgs.batch_base_sha}; if not, return blocked without changing files.\n` +
+    `Do not switch branches, pull, fetch-and-merge, rebase, merge, create another worktree, or delegate to another agent.\n` +
+    `Write scope: ${JSON.stringify(node.write_scope)}. Deny scope: ${JSON.stringify(node.deny_scope)}. Never edit PLAN.md or RUN.md.\n` +
+    `Tasks: ${JSON.stringify(node.task_ids)}. Required verifiers: ${JSON.stringify(node.verifier_ids)}.\n` +
+    `A successful isolated handoff requires durable commits, with every commit attributed to exactly one task and the final commit equal to worker_result.head_sha.\n` +
+    `Do not integrate, push, open or modify a PR, deploy, clean up worktrees, or delete branches.\n` +
+    `Report worker_passed only. The parent alone may validate and mark integrated.\n`;
 
   const prompt =
     `${routeFlags.join(" ")}\n` +
@@ -271,12 +234,10 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
 
   const agentOptions = {
     label: node.node_id,
-    phase: node.node_kind === "mission" ? "Execute" : "Review",
+    phase: "Execute",
     agentType: "codex:codex-rescue",
+    isolation: "worktree",
   };
-  if (node.node_kind === "mission") {
-    agentOptions.isolation = "worktree";
-  }
 
   const rawResult = await agent(prompt, agentOptions);
   if (rawResult === null || rawResult === undefined) {
