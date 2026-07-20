@@ -1365,6 +1365,61 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("detection_source: has an unsupported value" in error for error in errors))
         self.assertEqual(route_runtime_driver(run["runtime_capabilities"]), "sequential_parent")
 
+    def test_schema_v9_validates_external_codex_runtime_contract(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        external = {
+            "provider": "codex",
+            "driver": "codex_rescue_agent",
+            "status": "available",
+            "command": "agent:codex:codex-rescue",
+            "version": "1.0.4",
+            "contract_version": "harness-node-result-v1",
+            "completion_channel": "agent_result",
+            "evidence": ["foreground preflight passed"],
+        }
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = [
+            external
+        ]
+
+        self.assertEqual([], validate_run(plan, run))
+
+        cases = [
+            ("driver", "dynamic_workflow", "driver: does not match the external provider"),
+            (
+                "command",
+                "codex",
+                "command: must equal agent:codex:codex-rescue",
+            ),
+            (
+                "contract_version",
+                "harness-node-result-v2",
+                "contract_version: must equal harness-node-result-v1",
+            ),
+            (
+                "completion_channel",
+                "thread_poll",
+                "completion_channel: must equal agent_result",
+            ),
+        ]
+        for field, value, expected in cases:
+            with self.subTest(field=field):
+                invalid = copy.deepcopy(run)
+                invalid["runtime_capabilities"]["runtime_adapter"][
+                    "external_runtimes"
+                ][0][field] = value
+                self.assert_run_error_contains(plan, invalid, expected)
+
+        missing_contract = copy.deepcopy(run)
+        del missing_contract["runtime_capabilities"]["runtime_adapter"][
+            "external_runtimes"
+        ][0]["contract_version"]
+        self.assert_run_error_contains(
+            plan,
+            missing_contract,
+            "contract_version: must equal harness-node-result-v1",
+        )
+
     def test_post_merge_cleanup_binds_to_merged_pr_and_exact_branch(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)

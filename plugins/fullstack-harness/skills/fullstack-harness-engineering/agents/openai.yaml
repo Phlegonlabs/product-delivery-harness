@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Engineering"
   short_description: "Route small work directly and plan large delivery graphs"
-  default_prompt: "Use $fullstack-harness-engineering to classify the project as small or large before invoking managed orchestration. Keep small work direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default. For large work, freeze hashed upstream sources, build a typed PLAN/RUN graph when needed, preflight Claude before selection only when a ready PLAN node needs that route, select authorized ready nodes within shared runtime capacity, validate results, and integrate verified work."
+  default_prompt: "Use $fullstack-harness-engineering to classify the project as small or large before invoking managed orchestration. Keep small work direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default. For large work, freeze hashed upstream sources, build a typed PLAN/RUN graph when needed, preflight Claude before selection only when a ready PLAN node needs that route, and preflight Codex through codex:codex-rescue only when a ready node needs Codex, then select authorized ready nodes within shared runtime capacity, validate results and Git facts, and integrate verified work. Claude Code may delegate guarded write missions through codex:codex-rescue while remaining the only PLAN/RUN and integration parent. External Codex reviews are disabled in v1; use another allowed provider or defer."
 policy:
   allow_implicit_invocation: true

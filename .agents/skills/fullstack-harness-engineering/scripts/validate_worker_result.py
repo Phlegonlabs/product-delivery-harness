@@ -70,6 +70,7 @@ SUBAGENT_CHILD_FIELDS = {
     "evidence_paths",
 }
 ISOLATED_WORKSPACES = {"parent_managed_worktree", "app_managed_worktree"}
+EXTERNAL_CODEX_SKIP_REASON = "external_codex_agent uses flat parent orchestration"
 
 
 def _issue(
@@ -278,6 +279,9 @@ def validate_worker_result_data(
     observed_head_sha: str | None,
     observed_changed_files: list[str] | None,
     ancestry_confirmed: bool,
+    observed_worktree_path: str | None = None,
+    observed_branch_ref: str | None = None,
+    git_common_dir_confirmed: bool = False,
 ) -> list[dict[str, str]]:
     """Return deterministic validation issues for one integration candidate."""
 
@@ -386,23 +390,46 @@ def validate_worker_result_data(
     else:
         worker = worker_matches[0]
 
+    runtime_binding = worker.get("runtime_binding") if worker else None
+    external_codex = (
+        isinstance(runtime_binding, dict)
+        and runtime_binding.get("driver") == "external_codex_agent"
+    )
     nested_policy = (
         worker.get("nested_subagent_policy") if isinstance(worker, dict) else None
     )
-    if isinstance(nested_policy, dict):
-        if "subagent_activity" not in result:
-            _issue(
-                errors,
-                "missing_field",
-                "worker_result.subagent_activity",
-                "is required when the worker records a nested-subagent policy",
-            )
+    if (isinstance(nested_policy, dict) or external_codex) and "subagent_activity" not in result:
+        reason = (
+            "the external Codex worker contract"
+            if external_codex
+            else "the worker records a nested-subagent policy"
+        )
+        _issue(
+            errors,
+            "missing_field",
+            "worker_result.subagent_activity",
+            f"is required because {reason}",
+        )
     if "subagent_activity" in result:
+        activity = result.get("subagent_activity")
         _validate_subagent_activity(
-            result.get("subagent_activity"),
+            activity,
             policy=nested_policy if isinstance(nested_policy, dict) else None,
             errors=errors,
         )
+        if external_codex and isinstance(activity, dict):
+            expected_activity = {
+                "status": "not_applicable",
+                "skip_reason": EXTERNAL_CODEX_SKIP_REASON,
+                "children": [],
+            }
+            if activity != expected_activity:
+                _issue(
+                    errors,
+                    "invalid_value",
+                    "worker_result.subagent_activity",
+                    "external Codex requires the exact flat-orchestration activity record",
+                )
 
     worker_id = mission_state.get("worker_id")
     binding_checks = [
@@ -428,13 +455,22 @@ def validate_worker_result_data(
     if worker and mission_state.get("worker_id") != worker.get("worker_id"):
         _issue(errors, "worker_record_mismatch", "harness_run.mission_states.worker_id", "does not match worker record")
     runtime_capabilities = run.get("runtime_capabilities", {})
+    if external_codex:
+        expected_runtime_axes = {
+            "worker_runtime": "subagent",
+            "workspace_mode": "app_managed_worktree",
+            "completion_channel": "agent_result",
+        }
+    else:
+        expected_runtime_axes = runtime_capabilities
     for field in ("worker_runtime", "workspace_mode", "completion_channel"):
-        if worker and worker.get(field) != runtime_capabilities.get(field):
+        if worker and worker.get(field) != expected_runtime_axes.get(field):
+            source = "external Codex runtime binding" if expected_runtime_axes is not runtime_capabilities else "RUN runtime capabilities"
             _issue(
                 errors,
                 "worker_record_mismatch",
                 f"harness_run.workers.{field}",
-                "does not match RUN runtime capabilities",
+                f"does not match {source}",
             )
 
     active_wave = run.get("active_wave", {})
@@ -596,12 +632,73 @@ def validate_worker_result_data(
 
     workspace_mode = worker.get("workspace_mode")
     if workspace_mode in ISOLATED_WORKSPACES:
-        if not isinstance(worker.get("worktree_path"), str) or not worker.get("worktree_path"):
+        worktree_path = worker.get("worktree_path")
+        if not isinstance(worktree_path, str) or not worktree_path:
             _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.worktree_path", "isolated worker needs a worktree path")
-        if not isinstance(worker.get("branch_ref"), str) or not worker.get("branch_ref"):
-            _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.branch_ref", "isolated worker needs a durable branch/ref")
         branch_ref = worker.get("branch_ref")
+        if not isinstance(branch_ref, str) or not branch_ref:
+            _issue(errors, "isolated_handoff_incomplete", "harness_run.workers.branch_ref", "isolated worker needs a durable branch/ref")
         branch_target = f"branch:{branch_ref}" if isinstance(branch_ref, str) and branch_ref else None
+        if external_codex:
+            if not isinstance(observed_worktree_path, str) or not observed_worktree_path:
+                _issue(
+                    errors,
+                    "observed_worktree_missing",
+                    "observed.worktree_path",
+                    "parent-observed worktree path is required for external Codex",
+                )
+            elif observed_worktree_path != worktree_path:
+                _issue(
+                    errors,
+                    "observed_worktree_mismatch",
+                    "harness_run.workers.worktree_path",
+                    "does not match the parent-observed external Codex worktree",
+                )
+            if not isinstance(observed_branch_ref, str) or not observed_branch_ref:
+                _issue(
+                    errors,
+                    "observed_branch_missing",
+                    "observed.branch_ref",
+                    "parent-observed branch ref is required for external Codex",
+                )
+            elif observed_branch_ref != branch_ref:
+                _issue(
+                    errors,
+                    "observed_branch_mismatch",
+                    "harness_run.workers.branch_ref",
+                    "does not match the parent-observed external Codex branch",
+                )
+            if not git_common_dir_confirmed:
+                _issue(
+                    errors,
+                    "git_common_dir_unconfirmed",
+                    "observed.git_common_dir",
+                    "parent must confirm the external Codex worktree belongs to this repository",
+                )
+            external_actions = [
+                ("invoke_external_runtime", "runtime:codex"),
+                (
+                    "spawn_subagents",
+                    f"worker:{worker_id}" if isinstance(worker_id, str) and worker_id else None,
+                ),
+                (
+                    "create_app_managed_worktrees",
+                    f"worktree:{worktree_path}"
+                    if isinstance(worktree_path, str) and worktree_path
+                    else None,
+                ),
+                ("create_local_branches", branch_target),
+            ]
+            for action, target in external_actions:
+                if mission_id is None or target is None or not authorization_covers(
+                    run, action, mission_id, target
+                ):
+                    _issue(
+                        errors,
+                        "external_launch_not_authorized",
+                        f"harness_run.authorizations.{action}",
+                        f"external Codex handoff requires {action} authorization covering {target or 'its allocation'}",
+                    )
         if mission_id is None or not authorization_covers(
             run, "create_local_commits", mission_id, branch_target
         ):
@@ -656,6 +753,19 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Assert the parent observed base as an ancestor of the worker head",
     )
+    parser.add_argument(
+        "--observed-worktree-path",
+        help="Parent-observed retained worker worktree path",
+    )
+    parser.add_argument(
+        "--observed-branch-ref",
+        help="Parent-observed retained worker branch ref",
+    )
+    parser.add_argument(
+        "--git-common-dir-confirmed",
+        action="store_true",
+        help="Assert the retained worktree belongs to the parent repository",
+    )
     return parser
 
 
@@ -685,6 +795,9 @@ def main(argv: list[str] | None = None) -> int:
                 observed_head_sha=args.observed_head_sha,
                 observed_changed_files=args.observed_changed_file,
                 ancestry_confirmed=args.ancestry_confirmed,
+                observed_worktree_path=args.observed_worktree_path,
+                observed_branch_ref=args.observed_branch_ref,
+                git_common_dir_confirmed=args.git_common_dir_confirmed,
             )
         )
 

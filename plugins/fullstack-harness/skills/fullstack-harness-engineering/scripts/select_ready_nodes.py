@@ -18,6 +18,7 @@ from harness_manifest import (
     load_run,
     mission_conflicts,
     plan_digest,
+    resolve_runtime_options,
     route_runtime_driver,
     validate_plan,
     validate_run,
@@ -52,8 +53,11 @@ def _workspace_mode_for(
     if node.get("executor") == "harness_parent":
         return "shared_checkout"
     binding = item.get("binding")
-    if isinstance(binding, dict) and binding.get("driver") == "external_dynamic_workflow":
-        return "parent_managed_worktree"
+    if isinstance(binding, dict):
+        if binding.get("driver") == "external_dynamic_workflow":
+            return "parent_managed_worktree"
+        if binding.get("driver") == "external_codex_agent":
+            return "app_managed_worktree"
     return run["runtime_capabilities"]["workspace_mode"]
 
 
@@ -105,22 +109,12 @@ def _external_runtime(runtime: dict[str, Any], provider: str) -> dict[str, Any] 
     return None
 
 
-def _runtime_options(policy: dict[str, Any], provider: str) -> dict[str, Any]:
-    configured = policy.get("provider_options", {}).get(provider)
-    if configured is not None:
-        return {
-            "model": configured["model"] or ("sonnet" if provider == "claude_code" else None),
-            "reasoning_effort": configured["reasoning_effort"],
-            "option_source": "plan_provider_options",
-        }
-    return {
-        "model": "sonnet" if provider == "claude_code" else None,
-        "reasoning_effort": None,
-        "option_source": "provider_default",
-    }
-
-
-def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str, Any] | None:
+def _runtime_binding(
+    node: dict[str, Any],
+    runtime: dict[str, Any],
+    *,
+    allow_external_codex: bool = True,
+) -> dict[str, Any] | None:
     policy = node.get("runtime")
     if node.get("executor") != "runtime_worker" or not isinstance(policy, dict):
         return None
@@ -132,7 +126,7 @@ def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str,
         if provider in allowed and provider not in candidates:
             candidates.append(provider)
     for provider in candidates:
-        options = _runtime_options(policy, provider)
+        options = resolve_runtime_options(policy, provider)
         if provider == host_provider:
             return {
                 "provider": provider,
@@ -142,12 +136,22 @@ def _runtime_binding(node: dict[str, Any], runtime: dict[str, Any]) -> dict[str,
             }
         external = _external_runtime(runtime, provider)
         if external is not None:
-            return {
-                "provider": provider,
-                "driver": "external_dynamic_workflow",
-                "source": "external_bridge",
-                **options,
-            }
+            external_binding = {
+                "dynamic_workflow": ("external_dynamic_workflow", "external_bridge"),
+                "codex_rescue_agent": ("external_codex_agent", "external_agent"),
+            }.get(external.get("driver"))
+            if external_binding is not None:
+                driver, source = external_binding
+                if driver == "external_codex_agent" and not allow_external_codex:
+                    continue
+                if node.get("kind") == "verifier" and driver == "external_codex_agent":
+                    continue
+                return {
+                    "provider": provider,
+                    "driver": driver,
+                    "source": source,
+                    **options,
+                }
     return None
 
 
@@ -250,6 +254,16 @@ def _required_actions(
                 ["create_local_worktrees", "create_local_branches", "create_local_commits"]
             )
         return actions
+    if binding["driver"] == "external_codex_agent":
+        if read_only_review:
+            raise GraphSelectionError("external Codex reviews are disabled in v1")
+        return [
+            "invoke_external_runtime",
+            "spawn_subagents",
+            "create_app_managed_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ]
     driver = binding["driver"]
     actions: list[str] = []
     if driver in {"subagents", "dynamic_workflow"}:
@@ -298,10 +312,8 @@ def _dispatch_reasons(
         if plan_mission:
             if plan_mission.get("resource_inventory_complete") is not True:
                 reasons.add("incomplete_resource_inventory")
-            workspace_mode = (
-                "shared_checkout"
-                if node["executor"] == "harness_parent"
-                else runtime.get("workspace_mode")
+            workspace_mode = _workspace_mode_for(
+                {"node": node, "binding": binding}, run
             )
             if workspace_mode != "shared_checkout":
                 if plan_mission.get("worktree_eligible") is not True:
@@ -320,7 +332,11 @@ def _dispatch_reasons(
     if authorization_missions and binding is not None:
         for action in _required_actions(node, binding, run["runtime_capabilities"]):
             target = (
-                f"runtime:{binding['provider']}" if action == "invoke_external_runtime" else "*"
+                f"runtime:{binding['provider']}"
+                if action == "invoke_external_runtime"
+                else "worker:preallocation"
+                if binding["driver"] == "external_codex_agent" and action == "spawn_subagents"
+                else "*"
             )
             if any(
                 not _action_authorized(run, action, mission_id, target)
@@ -365,6 +381,7 @@ def _directive(
         "sequential_parent": "run_parent",
         "dynamic_workflow": "run_dynamic_workflow",
         "external_dynamic_workflow": "run_external_dynamic_workflow",
+        "external_codex_agent": "run_guarded_external_codex_agent",
     }[driver]
     directive = {
         **base,
@@ -391,6 +408,18 @@ def _directive(
                 "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
             }
         )
+    elif driver == "external_codex_agent":
+        directive.update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "agent_result",
+                "agent_type": "codex:codex-rescue",
+                "contract_version": "harness-node-result-v1",
+                "guard_path": "scripts/validate_codex_wave.py",
+                "script_path": "assets/templates/CLAUDE_CODEX_GRAPH_WORKFLOW.template.js",
+            }
+        )
     else:
         runtime = run["runtime_capabilities"]
         directive.update(
@@ -404,31 +433,64 @@ def _directive(
 
 
 def _external_wave_launches(dispatchable: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    external_groups: dict[tuple[str, str | None, str], list[str]] = {}
+    external_groups: dict[
+        tuple[str, str, str | None, str | None, str], list[str]
+    ] = {}
+    supported_launches = {
+        "run_external_dynamic_workflow",
+        "run_guarded_external_codex_agent",
+    }
     for item in dispatchable:
-        if item["launch_kind"] != "run_external_dynamic_workflow":
+        launch_kind = item["launch_kind"]
+        if launch_kind not in supported_launches:
             continue
-        model = item["runtime_binding"]["model"]
-        effort = item["runtime_binding"]["reasoning_effort"]
-        tool_profile = item["tool_profile"]
-        external_groups.setdefault((model, effort, tool_profile), []).append(item["node_id"])
-    launches = []
-    for model, effort, tool_profile in sorted(
-        external_groups,
-        key=lambda group: (group[0], group[1] or "", group[2]),
-    ):
-        launches.append(
-            {
-                "launch_kind": "run_external_dynamic_workflow",
-                "provider": "claude_code",
-                "model": model,
-                "reasoning_effort": effort,
-                "tool_profile": tool_profile,
-                "node_ids": external_groups[(model, effort, tool_profile)],
-                "bridge_path": "scripts/claude_runtime_bridge.py",
-                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
-            }
+        binding = item["runtime_binding"]
+        group = (
+            launch_kind,
+            binding["provider"],
+            binding["model"],
+            binding["reasoning_effort"],
+            item["tool_profile"],
         )
+        external_groups.setdefault(group, []).append(item["node_id"])
+    launches = []
+    for launch_kind, provider, model, effort, tool_profile in sorted(
+        external_groups,
+        key=lambda group: (
+            group[0],
+            group[1],
+            group[2] or "",
+            group[3] or "",
+            group[4],
+        ),
+    ):
+        launch = {
+            "launch_kind": launch_kind,
+            "provider": provider,
+            "model": model,
+            "reasoning_effort": effort,
+            "tool_profile": tool_profile,
+            "node_ids": external_groups[
+                (launch_kind, provider, model, effort, tool_profile)
+            ],
+        }
+        if launch_kind == "run_external_dynamic_workflow":
+            launch.update(
+                {
+                    "bridge_path": "scripts/claude_runtime_bridge.py",
+                    "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
+                }
+            )
+        else:
+            launch.update(
+                {
+                    "agent_type": "codex:codex-rescue",
+                    "contract_version": "harness-node-result-v1",
+                    "guard_path": "scripts/validate_codex_wave.py",
+                    "script_path": "assets/templates/CLAUDE_CODEX_GRAPH_WORKFLOW.template.js",
+                }
+            )
+        launches.append(launch)
     return launches
 
 
@@ -462,7 +524,11 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
         if reasons:
             deferred.append({"node_id": node["id"], "reason_codes": reasons})
         else:
-            binding = _runtime_binding(node, run["runtime_capabilities"])
+            binding = _runtime_binding(
+                node,
+                run["runtime_capabilities"],
+                allow_external_codex=run.get("schema_version") == 9,
+            )
             logical_ready.append({"node": node, "binding": binding})
 
     dispatch_ready: list[dict[str, Any]] = []

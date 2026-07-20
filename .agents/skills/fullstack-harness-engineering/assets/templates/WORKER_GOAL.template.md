@@ -14,7 +14,7 @@ Frozen inputs:
 
 Coordination:
 - runtime_provider: codex | claude_code | generic
-- runtime_driver: app_threads | dynamic_workflow | subagents | sequential_parent
+- runtime_driver: app_threads | dynamic_workflow | external_dynamic_workflow | external_codex_agent | subagents | sequential_parent
 - worker_runtime: parent | subagent | app_task
 - workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 - completion_channel: agent_result | thread_poll | report_file | user_relay
@@ -27,9 +27,9 @@ Coordination:
 Write only within: <mission write_scope>.
 Deny: <mission deny_scope>, parent-owned PLAN.md and RUN.md, frozen contracts, and unrelated files.
 
-Before editing, verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
+Before editing, verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. For `external_codex_agent`, the current working directory is the assigned managed worktree and its initial HEAD must equal the supplied batch base SHA; return blocked without editing when it does not. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
 
-For each ready task: make the smallest coherent change, run its declared verifier, and return evidence. Create a commit only when create_local_commits is explicitly authorized. Do not create another app task, mission worker, branch, worktree, or harness lease. Direct read-only subagents are the sole exception and only when the supplied nested policy is enabled and `spawn_subagents` covers this worker. Do not pull, rebase, merge, integrate, push, open a PR, deploy, remove a worktree, delete a branch, or archive a task; those remain parent/user-owned actions unless separately and explicitly assigned.
+For each ready task: make the smallest coherent change, run its declared verifier, and return evidence. Create a commit only when create_local_commits is explicitly authorized. Every isolated successful handoff needs durable task commits, each attributed to exactly one task, with the final commit equal to the reported head. Do not create another app task, mission worker, branch, worktree, or harness lease. Direct read-only subagents are the sole exception and only when the supplied nested policy is enabled and `spawn_subagents` covers this worker; `external_codex_agent` does not allow this exception. Do not switch branches, pull, rebase, merge, integrate, push, open a PR, deploy, remove a worktree, delete a branch, or archive a task; those remain parent/user-owned actions unless separately and explicitly assigned.
 
 Never edit PLAN.md or RUN.md. If the task is too large or its scope is insufficient, emit REFINEMENT_REQUEST with the contract below and stop before further task work. Do not invent child IDs or rewrite the plan.
 
@@ -50,6 +50,14 @@ When `runtime_driver` is `dynamic_workflow`, the accepted wave is one parent-own
 
 Claude Dynamic Workflow cannot wait for human sign-off between stages. If implementation needs a contract choice, new authorization, secret, destructive action, scope expansion, or generation-1 refinement decision, return `REFINEMENT_REQUEST` and stop. Never guess the decision or keep writing while waiting for an interactive reply.
 
+## Claude To cc-codex Rules
+
+When `runtime_driver` is `external_codex_agent`, Claude Code remains the Harness parent and this Codex run is one guarded child Agent inside the outer Dynamic Workflow. The parent must have emitted this mission's arguments from `validate_codex_wave.py`. The prompt begins with `--wait --fresh`; never resume a prior Codex thread. Do not spawn or delegate, and report `subagent_activity` as `not_applicable` with no children.
+
+Treat the current directory as the runtime-assigned worktree. Before any edit, verify its repository root, current branch/ref, and exact initial HEAD. Do not switch the branch or worktree. A successful result requires committed task handoff, exact changed-file reporting, verifier evidence, and the final worktree path, branch/ref, and head SHA in `runtime_evidence`. The parent independently checks the Git object, ancestry, diff, scope, and retained worktree before integration.
+
+Return exactly one `HARNESS_NODE_RESULT_V1_BEGIN` / `HARNESS_NODE_RESULT_V1_END` marker pair around an object containing `node_result` and `runtime_evidence`. The inner `node_result.worker_result` uses the manifest below. Missing or malformed markers are a failed candidate, not permission to continue outside the contract.
+
 ## Workspace Launch Rules
 
 ### Shared checkout
@@ -62,7 +70,7 @@ The parent creates and records the worktree, branch, and fixed base before launc
 
 ### App-managed worktree
 
-The app may start the task detached and may apply platform retention independently of the ledger. When `create_local_branches` is explicitly authorized, create or attach the recorded durable branch/ref before unique work. Remember that branch/commit commands may write the original repository's Git common directory outside this worktree. Never claim that `remove_worktrees: false` disables platform-managed retention. Completion may require `thread_poll` or `user_relay`; do not assume an automatic cross-task callback.
+The app may start the task detached and may apply platform retention independently of the ledger. When `create_local_branches` is explicitly authorized, create or attach the recorded durable branch/ref before unique work unless the runtime has already assigned it; never switch away from that assigned ref. Remember that branch/commit commands may write the original repository's Git common directory outside this worktree. Never claim that `remove_worktrees: false` disables platform-managed retention. Completion may use `agent_result`, `thread_poll`, or `user_relay`; do not assume an automatic callback outside the declared channel.
 
 ## Refinement Request Contract
 
@@ -162,7 +170,17 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
 }
 ```
 
-Use the same payload for `agent_result`, `thread_poll`, `report_file`, or `user_relay`. For `report_file`, place this exact heading and fenced JSON in the parent-supplied temporary report path; Markdown prose outside the manifest is non-canonical.
+For `external_codex_agent`, place that worker result inside the typed node result and add runtime evidence in this outer marked object:
+
+```text
+HARNESS_NODE_RESULT_V1_BEGIN
+{"node_result":{"run_id":"RUN-<stable-id>","node_id":"N-M1","attempt_id":"ATT-N-M1-1","plan_id":"PLAN-<stable-id>","plan_revision":1,"plan_digest_sha256":"<sha256>","graph_revision":1,"batch_base_sha":"<full SHA>","status":"succeeded","outcome":"pass","worker_result":{"type":"WORKER_RESULT"},"refinement_request":null,"evidence_paths":[]},"runtime_evidence":{"worktree_path":"<absolute path>","branch_ref":"<full ref or branch>","head_sha":"<full SHA>"}}
+HARNESS_NODE_RESULT_V1_END
+```
+
+The abbreviated `worker_result` above stands for the complete exact manifest, not a partial result. `runtime_evidence` is transport evidence only. The parent records its values in RUN after independent verification and passes only `node_result` to the typed-node validator.
+
+Use the same worker-result payload for `agent_result`, `thread_poll`, `report_file`, or `user_relay`. For `report_file`, place this exact heading and fenced JSON in the parent-supplied temporary report path; Markdown prose outside the manifest is non-canonical.
 
 `subagent_activity.status` is `completed`, `partial`, `unavailable`, or `not_applicable`. `completed` requires one or more child entries. `partial` records every completed/failed/stopped child and the remaining risk. `unavailable` and `not_applicable` require a concrete `skip_reason`. Each child entry contains `agent_id`, functional `role`, bounded `task`, `status` (`completed`, `failed`, or `stopped`), a concise `summary`, and `evidence_paths`. When the worker's nested policy is enabled, omitting `subagent_activity` is invalid.
 
@@ -174,7 +192,7 @@ Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_fail
 - [ ] RUN records `plan_readiness: "ready"` and overall execution authorization.
 - [ ] Mission is `leased` at the fixed base SHA and its dependencies are already integrated.
 - [ ] The selected runtime, workspace, completion channel, and required authorizations match the launch method.
-- [ ] The recorded provider capability snapshot routes to the declared driver; Claude workflow workers use flat orchestration and do not delegate.
+- [ ] The recorded provider capability snapshot routes to the declared driver; Claude workflow and `external_codex_agent` workers use flat orchestration and do not delegate.
 - [ ] The nested policy is disabled or is authorized, read-only, depth-one, capped at three direct children, and reported in `subagent_activity`; a non-trivial enabled app task launched at least one child.
 - [ ] Any isolated write handoff has authorized branch and commit creation; otherwise this mission uses sequential parent execution.
 - [ ] Write/deny scopes and typed resource inventory are complete and non-conflicting.
