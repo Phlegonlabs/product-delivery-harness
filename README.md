@@ -6,7 +6,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -56,6 +56,25 @@ The Harness is built around explicit boundaries:
 6. Land through the repository's PR flow only with separate authorization for each GitHub action.
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, PR, review action, merge, deploy, or cleanup.
+
+## Graph engineering and Dynamic Workflows
+
+The skills use two graph layers:
+
+- The **org graph** is the stable role contract: product, architecture, UX, design-system, mission-worker, reviewer, approval, integration, and lifecycle responsibilities.
+- The **work graph** is the temporary task graph for one run. PRD and design workflows use bounded analysis graphs only when the host can enforce a `builder_readonly` tool profile; otherwise they fall back to the sequential parent. Engineering uses the canonical PLAN v4 graph and RUN v9 state.
+
+Interviews and approvals stay outside running workflows because Claude Code Dynamic Workflows cannot ask for mid-run user input. The parent freezes inputs first, runs a bounded workflow, then owns staged writes, conflict resolution, approval, and publication.
+
+For engineering, the Harness validates and selects the dependency-ready frontier before creating worktrees. It then proactively creates one parent-managed worktree per selected write mission under `.claude/worktrees/`, binds every worker to the exact batch base, and requires `EnterWorktree` before any repository action. The parent integrates accepted commits serially and recomputes the graph frontier.
+
+External Claude waves are separated by model, reasoning effort, and tool profile:
+
+- `mission_write` includes `EnterWorktree` and bounded write tools.
+- `code_review_readonly` omits write-capable tools.
+- `visual_review_readonly` uses the exact read/search allowlist and reviews retained screenshots or other existing evidence. New browser tools must be vetted and added to the profile before use.
+
+When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
 ## Install
 
@@ -121,6 +140,8 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 
 ## Typical prompts
 
+Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name.
+
 ```text
 Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
 ```
@@ -146,9 +167,9 @@ The Harness records the actual runtime capability instead of assuming one from a
 | Runtime | Preferred parallel route | Fallback |
 | --- | --- | --- |
 | Codex app | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
-| Claude Code | Dynamic workflow with parent-managed worktrees | Direct subagents, then one sequential parent |
+| Claude Code | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
 
-Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are created only after ready-frontier selection, and each Claude mission must enter its assigned worktree before repository access. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 
@@ -219,6 +240,8 @@ Updater 會偵測 Codex 與 Claude Code，更新 marketplace 並安裝 plugin。
 
 ### 使用方式
 
+Codex 可使用下面的 `$skill-name`。Claude Code 請使用已安裝的 namespaced skill，例如 `/fullstack-harness:prd-builder`，或直接用名稱要求執行。
+
 ```text
 Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
 ```
@@ -237,7 +260,11 @@ Harness 會先把工作分成小項目或大項目。小項目直接處理，預
 
 大小看的是協調範圍與影響面，不是單純計算檔案數或程式碼行數。小項目途中變大時，Harness 會保留已完成的工作，只規劃剩餘範圍。
 
-多 agent 寫入預設最多三個 mission，且每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
+Graph engineering 分成兩層：org graph 定義長期穩定的產品、架構、UX、設計、worker、review、approval 與 integration 職責；work graph 則是單次工作的暫時節點、依賴、route、attempt 與 evidence。PRD 與 design workflow 只有在 host 能強制 `builder_readonly` tool profile 時才執行；否則回到 sequential parent。工程 work graph 仍以 PLAN v4 與 RUN v9 為唯一控制面。
+
+多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才在 `.claude/worktrees/` 主動建立每個 mission 的 exact-base worktree。Claude worker 必須先用 `EnterWorktree` 進入指定路徑。外部 Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
+
+每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
 
 ### 維護 repository
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-REPO_ROOT = Path(__file__).resolve().parents[5]
+SKILLS_ROOT = Path(__file__).resolve().parents[3]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -20,17 +20,17 @@ from test_graph_orchestration import graph_node, valid_graph_plan, valid_graph_r
 
 class CrossSkillPipelineTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
-        return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        return (SKILLS_ROOT / relative_path).read_text(encoding="utf-8")
 
     def test_prd_design_and_harness_share_trace_and_lifecycle_contracts(self) -> None:
-        prd = self.read(".agents/skills/prd-builder/references/output-contract.md")
-        prd_lifecycle = self.read(".agents/skills/prd-builder/references/artifact-lifecycle.md")
-        design = self.read(".agents/skills/design-package-builder/references/output-contract.md")
+        prd = self.read("prd-builder/references/output-contract.md")
+        prd_lifecycle = self.read("prd-builder/references/artifact-lifecycle.md")
+        design = self.read("design-package-builder/references/output-contract.md")
         design_lifecycle = self.read(
-            ".agents/skills/design-package-builder/references/artifact-lifecycle.md"
+            "design-package-builder/references/artifact-lifecycle.md"
         )
         harness = self.read(
-            ".agents/skills/fullstack-harness-engineering/references/contract-and-traceability.md"
+            "fullstack-harness-engineering/references/contract-and-traceability.md"
         )
 
         for trace in ("PRD-001", "ARCH-001", "UI-001", "UX-001", "TEST-001"):
@@ -41,6 +41,24 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("immutable `source_revision`", harness)
         self.assertIn("Passing validation does not authorize", prd_lifecycle)
         self.assertIn("Passing validation does not authorize", design_lifecycle)
+
+    def test_builder_workflows_preserve_trace_contracts_for_the_harness(self) -> None:
+        prd_workflow = self.read(
+            "prd-builder/assets/templates/CLAUDE_PRD_WORKFLOW.template.js"
+        )
+        design_workflow = self.read(
+            "design-package-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        )
+        plan = self.read(
+            "fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md"
+        )
+
+        for trace in ("PRD", "ARCH", "UI", "UX", "TEST"):
+            self.assertIn(trace, prd_workflow)
+            self.assertIn(trace, design_workflow)
+        self.assertIn("DS IDs", design_workflow)
+        self.assertIn('"trace_ids"', plan)
+        self.assertIn('"required_reviews"', plan)
 
     def test_frontend_review_falls_back_to_codex_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()

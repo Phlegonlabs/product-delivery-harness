@@ -11,6 +11,8 @@ Default all artifact content to English unless the user explicitly asks for anot
 
 Use the templates in `assets/templates/` when creating these files.
 
+When Claude Code Dynamic Workflow is used, treat its structured design package as a candidate source. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
+
 When the user requests a runnable animation demonstration, also produce `motion-showcase.html` or bounded files under `motion-demos/`. Use `assets/templates/MOTION_SHOWCASE.template.html` as the dependency-free baseline unless the project stack or requested animation requires another implementation. Record every demo path in `design-system.md` and `ui-mockups.md`.
 
 ## `design-system.md`
@@ -315,6 +317,7 @@ Before finalizing, verify:
 - When a landing page is in scope, `design-system.md` and `ui-mockups.md` define the first-viewport message and action, one job per section, content to defer, and per-region image/media/motion status.
 - `visual-acceptance.md` defines implementation-verifiable visual gates, including taste, unsupported AI-UI pattern clusters, and container and border purpose.
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.
+- When Dynamic Workflow was used, every required design role has an explicit result, failed agents remain blocked roles, and taste/trace verifier findings are resolved or recorded before finalization. Workflow output is a candidate and does not itself prove rendered visual conformance.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.
 - The package is validated in `doc/.design-staging/<run-id>/`; exact overwrites and archive moves are authorized before publication, or the staged package remains unchanged awaiting approval.
 

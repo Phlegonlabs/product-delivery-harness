@@ -1,0 +1,56 @@
+# Claude Code Dynamic Workflow
+
+Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete. A running workflow cannot ask the user for decisions, approve publication, or replace the parent-owned artifact lifecycle.
+
+## Graph Model
+
+The stable org graph defines these roles:
+
+| Role | Responsibility | Output |
+| --- | --- | --- |
+| requirements | Product scope, requirements, trace IDs, metrics, risks | PRD sections and trace coverage |
+| architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
+| ux-wireframe | Journeys, UX obligations, routes, states, wireframe structure | UX/UI sections and wireframe requirements |
+| frontend-platform | Browser stack and platform evidence when applicable | Frontend decision and source evidence |
+| synthesizer | Reconcile all lanes into one package | Draft artifact bodies |
+| trace-verifier | Check requirement and ID coverage | Findings and decision |
+| consistency-verifier | Check cross-document conflicts and unsupported claims | Findings and decision |
+
+The temporary work graph is one bounded workflow run. It may fan out analysis lanes, join them for synthesis, and fan out verification. It does not persist as a second PLAN/RUN system.
+
+## Preconditions
+
+Before launch, the parent must have:
+
+- a stable run ID;
+- the product name and archetype;
+- an interview summary or explicit assumption authorization;
+- the Builder UX Direction record for UI-bearing products;
+- source paths or a complete source summary;
+- a decision on whether a browser frontend and optional implementation plan are in scope;
+- a machine-enforced `builder_readonly` launch profile that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.
+
+If the host cannot enforce that read-only tool boundary, use the sequential parent fallback. If a human decision, missing secret, publish approval, destructive action, or scope change is needed, do not launch or continue the workflow. Resolve it in the parent session first.
+
+## Execution
+
+Use `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments. The workflow is read-only:
+
+1. Requirements, architecture, UX/wireframe, and conditional frontend/platform roles run independently.
+2. All successful and failed lane results are retained explicitly.
+3. Synthesis starts only after the analysis barrier.
+4. Trace and consistency verifiers review the same synthesis independently.
+5. The parent receives candidate Markdown bodies and review findings.
+
+A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle, repairs unresolved findings, runs the output checklist, and presents exact mutations for approval.
+
+## Failure And Resume
+
+- A skipped or failed agent becomes an explicit failed lane result; it is never silently omitted.
+- A failed required lane blocks package finalization until the parent reruns it or completes that role sequentially.
+- Native workflow resume is useful only within the same Claude Code session. Across sessions, use the retained staging package and frozen source inputs to start a new workflow run.
+- Record the workflow run ID and relevant findings in the task report when the runtime exposes them.
+
+## Fallback
+
+When Dynamic Workflow is unavailable, the parent performs the same roles sequentially. Do not claim multi-agent verification or workflow resume when that fallback is used.

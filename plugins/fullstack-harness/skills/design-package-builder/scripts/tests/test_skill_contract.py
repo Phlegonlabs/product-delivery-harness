@@ -153,6 +153,28 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("doc/.design-staging/<run-id>/", lifecycle)
         self.assertIn("Passing validation does not authorize overwrite, move, or archive", lifecycle)
 
+    def test_dynamic_workflow_uses_design_org_roles_and_parent_staging(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/dynamic-workflow.md")
+        workflow = self.read("assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("stable design roles as an org graph", skill)
+        self.assertIn("The stable org graph", guide)
+        self.assertIn("The temporary work graph", guide)
+        self.assertIn('typeof args === "string" ? JSON.parse(args) : args', workflow)
+        self.assertIn('phase("Analyze")', workflow)
+        self.assertIn("await parallel", workflow)
+        self.assertIn('phase("Synthesize")', workflow)
+        self.assertIn('phase("Verify")', workflow)
+        self.assertIn("workflow-agent-null", workflow)
+        self.assertIn("workflow-role-mismatch", workflow)
+        self.assertIn("builder_readonly", workflow)
+        self.assertIn("machine-enforced `builder_readonly`", guide)
+        self.assertIn("Read only. Do not edit, create, move, or publish files", workflow)
+        self.assertIn("does not create production images", guide)
+        self.assertIn("Workflow output is a candidate", contract)
+
 
 if __name__ == "__main__":
     unittest.main()

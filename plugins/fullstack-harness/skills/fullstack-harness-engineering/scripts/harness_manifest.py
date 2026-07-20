@@ -147,6 +147,13 @@ RUNTIME_DRIVERS = {
     "sequential_parent",
 }
 RUNTIME_DETECTION_SOURCES = {"observed", "explicit", "fallback"}
+WORKFLOW_TOOL_PROFILES = {
+    "mission_write",
+    "code_review_readonly",
+    "visual_review_readonly",
+}
+WORKFLOW_RUN_STATUSES = {"running", "completed", "failed", "stopped"}
+WORKFLOW_RUN_DRIVERS = {"dynamic_workflow", "external_dynamic_workflow"}
 RUNTIME_DRIVER_PRIORITY = {
     "codex": ("app_threads", "subagents", "sequential_parent"),
     "claude_code": ("dynamic_workflow", "subagents", "sequential_parent"),
@@ -393,7 +400,9 @@ def mission_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
         node.get("id"): node.get("ref")
         for node in nodes
         if isinstance(node, dict)
+        and isinstance(node.get("id"), str)
         and node.get("kind") == "mission"
+        and isinstance(node.get("ref"), str)
         and node.get("ref") in missions
     }
     dependencies = {mission_id: [] for mission_id in missions}
@@ -401,8 +410,10 @@ def mission_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
     for edge in edges:
         if not isinstance(edge, dict) or edge.get("kind") != "dependency":
             continue
-        source = node_to_mission.get(edge.get("from"))
-        target = node_to_mission.get(edge.get("to"))
+        source_id = edge.get("from")
+        target_id = edge.get("to")
+        source = node_to_mission.get(source_id) if isinstance(source_id, str) else None
+        target = node_to_mission.get(target_id) if isinstance(target_id, str) else None
         if source is not None and target is not None:
             dependencies[target].append(source)
     return {
@@ -696,15 +707,19 @@ def _validate_graph(
             node_id = node["id"]
             if not _nonempty_string(node_id) or not ID_RE.fullmatch(node_id):
                 _add(errors, f"{node_path}.id", "must be a flat uppercase identifier")
-            elif node_id in nodes:
+                continue
+            if node_id in nodes:
                 _add(errors, f"{node_path}.id", "must be unique")
+                continue
             nodes[node_id] = node
             kind = node["kind"]
-            if kind not in GRAPH_NODE_KINDS:
+            if not isinstance(kind, str) or kind not in GRAPH_NODE_KINDS:
                 _add(errors, f"{node_path}.kind", "has an unsupported value")
+                kind = None
             executor = node["executor"]
-            if executor not in GRAPH_EXECUTORS:
+            if not isinstance(executor, str) or executor not in GRAPH_EXECUTORS:
                 _add(errors, f"{node_path}.executor", "has an unsupported value")
+                executor = None
             outcomes = _strings(
                 errors,
                 f"{node_path}.allowed_outcomes",
@@ -720,21 +735,30 @@ def _validate_graph(
                 )
             if not _is_int(node["max_attempts"]) or not 1 <= node["max_attempts"] <= 3:
                 _add(errors, f"{node_path}.max_attempts", "must be an integer from 1 to 3")
+            if executor in {"runtime_worker", "harness_parent"} and not set(outcomes).intersection(
+                {"retryable_failure", "blocked"}
+            ):
+                _add(
+                    errors,
+                    f"{node_path}.allowed_outcomes",
+                    "runtime or parent execution requires retryable_failure or blocked for failure",
+                )
 
             ref = node["ref"]
-            if not _nonempty_string(ref):
+            valid_ref = _nonempty_string(ref)
+            if not valid_ref:
                 _add(errors, f"{node_path}.ref", "must be a non-empty string")
             if kind == "mission":
-                if ref not in missions:
+                if valid_ref and ref not in missions:
                     _add(errors, f"{node_path}.ref", "must reference a PLAN mission")
-                elif ref in mission_nodes:
+                elif valid_ref and ref in mission_nodes:
                     _add(errors, f"{node_path}.ref", "each mission must have exactly one graph node")
-                else:
+                elif valid_ref:
                     mission_nodes[ref] = node_id
                 if executor not in {"runtime_worker", "harness_parent"}:
                     _add(errors, f"{node_path}.executor", "mission requires runtime_worker or harness_parent")
             elif kind == "verifier":
-                if ref not in verifier_ids:
+                if valid_ref and ref not in verifier_ids:
                     _add(errors, f"{node_path}.ref", "must reference a declared verifier")
                 if executor not in {"runtime_worker", "harness_parent", "local_command"}:
                     _add(errors, f"{node_path}.executor", "verifier has an incompatible executor")
@@ -747,7 +771,7 @@ def _validate_graph(
                         review,
                         {"type", "mission_ids", "scope", "required_evidence"},
                     ):
-                        if review["type"] not in RUNTIME_REVIEW_TYPES:
+                        if not isinstance(review["type"], str) or review["type"] not in RUNTIME_REVIEW_TYPES:
                             _add(errors, f"{review_path}.type", "has an unsupported review type")
                         review_missions = _strings(
                             errors,
@@ -787,7 +811,7 @@ def _validate_graph(
             elif kind == "lifecycle":
                 if executor != "harness_parent":
                     _add(errors, f"{node_path}.executor", "lifecycle requires harness_parent")
-                if ref not in AUTHORIZATION_KEYS_V8:
+                if valid_ref and ref not in AUTHORIZATION_KEYS_V8:
                     _add(errors, f"{node_path}.ref", "must reference an authorization action")
             if kind != "verifier" and node.get("review") is not None:
                 _add(
@@ -888,21 +912,30 @@ def _validate_graph(
         if not _keys(errors, edge_path, edge, edge_keys):
             continue
         edge_id = edge["id"]
-        if not _nonempty_string(edge_id) or not ID_RE.fullmatch(edge_id):
+        valid_edge_id = _nonempty_string(edge_id) and ID_RE.fullmatch(edge_id) is not None
+        if not valid_edge_id:
             _add(errors, f"{edge_path}.id", "must be a flat uppercase identifier")
         elif edge_id in edges:
             _add(errors, f"{edge_path}.id", "must be unique")
-        edges[edge_id] = edge
+            valid_edge_id = False
+        else:
+            edges[edge_id] = edge
         source = edge["from"]
         target = edge["to"]
-        if source not in nodes:
+        valid_source = _nonempty_string(source)
+        valid_target = _nonempty_string(target)
+        if not valid_source:
+            _add(errors, f"{edge_path}.from", "must be a non-empty string")
+        elif source not in nodes:
             _add(errors, f"{edge_path}.from", "references an unknown node")
-        if target not in nodes:
+        if not valid_target:
+            _add(errors, f"{edge_path}.to", "must be a non-empty string")
+        elif target not in nodes:
             _add(errors, f"{edge_path}.to", "references an unknown node")
-        if source == target:
+        if valid_source and valid_target and source == target:
             _add(errors, edge_path, "self edges are forbidden")
         outcomes = _strings(errors, f"{edge_path}.on_outcomes", edge["on_outcomes"], nonempty=True)
-        if source in nodes:
+        if valid_source and source in nodes:
             invalid = sorted(set(outcomes) - set(nodes[source].get("allowed_outcomes", [])))
             if invalid:
                 _add(
@@ -915,7 +948,7 @@ def _validate_graph(
                 _add(errors, f"{edge_path}.on_outcomes", "dependency requires exactly ['pass']")
             if edge["max_traversals"] is not None:
                 _add(errors, f"{edge_path}.max_traversals", "dependency must be null")
-            if source in nodes and target in nodes:
+            if valid_source and valid_target and source in nodes and target in nodes:
                 dependency_map[target].append(source)
         elif edge["kind"] == "route":
             bound = edge["max_traversals"]
@@ -923,7 +956,7 @@ def _validate_graph(
                 _add(errors, f"{edge_path}.max_traversals", "must be null or an integer from 1 to 3")
         else:
             _add(errors, f"{edge_path}.kind", "must be dependency or route")
-        if source in nodes and target in nodes:
+        if valid_source and valid_target and source in nodes and target in nodes:
             combined_map[target].append(source)
             outgoing[source].append(target)
             incoming[target].append(source)
@@ -2255,7 +2288,8 @@ def _validate_graph_state(
                 continue
             node = graph_nodes[node_id]
             phase = state["phase"]
-            if phase not in GRAPH_NODE_PHASES:
+            valid_phase = isinstance(phase, str) and phase in GRAPH_NODE_PHASES
+            if not valid_phase:
                 _add(errors, f"{state_path}.phase", "has an unsupported value")
             attempts = state["attempts"]
             if not _is_int(attempts) or attempts < 0:
@@ -2265,10 +2299,13 @@ def _validate_graph_state(
             for key in ("last_attempt_id", "bound_worker_id"):
                 _optional_string(errors, f"{state_path}.{key}", state[key])
             outcome = state["last_outcome"]
-            if outcome is not None and outcome not in node.get("allowed_outcomes", []):
+            if outcome is not None and (
+                not isinstance(outcome, str)
+                or outcome not in node.get("allowed_outcomes", [])
+            ):
                 _add(errors, f"{state_path}.last_outcome", "is not declared by the PLAN node")
             blockers = _strings(errors, f"{state_path}.blockers", state["blockers"])
-            if phase in {"succeeded", "failed", "blocked"} and (
+            if valid_phase and phase in {"succeeded", "failed", "blocked"} and (
                 not _nonempty_string(state["last_attempt_id"])
                 or outcome is None
                 or attempts < 1
@@ -2315,7 +2352,8 @@ def _validate_graph_state(
             state_path = f"{path}.edge_states.{edge_id}"
             if edge_id not in graph_edges or not _keys(errors, state_path, state, edge_state_keys):
                 continue
-            if state["status"] not in GRAPH_EDGE_PHASES:
+            status = state["status"]
+            if not isinstance(status, str) or status not in GRAPH_EDGE_PHASES:
                 _add(errors, f"{state_path}.status", "has an unsupported value")
             traversals = state["traversals"]
             if not _is_int(traversals) or traversals < 0:
@@ -2582,6 +2620,193 @@ def validate_ui_evidence_files(
     return sorted(set(errors))
 
 
+def _validate_workflow_runs(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    value = run.get("workflow_runs")
+    if value is None:
+        return
+    if not isinstance(value, list):
+        _add(errors, "run.workflow_runs", "must be a list")
+        return
+    graph_nodes = {
+        node["id"]: node
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict) and _nonempty_string(node.get("id"))
+    }
+    seen_ids: set[str] = set()
+    active_attempts: set[tuple[str, str]] = set()
+    entry_keys = {
+        "workflow_run_id",
+        "workflow_task_id",
+        "resume_from_run_id",
+        "script_path",
+        "script_sha256",
+        "run_id",
+        "plan_revision",
+        "plan_digest_sha256",
+        "graph_revision",
+        "batch_base_sha",
+        "node_ids",
+        "attempt_ids",
+        "provider",
+        "driver",
+        "model",
+        "reasoning_effort",
+        "tool_profile",
+        "status",
+        "result_evidence",
+        "metrics",
+    }
+    for index, item in enumerate(value):
+        path = f"run.workflow_runs[{index}]"
+        if not _keys(errors, path, item, entry_keys):
+            continue
+        workflow_run_id = item["workflow_run_id"]
+        if not _nonempty_string(workflow_run_id):
+            _add(errors, f"{path}.workflow_run_id", "must be a non-empty string")
+        elif workflow_run_id in seen_ids:
+            _add(errors, f"{path}.workflow_run_id", "must be unique")
+        else:
+            seen_ids.add(workflow_run_id)
+        _optional_string(errors, f"{path}.workflow_task_id", item["workflow_task_id"])
+        _optional_string(errors, f"{path}.resume_from_run_id", item["resume_from_run_id"])
+        if not _nonempty_string(item["script_path"]):
+            _add(errors, f"{path}.script_path", "must be a non-empty string")
+        if not _nonempty_string(item["script_sha256"]) or not SHA256_RE.fullmatch(
+            item["script_sha256"]
+        ):
+            _add(errors, f"{path}.script_sha256", "must be a lowercase SHA-256")
+        if item["run_id"] != run.get("run_id"):
+            _add(errors, f"{path}.run_id", "must match run.run_id")
+        if not _is_int(item["plan_revision"]) or item["plan_revision"] < 1:
+            _add(errors, f"{path}.plan_revision", "must be a positive integer")
+        if not _nonempty_string(item["plan_digest_sha256"]) or not SHA256_RE.fullmatch(
+            item["plan_digest_sha256"]
+        ):
+            _add(errors, f"{path}.plan_digest_sha256", "must be a lowercase SHA-256")
+        if not _is_int(item["graph_revision"]) or item["graph_revision"] < 1:
+            _add(errors, f"{path}.graph_revision", "must be a positive integer")
+        if not isinstance(item["batch_base_sha"], str) or not SHA_RE.fullmatch(
+            item["batch_base_sha"]
+        ):
+            _add(errors, f"{path}.batch_base_sha", "must be a full Git SHA")
+        node_ids = _strings(errors, f"{path}.node_ids", item["node_ids"], nonempty=True)
+        if len(node_ids) != len(set(node_ids)):
+            _add(errors, f"{path}.node_ids", "must not contain duplicates")
+        raw_attempt_ids = item["attempt_ids"]
+        attempt_ids: dict[str, str] = {}
+        if not isinstance(raw_attempt_ids, dict):
+            _add(errors, f"{path}.attempt_ids", "must be an object keyed by node ID")
+        else:
+            for node_id, attempt_id in raw_attempt_ids.items():
+                if not _nonempty_string(node_id) or not _nonempty_string(attempt_id):
+                    _add(errors, f"{path}.attempt_ids", "keys and values must be non-empty strings")
+                    continue
+                attempt_ids[node_id] = attempt_id
+            if set(attempt_ids) != set(node_ids):
+                _add(errors, f"{path}.attempt_ids", "keys must exactly match node_ids")
+        provider = item["provider"]
+        if provider != "claude_code":
+            _add(errors, f"{path}.provider", "must equal claude_code")
+        driver = item["driver"]
+        if not isinstance(driver, str) or driver not in WORKFLOW_RUN_DRIVERS:
+            _add(errors, f"{path}.driver", "has an unsupported value")
+        model = item["model"]
+        if not _nonempty_string(model):
+            _add(errors, f"{path}.model", "must be a non-empty string")
+        effort = item["reasoning_effort"]
+        if effort is not None and (
+            not isinstance(effort, str) or effort not in RUNTIME_REASONING_EFFORTS
+        ):
+            _add(errors, f"{path}.reasoning_effort", "has an unsupported value")
+        profile = item["tool_profile"]
+        if not isinstance(profile, str) or profile not in WORKFLOW_TOOL_PROFILES:
+            _add(errors, f"{path}.tool_profile", "has an unsupported value")
+        status = item["status"]
+        if not isinstance(status, str) or status not in WORKFLOW_RUN_STATUSES:
+            _add(errors, f"{path}.status", "has an unsupported value")
+        _strings(errors, f"{path}.result_evidence", item["result_evidence"])
+        metrics = item["metrics"]
+        if _keys(errors, f"{path}.metrics", metrics, {"duration_ms", "token_count"}):
+            for metric in ("duration_ms", "token_count"):
+                current = metrics[metric]
+                if current is not None and (not _is_int(current) or current < 0):
+                    _add(errors, f"{path}.metrics.{metric}", "must be null or a non-negative integer")
+        if status == "running":
+            unknown_nodes = sorted(set(node_ids) - set(graph_nodes))
+            if unknown_nodes:
+                _add(
+                    errors,
+                    f"{path}.node_ids",
+                    f"running workflow contains unknown graph nodes: {', '.join(unknown_nodes)}",
+                )
+            if profile == "mission_write" and any(
+                graph_nodes.get(node_id, {}).get("kind") != "mission" for node_id in node_ids
+            ):
+                _add(errors, f"{path}.tool_profile", "mission_write requires only mission nodes")
+            if profile in {"code_review_readonly", "visual_review_readonly"}:
+                review_types: set[Any] = set()
+                for node_id in node_ids:
+                    review = graph_nodes.get(node_id, {}).get("review")
+                    review_types.add(review.get("type") if isinstance(review, dict) else None)
+                allowed_reviews = (
+                    {"visual"}
+                    if profile == "visual_review_readonly"
+                    else {"frontend_code", "backend_code"}
+                )
+                if not review_types or not review_types.issubset(allowed_reviews):
+                    _add(errors, f"{path}.tool_profile", "does not match its review node types")
+            if item["plan_revision"] != plan.get("revision"):
+                _add(errors, f"{path}.plan_revision", "running workflow must match PLAN")
+            if item["plan_digest_sha256"] != plan_digest(plan):
+                _add(errors, f"{path}.plan_digest_sha256", "running workflow must match PLAN")
+            raw_graph_state = run.get("graph_state")
+            graph_state = raw_graph_state if isinstance(raw_graph_state, dict) else {}
+            if item["graph_revision"] != graph_state.get("graph_revision"):
+                _add(errors, f"{path}.graph_revision", "running workflow is stale")
+            raw_integration = run.get("integration")
+            integration = raw_integration if isinstance(raw_integration, dict) else {}
+            if item["batch_base_sha"] != integration.get("batch_base_sha"):
+                _add(errors, f"{path}.batch_base_sha", "running workflow must match RUN")
+            for node_id in node_ids:
+                attempt_id = attempt_ids.get(node_id)
+                state = graph_state.get("node_states", {}).get(node_id, {})
+                if state.get("phase") != "running" or state.get("last_attempt_id") != attempt_id:
+                    _add(errors, f"{path}.attempt_ids.{node_id}", "must match the active running node attempt")
+                elif (node_id, attempt_id) in active_attempts:
+                    _add(errors, f"{path}.attempt_ids.{node_id}", "is already bound to another running workflow")
+                else:
+                    active_attempts.add((node_id, attempt_id))
+                node = graph_nodes.get(node_id, {})
+                raw_policy = node.get("runtime")
+                policy = raw_policy if isinstance(raw_policy, dict) else {}
+                raw_allowed = policy.get("allowed_providers")
+                allowed_providers = raw_allowed if isinstance(raw_allowed, list) else []
+                if "claude_code" not in allowed_providers:
+                    _add(errors, f"{path}.provider", f"node {node_id} does not allow claude_code")
+                    continue
+                raw_options = policy.get("provider_options")
+                provider_options = raw_options if isinstance(raw_options, dict) else {}
+                configured = provider_options.get("claude_code")
+                expected_model = (
+                    (configured.get("model") or "sonnet")
+                    if isinstance(configured, dict)
+                    else "sonnet"
+                )
+                expected_effort = (
+                    configured.get("reasoning_effort")
+                    if isinstance(configured, dict)
+                    else None
+                )
+                if model != expected_model:
+                    _add(errors, f"{path}.model", f"does not match node {node_id}")
+                if effort != expected_effort:
+                    _add(errors, f"{path}.reasoning_effort", f"does not match node {node_id}")
+            if run.get("status") == "complete":
+                _add(errors, path, "complete RUN cannot retain a running workflow")
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -2610,9 +2835,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     plan_declares_release = (
         plan.get("schema_version") in {3, 4} and "release" in plan
     )
-    graph_run = schema_version == 8 or (
-        schema_version == 9 and plan.get("schema_version") == 4
-    )
+    graph_run = plan.get("schema_version") == 4 and schema_version in {8, 9}
     if graph_run:
         run_keys.update({"graph_state", "review_workers"})
     if schema_version in {3, 4, 5, 6, 7, 8, 9}:
@@ -2627,6 +2850,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, 7, 8, or 9")
     if plan.get("schema_version") == 4 and schema_version not in {8, 9}:
         _add(errors, "run.schema_version", "must equal 8 or 9 for a schema v4 graph PLAN")
+    elif schema_version == 8 and plan.get("schema_version") != 4:
+        _add(errors, "run.schema_version", "schema v8 requires a schema v4 graph PLAN")
     elif (
         plan_declares_release
         and plan.get("schema_version") == 3
@@ -2638,6 +2863,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "must equal 7 or 9 when a schema v3 PLAN declares release",
         )
     optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
+    if graph_run:
+        optional_run_keys.add("workflow_runs")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
@@ -3223,6 +3450,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
     if graph_run:
         _validate_graph_state(errors, plan, run)
+        _validate_workflow_runs(errors, plan, run)
 
     task_states = run["task_states"]
     task_state_keys = {

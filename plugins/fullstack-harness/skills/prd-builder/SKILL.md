@@ -1,6 +1,6 @@
 ---
 name: prd-builder
-description: Create product requirement document packages from user needs, including product discovery, explicit or recommended frontend stack selection, implementation-ready architecture, UX flows, and low-fidelity ASCII and Mermaid wireframes. Use when Codex is asked to build, draft, plan, or refine a PRD, product spec, app spec, web product spec, internal tool spec, automation or agent workflow spec, UI wireframes, frontend technology recommendation, or architecture for a product idea.
+description: Create product requirement document packages from user needs, including product discovery, explicit or recommended frontend stack selection, implementation-ready architecture, UX flows, and low-fidelity ASCII and Mermaid wireframes. Use when an agent is asked to build, draft, plan, or refine a PRD, product spec, app spec, web product spec, internal tool spec, automation or agent workflow spec, UI wireframes, frontend technology recommendation, or architecture for a product idea.
 ---
 
 # PRD Builder
@@ -15,17 +15,18 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 2. Conduct a complete but concise product interview before drafting, unless the user explicitly says to skip questions, make assumptions, or produce a first draft immediately.
 3. For a UI-bearing product, capture a `Builder UX Direction Decision` before drafting wireframes. Resolve the builder to the human product/design decision owner or commissioning team, then record experience priority, guidance versus expert control, information density, interaction familiarity, preferred layout pattern, visual cues, confirmation/recovery behavior, and validation depth. Mark every decision `selected`, `provisional`, or `assumed`.
 4. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid.
-5. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, and `references/wireframe-guide.md`. For a web app, internal tool, public website, or hybrid with a browser frontend, also read `references/frontend-stack-selection.md`.
+5. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, `references/wireframe-guide.md`, and `references/dynamic-workflow.md`. For a web app, internal tool, public website, or hybrid with a browser frontend, also read `references/frontend-stack-selection.md`.
 6. Before drafting, inventory earlier documents related to the same product as described in `references/artifact-lifecycle.md`. Do not move anything yet.
-7. Draft the core Markdown package in the staging location defined by `references/artifact-lifecycle.md`:
+7. For a non-trivial package, when Claude Code Dynamic Workflow is observed, multi-agent analysis is authorized, and the host can enforce the `builder_readonly` tool profile from `references/dynamic-workflow.md`, run `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` after the interview and source inputs are frozen. Retain failed lanes explicitly and treat the returned package as a candidate for parent review. If Dynamic Workflow or the read-only boundary is unavailable, perform the same roles sequentially and state that fallback.
+8. Draft or repair the core Markdown package in the staging location defined by `references/artifact-lifecycle.md`:
    - `PRD.md`
    - `architecture.md`
    - `wireframes.md`
-8. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
-9. Run the quality checklist in `references/output-contract.md` against the staged package.
-10. After validation, show the exact publish paths, overwrite targets, and archive moves. Perform them only when the original request already authorized those exact paths or the user explicitly approves them. Otherwise leave the validated staging package intact and report it as ready to publish. Never archive documents when the workflow is incomplete, paused, failing validation, or awaiting approval.
-11. Report the final artifact paths and every archived path.
-12. After reporting a completed UI-bearing PRD package, ask whether the user wants to run `$design-package-builder` next using the new package as its product input. Do not invoke the design skill without an explicit yes. For a non-UI product, offer `$fullstack-harness-engineering` instead. If a UI-bearing product deliberately skips design, record that gap before offering the Harness. Do not invoke another skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, failing validation, or awaiting publish approval.
+9. Produce `implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
+10. Run the quality checklist in `references/output-contract.md` against the staged package. Resolve every required workflow lane and material verifier finding before finalization.
+11. After validation, show the exact publish paths, overwrite targets, and archive moves. Perform them only when the original request already authorized those exact paths or the user explicitly approves them. Otherwise leave the validated staging package intact and report it as ready to publish. Never archive documents when the workflow is incomplete, paused, failing validation, or awaiting approval.
+12. Report the final artifact paths and every archived path.
+13. After reporting a completed UI-bearing PRD package, ask whether the user wants to run the `design-package-builder` skill next using the new package as its product input. Do not invoke the design skill without an explicit yes. For a non-UI product, offer `fullstack-harness-engineering` instead. If a UI-bearing product deliberately skips design, record that gap before offering the Harness. Do not invoke another skill without an explicit yes, and do not offer the handoff while the PRD workflow is incomplete, paused, failing validation, or awaiting publish approval.
 
 ## Interview Rules
 
@@ -44,6 +45,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Use `references/architecture-playbook.md` for implementation-ready architecture content across web, mobile, internal tools, and automations, including the default Cloudflare development-to-production release contract for deployable products.
 - Use `references/frontend-stack-selection.md` to separate frontend technology layers, recommend one product-fit stack, and verify current Cloudflare support when that platform is in scope.
 - Use `references/wireframe-guide.md` for ASCII wireframes, Mermaid flows, and required UI states.
+- Use `references/dynamic-workflow.md` for the stable PRD role graph, bounded Claude Code workflow, failure handling, and sequential fallback.
 
 ## Output Standards
 
@@ -65,3 +67,5 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Do not present Cloudflare, Astro, React, and Vite as peer alternatives: Cloudflare is a deployment/runtime platform, Astro is a web framework, React is a UI library, and Vite is a build tool that can be paired with React or used by frameworks.
 - Keep a decision technology-neutral only when evidence is genuinely insufficient. In that case, document the missing evidence, decision owner, decision deadline, and a time-boxed spike with pass/fail criteria.
 - When recommending a fast-moving hosted platform or framework, verify current official documentation and record the check date and sources in `architecture.md`.
+- Treat the stable PRD roles as an org graph and each bounded workflow run as a temporary work graph. Dynamic Workflow coordinates read-only analysis; the parent still owns source freeze, staged artifact writes, conflict resolution, approval, publication, and cross-session recovery.
+- When `implementation-plan.md` is requested, include non-canonical Harness handoff signals for dependency order, parallel candidates, shared resources, required reviews, and human gates. Do not create PLAN/RUN mission maps in this skill.

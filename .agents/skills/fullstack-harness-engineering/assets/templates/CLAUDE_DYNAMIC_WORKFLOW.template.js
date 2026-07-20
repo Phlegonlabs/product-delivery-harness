@@ -1,12 +1,17 @@
 export const meta = {
   name: "harness-wave",
   description: "Run one accepted Full-Stack Harness mission wave.",
+  phases: [
+    { title: "Execute", detail: "Run isolated mission workers" },
+  ],
 };
 
 // This is the Harness blueprint for a one-off or saved Claude Code workflow.
 // The parent supplies frozen mission handoffs and allocated worktree paths.
 
-if (!args || !Array.isArray(args.missions) || args.missions.length === 0) {
+const workflowArgs = typeof args === "string" ? JSON.parse(args) : args;
+
+if (!workflowArgs || !Array.isArray(workflowArgs.missions) || workflowArgs.missions.length === 0) {
   throw new Error("harness-wave requires a non-empty args.missions array");
 }
 
@@ -17,7 +22,7 @@ const requiredRunFields = [
   "batch_base_sha",
 ];
 for (const field of requiredRunFields) {
-  if (args[field] === undefined || args[field] === null || args[field] === "") {
+  if (workflowArgs[field] === undefined || workflowArgs[field] === null || workflowArgs[field] === "") {
     throw new Error(`harness-wave is missing args.${field}`);
   }
 }
@@ -215,7 +220,8 @@ const resultSchema = {
   oneOf: [workerResultSchema, refinementRequestSchema],
 };
 
-const results = await pipeline(args.missions, (mission) => {
+phase("Execute");
+const results = await pipeline(workflowArgs.missions, (mission) => {
   if (
     !mission.mission_id ||
     !mission.lease_id ||
@@ -235,9 +241,9 @@ const results = await pipeline(args.missions, (mission) => {
       `- Mission ID: ${mission.mission_id}.\n` +
       `- Lease ID: ${mission.lease_id}.\n` +
       `- Branch ref: ${mission.branch_ref}.\n` +
-      `- Plan: ${args.plan_id} revision ${args.plan_revision}.\n` +
-      `- Plan digest: ${args.plan_digest_sha256}.\n` +
-      `- Batch base: ${args.batch_base_sha}.\n` +
+      `- Plan: ${workflowArgs.plan_id} revision ${workflowArgs.plan_revision}.\n` +
+      `- Plan digest: ${workflowArgs.plan_digest_sha256}.\n` +
+      `- Batch base: ${workflowArgs.batch_base_sha}.\n` +
       `- Before any read, write, or shell action, enter the existing worktree at ${mission.worktree_path}.\n` +
       `- Do not create another worktree or write in the parent checkout; return blocked if the binding fails.\n` +
       `- Do not edit PLAN.md or RUN.md.\n` +
@@ -247,6 +253,7 @@ const results = await pipeline(args.missions, (mission) => {
       `- Return only one structured object accepted by the supplied schema.`,
     {
       label: mission.mission_id,
+      phase: "Execute",
       schema: resultSchema,
     },
   );

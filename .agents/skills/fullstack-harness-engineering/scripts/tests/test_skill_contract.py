@@ -118,7 +118,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`scriptPath`", orchestration)
         self.assertIn("run_dynamic_workflow", selector_reference)
         self.assertIn("CLAUDE_DYNAMIC_WORKFLOW.template.js", skill)
-        self.assertIn("pipeline(args.missions", workflow)
+        self.assertIn("pipeline(workflowArgs.missions", workflow)
         self.assertIn('"worker_result"', workflow)
         self.assertIn('"lease_id"', workflow)
         self.assertIn('"task_results"', workflow)
@@ -261,8 +261,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("max_traversals", graph)
         self.assertIn("pipeline(workflowArgs.nodes", workflow)
         self.assertIn("protocol_version", preflight)
-        self.assertIn("await agent(", preflight)
+        self.assertIn("await pipeline(", preflight)
         self.assertIn("external_dynamic_workflow", selector)
+        self.assertIn("tool_profile", selector)
+        self.assertIn('"workflow_runs"', run)
+        self.assertIn("mission_write", run)
+        self.assertIn("EnterWorktree", workflow)
+        self.assertIn("TOOL_PROFILE_REQUIREMENTS", bridge)
         self.assertIn("--allowedTools", bridge)
 
     def test_plan_provider_options_bind_worker_models(self) -> None:

@@ -28,6 +28,9 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Check generated plugin skill bundle
+        run: python scripts/sync_plugin_skills.py --check
+
       - name: Run harness unit, contract, and E2E tests
         run: python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 
@@ -36,3 +39,12 @@ jobs:
 
       - name: Run PRD builder contract tests
         run: python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+
+      - name: Run packaged harness tests
+        run: python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -v
+
+      - name: Run packaged design package tests
+        run: python -m unittest discover -s plugins/fullstack-harness/skills/design-package-builder/scripts/tests -v
+
+      - name: Run packaged PRD builder tests
+        run: python -m unittest discover -s plugins/fullstack-harness/skills/prd-builder/scripts/tests -v

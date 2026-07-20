@@ -279,6 +279,13 @@ Use this structure:
 | Area | Task | Owner Type | Notes |
 | --- | --- | --- | --- |
 
+## Harness Handoff Signals
+These are planning hints, not a canonical Harness PLAN or RUN graph.
+
+| Work area | Upstream trace IDs | Prerequisites | Parallel candidate | Shared or exclusive resources | Required review / evidence | Human gate |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Area] | PRD-001, ARCH-001, UI-001 | [Contract or prior outcome] | [yes / no / conditional] | [Schema, generated client, port, database, external service, or none known] | [Frontend/backend/visual/E2E/security] | [Decision or none] |
+
 ## Test Strategy
 | TEST ID | Test Type | Coverage | Upstream trace IDs | Acceptance Signal |
 | --- | --- | --- | --- | --- |
@@ -320,7 +327,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
 - Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to the design package.
 - UI states include loading, empty, error, permission, and success where applicable.
-- If produced, `implementation-plan.md` includes milestones, dependency order, test strategy, release plan, rollback plan, and unresolved decisions.
+- If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions.
+- When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
 - Assumptions and open questions are explicit.
 - The artifacts match the selected product archetype.
 - No current-package artifact will be published outside `doc/` unless the user explicitly requested another location.
