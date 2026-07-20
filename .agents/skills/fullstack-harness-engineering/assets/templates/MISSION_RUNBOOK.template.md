@@ -437,7 +437,7 @@ Each `review_workers` entry uses this exact read-only shape:
 
 The matching successful node result puts exactly `reviewed_sha`, `findings`, and `evidence_summary` inside `worker_result`. The reviewed SHA must match the active review worker.
 
-Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node attempts to actual Claude Code Workflow executions. Add an entry only when the runtime returns a real workflow run ID; never invent one. Running entries bind every node ID to its active attempt ID and must match the current plan, graph, runtime policy, and batch base. Completed historical entries remain as evidence after later graph revisions and do not require their superseded nodes to remain in the current PLAN.
+Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node attempts to actual Claude Code Workflow executions. Call `claude_runtime_bridge.py run-wave` with the canonical PLAN, RUN, and immutable wave request paths; the bridge revalidates current state, authorization, worker bindings, and checkout HEAD before launch. Add an entry only when the runtime returns a real non-empty workflow run ID; never invent one. Running entries bind every node ID to its active attempt ID and must match the current plan, graph, runtime policy, and batch base. Completed historical entries remain as evidence after later graph revisions and do not require their superseded nodes to remain in the current PLAN.
 
 ```json
 {
@@ -469,7 +469,7 @@ Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node a
 }
 ```
 
-Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. Group external Claude nodes by model, effort, and tool profile. Every profile uses an exact allowlist. Mission waves require `EnterWorktree`; both review profiles omit `EnterWorktree`, `Edit`, `Write`, `NotebookEdit`, and `Bash`. Visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted and added to the profile implementation.
+Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. Group external Claude nodes by model, effort, and tool profile. Every profile uses an exact allowlist. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review profiles omit `Edit`, `Write`, `NotebookEdit`, and `Bash`. Visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted and added to the profile implementation.
 
 For an enabled app-task nested policy, use `max_children` from 1 to 3 and a non-empty subset of the runtime `allowed_roles`. The app task stays the only writer. A non-trivial mission launches at least one eligible read-only lane and records the resulting child activity in WORKER_RESULT; a skip is valid only for a trivial mission, unavailable runtime/slots, or no safe independent lane. When capability is initially unknown, keep the task at a no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy` and matching `subagent_activity`.
 

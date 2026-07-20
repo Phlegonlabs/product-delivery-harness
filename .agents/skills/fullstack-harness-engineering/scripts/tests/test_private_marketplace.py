@@ -111,6 +111,20 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 "current\n",
             )
 
+    def test_sync_treats_windows_junctions_as_links(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        junction = Path("junction")
+        with mock.patch.object(Path, "is_symlink", return_value=False):
+            with mock.patch.object(Path, "is_junction", return_value=True):
+                self.assertTrue(module.is_link(junction))
+
     def test_sync_refuses_symlinked_marker_without_writing(self) -> None:
         spec = importlib.util.spec_from_file_location(
             "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"

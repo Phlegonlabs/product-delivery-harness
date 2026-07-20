@@ -402,6 +402,7 @@ def mission_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
         if isinstance(node, dict)
         and isinstance(node.get("id"), str)
         and node.get("kind") == "mission"
+        and isinstance(node.get("ref"), str)
         and node.get("ref") in missions
     }
     dependencies = {mission_id: [] for mission_id in missions}
@@ -744,19 +745,20 @@ def _validate_graph(
                 )
 
             ref = node["ref"]
-            if not _nonempty_string(ref):
+            valid_ref = _nonempty_string(ref)
+            if not valid_ref:
                 _add(errors, f"{node_path}.ref", "must be a non-empty string")
             if kind == "mission":
-                if ref not in missions:
+                if valid_ref and ref not in missions:
                     _add(errors, f"{node_path}.ref", "must reference a PLAN mission")
-                elif ref in mission_nodes:
+                elif valid_ref and ref in mission_nodes:
                     _add(errors, f"{node_path}.ref", "each mission must have exactly one graph node")
-                else:
+                elif valid_ref:
                     mission_nodes[ref] = node_id
                 if executor not in {"runtime_worker", "harness_parent"}:
                     _add(errors, f"{node_path}.executor", "mission requires runtime_worker or harness_parent")
             elif kind == "verifier":
-                if ref not in verifier_ids:
+                if valid_ref and ref not in verifier_ids:
                     _add(errors, f"{node_path}.ref", "must reference a declared verifier")
                 if executor not in {"runtime_worker", "harness_parent", "local_command"}:
                     _add(errors, f"{node_path}.executor", "verifier has an incompatible executor")
@@ -809,7 +811,7 @@ def _validate_graph(
             elif kind == "lifecycle":
                 if executor != "harness_parent":
                     _add(errors, f"{node_path}.executor", "lifecycle requires harness_parent")
-                if ref not in AUTHORIZATION_KEYS_V8:
+                if valid_ref and ref not in AUTHORIZATION_KEYS_V8:
                     _add(errors, f"{node_path}.ref", "must reference an authorization action")
             if kind != "verifier" and node.get("review") is not None:
                 _add(
@@ -910,21 +912,30 @@ def _validate_graph(
         if not _keys(errors, edge_path, edge, edge_keys):
             continue
         edge_id = edge["id"]
-        if not _nonempty_string(edge_id) or not ID_RE.fullmatch(edge_id):
+        valid_edge_id = _nonempty_string(edge_id) and ID_RE.fullmatch(edge_id) is not None
+        if not valid_edge_id:
             _add(errors, f"{edge_path}.id", "must be a flat uppercase identifier")
         elif edge_id in edges:
             _add(errors, f"{edge_path}.id", "must be unique")
-        edges[edge_id] = edge
+            valid_edge_id = False
+        else:
+            edges[edge_id] = edge
         source = edge["from"]
         target = edge["to"]
-        if source not in nodes:
+        valid_source = _nonempty_string(source)
+        valid_target = _nonempty_string(target)
+        if not valid_source:
+            _add(errors, f"{edge_path}.from", "must be a non-empty string")
+        elif source not in nodes:
             _add(errors, f"{edge_path}.from", "references an unknown node")
-        if target not in nodes:
+        if not valid_target:
+            _add(errors, f"{edge_path}.to", "must be a non-empty string")
+        elif target not in nodes:
             _add(errors, f"{edge_path}.to", "references an unknown node")
-        if source == target:
+        if valid_source and valid_target and source == target:
             _add(errors, edge_path, "self edges are forbidden")
         outcomes = _strings(errors, f"{edge_path}.on_outcomes", edge["on_outcomes"], nonempty=True)
-        if source in nodes:
+        if valid_source and source in nodes:
             invalid = sorted(set(outcomes) - set(nodes[source].get("allowed_outcomes", [])))
             if invalid:
                 _add(
@@ -937,7 +948,7 @@ def _validate_graph(
                 _add(errors, f"{edge_path}.on_outcomes", "dependency requires exactly ['pass']")
             if edge["max_traversals"] is not None:
                 _add(errors, f"{edge_path}.max_traversals", "dependency must be null")
-            if source in nodes and target in nodes:
+            if valid_source and valid_target and source in nodes and target in nodes:
                 dependency_map[target].append(source)
         elif edge["kind"] == "route":
             bound = edge["max_traversals"]
@@ -945,7 +956,7 @@ def _validate_graph(
                 _add(errors, f"{edge_path}.max_traversals", "must be null or an integer from 1 to 3")
         else:
             _add(errors, f"{edge_path}.kind", "must be dependency or route")
-        if source in nodes and target in nodes:
+        if valid_source and valid_target and source in nodes and target in nodes:
             combined_map[target].append(source)
             outgoing[source].append(target)
             incoming[target].append(source)
@@ -2277,7 +2288,8 @@ def _validate_graph_state(
                 continue
             node = graph_nodes[node_id]
             phase = state["phase"]
-            if phase not in GRAPH_NODE_PHASES:
+            valid_phase = isinstance(phase, str) and phase in GRAPH_NODE_PHASES
+            if not valid_phase:
                 _add(errors, f"{state_path}.phase", "has an unsupported value")
             attempts = state["attempts"]
             if not _is_int(attempts) or attempts < 0:
@@ -2287,10 +2299,13 @@ def _validate_graph_state(
             for key in ("last_attempt_id", "bound_worker_id"):
                 _optional_string(errors, f"{state_path}.{key}", state[key])
             outcome = state["last_outcome"]
-            if outcome is not None and outcome not in node.get("allowed_outcomes", []):
+            if outcome is not None and (
+                not isinstance(outcome, str)
+                or outcome not in node.get("allowed_outcomes", [])
+            ):
                 _add(errors, f"{state_path}.last_outcome", "is not declared by the PLAN node")
             blockers = _strings(errors, f"{state_path}.blockers", state["blockers"])
-            if phase in {"succeeded", "failed", "blocked"} and (
+            if valid_phase and phase in {"succeeded", "failed", "blocked"} and (
                 not _nonempty_string(state["last_attempt_id"])
                 or outcome is None
                 or attempts < 1
@@ -2337,7 +2352,8 @@ def _validate_graph_state(
             state_path = f"{path}.edge_states.{edge_id}"
             if edge_id not in graph_edges or not _keys(errors, state_path, state, edge_state_keys):
                 continue
-            if state["status"] not in GRAPH_EDGE_PHASES:
+            status = state["status"]
+            if not isinstance(status, str) or status not in GRAPH_EDGE_PHASES:
                 _add(errors, f"{state_path}.status", "has an unsupported value")
             traversals = state["traversals"]
             if not _is_int(traversals) or traversals < 0:

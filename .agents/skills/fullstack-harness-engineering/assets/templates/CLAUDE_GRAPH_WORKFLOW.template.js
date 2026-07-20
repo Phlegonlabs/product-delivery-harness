@@ -140,6 +140,8 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
     : `- Review ID: ${node.review_id}.\n` +
       `- Review type: ${node.review_type}.\n` +
       `- Review exact SHA ${node.reviewed_sha} at ${node.review_path}.\n` +
+      `- Before any repository read, call EnterWorktree with that exact review path.\n` +
+      `- Return blocked if EnterWorktree is unavailable or does not enter that exact path.\n` +
       `- Review scope: ${node.review_scope.join(", ")}.\n` +
       `- Required evidence: ${node.required_evidence.join(", ")}.\n` +
       `- This is read-only. Do not edit files, create commits or branches, run mutating tools, or delegate.\n` +

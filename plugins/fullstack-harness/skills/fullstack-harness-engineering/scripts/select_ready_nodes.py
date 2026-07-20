@@ -298,7 +298,12 @@ def _dispatch_reasons(
         if plan_mission:
             if plan_mission.get("resource_inventory_complete") is not True:
                 reasons.add("incomplete_resource_inventory")
-            if runtime.get("workspace_mode") != "shared_checkout":
+            workspace_mode = (
+                "shared_checkout"
+                if node["executor"] == "harness_parent"
+                else runtime.get("workspace_mode")
+            )
+            if workspace_mode != "shared_checkout":
                 if plan_mission.get("worktree_eligible") is not True:
                     reasons.add("worktree_ineligible")
                 if observed_runtime.get("isolation_capacity", 0) <= 0:
@@ -492,26 +497,35 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
                     "reason_codes": sorted(reasons),
                 }
             )
-    write_budget = min(
+    configured_write_budget = min(
         plan["max_parallel_workers"],
         run["runtime_capabilities"]["max_parallel_workers"],
+    )
+    isolated_write_budget = min(
+        configured_write_budget,
         run["observed"]["runtime"]["available_worker_slots"],
         run["observed"]["runtime"]["isolation_capacity"],
     )
     conflict_pairs = {
         frozenset((edge["left"], edge["right"])) for edge in conflict_edges
     }
+    isolated_write_count = 0
     for item in write_candidates:
         node_id = item["node"]["id"]
-        if len(selected_write) >= write_budget:
-            deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
-            continue
         if any(
             frozenset((node_id, selected["node"]["id"])) in conflict_pairs
             for selected in selected_write
         ):
             deferred.append({"node_id": node_id, "reason_codes": ["write_conflict"]})
             continue
+        if len(selected_write) >= configured_write_budget:
+            deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
+            continue
+        if _workspace_mode_for(item, run) != "shared_checkout":
+            if isolated_write_count >= isolated_write_budget:
+                deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
+                continue
+            isolated_write_count += 1
         selected_write.append(item)
 
     selected_ids = {item["node"]["id"] for item in selected_write}

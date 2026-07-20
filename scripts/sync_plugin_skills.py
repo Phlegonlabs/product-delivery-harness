@@ -20,10 +20,16 @@ SKILL_NAMES = (
 )
 
 
+def is_link(path: Path) -> bool:
+    """Return whether a path can redirect traversal outside its parent."""
+    is_junction = getattr(path, "is_junction", None)
+    return path.is_symlink() or (is_junction is not None and is_junction())
+
+
 def included_files(root: Path) -> dict[Path, Path]:
     files: dict[Path, Path] = {}
     for path in root.rglob("*"):
-        if path.is_symlink():
+        if is_link(path):
             continue
         if not path.is_file():
             continue
@@ -42,7 +48,7 @@ def managed_path_problem(path: Path, label: str) -> str | None:
     candidate = REPO_ROOT
     for part in relative_path.parts:
         candidate /= part
-        if candidate.is_symlink():
+        if is_link(candidate):
             kind = "root" if candidate == path else "ancestor"
             return f"symlinked {label} {kind}: {candidate}"
 
@@ -60,7 +66,7 @@ def destination_path_problem() -> str | None:
 def symlink_entries(root: Path) -> list[Path]:
     if not root.exists():
         return []
-    return [path.relative_to(root) for path in root.rglob("*") if path.is_symlink()]
+    return [path.relative_to(root) for path in root.rglob("*") if is_link(path)]
 
 
 def differences() -> list[str]:
@@ -69,7 +75,7 @@ def differences() -> list[str]:
     if destination_problem:
         return [destination_problem]
 
-    if MARKER.is_symlink():
+    if is_link(MARKER):
         problems.append(f"symlink: {MARKER.name}")
     elif not MARKER.is_file():
         problems.append(f"missing: {MARKER.name}")
@@ -90,7 +96,7 @@ def differences() -> list[str]:
         for relative in symlink_entries(source):
             problems.append(f"source symlink: {name}/{relative.as_posix()}")
         source_files = included_files(source)
-        if destination.is_symlink():
+        if is_link(destination):
             problems.append(f"symlink: {name}")
             destination_files = {}
         else:
@@ -114,7 +120,7 @@ def differences() -> list[str]:
 
 
 def write_marker() -> None:
-    if MARKER.is_symlink():
+    if is_link(MARKER):
         raise SystemExit(f"Refusing to use symlinked marker: {MARKER}")
 
     temporary_path: Path | None = None
@@ -141,7 +147,7 @@ def sync() -> None:
     destination_problem = destination_path_problem()
     if destination_problem:
         raise SystemExit(f"Refusing to use {destination_problem}")
-    if MARKER.is_symlink():
+    if is_link(MARKER):
         raise SystemExit(f"Refusing to use symlinked marker: {MARKER}")
     if DESTINATION_ROOT.exists() and any(DESTINATION_ROOT.iterdir()) and not MARKER.exists():
         raise SystemExit(
@@ -169,7 +175,7 @@ def sync() -> None:
     for path in DESTINATION_ROOT.iterdir():
         if path.name in expected_entries:
             continue
-        if path.is_symlink():
+        if is_link(path):
             raise SystemExit(f"Refusing to remove symlinked path: {path}")
         if path.resolve().parent != managed_root:
             raise SystemExit(f"Refusing to remove path outside {DESTINATION_ROOT}.")
@@ -180,7 +186,7 @@ def sync() -> None:
 
     for name, source in sources.items():
         destination = DESTINATION_ROOT / name
-        if destination.is_symlink():
+        if is_link(destination):
             raise SystemExit(f"Refusing to remove symlinked path: {destination}")
         if destination.exists():
             if destination.resolve().parent != managed_root:
