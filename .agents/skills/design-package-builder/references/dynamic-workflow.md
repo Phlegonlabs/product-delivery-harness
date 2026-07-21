@@ -13,7 +13,7 @@ The stable org graph defines these roles:
 | iconography | Current source scan, semantic coverage, token and accessibility rules | Icon system decision |
 | motion | Purpose, stack, tokens, choreography, performance and reduced-motion rules | Motion system and demo contract |
 | page-coverage | Route, breakpoint, state, mockup, data, and evidence mapping | Page UI matrix and visual gates |
-| synthesizer | Reconcile all role outputs | Four design-package artifact bodies |
+| synthesis | Reconcile all role outputs | Four design-package artifact bodies |
 | taste-verifier | Check product specificity, hierarchy, and anti-slop rules | Findings and decision |
 | trace-verifier | Check upstream/DS/test trace coverage and internal consistency | Findings and decision |
 

@@ -33,7 +33,7 @@ large -> planner -> readiness -> sequential execution or scheduler when parallel
 - Small work creates no PLAN/RUN files, performs no scheduler or worker-capability scan, launches no subagent by default, and does not preflight an external runtime.
 - Large work enters the workflow below. Planning does not imply parallel execution.
 - Enable scheduler fan-out only when there are at least two dependency-ready, nonconflicting missions and every isolation, capacity, permission, and action gate passes.
-- A ready node's required or preferred provider must match the current host adapter. There is no cross-host fallback: a node whose provider does not match the running host is simply not executable here and is reported blocked on provider mismatch.
+- A ready node is executable here only when its `allowed_providers` includes the current host adapter's provider; a declared `preferred_provider` affects only which allowed provider is chosen, it does not gate executability by itself. There is no cross-host fallback: a node whose `allowed_providers` excludes the running host is simply not executable here and is reported blocked on provider mismatch.
 - If small work grows large, stop at a safe checkpoint, preserve completed edits and evidence, and plan only the remainder.
 
 ## Optional External Skill Assist
@@ -49,8 +49,8 @@ This core does not bundle `frontend-design` or `feature-dev`. Both are separate 
 The core is runtime-neutral. Do not load all adapters in one run.
 
 1. For small sequential work, load no runtime adapter unless a runtime-specific action is actually required.
-2. For large orchestration in a Codex host, read `../fullstack-harness-codex/SKILL.md`. Do not also read the Claude Code adapter; the Codex adapter is host-native only and executes exclusively `codex`-provider nodes.
-3. For large orchestration in a Claude Code host, read `../fullstack-harness-claude-code/SKILL.md`. Do not also read the Codex adapter; the Claude Code adapter is host-native only and executes exclusively `claude_code`-provider nodes.
+2. For large orchestration in a Codex host, read `../fullstack-harness-codex/SKILL.md`. Do not also read the Claude Code adapter; the Codex adapter is host-native only and executes exclusively nodes whose `allowed_providers` includes `codex`.
+3. For large orchestration in a Claude Code host, read `../fullstack-harness-claude-code/SKILL.md`. Do not also read the Codex adapter; the Claude Code adapter is host-native only and executes exclusively nodes whose `allowed_providers` includes `claude_code`.
 4. Read `../fullstack-harness-github-landing/SKILL.md` only when the requested outcome includes push, PR creation, GitHub CI, GitHub review, merge, or remote repository configuration. Local branch and commit work alone does not load it.
 
 Explicit adapter invocation still begins with this core. The adapters may select shared scripts, templates, and references from this directory; they never create a second PLAN/RUN state model.
