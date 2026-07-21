@@ -33,9 +33,9 @@ Use three as the configured write-worker maximum; the effective wave may be smal
 
 Reserve the parent's own top-tier model — whichever model opened the current session (for example `claude-fable-5` or `claude-opus-4-8`) — for the parent's own coordination and planning. Do not assign it to a delegated node by default. Preserve explicit user and PLAN choices. Otherwise, for new PLAN-v4 runtime-worker nodes, every delegated node — mission (including frontend/UI implementation) and review alike — defaults to Claude Code `sonnet`:
 
-- frontend/UI implementation, general-purpose, and backend mission nodes use `sonnet` with `medium` effort;
+- frontend/UI implementation, general-purpose, and backend mission nodes use `sonnet` with `high` effort;
 - routine `frontend_code`, `backend_code`, and visual review use `sonnet` with `medium` effort;
-- raise a delegated node's effort to `high` or `xhigh` — while keeping its model at `sonnet` — only for security, migration, difficult correctness, broad architecture, or genuine visual ambiguity;
+- raise a delegated node's effort to `xhigh` — while keeping its model at `sonnet` — only for security, migration, difficult correctness, broad architecture, or genuine visual ambiguity;
 - raise a delegated node's model above `sonnet` only on an explicit user request naming that specific node.
 
 Pass each node's PLAN-selected `model` (and non-null `reasoning_effort` as `effort`) from its `runtime_binding` directly into that node's own `agent()` call inside the Workflow script, or into the `model`/`effort` parameters of a direct `Agent` tool call. Do not silently widen tools or substitute a rejected model or effort; revise policy and reselect.

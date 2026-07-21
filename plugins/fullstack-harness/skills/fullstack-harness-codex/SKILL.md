@@ -33,12 +33,10 @@ Use three as the configured write-worker maximum; the effective wave may be smal
 
 Preserve an explicit user or PLAN choice. Otherwise, for new PLAN-v4 runtime-worker nodes:
 
-By default, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning for general-purpose nodes and backend implementation.
-
-- for general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning;
-- frontend/UI implementation uses Codex `gpt-5.6-sol` with `xhigh` as the Codex option;
+- for general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning;
+- frontend/UI implementation uses Codex `gpt-5.6-sol` with `high` reasoning;
 - routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`;
-- raise review effort only for security, migration, difficult correctness, broad architecture, or genuine ambiguity.
+- raise a mission node's effort to `xhigh`, or a review node's effort above `medium`, only for security, migration, difficult correctness, broad architecture, or genuine ambiguity.
 
 Pass non-null PLAN-selected values to task creation as `model` and `thinking`. Never silently substitute a rejected model, effort, permission mode, or tool profile; revise the affected runtime policy and reselect.
 

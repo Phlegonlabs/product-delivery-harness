@@ -427,7 +427,7 @@ Each `review_workers` entry uses this exact read-only shape:
     "driver": "dynamic_workflow",
     "source": "host",
     "model": "sonnet",
-    "reasoning_effort": "xhigh",
+    "reasoning_effort": "medium",
     "option_source": "plan_provider_options"
   },
   "task_thread_id": null,

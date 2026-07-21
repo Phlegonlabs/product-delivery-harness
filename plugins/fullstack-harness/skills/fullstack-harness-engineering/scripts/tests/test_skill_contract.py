@@ -355,11 +355,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Plan Mode chooses", graph)
         self.assertIn("provider-specific model options", skill)
         self.assertIn(
-            "prefer Codex `gpt-5.6-terra` with `xhigh` reasoning for general-purpose nodes and backend implementation",
+            "for general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning",
             skill,
         )
         self.assertIn(
-            "For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning",
+            "For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning",
             plan,
         )
         self.assertIn(
