@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-claude-code
-description: "Claude Code runtime adapter for Full Stack Harness engineering. Use only when the active host is Claude Code and a large plan needs Dynamic Workflow, parent-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively claude_code-provider PLAN nodes and does not own shared PLAN/RUN schemas, GitHub landing, merge, deployment, or cleanup."
+description: "Claude Code runtime adapter for Full Stack Harness engineering. Use only when the active host is Claude Code and a large plan needs Dynamic Workflow, parent-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively claude_code-provider PLAN nodes and does not own shared PLAN/RUN schemas, shared verification, GitHub landing, merge, deployment, or cleanup."
 ---
 
 # Full-Stack Harness: Claude Code Runtime Adapter
@@ -47,7 +47,7 @@ Use `subagent` + `parent_managed_worktree` + `agent_result` only with exact auth
 1. Validate PLAN/RUN and record the accepted ready wave.
 2. Allocate one collision-resistant branch, lease, and exact-base worktree per mission under `.claude/worktrees/<run>-<mission>-<attempt>/`.
 3. Build immutable handoffs from `../fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md`.
-4. For the older flat schema-v6-or-v7 route, call `../fullstack-harness-engineering/assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js`. For PLAN-v4 graph waves, call `CLAUDE_GRAPH_WORKFLOW.template.js`.
+4. Route by wave composition, not schema version alone: for a single-role, all-mission wave (no review node, one tool profile), call `../fullstack-harness-engineering/assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js`. For a typed wave that mixes mission and review nodes, or that must enforce per-node tool profiles or `EnterWorktree`, call `../fullstack-harness-engineering/assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js`. The flat script covers schema v6 through v9 when the wave is single-role; a PLAN-v4 graph wave does not by itself require the graph script.
 5. Mission and read-only review profiles include `EnterWorktree`. Before repository access, every agent enters the exact existing path and verifies root, branch, and base. Review profiles omit `Edit`, `Write`, `NotebookEdit`, and `Bash`.
 6. Group waves by tool profile only. Pass each node's own `model`/`reasoning_effort` (from its `runtime_binding`) into that node's `agent()` call — a single Workflow call may freely mix models and reasoning efforts across nodes, since each spawned agent call selects its own. Do not mix tool profiles (mission-write vs. read-only review) in one call.
 7. Do not ask for user input inside a running Workflow. Return a blocked/refinement result, let the parent resolve it, then start a later attempt.
