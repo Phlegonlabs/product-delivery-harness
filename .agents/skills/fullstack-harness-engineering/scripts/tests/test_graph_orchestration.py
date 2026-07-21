@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""Typed graph and external Claude runtime tests."""
+"""Typed graph orchestration tests (host-native provider binding only)."""
 
 from __future__ import annotations
 
 import copy
-import hashlib
-import json
 import sys
-import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import claude_runtime_bridge as bridge  # noqa: E402
 from harness_manifest import (  # noqa: E402
     AUTHORIZATION_KEYS_V8,
     plan_digest,
@@ -26,11 +21,10 @@ from harness_manifest import (  # noqa: E402
     validate_run,
 )
 from select_ready_nodes import (  # noqa: E402
-    _external_wave_launches,
     _runtime_binding,
     select_ready_nodes,
 )
-from test_harness_manifest import markdown, mark_complete, valid_plan, valid_run  # noqa: E402
+from test_harness_manifest import mark_complete, valid_plan, valid_run  # noqa: E402
 from validate_node_result import validate_node_result  # noqa: E402
 
 
@@ -110,7 +104,6 @@ def valid_graph_run(plan: dict[str, object]) -> dict[str, object]:
     run["authorizations"] = {
         key: {"authorized": False, "source": None} for key in AUTHORIZATION_KEYS_V8
     }
-    run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = []
     run["review_workers"] = []
     run["graph_state"] = {
         "graph_revision": plan["revision"],
@@ -199,8 +192,6 @@ class GraphManifestTests(unittest.TestCase):
                 "attempt_ids": {"N-M1": "ATT-N-M1-1"},
                 "provider": "claude_code",
                 "driver": "dynamic_workflow",
-                "model": "sonnet",
-                "reasoning_effort": None,
                 "tool_profile": "mission_write",
                 "status": "running",
                 "result_evidence": [],
@@ -240,11 +231,14 @@ class GraphManifestTests(unittest.TestCase):
             any("unknown graph nodes" in error for error in validate_run(plan, run))
         )
 
-    def test_external_codex_workflow_run_binds_provider_options_and_attempt(self) -> None:
+    def test_workflow_runs_are_claude_code_only(self) -> None:
+        # A Codex-hosted graph RUN never produces workflow_runs entries: the
+        # guarded external-Codex-agent workflow driver is fully removed, and
+        # provider "codex" has no allowed workflow driver at all anymore.
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["runtime"] = {
-            "preferred_provider": "codex",
-            "allowed_providers": ["codex"],
+            "preferred_provider": "claude_code",
+            "allowed_providers": ["claude_code"],
         }
         run = valid_graph_run(plan)
         digest = plan_digest(plan)
@@ -252,37 +246,25 @@ class GraphManifestTests(unittest.TestCase):
             {
                 "phase": "running",
                 "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-CODEX-1",
-                "bound_worker_id": "W-M1-CODEX",
+                "last_attempt_id": "ATT-N-M1-1",
+                "bound_worker_id": "W-M1",
             }
         )
         run["mission_states"]["M1"].update(
             {
                 "phase": "worker_running",
-                "lease_id": "LEASE-M1-CODEX-1",
+                "lease_id": "LEASE-M1-1",
                 "lease_plan_revision": plan["revision"],
                 "lease_plan_digest_sha256": digest,
-                "worker_id": "W-M1-CODEX",
+                "worker_id": "W-M1",
                 "base_sha": run["integration"]["batch_base_sha"],
             }
         )
-        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = [
-            {
-                "provider": "codex",
-                "driver": "codex_rescue_agent",
-                "status": "available",
-                "command": "agent:codex:codex-rescue",
-                "version": "1.0.4",
-                "contract_version": "harness-node-result-v1",
-                "completion_channel": "agent_result",
-                "evidence": ["foreground preflight passed"],
-            }
-        ]
         workflow = {
-            "workflow_run_id": "wf_codex_test",
-            "workflow_task_id": "task-codex-test",
+            "workflow_run_id": "wf_test",
+            "workflow_task_id": "task-test",
             "resume_from_run_id": None,
-            "script_path": "assets/templates/CLAUDE_CODEX_GRAPH_WORKFLOW.template.js",
+            "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
             "script_sha256": "d" * 64,
             "run_id": run["run_id"],
             "plan_revision": plan["revision"],
@@ -290,11 +272,9 @@ class GraphManifestTests(unittest.TestCase):
             "graph_revision": run["graph_state"]["graph_revision"],
             "batch_base_sha": run["integration"]["batch_base_sha"],
             "node_ids": ["N-M1"],
-            "attempt_ids": {"N-M1": "ATT-N-M1-CODEX-1"},
-            "provider": "codex",
-            "driver": "external_codex_agent",
-            "model": None,
-            "reasoning_effort": None,
+            "attempt_ids": {"N-M1": "ATT-N-M1-1"},
+            "provider": "claude_code",
+            "driver": "dynamic_workflow",
             "tool_profile": "mission_write",
             "status": "running",
             "result_evidence": [],
@@ -304,73 +284,101 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-        workflow["driver"] = "external_dynamic_workflow"
+        codex_workflow = copy.deepcopy(run)
+        codex_workflow["workflow_runs"][0]["provider"] = "codex"
         self.assertTrue(
-            any("does not match the workflow provider" in error for error in validate_run(plan, run))
-        )
-        workflow["driver"] = "external_codex_agent"
-        workflow["model"] = "gpt-5.6-terra"
-        self.assertTrue(
-            any("does not match node N-M1" in error for error in validate_run(plan, run))
-        )
-        workflow["model"] = "gpt-5 --effort max"
-        self.assertTrue(
-            any("safe model token" in error for error in validate_run(plan, run))
-        )
-        workflow["model"] = None
-        workflow["attempt_ids"]["N-M1"] = "ATT-STALE"
-        self.assertTrue(
-            any("active running node attempt" in error for error in validate_run(plan, run))
+            any(
+                "unsupported workflow provider" in error
+                for error in validate_run(plan, codex_workflow)
+            )
         )
 
-        explicit_plan = valid_graph_plan()
-        explicit_plan["graph"]["nodes"][0]["runtime"] = {
-            "preferred_provider": "codex",
-            "allowed_providers": ["codex"],
-            "provider_options": {
-                "codex": {
-                    "model": "gpt-5.6-terra",
-                    "reasoning_effort": "xhigh",
-                }
-            },
+        codex_driver = copy.deepcopy(run)
+        codex_driver["workflow_runs"][0]["provider"] = "codex"
+        codex_driver["workflow_runs"][0]["driver"] = "app_threads"
+        self.assertTrue(
+            any(
+                "unsupported workflow provider" in error
+                for error in validate_run(plan, codex_driver)
+            )
+        )
+
+    def test_one_workflow_run_may_cover_nodes_with_different_models(self) -> None:
+        # workflow_runs no longer carries its own model/reasoning_effort: each
+        # node's resolved model already lives on its own workers[]/
+        # review_workers[] runtime_binding, so one live Workflow invocation
+        # may freely mix models across the node_ids it covers.
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["runtime"]["allowed_providers"] = ["claude_code"]
+        plan["graph"]["nodes"][0]["runtime"]["provider_options"] = {
+            "claude_code": {"model": "sonnet", "reasoning_effort": None}
         }
-        explicit_run = valid_graph_run(explicit_plan)
-        explicit_digest = plan_digest(explicit_plan)
-        explicit_run["graph_state"]["node_states"]["N-M1"].update(
+        plan["graph"]["nodes"][1]["runtime"]["allowed_providers"] = ["claude_code"]
+        plan["graph"]["nodes"][1]["runtime"]["provider_options"] = {
+            "claude_code": {"model": "haiku", "reasoning_effort": None}
+        }
+        run = valid_graph_run(plan)
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-M1"].update(
             {
                 "phase": "running",
                 "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-CODEX-2",
-                "bound_worker_id": "W-M1-CODEX-2",
+                "last_attempt_id": "ATT-N-M1-1",
+                "bound_worker_id": "W-M1",
             }
         )
-        explicit_run["mission_states"]["M1"].update(
+        run["graph_state"]["node_states"]["N-M2"].update(
             {
-                "phase": "worker_running",
-                "lease_id": "LEASE-M1-CODEX-2",
-                "lease_plan_revision": explicit_plan["revision"],
-                "lease_plan_digest_sha256": explicit_digest,
-                "worker_id": "W-M1-CODEX-2",
-                "base_sha": explicit_run["integration"]["batch_base_sha"],
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": "ATT-N-M2-1",
+                "bound_worker_id": "W-M2",
             }
         )
-        explicit_workflow = copy.deepcopy(workflow)
-        explicit_workflow.update(
+        for mission_id, worker_id in (("M1", "W-M1"), ("M2", "W-M2")):
+            run["mission_states"][mission_id].update(
+                {
+                    "phase": "worker_running",
+                    "lease_id": f"LEASE-{mission_id}-1",
+                    "lease_plan_revision": plan["revision"],
+                    "lease_plan_digest_sha256": digest,
+                    "worker_id": worker_id,
+                    "base_sha": run["integration"]["batch_base_sha"],
+                }
+            )
+        run["workflow_runs"] = [
             {
-                "workflow_run_id": "wf_codex_explicit",
-                "workflow_task_id": "task-codex-explicit",
-                "run_id": explicit_run["run_id"],
-                "plan_revision": explicit_plan["revision"],
-                "plan_digest_sha256": explicit_digest,
-                "graph_revision": explicit_run["graph_state"]["graph_revision"],
-                "batch_base_sha": explicit_run["integration"]["batch_base_sha"],
-                "attempt_ids": {"N-M1": "ATT-N-M1-CODEX-2"},
-                "model": "gpt-5.6-terra",
-                "reasoning_effort": "xhigh",
+                "workflow_run_id": "wf_test",
+                "workflow_task_id": "task-test",
+                "resume_from_run_id": None,
+                "script_path": "assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js",
+                "script_sha256": "d" * 64,
+                "run_id": run["run_id"],
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "graph_revision": run["graph_state"]["graph_revision"],
+                "batch_base_sha": run["integration"]["batch_base_sha"],
+                "node_ids": ["N-M1", "N-M2"],
+                "attempt_ids": {"N-M1": "ATT-N-M1-1", "N-M2": "ATT-N-M2-1"},
+                "provider": "claude_code",
+                "driver": "dynamic_workflow",
+                "tool_profile": "mission_write",
+                "status": "running",
+                "result_evidence": [],
+                "metrics": {"duration_ms": None, "token_count": None},
             }
+        ]
+
+        self.assertEqual([], validate_run(plan, run))
+
+        with_model_key = copy.deepcopy(run)
+        with_model_key["workflow_runs"][0]["model"] = "sonnet"
+        self.assertTrue(
+            any(
+                "unknown keys: model" in error
+                for error in validate_run(plan, with_model_key)
+            )
         )
-        explicit_run["workflow_runs"] = [explicit_workflow]
-        self.assertEqual([], validate_run(explicit_plan, explicit_run))
 
     def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
         plan = valid_graph_plan()
@@ -653,7 +661,10 @@ class GraphManifestTests(unittest.TestCase):
             any("must match the matching PLAN provider option" in error for error in validate_run(plan, run))
         )
 
-    def test_external_codex_worker_requires_agent_result_axes(self) -> None:
+    def test_codex_worker_runtime_binding_rejects_non_host_source(self) -> None:
+        # The guarded external-Codex-agent driver/source pair is gone: a
+        # worker's runtime_binding.source is always exactly "host", so the
+        # old external_agent axis-consistency contract no longer applies.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
         worker = {
@@ -663,18 +674,18 @@ class GraphManifestTests(unittest.TestCase):
             "plan_revision": plan["revision"],
             "plan_digest_sha256": plan_digest(plan),
             "batch_base_sha": "a" * 40,
-            "worker_runtime": "subagent",
+            "worker_runtime": "app_task",
             "workspace_mode": "app_managed_worktree",
-            "completion_channel": "agent_result",
+            "completion_channel": "thread_poll",
             "runtime_binding": {
                 "provider": "codex",
-                "driver": "external_codex_agent",
-                "source": "external_agent",
+                "driver": "app_threads",
+                "source": "host",
                 "model": None,
                 "reasoning_effort": None,
                 "option_source": "provider_default",
             },
-            "task_thread_id": None,
+            "task_thread_id": "thread-codex-1",
             "worktree_path": None,
             "branch_ref": None,
             "report_path": None,
@@ -682,25 +693,15 @@ class GraphManifestTests(unittest.TestCase):
             "worker_head_sha": None,
         }
         run["workers"].append(worker)
-
         self.assertEqual([], validate_run(plan, run))
-        invalid_values = {
-            "worker_runtime": "app_task",
-            "workspace_mode": "shared_checkout",
-            "completion_channel": "thread_poll",
-            "task_thread_id": "thread-codex-inner",
-        }
-        for field, value in invalid_values.items():
-            with self.subTest(field=field):
-                invalid = copy.deepcopy(run)
-                invalid["workers"][0][field] = value
-                self.assertTrue(
-                    any(
-                        "external_agent requires subagent/app_managed_worktree/agent_result with no task thread"
-                        in error
-                        for error in validate_run(plan, invalid)
-                    )
-                )
+
+        run["workers"][0]["runtime_binding"]["source"] = "external_agent"
+        self.assertTrue(
+            any(
+                "runtime_binding.source: has an unsupported value" in error
+                for error in validate_run(plan, run)
+            )
+        )
 
     def test_dependency_cycles_and_unbounded_route_cycles_are_rejected(self) -> None:
         dependency_cycle = valid_graph_plan()
@@ -876,7 +877,6 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [],
         }
         for action in (
             "spawn_subagents",
@@ -892,7 +892,11 @@ class GraphManifestTests(unittest.TestCase):
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("execution_not_authorized", deferred["N-M1"])
 
-    def test_codex_parent_selects_external_claude_graph_wave(self) -> None:
+    def test_codex_parent_cannot_bridge_a_claude_code_only_node(self) -> None:
+        # A Codex parent has no mechanism to invoke Claude Code anymore: a
+        # node whose allowed_providers is claude_code-only is simply
+        # unavailable on a Codex host, with no fallback, regardless of how
+        # much authorization is granted or how the adapter is observed.
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["runtime"] = {
             "preferred_provider": "claude_code",
@@ -924,17 +928,6 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "codex",
             "available_drivers": ["sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "claude_code",
-                    "driver": "dynamic_workflow",
-                    "status": "available",
-                    "command": "claude",
-                    "version": "2.1.214",
-                    "completion_channel": "agent_result",
-                    "evidence": ["protocol-v1 preflight passed"],
-                }
-            ],
         }
         for action in (
             "spawn_subagents",
@@ -943,60 +936,36 @@ class GraphManifestTests(unittest.TestCase):
             "create_local_commits",
         ):
             authorize(run, action, mission_ids, "*")
-        authorize(run, "invoke_external_runtime", mission_ids, "runtime:claude_code")
 
         result = select_ready_nodes(plan, run)
 
         self.assertEqual(["N-M1"], result["ready_frontier"])
-        self.assertEqual("run_external_dynamic_workflow", result["dispatchable_nodes"][0]["launch_kind"])
-        self.assertEqual("claude_code", result["dispatchable_nodes"][0]["runtime_provider"])
-        self.assertEqual("mission_write", result["dispatchable_nodes"][0]["tool_profile"])
-        self.assertEqual("retryable_failure", result["dispatchable_nodes"][0]["failure_outcome"])
-        self.assertEqual("opus", result["dispatchable_nodes"][0]["runtime_binding"]["model"])
-        self.assertEqual("opus", result["wave_launches"][0]["model"])
-        self.assertEqual(["N-M1"], result["wave_launches"][0]["node_ids"])
-        self.assertEqual("mission_write", result["wave_launches"][0]["tool_profile"])
+        self.assertEqual([], result["dispatchable_nodes"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("runtime_unavailable", deferred["N-M1"])
+        self.assertNotIn("wave_launches", result)
 
-        run["observed"]["runtime"]["completion_channel_available"] = False
-        blocked = select_ready_nodes(plan, run)
-        self.assertIn(
-            "completion_channel_unavailable",
-            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
-        )
-        run["observed"]["runtime"]["completion_channel_available"] = True
-        run["runtime_capabilities"]["permission_boundary"] = {
-            "selected_mode": "unknown",
-            "profile_name": None,
-            "approval_policy": "unknown",
-            "filesystem_scope": "unknown",
-            "network_scope": "unknown",
-            "local_binding": "unknown",
-            "worker_inheritance": "unknown",
-            "status": "blocked",
+        # Widening the host's own native driver set (still never claude_code)
+        # or otherwise proving capacity never resurrects the node: there is
+        # no cross-host preflight or probe path left to take.
+        run["runtime_capabilities"]["runtime_adapter"]["available_drivers"] = [
+            "sequential_parent"
+        ]
+        run["observed"]["runtime"]["available_worker_slots"] = 3
+        still_unavailable = select_ready_nodes(plan, run)
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in still_unavailable["deferred_nodes"]
         }
-        blocked = select_ready_nodes(plan, run)
-        self.assertIn(
-            "permission_boundary_not_ready",
-            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
-        )
-        del run["runtime_capabilities"]["permission_boundary"]
-        plan["missions"][0]["resource_inventory_complete"] = False
-        run["plan"]["digest_sha256"] = plan_digest(plan)
-        blocked = select_ready_nodes(plan, run)
-        self.assertIn(
-            "incomplete_resource_inventory",
-            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
-        )
-        plan["missions"][0]["resource_inventory_complete"] = True
-        run["plan"]["digest_sha256"] = plan_digest(plan)
-        run["observed"]["git"]["parent_dirty"] = True
-        blocked = select_ready_nodes(plan, run)
-        self.assertIn(
-            "blocker_present",
-            {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}["N-M1"],
-        )
+        self.assertIn("runtime_unavailable", deferred["N-M1"])
 
-    def test_claude_parent_selects_external_codex_agents_in_isolated_worktrees(self) -> None:
+    def test_claude_parent_cannot_bridge_codex_only_nodes_in_isolated_worktrees(self) -> None:
+        # Mirror image of the Codex-host case: a Claude Code parent has no
+        # mechanism to invoke Codex anymore. A codex-only node stays
+        # unavailable no matter the authorization or observed capability;
+        # widening allowed_providers to include the host's own provider is
+        # the only thing that makes it dispatchable, and it dispatches
+        # natively (source "host"), never through a guarded external route.
         plan = valid_graph_plan()
         plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
         plan["graph"]["edges"] = []
@@ -1034,18 +1003,6 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "codex",
-                    "driver": "codex_rescue_agent",
-                    "status": "available",
-                    "command": "agent:codex:codex-rescue",
-                    "version": "1.0.4",
-                    "contract_version": "harness-node-result-v1",
-                    "completion_channel": "agent_result",
-                    "evidence": ["foreground preflight passed"],
-                }
-            ],
         }
         run["observed"]["runtime"].update(
             {"available_worker_slots": 2, "isolation_capacity": 2}
@@ -1057,7 +1014,6 @@ class GraphManifestTests(unittest.TestCase):
             "create_local_commits",
         ):
             authorize(run, action, mission_ids, "*")
-        authorize(run, "invoke_external_runtime", mission_ids, "runtime:codex")
 
         schema_v8 = select_ready_nodes(plan, run)
         schema_v8_deferred = {
@@ -1067,29 +1023,31 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], schema_v8["dispatchable_nodes"])
         self.assertIn("runtime_unavailable", schema_v8_deferred["N-M1"])
         self.assertIn("runtime_unavailable", schema_v8_deferred["N-M2"])
+        self.assertNotIn("wave_launches", schema_v8)
 
         for node in plan["graph"]["nodes"]:
             node["runtime"]["allowed_providers"] = ["codex", "claude_code"]
         run["plan"]["digest_sha256"] = plan_digest(plan)
         authorize(run, "spawn_subagents", mission_ids, "*")
         authorize(run, "create_local_worktrees", mission_ids, "*")
-        schema_v8_fallback = select_ready_nodes(plan, run)
+        schema_v8_native = select_ready_nodes(plan, run)
         self.assertEqual(
             ["run_dynamic_workflow", "run_dynamic_workflow"],
-            [item["launch_kind"] for item in schema_v8_fallback["dispatchable_nodes"]],
+            [item["launch_kind"] for item in schema_v8_native["dispatchable_nodes"]],
         )
         self.assertTrue(
             all(
                 item["runtime_provider"] == "claude_code"
                 and item["runtime_source"] == "host"
-                for item in schema_v8_fallback["dispatchable_nodes"]
+                for item in schema_v8_native["dispatchable_nodes"]
             )
         )
+
+        # Narrowing back to codex-only removes any native route; schema v9
+        # closeout scaffolding does not unlock a guarded external fallback.
         for node in plan["graph"]["nodes"]:
             node["runtime"]["allowed_providers"] = ["codex"]
         run["plan"]["digest_sha256"] = plan_digest(plan)
-        authorize(run, "spawn_subagents", mission_ids, "worker:preallocation")
-
         run["schema_version"] = 9
         run["batch_gate_results"] = [
             {"id": item["id"], "status": "planned", "head_sha": None, "evidence": []}
@@ -1103,47 +1061,16 @@ class GraphManifestTests(unittest.TestCase):
         result = select_ready_nodes(plan, run)
 
         self.assertEqual(["N-M1", "N-M2"], result["ready_frontier"])
-        self.assertEqual(
-            ["run_guarded_external_codex_agent", "run_guarded_external_codex_agent"],
-            [item["launch_kind"] for item in result["dispatchable_nodes"]],
-        )
-        for directive in result["dispatchable_nodes"]:
-            self.assertEqual("codex:codex-rescue", directive["agent_type"])
-            self.assertEqual("scripts/validate_codex_wave.py", directive["guard_path"])
-            self.assertEqual("app_managed_worktree", directive["workspace_mode"])
-            self.assertEqual("agent_result", directive["completion_channel"])
-            self.assertEqual(None, directive["runtime_binding"]["model"])
-            self.assertEqual(None, directive["runtime_binding"]["reasoning_effort"])
-            self.assertEqual("external_agent", directive["runtime_binding"]["source"])
-            self.assertEqual(
-                [
-                    "invoke_external_runtime",
-                    "spawn_subagents",
-                    "create_app_managed_worktrees",
-                    "create_local_branches",
-                    "create_local_commits",
-                ],
-                directive["required_actions"],
-            )
-            self.assertNotIn("create_user_owned_tasks", directive["required_actions"])
-        self.assertEqual(1, len(result["wave_launches"]))
-        self.assertEqual("run_guarded_external_codex_agent", result["wave_launches"][0]["launch_kind"])
-        self.assertEqual(["N-M1", "N-M2"], result["wave_launches"][0]["node_ids"])
-        self.assertEqual("codex:codex-rescue", result["wave_launches"][0]["agent_type"])
-        self.assertEqual("scripts/validate_codex_wave.py", result["wave_launches"][0]["guard_path"])
-
-        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"][0][
-            "status"
-        ] = "unavailable"
-        unavailable = select_ready_nodes(plan, run)
+        self.assertEqual([], result["dispatchable_nodes"])
         deferred = {
             item["node_id"]: item["reason_codes"]
-            for item in unavailable["deferred_nodes"]
+            for item in result["deferred_nodes"]
         }
         self.assertIn("runtime_unavailable", deferred["N-M1"])
         self.assertIn("runtime_unavailable", deferred["N-M2"])
+        self.assertNotIn("wave_launches", result)
 
-    def test_external_codex_review_defers_without_another_provider(self) -> None:
+    def test_codex_only_review_defers_on_a_claude_code_host(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(
             "N-BACKEND-REVIEW",
@@ -1214,20 +1141,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "codex",
-                    "driver": "codex_rescue_agent",
-                    "status": "available",
-                    "command": "agent:codex:codex-rescue",
-                    "version": "1.0.4",
-                    "contract_version": "harness-node-result-v1",
-                    "completion_channel": "agent_result",
-                    "evidence": ["foreground preflight passed"],
-                }
-            ],
         }
-        authorize(run, "invoke_external_runtime", ["M1"], "runtime:codex")
         authorize(run, "spawn_subagents", ["M1"], "worker:preallocation")
 
         result = select_ready_nodes(plan, run)
@@ -1235,6 +1149,7 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], result["dispatchable_nodes"])
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("runtime_unavailable", deferred["N-BACKEND-REVIEW"])
+        self.assertNotIn("wave_launches", result)
 
     def test_runtime_reviews_require_authorization_and_share_runtime_capacity(self) -> None:
         plan = valid_graph_plan()
@@ -1302,21 +1217,17 @@ class GraphManifestTests(unittest.TestCase):
         )
         run["mission_states"]["M2"]["phase"] = "blocked"
         run["integration"]["integration_head_sha"] = "a" * 40
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+            }
+        )
         run["runtime_capabilities"]["runtime_adapter"] = {
-            "provider": "codex",
-            "available_drivers": ["sequential_parent"],
+            "provider": "claude_code",
+            "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "claude_code",
-                    "driver": "dynamic_workflow",
-                    "status": "available",
-                    "command": "claude",
-                    "version": "2.1.214",
-                    "completion_channel": "agent_result",
-                    "evidence": ["protocol-v1 preflight passed"],
-                }
-            ],
         }
 
         unauthorized = select_ready_nodes(plan, run)
@@ -1327,7 +1238,6 @@ class GraphManifestTests(unittest.TestCase):
         self.assertIn("action_not_authorized", review_deferred["N-VISUAL-REVIEW"])
 
         authorize(run, "spawn_subagents", ["M1"], "*")
-        authorize(run, "invoke_external_runtime", ["M1"], "runtime:claude_code")
         selected = select_ready_nodes(plan, run)
         self.assertEqual(1, len(selected["dispatchable_nodes"]))
         self.assertEqual("N-FRONTEND-REVIEW", selected["dispatchable_nodes"][0]["node_id"])
@@ -1340,7 +1250,11 @@ class GraphManifestTests(unittest.TestCase):
             selected["dispatchable_nodes"][0]["runtime_binding"]["reasoning_effort"],
         )
         self.assertEqual(
-            ["invoke_external_runtime", "spawn_subagents"],
+            "host",
+            selected["dispatchable_nodes"][0]["runtime_binding"]["source"],
+        )
+        self.assertEqual(
+            ["spawn_subagents"],
             selected["dispatchable_nodes"][0]["required_actions"],
         )
         self.assertEqual(
@@ -1399,8 +1313,8 @@ class GraphManifestTests(unittest.TestCase):
                 "completion_channel": "agent_result",
                 "runtime_binding": {
                     "provider": "claude_code",
-                    "driver": "external_dynamic_workflow",
-                    "source": "external_bridge",
+                    "driver": "dynamic_workflow",
+                    "source": "host",
                     "model": "claude-fable-5",
                     "reasoning_effort": "xhigh",
                     "option_source": "plan_provider_options",
@@ -1508,42 +1422,13 @@ class GraphManifestTests(unittest.TestCase):
             any("batch_base_sha" in error for error in validate_node_result(plan, run, result))
         )
 
-    def test_external_claude_waves_split_by_tool_profile(self) -> None:
-        binding = {
-            "provider": "claude_code",
-            "driver": "external_dynamic_workflow",
-            "source": "external_bridge",
-            "model": "sonnet",
-            "reasoning_effort": "high",
-            "option_source": "plan_provider_options",
-        }
-        launches = _external_wave_launches(
-            [
-                {
-                    "launch_kind": "run_external_dynamic_workflow",
-                    "node_id": "N-CODE-REVIEW",
-                    "runtime_binding": binding,
-                    "tool_profile": "code_review_readonly",
-                },
-                {
-                    "launch_kind": "run_external_dynamic_workflow",
-                    "node_id": "N-VISUAL-REVIEW",
-                    "runtime_binding": binding,
-                    "tool_profile": "visual_review_readonly",
-                },
-            ]
-        )
-
-        self.assertEqual(
-            ["code_review_readonly", "visual_review_readonly"],
-            [launch["tool_profile"] for launch in launches],
-        )
-        self.assertEqual(
-            [["N-CODE-REVIEW"], ["N-VISUAL-REVIEW"]],
-            [launch["node_ids"] for launch in launches],
-        )
-
-    def test_external_claude_nodes_are_grouped_by_plan_selected_model(self) -> None:
+    def test_native_claude_code_nodes_carry_their_own_plan_selected_model(self) -> None:
+        # Wave grouping (by model/effort/tool profile) is no longer a
+        # graph-selector concern: select_ready_nodes never returns a
+        # "wave_launches" key, and grouping same-host Dynamic Workflow
+        # launches now belongs entirely to the Claude Code adapter. Each
+        # dispatchable node still carries its own exact PLAN-selected
+        # runtime_binding so the adapter can group them itself.
         plan = valid_graph_plan()
         plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
         plan["graph"]["edges"] = []
@@ -1574,25 +1459,21 @@ class GraphManifestTests(unittest.TestCase):
                 },
             }
         )
-        run["runtime_capabilities"]["max_parallel_workers"] = 2
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+            }
+        )
         run["observed"]["runtime"].update(
             {"available_worker_slots": 2, "isolation_capacity": 2}
         )
         run["runtime_capabilities"]["runtime_adapter"] = {
-            "provider": "codex",
-            "available_drivers": ["sequential_parent"],
+            "provider": "claude_code",
+            "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "claude_code",
-                    "driver": "dynamic_workflow",
-                    "status": "available",
-                    "command": "claude",
-                    "version": "2.1.214",
-                    "completion_channel": "agent_result",
-                    "evidence": ["protocol-v1 preflight passed"],
-                }
-            ],
         }
         for action in (
             "spawn_subagents",
@@ -1601,1040 +1482,26 @@ class GraphManifestTests(unittest.TestCase):
             "create_local_commits",
         ):
             authorize(run, action, mission_ids, "*")
-        authorize(run, "invoke_external_runtime", mission_ids, "runtime:claude_code")
 
         result = select_ready_nodes(plan, run)
 
-        self.assertEqual(["opus", "sonnet"], [wave["model"] for wave in result["wave_launches"]])
-        self.assertEqual([["N-M2"], ["N-M1"]], [wave["node_ids"] for wave in result["wave_launches"]])
+        self.assertNotIn("wave_launches", result)
         self.assertEqual(
-            ["mission_write", "mission_write"],
-            [wave["tool_profile"] for wave in result["wave_launches"]],
-        )
-
-
-class ClaudeBridgeTests(unittest.TestCase):
-    def write_bridge_fixture(
-        self,
-        root: Path,
-        plan: dict[str, object],
-        run: dict[str, object],
-        request: dict[str, object],
-    ) -> tuple[Path, Path, Path]:
-        plan_path = root / "PLAN.md"
-        run_path = root / "RUN.md"
-        request_path = root / "wave.json"
-        plan_path.write_text(
-            markdown("## Harness Plan Manifest", "harness_plan", plan),
-            encoding="utf-8",
-        )
-        run_path.write_text(
-            markdown("## Harness Run State", "harness_run", run),
-            encoding="utf-8",
-        )
-        request_path.write_text(json.dumps(request), encoding="utf-8")
-        return plan_path, run_path, request_path
-
-    def workflow_stream_result(
-        self,
-        wrapper: dict[str, object],
-        request: dict[str, object],
-        *,
-        runtime_overrides: dict[str, object] | None = None,
-        tool_overrides: dict[str, object] | None = None,
-    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-        workflow_args = {
-            key: value
-            for key, value in request.items()
-            if key
-            not in {
-                "allowed_tools",
-                "permission_mode",
-                "model",
-                "reasoning_effort",
-            }
-        }
-        runtime_result = {
-            "status": "async_launched",
-            "taskId": wrapper.get("workflow_task_id"),
-            "taskType": "local_workflow",
-            "runId": wrapper.get("workflow_run_id"),
-            "scriptPath": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-            "error": wrapper.get("workflow_error"),
-        }
-        if runtime_overrides:
-            runtime_result.update(runtime_overrides)
-        tool_input = {
-            "scriptPath": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-            "args": workflow_args,
-        }
-        if tool_overrides:
-            tool_input.update(tool_overrides)
-        return wrapper, runtime_result, tool_input
-
-    def mission_bridge_fixture(
-        self, root: Path
-    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-        plan = valid_graph_plan()
-        node = plan["graph"]["nodes"][0]
-        node["runtime"] = {
-            "preferred_provider": "claude_code",
-            "allowed_providers": ["claude_code"],
-            "provider_options": {
-                "claude_code": {"model": "sonnet", "reasoning_effort": "high"}
-            },
-        }
-        run = valid_graph_run(plan)
-        digest = plan_digest(plan)
-        batch_base_sha = run["integration"]["batch_base_sha"]
-        worktree_path = str((root / "worktree-m1").resolve())
-        repository_path = str(root.resolve())
-        branch_ref = "refs/heads/claude/test-m1"
-        binding = {
-            "provider": "claude_code",
-            "driver": "external_dynamic_workflow",
-            "source": "external_bridge",
-            "model": "sonnet",
-            "reasoning_effort": "high",
-            "option_source": "plan_provider_options",
-        }
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
-        run["runtime_capabilities"].update(
-            {
-                "permission_boundary": {
-                    "selected_mode": "named_profile",
-                    "profile_name": "claude-wave",
-                    "approval_policy": "on-request",
-                    "filesystem_scope": "custom",
-                    "network_scope": "filtered",
-                    "local_binding": "allowed",
-                    "worker_inheritance": "inherited",
-                    "status": "ready",
-                },
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"] = {
-            "provider": "codex",
-            "available_drivers": ["sequential_parent"],
-            "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "claude_code",
-                    "driver": "dynamic_workflow",
-                    "status": "available",
-                    "command": "claude",
-                    "version": "2.1.214",
-                    "completion_channel": "agent_result",
-                    "evidence": ["protocol-v1 preflight passed"],
-                }
-            ],
-        }
-        run["observed"]["git"]["parent_worktree_path"] = repository_path
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-1",
-                "bound_worker_id": "W-M1",
-            }
-        )
-        run["mission_states"]["M1"].update(
-            {
-                "phase": "worker_running",
-                "lease_id": "LEASE-M1-1",
-                "lease_plan_revision": plan["revision"],
-                "lease_plan_digest_sha256": digest,
-                "worker_id": "W-M1",
-                "base_sha": batch_base_sha,
-            }
-        )
-        run["workers"] = [
-            {
-                "worker_id": "W-M1",
-                "mission_id": "M1",
-                "lease_id": "LEASE-M1-1",
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "batch_base_sha": batch_base_sha,
-                "worker_runtime": "subagent",
-                "workspace_mode": "parent_managed_worktree",
-                "completion_channel": "agent_result",
-                "runtime_binding": binding,
-                "task_thread_id": None,
-                "worktree_path": worktree_path,
-                "branch_ref": branch_ref,
-                "report_path": None,
-                "phase": "worker_running",
-                "worker_head_sha": None,
-            }
-        ]
-        authorize(run, "invoke_external_runtime", ["M1"], "runtime:claude_code")
-        authorize(run, "spawn_subagents", ["M1"], "worker:W-M1")
-        authorize(run, "create_local_worktrees", ["M1"], f"worktree:{worktree_path}")
-        authorize(run, "create_local_branches", ["M1"], f"branch:{branch_ref}")
-        authorize(run, "create_local_commits", ["M1"], f"branch:{branch_ref}")
-        request = {
-            "run_id": run["run_id"],
-            "plan_id": plan["plan_id"],
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": digest,
-            "graph_revision": run["graph_state"]["graph_revision"],
-            "batch_base_sha": batch_base_sha,
-            "nodes": [
-                {
-                    "node_kind": "mission",
-                    "node_id": "N-M1",
-                    "attempt_id": "ATT-N-M1-1",
-                    "mission_id": "M1",
-                    "lease_id": "LEASE-M1-1",
-                    "branch_ref": branch_ref,
-                    "worktree_path": worktree_path,
-                    "failure_outcome": "retryable_failure",
-                    "worker_prompt": "Complete M1",
-                }
-            ],
-            "tool_profile": "mission_write",
-            "allowed_tools": sorted(bridge.TOOL_PROFILE_REQUIREMENTS["mission_write"]),
-            "permission_mode": "dontAsk",
-            "model": "sonnet",
-            "reasoning_effort": "high",
-        }
-        self.assertEqual([], validate_plan(plan))
-        self.assertEqual([], validate_run(plan, run))
-        return plan, run, request
-
-    def review_bridge_fixture(
-        self, root: Path
-    ) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-        plan = valid_graph_plan()
-        review = graph_node(
-            "N-FRONTEND-REVIEW",
-            "verifier",
-            "batch",
-            "runtime_worker",
-            ["pass", "fix_required", "blocked", "contract_gap"],
-            providers=["claude_code"],
-            preferred="claude_code",
-            provider_options={
-                "claude_code": {"model": "claude-fable-5", "reasoning_effort": "xhigh"}
-            },
-        )
-        review["review"] = {
-            "type": "frontend_code",
-            "mission_ids": ["M1"],
-            "scope": ["src/a/**"],
-            "required_evidence": ["reviewed_sha", "findings"],
-        }
-        plan["graph"]["nodes"].append(review)
-        plan["graph"]["entry_nodes"].append(review["id"])
-        plan["required_reviews"] = ["frontend_code"]
-        run = valid_graph_run(plan)
-        digest = plan_digest(plan)
-        reviewed_sha = "b" * 40
-        review_path = str((root / "review").resolve())
-        repository_path = str(root.resolve())
-        binding = {
-            "provider": "claude_code",
-            "driver": "external_dynamic_workflow",
-            "source": "external_bridge",
-            "model": "claude-fable-5",
-            "reasoning_effort": "xhigh",
-            "option_source": "plan_provider_options",
-        }
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested review",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
-        run["runtime_capabilities"].update(
-            {
-                "permission_boundary": {
-                    "selected_mode": "named_profile",
-                    "profile_name": "claude-review",
-                    "approval_policy": "on-request",
-                    "filesystem_scope": "custom",
-                    "network_scope": "filtered",
-                    "local_binding": "allowed",
-                    "worker_inheritance": "inherited",
-                    "status": "ready",
-                },
-            }
-        )
-        run["runtime_capabilities"]["runtime_adapter"] = {
-            "provider": "codex",
-            "available_drivers": ["sequential_parent"],
-            "detection_source": "observed",
-            "external_runtimes": [
-                {
-                    "provider": "claude_code",
-                    "driver": "dynamic_workflow",
-                    "status": "available",
-                    "command": "claude",
-                    "version": "2.1.214",
-                    "completion_channel": "agent_result",
-                    "evidence": ["protocol-v1 preflight passed"],
-                }
-            ],
-        }
-        run["observed"]["git"]["parent_worktree_path"] = repository_path
-        run["integration"]["integration_head_sha"] = reviewed_sha
-        run["graph_state"]["node_states"][review["id"]].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-REVIEW-1",
-                "bound_worker_id": "RW-1",
-            }
-        )
-        run["review_workers"] = [
-            {
-                "worker_id": "RW-1",
-                "node_id": review["id"],
-                "attempt_id": "ATT-REVIEW-1",
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "graph_revision": run["graph_state"]["graph_revision"],
-                "reviewed_sha": reviewed_sha,
-                "review_path": review_path,
-                "worker_runtime": "subagent",
-                "completion_channel": "agent_result",
-                "runtime_binding": binding,
-                "task_thread_id": None,
-                "report_path": None,
-                "phase": "worker_running",
-            }
-        ]
-        authorize(run, "invoke_external_runtime", ["M1"], "runtime:claude_code")
-        authorize(run, "spawn_subagents", ["M1"], "worker:RW-1")
-        request = {
-            "run_id": run["run_id"],
-            "plan_id": plan["plan_id"],
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": digest,
-            "graph_revision": run["graph_state"]["graph_revision"],
-            "batch_base_sha": run["integration"]["batch_base_sha"],
-            "nodes": [
-                {
-                    "node_kind": "review",
-                    "node_id": review["id"],
-                    "attempt_id": "ATT-REVIEW-1",
-                    "review_id": "batch",
-                    "review_type": "frontend_code",
-                    "reviewed_sha": reviewed_sha,
-                    "review_path": review_path,
-                    "review_scope": ["src/a/**"],
-                    "required_evidence": ["reviewed_sha", "findings"],
-                    "failure_outcome": "blocked",
-                    "worker_prompt": "Review the frontend changes",
-                }
-            ],
-            "tool_profile": "code_review_readonly",
-            "allowed_tools": sorted(
-                bridge.TOOL_PROFILE_REQUIREMENTS["code_review_readonly"]
-            ),
-            "permission_mode": "dontAsk",
-            "model": "claude-fable-5",
-            "reasoning_effort": "xhigh",
-        }
-        self.assertEqual([], validate_plan(plan))
-        self.assertEqual([], validate_run(plan, run))
-        return plan, run, request
-
-    def test_extracts_structured_output_and_requires_workflow_tool(self) -> None:
-        self.assertEqual(
-            {"status": "available"},
-            bridge._extract_structured('{"structured_output":{"status":"available"}}'),
-        )
-        wrapper = {
-            "workflow_task_id": "task-1",
-            "workflow_run_id": "wf-1",
-            "workflow_script_path": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-            "workflow_error": None,
-            "results": [],
-        }
-        runtime_result = {
-            "status": "async_launched",
-            "taskId": "task-1",
-            "taskType": "local_workflow",
-            "runId": "wf-1",
-            "scriptPath": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-        }
-        events = [
-            {
-                "type": "assistant",
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "id": "toolu-1",
-                            "name": "Workflow",
-                            "input": {"scriptPath": "workflow.js", "args": {}},
-                        }
-                    ]
-                },
-            },
-            {
-                "type": "user",
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": "toolu-1",
-                            "content": "complete",
-                        }
-                    ]
-                },
-                "tool_use_result": runtime_result,
-            },
-            {"type": "result", "structured_output": wrapper},
-        ]
-        self.assertEqual(
-            (wrapper, runtime_result, {"scriptPath": "workflow.js", "args": {}}),
-            bridge._extract_workflow_stream("\n".join(json.dumps(event) for event in events)),
-        )
-        fallback_metadata = copy.deepcopy(events)
-        del fallback_metadata[1]["tool_use_result"]
-        fallback_metadata[1]["message"]["content"][0]["content"] = json.dumps(
-            runtime_result
+            ["N-M1", "N-M2"],
+            [item["node_id"] for item in result["dispatchable_nodes"]],
         )
         self.assertEqual(
-            (wrapper, runtime_result, {"scriptPath": "workflow.js", "args": {}}),
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in fallback_metadata)
-            ),
+            ["sonnet", "opus"],
+            [item["runtime_binding"]["model"] for item in result["dispatchable_nodes"]],
         )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "runtime metadata is unavailable"):
-            missing_metadata = copy.deepcopy(events)
-            del missing_metadata[1]["tool_use_result"]
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in missing_metadata)
+        self.assertTrue(
+            all(
+                item["launch_kind"] == "run_dynamic_workflow"
+                and item["runtime_provider"] == "claude_code"
+                and item["runtime_source"] == "host"
+                for item in result["dispatchable_nodes"]
             )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "exactly one Workflow tool call"):
-            duplicate_call = copy.deepcopy(events)
-            duplicate_call.insert(1, copy.deepcopy(duplicate_call[0]))
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in duplicate_call)
-            )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "no other tool calls"):
-            extra_tool = copy.deepcopy(events)
-            extra_tool[0]["message"]["content"].append(
-                {
-                    "type": "tool_use",
-                    "id": "toolu-edit",
-                    "name": "Edit",
-                    "input": {"file_path": "parent.txt"},
-                }
-            )
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in extra_tool)
-            )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "occurred before its tool call"):
-            result_before_call = [
-                copy.deepcopy(events[1]),
-                copy.deepcopy(events[0]),
-                copy.deepcopy(events[2]),
-            ]
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in result_before_call)
-            )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "final result occurred before"):
-            final_before_result = [
-                copy.deepcopy(events[0]),
-                copy.deepcopy(events[2]),
-                copy.deepcopy(events[1]),
-            ]
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in final_before_result)
-            )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "duplicate Workflow tool result blocks"):
-            duplicate_result = copy.deepcopy(events)
-            duplicate_result[1]["message"]["content"].append(
-                copy.deepcopy(duplicate_result[1]["message"]["content"][0])
-            )
-            bridge._extract_workflow_stream(
-                "\n".join(json.dumps(event) for event in duplicate_result)
-            )
-
-        with self.assertRaisesRegex(bridge.BridgeError, "must allow the Workflow tool"):
-            bridge._build_command(
-                command="claude",
-                prompt="test",
-                schema=bridge.PREFLIGHT_SCHEMA,
-                allowed_tools=[],
-                permission_mode="dontAsk",
-                max_budget_usd=0.1,
-            )
-        command = bridge._build_command(
-            command="claude",
-            prompt="test",
-            schema=bridge.PREFLIGHT_SCHEMA,
-            allowed_tools=["Workflow"],
-            permission_mode="dontAsk",
-            max_budget_usd=0.1,
         )
-        self.assertEqual("sonnet", command[command.index("--model") + 1])
-
-        bypass_command = bridge._build_command(
-            command="claude",
-            prompt="test",
-            schema=bridge.PREFLIGHT_SCHEMA,
-            allowed_tools=["Workflow"],
-            permission_mode="bypassPermissions",
-            max_budget_usd=0.1,
-        )
-        self.assertIn("--dangerously-skip-permissions", bypass_command)
-        self.assertNotIn("--permission-mode", bypass_command)
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_preflight_returns_recordable_runtime_evidence(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        invoke: mock.Mock,
-    ) -> None:
-        invoke.return_value = {
-            "provider": "claude_code",
-            "driver": "dynamic_workflow",
-            "protocol_version": 1,
-            "status": "available",
-            "probe_count": 2,
-            "probe_labels": ["probe-a", "probe-b"],
-        }
-        result = bridge.preflight(
-            claude="claude",
-            script=bridge.DEFAULT_PREFLIGHT,
-            cwd=Path.cwd(),
-            timeout=30,
-            max_budget_usd=0.1,
-        )
-        self.assertEqual("PASS", result["status"])
-        self.assertEqual("dynamic_workflow", result["runtime"]["driver"])
-        command = invoke.call_args.args[0]
-        self.assertEqual("haiku", command[command.index("--model") + 1])
-
-    def test_tool_profiles_require_enter_worktree_and_reject_review_writes(self) -> None:
-        mission = [{"node_kind": "mission"}]
-        mission_tools = sorted(bridge.TOOL_PROFILE_REQUIREMENTS["mission_write"])
-        bridge._validate_tool_profile("mission_write", mission_tools, mission)
-        with self.assertRaisesRegex(bridge.BridgeError, "EnterWorktree"):
-            bridge._validate_tool_profile(
-                "mission_write",
-                [tool for tool in mission_tools if tool != "EnterWorktree"],
-                mission,
-            )
-
-        review = [{"node_kind": "review", "review_type": "frontend_code"}]
-        review_tools = sorted(bridge.TOOL_PROFILE_REQUIREMENTS["code_review_readonly"])
-        bridge._validate_tool_profile("code_review_readonly", review_tools, review)
-        with self.assertRaisesRegex(bridge.BridgeError, "EnterWorktree"):
-            bridge._validate_tool_profile(
-                "code_review_readonly",
-                [tool for tool in review_tools if tool != "EnterWorktree"],
-                review,
-            )
-        with self.assertRaisesRegex(bridge.BridgeError, "write-capable tools"):
-            bridge._validate_tool_profile(
-                "code_review_readonly",
-                [*review_tools, "Edit"],
-                review,
-            )
-        with self.assertRaisesRegex(bridge.BridgeError, "unexpected tools"):
-            bridge._validate_tool_profile(
-                "code_review_readonly",
-                [*review_tools, "mcp__filesystem__write_file"],
-                review,
-            )
-
-    def test_wave_request_rejects_missing_runtime_policy(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "wave.json"
-            path.write_text(json.dumps({"nodes": []}), encoding="utf-8")
-            with self.assertRaisesRegex(bridge.BridgeError, "top-level fields"):
-                bridge._load_wave_request(path)
-
-    def test_workflow_templates_accept_stringified_args_and_bind_results(self) -> None:
-        workflow = bridge.DEFAULT_GRAPH_WORKFLOW.read_text(encoding="utf-8")
-        preflight = bridge.DEFAULT_PREFLIGHT.read_text(encoding="utf-8")
-        legacy = (
-            bridge.DEFAULT_GRAPH_WORKFLOW.parent / "CLAUDE_DYNAMIC_WORKFLOW.template.js"
-        ).read_text(encoding="utf-8")
-
-        for content in (workflow, preflight, legacy):
-            self.assertIn('typeof args === "string" ? JSON.parse(args) : args', content)
-        self.assertIn("pipeline(workflowArgs.nodes", workflow)
-        self.assertIn('"run_id"', workflow)
-        self.assertIn('"batch_base_sha"', workflow)
-        self.assertIn("call EnterWorktree with that exact path", workflow)
-        self.assertIn("call EnterWorktree with that exact review path", workflow)
-        self.assertIn("does not enter that exact path", workflow)
-        self.assertIn("workflow-agent-null", workflow)
-        self.assertIn('"tool_profile"', workflow)
-        self.assertIn('phase: phaseName', workflow)
-        self.assertIn('const labels = ["probe-a", "probe-b"]', preflight)
-        self.assertIn("pipeline(labels", preflight)
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_wave_prompt_requires_workflow_args_to_remain_an_object(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        invoke: mock.Mock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            wrapper = {
-                "workflow_run_id": "wf-test",
-                "workflow_task_id": "task-test",
-                "workflow_script_path": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-                "workflow_error": None,
-                "results": [{"node_result": {"node_id": "N-M1"}}],
-            }
-            invoke.return_value = self.workflow_stream_result(wrapper, request)
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            with mock.patch.object(bridge, "_validate_checkout"):
-                result = bridge.run_wave(
-                    claude="claude",
-                    script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                    plan_path=plan_path,
-                    run_path=run_path,
-                    request_path=request_path,
-                    cwd=Path.cwd(),
-                    timeout=30,
-                    max_budget_usd=0.1,
-                )
-
-        prompt = invoke.call_args.args[0][-1]
-        self.assertIn("Do not use any other tool", prompt)
-        self.assertIn("actual object, not as a JSON-encoded string", prompt)
-        command = invoke.call_args.args[0]
-        self.assertEqual("sonnet", command[command.index("--model") + 1])
-        self.assertEqual("high", command[command.index("--effort") + 1])
-        self.assertEqual("stream-json", command[command.index("--output-format") + 1])
-        self.assertIn("--verbose", command)
-        self.assertNotIn("--json-schema", command)
-        self.assertEqual("wf-test", result["runtime"]["workflow_run_id"])
-        self.assertEqual("task-test", result["runtime"]["workflow_task_id"])
-        self.assertEqual(
-            hashlib.sha256(bridge.DEFAULT_GRAPH_WORKFLOW.read_bytes()).hexdigest(),
-            result["runtime"]["workflow_script_sha256"],
-        )
-        self.assertEqual("mission_write", result["runtime"]["tool_profile"])
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_valid_review_wave_reaches_claude_invocation(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        invoke: mock.Mock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.review_bridge_fixture(root)
-            wrapper = {
-                "workflow_run_id": "wf-review",
-                "workflow_task_id": "task-review",
-                "workflow_script_path": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-                "workflow_error": None,
-                "results": [{"node_result": {"node_id": "N-FRONTEND-REVIEW"}}],
-            }
-            invoke.return_value = self.workflow_stream_result(wrapper, request)
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            with mock.patch.object(bridge, "_validate_checkout") as checkout:
-                result = bridge.run_wave(
-                    claude="claude",
-                    script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                    plan_path=plan_path,
-                    run_path=run_path,
-                    request_path=request_path,
-                    cwd=Path.cwd(),
-                    timeout=30,
-                    max_budget_usd=0.1,
-                )
-
-        checkout.assert_called_once()
-        invoke.assert_called_once()
-        command = invoke.call_args.args[0]
-        allowed_tools = command[command.index("--allowedTools") + 1].split(",")
-        self.assertIn("EnterWorktree", allowed_tools)
-        self.assertNotIn("Edit", allowed_tools)
-        self.assertNotIn("Write", allowed_tools)
-        self.assertEqual("wf-review", result["runtime"]["workflow_run_id"])
-        self.assertEqual("code_review_readonly", result["runtime"]["tool_profile"])
-
-    def test_cached_capability_cannot_bypass_current_wave_validation(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            request["plan_digest_sha256"] = "f" * 64
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            with (
-                mock.patch.object(bridge, "_resolve_claude") as resolve,
-                mock.patch.object(bridge, "_invoke") as invoke,
-                self.assertRaisesRegex(bridge.BridgeError, "plan_digest_sha256"),
-            ):
-                bridge.run_wave(
-                    claude="claude",
-                    script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                    plan_path=plan_path,
-                    run_path=run_path,
-                    request_path=request_path,
-                    cwd=Path.cwd(),
-                    timeout=30,
-                    max_budget_usd=0.1,
-                    session_cache_root=root / "session-cache",
-                )
-        resolve.assert_not_called()
-        invoke.assert_not_called()
-
-    def test_wave_binding_rejects_stale_plan_and_run_identity(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            for field, stale in (
-                ("plan_digest_sha256", "f" * 64),
-                ("graph_revision", request["graph_revision"] + 1),
-                ("batch_base_sha", "f" * 40),
-            ):
-                with self.subTest(field=field):
-                    stale_request = copy.deepcopy(request)
-                    stale_request[field] = stale
-                    with self.assertRaisesRegex(bridge.BridgeError, field):
-                        bridge._validate_current_wave_binding(stale_request, plan, run)
-
-    def test_wave_binding_requires_current_execution_and_action_authorizations(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            unauthorized = copy.deepcopy(run)
-            unauthorized.update(
-                {
-                    "execution_authorized": False,
-                    "execution_authorization_source": None,
-                    "execution_authorization_scope": None,
-                }
-            )
-            with self.assertRaisesRegex(bridge.BridgeError, "Execution authorization"):
-                bridge._validate_current_wave_binding(request, plan, unauthorized)
-
-            missing_action = copy.deepcopy(run)
-            missing_action["authorizations"]["spawn_subagents"] = {
-                "authorized": False,
-                "source": None,
-            }
-            with self.assertRaisesRegex(bridge.BridgeError, "spawn_subagents"):
-                bridge._validate_current_wave_binding(request, plan, missing_action)
-
-    def test_wave_binding_requires_ready_permission_boundary(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            missing = copy.deepcopy(run)
-            del missing["runtime_capabilities"]["permission_boundary"]
-            with self.assertRaisesRegex(bridge.BridgeError, "permission boundary is not ready"):
-                bridge._validate_current_wave_binding(request, plan, missing)
-
-            bypass = copy.deepcopy(request)
-            bypass["permission_mode"] = "bypassPermissions"
-            with self.assertRaisesRegex(bridge.BridgeError, "full_access"):
-                bridge._validate_current_wave_binding(bypass, plan, run)
-
-    def test_wave_binding_rejects_stale_attempt_and_mission_lease(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            stale_attempt = copy.deepcopy(request)
-            stale_attempt["nodes"][0]["attempt_id"] = "ATT-STALE"
-            with self.assertRaisesRegex(bridge.BridgeError, "active graph attempt"):
-                bridge._validate_current_wave_binding(stale_attempt, plan, run)
-
-            stale_lease = copy.deepcopy(request)
-            stale_lease["nodes"][0]["lease_id"] = "LEASE-STALE"
-            with self.assertRaisesRegex(bridge.BridgeError, "current lease"):
-                bridge._validate_current_wave_binding(stale_lease, plan, run)
-
-    def test_review_wave_rejects_contract_and_checkout_head_mismatches(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.review_bridge_fixture(root)
-            stale_contract = copy.deepcopy(request)
-            stale_contract["nodes"][0]["review_scope"] = ["src/other/**"]
-            with self.assertRaisesRegex(bridge.BridgeError, "review contract"):
-                bridge._validate_current_wave_binding(stale_contract, plan, run)
-
-            review_path = Path(request["nodes"][0]["review_path"])
-            common_dir = str((root / ".git").resolve())
-
-            def fake_git_output(cwd: Path, *args: str, timeout: int = 30) -> str:
-                del timeout
-                if args == ("rev-parse", "--show-toplevel"):
-                    return str(cwd.resolve())
-                if args == ("rev-parse", "--path-format=absolute", "--git-common-dir"):
-                    return common_dir
-                if args == ("rev-parse", "HEAD"):
-                    return "c" * 40
-                raise AssertionError(f"Unexpected git command: {args}")
-
-            with mock.patch.object(bridge, "_git_output", side_effect=fake_git_output):
-                with self.assertRaisesRegex(bridge.BridgeError, "HEAD does not match"):
-                    bridge._validate_current_wave_binding(request, plan, run)
-            self.assertEqual(review_path, Path(request["nodes"][0]["review_path"]))
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_wave_requires_a_real_workflow_run_id(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        invoke: mock.Mock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            for run_id in (None, "", "   "):
-                with self.subTest(run_id=run_id):
-                    wrapper = {
-                        "workflow_run_id": run_id,
-                        "workflow_task_id": "task-test",
-                        "workflow_script_path": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-                        "workflow_error": None,
-                        "results": [{"node_result": {"node_id": "N-M1"}}],
-                    }
-                    invoke.return_value = self.workflow_stream_result(wrapper, request)
-                    with mock.patch.object(bridge, "_validate_checkout"):
-                        with self.assertRaisesRegex(
-                            bridge.BridgeError, "runtime did not return a runId"
-                        ):
-                            bridge.run_wave(
-                                claude="claude",
-                                script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                                plan_path=plan_path,
-                                run_path=run_path,
-                                request_path=request_path,
-                                cwd=Path.cwd(),
-                                timeout=30,
-                                max_budget_usd=0.1,
-                            )
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_wave_rejects_a_run_id_not_confirmed_by_runtime_evidence(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        invoke: mock.Mock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            wrapper = {
-                "workflow_run_id": "wf-invented",
-                "workflow_task_id": "task-test",
-                "workflow_script_path": str(bridge.DEFAULT_GRAPH_WORKFLOW),
-                "workflow_error": None,
-                "results": [{"node_result": {"node_id": "N-M1"}}],
-            }
-            invoke.return_value = self.workflow_stream_result(
-                wrapper,
-                request,
-                runtime_overrides={"runId": "wf-runtime"},
-            )
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            with mock.patch.object(bridge, "_validate_checkout"):
-                with self.assertRaisesRegex(
-                    bridge.BridgeError, "run ID does not match runtime evidence"
-                ):
-                    bridge.run_wave(
-                        claude="claude",
-                        script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                        plan_path=plan_path,
-                        run_path=run_path,
-                        request_path=request_path,
-                        cwd=Path.cwd(),
-                        timeout=30,
-                        max_budget_usd=0.1,
-                    )
-
-    def test_wave_rejects_untrusted_workflow_runtime_evidence(self) -> None:
-        script_path = bridge.DEFAULT_GRAPH_WORKFLOW.resolve()
-        workflow_args = {"run_id": "RUN-1"}
-        wrapper = {
-            "workflow_task_id": "task-1",
-            "workflow_run_id": "wf-1",
-            "workflow_script_path": str(script_path),
-            "workflow_error": None,
-            "results": [],
-        }
-        runtime_result = {
-            "status": "async_launched",
-            "taskId": "task-1",
-            "taskType": "local_workflow",
-            "runId": "wf-1",
-            "scriptPath": str(script_path),
-            "error": None,
-        }
-        tool_input = {"scriptPath": str(script_path), "args": workflow_args}
-
-        cases = (
-            (
-                "task ID does not match runtime evidence",
-                {**runtime_result, "taskId": "task-runtime"},
-                tool_input,
-            ),
-            (
-                "did not launch a local workflow",
-                {**runtime_result, "taskType": "remote_workflow"},
-                tool_input,
-            ),
-            (
-                "did not launch a local workflow",
-                {key: value for key, value in runtime_result.items() if key != "taskType"},
-                tool_input,
-            ),
-            (
-                "runtime used a different scriptPath",
-                {**runtime_result, "scriptPath": "C:/other/workflow.js"},
-                tool_input,
-            ),
-            (
-                "changed the wave arguments",
-                runtime_result,
-                {**tool_input, "args": {"run_id": "RUN-OTHER"}},
-            ),
-            (
-                "tool call used a different scriptPath",
-                runtime_result,
-                {**tool_input, "scriptPath": "C:/other/workflow.js"},
-            ),
-        )
-        for message, runtime_evidence, call_input in cases:
-            with self.subTest(message=message):
-                with self.assertRaisesRegex(bridge.BridgeError, message):
-                    bridge._validate_workflow_evidence(
-                        wrapper,
-                        runtime_evidence,
-                        call_input,
-                        workflow_script_path=script_path,
-                        workflow_args=workflow_args,
-                    )
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_wave_rejects_a_different_workflow_script_path(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        invoke: mock.Mock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            wrapper = {
-                "workflow_run_id": "wf-test",
-                "workflow_task_id": "task-test",
-                "workflow_script_path": "C:/other/workflow.js",
-                "workflow_error": None,
-                "results": [{"node_result": {"node_id": "N-M1"}}],
-            }
-            invoke.return_value = self.workflow_stream_result(wrapper, request)
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            with mock.patch.object(bridge, "_validate_checkout"):
-                with self.assertRaisesRegex(
-                    bridge.BridgeError, "script path does not match runtime evidence"
-                ):
-                    bridge.run_wave(
-                        claude="claude",
-                        script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                        plan_path=plan_path,
-                        run_path=run_path,
-                        request_path=request_path,
-                        cwd=Path.cwd(),
-                        timeout=30,
-                        max_budget_usd=0.1,
-                    )
-
-    def test_run_wave_cli_requires_plan_and_run_paths(self) -> None:
-        parser = bridge.build_parser()
-        with self.assertRaises(SystemExit):
-            parser.parse_args(["run-wave", "--request", "wave.json"])
-
-    @mock.patch.object(bridge, "_invoke")
-    @mock.patch.object(bridge, "_claude_version", return_value="2.1.214 (Claude Code)")
-    @mock.patch.object(bridge, "_resolve_claude", return_value="C:/bin/claude.exe")
-    def test_wave_rejects_a_cli_model_that_disagrees_with_plan(
-        self,
-        _resolve: mock.Mock,
-        _version: mock.Mock,
-        _invoke: mock.Mock,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan, run, request = self.mission_bridge_fixture(root)
-            plan_path, run_path, request_path = self.write_bridge_fixture(
-                root, plan, run, request
-            )
-            with self.assertRaisesRegex(bridge.BridgeError, "must match"):
-                bridge.run_wave(
-                    claude="claude",
-                    script=bridge.DEFAULT_GRAPH_WORKFLOW,
-                    plan_path=plan_path,
-                    run_path=run_path,
-                    request_path=request_path,
-                    cwd=Path.cwd(),
-                    timeout=30,
-                    max_budget_usd=0.1,
-                    model="opus",
-                )
 
 
 if __name__ == "__main__":

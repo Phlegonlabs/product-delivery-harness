@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-codex
-description: "Codex runtime adapter for Full Stack Harness engineering. Use only when the active host is Codex and a large plan needs app tasks, app-managed worktrees, direct subagents, or guarded external Claude Code execution. This adapter does not own PLAN/RUN schemas, shared verification, GitHub landing, merge, deployment, or cleanup."
+description: "Codex runtime adapter for Full Stack Harness engineering. Use only when the active host is Codex and a large plan needs app tasks, app-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively codex-provider PLAN nodes and does not own PLAN/RUN schemas, shared verification, GitHub landing, merge, deployment, or cleanup."
 ---
 
 # Full-Stack Harness: Codex Runtime Adapter
@@ -17,8 +17,7 @@ Before the first production edit or worker launch, inspect the current Codex ses
 
 - project/thread create, read, message, and completion polling surfaces prove `app_threads`;
 - direct child-agent tools prove `subagents`;
-- the current permission mode, worktree isolation, Git metadata reachability, slots, completion channel, temp/cache/network needs, and model options define usable capacity;
-- an installed Claude CLI or cached version does not prove the external route.
+- the current permission mode, worktree isolation, Git metadata reachability, slots, completion channel, temp/cache/network needs, and model options define usable capacity.
 
 Record observations under `runtime_adapter` independently from authorization. Choose the strongest observed and authorized route:
 
@@ -64,19 +63,11 @@ Every non-trivial app-task mission gets a depth-one policy capped at three direc
 
 When child capability is unknown, launch a no-production-edit handshake, poll it, record the result, and send an enabled or disabled policy before implementation. With an enabled policy, at least one useful child must run unless the result records an allowed triviality/capability reason. Children never write, run mutating generators or shared-state services, spawn further agents, edit PLAN/RUN, create Git objects, integrate, land, deploy, or clean up. The app task reconciles their evidence and reports `subagent_activity`.
 
-## Launch External Claude From Codex
+## Provider Boundary
 
-Preflight Claude before selection only when a ready PLAN node needs that route. Do not probe an external runtime merely because it may be available.
+This adapter is host-native only. A PLAN node is selectable here only when its `allowed_providers` includes `codex` and, when the node declares a `preferred_provider`, the current host still satisfies it. There is no mechanism in this adapter to invoke Claude Code, and no fallback that lets a `claude_code`-only node execute under Codex.
 
-1. Keep the Codex task as the only PLAN/RUN writer and scheduler.
-2. Run `../fullstack-harness-engineering/scripts/claude_runtime_bridge.py preflight` without repository edits. Use one explicit repository-external session cache root; an unchanged executable/version and exact successful preflight may be reused only under the documented cache contract.
-3. Record Claude Code as available only after the preflight succeeds. A failed forced refresh revokes stale disk reuse for that capability scope.
-4. Recheck exact `invoke_external_runtime` for `runtime:claude_code`, `spawn_subagents`, parent-managed worktree, branch, and commit grants.
-5. Allocate each authorized node attempt, lease, branch, and existing worktree from the fixed base. Mission and review profiles include `EnterWorktree`; review profiles omit write-capable tools.
-6. Invoke `claude_runtime_bridge.py run-wave` with current PLAN/RUN and an immutable request. The bridge must reload canonical state, reject stale identity or authorization, bind the exact Workflow task/run/script/arguments, and return one candidate per requested node through `agent_result`.
-7. Validate every returned candidate and live Git fact before serial integration.
-
-Do not run two PLAN/RUN parents. Claude does not create a replacement worktree, edit parent state, integrate, push, open a PR, deploy, or clean up. A bridge exit is not mission completion.
+When the ready frontier includes a node whose required or preferred provider is `claude_code` and does not also allow `codex`, do not attempt to launch it and do not probe for a Claude Code CLI, binary, or plugin as a substitute route. Record that node as blocked on provider mismatch, leave it out of the accepted wave, and report it so a Claude-Code-hosted run can pick it up. This is expected steady state for a mixed-provider PLAN running under a single-host session, not an error to work around.
 
 ## Failure And Fallback
 

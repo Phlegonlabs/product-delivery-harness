@@ -155,12 +155,7 @@ WORKFLOW_TOOL_PROFILES = {
 }
 WORKFLOW_RUN_STATUSES = {"running", "completed", "failed", "stopped"}
 WORKFLOW_RUN_DRIVERS_BY_PROVIDER = {
-    "claude_code": {"dynamic_workflow", "external_dynamic_workflow"},
-    "codex": {"external_codex_agent"},
-}
-EXTERNAL_RUNTIME_DRIVERS = {
-    "claude_code": "dynamic_workflow",
-    "codex": "codex_rescue_agent",
+    "claude_code": {"dynamic_workflow"},
 }
 RUNTIME_DRIVER_PRIORITY = {
     "codex": ("app_threads", "subagents", "sequential_parent"),
@@ -193,7 +188,6 @@ GRAPH_NODE_PHASES = {
     "superseded",
 }
 GRAPH_EDGE_PHASES = {"dormant", "eligible", "traversed", "exhausted", "skipped"}
-EXTERNAL_RUNTIME_STATUSES = {"available", "unavailable", "unknown"}
 RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual"}
 
 
@@ -584,7 +578,7 @@ def _validate_verifier(
             if mode == "disabled" and environment_keys:
                 _add(errors, f"{cache_path}.environment_keys", "must be empty when cache is disabled")
             if mode == "session_exact" and not cache_allowed:
-                _add(errors, cache_path, "session_exact is not allowed for release or deployment verifiers")
+                _add(errors, cache_path, "session_exact is not allowed for this verifier")
             if mode == "session_exact" and value.get("pass_signal") != "exit 0":
                 _add(errors, f"{path}.pass_signal", "session_exact requires the literal pass signal exit 0")
 
@@ -930,6 +924,15 @@ def _validate_graph(
                     {"preferred_provider", "allowed_providers"},
                     {"provider_options"},
                 ):
+                    # allowed_providers is intentionally schema-valid even when it excludes
+                    # whatever provider happens to host the current RUN: a PLAN may target a
+                    # host chosen later. No further "can this ever run anywhere" check is
+                    # added beyond nonempty + RUNTIME_PROVIDERS membership (just below):
+                    # every member of RUNTIME_PROVIDERS has a native driver in
+                    # RUNTIME_DRIVER_PRIORITY, so there is no provider combination that is
+                    # structurally unrunnable on every host. A host/provider mismatch is a
+                    # RUN-time "runtime_unavailable" outcome (see select_ready_nodes.py),
+                    # not a PLAN authoring error.
                     providers = _strings(
                         errors,
                         f"{runtime_path}.allowed_providers",
@@ -1283,7 +1286,12 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         else:
             ids: set[str] = set()
             for index, verifier in enumerate(plan[group]):
-                _validate_verifier(errors, f"plan.{group}[{index}]", verifier)
+                _validate_verifier(
+                    errors,
+                    f"plan.{group}[{index}]",
+                    verifier,
+                    cache_allowed=False,
+                )
                 if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
                     if verifier["id"] in ids:
                         _add(errors, f"plan.{group}[{index}].id", "must be unique")
@@ -1411,6 +1419,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                         selection_scopes=(
                             mission_write if verifier_group == "worker_verifiers" else None
                         ),
+                        cache_allowed=verifier_group != "integration_verifiers",
                     )
                     if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
                         if verifier["id"] in ids:
@@ -2759,8 +2768,6 @@ def _validate_workflow_runs(
         "attempt_ids",
         "provider",
         "driver",
-        "model",
-        "reasoning_effort",
         "tool_profile",
         "status",
         "result_evidence",
@@ -2823,16 +2830,6 @@ def _validate_workflow_runs(
             allowed_drivers is not None and driver not in allowed_drivers
         ):
             _add(errors, f"{path}.driver", "does not match the workflow provider")
-        model = item["model"]
-        if model is not None and not is_safe_model_token(model):
-            _add(errors, f"{path}.model", "must be null or a safe model token")
-        if provider == "claude_code" and model is None:
-            _add(errors, f"{path}.model", "must be a non-empty string for claude_code")
-        effort = item["reasoning_effort"]
-        if effort is not None and (
-            not isinstance(effort, str) or effort not in RUNTIME_REASONING_EFFORTS
-        ):
-            _add(errors, f"{path}.reasoning_effort", "has an unsupported value")
         profile = item["tool_profile"]
         if not isinstance(profile, str) or profile not in WORKFLOW_TOOL_PROFILES:
             _add(errors, f"{path}.tool_profile", "has an unsupported value")
@@ -2858,12 +2855,6 @@ def _validate_workflow_runs(
                 graph_nodes.get(node_id, {}).get("kind") != "mission" for node_id in node_ids
             ):
                 _add(errors, f"{path}.tool_profile", "mission_write requires only mission nodes")
-            if provider == "codex" and (
-                driver != "external_codex_agent"
-                or profile != "mission_write"
-                or any(graph_nodes.get(node_id, {}).get("kind") != "mission" for node_id in node_ids)
-            ):
-                _add(errors, path, "external Codex workflows support mission_write missions only")
             if profile in {"code_review_readonly", "visual_review_readonly"}:
                 review_types: set[Any] = set()
                 for node_id in node_ids:
@@ -2904,12 +2895,6 @@ def _validate_workflow_runs(
                 allowed_providers = raw_allowed if isinstance(raw_allowed, list) else []
                 if provider not in allowed_providers:
                     _add(errors, f"{path}.provider", f"node {node_id} does not allow {provider}")
-                    continue
-                expected_options = resolve_runtime_options(policy, provider)
-                if model != expected_options["model"]:
-                    _add(errors, f"{path}.model", f"does not match node {node_id}")
-                if effort != expected_options["reasoning_effort"]:
-                    _add(errors, f"{path}.reasoning_effort", f"does not match node {node_id}")
             if run.get("status") == "complete":
                 _add(errors, path, "complete RUN cannot retain a running workflow")
 
@@ -3167,7 +3152,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "provider",
                 "available_drivers",
                 "detection_source",
-                *({"external_runtimes"} if schema_version in {8, 9} else set()),
             },
         ):
             provider = adapter["provider"]
@@ -3242,80 +3226,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.runtime_capabilities.nested_subagents",
                     "must be omitted for flat dynamic-workflow orchestration",
                 )
-            external_runtimes = adapter.get("external_runtimes", [])
-            if schema_version in {8, 9}:
-                if not isinstance(external_runtimes, list):
-                    _add(errors, f"{adapter_path}.external_runtimes", "must be a list")
-                else:
-                    external_providers: set[str] = set()
-                    for index, external in enumerate(external_runtimes):
-                        external_path = f"{adapter_path}.external_runtimes[{index}]"
-                        if not _keys(
-                            errors,
-                            external_path,
-                            external,
-                            {
-                                "provider",
-                                "driver",
-                                "status",
-                                "command",
-                                "version",
-                                "completion_channel",
-                                "evidence",
-                            },
-                            {"contract_version"},
-                        ):
-                            continue
-                        external_provider = external["provider"]
-                        expected_driver = (
-                            EXTERNAL_RUNTIME_DRIVERS.get(external_provider)
-                            if isinstance(external_provider, str)
-                            else None
-                        )
-                        if expected_driver is None:
-                            _add(errors, f"{external_path}.provider", "has an unsupported value")
-                        elif external_provider in external_providers:
-                            _add(errors, f"{external_path}.provider", "must be unique")
-                        else:
-                            external_providers.add(external_provider)
-                        if external["driver"] != expected_driver:
-                            _add(errors, f"{external_path}.driver", "does not match the external provider")
-                        if external["status"] not in EXTERNAL_RUNTIME_STATUSES:
-                            _add(errors, f"{external_path}.status", "has an unsupported value")
-                        _optional_string(errors, f"{external_path}.command", external["command"])
-                        _optional_string(errors, f"{external_path}.version", external["version"])
-                        contract_version = external.get("contract_version")
-                        _optional_string(
-                            errors,
-                            f"{external_path}.contract_version",
-                            contract_version,
-                        )
-                        if external["completion_channel"] != "agent_result":
-                            _add(errors, f"{external_path}.completion_channel", "must equal agent_result")
-                        evidence = _strings(errors, f"{external_path}.evidence", external["evidence"])
-                        if external["status"] == "available" and (
-                            not _nonempty_string(external["command"])
-                            or not _nonempty_string(external["version"])
-                            or not evidence
-                        ):
-                            _add(
-                                errors,
-                                external_path,
-                                "available runtime requires command, version, and evidence",
-                            )
-                        if external_provider == "codex" and external["status"] == "available":
-                            if external["command"] != "agent:codex:codex-rescue":
-                                _add(
-                                    errors,
-                                    f"{external_path}.command",
-                                    "must equal agent:codex:codex-rescue",
-                                )
-                            if contract_version != "harness-node-result-v1":
-                                _add(
-                                    errors,
-                                    f"{external_path}.contract_version",
-                                    "must equal harness-node-result-v1",
-                                )
         permission = runtime.get("permission_boundary")
         if permission is not None and _keys(
             errors,
@@ -3745,38 +3655,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
                 if not _nonempty_string(runtime_binding["driver"]):
                     _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
-                if runtime_binding["source"] not in {"host", "external_bridge", "external_agent"}:
+                if runtime_binding["source"] != "host":
                     _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
-                if runtime_binding["source"] == "external_bridge" and (
-                    runtime_binding["provider"] != "claude_code"
-                    or runtime_binding["driver"] != "external_dynamic_workflow"
-                ):
-                    _add(
-                        errors,
-                        f"{path}.runtime_binding",
-                        "external_bridge requires claude_code/external_dynamic_workflow",
-                    )
-                if runtime_binding["source"] == "external_agent":
-                    if (
-                        runtime_binding["provider"] != "codex"
-                        or runtime_binding["driver"] != "external_codex_agent"
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding",
-                            "external_agent requires codex/external_codex_agent",
-                        )
-                    if (
-                        worker["worker_runtime"] != "subagent"
-                        or worker["workspace_mode"] != "app_managed_worktree"
-                        or worker["completion_channel"] != "agent_result"
-                        or worker["task_thread_id"] is not None
-                    ):
-                        _add(
-                            errors,
-                            path,
-                            "external_agent requires subagent/app_managed_worktree/agent_result with no task thread",
-                        )
                 if runtime_binding["option_source"] not in {
                     "plan_provider_options",
                     "provider_default",
@@ -4090,28 +3970,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         )
                     if not _nonempty_string(binding["driver"]):
                         _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
-                    if binding["source"] not in {"host", "external_bridge", "external_agent"}:
+                    if binding["source"] != "host":
                         _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
-                    if binding["source"] == "external_bridge" and (
-                        provider != "claude_code"
-                        or binding["driver"] != "external_dynamic_workflow"
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding",
-                            "external_bridge requires claude_code/external_dynamic_workflow",
-                        )
-                    if binding["source"] == "external_agent" and (
-                        provider != "codex"
-                        or binding["driver"] != "external_codex_agent"
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding",
-                            "external_agent requires codex/external_codex_agent",
-                        )
-                    if binding["source"] == "external_agent":
-                        _add(errors, f"{path}.runtime_binding", "external Codex reviews are disabled in v1")
                     expected_options = (
                         resolve_runtime_options(policy, provider)
                         if isinstance(policy, dict)

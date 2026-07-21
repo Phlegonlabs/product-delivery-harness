@@ -7,7 +7,7 @@ description: "Classify engineering work as small or large, then plan, execute, v
 
 ## Purpose
 
-Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Runtime launch mechanics and remote landing are separate adapters so ordinary work does not load every Codex, Claude Code, cc-codex, GitHub, CI, review, and deployment rule.
+Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Runtime launch mechanics and remote landing are separate adapters so ordinary work does not load every Codex, Claude Code, GitHub, CI, review, and deployment rule.
 
 Keep `prd-builder` and `design-package-builder` as separate upstream skills. Reuse their artifacts instead of duplicating them. If product, Builder UX Direction, architecture, or design evidence is missing, route to the matching skill, use an explicitly authorized assumption, or record the gap as `UNVALIDATED`. An implementation agent does not invent Builder UX Direction.
 
@@ -33,7 +33,7 @@ large -> planner -> readiness -> sequential execution or scheduler when parallel
 - Small work creates no PLAN/RUN files, performs no scheduler or worker-capability scan, launches no subagent by default, and does not preflight an external runtime.
 - Large work enters the workflow below. Planning does not imply parallel execution.
 - Enable scheduler fan-out only when there are at least two dependency-ready, nonconflicting missions and every isolation, capacity, permission, and action gate passes.
-- Preflight an external provider only when the user explicitly requests it, a ready node's PLAN runtime policy needs it, or the host cannot satisfy that node and its declared fallback allows the provider.
+- A ready node's required or preferred provider must match the current host adapter. There is no cross-host fallback: a node whose provider does not match the running host is simply not executable here and is reported blocked on provider mismatch.
 - If small work grows large, stop at a safe checkpoint, preserve completed edits and evidence, and plan only the remainder.
 
 ## Adapter Routing
@@ -41,8 +41,8 @@ large -> planner -> readiness -> sequential execution or scheduler when parallel
 The core is runtime-neutral. Do not load all adapters in one run.
 
 1. For small sequential work, load no runtime adapter unless a runtime-specific action is actually required.
-2. For large orchestration in a Codex host, read `../fullstack-harness-codex/SKILL.md`. Do not also read the Claude Code adapter; the Codex adapter contains the guarded external-Claude route.
-3. For large orchestration in a Claude Code host, read `../fullstack-harness-claude-code/SKILL.md`. Do not also read the Codex adapter; the Claude Code adapter contains the guarded cc-codex route.
+2. For large orchestration in a Codex host, read `../fullstack-harness-codex/SKILL.md`. Do not also read the Claude Code adapter; the Codex adapter is host-native only and executes exclusively `codex`-provider nodes.
+3. For large orchestration in a Claude Code host, read `../fullstack-harness-claude-code/SKILL.md`. Do not also read the Codex adapter; the Claude Code adapter is host-native only and executes exclusively `claude_code`-provider nodes.
 4. Read `../fullstack-harness-github-landing/SKILL.md` only when the requested outcome includes push, PR creation, GitHub CI, GitHub review, merge, or remote repository configuration. Local branch and commit work alone does not load it.
 
 Explicit adapter invocation still begins with this core. The adapters may select shared scripts, templates, and references from this directory; they never create a second PLAN/RUN state model.

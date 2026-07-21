@@ -104,8 +104,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
         "available_drivers": [
           "sequential_parent"
         ],
-        "detection_source": "fallback",
-        "external_runtimes": []
+        "detection_source": "fallback"
       },
       "permission_boundary": {
         "selected_mode": "unknown",
@@ -348,7 +347,7 @@ The parent may inspect state, validate manifests, and compute static conflict/pa
 
 For automatic app-task fan-out, the selector emits one `launch_directives` entry per selected mission. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If project lookup, thread creation, worktree setup, follow-up messaging, polling, or nested-agent capability is unavailable, leave the worker unlaunched and use the sequential parent fallback.
 
-For graph workers, copy the selector's complete `runtime_binding` into the allocated mission `workers[]` record or read-only verifier `review_workers[]` record. A review worker also binds node ID, attempt ID, graph revision, review path, and exact current integrated or PR-head SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null `model` and `reasoning_effort` as task creation `model` and `thinking`; omit null values so the host default remains explicit. For Claude Code, group selected nodes by model and effort, put both in each immutable wave request, and pass non-null effort through `--effort`. Do not override the bridge model unless it matches the PLAN-selected model. The destination host validates the exact pair at launch.
+For graph workers, copy the selector's complete `runtime_binding` into the allocated mission `workers[]` record or read-only verifier `review_workers[]` record. A review worker also binds node ID, attempt ID, graph revision, review path, and exact current integrated or PR-head SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null `model` and `reasoning_effort` as task creation `model` and `thinking`; omit null values so the host default remains explicit. For Claude Code, pass each node's own `model` (and non-null `reasoning_effort` as `effort`) into that node's own `agent()` call inside the Dynamic Workflow script; a single wave may mix models and reasoning efforts freely since each node's call carries its own. The destination host validates the exact pair at launch.
 
 Use these exact coordination enums:
 
@@ -356,15 +355,11 @@ Use these exact coordination enums:
 - `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
 - `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
 
-Schemas v6 through v9 require `runtime_capabilities.runtime_adapter`. The parent detects actual host capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available host driver in `available_drivers`. Schemas v8 and v9 additionally record proven external providers in `external_runtimes`; an available entry requires command, version, completion channel, and provider-specific preflight evidence. External Claude uses `dynamic_workflow`. The optional cc-codex route uses `provider: "codex"`, `driver: "codex_rescue_agent"`, `command: "agent:codex:codex-rescue"`, `contract_version: "harness-node-result-v1"`, and `completion_channel: "agent_result"`. Always include `sequential_parent`. Capability detection is not authorization.
+Schemas v6 through v9 require `runtime_capabilities.runtime_adapter`. The parent detects actual host capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available host driver in `available_drivers`. Always include `sequential_parent`. Capability detection is not authorization.
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
 
-When a Codex parent binds a graph node to external Claude Code, run the no-edit bridge preflight first and record the result in `runtime_adapter.external_runtimes`. Use one explicit repository-external `--session-cache-root` for the run so an unchanged executable/version and exact successful preflight can be reused. A failed `preflight --force-refresh` revokes stale disk reuse for that executable/script/model scope; a later fresh PASS replaces the stale entry and restores exact disk reuse. Cached capability never replaces current PLAN/RUN, attempt, base, runtime-binding, permission, or action validation. Do not retry an ambiguous production Workflow invocation; force-refresh only after proving no production workflow was created. Require `invoke_external_runtime` for `runtime:claude_code` plus `spawn_subagents`. Write missions also require the normal worktree, branch, and commit actions. Read-only review nodes require neither and instead bind an exact review SHA/path/scope in `review_workers[]`. Allocate the attempt and matching worker record before calling `claude_runtime_bridge.py run-wave` with `CLAUDE_GRAPH_WORKFLOW.template.js`. The bridge returns result candidates only; validate the node wrapper, worker or review payload, and actual Git state before integration or graph routing.
-
-When a Claude Code parent binds a graph node to cc-codex, first record observed plugin metadata with external-runtime status `unknown`; an `unavailable` record cannot preflight. After exact `runtime:codex` and `worker:preallocation` authorization plus explicit `*` worktree/branch allocation grants, run `scripts/validate_codex_wave.py --mode preflight` and pass its complete JSON to `CLAUDE_CODEX_PREFLIGHT.template.js`. The template runs its read-only probe in an isolated Agent worktree. Record the runtime as available only after the marker succeeds. A write node uses `external_codex_agent`, `subagent`, `app_managed_worktree`, and `agent_result`, and requires the exact worker target plus explicit `*` allocation targets for `spawn_subagents`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`. It does not use `create_user_owned_tasks`. Allocate the node attempt, worker lease, and worker identity while leaving `worktree_path` and `branch_ref` null, then run the guard in wave mode to emit canonical arguments for `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js`. External Codex reviews are disabled in v1; select another allowed provider or defer. Once the marked result returns, independently verify its Git common directory, path, branch, head, ancestry, diff, scope, and verifier evidence. Record the exact runtime-assigned path/ref in the worker record before calling `validate_worker_result.py` with matching parent observations. Keep failed or cancelled runtime worktrees for diagnosis; do not reset or delete them automatically.
-
-The cc-codex workflow uses `--wait --fresh` for every attempt and records only the outer Claude Workflow task/run IDs. `codex:codex-rescue` does not expose its inner Codex thread ID through the foreground result, so keep `task_thread_id` null and never invent, poll, resume, or cancel an inner thread from the Harness. A malformed marker, missing durable commit, base mismatch, ancestry failure, or scope escape is a rejected candidate, not an integrated result.
+A graph node's `allowed_providers` must include the current host's provider before the parent may bind it to a worker at all. There is no cross-host route: a Codex-hosted parent never binds a node to Claude Code, and a Claude-Code-hosted parent never binds a node to Codex. A ready node whose allowed/preferred providers exclude the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
 
 `runtime_capabilities.permission_boundary` records the effective parent mode before workers launch. Use `selected_mode` values `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown`; a non-empty `profile_name` is required only for `named_profile`. Record approval, filesystem, network, local-binding, and worker-inheritance facts, then set `status` to `ready` only after linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets fit inside the boundary. `may_prompt`, `blocked`, or `unknown` blocks unattended fan-out. Existing schema-v2 RUN files may omit this optional object.
 
@@ -387,9 +382,9 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
   "completion_channel": "agent_result",
   "runtime_binding": {
     "provider": "claude_code",
-    "driver": "external_dynamic_workflow",
-    "source": "external_bridge",
-    "model": "claude-fable-5",
+    "driver": "dynamic_workflow",
+    "source": "host",
+    "model": "sonnet",
     "reasoning_effort": "high",
     "option_source": "plan_provider_options"
   },
@@ -409,20 +404,7 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
 }
 ```
 
-For a Claude-hosted cc-codex write mission, use the same worker shape with `workspace_mode: "app_managed_worktree"`, `task_thread_id: null`, and this binding:
-
-```json
-{
-  "provider": "codex",
-  "driver": "external_codex_agent",
-  "source": "external_agent",
-  "model": null,
-  "reasoning_effort": null,
-  "option_source": "provider_default"
-}
-```
-
-Leave model and effort null unless the user explicitly selected them in the PLAN provider options. During allocation, `worktree_path` and `branch_ref` may be null. Fill them only after the marked runtime evidence is independently verified. `worker_head_sha` stays null until the parent verifies the reported commit.
+Leave model and effort null unless the user explicitly selected them in the PLAN provider options. During allocation, `worktree_path` and `branch_ref` may be null. Fill them only after the runtime returns and the parent independently verifies them. `worker_head_sha` stays null until the parent verifies the reported commit.
 
 Worker phases are `leased`, `worker_running`, `worker_passed`, `blocked`, `worker_failed`, and `superseded`. An `attempt_log` entry records `attempt_id`, `mission_id`, nullable `task_id` and `lease_id`, `kind`, `result`, and an `evidence` array. Keep observations such as timestamps inside RUN for audit only; selection output remains timestamp-free.
 
@@ -442,9 +424,9 @@ Each `review_workers` entry uses this exact read-only shape:
   "completion_channel": "agent_result",
   "runtime_binding": {
     "provider": "claude_code",
-    "driver": "external_dynamic_workflow",
-    "source": "external_bridge",
-    "model": "claude-fable-5",
+    "driver": "dynamic_workflow",
+    "source": "host",
+    "model": "sonnet",
     "reasoning_effort": "xhigh",
     "option_source": "plan_provider_options"
   },
@@ -456,7 +438,7 @@ Each `review_workers` entry uses this exact read-only shape:
 
 The matching successful node result puts exactly `reviewed_sha`, `findings`, and `evidence_summary` inside `worker_result`. The reviewed SHA must match the active review worker.
 
-Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node attempts to actual outer Claude Code Workflow executions. For external Claude, call `claude_runtime_bridge.py run-wave` with the canonical PLAN, RUN, and immutable wave request paths; the bridge revalidates current state, authorization, worker bindings, and checkout HEAD before launch. For cc-codex, record the outer Workflow that calls `codex:codex-rescue`; do not record an unavailable inner Codex thread. Add an entry only when the runtime returns a real non-empty workflow run ID; never invent one. Running entries bind every node ID to its active attempt ID and must match the current plan, graph, runtime policy, and batch base. Completed historical entries remain as evidence after later graph revisions and do not require their superseded nodes to remain in the current PLAN.
+Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node attempts to actual outer Claude Code Workflow executions. Invoke the Claude Code `Workflow` tool with the canonical PLAN, RUN, and immutable wave request; the parent revalidates current state, authorization, worker bindings, and checkout HEAD before launch. Add an entry only when the runtime returns a real non-empty workflow run ID; never invent one. Running entries bind every node ID to its active attempt ID and must match the current plan, graph, runtime policy, and batch base. One entry may cover node IDs with different resolved models and reasoning efforts; each node's own `model`/`reasoning_effort` still lives on its `workers[]`/`review_workers[]` `runtime_binding`, not on the `workflow_runs` entry. Completed historical entries remain as evidence after later graph revisions and do not require their superseded nodes to remain in the current PLAN.
 
 ```json
 {
@@ -476,8 +458,6 @@ Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node a
   },
   "provider": "claude_code",
   "driver": "dynamic_workflow",
-  "model": "claude-fable-5",
-  "reasoning_effort": "high",
   "tool_profile": "mission_write",
   "status": "running",
   "result_evidence": [],
@@ -488,9 +468,7 @@ Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node a
 }
 ```
 
-For a cc-codex wave, use the same entry with `provider: "codex"`, `driver: "external_codex_agent"`, `script_path` set to `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js`, and model/effort copied from the shared option resolver. They are null for provider defaults and non-null only when the user explicitly selected them in PLAN. The workflow and task IDs are the outer Claude identities.
-
-Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. Group external runtime nodes by provider, model, effort, and tool profile. External Claude mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. cc-codex write missions instead use Agent `isolation: "worktree"`; read-only cc-codex reviews do not request write isolation. Both review profiles remain read-only. Visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted and added to the profile implementation.
+Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. Group Claude Dynamic Workflow nodes by tool profile only; model and reasoning effort travel with each node's own `agent()` call, so one wave may mix them freely. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review profiles remain read-only. Visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted and added to the profile implementation.
 
 For an enabled app-task nested policy, use `max_children` from 1 to 3 and a non-empty subset of the runtime `allowed_roles`. The app task stays the only writer. A non-trivial mission launches at least one eligible read-only lane and records the resulting child activity in WORKER_RESULT; a skip is valid only for a trivial mission, unavailable runtime/slots, or no safe independent lane. When capability is initially unknown, keep the task at a no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy` and matching `subagent_activity`.
 

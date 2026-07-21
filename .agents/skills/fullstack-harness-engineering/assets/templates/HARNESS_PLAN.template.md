@@ -200,7 +200,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
                 "reasoning_effort": "xhigh"
               },
               "claude_code": {
-                "model": "claude-fable-5",
+                "model": "sonnet",
                 "reasoning_effort": "high"
               }
             }
@@ -230,7 +230,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
                 "reasoning_effort": "medium"
               },
               "claude_code": {
-                "model": "claude-fable-5",
+                "model": "sonnet",
                 "reasoning_effort": "medium"
               }
             }
@@ -274,7 +274,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
                 "reasoning_effort": "medium"
               },
               "claude_code": {
-                "model": "claude-fable-5",
+                "model": "sonnet",
                 "reasoning_effort": "medium"
               }
             }
@@ -438,7 +438,7 @@ For each `runtime_worker` node, Plan Mode chooses the allowed and preferred prov
 
 Every schema-v4 source must bind the frozen input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. Recompute the PLAN digest whenever source content or its immutable upstream revision changes.
 
-For frontend/UI implementation, set Claude to the pinned `claude-fable-5` ID with `high` reasoning and use Codex `gpt-5.6-sol` with `xhigh` reasoning as the availability fallback. Routine `frontend_code` and visual-review nodes use the same models with `medium` reasoning unless the recorded review risk justifies a higher effort. These role-specific options replace the generic fallback on those nodes.
+For frontend/UI implementation, use Codex `gpt-5.6-sol` with `xhigh` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model (such as `claude-fable-5` or `claude-opus-4-8`) for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
 
 For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews, bind to one exact reviewed SHA in RUN, and route `fix_required` back to the matching bounded repair path. Combine reviews only when the scope is genuinely single-surface and record why.
 

@@ -71,16 +71,25 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("The delivery core makes one size decision", readme)
 
-    def test_external_claude_bridge_is_preflighted_on_demand(self) -> None:
-        skill = self.read_sibling_skill("fullstack-harness-codex")
+    def test_provider_mismatch_is_blocked_not_bridged(self) -> None:
+        codex_skill = self.read_sibling_skill("fullstack-harness-codex")
+        claude_skill = self.read_sibling_skill("fullstack-harness-claude-code")
         research = self.read("references/orchestration-research-notes.md")
-        agent = self.read_sibling_agent("fullstack-harness-codex")
 
-        self.assertIn("Do not probe an external runtime merely because it may be available", skill)
-        self.assertIn("Preflight Claude before selection only when a ready PLAN node needs that route", skill)
-        self.assertIn("Do not probe an external runtime merely because it may be available", skill)
-        self.assertIn("does not preflight Claude merely because its CLI is installed", research)
-        self.assertIn("preflight external Claude only when a ready PLAN node needs it", agent)
+        self.assertIn("## Provider Boundary", codex_skill)
+        self.assertIn("## Provider Boundary", claude_skill)
+        self.assertIn("There is no mechanism in this adapter to invoke Claude Code", codex_skill)
+        self.assertIn("There is no mechanism in this adapter to invoke Codex", claude_skill)
+        self.assertIn(
+            "do not attempt to launch it and do not probe for a Claude Code CLI, binary, or plugin as a substitute route",
+            codex_skill,
+        )
+        self.assertIn(
+            "do not attempt to launch it and do not probe for an installed Codex CLI or plugin as a substitute route",
+            claude_skill,
+        )
+        self.assertIn("there is no cross-host preflight, no bridged process, and no declared fallback", research)
+        self.assertIn("blocked on provider mismatch rather than probing or launching the other runtime", research)
 
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-codex")
@@ -299,17 +308,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Builder approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)
 
-    def test_schema_v4_graph_and_external_claude_bridge_are_first_class(self) -> None:
+    def test_schema_v4_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         workflow = self.read("assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js")
-        preflight = self.read("assets/templates/CLAUDE_RUNTIME_PREFLIGHT.template.js")
-        bridge = self.read("scripts/claude_runtime_bridge.py")
         selector = self.read("scripts/select_ready_nodes.py")
 
-        for content in (skill, graph, run):
+        for content in (skill, run):
             self.assertIn("invoke_external_runtime", content)
         self.assertIn('"schema_version": 4', plan)
         self.assertIn('"schema_version": 9', run)
@@ -317,15 +324,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("dependency", graph)
         self.assertIn("max_traversals", graph)
         self.assertIn("pipeline(workflowArgs.nodes", workflow)
-        self.assertIn("protocol_version", preflight)
-        self.assertIn("await pipeline(", preflight)
-        self.assertIn("external_dynamic_workflow", selector)
         self.assertIn("tool_profile", selector)
         self.assertIn('"workflow_runs"', run)
         self.assertIn("mission_write", run)
         self.assertIn("EnterWorktree", workflow)
-        self.assertIn("TOOL_PROFILE_REQUIREMENTS", bridge)
-        self.assertIn("--allowedTools", bridge)
 
     def test_plan_provider_options_bind_worker_models(self) -> None:
         skill = "\n".join(
@@ -340,11 +342,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         selector = self.read("scripts/select_ready_nodes.py")
-        bridge = self.read("scripts/claude_runtime_bridge.py")
 
         self.assertIn('"provider_options"', plan)
         self.assertIn('"preferred_provider": "claude_code"', plan)
-        self.assertGreaterEqual(plan.count('"model": "claude-fable-5"'), 3)
+        # A delegated Claude Code node never defaults above sonnet: the pinned
+        # top-tier model is reserved for the parent's own coordination/planning,
+        # not assigned to any worker/review node by default.
+        self.assertGreaterEqual(plan.count('"model": "sonnet"'), 3)
         self.assertGreaterEqual(plan.count('"model": "gpt-5.6-sol"'), 3)
         self.assertIn("gpt-5.6-terra", skill)
         self.assertIn('"reasoning_effort": "high"', plan)
@@ -363,9 +367,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "routine `frontend_code` review uses `claude-fable-5` with `medium`",
+            "routine `frontend_code`, `backend_code`, and visual review use `sonnet` with `medium` effort",
             skill,
         )
+        self.assertIn("reserve", skill.lower())
         for content in (skill, graph, plan):
             self.assertIn("claude-fable-5", content)
             self.assertIn("gpt-5.6-sol", content)
@@ -373,12 +378,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("workers[].runtime_binding", state)
         self.assertIn("task creation `model` and `thinking`", run)
         self.assertIn('"runtime_binding": binding', selector)
-        self.assertIn("PLAN-selected wave model", bridge)
 
     def test_verification_policy_selects_and_reuses_only_exact_focused_checks(self) -> None:
         skill = self.read("SKILL.md")
         verification = self.read("references/verification-gates.md")
-        graph = self.read("references/graph-orchestration.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
@@ -392,8 +395,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("real cross-mission", verification)
         self.assertIn("broad regression, browser E2E", skill)
         self.assertIn("after exact-SHA code review and repair loops converge", plan)
-        self.assertIn("A failed forced refresh revokes stale disk reuse", graph)
-        self.assertIn("Do not retry an ambiguous production Workflow", run)
 
     def test_schema_v9_closes_only_with_real_ui_evidence(self) -> None:
         skill = self.read("SKILL.md")
