@@ -118,9 +118,9 @@ PLAN runtime policy declares `allowed_providers`, an optional `preferred_provide
 Use this Plan Mode order. A delegated Claude Code node never defaults above `sonnet`: reserve any stronger pinned Claude model (for example `claude-fable-5` or `claude-opus-4-8`) for the parent's own coordination and planning, not for a node the parent hands off.
 
 1. Preserve an explicit user-selected provider, model, or reasoning effort.
-2. For high-risk architecture, security, migration, difficult debugging, difficult correctness, or final synthesis, choose the strongest suitable observed Codex option and higher reasoning; for a delegated Claude Code node, raise reasoning effort to `high` or `xhigh` while keeping the model at `sonnet`.
-3. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning; keep Claude Code `sonnet` as the availability fallback.
-4. Frontend/UI implementation prefers Codex `gpt-5.6-sol` with `xhigh` reasoning; a delegated Claude Code node still defaults to `sonnet` with `high` reasoning rather than a stronger pinned model.
+2. For high-risk architecture, security, migration, difficult debugging, difficult correctness, or final synthesis, raise reasoning effort to `xhigh` for the chosen Codex or Claude Code option while keeping a delegated Claude Code node's model at `sonnet`.
+3. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning; keep Claude Code `sonnet` with `high` reasoning as the availability fallback.
+4. Frontend/UI implementation prefers Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet` with `high` reasoning rather than a stronger pinned model.
 5. Choose review effort from risk. Routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`; routine `frontend_code` and visual review use Claude Code `sonnet` with `medium`. Raise review effort to `high` or `xhigh` only for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment — the Claude Code model itself stays `sonnet`.
 6. For bounded mechanical edits, discovery, or inexpensive preflight work, prefer a fast model with low or medium reasoning.
 7. When the current catalog or destination support is not observed, leave Codex values null for the host default or use Claude's portable `sonnet` default. Do not invent a model identifier.
