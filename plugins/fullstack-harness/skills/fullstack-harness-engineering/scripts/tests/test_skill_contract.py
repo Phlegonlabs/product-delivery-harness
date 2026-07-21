@@ -413,6 +413,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("SHA-256", content)
             self.assertIn("docs/goal/evidence/", content)
 
+    def test_bootstrap_seeds_agents_and_claude_governance_templates(self) -> None:
+        skill = self.read("SKILL.md")
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
+
+        self.assertIn("PROJECT_CLAUDE.template.md", skill)
+        self.assertIn("## Core Development Principles", project_agents)
+        self.assertIn("## Core Development Principles", project_claude)
+
 
 if __name__ == "__main__":
     unittest.main()

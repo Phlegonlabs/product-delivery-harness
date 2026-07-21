@@ -1,5 +1,40 @@
 # Project Rules
 
+## Core Development Principles
+
+### Keep It Simple (KISS / YAGNI)
+
+- Only do what's asked. No unrequested features, fallbacks, or "future-proof" abstractions.
+- Prefer the simplest thing that works. Don't over-engineer.
+- Don't "improve" code you weren't asked to touch.
+
+### No Backwards-Compatibility Code
+
+- Don't add hacks, shims, or dual-path logic for compatibility unless explicitly asked.
+- If something needs changing, change it directly. Don't preserve old interfaces.
+- Delete dead code. Don't comment it out to "keep it around."
+
+### Surgical Changes
+
+- Make the smallest change possible. One goal per change.
+- Only remove imports and variables your own edit orphaned.
+- Avoid wide refactors unless you can prove they're safe.
+- Keep diffs reviewable and easy to roll back.
+
+### Think Before Coding
+
+- Propose a plan and approach for review before writing code.
+- Define clear acceptance criteria and a test plan.
+
+### Verify First
+
+- Every change must be verifiable (tests, scripts, output). If you can't verify it, don't ship it.
+- For bug fixes, write or update a regression test before changing implementation.
+
+### Do-Not-Touch Areas
+
+- (List protected files here, e.g. database migrations, public API response shapes)
+
 ## Protect Local Data
 
 - Preserve unrelated dirty files, branches, and worktrees.

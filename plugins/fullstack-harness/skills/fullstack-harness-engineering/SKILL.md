@@ -91,6 +91,7 @@ worktree workers      -> temporary per-mission reports only while integration ne
 - A compact `RUN.md` without `PLAN.md` is sequential: one parent writer in `shared_checkout`, no leases, worktree fan-out, or deterministic wave claim.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
+- On first bootstrap of a new target repository, seed a missing root `AGENTS.md` from `assets/templates/PROJECT_AGENTS.template.md` and a missing root `CLAUDE.md` from `assets/templates/PROJECT_CLAUDE.template.md`. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
 
 ## Shared Validation Tools
 
