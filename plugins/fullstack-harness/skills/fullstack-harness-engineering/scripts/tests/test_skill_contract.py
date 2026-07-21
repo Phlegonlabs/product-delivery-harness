@@ -190,6 +190,14 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("CI and review are independent sibling gates", state)
         self.assertIn("Poll both gates concurrently", project_rules)
 
+    @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
+    def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:
+        repository_rules = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+        self.assertIn("request Codex review immediately after creation", repository_rules)
+        self.assertIn("Observe current-head CI and review concurrently", repository_rules)
+        self.assertIn("poll both gates concurrently", repository_rules)
+
     def test_plan_readiness_requests_review_and_merge_once(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-github-landing")
         state = self.read("references/execution-state-model.md")
