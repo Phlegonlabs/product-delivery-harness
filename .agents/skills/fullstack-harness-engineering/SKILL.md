@@ -30,7 +30,14 @@ small -> direct inspect -> implement -> local verify -> review -> authorized Git
 large -> planner -> readiness -> sequential execution or scheduler when parallel work is useful
 ```
 
+When small work touches a frontend/UI surface, insert a bounded UI review between local verify and review:
+
+```text
+... -> local verify -> UI review -> repair highest-impact failure -> recheck -> review -> ...
+```
+
 - Small work creates no PLAN/RUN files, performs no scheduler or worker-capability scan, launches no subagent by default, and does not preflight an external runtime.
+- When small work touches a frontend/UI surface, run one bounded critique-repair-recheck cycle before the final review, the same shape `design-package-builder` already uses for its own package (`references/output-contract.md`'s TEST-VIS-011/012): when a rendered view or screenshot exists, critique required breakpoints against the product's `design-package-builder` output (or the anti-slop guardrails in `../design-package-builder/references/visual-decision-guide.md` when no design package exists for this product), repair the single highest-impact failure, and recheck; otherwise fall back to a text-only review of the actual markup/styles against the same guardrails and record that no visual-verification claim is made. Do not retry the same failed approach more than twice; after two repair attempts, stop and report the remaining gap to the user instead of looping further.
 - Large work enters the workflow below. Planning does not imply parallel execution.
 - Enable scheduler fan-out only when there are at least two dependency-ready, nonconflicting missions and every isolation, capacity, permission, and action gate passes.
 - A ready node is executable here only when its `allowed_providers` includes the current host adapter's provider; a declared `preferred_provider` affects only which allowed provider is chosen, it does not gate executability by itself. There is no cross-host fallback: a node whose `allowed_providers` excludes the running host is simply not executable here and is reported blocked on provider mismatch.
