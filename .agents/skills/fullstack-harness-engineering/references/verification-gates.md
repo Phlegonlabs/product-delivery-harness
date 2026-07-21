@@ -49,6 +49,8 @@ Final/current-head gate:
 
 - Runs broad regression, browser E2E, visual/UI evidence, and release gates only after local code-review and repair loops converge.
 - Binds every PASS to the exact integration or PR head. Any later code or configuration change invalidates the affected proof.
+- Local-only delivery ends on this local evidence and never waits for GitHub CI or GitHub review.
+- For an explicitly requested pull-request landing, push only the final verified candidate, then run or observe current-head CI and current-head Codex review concurrently. They are sibling gates; merge still requires both to pass on the same SHA.
 
 E2E gate:
 

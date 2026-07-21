@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing, retries, graph traces, or mixed Codex and Claude execution.
+Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing, retries, or graph traces.
 
 ## Contents
 
@@ -10,7 +10,6 @@ Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing,
 - Dependency and route edges
 - Readiness and outcomes
 - Runtime binding
-- Claude external runtime
 - Retry and replay
 - Validation and integration
 
@@ -114,66 +113,33 @@ The selector first computes the logical graph frontier, then resolves runtime bi
 
 ## Runtime Binding
 
-PLAN runtime policy declares `allowed_providers`, an optional `preferred_provider`, and optional `provider_options` keyed by an allowed provider. Plan Mode chooses these values from mission complexity, latency/cost needs, and the user's explicit model preference. Codex and Claude Code options contain `model` plus a nullable `reasoning_effort`; keep effort null when the provider default is intentional. Model names are portable strings because the destination host remains authoritative for its current catalog. RUN records the actual host and observed external runtimes. A provider, model, or effort preference is not proof that the destination supports it.
+PLAN runtime policy declares `allowed_providers`, an optional `preferred_provider`, and optional `provider_options` keyed by an allowed provider. Plan Mode chooses these values from mission complexity, latency/cost needs, and the user's explicit model preference. Codex and Claude Code options contain `model` plus a nullable `reasoning_effort`; keep effort null when the provider default is intentional. Model names are portable strings because the destination host remains authoritative for its current catalog. RUN records the actual host and its observed capabilities. A provider, model, or effort preference is not proof that the destination supports it.
 
-Use this Plan Mode order:
+Use this Plan Mode order. A delegated Claude Code node never defaults above `sonnet`: reserve any stronger pinned Claude model (for example `claude-fable-5` or `claude-opus-4-8`) for the parent's own coordination and planning, not for a node the parent hands off.
 
 1. Preserve an explicit user-selected provider, model, or reasoning effort.
-2. For high-risk architecture, security, migration, difficult debugging, difficult correctness, or final synthesis, choose the strongest suitable observed option and higher reasoning.
+2. For high-risk architecture, security, migration, difficult debugging, difficult correctness, or final synthesis, choose the strongest suitable observed Codex option and higher reasoning; for a delegated Claude Code node, raise reasoning effort to `high` or `xhigh` while keeping the model at `sonnet`.
 3. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `xhigh` reasoning; keep Claude Code `sonnet` as the availability fallback.
-4. Frontend/UI implementation uses the pinned Claude model `claude-fable-5` with `high` reasoning and Codex `gpt-5.6-sol` with `xhigh` reasoning as the availability fallback.
-5. Choose review effort from risk. Routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`; routine `frontend_code` review uses `claude-fable-5` with `medium`; routine visual review uses `claude-fable-5` with `medium`. Raise review effort to `high` or `xhigh` only for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment.
+4. Frontend/UI implementation prefers Codex `gpt-5.6-sol` with `xhigh` reasoning; a delegated Claude Code node still defaults to `sonnet` with `high` reasoning rather than a stronger pinned model.
+5. Choose review effort from risk. Routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`; routine `frontend_code` and visual review use Claude Code `sonnet` with `medium`. Raise review effort to `high` or `xhigh` only for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment — the Claude Code model itself stays `sonnet`.
 6. For bounded mechanical edits, discovery, or inexpensive preflight work, prefer a fast model with low or medium reasoning.
 7. When the current catalog or destination support is not observed, leave Codex values null for the host default or use Claude's portable `sonnet` default. Do not invent a model identifier.
 
-These are planning decisions, not execution authorization. Keep different model choices on different nodes when their work differs; do not raise every worker to the parent task's reasoning level by default.
+These are planning decisions, not execution authorization. Keep different reasoning-effort choices on different nodes when their work differs; do not raise every worker to the parent task's reasoning level by default.
 
 For a runtime worker, select deterministically:
 
-1. preferred allowed provider when available;
+1. preferred allowed provider when it matches the current host provider;
 2. current host provider when allowed;
-3. another observed allowed external provider;
-4. otherwise defer with `runtime_unavailable`.
+3. otherwise defer with `runtime_unavailable`: a node whose allowed/preferred providers do not include the current host is not executable on this host, with no cross-host fallback.
 
-After choosing a provider, the selector binds that provider's PLAN options. If none were declared, Codex keeps null model/effort values for the host default and Claude production waves use `sonnet`. Every launch directive includes the complete binding and the parent copies it to the allocated RUN mission or review worker. Codex task creation maps non-null `model` and `reasoning_effort` to `model` and `thinking`. Claude nodes are grouped into one wave per selected model and effort; the immutable wave request carries both, and the bridge passes non-null effort with `--effort`. A bridge CLI model override must match the PLAN-selected model.
+After choosing a provider, the selector binds that provider's PLAN options. If none were declared, Codex keeps null model/effort values for the host default and Claude production waves use `sonnet`. Every launch directive includes the complete binding (`runtime_binding.model`, `.reasoning_effort`) and the parent copies it to the allocated RUN mission or review worker. Codex task creation maps non-null `model` and `reasoning_effort` to `model` and `thinking`. A Claude Code host passes each node's own `model` (and non-null `reasoning_effort` as `effort`) directly into that node's `agent()` call inside the Workflow script — one Workflow call may freely mix models and reasoning efforts across its nodes, since selection happens per spawned agent, not per wave.
 
-Codex app threads, Claude Dynamic Workflow, the external-Claude bridge, and the cc-codex Agent route remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
+Codex app threads and Claude Dynamic Workflow remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
 
-Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group external Claude waves by model, reasoning effort, and tool profile. Every profile uses an exact allowlist. Mission profiles require `EnterWorktree` and the bounded write tools. Review profiles require `EnterWorktree` to bind reads to the validated `review_path`, but omit `Edit`, `Write`, `NotebookEdit`, and `Bash`; visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted in the bridge.
+Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group Claude waves by tool profile only; model and reasoning effort do not require separate waves since each node's `agent()` call already carries its own. Every profile uses an exact allowlist. Mission profiles require `EnterWorktree` and the bounded write tools. Review profiles require `EnterWorktree` to bind reads to the validated `review_path`, but omit `Edit`, `Write`, `NotebookEdit`, and `Bash`; visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted for the Claude Code host.
 
 Current Claude Code workflow agents inherit the outer allowlist, so the outer process's required `Workflow` permission is also visible to mission agents. The flat no-delegation rule is therefore enforced by the mission contract, structured result, scope/Git validation, and rejection of unplanned child work rather than by removing the `Workflow` tool from the child. Record this runtime limitation; do not claim permission-level delegation prevention.
-
-## Claude External Runtime
-
-When Codex remains the parent and Claude Code is a worker provider:
-
-1. Run `scripts/claude_runtime_bridge.py preflight` with the no-edit preflight workflow. Capability preflight defaults to `haiku`. Production uses the PLAN-selected wave model and defaults to `sonnet` only when PLAN omits a Claude option. Pass one explicit repository-external `--session-cache-root` for the harness session. The bridge reuses only an exact successful preflight bound to executable identity, CLI version, script digest, protocol, model, OS, and architecture.
-2. Record an available external runtime only after the Workflow tool executes the protocol-v1 script or the bridge returns an exact session cache hit. A cache hit proves capability only. A failed forced refresh revokes stale disk reuse for that executable/script/model scope; invoke it as `preflight --force-refresh`. A later fresh PASS replaces the stale entry and restores exact disk reuse. Do not automatically retry an ambiguous production Workflow launch; force-refresh capability only after the parent proves no production workflow was created, then follow the normal attempt policy.
-3. Require `invoke_external_runtime` for `runtime:claude_code` in addition to `spawn_subagents`. Write missions also require their normal worktree, branch, and commit actions; read-only review nodes do not.
-4. Select ready Claude nodes. Allocate worktrees, branches, leases, and attempt IDs for write missions. Allocate a `review_workers[]` record with exact SHA, path, scope, and attempt ID for reviews.
-5. Build one immutable wave request and call `claude_runtime_bridge.py run-wave --plan <PLAN.md> --run <RUN.md> --request <wave.json>`. PLAN and RUN paths are required; the request alone is not launch authority.
-6. Before invoking Claude, the bridge reloads and validates canonical PLAN/RUN state, current graph attempts, leases or review workers, exact action authorizations, permission boundary, runtime policy, and checkout HEAD. It then invokes `CLAUDE_GRAPH_WORKFLOW.template.js`; Claude agents use only assigned worktrees and return one node result per node. The outer Claude session must emit exactly one `Workflow` call and no other tool calls, followed in order by one local Workflow result and the final wrapper. The bridge matches its task ID, run ID, script path, error, and exact tool arguments to the final wrapper before accepting the results. Record the verified run/task IDs, script digest, node group, runtime options, tool profile, and status in optional RUN `workflow_runs` state.
-7. Validate the wrapper with `validate_node_result.py`. Then validate mission worker payloads and observed Git facts with the existing worker validator, or validate review findings against the recorded review attempt and reviewed SHA. Every node result repeats run and batch-base identity.
-8. Integrate accepted commits serially and update RUN before routing another edge.
-
-The outer Claude process and workflow agents inherit the supplied tool allowlist. Never use a broad permission bypass as a connectivity shortcut. A preflight proves only runtime availability; it does not authorize a production wave.
-
-When the user explicitly selected Claude Code full access and RUN records a ready `full_access` boundary, set the wave request `permission_mode` to `bypassPermissions`. The bridge emits `--dangerously-skip-permissions` while retaining the explicit tool allowlist. Do not invoke a local shell function such as `CC` through a shell; resolve the Claude executable directly and reproduce the recorded permission semantics without shell expansion.
-
-## Codex External Runtime
-
-When Claude Code remains the parent and Codex is a worker provider:
-
-1. Record the observed cc-codex plugin metadata as an `unknown` external runtime without treating files or a version alone as proof of availability. An `unavailable` record cannot preflight. When a ready write mission prefers or requires Codex, run `validate_codex_wave.py --mode preflight`. It requires exact `invoke_external_runtime` coverage for `runtime:codex`, `spawn_subagents` coverage for `worker:preallocation`, and explicit `*` worktree/branch allocation grants, then emits the complete preflight arguments.
-2. Invoke `CLAUDE_CODEX_PREFLIGHT.template.js` only with that guard output. It makes one isolated read-only foreground call to `agentType: "codex:codex-rescue"` with `--wait --fresh` and accepts only the exact marker contract. Only then record `provider: codex`, `driver: codex_rescue_agent`, `command: agent:codex:codex-rescue`, `contract_version: harness-node-result-v1`, `completion_channel: agent_result`, the observed plugin version, and preflight evidence as available.
-3. Select ready write missions with `driver: external_codex_agent` and `source: external_agent`. External Codex reviews are disabled in v1; choose another allowed provider or defer. Keep model and effort null unless PLAN explicitly selected safe values.
-4. Allocate the active attempt, lease, and worker identity while leaving `worktree_path` and `branch_ref` null. Require exact `invoke_external_runtime` and worker authorization plus explicit `*` allocation targets for `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`. Agent isolation assigns the concrete worktree and branch at launch. This route does not require `create_user_owned_tasks`.
-5. Run `validate_codex_wave.py --mode wave` immediately before launch and invoke `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js` only with its canonical JSON. The flat workflow uses `pipeline()` and launches one isolated `codex:codex-rescue` Agent per mission with `--wait --fresh`. Codex verifies its initial HEAD before editing, stays on the assigned branch, creates durable attributed task commits, does not delegate further, and never edits PLAN/RUN, integrates, pushes, opens a PR, deploys, or cleans up.
-6. Require exactly one `HARNESS_NODE_RESULT_V1_BEGIN` / `HARNESS_NODE_RESULT_V1_END` pair around an envelope containing `node_result` and `runtime_evidence`. Missing, duplicate, malformed, or identity-mismatched output becomes a deterministic failed or blocked candidate. One failed node does not cancel successful siblings.
-7. Validate typed node identity, then independently verify commit existence, base ancestry, exact changed files, scope and deny rules, PLAN/RUN exclusion, task commit attribution, verifier evidence, and retained worktree repository/branch/head facts. Record the verified runtime-assigned path/ref in RUN and bind `validate_worker_result.py` to the parent-observed path, branch, and Git common-directory check. A successful Agent or Workflow result alone never satisfies a graph dependency.
-8. Integrate accepted commits serially, run the integration gate, update RUN, and recompute the frontier. A retry creates a new graph attempt and always uses `--fresh`.
-
-The outer Claude Workflow run/task ID is the available runtime identity. The cc-codex foreground contract does not expose the inner Codex thread ID, so leave it null and do not invent, poll, resume, or cancel it. Preserve failed and cancelled worktree evidence. The Harness must not call private cc-codex status/result/cancel commands or add a duplicate Codex App Server client.
 
 ## Retry And Replay
 

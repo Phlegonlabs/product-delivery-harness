@@ -1,0 +1,6 @@
+interface:
+  display_name: "Harness GitHub Landing"
+  short_description: "Land a verified final head through GitHub"
+  default_prompt: "Use $fullstack-harness-github-landing only for an explicitly requested and authorized remote outcome. Finish local verification first, push the final candidate head, run current-head GitHub Actions and Codex review concurrently, and merge only after both pass on the same SHA with an exact-head guard."
+policy:
+  allow_implicit_invocation: true

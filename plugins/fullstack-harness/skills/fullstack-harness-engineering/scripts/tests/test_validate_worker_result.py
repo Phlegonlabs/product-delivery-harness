@@ -6,7 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 
@@ -326,9 +326,6 @@ def validate(
     observed_files: list[str] | None = None,
     observed_head: str = HEAD_SHA,
     ancestry: bool = True,
-    observed_worktree_path: str | None = None,
-    observed_branch_ref: str | None = None,
-    git_common_dir_confirmed: bool = False,
 ) -> list[dict[str, str]]:
     return subject.validate_worker_result_data(
         plan,
@@ -337,9 +334,6 @@ def validate(
         observed_head_sha=observed_head,
         observed_changed_files=[CHANGED_FILE] if observed_files is None else observed_files,
         ancestry_confirmed=ancestry,
-        observed_worktree_path=observed_worktree_path,
-        observed_branch_ref=observed_branch_ref,
-        git_common_dir_confirmed=git_common_dir_confirmed,
     )
 
 
@@ -499,135 +493,34 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, run, self.result)
         self.assertIn("commit_not_authorized", error_codes(errors))
 
-    def test_external_codex_handoff_rechecks_launch_authorizations(self) -> None:
-        run = copy.deepcopy(self.run)
-        worker = run["workers"][0]
-        worker.update(
-            {
-                "workspace_mode": "app_managed_worktree",
-                "runtime_binding": {
-                    "provider": "codex",
-                    "driver": "external_codex_agent",
-                    "source": "external_agent",
-                    "model": None,
-                    "reasoning_effort": None,
-                    "option_source": "provider_default",
-                },
-                "task_thread_id": None,
-            }
-        )
-        run["observed"]["git"]["worktrees"][0]["managed_by"] = "app"
-        targets = {
-            "invoke_external_runtime": "runtime:codex",
-            "spawn_subagents": "worker:W1",
-            "create_app_managed_worktrees": "worktree:/tmp/worker-m1",
-            "create_local_branches": f"branch:{BRANCH_REF}",
-        }
-        for action, target in targets.items():
-            run["authorizations"][action] = authorization(
-                action, enabled=True, target=target
-            )
-        observations = {
-            "observed_worktree_path": "/tmp/worker-m1",
-            "observed_branch_ref": BRANCH_REF,
-            "git_common_dir_confirmed": True,
-        }
-        result = copy.deepcopy(self.result)
-        result["subagent_activity"] = {
-            "status": "not_applicable",
-            "skip_reason": "external_codex_agent uses flat parent orchestration",
-            "children": [],
-        }
-        self.assertEqual(validate(self.plan, run, result, **observations), [])
-
-        missing_activity = copy.deepcopy(result)
-        del missing_activity["subagent_activity"]
-        errors = validate(self.plan, run, missing_activity, **observations)
-        self.assertTrue(
-            any(
-                error["code"] == "missing_field"
-                and error["path"] == "worker_result.subagent_activity"
-                for error in errors
-            )
-        )
-
-        wrong_activity = copy.deepcopy(result)
-        wrong_activity["subagent_activity"]["skip_reason"] = "nested work was skipped"
-        errors = validate(self.plan, run, wrong_activity, **observations)
-        self.assertTrue(
-            any(
-                error["code"] == "invalid_value"
-                and error["path"] == "worker_result.subagent_activity"
-                for error in errors
-            )
-        )
-
-        for action in targets:
-            with self.subTest(action=action):
-                unauthorized = copy.deepcopy(run)
-                unauthorized["authorizations"][action] = authorization(
-                    action, enabled=False
-                )
-                errors = validate(self.plan, unauthorized, result, **observations)
-                self.assertIn("external_launch_not_authorized", error_codes(errors))
-                self.assertTrue(
-                    any(
-                        error["path"] == f"harness_run.authorizations.{action}"
-                        for error in errors
-                    )
-                )
-
-    def test_external_codex_handoff_requires_parent_observed_allocation(self) -> None:
-        run = copy.deepcopy(self.run)
-        worker = run["workers"][0]
-        worker.update(
-            {
-                "workspace_mode": "app_managed_worktree",
-                "runtime_binding": {
-                    "provider": "codex",
-                    "driver": "external_codex_agent",
-                    "source": "external_agent",
-                    "model": None,
-                    "reasoning_effort": None,
-                    "option_source": "provider_default",
-                },
-                "task_thread_id": None,
-            }
-        )
-        run["observed"]["git"]["worktrees"][0]["managed_by"] = "app"
-        for action, target in {
-            "invoke_external_runtime": "runtime:codex",
-            "spawn_subagents": "worker:W1",
-            "create_app_managed_worktrees": "worktree:/tmp/worker-m1",
-            "create_local_branches": f"branch:{BRANCH_REF}",
-        }.items():
-            run["authorizations"][action] = authorization(
-                action, enabled=True, target=target
-            )
-
-        missing = validate(self.plan, run, self.result)
-        self.assertTrue(
-            {
-                "observed_worktree_missing",
-                "observed_branch_missing",
-                "git_common_dir_unconfirmed",
-            }.issubset(error_codes(missing))
-        )
-
-        mismatched = validate(
-            self.plan,
-            run,
-            self.result,
-            observed_worktree_path="/tmp/different",
-            observed_branch_ref="refs/heads/codex/different",
-            git_common_dir_confirmed=True,
-        )
-        self.assertTrue(
-            {
-                "observed_worktree_mismatch",
-                "observed_branch_mismatch",
-            }.issubset(error_codes(mismatched))
-        )
+    def test_cli_no_longer_accepts_removed_external_codex_observation_flags(self) -> None:
+        # The guarded external-Codex handoff (and its parent-observed
+        # worktree/branch/git-common-dir reconciliation) is fully removed:
+        # the CLI must reject these now-unknown flags rather than silently
+        # accepting and ignoring them.
+        parser = subject._parser()
+        for flag, value in (
+            ("--observed-worktree-path", "/tmp/worker-m1"),
+            ("--observed-branch-ref", BRANCH_REF),
+            ("--git-common-dir-confirmed", None),
+        ):
+            with self.subTest(flag=flag):
+                argv = [
+                    "--plan",
+                    "PLAN.md",
+                    "--run",
+                    "RUN.md",
+                    "--result",
+                    "REPORT.md",
+                    "--observed-head-sha",
+                    HEAD_SHA,
+                    flag,
+                ]
+                if value is not None:
+                    argv.append(value)
+                with self.assertRaises(SystemExit):
+                    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                        parser.parse_args(argv)
 
     def test_unknown_result_field_is_rejected(self) -> None:
         result = copy.deepcopy(self.result)

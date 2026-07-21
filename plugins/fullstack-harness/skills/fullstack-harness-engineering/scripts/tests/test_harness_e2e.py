@@ -258,21 +258,9 @@ class HarnessCliE2ETests(unittest.TestCase):
                 }
             )
             run["runtime_capabilities"]["runtime_adapter"] = {
-                "provider": "claude_code",
-                "available_drivers": ["dynamic_workflow", "subagents", "sequential_parent"],
+                "provider": "codex",
+                "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
-                "external_runtimes": [
-                    {
-                        "provider": "codex",
-                        "driver": "codex_rescue_agent",
-                        "status": "available",
-                        "command": "agent:codex:codex-rescue",
-                        "version": "1.0.4",
-                        "contract_version": "harness-node-result-v1",
-                        "completion_channel": "agent_result",
-                        "evidence": ["test preflight"],
-                    }
-                ],
             }
             run["observed"]["git"].update(
                 {
@@ -285,7 +273,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                             "path": str(worktrees[mission_id]),
                             "branch_ref": branches[mission_id],
                             "head_sha": heads[mission_id],
-                            "managed_by": "app",
+                            "managed_by": "parent",
                             "dirty": False,
                         }
                         for mission_id in ("M1", "M2")
@@ -296,9 +284,8 @@ class HarnessCliE2ETests(unittest.TestCase):
                 {"available_worker_slots": 2, "isolation_capacity": 2}
             )
             for action, targets in {
-                "invoke_external_runtime": ["runtime:codex"],
                 "spawn_subagents": ["*"],
-                "create_app_managed_worktrees": ["*"],
+                "create_local_worktrees": ["*"],
                 "create_local_branches": ["*"],
             }.items():
                 run["authorizations"][action] = {
@@ -358,12 +345,12 @@ class HarnessCliE2ETests(unittest.TestCase):
                         "plan_digest_sha256": digest,
                         "batch_base_sha": base_sha,
                         "worker_runtime": "subagent",
-                        "workspace_mode": "app_managed_worktree",
+                        "workspace_mode": "parent_managed_worktree",
                         "completion_channel": "agent_result",
                         "runtime_binding": {
                             "provider": "codex",
-                            "driver": "external_codex_agent",
-                            "source": "external_agent",
+                            "driver": "subagents",
+                            "source": "host",
                             "model": None,
                             "reasoning_effort": None,
                             "option_source": "provider_default",
@@ -410,18 +397,6 @@ class HarnessCliE2ETests(unittest.TestCase):
                     base_sha,
                     heads[mission_id],
                 ).stdout.splitlines()
-                parent_common = Path(
-                    self.git(repository, "rev-parse", "--git-common-dir").stdout.strip()
-                )
-                if not parent_common.is_absolute():
-                    parent_common = repository / parent_common
-                worker_common = Path(
-                    self.git(
-                        worktrees[mission_id], "rev-parse", "--git-common-dir"
-                    ).stdout.strip()
-                )
-                if not worker_common.is_absolute():
-                    worker_common = worktrees[mission_id] / worker_common
                 self.assertEqual(
                     [],
                     validate_worker_result_data(
@@ -431,11 +406,6 @@ class HarnessCliE2ETests(unittest.TestCase):
                         observed_head_sha=heads[mission_id],
                         observed_changed_files=observed_files,
                         ancestry_confirmed=ancestry,
-                        observed_worktree_path=str(worktrees[mission_id]),
-                        observed_branch_ref=branches[mission_id],
-                        git_common_dir_confirmed=(
-                            parent_common.resolve() == worker_common.resolve()
-                        ),
                     ),
                 )
                 self.assertEqual(
@@ -526,7 +496,7 @@ class HarnessCliE2ETests(unittest.TestCase):
             "evidence_paths": [f"evidence/{mission_id}-worker.txt"],
             "subagent_activity": {
                 "status": "not_applicable",
-                "skip_reason": "external_codex_agent uses flat parent orchestration",
+                "skip_reason": "native codex subagents use flat parent orchestration",
                 "children": [],
             },
             "blockers": [],

@@ -6,7 +6,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -21,13 +21,17 @@ It is not just a collection of prompts. The plugin separates product definition,
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `wireframes.md` |
 | `design-package-builder` | Design direction, tokens, icon and motion rules, page specs, and visual acceptance | `design-system.md`, `page-ui-matrix.md`, `ui-mockups.md`, `visual-acceptance.md` |
-| `fullstack-harness-engineering` | Traceable implementation planning, safe multi-agent execution, verification, and PR landing | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
+| `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
+| `fullstack-harness-codex` | Codex app tasks, app-managed worktrees, and nested read-only helpers | Runtime launch directives and worker results |
+| `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
+| `fullstack-harness-github-landing` | Final-head push, PR, concurrent CI/review, and exact-head merge | Remote landing evidence |
 
-The delivery skill makes one size decision before it invokes managed orchestration:
+The delivery core makes one size decision before it invokes managed orchestration:
 
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
 - Large work enters managed planning. It may use `RUN.md` for a sequential delivery or `PLAN.md` and `RUN.md` for multiple missions and durable handoff.
-- Scheduler fan-out starts only when a large plan has at least two independent ready missions. External Claude is preflighted only when a selected route needs it.
+- Scheduler fan-out starts only when a large plan has at least two independent ready missions. The core then loads exactly one host adapter; external runtimes are preflighted only when a selected route needs them.
+- Local implementation, branch, and commit work does not load the GitHub adapter or wait for remote CI. Pull-request delivery pushes the final verified candidate and evaluates current-head CI and Codex review concurrently.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
@@ -37,9 +41,12 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
   PRD --> Design["design-package-builder\nVisual system and page rules"]
-  PRD --> Harness["fullstack-harness-engineering\nPlan, implement, verify, land"]
+  PRD --> Harness["fullstack-harness-engineering\nShared delivery core"]
   Design --> Harness
-  Harness --> Evidence["Tests, UI evidence, PR gates"]
+  Harness --> Runtime["One host adapter\nCodex or Claude Code"]
+  Harness --> Landing["Optional GitHub landing adapter"]
+  Runtime --> Evidence["Local tests and UI evidence"]
+  Evidence --> Landing
 ```
 
 You can start at any stage. For example, use the Harness alone to fix an existing app, or use the design skill when a PRD already exists. The skills keep their responsibilities separate: the PRD skill does not invent a design system, and the design skill does not write a delivery plan.
@@ -53,9 +60,22 @@ The Harness is built around explicit boundaries:
 3. Plan dependencies before starting implementation when the task is large enough to need it.
 4. Use parallel workers only when the work is independent, isolated, and explicitly authorized.
 5. Verify task results, integrations, UI journeys where relevant, and the final diff.
-6. Land through the repository's PR flow only with separate authorization for each GitHub action.
+6. Stop locally unless a remote outcome is requested; then land through the repository's PR flow only with separate authorization for each GitHub action.
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, PR, review action, merge, deploy, or cleanup.
+
+## Lightweight runtime and landing adapters
+
+The shared core owns the one PLAN/RUN control plane. Runtime-specific launch details are loaded lazily:
+
+- A Codex host loads only `fullstack-harness-codex` and executes only `codex`-provider PLAN nodes.
+- A Claude Code host loads only `fullstack-harness-claude-code` and executes only `claude_code`-provider PLAN nodes.
+- Neither adapter can invoke the other runtime. A ready node whose provider does not match the current host is reported blocked on provider mismatch and left for a run hosted by the matching adapter.
+- `fullstack-harness-github-landing` is loaded only for an explicit push, PR, CI, review, merge, or repository-configuration outcome.
+
+Shared scripts, schemas, references, and templates remain under `fullstack-harness-engineering`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small and avoids remote verification during local-only work.
+
+For remote delivery, the final local candidate is pushed once. GitHub Actions and Codex review start or are observed as sibling gates for that same PR head and are polled concurrently. A new push invalidates both, and merge still requires both to pass on the same SHA.
 
 ## Graph engineering and Dynamic Workflows
 
@@ -66,9 +86,9 @@ The skills use two graph layers:
 
 Interviews and approvals stay outside running workflows because Claude Code Dynamic Workflows cannot ask for mid-run user input. The parent freezes inputs first, runs a bounded workflow, then owns staged writes, conflict resolution, approval, and publication.
 
-For engineering, the Harness validates and selects the dependency-ready frontier before creating or requesting worktrees. Native Claude and external-Claude missions use parent-managed worktrees under `.claude/worktrees/`, bind every worker to the exact batch base, and require `EnterWorktree` before repository access. Claude-hosted cc-codex missions request one Agent-isolated worktree per write node. In every route, the parent validates the returned commit and actual Git diff, integrates accepted commits serially, and recomputes the graph frontier.
+For engineering, the Harness validates and selects the dependency-ready frontier before creating or requesting worktrees. Native Claude missions use parent-managed worktrees under `.claude/worktrees/`, bind every worker to the exact batch base, and require `EnterWorktree` before repository access. In every route, the parent validates the returned commit and actual Git diff, integrates accepted commits serially, and recomputes the graph frontier.
 
-External Claude waves are separated by model, reasoning effort, and tool profile:
+Claude waves are separated by model, reasoning effort, and tool profile:
 
 - `mission_write` includes `EnterWorktree` and bounded write tools.
 - `code_review_readonly` omits write-capable tools.
@@ -76,7 +96,7 @@ External Claude waves are separated by model, reasoning effort, and tool profile
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
-Claude Code can also delegate guarded graph write missions to Codex through the installed `codex:codex-rescue` Agent. The Harness preflights that exact Agent in an isolated worktree only when a ready node needs Codex, then reloads canonical PLAN v4/RUN v9 through a parent-side guard before each launch. The write guard requires a pending worker record and explicit runtime allocation grants because Agent isolation assigns each mission's worktree and branch at launch. The parent verifies the returned path, branch, head, and Git common directory before recording the allocation and accepting the worker result. External Codex reviews are disabled in v1; select another allowed provider or defer. The route returns marked candidates through `agent_result`; it does not expose an inner Codex thread ID or add another App Server client. Claude remains the only PLAN/RUN writer and owns validation, serial integration, PR landing, deployment, and cleanup decisions.
+A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
 
 ## Install
 
@@ -168,11 +188,12 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 | Runtime | Preferred parallel route | Fallback |
 | --- | --- | --- |
-| Codex app | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
-| Claude Code | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
-| Claude Code → cc-codex | One `codex:codex-rescue` Agent per node; isolated Agent worktree for writes | Another PLAN-allowed provider, then the recorded sequential route |
+| Codex app (`fullstack-harness-codex`) | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
+| Claude Code (`fullstack-harness-claude-code`) | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
 
-Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree; external Codex write missions report their Agent-managed path, branch, and head for independent verification. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
+
+Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 
@@ -220,7 +241,10 @@ Full Stack Harness 是給 Codex 與 Claude Code 使用的私有 skill marketplac
 | --- | --- | --- |
 | `prd-builder` | 產品需求、架構、前端技術選擇、低保真 wireframe | PRD、架構與 wireframe 文件 |
 | `design-package-builder` | 視覺方向、設計系統、icon 與 motion 規範、頁面規格 | Design system、頁面規格、視覺驗收條件 |
-| `fullstack-harness-engineering` | 既有系統盤點、實作規劃、多 agent 協作、驗證與 PR landing | 直接處理、`RUN.md`，或 `PLAN.md` + `RUN.md` |
+| `fullstack-harness-engineering` | 共用大小判斷、PLAN/RUN、授權、本地驗證與整合 | 直接處理、`RUN.md`，或 `PLAN.md` + `RUN.md` |
+| `fullstack-harness-codex` | Codex task、worktree、唯讀子 agent | Codex runtime 執行結果 |
+| `fullstack-harness-claude-code` | Claude Dynamic Workflow 與 parent-managed worktree | Claude runtime 執行結果 |
+| `fullstack-harness-github-landing` | 最終 head 的 push、PR、並行 CI/review 與 merge | 遠端 landing evidence |
 
 你可以從任何一段開始：已有 PRD 就直接做設計；已有產品就用 Harness 做盤點、規劃或實作。
 
@@ -259,15 +283,17 @@ Use $fullstack-harness-engineering to review the existing app, plan the work, an
 
 ### 交付原則
 
-Harness 會先把工作分成小項目或大項目。小項目直接處理，預設不啟動 planner、scheduler、PLAN/RUN、subagent 或外部 runtime preflight。大項目才進入 managed planning；只有存在兩個以上可獨立執行的 ready missions 時才啟動 scheduler。外部 runtime 也只會在選定的 ready route 確實需要時 preflight：Codex parent 可檢查外部 Claude，Claude Code parent 也可檢查 `codex:codex-rescue`。
+Harness 會先把工作分成小項目或大項目。小項目直接處理，預設不啟動 planner、scheduler、PLAN/RUN、subagent 或外部 runtime preflight。大項目才進入 managed planning；只有存在兩個以上可獨立執行的 ready missions 時才啟動 scheduler。Core 只會載入目前 host 的 adapter：Codex parent 使用 Codex adapter，Claude Code parent 使用 Claude Code adapter。外部 runtime 也只會在選定的 ready route 確實需要時 preflight。
+
+本地實作、branch 或 commit 預設是 `local_only`，不載入 GitHub landing adapter，也不等待遠端 CI。只有明確要求 push、PR、review 或 merge 時才載入 landing adapter；完成本地驗證後只推送最終 candidate，並讓 current-head CI 與 Codex review 同時進行。任何新 push 都會讓兩者的舊結果失效。
 
 大小看的是協調範圍與影響面，不是單純計算檔案數或程式碼行數。小項目途中變大時，Harness 會保留已完成的工作，只規劃剩餘範圍。
 
 Graph engineering 分成兩層：org graph 定義長期穩定的產品、架構、UX、設計、worker、review、approval 與 integration 職責；work graph 則是單次工作的暫時節點、依賴、route、attempt 與 evidence。PRD 與 design workflow 只有在 host 能強制 `builder_readonly` tool profile 時才執行；否則回到 sequential parent。工程 work graph 仍以 PLAN v4 與 RUN v9 為唯一控制面。
 
-多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才配置 worktree。原生 Claude 與外部 Claude route 會在 `.claude/worktrees/` 建立 exact-base worktree，Claude worker 必須先用 `EnterWorktree` 進入指定路徑。外部 Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
+多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才配置 worktree。原生 Claude mission 會在 `.claude/worktrees/` 建立 exact-base worktree，Claude worker 必須先用 `EnterWorktree` 進入指定路徑。Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
 
-Claude Code parent 也可透過 `codex:codex-rescue` 把選定節點交給 Codex。Preflight 會在隔離的 Agent worktree 中執行；每個寫入 mission 的 worktree 與 branch 則由 Agent runtime 在啟動時配置。Parent 會先驗證回傳的 path、branch、head 與 Git common directory，再寫入 RUN 並接受 worker result。Request 固定採 foreground 與 fresh route。這條 route 不建立 user-owned Codex app task，也不提供內部 Codex thread ID；Claude 仍是唯一的 PLAN/RUN writer，並負責 Git 驗證、依序整合、PR landing 與部署。
+每個 PLAN node 的 allowed providers 必須包含目前實際執行 Harness 的 host，該 node 才能被選中；Codex adapter 與 Claude Code adapter 之間沒有互相呼叫的機制。當 ready node 需要的 provider 與目前 host 不符時，會被記錄為 provider mismatch 而 blocked，留給對應 host 的另一次執行來處理。
 
 每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
 

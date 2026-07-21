@@ -15,7 +15,10 @@ DESTINATION_ROOT = REPO_ROOT / "plugins" / "fullstack-harness" / "skills"
 MARKER = DESTINATION_ROOT / ".generated-from-agents-skills"
 SKILL_NAMES = (
     "design-package-builder",
+    "fullstack-harness-claude-code",
+    "fullstack-harness-codex",
     "fullstack-harness-engineering",
+    "fullstack-harness-github-landing",
     "prd-builder",
 )
 

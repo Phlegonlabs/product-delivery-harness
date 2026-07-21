@@ -23,8 +23,8 @@
 - Change branch rules, required checks, repository auto-merge, or Codex review settings only with matching `configure_repository` authorization.
 - With matching `push` authorization, push only the final branch.
 - With separate `create_pr` authorization, open a Draft PR.
-- After CI passes, use separate `manage_pr_review` authorization to mark the PR ready and request Codex review.
-- A new push makes earlier CI and review results stale. Wait for checks and request review again for the new head SHA.
+- With separate `manage_pr_review` authorization, mark the PR ready and request Codex review immediately after creation; do not wait for CI first. Observe current-head CI and review concurrently.
+- A new push makes earlier CI and review results stale. Start or observe current-head CI and request review again for the new head SHA immediately, then poll both gates concurrently.
 - After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
 - After GitHub reports the PR merged, fetch the base and confirm the local feature branch still equals the merged PR head. With exact cleanup authorization, remove only a clean linked worktree, switch the primary checkout to `main`, then delete only that local feature branch. Never remove the primary checkout.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal are separate actions. Do not infer approval for them from implementation or PR creation.

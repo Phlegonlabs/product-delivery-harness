@@ -60,7 +60,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn('"trace_ids"', plan)
         self.assertIn('"required_reviews"', plan)
 
-    def test_frontend_review_falls_back_to_codex_with_plan_selected_model(self) -> None:
+    def test_frontend_review_binds_to_the_host_provider_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(
             "N-FRONTEND-REVIEW",
@@ -91,11 +91,15 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "provider": "codex",
             "available_drivers": ["app_threads", "sequential_parent"],
             "detection_source": "observed",
-            "external_runtimes": [],
         }
         binding = _runtime_binding(review, runtime)
 
+        # The node's preferred_provider is claude_code, but preferred_provider
+        # is no longer consulted: the host actually running this session is
+        # codex, so the node binds to codex (its own declared codex options),
+        # never to a bridged/guarded claude_code process.
         self.assertEqual("codex", binding["provider"])
+        self.assertEqual("host", binding["source"])
         self.assertEqual("app_threads", binding["driver"])
         self.assertEqual("gpt-5.6-sol", binding["model"])
         self.assertEqual("xhigh", binding["reasoning_effort"])

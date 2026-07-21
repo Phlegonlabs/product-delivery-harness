@@ -400,7 +400,6 @@ def valid_closeout_run(plan: dict[str, object]) -> dict[str, object]:
         "authorized": False,
         "source": None,
     }
-    run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = []
     run["batch_gate_results"] = [
         {
             "id": gate["id"],
@@ -625,8 +624,33 @@ class PlanValidationTests(unittest.TestCase):
         }
         self.assert_error_contains(
             plan,
-            "session_exact is not allowed for release or deployment verifiers",
+            "session_exact is not allowed for this verifier",
         )
+
+    def test_integration_batch_and_final_verifiers_cannot_use_session_cache(self) -> None:
+        cache = {"mode": "session_exact", "environment_keys": []}
+
+        batch_plan = valid_plan()
+        batch_plan["batch_verifiers"][0]["cache"] = cache
+        self.assert_error_contains(
+            batch_plan, "session_exact is not allowed for this verifier"
+        )
+
+        final_plan = valid_plan()
+        final_plan["final_gates"][0]["cache"] = cache
+        self.assert_error_contains(
+            final_plan, "session_exact is not allowed for this verifier"
+        )
+
+        integration_plan = valid_plan()
+        integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
+        self.assert_error_contains(
+            integration_plan, "session_exact is not allowed for this verifier"
+        )
+
+        worker_plan = valid_plan()
+        worker_plan["missions"][0]["worker_verifiers"][0]["cache"] = cache
+        self.assertEqual(validate_plan(worker_plan), [])
 
     def test_schema_v3_cloudflare_release_contract(self) -> None:
         plan = valid_release_plan()
@@ -1419,60 +1443,65 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("detection_source: has an unsupported value" in error for error in errors))
         self.assertEqual(route_runtime_driver(run["runtime_capabilities"]), "sequential_parent")
 
-    def test_schema_v9_validates_external_codex_runtime_contract(self) -> None:
+    def test_runtime_adapter_rejects_external_runtimes_key(self) -> None:
+        # The guarded cross-runtime escape hatch (Codex <-> Claude Code) is
+        # fully removed: runtime_adapter no longer has any concept of an
+        # "external runtime" to record, so the key itself is now unknown.
         plan = valid_plan()
         run = valid_closeout_run(plan)
-        external = {
-            "provider": "codex",
-            "driver": "codex_rescue_agent",
-            "status": "available",
-            "command": "agent:codex:codex-rescue",
-            "version": "1.0.4",
-            "contract_version": "harness-node-result-v1",
-            "completion_channel": "agent_result",
-            "evidence": ["foreground preflight passed"],
-        }
-        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = [
-            external
-        ]
-
         self.assertEqual([], validate_run(plan, run))
 
-        cases = [
-            ("driver", "dynamic_workflow", "driver: does not match the external provider"),
-            (
-                "command",
-                "codex",
-                "command: must equal agent:codex:codex-rescue",
-            ),
-            (
-                "contract_version",
-                "harness-node-result-v2",
-                "contract_version: must equal harness-node-result-v1",
-            ),
-            (
-                "completion_channel",
-                "thread_poll",
-                "completion_channel: must equal agent_result",
-            ),
-        ]
-        for field, value, expected in cases:
-            with self.subTest(field=field):
-                invalid = copy.deepcopy(run)
-                invalid["runtime_capabilities"]["runtime_adapter"][
-                    "external_runtimes"
-                ][0][field] = value
-                self.assert_run_error_contains(plan, invalid, expected)
-
-        missing_contract = copy.deepcopy(run)
-        del missing_contract["runtime_capabilities"]["runtime_adapter"][
-            "external_runtimes"
-        ][0]["contract_version"]
+        run["runtime_capabilities"]["runtime_adapter"]["external_runtimes"] = []
         self.assert_run_error_contains(
             plan,
-            missing_contract,
-            "contract_version: must equal harness-node-result-v1",
+            run,
+            "run.runtime_capabilities.runtime_adapter: unknown keys: external_runtimes",
         )
+
+    def test_worker_runtime_binding_source_must_equal_host(self) -> None:
+        # A node's required provider must match whatever host actually runs
+        # it: there is no bridged/guarded external source anymore, so
+        # runtime_binding.source is exactly "host" or rejected.
+        plan = valid_plan()
+        run = valid_run(plan)
+        digest = plan_digest(plan)
+        worker = {
+            "worker_id": "W-M1",
+            "mission_id": "M1",
+            "lease_id": "LEASE-M1",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "batch_base_sha": SHA_A,
+            "worker_runtime": "parent",
+            "workspace_mode": "shared_checkout",
+            "completion_channel": "agent_result",
+            "runtime_binding": {
+                "provider": "generic",
+                "driver": "sequential_parent",
+                "source": "host",
+                "model": None,
+                "reasoning_effort": None,
+                "option_source": "provider_default",
+            },
+            "task_thread_id": None,
+            "worktree_path": None,
+            "branch_ref": None,
+            "report_path": None,
+            "phase": "leased",
+            "worker_head_sha": None,
+        }
+        run["workers"].append(worker)
+        self.assertEqual([], validate_run(plan, run))
+
+        for stale_source in ("external_bridge", "external_agent", "guest", ""):
+            with self.subTest(source=stale_source):
+                invalid = copy.deepcopy(run)
+                invalid["workers"][0]["runtime_binding"]["source"] = stale_source
+                self.assert_run_error_contains(
+                    plan,
+                    invalid,
+                    "run.workers[0].runtime_binding.source: has an unsupported value",
+                )
 
     def test_post_merge_cleanup_binds_to_merged_pr_and_exact_branch(self) -> None:
         plan = valid_plan()

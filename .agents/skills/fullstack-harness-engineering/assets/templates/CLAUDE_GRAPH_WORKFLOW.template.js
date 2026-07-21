@@ -111,10 +111,10 @@ const fallbackResult = (node) => ({
 
 const results = await pipeline(workflowArgs.nodes, async (node) => {
   const missionFields = [
-    "node_id", "attempt_id", "mission_id", "lease_id", "branch_ref", "worktree_path", "failure_outcome", "worker_prompt",
+    "node_id", "attempt_id", "mission_id", "lease_id", "branch_ref", "worktree_path", "failure_outcome", "worker_prompt", "model",
   ];
   const reviewFields = [
-    "node_id", "attempt_id", "review_id", "review_type", "reviewed_sha", "review_path", "review_scope", "required_evidence", "failure_outcome", "worker_prompt",
+    "node_id", "attempt_id", "review_id", "review_type", "reviewed_sha", "review_path", "review_scope", "required_evidence", "failure_outcome", "worker_prompt", "model",
   ];
   const requiredFields = node.node_kind === "mission" ? missionFields : reviewFields;
   if (!["mission", "review"].includes(node.node_kind)) {
@@ -159,7 +159,13 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
       `- Plan digest: ${workflowArgs.plan_digest_sha256}; batch base: ${workflowArgs.batch_base_sha}.\n` +
       `- Do not wait for user input. Use contract_gap with a refinement_request when a decision is needed.\n` +
       `- Return only one node_result object accepted by the supplied schema.`,
-    { label: node.node_id, phase: phaseName, schema: resultSchema },
+    {
+      label: node.node_id,
+      phase: phaseName,
+      schema: resultSchema,
+      model: node.model,
+      ...(node.reasoning_effort ? { effort: node.reasoning_effort } : {}),
+    },
   );
   return result || fallbackResult(node);
 });

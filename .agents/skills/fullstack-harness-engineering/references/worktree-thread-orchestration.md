@@ -44,7 +44,7 @@ Detect the host that is executing the Harness. Current-session Codex project/thr
 
 Perform this detection proactively before the first production edit in every plan-backed multi-mission run. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
 
-Schema v8 or v9 may additionally record `external_runtimes`. This does not change the host provider. A Codex parent records external Claude Code as available only after `claude_runtime_bridge.py preflight` executes the Workflow tool and returns protocol-v1 evidence. A Claude Code parent records external Codex only after the read-only `CLAUDE_CODEX_PREFLIGHT.template.js` invokes `codex:codex-rescue` with `--wait --fresh` and validates its marker contract. A binary path, plugin file, or version is compatibility evidence only. Selecting either external provider requires `invoke_external_runtime` for the exact `runtime:<provider>` target plus the route's normal worker/worktree actions.
+A PLAN node's required or preferred provider must match the host adapter that is actually running the harness. There is no cross-host fallback and no mechanism to invoke the other runtime from this one: a ready node whose provider does not match the current host is not executable here. Report it as blocked on provider mismatch and leave it for a run hosted by the matching adapter.
 
 ## Default Plan-Backed Wave
 
@@ -98,7 +98,6 @@ Use `parent_managed_worktree` only when `create_local_worktrees` is authorized a
 Use `app_managed_worktree` only when the runtime exposes it and `create_app_managed_worktrees` is explicitly authorized. The other required actions depend on who owns the worker:
 
 - A user-owned Codex app task requires `create_user_owned_tasks` and uses `app_task` + `thread_poll` or another declared task channel.
-- A Claude-hosted `external_codex_agent` requires `invoke_external_runtime`, `spawn_subagents`, and `agent_result`; it does not require `create_user_owned_tasks` because it is a child Agent. Write missions also require authorized branch and commit creation.
 
 For user-owned Codex app tasks:
 
@@ -110,11 +109,9 @@ For user-owned Codex app tasks:
 - Preflight the selected permission mode before task creation. A linked worktree's `.git` file points to metadata in the original repository's Git common directory, which may sit outside the app worktree sandbox; branch creation and commits can therefore prompt even when source edits are inside the worktree. Package caches, system temp, local dev ports, private-network bindings, and Unix sockets are separate surfaces that must also fit the selected boundary.
 - Record the effective permission boundary in RUN. Subagents inherit the app task's active mode, and app tasks inherit the parent mode chosen before launch. `Approve for me` changes eligible prompt review but does not widen the sandbox. A later config/composer change does not retroactively update already-running tasks.
 
-For `external_codex_agent`, the Claude Agent runtime assigns the worktree. The worker reports its absolute path, branch/ref, and head SHA; the parent records those concrete facts only after verifying the same Git common directory, initial base, final head, and branch. The Harness never creates a user-owned task record for this route.
-
 The platform controls managed-worktree retention. `remove_worktrees: false` prevents Harness-initiated removal; it cannot override platform lifecycle or automatic retention cleanup. Preserve failed or cancelled worktrees and commits for diagnosis. Never reset or delete them automatically.
 
-True event-driven cross-task completion requires a runtime integration that exposes task/thread events, such as Codex App Server notifications. cc-codex foreground `agent_result` is observable without that client, but it does not expose an inner Codex thread identity for polling or resume. Otherwise use `thread_poll`, `report_file`, or `user_relay` and state that limitation explicitly.
+True event-driven cross-task completion requires a runtime integration that exposes task/thread events, such as Codex App Server notifications. Otherwise use `thread_poll`, `report_file`, or `user_relay` and state that limitation explicitly.
 
 ## Nested Subagents Inside An App Task
 
@@ -196,35 +193,6 @@ When the accepted schema-v6-or-v7 wave routes to `claude_code` + `dynamic_workfl
 
 Claude Code currently supports nested subagents, but this schema-v6-or-v7 route intentionally has no nested worker layer and omits `nested_subagents`. The workflow script coordinates sibling mission agents; each remains the sole writer for its lease and is instructed not to delegate. The script does not directly read files, run shell commands, edit PLAN/RUN, integrate, push, or land a PR. If Dynamic Workflow is unavailable, use the recorded fallback route; do not simulate it with an untracked ad hoc fan-out.
 
-## Launch External Claude From A Codex Parent
-
-For a PLAN-v4/RUN-v8 node bound to external Claude Code:
-
-1. Keep the Codex task as the only PLAN/RUN writer and graph scheduler.
-2. Run the no-edit bridge preflight and record its command, version, completion channel, and evidence under `external_runtimes`.
-3. Recheck `invoke_external_runtime` for `runtime:claude_code`, `spawn_subagents`, and the parent-managed worktree/branch/commit grants.
-4. Allocate the node attempt, worker, lease, branch, and existing worktree from the fixed batch base.
-5. Build the exact graph wave request, including run/plan/graph/base identity, node IDs, attempt IDs, handoffs, permission mode, and the node-role tool profile. Mission and read-only review profiles include `EnterWorktree` to bind each worker to its assigned checkout; review profiles omit write tools.
-6. Invoke `claude_runtime_bridge.py run-wave --plan <PLAN.md> --run <RUN.md> --request <wave.json>`. The bridge reloads canonical PLAN/RUN, rejects stale attempts, leases, authorizations, runtime policy, or checkout HEAD, then calls `CLAUDE_GRAPH_WORKFLOW.template.js` once. It reads Claude's verbose event stream and requires exactly one outer `Workflow` call with no other outer tool calls, followed by one local Workflow result and the final wrapper. It matches the runtime task ID, run ID, script path, error, and exact arguments before returning one node result per requested node through `agent_result`. Every result repeats the run and batch-base identity, and a missing agent result becomes an explicit failure candidate rather than disappearing.
-7. Validate each node result, worker payload, actual head/diff/scope, and verifier evidence. Integrate passing mission heads serially and update graph state before another route or wave.
-
-Do not run two PLAN/RUN parents. Do not let Claude create a replacement worktree, edit parent state, integrate, push, open a PR, deploy, or clean up. A bridge process exit or structured response is not mission completion.
-
-## Launch External Codex From A Claude Code Parent
-
-For a guarded PLAN-v4/RUN-v9 write mission bound to external Codex:
-
-1. Keep the Claude Code task as the only PLAN/RUN writer, graph scheduler, integration owner, and landing/deployment owner.
-2. Record the observed cc-codex plugin metadata as an `unknown` external runtime without claiming availability. An `unavailable` record cannot enter preflight. Run `scripts/validate_codex_wave.py --mode preflight` only when a ready node prefers or requires Codex. The guard requires exact `runtime:codex` and `worker:preallocation` authorizations plus explicit `*` worktree/branch allocation grants, and emits the complete preflight arguments, including the observed plugin version.
-3. Invoke `CLAUDE_CODEX_PREFLIGHT.template.js` only with that guard output. It runs one read-only `codex:codex-rescue` Agent in an isolated worktree and records `codex_rescue_agent` as available only after the exact foreground marker returns. For a write wave, record the active wave, lease, and worker identity while leaving `worktree_path` and `branch_ref` null. Run the guard again in wave mode; it requires the proven available runtime, exact worker target, and explicit `*` worktree/branch/commit allocation targets. It never edits RUN, starts an Agent, or runs Git.
-4. Invoke `CLAUDE_CODEX_GRAPH_WORKFLOW.template.js` only with the wave guard's JSON. It uses `pipeline()` and starts one `codex:codex-rescue` Agent per mission with `--wait --fresh` and `isolation: "worktree"`. The Codex worker must not delegate further. External Codex reviews are disabled in v1; choose another allowed provider or defer.
-5. Leave model and effort null unless PLAN explicitly selected safe values.
-6. Require exactly one `HARNESS_NODE_RESULT_V1_BEGIN` / `HARNESS_NODE_RESULT_V1_END` pair around the candidate JSON. Missing, duplicate, malformed, or identity-mismatched markers become explicit retryable or blocked candidates; they never count as success.
-7. For a write candidate, verify the reported commit exists, the fixed batch base is its ancestor, the observed changed-file set exactly matches the report, every path stays in scope and avoids PLAN/RUN, and every task commit is attributed once. Independently verify the retained path/ref/head and Git common directory, record the exact runtime-assigned path/ref in RUN, and pass those parent observations to `validate_worker_result.py`. Validate task and mission verifiers before integration.
-8. Integrate accepted commits serially, run the integration gate, update canonical RUN state, and only then release downstream dependencies. One failed node does not cancel passing siblings.
-
-The outer Claude Workflow task/run ID is canonical runtime evidence. `codex:codex-rescue` returns companion stdout but does not expose its inner Codex thread ID, so leave `task_thread_id` null. Do not poll private cc-codex state, resume an earlier thread, invent an ID, or call private status/result/cancel commands. Every retry uses a new graph attempt and `--fresh`. Preserve failed or cancelled worktree evidence; never reset or delete it automatically.
-
 ## Launch Selected Codex App Threads
 
 When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, a non-empty selector result is an instruction for the parent to act, not a final report. Use the current Codex project/thread tools when they are available:
@@ -283,10 +251,11 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 
 - Integrate worker results serially into one final parent branch. Worker branches and worktrees do not push or open PRs unless the plan defines a separate landing target.
 - Review the final diff locally and rerun final gates before any outward-facing landing action. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
-- In pull-request mode, `integration.branch` and `landing.head_branch` must name the same final feature branch, and that branch must differ from `landing.base_branch`. Never push the base branch directly. Push the final feature/integration branch, create a Draft PR, wait for CI, then use `manage_pr_review` authorization to mark it ready and request GitHub review.
+- Local-only delivery stops after its authorized local branch, commit, integration, and final verification outcome; it does not load remote landing or wait for GitHub.
+- In pull-request mode, `integration.branch` and `landing.head_branch` must name the same final feature branch, and that branch must differ from `landing.base_branch`. Never push the base branch directly. Push only the final verified feature/integration candidate, create or ready the PR as authorized, then start or observe current-head CI and Codex review concurrently.
 - When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in schema v4 through v7 and reset it after any new push or changed integration head.
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
-- Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and request review again.
+- Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and restart both remote gates for the new head.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
