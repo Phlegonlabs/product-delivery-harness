@@ -418,7 +418,14 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
         project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
 
+        self.assertIn("PROJECT_AGENTS.template.md", skill)
         self.assertIn("PROJECT_CLAUDE.template.md", skill)
+        self.assertIn("seed a missing root `AGENTS.md`", skill)
+        self.assertIn("a missing root `CLAUDE.md`", skill)
+        self.assertIn("Skip either file that already exists", skill)
+        self.assertIn(
+            "never overwrite an established root `AGENTS.md` or `CLAUDE.md`", skill
+        )
         self.assertIn("## Core Development Principles", project_agents)
         self.assertIn("## Core Development Principles", project_claude)
 
