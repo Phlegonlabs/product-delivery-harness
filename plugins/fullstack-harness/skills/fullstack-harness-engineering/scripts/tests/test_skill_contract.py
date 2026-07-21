@@ -190,6 +190,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("CI and review are independent sibling gates", state)
         self.assertIn("Poll both gates concurrently", project_rules)
 
+    def test_runbook_defaults_to_local_only_landing(self) -> None:
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertIn('"mode": "local_only"', runbook)
+        self.assertIn('New RUN files default to `mode: "local_only"`', runbook)
+        self.assertIn("switch to `pull_request` only when the user explicitly requests remote landing", runbook)
+
     @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
     def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:
         repository_rules = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
