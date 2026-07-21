@@ -168,6 +168,7 @@ Define only rules that implementation can apply:
 - Example component reference design code: a small implementation-oriented component example that demonstrates the style guide
 - Product-specific visual thesis: concrete cues, recurring signature decisions, avoided defaults, and content realism rules
 - Landing-page simplicity and media plan when relevant: first-viewport message and action, one job per section, content to defer, and per-region image/media/motion labels
+- Interaction rules: focus, hover, active, loading, disabled, selected, expanded, and validation feedback
 - Accessibility: contrast intent, focus visibility, keyboard path, reduced motion
 
 ## Page UI Matrix Rules

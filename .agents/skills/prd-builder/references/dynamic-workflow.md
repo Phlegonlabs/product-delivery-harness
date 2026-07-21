@@ -12,7 +12,7 @@ The stable org graph defines these roles:
 | architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
 | ux-wireframe | Journeys, UX obligations, routes, states, wireframe structure | UX/UI sections and wireframe requirements |
 | frontend-platform | Browser stack and platform evidence when applicable | Frontend decision and source evidence |
-| synthesizer | Reconcile all lanes into one package | Draft artifact bodies |
+| synthesis | Reconcile all lanes into one package | Draft artifact bodies |
 | trace-verifier | Check requirement and ID coverage | Findings and decision |
 | consistency-verifier | Check cross-document conflicts and unsupported claims | Findings and decision |
 | seo-copy-verifier | Check public/marketing screen copy for SEO effectiveness when the product has public-facing content | Findings and decision |

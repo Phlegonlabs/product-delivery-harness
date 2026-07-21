@@ -174,6 +174,9 @@ export function ExampleContentSection() {
 }
 ```
 
+## Interaction Rules
+[Focus, hover, active, loading, disabled, selected, expanded, and validation feedback.]
+
 ## Accessibility Rules
 [Contrast, focus, keyboard, text sizing, motion.]
 
