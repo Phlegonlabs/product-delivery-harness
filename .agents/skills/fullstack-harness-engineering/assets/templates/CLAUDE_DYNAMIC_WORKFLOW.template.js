@@ -227,10 +227,11 @@ const results = await pipeline(workflowArgs.missions, (mission) => {
     !mission.lease_id ||
     !mission.branch_ref ||
     !mission.worker_prompt ||
-    !mission.worktree_path
+    !mission.worktree_path ||
+    !mission.model
   ) {
     throw new Error(
-      "each mission requires mission_id, lease_id, branch_ref, worker_prompt, and worktree_path",
+      "each mission requires mission_id, lease_id, branch_ref, worker_prompt, worktree_path, and model",
     );
   }
 
@@ -255,6 +256,8 @@ const results = await pipeline(workflowArgs.missions, (mission) => {
       label: mission.mission_id,
       phase: "Execute",
       schema: resultSchema,
+      model: mission.model,
+      ...(mission.reasoning_effort ? { effort: mission.reasoning_effort } : {}),
     },
   );
 });
