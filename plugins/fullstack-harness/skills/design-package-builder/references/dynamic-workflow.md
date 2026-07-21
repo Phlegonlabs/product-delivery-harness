@@ -21,6 +21,8 @@ The temporary work graph is one bounded workflow run. It fans out independent de
 
 ## Preconditions
 
+A package is "non-trivial" when more than one role in the Graph Model above would produce substantive, non-boilerplate content for it — for example a UI-bearing product spanning more than one screen or archetype, not a single-page trivial stub. "Multi-agent analysis is authorized" means the current session is not restricted to single-agent or sequential-only execution by explicit user instruction, host policy, or permission mode. Both conditions must hold before launching this workflow; when either is false, perform the roles sequentially instead.
+
 Before launch, the parent must have:
 
 - a stable run ID and product name;

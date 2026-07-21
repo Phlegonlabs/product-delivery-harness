@@ -36,6 +36,7 @@ Preserve an explicit user or PLAN choice. Otherwise, for new PLAN-v4 runtime-wor
 - for general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning;
 - frontend/UI implementation uses Codex `gpt-5.6-sol` with `high` reasoning;
 - routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`;
+- routine `frontend_code` and visual review use Codex `gpt-5.6-sol` with `medium` reasoning;
 - raise a mission node's effort to `xhigh`, or a review node's effort above `medium`, only for security, migration, difficult correctness, broad architecture, or genuine ambiguity.
 
 Pass non-null PLAN-selected values to task creation as `model` and `thinking`. Never silently substitute a rejected model, effort, permission mode, or tool profile; revise the affected runtime policy and reselect.
@@ -69,4 +70,4 @@ When the ready frontier includes a node whose required or preferred provider is 
 
 ## Failure And Fallback
 
-Use the recorded fallback provider or fewer workers only when capability, isolation, permission, dependency, conflict, or resource evidence requires it. Record the reason. Preserve failed or cancelled task/worktree evidence; never reset or remove it automatically. If no isolated route remains, use one sequential parent writer and continue from canonical PLAN/RUN state.
+Use the recorded fallback driver or fewer workers only when capability, isolation, permission, dependency, conflict, or resource evidence requires it. Record the reason. Preserve failed or cancelled task/worktree evidence; never reset or remove it automatically. If no isolated route remains, use one sequential parent writer and continue from canonical PLAN/RUN state.

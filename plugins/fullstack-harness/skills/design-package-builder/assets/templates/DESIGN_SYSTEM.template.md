@@ -40,6 +40,8 @@ Taste statement: <one sentence naming the intended visual character and the conc
 |---|---|---|---|
 | <generic or AI-UI pattern risk> | <product-specific rule> | <evidence-based exception> | <how to verify> |
 | Repeated bordered panels with a colored side rail or accent stripe | Do not use as a generic section treatment | Named state, selection, priority, category, or approved brand motif | Every use has a documented semantic or brand role |
+| Uniform default border on every button, input, image, and avatar | Border only where rule 4 of Container & Border Decision Rules applies | Control boundary, data structure, focus, selection, validation, or status | Removal test leaves hierarchy and comprehension intact |
+| Unexamined default font pairing (Inter/Poppins/Manrope/Geist) or default icon library (Lucide/Heroicons/Font Awesome) | Name the choice as deliberate with a brand or coverage reason | Evidence-based selection matching the product's audience and content | Taste statement cites the concrete typography/icon choice and why |
 
 ### Container & Border Rules
 
@@ -147,7 +149,7 @@ export function IconActions() {
 | DS-COMP-003 | Navigation | <variants> | <states> | UI-001 | <rules> |
 | DS-COMP-004 | Card / panel | <variants> | <states> | UI-001 | <rules> |
 | DS-COMP-005 | Table / list | <variants> | <states> | UI-001 | <rules> |
-| Modal / drawer | <variants> | <states> | <rules> |
+| DS-COMP-006 | Modal / drawer | <variants> | <states> | <upstream IDs> | <rules> |
 
 ## Shadows & Elevation
 
