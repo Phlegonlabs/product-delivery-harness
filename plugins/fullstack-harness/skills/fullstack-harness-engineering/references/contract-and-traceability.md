@@ -18,7 +18,7 @@ Verification: commands, E2E journey, evidence paths, acceptance thresholds
 Write scope: allowed paths, read-only paths, destructive-action approval gates
 ```
 
-For L full-stack, XL app, or parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
+For large work, including parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
 ## Canonical Harness State
 

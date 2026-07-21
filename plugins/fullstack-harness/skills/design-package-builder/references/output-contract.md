@@ -86,7 +86,7 @@ Pay attention to font family, font weight, font size, line height, and how diffe
 
 ### Icon Tokens
 | Token | Optical size | Stroke / weight / fill | Color behavior | Usage |
-| --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- |
 
 ### Semantic Icon Inventory
 | Intent / object | Visible label | Icon name | Source | Token / variant | State behavior | Accessibility behavior |
@@ -331,10 +331,12 @@ Before finalizing, verify:
 - Ordinary content regions default to open layouts, and each nesting level uses one primary grouping cue unless a documented reason requires more.
 - Every visible border, frame, rail, or elevation has a named hierarchy, interaction, state, data, or accessibility purpose; the removal test eliminates treatments that add no information.
 - Repeated bordered cards, nested frames, colored side rails, accent stripes, dashed outlines, and double frames are absent unless every use has a named semantic or approved brand role.
+- No uniform default border is applied to every button, input, image, and avatar regardless of role; each bordered element has its own documented purpose.
 - Radii, pills, shadows, gradients, glass effects, icons, and motion each have a product, hierarchy, or interaction rationale.
 - Page composition follows task priority and content shape instead of defaulting to centered heroes, uniform card grids, or equal visual weight.
 - Landing pages do not summarize the entire PRD. The first viewport has one message and primary action, and every later section earns its place with one clear job.
 - Images, media, and animation are tied to a named user or product purpose; decorative assets are not added merely to fill space.
-- Labels, sample data, imagery, and content lengths reflect the domain; unsupported claims, metrics, testimonials, and logos are not fabricated.
+- Labels, sample data, imagery, and content lengths reflect the domain; unsupported claims, metrics, testimonials, logos, and stat-counter badges (for example "10K+ users," "99.9% uptime") are not fabricated.
+- The font pairing and icon library are named as deliberate choices with a brand or coverage reason, not an unexamined default such as Inter/Poppins/Manrope/Geist or Lucide/Heroicons/Font Awesome kept only because it shipped with the starting template.
 - Familiar patterns retained for usability, platform convention, or brand fit have a documented reason rather than being removed mechanically.
 - When visual artifacts or an implementation exist, required breakpoint renders were critiqued, the highest-impact failure was repaired, and the package was rechecked against these gates. For a spec-only package, a text-only conformance review covers taste, hierarchy, container and border purpose, responsive intent, and internal consistency; render evidence is marked unavailable and the package makes no visual-verification claim.

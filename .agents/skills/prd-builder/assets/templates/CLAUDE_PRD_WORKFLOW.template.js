@@ -24,6 +24,9 @@ if (!Array.isArray(workflowArgs.source_paths)) {
 if (typeof workflowArgs.browser_frontend !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.browser_frontend");
 }
+if (typeof workflowArgs.has_public_marketing_content !== "boolean") {
+  throw new Error("prd-builder-graph requires boolean args.has_public_marketing_content");
+}
 if (typeof workflowArgs.include_implementation_plan !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.include_implementation_plan");
 }
@@ -92,6 +95,7 @@ const sourceContext = JSON.stringify({
   builder_ux_direction: workflowArgs.builder_ux_direction || null,
   browser_frontend: workflowArgs.browser_frontend,
   include_implementation_plan: workflowArgs.include_implementation_plan,
+  has_public_marketing_content: workflowArgs.has_public_marketing_content,
 });
 
 const roles = [
@@ -158,6 +162,12 @@ const reviewers = [
     task: "Check the three documents for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims.",
   },
 ];
+if (workflowArgs.has_public_marketing_content) {
+  reviewers.push({
+    key: "seo-copy-verifier",
+    task: "Review the exact wording on public marketing, landing, or SEO-relevant screens only: headline/H1 clarity and keyword relevance without stuffing, a usable heading hierarchy for search crawlers, a meta-description-worthy summary, descriptive non-generic alt text or DISPLAY contracts for images, and internal-link or content-depth opportunities. Do not review internal-tool, dashboard, or authenticated-only screens against SEO criteria.",
+  });
+}
 phase("Verify");
 const rawReviews = await parallel(reviewers.map((reviewer) => () => agent(
   `You are the ${reviewer.key} role in a PRD org graph. ${reviewer.task}\n` +

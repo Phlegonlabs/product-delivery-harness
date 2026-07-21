@@ -74,41 +74,77 @@ Every design system must define:
 3. At each nesting level, choose one primary grouping cue: whitespace, alignment, background, divider or border, or elevation. Stacking cues requires a named hierarchy, interaction, or state reason.
 4. Allow a persistent border when it communicates a control boundary, data structure, focus, selection, validation, status, or necessary contrast. "Decoration," "visual interest," and "make it pop" are not valid purposes.
 5. Avoid bordered containers inside bordered containers. Keep the inner border only when it represents an independent interactive, scrollable, selectable, or stateful region.
-6. Do not use decorative colored side rails, accent stripes, dashed frames, double frames, or arbitrary corner treatments as generic section styling.
+6. Treat a decorative colored side rail or accent stripe (including a top/left accent border on a rounded card) as a near-automatic anti-slop failure, not a style choice to weigh. Independent audits of AI-generated interfaces name this pattern the single most recognizable AI tell (as reliable a signal as em-dash-heavy copy). Allow it only with an airtight, documented state/selection/priority/brand-motif reason recorded in the guardrails table, and prefer an open, undashed, un-railed alternative first. Dashed frames, double frames, and arbitrary corner treatments used as generic section styling fail the same way.
 7. Do not remove borders or outlines needed for form controls, keyboard focus, error identification, selected state, data comprehension, or non-text contrast.
+8. Do not apply the same faint 1px border to every button, input, image, avatar, and plain content block by default. A uniform component-library or AI-generated border set is a distinct tell from the card and side-rail patterns above; each bordered element still needs its own answer to rule 4, not inherited default styling.
 
 Use the removal test: temporarily remove a container, border, shadow, or accent. If hierarchy, interaction, state, and comprehension remain clear, leave it out.
 
-Research basis checked on 2026-07-17:
+Research basis checked on 2026-07-21 (refreshed from 2026-07-17):
 
 - [Puck's constrained UI guidance](https://puckeditor.com/blog/ai-slop-vs-constrained-ui) supports explicit component, schema, and composition boundaries for generated interfaces.
 - [U.S. Web Design System card guidance](https://designsystem.digital.gov/components/card/) defines cards as modular, single-subject content and says not to use them only for decoration.
 - [GOV.UK focus-state guidance](https://design-system.service.gov.uk/get-started/focus-states/) shows why visible borders and outlines must remain when they communicate keyboard focus and contrast.
 - [SmoothUI's AI design slop review](https://smoothui.dev/blog/ai-design-slop) recommends a guardrail, critique, repair, and recheck loop instead of a one-shot checklist.
+- [Developers Digest: 16 AI design slop patterns](https://www.developersdigest.tech/blog/ai-design-slop-and-how-to-spot-it) and [Impeccable's 46-pattern slop catalog](https://impeccable.style/slop/) independently name the same recurring visual, typography, motion, and copy tells across audited AI-generated sites.
+- [925 Studios on AI design tells](https://www.925studios.co/blog/ai-slop-design-tells) and [prg.sh on the purple-gradient origin](https://prg.sh/ramblings/Why-Your-AI-Keeps-Building-the-Same-Purple-Gradient-Website) trace the indigo/violet gradient default back to Tailwind's `indigo-500` default color and a training-data feedback loop, not a deliberate brand choice.
+- [popularai.org on em-dash cadence](https://www.popularai.org/p/how-to-spot-ai-writing-by-its-em-dashes-and-punch-up-punctuation) and [contentbeta's overused-AI-words list](https://www.contentbeta.com/blog/list-of-words-overused-by-ai/) document the copy-side tells used below.
 
 ## Anti-Generic Review
 
-Review the system and every important mockup for unsupported clusters of common AI-generated UI patterns:
+Review the system and every important mockup for unsupported clusters of common AI-generated UI patterns. Named patterns below are sourced from independent 2026 audits of AI-generated interfaces; treat the side-rail/accent-border pattern as a near-automatic failure per the Container & Border rule above, and treat every other pattern as a risk to weigh in combination, not a universal ban.
 
-- A badge, oversized gradient headline, generic benefit copy, two CTA buttons, and a floating dashboard mockup used as a default hero formula
+**Layout and composition:**
+- A badge or small pill directly above an oversized centered headline, generic benefit copy, two CTA buttons, and a floating dashboard mockup used as a default hero formula
 - Every content group placed inside a floating rounded card, including nested cards that do not communicate hierarchy or interaction
-- Repeated bordered cards or panels with a colored side rail or accent stripe used as generic decoration rather than a named state, selection, priority, category, or approved brand motif
-- Excessive pills, large corner radii, glows, glass effects, gradients, icon chips, or soft shadows without a semantic or brand role
+- Identical feature cards built from the same template: a decorative icon tile stacked above a heading and one line of interchangeable copy, repeated in a three-column grid
+- Numbered section markers (01 / 02 / 03) used as purely decorative "editorial scaffolding" rather than a real sequence the user follows
+- A stat-counter row of large numbers and short labels (for example "10K+ users," "99.9% uptime," "24/7 support") with no cited source
+- A testimonial carousel or logo strip of generic circular avatar placeholders, unverifiable names and quotes, or unnamed customer logos
 - Uniformly centered or evenly weighted sections that ignore task priority, content shape, reading flow, or data density
-- Repeated three-column feature grids, interchangeable icons, and equal-length placeholder copy that could describe any product
 - Landing pages that expose every feature, proof point, workflow, and content module at equal weight instead of making a clear editorial choice
+
+**Color, surface, and shape:**
+- The specific indigo-to-violet/purple gradient that traces back to Tailwind's `indigo-500` default rather than a chosen brand palette; any near-identical blue-purple gradient used as decoration deserves the same scrutiny
+- Glassmorphism or blur effects used as decoration rather than to communicate a real overlay, modal, or layering relationship
+- Corner radii pushed past a functional rounding into "blob" shapes (roughly 24px+ on standard-sized cards) with no stated rationale
+- Default-dark-mode surfaces paired with colored glow box-shadows and medium-grey body text, kept because it looks "premium" rather than for a stated brand or contrast reason
+- Gradient text applied to headlines, which reduces legibility and scannability without a stated purpose
+- The same faint 1px border applied to every button, input, image, avatar, and plain content block by default, independent of the control/data/state purpose Container & Border Decision Rules requires
+- Excessive pills, glows, icon chips, or soft shadows stacked with a hairline border on the same element without a semantic or brand role
+
+**Typography and iconography:**
+- A default font, palette, or component-library appearance left unchanged without an intentional product rationale, including the now-ubiquitous Inter/Poppins/Manrope/Geist/Space Grotesk/Instrument Serif stack (or an oversized italic serif applied to one hero word against an otherwise generic sans-serif) kept only because it shipped with the starting template
+- Thin, interchangeable line icons that could illustrate any product, or emoji used as navigation/UI icons in place of a real, evidence-based icon system
+
+**Motion:**
+- Default bounce or elastic spring easing applied to ordinary dialogs, buttons, or menus with no product reason (see `references/motion-system-guide.md` for the intent-driven alternative)
+
+**Fabrication:**
 - Decorative images, video, or animation added to fill space without helping comprehension, trust, orientation, feedback, or action
 - Fabricated metrics, testimonials, customer logos, activity, or polished sample data presented as if factual
-- A default font, palette, or component-library appearance left unchanged without an intentional product rationale
 
 Do not fail a design because one familiar pattern appears. Fail or revise it when several unsupported defaults cluster together, when the layout could belong to any product, or when decoration replaces information hierarchy.
+
+### Copy and Wording Anti-Slop Rules
+
+Generic AI-generated copy is as recognizable as generic AI-generated layout. Flag and replace, rather than silently keep, any of these in product copy, headlines, button labels, or written design rationale:
+
+- Marketing-buzzword verbs and adjectives used as filler rather than for a concrete claim: *unlock, elevate, leverage, streamline, empower, supercharge, harness the power of, seamless, robust, cutting-edge, game-changing, revolutionary, world-class, best-in-class, end-to-end, scalable solution*
+- Abstract nouns standing in for a specific outcome: *synergy, paradigm shift, actionable insights, drive innovation, drive impact*
+- The "setup, em dash, vague uplift" rhythm — a plain claim followed by an em dash and a burst of unearned abstraction — repeated more than once on the same page or in the same document
+- Manufactured-contrast rebuttal sentences ("It's not just X — it's Y") used as a stock structure rather than because a real contrast exists
+- Generic openers such as "In today's fast-paced world..." or "In the ever-evolving landscape of..."
+- Clickbait title templates such as "The Ultimate Guide to X" or "Everything You Need to Know About X" applied to product copy or section headings
+
+Prefer concrete, product-specific claims with a real number, named capability, or verifiable source over any of the above. This rule applies in addition to, not instead of, the exact-wording and bounded-display-contract requirements elsewhere in this package.
 
 Repair generic results in this order:
 
 1. Restore task and content hierarchy.
-2. Replace invented or vague content with representative domain content or explicit placeholders.
+2. Replace invented or vague content with representative domain content or explicit placeholders; replace marketing-buzzword and manufactured-contrast copy with concrete, product-specific wording per the Copy and Wording Anti-Slop Rules above.
 3. Remove unnecessary containers and decorative treatments.
-   Remove repeated borders and accent rails before inventing a new decorative replacement.
+   Remove repeated borders and accent rails before inventing a new decorative replacement; side-rail/accent-border removal comes first, not last, given how strongly it reads as AI-generated.
 4. Apply the product's signature typography, layout, color, imagery, or interaction decisions.
 5. Recheck responsive behavior, accessibility, and platform conventions.
 6. When visual artifacts or an implementation exist, render again, compare against the taste statement and acceptance gates, and repeat until the package passes or the remaining constraint is explicit. For a spec-only package, repeat the same critique over the Markdown sources, record render evidence as unavailable, and do not claim visual fidelity or implementation verification.

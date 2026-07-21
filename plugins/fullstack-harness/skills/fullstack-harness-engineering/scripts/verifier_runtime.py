@@ -92,7 +92,11 @@ def _resolve_cwd(checkout_root: Path, declared_cwd: Any) -> Path:
 
 def _resolve_executable(argv0: str, cwd: Path, environment: Mapping[str, str]) -> Path:
     candidate = Path(argv0)
-    if candidate.parent != Path("."):
+    if argv0.startswith("./"):
+        resolved = (cwd / candidate).resolve()
+        if resolved.is_file():
+            return resolved
+    elif candidate.parent != Path("."):
         resolved = candidate if candidate.is_absolute() else cwd / candidate
         resolved = resolved.resolve()
         if resolved.is_file():

@@ -296,6 +296,45 @@ class VerifierRuntimeTests(unittest.TestCase):
         self.assertEqual(result["cache_reason"], "cache_root_inside_checkout")
         self.assertFalse((self.checkout / ".cache").exists())
 
+    def test_dot_slash_argv0_resolves_against_verifier_cwd_not_real_process_cwd(
+        self,
+    ) -> None:
+        mission = self.checkout / "workspace"
+        mission.mkdir()
+        (mission / "probe.sh").write_text("mission\n", encoding="utf-8")
+
+        decoy_dir = self.root / "decoy"
+        decoy_dir.mkdir()
+        (decoy_dir / "probe.sh").write_text("decoy - much longer content\n", encoding="utf-8")
+
+        real_cwd = os.getcwd()
+        os.chdir(decoy_dir)
+        try:
+            _, key_document = build_execution_key(
+                {
+                    "id": "dot-slash-probe",
+                    "cwd": "workspace",
+                    "argv": ["./probe.sh"],
+                    "pass_signal": "exit 0",
+                    "cache": {"mode": "disabled", "environment_keys": []},
+                },
+                context(),
+                checkout_root=self.checkout,
+                environment=self.environment,
+            )
+        finally:
+            os.chdir(real_cwd)
+
+        resolved_path = key_document["executable_identity"]["path"]
+        self.assertEqual(
+            Path(resolved_path),
+            (mission / "probe.sh").resolve(),
+        )
+        self.assertEqual(
+            key_document["executable_identity"]["size"],
+            (mission / "probe.sh").stat().st_size,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

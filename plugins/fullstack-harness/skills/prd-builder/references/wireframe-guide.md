@@ -59,27 +59,37 @@ Do not leave `Main content`, `Feature section`, `Card 1`, `Lorem ipsum`, or simi
 - Prefer a short, ordered section list over a large collage of cards, badges, metrics, and repeated calls to action.
 - Label media and motion where they are needed; do not add an image or animation merely to fill space.
 
+## Screen Intent
+
+Write this before drawing a screen's ASCII layout. It is the reasoning step that drives the box layout, not a label filled in after the boxes already exist:
+
+- Main purpose: the single primary goal the user must accomplish on this screen, in one sentence. If it cannot be stated in one sentence, the screen is doing too many jobs — split it or pick the one job that wins.
+- Primary emphasis: what gets the strongest visual and structural weight, and why that thing serves the main purpose.
+- Secondary / quiet: what stays present but subordinate. Do not give it equal visual weight with the primary emphasis.
+- Structural rationale: which layout pattern from Direction And Configuration answers the main purpose, and why that pattern over the others.
+
+Carry all four lines into the Screen Template below verbatim. They make the layout pattern choice and the box layout traceable back to a stated reason instead of a default template.
+
 ## Screen Template
 
 ````markdown
 ## Screen: [Name]
+UI ID: UI-001
 
-Purpose: [What user accomplishes here]
+Trace IDs: PRD-001, UX-001, ARCH-001
 
-Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern]
+Main purpose: [Single primary goal, one sentence]
+
+Primary emphasis: [What gets the strongest weight, and why]
+
+Secondary / quiet: [What stays present but subordinate]
+
+Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern] — chosen because: [one sentence tying the pattern to the main purpose]
 
 Density: [Sparse / balanced / dense, with a task or content reason]
 
 ```text
-+------------------------------------------------------------+
-| Product / Section                                  [User]  |
-+------------------------------------------------------------+
-| Nav         | [Exact title or PURPOSE: ...]   [Exact CTA]  |
-|-------------+----------------------------------------------|
-| Item        | [Exact copy/data or DISPLAY: responsibility] |
-| Item        |                                              |
-|             | [Exact primary label] [Exact secondary label] |
-+------------------------------------------------------------+
+[Start from the matching skeleton in Layout Skeletons by Pattern below, then adapt its regions to this screen's actual content.]
 ```
 
 ### States
@@ -90,12 +100,95 @@ Density: [Sparse / balanced / dense, with a task or content reason]
 - Success: [Confirmation and next step]
 
 ### Content, Style, Media & Motion Notes
-| Region | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| [Region] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or handoff question] |
+| UI ID | Region | Trace IDs | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UI-001-R01 | [Region] | PRD-001, UX-001 | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or handoff question] |
 ````
 
+## Layout Skeletons by Pattern
+
+Start from the skeleton matching the screen's Structural rationale, then adapt region contents to the real product. Do not reuse the workspace skeleton for a landing page or a wizard merely because it is the most familiar box shape — each pattern reflects a different information architecture, and low-fidelity wireframes should already show that difference instead of hiding it behind one generic box.
+
+### Landing or Narrative Page
+
+```text
++------------------------------------------------------------+
+| Logo / Product                                  [Primary nav] |
++------------------------------------------------------------+
+| [Value proposition headline]                                |
+| [One supporting sentence]                                   |
+| [Primary action]                                            |
++------------------------------------------------------------+
+| Section: [one job — proof, trust, or how-it-works]          |
++------------------------------------------------------------+
+| Section: [next section, one job]                            |
++------------------------------------------------------------+
+| Footer: [secondary links, legal]                             |
++------------------------------------------------------------+
+```
+
+### App Workspace or CRUD Screen
+
+```text
++------------------------------------------------------------+
+| Product / Section                                  [User]  |
++------------------------------------------------------------+
+| Nav         | [Exact title or DISPLAY: ...]   [Exact CTA]  |
+|-------------+----------------------------------------------|
+| Item        | [Exact copy/data or DISPLAY: responsibility] |
+| Item        |                                              |
+|             | [Exact primary label] [Exact secondary label] |
++------------------------------------------------------------+
+```
+
+### Dashboard or Monitoring Screen
+
+```text
++----------------------------------------------------------------+
+| Header                                           Filters [Run]  |
++----------------------------------------------------------------+
+| KPI 1        | KPI 2        | KPI 3        | Alert summary      |
++----------------------------------------------------------------+
+| Chart / trend                         | Activity / exceptions  |
+|                                       |                        |
++----------------------------------------------------------------+
+| Table: records, status, owner, next action                      |
++----------------------------------------------------------------+
+```
+
+### Form or Wizard
+
+```text
++------------------------------------------------------------+
+| [Step indicator: Step 2 of 4 — Step name]                   |
++------------------------------------------------------------+
+| [Context: why this step, what happens after]                |
++------------------------------------------------------------+
+| [Field group: label, input, inline validation]               |
+| [Field group: label, input, inline validation]               |
++------------------------------------------------------------+
+| [Back]                                    [Primary: Continue]|
++------------------------------------------------------------+
+```
+
+### Search, Catalog, or Comparison Screen
+
+```text
++------------------------------------------------------------+
+| [Query input]                          [Sort] [View toggle] |
++------------------------------------------------------------+
+| Filters: [Filter] [Filter] [Filter]           [Result count] |
++------------------------------------------------------------+
+| Result       | Result       | Result                        |
+| Result       | Result       | Result                        |
++------------------------------------------------------------+
+| [Pagination or load more]                                    |
++------------------------------------------------------------+
+```
+
 ## Mobile Layout Template
+
+Adapt this cross-cutting responsive variant to whichever pattern skeleton above the screen uses; it is a viewport adjustment, not a sixth pattern.
 
 ```text
 +--------------------------+
@@ -113,22 +206,7 @@ Density: [Sparse / balanced / dense, with a task or content reason]
 +--------------------------+
 ```
 
-## Dashboard Layout Template
-
-```text
-+----------------------------------------------------------------+
-| Header                                           Filters [Run]  |
-+----------------------------------------------------------------+
-| KPI 1        | KPI 2        | KPI 3        | Alert summary      |
-+----------------------------------------------------------------+
-| Chart / trend                         | Activity / exceptions  |
-|                                       |                        |
-+----------------------------------------------------------------+
-| Table: records, status, owner, next action                      |
-+----------------------------------------------------------------+
-```
-
-## Automation Run Detail Template
+## Specialized Example: Automation Run Detail
 
 ```text
 +----------------------------------------------------------------+

@@ -58,7 +58,7 @@ Bind every remote result to the exact current head:
 - review PASS only when `review_head_sha` matches the same SHA, blocking findings are zero, and unresolved threads are zero;
 - any local integration or new push invalidates prior current-head CI, review, E2E, deployment, and auto-merge evidence tied to an older SHA.
 
-When CI or review finds an authorized in-scope defect, repair it locally, rerun invalidated local gates, commit and push the new final candidate, then restart CI and review concurrently for the new head. Stop for missing authorization, a scope/contract decision, or the core's bounded no-progress rule.
+When CI or review finds an authorized in-scope defect, repair it locally, rerun invalidated local gates, commit and push the new final candidate, then restart CI and review concurrently for the new head. Stop for missing authorization, a scope/contract decision, or the worker/run-level guardrail of three consecutive no-progress iterations (see `../fullstack-harness-engineering/assets/templates/GOAL.template.md` and `WORKER_GOAL.template.md`).
 
 Do not repeatedly run the complete GitHub pipeline for unchanged local work. Do not create empty commits to retrigger it. Use GitHub-native rerun only when a current-head job is transient and rerun is permitted by the repository.
 

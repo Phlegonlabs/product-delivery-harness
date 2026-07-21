@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-claude-code
-description: "Claude Code runtime adapter for Full Stack Harness engineering. Use only when the active host is Claude Code and a large plan needs Dynamic Workflow or parent-managed worktrees. This adapter is host-native only: it executes exclusively claude_code-provider PLAN nodes and does not own shared PLAN/RUN schemas, GitHub landing, merge, deployment, or cleanup."
+description: "Claude Code runtime adapter for Full Stack Harness engineering. Use only when the active host is Claude Code and a large plan needs Dynamic Workflow, parent-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively claude_code-provider PLAN nodes and does not own shared PLAN/RUN schemas, GitHub landing, merge, deployment, or cleanup."
 ---
 
 # Full-Stack Harness: Claude Code Runtime Adapter

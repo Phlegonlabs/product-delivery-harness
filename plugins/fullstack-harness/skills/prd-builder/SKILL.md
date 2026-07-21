@@ -14,7 +14,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 1. Read `references/interview-guide.md` before asking discovery questions.
 2. Conduct a complete but concise product interview before drafting, unless the user explicitly says to skip questions, make assumptions, or produce a first draft immediately.
 3. For a UI-bearing product, capture a `Builder UX Direction Decision` before drafting wireframes. Resolve the builder to the human product/design decision owner or commissioning team, then record experience priority, guidance versus expert control, information density, interaction familiarity, preferred layout pattern, visual cues, confirmation/recovery behavior, and validation depth. Mark every decision `selected`, `provisional`, or `assumed`.
-4. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid.
+4. Classify the product as one or more archetypes: web app, mobile app, internal tool, automation or agent workflow, API or backend service, or hybrid. Record whether it has any public-facing marketing, landing, or SEO-relevant page as distinct from purely internal or authenticated-only surfaces; this gates the SEO copy review below.
 5. After discovery, read `references/output-contract.md`, `references/artifact-lifecycle.md`, `references/architecture-playbook.md`, `references/wireframe-guide.md`, and `references/dynamic-workflow.md`. For a web app, internal tool, public website, or hybrid with a browser frontend, also read `references/frontend-stack-selection.md`.
 6. Before drafting, inventory earlier documents related to the same product as described in `references/artifact-lifecycle.md`. Do not move anything yet.
 7. For a non-trivial package, when Claude Code Dynamic Workflow is observed, multi-agent analysis is authorized, and the host can enforce the `builder_readonly` tool profile from `references/dynamic-workflow.md`, run `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` after the interview and source inputs are frozen. Retain failed lanes explicitly and treat the returned package as a candidate for parent review. If Dynamic Workflow or the read-only boundary is unavailable, perform the same roles sequentially and state that fallback.
@@ -44,7 +44,7 @@ Use this skill to turn a user's product idea or requirement into a complete Mark
 - Use `references/artifact-lifecycle.md` for staging, final `doc/` locations, safe identification of superseded documents, and post-validation archival.
 - Use `references/architecture-playbook.md` for implementation-ready architecture content across web, mobile, internal tools, and automations, including the default Cloudflare development-to-production release contract for deployable products.
 - Use `references/frontend-stack-selection.md` to separate frontend technology layers, recommend one product-fit stack, and verify current Cloudflare support when that platform is in scope.
-- Use `references/wireframe-guide.md` for ASCII wireframes, Mermaid flows, and required UI states.
+- Use `references/wireframe-guide.md` for each screen's main-purpose reasoning, its matching layout skeleton, Mermaid flows, and required UI states. Write the main purpose and structural rationale before drawing the ASCII box, not after.
 - Use `references/dynamic-workflow.md` for the stable PRD role graph, bounded Claude Code workflow, failure handling, and sequential fallback.
 
 ## Output Standards

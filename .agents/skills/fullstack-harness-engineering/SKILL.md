@@ -36,6 +36,14 @@ large -> planner -> readiness -> sequential execution or scheduler when parallel
 - A ready node's required or preferred provider must match the current host adapter. There is no cross-host fallback: a node whose provider does not match the running host is simply not executable here and is reported blocked on provider mismatch.
 - If small work grows large, stop at a safe checkpoint, preserve completed edits and evidence, and plan only the remainder.
 
+## Optional External Skill Assist
+
+This core does not bundle `frontend-design` or `feature-dev`. Both are separate Apache-2.0 plugins from the `claude-plugins-official` marketplace and require their own install (`claude plugin install frontend-design@claude-plugins-official`, `claude plugin install feature-dev@claude-plugins-official`). Before offering either, confirm it is actually loaded in the current session; if it is not installed, say so and continue on this core's own path instead of fabricating its presence.
+
+- Before writing frontend/UI code with no adequate `design-package-builder` output to follow, or when the user wants unusually distinctive visual execution beyond what an existing design package specifies, offer the `frontend-design` skill for that implementation step. Use it only after an explicit yes, and only for the visual/aesthetic execution itself; it does not replace this core's PLAN/RUN state, trace IDs, or authorization ledger.
+- For `small`-classified work that is really "build one feature well inside an existing codebase," offer the `/feature-dev` command as a richer alternative to this core's minimal `direct inspect -> implement -> local verify -> review` route before defaulting to it. Treat its output as this core's implementation and verification steps, still subject to this core's own authorization gate before any Git action.
+- Neither tool changes size classification, authorization, or verification requirements here. A `large` classification, an authorization boundary, or a required gate still applies regardless of which implementation path produced the change.
+
 ## Adapter Routing
 
 The core is runtime-neutral. Do not load all adapters in one run.
@@ -137,7 +145,7 @@ delete_branches
 ```
 
 - One user instruction may authorize several exact actions, but its source is recorded under every covered key; never replace them with blanket permission.
-- Every grant is bounded by the matching RUN schema scope, mission, target, time, and lifecycle boundary.
+- For large, plan-backed work, every grant is bounded by the matching RUN schema scope, mission, target, time, and lifecycle boundary. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
 - `invoke_external_runtime` does not replace spawn, workspace, branch, commit, integration, landing, or deployment authorization.
 - PR creation, repository configuration, review-state mutation, merge, deploy, archival, worktree removal, and branch deletion are independent boundaries.
 - Workers never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, open PRs, merge, deploy, or clean up.

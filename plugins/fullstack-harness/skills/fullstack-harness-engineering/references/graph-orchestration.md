@@ -100,7 +100,7 @@ Every `runtime_worker` or parent-executed mission declares at least one failure 
 
 ## Readiness And Outcomes
 
-Run `scripts/select_ready_nodes.py` for PLAN v4 and RUN v8. A node is logically ready only when:
+Run `scripts/select_ready_nodes.py` for PLAN v4 and RUN v8 or v9. A node is logically ready only when:
 
 - plan readiness and execution authorization are current;
 - its phase is `dormant` or `ready` and its attempt budget remains;
@@ -138,6 +138,8 @@ After choosing a provider, the selector binds that provider's PLAN options. If n
 Codex app threads and Claude Dynamic Workflow remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
 
 Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group Claude waves by tool profile only; model and reasoning effort do not require separate waves since each node's `agent()` call already carries its own. Every profile uses an exact allowlist. Mission profiles require `EnterWorktree` and the bounded write tools. Review profiles require `EnterWorktree` to bind reads to the validated `review_path`, but omit `Edit`, `Write`, `NotebookEdit`, and `Bash`; visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted for the Claude Code host.
+
+Launch a graph wave that includes any review node, or that must enforce these tool profiles and per-node `EnterWorktree` at the runtime layer, with `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (`scriptPath`, `tool_profile`, and typed `nodes[]` as structured `args`) — see `assets/templates/MISSION_RUNBOOK.template.md`. The flat `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` has no `node_kind`, `tool_profile`, or `EnterWorktree` handling and covers only single-role, all-mission waves.
 
 Current Claude Code workflow agents inherit the outer allowlist, so the outer process's required `Workflow` permission is also visible to mission agents. The flat no-delegation rule is therefore enforced by the mission contract, structured result, scope/Git validation, and rejection of unplanned child work rather than by removing the `Workflow` tool from the child. Record this runtime limitation; do not claim permission-level delegation prevention.
 
