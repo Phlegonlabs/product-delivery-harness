@@ -51,6 +51,14 @@ This skill owns the visual/design layer. It does not create PRDs, backend archit
 - Use `references/dynamic-workflow.md` for the stable design role graph, bounded Claude Code workflow, failure handling, and sequential fallback.
 - Use templates in `assets/templates/` when creating design package artifacts.
 
+## Optional External Skill Assist
+
+This skill does not bundle `frontend-design`. It is a separate Apache-2.0 plugin from the `claude-plugins-official` marketplace and requires its own install (`claude plugin install frontend-design@claude-plugins-official`). Before offering it, confirm it is actually loaded in the current session; if it is not installed, say so and continue on this skill's own path instead of fabricating its presence.
+
+- This skill's own artifacts (`design-system.md`, `page-ui-matrix.md`, `ui-mockups.md`, `visual-acceptance.md`) stay Markdown specifications; `frontend-design` does not replace them, their trace IDs, or the taste-and-anti-slop review in `references/output-contract.md`.
+- Offer `frontend-design` only for the small pieces of real code this skill already produces — the icon/component reference code snippets and the runnable `motion-showcase.html`/`motion-demos/` files — when the user wants unusually distinctive execution beyond what the design-system spec already states. Use it only after an explicit yes.
+- When the user's request goes beyond the design package into actually building or reshaping the product UI, that work belongs to `fullstack-harness-engineering`'s own implementation step, which already documents its own `frontend-design` offer. Do not expand this skill's own boundary to cover it.
+
 ## Output Standards
 
 - Prefer implementation-ready design rules over mood words.
