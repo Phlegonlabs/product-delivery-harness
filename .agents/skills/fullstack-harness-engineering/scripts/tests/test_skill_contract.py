@@ -168,6 +168,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("do not stop after verification or PR creation", goal)
         self.assertIn("one continuous parent-owned landing loop", runbook)
         self.assertIn("continue through that landing flow without pausing", project_rules)
+        self.assertIn("With separate `create_pr` authorization, open a Draft PR", project_rules)
+        self.assertIn("without matching `manage_pr_review` authorization", project_rules)
         for content in (skill, goal, runbook, project_rules):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())

@@ -17,7 +17,7 @@
 - Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual or deployment smoke only for a materially different environment or an uncovered visual/external-integration risk.
 - Change branch rules, required checks, repository auto-merge, or Codex review settings only with matching `configure_repository` authorization.
 - With matching `push` authorization, push only the final parent branch.
-- With separate `create_pr` authorization, open the PR. Use Draft only when the requested flow still needs a deliberate readiness hold.
+- With separate `create_pr` authorization, open a Draft PR. Do not create a non-draft PR, mark it ready, or otherwise expose it to automatic review without matching `manage_pr_review` authorization.
 - With separate `manage_pr_review` authorization, mark the PR ready when required and request Codex review immediately; do not wait for CI first.
 - After every new push, start or observe current-head CI, including required E2E, and request current-head review again. Poll both gates concurrently.
 - After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
