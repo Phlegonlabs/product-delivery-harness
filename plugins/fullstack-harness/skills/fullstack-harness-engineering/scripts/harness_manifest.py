@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -1874,7 +1875,7 @@ def _validate_deployments(
     for target_id in ("development", "production"):
         target = value[target_id]
         target_path = f"{path}.{target_id}"
-        if not _keys(errors, target_path, target, target_keys):
+        if not _keys(errors, target_path, target, target_keys, {"authorized_head_sha"}):
             continue
         targets[target_id] = target
         if target["status"] not in status_values:
@@ -1884,6 +1885,21 @@ def _validate_deployments(
         if target["verification_status"] not in status_values:
             _add(errors, f"{target_path}.verification_status", "has an unsupported value")
         _optional_sha(errors, f"{target_path}.source_sha", target["source_sha"])
+        _optional_sha(
+            errors,
+            f"{target_path}.authorized_head_sha",
+            target.get("authorized_head_sha"),
+        )
+        if (
+            target_id == "production"
+            and target["status"] != "not_started"
+            and target.get("authorized_head_sha") is None
+        ):
+            _add(
+                errors,
+                target_path,
+                "production deployment past not_started requires authorized_head_sha",
+            )
         for key in ("worker_name", "url", "version_id", "rollback_version"):
             _optional_string(errors, f"{target_path}.{key}", target[key])
         declared_target = release_targets.get(target_id)
@@ -2824,6 +2840,48 @@ def validate_ui_evidence_files(
             actual = hashlib.sha256(artifact.read_bytes()).hexdigest()
             if actual != item["artifact_sha256"]:
                 _add(errors, path, "sha256 does not match artifact_sha256")
+    return sorted(set(errors))
+
+
+def validate_integration_head_against_git(
+    run: dict[str, Any], repo_root: str | Path
+) -> list[str]:
+    """Cross-check run.integration.integration_head_sha against the live Git branch head."""
+
+    integration = run.get("integration")
+    if not isinstance(integration, dict):
+        return []
+    recorded = integration.get("integration_head_sha")
+    if recorded is None:
+        return []
+    path = "run.integration.integration_head_sha"
+    errors: list[str] = []
+    branch = integration.get("branch")
+    if not _nonempty_string(branch):
+        _add(errors, path, "could not be verified against live Git: run.integration.branch is not set")
+        return sorted(set(errors))
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", branch],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _add(errors, path, f"could not be verified against live Git: {exc}")
+        return sorted(set(errors))
+    if result.returncode != 0:
+        reason = result.stderr.strip() or f"git rev-parse exited {result.returncode}"
+        _add(errors, path, f"could not be verified against live Git: {reason}")
+        return sorted(set(errors))
+    actual = result.stdout.strip()
+    if actual != recorded:
+        _add(
+            errors,
+            path,
+            f"({recorded}) does not match the live Git head of branch '{branch}' ({actual}) - RUN.md is stale",
+        )
     return sorted(set(errors))
 
 

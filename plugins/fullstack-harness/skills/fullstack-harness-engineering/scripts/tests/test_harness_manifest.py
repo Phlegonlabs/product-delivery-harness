@@ -955,6 +955,7 @@ class RunValidationTests(unittest.TestCase):
             {
                 "status": "PASS",
                 "source_sha": SHA_B,
+                "authorized_head_sha": SHA_A,
                 "worker_name": "test-app-production",
                 "url": "https://test-app-production.example.workers.dev",
                 "version_id": "prod-version-1",
@@ -1148,6 +1149,143 @@ class RunValidationTests(unittest.TestCase):
         errors = validate_run(plan, run)
         self.assertTrue(any("has an unsupported value" in error for error in errors))
         self.assertTrue(any("must be null or a non-empty string" in error for error in errors))
+
+    def _authorize_and_pass_production(self, plan, run) -> None:
+        run["deployments"]["development"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_A,
+                "worker_name": "test-app-development",
+                "url": "https://test-app-development.example.workers.dev",
+                "version_id": "dev-version-1",
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:development-smoke"],
+            }
+        )
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy development and production for this run",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": [
+                    "environment:development",
+                    "environment:production",
+                ],
+            },
+            "expires_when": "run_complete",
+        }
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "merged",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        run["deployments"]["production"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_B,
+                "worker_name": "test-app-production",
+                "url": "https://test-app-production.example.workers.dev",
+                "version_id": "prod-version-1",
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:production-smoke"],
+            }
+        )
+
+    def test_schema_v7_production_past_not_started_requires_authorized_head_sha(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "production deployment past not_started requires authorized_head_sha",
+        )
+
+    def test_schema_v7_production_pass_with_valid_authorized_head_sha_accepted(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_schema_v7_production_malformed_authorized_head_sha_rejected(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = "not-a-sha"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.deployments.production.authorized_head_sha: must be null or a full lowercase Git SHA",
+        )
+
+    def test_schema_v7_development_authorized_head_sha_is_always_optional(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["deployments"]["development"]["authorized_head_sha"] = SHA_A
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["deployments"]["development"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_A,
+                "worker_name": "test-app-development",
+                "url": "https://test-app-development.example.workers.dev",
+                "version_id": "dev-version-1",
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:development-smoke"],
+                "authorized_head_sha": None,
+            }
+        )
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy development for this run",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["environment:development"],
+            },
+            "expires_when": "run_complete",
+        }
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+            }
+        )
+        self.assertFalse(
+            any(
+                "authorized_head_sha" in error
+                for error in validate_run(plan, run)
+            )
+        )
 
     def test_complete_run_rejects_unfinished_missions_and_tasks(self) -> None:
         plan = valid_plan()

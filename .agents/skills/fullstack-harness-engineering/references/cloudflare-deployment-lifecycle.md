@@ -26,6 +26,8 @@ Both of these are one-time prerequisites, not part of every deploy attempt. Comp
 
 **Config scaffolding.** When a PLAN declares `release.provider: cloudflare` and a target's `wrangler_config_path` does not yet exist in the repository, generate `wrangler.jsonc` before attempting any deploy. Verify the current Wrangler config schema against official documentation first; do not rely on a memorized or stale schema, since Cloudflare's config format changes. Generate a config containing `name`, `compatibility_date` (from current docs, not memory), the application's entry point, and per-environment sections for `development` and `production` that use the exact `worker_name` and `wrangler_environment` values already recorded in the PLAN's `release.targets` — never invent different names than what the PLAN declares. Declare bindings (D1, KV, R2, Durable Objects, queues, vars, secrets) explicitly per environment; never let a binding default to being shared between development and production.
 
+After scaffolding or changing `wrangler.jsonc`, and before the first deploy attempt, run `scripts/check_wrangler_binding_isolation.py --wrangler-config <path>` to catch a scaffolded config that reuses the same D1/KV/R2/queue/Durable Object resource identity between `development` and `production`. Treat any reported collision as a blocking Stop-And-Ask condition: report the exact binding and shared identity value to the user and ask which environment should keep the real resource, instead of silently guessing and picking one.
+
 **Account verification gate.** Before attempting any Cloudflare deploy command — development or production, whether a local `wrangler deploy` or the dispatched GitHub Actions workflow — confirm Cloudflare account access is actually available:
 
 - GitHub Actions path (`assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml`): confirm `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured as secrets on the `cloudflare-development`/`cloudflare-production` GitHub Environments the workflow dispatches against (`environment: cloudflare-${{ inputs.target_environment }}`).
@@ -40,6 +42,7 @@ Every new schema-v4 PLAN that declares a release uses a schema-v9 RUN with `depl
 ```text
 status
 source_sha
+authorized_head_sha when recorded
 worker_name
 url
 version_id
@@ -68,9 +71,9 @@ Use `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` as the default dep
 
 ## Pre-Deploy Confirmation Checkpoint
 
-The `deploy:production` ledger authorization granted at Plan Readiness lets the landing-and-deploy loop run without pausing for a second authorization. It does not license firing the production deploy blindly. Before the parent actually runs the production deploy command, verify two things and surface them to the user. This is a confirmation/notification checkpoint at the moment of execution, not a new ledger action — do not add a field to RUN or change any schema for it.
+The `deploy:production` ledger authorization granted at Plan Readiness lets the landing-and-deploy loop run without pausing for a second authorization. It does not license firing the production deploy blindly. Before the parent actually runs the production deploy command, verify two things and surface them to the user. This is a confirmation/notification checkpoint at the moment of execution, not a new ledger action.
 
-**Deploying SHA drift.** Record the SHA that was the current head when `deploy:production` was authorized. Before the production deploy fires, compare it to the SHA about to be deployed. If they differ — because review-repair, a new push, or re-integration changed the head since authorization — stop and ask for a fresh, explicit confirmation naming the new SHA. The old authorization covered the code the user saw when they granted it; do not silently ship a different SHA under it.
+**Deploying SHA drift.** At the moment `deploy:production` is authorized (Plan Readiness), record the current integration head SHA into `deployments.production.authorized_head_sha`. Before the production deploy fires, compare that recorded value against the live SHA about to be deployed. If they differ — because review-repair, a new push, or re-integration changed the head since authorization — stop and ask for a fresh, explicit confirmation naming the new SHA, and update `authorized_head_sha` to match. The old authorization covered the code the user saw when they granted it; do not silently ship a different SHA under it.
 
 **Migration destructiveness.** Before running any migration as part of the production deploy, classify it:
 

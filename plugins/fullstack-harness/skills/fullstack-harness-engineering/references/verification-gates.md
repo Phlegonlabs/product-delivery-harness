@@ -254,6 +254,7 @@ Final PASS requires:
 - Every must-have trace ID is covered.
 - Every required gate is PASS.
 - Schema-v9 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
+- Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Every skipped gate is justified.
 - Every `UNVALIDATED` surface is named.
 - Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; accepted non-file evidence applies only to gates that do not require screenshots.

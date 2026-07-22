@@ -12,6 +12,7 @@ from harness_manifest import (
     load_plan,
     load_run,
     plan_digest,
+    validate_integration_head_against_git,
     validate_plan,
     validate_run,
     validate_ui_evidence_files,
@@ -36,6 +37,7 @@ def main(argv: list[str] | None = None) -> int:
             run = load_run(args.run)
             run_errors = validate_run(plan, run)
             run_errors.extend(validate_ui_evidence_files(run, args.repo_root))
+            run_errors.extend(validate_integration_head_against_git(run, args.repo_root))
     except (OSError, ManifestError) as exc:
         sys.stdout.write(
             canonical_json({"errors": [str(exc)], "status": "ERROR"})

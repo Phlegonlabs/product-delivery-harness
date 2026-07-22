@@ -104,13 +104,14 @@ worktree workers      -> temporary per-mission reports only while integration ne
 
 ## Shared Validation Tools
 
-- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, and schema-v9 UI evidence.
+- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, schema-v9 UI evidence, and cross-checks `integration_head_sha` against the live Git branch head.
 - `scripts/upgrade_harness_schema.py` rewrites an older PLAN/RUN in place to the current schema (PLAN v4, RUN v9), adding only each version's neutral keys — never a fabricated authorization, gate, SHA, or evidence — and validates the result before writing; `--dry-run` reports the per-step additions without touching the file.
 - `scripts/select_ready_nodes.py` selects the typed PLAN-v4/RUN-v8-or-v9 frontier and provider-neutral launch directives.
 - `scripts/select_parallel_missions.py` supports older readable plans.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, final, release, migration, or smoke gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
+- `scripts/check_wrangler_binding_isolation.py` resolves a scaffolded `wrangler.jsonc`'s effective per-environment bindings and flags any D1, KV, R2, queue, or Durable Object resource identity shared between `development` and `production`.
 
 These shared validation and selection paths are Python-stdlib-only and deterministic. All but `upgrade_harness_schema.py` are read-only and never mutate Git, PLAN, RUN, tasks, or worktrees; `upgrade_harness_schema.py` is the one exception and only ever rewrites the exact PLAN/RUN files it was pointed at, never Git, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
 

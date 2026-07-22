@@ -63,10 +63,23 @@ class HarnessCliE2ETests(unittest.TestCase):
         plan_text = manifest_markdown(
             "## Harness Plan Manifest", "harness_plan", plan
         )
-        run_text = manifest_markdown("## Harness Run State", "harness_run", run)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            self.git(root, "init")
+            self.git(root, "config", "user.name", "Harness Test")
+            self.git(root, "config", "user.email", "harness@example.invalid")
+            self.git(root, "checkout", "-b", run["integration"]["branch"])
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            self.git(root, "add", "README.md")
+            self.git(root, "commit", "-m", "base")
+            head_sha = self.git(root, "rev-parse", "HEAD").stdout.strip()
+            run["integration"]["batch_base_sha"] = head_sha
+            run["integration"]["integration_head_sha"] = head_sha
+            if isinstance(run.get("observed", {}).get("git"), dict):
+                run["observed"]["git"]["parent_head_sha"] = head_sha
+
+            run_text = manifest_markdown("## Harness Run State", "harness_run", run)
             plan_path = root / "PLAN.md"
             run_path = root / "RUN.md"
             plan_path.write_text(plan_text, encoding="utf-8")
@@ -555,22 +568,35 @@ class HarnessCliE2ETests(unittest.TestCase):
             }
         ]
         run = valid_closeout_run(plan)
-        mark_complete(plan, run)
-        contents = b"\x89PNG\r\n\x1a\nfixture"
-        run["ui_evidence"] = [
-            {
-                "surface_id": "dashboard",
-                "route": "/dashboard",
-                "breakpoint": "desktop",
-                "state": "loaded",
-                "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
-                "artifact_sha256": hashlib.sha256(contents).hexdigest(),
-                "head_sha": run["integration"]["integration_head_sha"],
-                "status": "PASS",
-            }
-        ]
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            self.git(root, "init")
+            self.git(root, "config", "user.name", "Harness Test")
+            self.git(root, "config", "user.email", "harness@example.invalid")
+            self.git(root, "checkout", "-b", run["integration"]["branch"])
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            self.git(root, "add", "README.md")
+            self.git(root, "commit", "-m", "base")
+            head_sha = self.git(root, "rev-parse", "HEAD").stdout.strip()
+            run["integration"]["batch_base_sha"] = head_sha
+            run["integration"]["integration_head_sha"] = head_sha
+            if isinstance(run.get("observed", {}).get("git"), dict):
+                run["observed"]["git"]["parent_head_sha"] = head_sha
+
+            mark_complete(plan, run)
+            contents = b"\x89PNG\r\n\x1a\nfixture"
+            run["ui_evidence"] = [
+                {
+                    "surface_id": "dashboard",
+                    "route": "/dashboard",
+                    "breakpoint": "desktop",
+                    "state": "loaded",
+                    "artifact_path": "docs/goal/evidence/dashboard-desktop-loaded.png",
+                    "artifact_sha256": hashlib.sha256(contents).hexdigest(),
+                    "head_sha": run["integration"]["integration_head_sha"],
+                    "status": "PASS",
+                }
+            ]
             plan_path = root / "PLAN.md"
             run_path = root / "RUN.md"
             plan_path.write_text(

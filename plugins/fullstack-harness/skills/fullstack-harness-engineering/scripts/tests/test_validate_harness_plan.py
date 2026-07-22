@@ -34,6 +34,31 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         run = valid_run(plan)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            subprocess.run(
+                ["git", "checkout", "-b", run["integration"]["branch"]],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"],
+                cwd=root, check=True, capture_output=True, text=True,
+            )
+            head_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root, check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = head_sha
+
             plan_path = root / "PLAN.md"
             run_path = root / "RUN.md"
             plan_path.write_text(
