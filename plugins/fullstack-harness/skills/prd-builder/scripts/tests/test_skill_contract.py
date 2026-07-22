@@ -66,15 +66,20 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertIn("official-source verification date", architecture)
 
-    def test_cloudflare_default_records_isolated_promotion_contract(self) -> None:
+    def test_platform_is_resolved_via_askuserquestion_not_defaulted(self) -> None:
         skill = self.read("SKILL.md")
         architecture = self.read("references/architecture-playbook.md")
         frontend = self.read("references/frontend-stack-selection.md")
         contract = self.read("references/output-contract.md")
         agent = self.read("agents/openai.yaml")
 
-        self.assertIn("default the deployment platform to Cloudflare", skill)
-        self.assertIn("## Default Cloudflare Release Pattern", architecture)
+        self.assertNotIn("default the deployment platform to Cloudflare", skill)
+        self.assertNotIn("## Default Cloudflare Release Pattern", architecture)
+        self.assertNotIn("organization default", agent)
+        self.assertIn("resolve the deployment platform explicitly via the interview's platform `AskUserQuestion` step", skill)
+        self.assertIn("## Development-to-Production Release Pattern", architecture)
+        self.assertIn("never default to one silently", architecture)
+        self.assertIn("AskUserQuestion", agent)
         self.assertIn("one repository and one codebase", architecture)
         self.assertIn("separately named development and production Workers", frontend)
         self.assertIn("Current PR head after current-head CI", contract)
@@ -83,6 +88,98 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
             self.assertIn("cloudflare", content.lower())
+
+    def test_interview_marks_closed_set_questions_for_askuserquestion(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+
+        self.assertIn(
+            "Bullets marked `(AskUserQuestion)` are a closed, enumerable set",
+            interview,
+        )
+        for marked_bullet in (
+            "or a hybrid? (AskUserQuestion)",
+            "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion",
+            "recurring usability benchmarking? (AskUserQuestion)",
+            "or an existing brand reference. (AskUserQuestion",
+        ):
+            self.assertIn(marked_bullet, interview)
+        self.assertIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
+        self.assertIn(
+            "goal, users/roles, workflows, data/integrations, business rules, delivery constraints, success metrics, confirmation/recovery",
+            skill,
+        )
+
+    def test_skill_routes_backend_products_to_backend_selection(self) -> None:
+        skill = self.read("SKILL.md")
+        architecture = self.read("references/architecture-playbook.md")
+        contract = self.read("references/output-contract.md")
+        agent = self.read("agents/openai.yaml")
+
+        self.assertIn("references/backend-stack-selection.md", skill)
+        self.assertIn("references/backend-stack-selection.md", architecture)
+        for content in (skill, architecture, contract):
+            self.assertIn("backend, persistent data, or auth requirement", content)
+        self.assertIn("database category (Relational, Document, Key-value or cache only, or None)", agent)
+        self.assertIn(
+            "auth strategy (Build custom, Managed third-party provider, Platform-native, or No auth needed)",
+            agent,
+        )
+        self.assertIn("via AskUserQuestion unless the user or repository already names them", agent)
+
+    def test_backend_selection_guide_separates_layers_and_product_patterns(self) -> None:
+        guide = self.read("references/backend-stack-selection.md")
+
+        for heading in (
+            "## First Separate the Layers",
+            "## Collect Decision Evidence",
+            "## Product-Fit Patterns",
+            "## Data and Auth Decision Rules",
+            "## Selection Procedure",
+            "## Required Architecture Record",
+            "## Official Sources to Recheck",
+            "## Failure Modes",
+        ):
+            self.assertIn(heading, guide)
+        self.assertIn("Database category", guide)
+        self.assertIn("Auth strategy", guide)
+        for option in ("Relational", "Document", "key-value or cache only", "Build custom", "managed third-party"):
+            self.assertIn(option, guide)
+
+    def test_output_contract_adds_backend_and_data_technology_decision(self) -> None:
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("## Backend and Data Technology Decision", contract)
+        self.assertIn("### Data Entity to Store Mapping", contract)
+        self.assertIn("### Platform and Vendor Compatibility Verification", contract)
+        self.assertIn(
+            "database category and auth strategy trace back to the interview's `AskUserQuestion` answers",
+            contract,
+        )
+
+    def test_interview_marks_backend_and_auth_questions_for_askuserquestion(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+
+        self.assertIn("or no persistent database? (AskUserQuestion)", interview)
+        self.assertIn("or no auth needed? (AskUserQuestion)", interview)
+        self.assertIn("database category and auth strategy", skill)
+        self.assertIn(
+            "the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider",
+            interview,
+        )
+
+    def test_skill_gates_the_backend_askuserquestion_call(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn(
+            "Skip this call only when the product provably has no backend, persistent data, or auth surface",
+            skill,
+        )
+        self.assertIn(
+            "Do not silently pick a database category or auth strategy on the user's behalf.",
+            skill,
+        )
 
     def test_wireframes_keep_landing_pages_simple_and_label_media(self) -> None:
         skill = self.read("SKILL.md")

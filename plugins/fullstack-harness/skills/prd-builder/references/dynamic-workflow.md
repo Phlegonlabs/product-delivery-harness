@@ -31,10 +31,15 @@ Before launch, the parent must have:
 - the Builder UX Direction record for UI-bearing products;
 - source paths or a complete source summary;
 - a decision on whether a browser frontend and optional implementation plan are in scope;
+- for a deployable product, the deployment platform resolved (via the interview's platform `AskUserQuestion` step, the user, or the current repository) before a lane launches — a running read-only lane cannot ask the user for this;
 - a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
 - a machine-enforced `builder_readonly` launch profile that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.
 
 If the host cannot enforce that read-only tool boundary, use the sequential parent fallback. If a human decision, missing secret, publish approval, destructive action, or scope change is needed, do not launch or continue the workflow. Resolve it in the parent session first.
+
+### Optional Platform Research Lanes
+
+Only when the platform choice is genuinely ambiguous under the technology-neutral, time-boxed-spike escape hatch (`SKILL.md`'s Output Standards), the parent may optionally run one or two short read-only research lookups before presenting the platform `AskUserQuestion` menu, each returning 2-3 named platform options with tradeoffs so the menu is evidence-backed rather than silently decided by the agent. This is an ad hoc parent-side lookup under the existing `builder_readonly` boundary, not a new stable Graph Model role — do not add a row to the table above or change `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` for it. Most PRDs skip this entirely: a single `AskUserQuestion` call offering Cloudflare, Vercel, AWS, and Self-hosted (plus Other) is sufficient absent real ambiguity.
 
 ## Execution
 

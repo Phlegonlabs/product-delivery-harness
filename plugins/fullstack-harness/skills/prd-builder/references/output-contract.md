@@ -148,6 +148,47 @@ Use only when a stack layer cannot yet be decided.
 | Open Decision | Missing Evidence | Owner | Decision Date | Time-boxed Spike | Pass / Fail Criteria |
 | --- | --- | --- | --- | --- | --- |
 
+## Backend and Data Technology Decision
+Use this section for every product with a backend, persistent data, or auth requirement. Omit it only when the product provably has none of these.
+
+Decision status: [Required / Selected / Recommended / Provisional]
+
+Decision authority: [User constraint, existing repository, or PRD recommendation]
+
+### Decision Drivers
+- [Data shape/relationships, consistency/transaction needs, query complexity, scale, identity/compliance requirements, team capability, platform-managed services, integration surface.]
+
+### Recorded or Recommended Stack
+| Layer | Selection | Why It Fits | Constraint or Follow-up |
+| --- | --- | --- | --- |
+| Backend runtime / framework | [Selection] | [Reason] | [Constraint] |
+| Database category | [Relational / Document / Key-value or cache only / None] | [Reason] | [Constraint] |
+| Database engine | [Selection] | [Reason] | [Constraint] |
+| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | [Reason] | [Constraint] |
+| Auth provider | [Selection] | [Reason] | [Constraint] |
+| API style | [REST / GraphQL / RPC / server actions] | [Reason] | [Constraint] |
+| Background jobs / queue | [Selection or not applicable] | [Reason] | [Constraint] |
+| File / object storage | [Selection or not applicable] | [Reason] | [Constraint] |
+
+### Data Entity to Store Mapping
+| Entity | Store | Rationale |
+| --- | --- | --- |
+
+### Alternatives Considered
+| Alternative | Where It Fits Better | Why Not Selected Here | Revisit Trigger |
+| --- | --- | --- | --- |
+
+### Platform and Vendor Compatibility Verification
+- Checked on: [YYYY-MM-DD]
+- Official sources: [Direct links]
+- Runtime/service requirements: [Bindings, connection limits, region/residency, quota, or other constraints]
+
+### Unresolved Decision Protocol
+Use only when a layer cannot yet be decided.
+
+| Open Decision | Missing Evidence | Owner | Decision Date | Time-boxed Spike | Pass / Fail Criteria |
+| --- | --- | --- | --- | --- | --- |
+
 ## System Context
 [Actors, systems, dependencies.]
 
@@ -176,12 +217,12 @@ Use only when a stack layer cannot yet be decided.
 ## Deployment and Operations
 [Hosting, environments, config, migrations, queues, cron, rollback.]
 
-For deployable Cloudflare products, include this environment contract:
+For every deployable product, include this environment contract (Cloudflare Worker naming shown as the worked example; substitute the resolved platform's equivalent deployment unit):
 
-| Target | Exact Release Source | Worker | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
+| Target | Exact Release Source | Deployment Unit | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Development | [Current PR head after current-head CI] | [Distinct development Worker] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Command/order or not applicable] | [URL, version, checks, smoke, evidence] | [Prior development version] |
-| Production | [Exact merged base-branch SHA after development PASS] | [Distinct production Worker] | [Production resources] | [Production] | [Live or not applicable] | [Command/order or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
+| Development | [Current PR head after current-head CI] | [Distinct development deployment unit, e.g. Cloudflare Worker, Vercel project environment, AWS stack] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Command/order or not applicable] | [URL, version, checks, smoke, evidence] | [Prior development version] |
+| Production | [Exact merged base-branch SHA after development PASS] | [Distinct production deployment unit] | [Production resources] | [Production] | [Live or not applicable] | [Command/order or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
 
 State that both targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development.
 
@@ -316,11 +357,14 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
 - For a browser product, `PRD.md` defines frontend delivery requirements including content/interactivity, rendering, SEO, accessibility, performance, target devices, and deployment constraints where applicable.
 - `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
-- For a deployable product, `architecture.md` records the platform. Unless the user or repository names another platform, it uses the Cloudflare organization default and defines one codebase with separate development and production Workers.
-- For Cloudflare delivery, the environment contract names exact PR-head and merged-base release sources, distinct Worker names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. Development never uses production customer data, sessions, or live payment mutations.
+- For a deployable product, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
+- The environment contract names exact PR-head and merged-base release sources, distinct per-environment deployment-unit names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. For Cloudflare delivery specifically, that means distinct Worker names. Development never uses production customer data, sessions, or live payment mutations.
 - For a browser product, `architecture.md` records the required/selected stack or recommends one frontend stack, separates its technology layers, maps rendering by route, explains rejected alternatives, and records official-source verification date and runtime constraints.
 - The frontend decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
 - Any unresolved frontend stack decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
+- For a product with a backend, persistent data, or auth requirement, `architecture.md` records the required/selected backend stack or recommends one, separates backend runtime, database category, database engine, auth strategy, and auth provider as distinct layers, maps data entities to stores, explains rejected alternatives, and records official-source verification date and runtime/service constraints.
+- The backend/data decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice, and the database category and auth strategy trace back to the interview's `AskUserQuestion` answers rather than a silent default.
+- Any unresolved backend, database, or auth decision has an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
 - `wireframes.md` records the user-selected interface style, or an explicit provisional `modern-minimal` assumption when the user authorized assumptions. A `modern` direction is translated into concrete hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences.
 - `wireframes.md` cites the Builder UX Direction Decision and preserves whether each controlling choice is selected, provisional, or assumed.

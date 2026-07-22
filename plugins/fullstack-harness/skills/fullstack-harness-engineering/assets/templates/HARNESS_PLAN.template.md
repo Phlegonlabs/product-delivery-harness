@@ -4,6 +4,8 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 
 ## Harness Plan Manifest
 
+`release.provider` accepts `cloudflare | vercel | aws | self_hosted | other`. The two-target shape shown below (`worker_name`/`wrangler_config_path`/`wrangler_environment`, fixed `development`/`production` ids) applies only when `provider` is `cloudflare`; any other provider uses a smaller generic target contract (`id`/`deploy_command`/`migration_command`/`smoke_verifiers`/`prerequisites` only).
+
 ```json
 {
   "harness_plan": {

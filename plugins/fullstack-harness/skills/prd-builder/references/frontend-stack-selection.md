@@ -15,7 +15,7 @@ Never compare `Cloudflare vs Astro vs Vite vs React` as though they solve the sa
 
 | Layer | Question | Examples |
 | --- | --- | --- |
-| Deployment / runtime | Where are assets and server code deployed and executed? | Cloudflare Workers with Static Assets, Cloudflare Pages |
+| Deployment / runtime | Where are assets and server code deployed and executed? | Cloudflare Workers with Static Assets, Cloudflare Pages, Vercel, AWS (Amplify/ECS/Lambda), self-hosted (Docker/VM/Kubernetes) |
 | Rendering model | When and where does HTML render? | Static, SSG, SSR, on-demand, SPA/CSR, islands, hybrid by route |
 | Web framework | What owns routes, rendering conventions, and app structure? | Astro, React Router, TanStack Start |
 | UI library | What expresses interactive component behavior? | React, Preact, Vue, none |
@@ -44,19 +44,29 @@ Do not let one factor decide by itself. A marketing route inside a large authent
 
 Use these as starting hypotheses, then validate them against the decision evidence.
 
+Platform is a separate, already-resolved input (see the interview's platform `AskUserQuestion` step) — these rows recommend the framework/rendering layer only. The Watch-outs column names the deployment detail for each resolved platform; on Cloudflare that means Workers Static Assets or a Worker API, on Vercel its native framework adapter, on AWS a static/hosting target (e.g. S3+CloudFront, Amplify), and on self-hosted a static file server or container.
+
 | Product shape | Starting recommendation | Why | Watch-outs |
 | --- | --- | --- | --- |
-| Marketing, docs, editorial, portfolio, content-led commerce | Astro with static output on Cloudflare Workers Static Assets | Content-first routing and little client JavaScript by default | Confirm CMS previews, search, localization, and rebuild latency |
-| Content-led site with a few rich tools, calculators, or account widgets | Astro + React islands on Cloudflare Workers | Static/server-rendered pages with React only where interaction needs it | Define island boundaries; avoid turning every section into a hydrated component |
-| Authenticated dashboard, operations console, or interaction-heavy SPA | React + Vite on Cloudflare Workers Static Assets, plus a Worker API when needed | Coherent client application model and direct Cloudflare Vite integration | Specify routing, data fetching, code splitting, auth, error handling, and SPA fallback |
-| Full-stack React app with route data, SSR, or server actions | A currently supported React framework on Cloudflare Workers | Framework-owned routing/data/rendering avoids rebuilding production conventions by hand | Verify the framework's current Cloudflare support, maturity, runtime limits, and migration path |
+| Marketing, docs, editorial, portfolio, content-led commerce | Astro with static output | Content-first routing and little client JavaScript by default | Confirm CMS previews, search, localization, and rebuild latency. Deploy target: Cloudflare Workers Static Assets, Vercel's static output, an AWS static host, or a self-hosted static file server |
+| Content-led site with a few rich tools, calculators, or account widgets | Astro + React islands | Static/server-rendered pages with React only where interaction needs it | Define island boundaries; avoid turning every section into a hydrated component. Deploy target: the platform's Astro adapter (Cloudflare, Vercel, or self-hosted) |
+| Authenticated dashboard, operations console, or interaction-heavy SPA | React + Vite, plus a backend API when needed | Coherent client application model | Specify routing, data fetching, code splitting, auth, error handling, and SPA fallback. Deploy target: Cloudflare Workers Static Assets plus a Worker API, Vercel static hosting plus serverless functions, or an AWS/self-hosted static host plus service |
+| Full-stack React app with route data, SSR, or server actions | A currently supported React framework | Framework-owned routing/data/rendering avoids rebuilding production conventions by hand | Verify the framework's current support, maturity, runtime limits, and migration path on the resolved platform |
 | Existing app with a healthy supported stack | Preserve the existing stack unless measured constraints justify migration | Reduces rewrite risk and preserves team velocity | Document the actual limitation and measurable exit criteria before migrating |
 
 React's official guidance recommends starting new React apps with a framework and treating a from-scratch Vite setup as a deliberate choice. Therefore, do not default every production web app to bare React + Vite: use it when a SPA or custom architecture is itself the product-fit decision.
 
-## Cloudflare Decision Rules
+## Platform Decision Rules
 
-Verify these rules against current official documentation on the date the PRD is written:
+Verify these rules against current official documentation on the date the PRD is written.
+
+### Any Platform
+
+- Use one codebase with separately named development and production environments. Development deploys the current PR head only after current-head CI and uses isolated non-production bindings, data, auth, and sandbox payment credentials. Production deploys the exact merged base-branch SHA only after development passes and uses production bindings, auth, and live payment credentials.
+- Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
+- Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `architecture.md`.
+
+### Cloudflare
 
 1. Prefer Cloudflare Workers with Static Assets for new Cloudflare-hosted static sites, SPAs, and full-stack apps unless an existing Pages workflow or a specific Pages capability materially changes the decision.
 2. Use Astro static output when every relevant route can be pre-rendered. Add the Cloudflare adapter only for on-demand rendering or server features, and verify build/runtime requirements.
@@ -65,10 +75,12 @@ Verify these rules against current official documentation on the date the PRD is
 5. If SSR or full-stack React conventions are needed, select a framework that current Cloudflare docs support rather than assuming a build tool supplies routing, data loading, caching, or server behavior.
 6. For Worker-backed apps, document the `compatibility_date`, runtime compatibility flags, bindings, secrets, asset routing, local preview path, and build environment requirements.
 7. If authentication or middleware must run before protected assets, explicitly verify asset routing/order; never assume frontend route guards provide authorization.
-8. Use one codebase with separately named development and production Workers. Development deploys the current PR head only after current-head CI and uses isolated non-production bindings, data, auth, and sandbox payment credentials. Production deploys the exact merged base-branch SHA only after development passes and uses production bindings, auth, and live payment credentials.
-9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker. A successful upload alone is not release proof.
+8. Use one codebase with separately named development and production Workers, following the Any Platform promotion rule above.
+9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker.
 
-Cloudflare and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `architecture.md`.
+### Vercel, AWS, and Self-Hosted
+
+Platform-specific rule sets for these targets are not yet authored in this guide. When one of these is the resolved platform, look up its current official deployment/framework documentation live and apply the same Any Platform rules above and the same verification-date discipline — do not invent platform-specific rules speculatively.
 
 ## Selection Procedure
 
@@ -90,11 +102,13 @@ The `Frontend Technology Decision` section in `architecture.md` must include:
 - A route-level rendering table.
 - Alternatives and revisit triggers.
 - Official documentation links and verification date.
-- Cloudflare adapter/plugin, build runtime, compatibility date, asset routing, binding, auth, and local-preview constraints when applicable.
-- For deployable Cloudflare products, the distinct development and production Worker names, exact release sources, resource/auth/payment isolation, migration order, deployed-environment verification, and rollback path.
+- Platform adapter/plugin, build runtime, compatibility date, asset routing, binding, auth, and local-preview constraints when applicable (Cloudflare `compatibility_date` and bindings when that is the resolved platform).
+- For a deployable product, the distinct development and production deployment-unit names (Workers for Cloudflare, the platform's equivalent for another target), exact release sources, resource/auth/payment isolation, migration order, deployed-environment verification, and rollback path.
 - Owners, deadlines, spikes, and pass/fail criteria for any provisional decision.
 
 ## Official Sources to Recheck
+
+These links cover Cloudflare specifically. When the resolved platform is Vercel, AWS, or self-hosted, find and cite that platform's own official documentation live, using the same verification-date discipline — do not fabricate URLs for platforms not covered here.
 
 Use primary documentation, not marketplace roundups:
 

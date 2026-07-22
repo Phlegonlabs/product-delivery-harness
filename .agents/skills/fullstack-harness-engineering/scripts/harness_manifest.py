@@ -129,6 +129,9 @@ CLEANUP_BRANCH_STATUSES = {
 }
 SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9}
 UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
+# Deployment target for plan.release / run.deployments. Unrelated to RUNTIME_PROVIDERS below,
+# which selects the agent runtime that executes PLAN nodes, not where the product deploys.
+DEPLOYMENT_PROVIDERS = {"cloudflare", "vercel", "aws", "self_hosted", "other"}
 RUNTIME_PROVIDERS = {"codex", "claude_code", "generic"}
 RUNTIME_REASONING_EFFORTS = {
     "none",
@@ -587,9 +590,74 @@ def _validate_release(errors: list[str], value: Any) -> None:
     path = "plan.release"
     if not _keys(errors, path, value, {"provider", "targets"}):
         return
-    if value["provider"] != "cloudflare":
-        _add(errors, f"{path}.provider", "must equal cloudflare")
-    if not isinstance(value["targets"], list) or len(value["targets"]) != 2:
+    provider = value["provider"]
+    if provider not in DEPLOYMENT_PROVIDERS:
+        _add(errors, f"{path}.provider", f"must be one of {sorted(DEPLOYMENT_PROVIDERS)}")
+        return
+    if provider == "cloudflare":
+        _validate_cloudflare_release_targets(errors, path, value["targets"])
+    else:
+        _validate_generic_release_targets(errors, path, value["targets"])
+
+
+def _validate_generic_release_targets(errors: list[str], path: str, targets_value: Any) -> None:
+    if not isinstance(targets_value, list) or not targets_value:
+        _add(errors, f"{path}.targets", "must be a non-empty list")
+        return
+
+    target_keys = {
+        "id",
+        "prerequisites",
+        "migration_command",
+        "deploy_command",
+        "smoke_verifiers",
+    }
+    seen_ids: set[str] = set()
+    for index, target in enumerate(targets_value):
+        target_path = f"{path}.targets[{index}]"
+        if not _keys(errors, target_path, target, target_keys):
+            continue
+        target_id = target["id"]
+        if not _nonempty_string(target_id):
+            _add(errors, f"{target_path}.id", "must be a non-empty string")
+        elif target_id in seen_ids:
+            _add(errors, f"{target_path}.id", "must be unique")
+        else:
+            seen_ids.add(target_id)
+        _strings(
+            errors,
+            f"{target_path}.prerequisites",
+            target["prerequisites"],
+            nonempty=True,
+        )
+        if target["migration_command"] is not None:
+            _validate_verifier(
+                errors,
+                f"{target_path}.migration_command",
+                target["migration_command"],
+                cache_allowed=False,
+            )
+        _validate_verifier(
+            errors,
+            f"{target_path}.deploy_command",
+            target["deploy_command"],
+            cache_allowed=False,
+        )
+        smoke = target["smoke_verifiers"]
+        if not isinstance(smoke, list) or not smoke:
+            _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
+        else:
+            for verifier_index, verifier in enumerate(smoke):
+                _validate_verifier(
+                    errors,
+                    f"{target_path}.smoke_verifiers[{verifier_index}]",
+                    verifier,
+                    cache_allowed=False,
+                )
+
+
+def _validate_cloudflare_release_targets(errors: list[str], path: str, targets_value: Any) -> None:
+    if not isinstance(targets_value, list) or len(targets_value) != 2:
         _add(errors, f"{path}.targets", "must contain development and production")
         return
 
@@ -608,7 +676,7 @@ def _validate_release(errors: list[str], value: Any) -> None:
         "deploy_command",
         "smoke_verifiers",
     }
-    for index, target in enumerate(value["targets"]):
+    for index, target in enumerate(targets_value):
         target_path = f"{path}.targets[{index}]"
         if not _keys(errors, target_path, target, target_keys):
             continue
@@ -1753,8 +1821,9 @@ def _validate_deployments(
     path = "run.deployments"
     if not _keys(errors, path, value, {"provider", "development", "production"}):
         return
-    if value["provider"] != "cloudflare":
-        _add(errors, f"{path}.provider", "must equal cloudflare")
+    provider = value["provider"]
+    if provider not in DEPLOYMENT_PROVIDERS:
+        _add(errors, f"{path}.provider", f"must be one of {sorted(DEPLOYMENT_PROVIDERS)}")
 
     release = plan.get("release")
     release_targets: dict[str, dict[str, Any]] = {}
@@ -1826,11 +1895,14 @@ def _validate_deployments(
             if evidence:
                 _add(errors, target_path, "not_started deployment must not record evidence")
         if target["status"] == "PASS":
-            if any(
-                not _nonempty_string(target[key])
-                for key in ("worker_name", "url", "version_id")
-            ) or not is_full_sha(target["source_sha"]):
-                _add(errors, target_path, "PASS requires source SHA, worker, URL, and version ID")
+            if provider == "cloudflare":
+                if any(
+                    not _nonempty_string(target[key])
+                    for key in ("worker_name", "url", "version_id")
+                ) or not is_full_sha(target["source_sha"]):
+                    _add(errors, target_path, "PASS requires source SHA, worker, URL, and version ID")
+            elif not is_full_sha(target["source_sha"]):
+                _add(errors, target_path, "PASS requires a source SHA")
             if target["migration_status"] not in ("PASS", "not_required"):
                 _add(errors, target_path, "PASS requires migration PASS or not_required")
             if target["verification_status"] != "PASS":
@@ -1889,7 +1961,7 @@ def _validate_deployments(
         or development.get("status") != "PASS"
         or production.get("status") != "PASS"
     ):
-        _add(errors, path, "complete Cloudflare run requires development and production PASS")
+        _add(errors, path, "complete run requires development and production PASS")
 
 
 def _validate_post_merge_cleanup(

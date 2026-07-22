@@ -8,6 +8,8 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 ## Harness Run State
 
+`deployments.provider` accepts `cloudflare | vercel | aws | self_hosted | other` and must match the PLAN's `release.provider`. The `development`/`production` fields below (including `worker_name`/`url`/`version_id`) apply to any provider, but a `PASS` status only requires a non-empty `worker_name`/`url`/`version_id` when `provider` is `cloudflare`; other providers only require `source_sha` and retained `evidence`.
+
 ```json
 {
   "harness_run": {

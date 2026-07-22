@@ -1,6 +1,6 @@
 # Architecture Playbook
 
-Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. For products with a browser surface, record the required/selected frontend or make an evidence-backed recommendation as described in `frontend-stack-selection.md`.
+Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. For products with a browser surface, record the required/selected frontend or make an evidence-backed recommendation as described in `frontend-stack-selection.md`. For products with a backend, persistent data, or auth requirement, apply the same decision-status discipline to the backend runtime, database, and auth layers as described in `references/backend-stack-selection.md`.
 
 ## Baseline Architecture Coverage
 
@@ -10,6 +10,7 @@ Every architecture should cover:
 - Actors and external systems.
 - Frontend or client responsibilities.
 - For products with a browser frontend, frontend technology layers: deployment/runtime, rendering model, framework, UI library, build tool, routing/data approach, styling/component approach, and testing.
+- For products with a backend, persistent data, or auth requirement, backend technology layers: runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - Backend, service, or workflow orchestration responsibilities.
 - Data model and persistence.
 - API, event, file, or trigger contracts.
@@ -20,16 +21,16 @@ Every architecture should cover:
 - Observability, metrics, alerting, and audit logs.
 - Scaling, reliability, idempotency, retries, and rate limits.
 
-## Default Cloudflare Release Pattern
+## Development-to-Production Release Pattern
 
-For a deployable product, use Cloudflare as the default platform unless the user or current repository names another target. Keep one repository and one codebase, then promote exact commits through two separately named Workers:
+For a deployable product, resolve the deployment platform explicitly (via the interview's platform `AskUserQuestion` step, the user, or the current repository) before writing this section — never default to one silently. Keep one repository and one codebase, then promote exact commits through two separately named environments. The table below uses Cloudflare's two-Worker model as the worked example; for another resolved platform, substitute its equivalent named per-environment unit (for example, separate Vercel project environments, separate AWS stacks or services, or separate self-hosted environment configs) while keeping the same isolation and evidence guarantees:
 
 | Target | Release source | Runtime and data boundary | Required proof |
 | --- | --- | --- | --- |
-| Development | Current pull-request head after current-head CI | Development Worker; isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Migration result when applicable, deployed URL/version, automated checks, and development smoke |
-| Production | Exact merged base-branch SHA after development passes | Production Worker; production bindings, secrets, data, auth, and live payment credentials | Migration result when applicable, deployed URL/version, production smoke, monitoring signal, and rollback version |
+| Development | Current pull-request head after current-head CI | Development environment (Worker, for Cloudflare); isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Migration result when applicable, deployed URL/version, automated checks, and development smoke |
+| Production | Exact merged base-branch SHA after development passes | Production environment (Worker, for Cloudflare); production bindings, secrets, data, auth, and live payment credentials | Migration result when applicable, deployed URL/version, production smoke, monitoring signal, and rollback version |
 
-Do not model development as a second codebase or a long-lived development branch by default. Do not let a development Worker access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward-compatibility needs, secret ownership, rollback, and which evidence becomes stale after a new commit or deployment.
+Do not model development as a second codebase or a long-lived development branch by default. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward-compatibility needs, secret ownership, rollback, and which evidence becomes stale after a new commit or deployment.
 
 ## Web App Pattern
 
@@ -92,7 +93,7 @@ Use when the product is mainly a service consumed by other systems.
 - Call out tradeoffs when choosing between synchronous requests, background jobs, event-driven design, or scheduled processing.
 - Specify idempotency for payment, notification, import, workflow, and external mutation flows.
 - Specify authorization at both UI and backend layers.
-- For a browser frontend, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
+- For a browser frontend, backend, persistent data, or auth requirement, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
 - For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact PR-head-to-merged-main promotion path.
 - Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

@@ -18,6 +18,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_manifest import (  # noqa: E402
     AUTHORIZATION_KEYS,
+    DEPLOYMENT_PROVIDERS,
     ManifestError,
     load_plan,
     load_run,
@@ -237,6 +238,21 @@ def cloudflare_release() -> dict[str, object]:
     }
 
 
+def generic_release(provider: str) -> dict[str, object]:
+    return {
+        "provider": provider,
+        "targets": [
+            {
+                "id": "primary",
+                "prerequisites": ["ci_pass"],
+                "migration_command": None,
+                "deploy_command": verifier("deploy-primary", "npm", "run", "deploy"),
+                "smoke_verifiers": [verifier("smoke-primary", "tool", "smoke-primary")],
+            }
+        ],
+    }
+
+
 def valid_release_plan() -> dict[str, object]:
     plan = valid_plan()
     plan["schema_version"] = 3
@@ -449,6 +465,28 @@ def valid_release_run(plan: dict[str, object]) -> dict[str, object]:
             "rollback_version": None,
             "evidence": [],
         },
+    }
+    return run
+
+
+def generic_release_run(plan: dict[str, object], provider: str) -> dict[str, object]:
+    run = valid_run(plan)
+    run["schema_version"] = 7
+    target = {
+        "status": "not_started",
+        "source_sha": None,
+        "worker_name": None,
+        "url": None,
+        "version_id": None,
+        "migration_status": "not_started",
+        "verification_status": "not_started",
+        "rollback_version": None,
+        "evidence": [],
+    }
+    run["deployments"] = {
+        "provider": provider,
+        "development": copy.deepcopy(target),
+        "production": copy.deepcopy(target),
     }
     return run
 
@@ -672,6 +710,33 @@ class PlanValidationTests(unittest.TestCase):
         ]
         self.assert_error_contains(missing_promotion_gate, "must include development_pass")
 
+    def test_schema_v3_accepts_non_cloudflare_release_providers(self) -> None:
+        for provider in sorted(DEPLOYMENT_PROVIDERS - {"cloudflare"}):
+            plan = valid_plan()
+            plan["schema_version"] = 3
+            plan["release"] = generic_release(provider)
+            self.assertEqual(validate_plan(plan), [], f"provider={provider}")
+
+    def test_schema_v3_release_rejects_unknown_provider(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("gcp")
+        self.assert_error_contains(plan, "must be one of")
+
+    def test_schema_v3_generic_release_rejects_cloudflare_only_fields(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("vercel")
+        plan["release"]["targets"][0]["worker_name"] = "should-not-be-allowed"
+        self.assert_error_contains(plan, "unknown keys: worker_name")
+
+    def test_schema_v3_generic_release_rejects_missing_generic_fields(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("vercel")
+        del plan["release"]["targets"][0]["deploy_command"]
+        self.assert_error_contains(plan, "missing keys: deploy_command")
+
     def test_schema_v3_release_rejects_malformed_values_without_crashing(self) -> None:
         malformed_id = valid_release_plan()
         malformed_id["release"]["targets"][0]["id"] = {}
@@ -859,6 +924,79 @@ class RunValidationTests(unittest.TestCase):
 
         run["deployments"]["production"]["worker_name"] = "wrong-production"
         self.assert_run_error_contains(plan, run, "must match PLAN release target")
+
+    def test_schema_v7_accepts_non_cloudflare_deployment_providers(self) -> None:
+        for provider in sorted(DEPLOYMENT_PROVIDERS - {"cloudflare"}):
+            plan = valid_plan()
+            plan["schema_version"] = 3
+            plan["release"] = generic_release(provider)
+            run = generic_release_run(plan, provider)
+            self.assertEqual(validate_run(plan, run), [], f"provider={provider}")
+
+    def test_schema_v7_deployments_rejects_unknown_provider(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        run["deployments"]["provider"] = "gcp"
+        self.assert_run_error_contains(plan, run, "must be one of")
+
+    def test_schema_v7_deployments_provider_must_match_plan_release_provider(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("vercel")
+        run = generic_release_run(plan, "aws")
+        self.assert_run_error_contains(plan, run, "must match PLAN release provider")
+
+    def test_schema_v7_cloudflare_deployments_still_require_worker_fields(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        run["deployments"]["development"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_A,
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:development-smoke"],
+            }
+        )
+        self.assert_run_error_contains(
+            plan, run, "PASS requires source SHA, worker, URL, and version ID"
+        )
+
+    def test_schema_v7_generic_deployments_pass_requires_source_and_evidence(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("vercel")
+        run = generic_release_run(plan, "vercel")
+        run["deployments"]["development"]["status"] = "PASS"
+        run["deployments"]["development"]["migration_status"] = "not_required"
+        run["deployments"]["development"]["verification_status"] = "PASS"
+        self.assert_run_error_contains(plan, run, "PASS requires a source SHA")
+
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy development for this run",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["environment:development"],
+            },
+            "expires_when": "run_complete",
+        }
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+            }
+        )
+        run["deployments"]["development"]["source_sha"] = SHA_A
+        run["deployments"]["development"]["evidence"] = ["artifact:development-smoke"]
+        # Worker/url/version_id stay None: a generic provider's PASS does not require them.
+        self.assertEqual(validate_run(plan, run), [])
 
     def test_release_plan_requires_schema_v7_or_v9_run(self) -> None:
         plan = valid_release_plan()
