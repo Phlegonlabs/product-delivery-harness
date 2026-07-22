@@ -24,6 +24,9 @@ if (!Array.isArray(workflowArgs.source_paths)) {
 if (typeof workflowArgs.browser_frontend !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.browser_frontend");
 }
+if (typeof workflowArgs.has_backend !== "boolean") {
+  throw new Error("prd-builder-graph requires boolean args.has_backend");
+}
 if (typeof workflowArgs.has_public_marketing_content !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.has_public_marketing_content");
 }
@@ -32,6 +35,9 @@ if (typeof workflowArgs.include_implementation_plan !== "boolean") {
 }
 if (workflowArgs.tool_profile !== "builder_readonly") {
   throw new Error("prd-builder-graph requires args.tool_profile builder_readonly");
+}
+if (workflowArgs.browser_frontend && (typeof workflowArgs.builder_ux_direction !== "string" || !workflowArgs.builder_ux_direction.trim())) {
+  throw new Error("prd-builder-graph requires non-empty args.builder_ux_direction for a browser_frontend product");
 }
 
 const stringArray = { type: "array", items: { type: "string" } };
@@ -94,6 +100,7 @@ const sourceContext = JSON.stringify({
   interview_summary: workflowArgs.interview_summary,
   builder_ux_direction: workflowArgs.builder_ux_direction || null,
   browser_frontend: workflowArgs.browser_frontend,
+  has_backend: workflowArgs.has_backend,
   include_implementation_plan: workflowArgs.include_implementation_plan,
   has_public_marketing_content: workflowArgs.has_public_marketing_content,
 });
@@ -116,6 +123,12 @@ if (workflowArgs.browser_frontend) {
   roles.push({
     key: "frontend-platform",
     task: "Recommend or preserve one explicit browser stack and rendering/platform strategy, separate technology layers, identify official-source checks, and leave unresolved decisions explicit.",
+  });
+}
+if (workflowArgs.has_backend) {
+  roles.push({
+    key: "backend",
+    task: "Recommend or preserve one explicit backend runtime/framework, database category and engine, and auth strategy and provider, separate technology layers, map data entities to stores, identify official-source checks, and leave unresolved decisions explicit for the Backend and Data Technology Decision section.",
   });
 }
 

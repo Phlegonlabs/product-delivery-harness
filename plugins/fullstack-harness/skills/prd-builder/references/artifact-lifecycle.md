@@ -12,6 +12,14 @@ Before doing anything else, check whether `doc/PRD.md` — or another Markdown d
 - The final publish paths stay the same fixed locations (`doc/PRD.md`, `doc/architecture.md`, `doc/wireframes.md`) — enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
 - Enhancement mode still uses the staging, validation, and archive steps below: the prior version is archived for history once the enhanced draft is validated, even though its content already carried forward into that draft.
 
+## Handle an Unrelated Document at a Fixed Publish Path
+
+If `doc/PRD.md`, `doc/architecture.md`, or `doc/wireframes.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
+
+The publish step still overwrites that exact path regardless of whether it enhances or replaces it, so the existing file must still be archived for safety — add it to the superseded-document inventory even though it is an unrelated product document. The general exclusion for unrelated product documents in "Inventory Superseded Documents" below applies to other documents found elsewhere in the repository, not to one already occupying a path this run will publish to.
+
+In the Approval Gate, label this path explicitly as "existing unrelated content that will be overwritten and archived," not as a generic prior-version overwrite, so the user can catch the collision before approving.
+
 ## Resolve Locations
 
 - Treat the Git repository root as the workspace root. If no Git repository exists, use the current workspace root.
@@ -35,7 +43,7 @@ Before drafting, identify the documents that the new package will supersede. Can
 Exclude:
 
 - Everything already under `doc/archived/`.
-- Research, meeting notes, source material, design-system documents, test evidence, and unrelated product documents.
+- Research, meeting notes, source material, design-system documents, test evidence, and unrelated product documents — unless the unrelated document occupies one of this run's exact final publish paths, per "Handle an Unrelated Document at a Fixed Publish Path" above, in which case it must still be inventoried and archived.
 - Any ambiguous candidate. Leave it in place and mention it to the user instead of guessing.
 
 Record the candidate paths before creating staged artifacts. Do not archive or overwrite them yet.

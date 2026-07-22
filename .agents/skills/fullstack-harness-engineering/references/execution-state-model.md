@@ -206,7 +206,7 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Pull Request Landing State
 
-Schemas v3 through v9 require a `landing` object. `mode` is `local_only` or `pull_request`; choose it from the requested outcome rather than repository presence. Local implementation, branch, commit, or integration work defaults to `local_only`; an explicit push, PR, review, merge, or deployed-delivery outcome uses `pull_request`. Local-only mode cannot record a pushed head or created PR and does not wait for GitHub CI or review. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target. Schemas v4 through v9 include `auto_merge_requested` and `auto_merge_head_sha`; schema v3 files remain valid without them.
+Schemas v3 through v9 require a `landing` object. `mode` is `local_only` or `pull_request`; choose it from the requested outcome rather than repository presence. Local implementation, branch, commit, or integration work defaults to `local_only`; an explicit push, PR, review, merge, or deployed-delivery outcome uses `pull_request`. Local-only mode cannot record a pushed head or created PR and does not wait for GitHub CI or review. It does not skip review altogether, though — see `contract-and-traceability.md`'s Stop And Ask Conditions for the graph-level review-coverage gate that applies to it exactly as it does to `pull_request`. The parent records the remote, final head branch, base branch, pushed head, PR identity/state, CI state, review state, finding/thread counts, and merge state. Worker branches do not land independently unless the PLAN explicitly assigns them a separate landing target. Schemas v4 through v9 include `auto_merge_requested` and `auto_merge_head_sha`; schema v3 files remain valid without them.
 
 For plan-backed execution whose requested outcome is pull-request landing, inspect the complete review and merge path at Plan Readiness and request every missing landing action once with exact run, mission, and target scope. The normal set is `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr`; add the selected runtime's launch actions, and add separately scoped `configure_repository` only when the observed setup requires a repository change. Before a PR exists, bind its review and merge entries to `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>`. After creation, verify those three fields, append the exact `pr:<full-PR-URL>` target while preserving the future binding and source, and use the exact target for review and merge. Record one explicit user source under each approved action. Once the complete path is authorized, the parent runs review and merge continuously without stage-by-stage prompts. The request, selected mode, and repository capability never authorize themselves.
 
@@ -356,7 +356,15 @@ Record the permission state that applies before a worker is launched:
 }
 ```
 
-Use `selected_mode` values `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown`. `profile_name` is required only for `named_profile`. Use approval values `untrusted`, `on-request`, `never`, `granular`, or `unknown`; filesystem values `read_only`, `workspace`, `custom`, `unrestricted`, or `unknown`; network values `disabled`, `filtered`, `open`, or `unknown`; local-binding values `allowed`, `blocked`, or `unknown`; inheritance values `inherited`, `not_inherited`, or `unknown`; and status values `ready`, `may_prompt`, `blocked`, or `unknown`.
+| Field | Allowed values |
+|---|---|
+| `selected_mode` | `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown` (`profile_name` is required only for `named_profile`) |
+| `approval_policy` | `untrusted`, `on-request`, `never`, `granular`, or `unknown` |
+| `filesystem_scope` | `read_only`, `workspace`, `custom`, `unrestricted`, or `unknown` |
+| `network_scope` | `disabled`, `filtered`, `open`, or `unknown` |
+| `local_binding` | `allowed`, `blocked`, or `unknown` |
+| `worker_inheritance` | `inherited`, `not_inherited`, or `unknown` |
+| `status` | `ready`, `may_prompt`, `blocked`, or `unknown` |
 
 `status: ready` means the current boundary already covers the concrete worker surfaces, including linked-worktree Git metadata, temp/cache paths, outbound destinations, local bindings, and sockets required by its verifiers. It does not authorize an action. `approve_for_me` may automate review but does not widen filesystem or network access. `full_access` means unrestricted filesystem/network access with approval policy `never`; use it only when the user intentionally selected that boundary. Permission changes do not retroactively update already-running app tasks, so re-observe the boundary when creating or restarting workers.
 

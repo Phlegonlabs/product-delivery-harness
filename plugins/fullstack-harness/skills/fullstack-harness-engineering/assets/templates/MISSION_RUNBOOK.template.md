@@ -551,6 +551,7 @@ If Goal mode is used, its prompt may record expected coordination and request au
 | UI routes, states, breakpoints, and evidence are planned | draft / PASS / BLOCKED / n/a | |
 | Builder UX Direction owner/status and required UX validation are explicit | draft / PASS / BLOCKED / n/a | |
 | Worker, mission-integration, batch, final E2E, and release gates exist; E2E command, current-head check, evidence, environment, and smoke disposition are named | draft / PASS / BLOCKED | |
+| Every mission's write scope is covered by a review-type node (`backend_code`/`frontend_code`/`visual`), independent of `landing.mode` | draft / PASS / BLOCKED / n/a | |
 | Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
 
 For plan-backed work, do not set the run to `running` until all required readiness rows pass, the plan revision/digest is current, `execution_authorized` is true, and every next action has its own authorization. In compact RUN-only mode, the parent may set `plan_readiness: "ready"` and `status: "running"` after the applicable sequential readiness checks pass and execution is explicitly authorized; keep plan identity null and do not claim plan validation, delegation, refinement, or wave selection.

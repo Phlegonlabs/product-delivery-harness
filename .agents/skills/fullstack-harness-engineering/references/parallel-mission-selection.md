@@ -116,7 +116,11 @@ Use exclusive serialized keys or typed runtime keys for migration streams, gener
 
 Worktrees isolate repository files only. They do not make runtime resources non-conflicting.
 
-Only declare a mission-level `runtime_resources`/`serialized_resources` claim for a resource that concurrent *workers* would actually contend for — for example, each worktree's own worker booting a live dev server on the same fixed port, or writing to one shared live database at the same time. A resource exercised only by `integration_verifiers` (a shared local dev server or local database an end-to-end/migration check depends on) does not need a mission-level exclusive claim: integration already happens one mission at a time (see Batch Integration And Recompute below), so that resource is naturally serialized at the point it is actually used. Declaring it exclusive at the mission level instead blocks worker-stage worktree parallelism the resource was never contending for in the first place, forcing missions to run fully sequentially even when their actual file changes do not overlap. When a mission's own `worker_verifiers` need a live local service, prefer a per-worktree or dynamically assigned port/database path over one fixed shared instance so the claim can stay `shared_read` or be omitted rather than defaulting to `exclusive`.
+Only declare a mission-level `runtime_resources`/`serialized_resources` claim for a resource concurrent *workers* would actually contend for, not one only `integration_verifiers` touch:
+
+- **Worker-stage contention** (claim it): each worktree's own worker would boot a live dev server on the same fixed port, or write to one shared live database at the same time.
+- **Integration-stage-only use** (no mission-level claim needed): a shared local dev server or database that only an `integration_verifiers` end-to-end/migration check depends on. Integration already happens one mission at a time (see Batch Integration And Recompute below), so that resource is naturally serialized where it's actually used — an exclusive mission-level claim here would only block worker-stage worktree parallelism the resource was never contending for, forcing sequential execution even when the missions' file changes don't overlap.
+- **Mitigation**: when a mission's own `worker_verifiers` need a live local service, prefer a per-worktree or dynamically assigned port/database path over one fixed shared instance, so the claim can stay `shared_read` or be omitted instead of defaulting to `exclusive`.
 
 ## Conflict Graph
 

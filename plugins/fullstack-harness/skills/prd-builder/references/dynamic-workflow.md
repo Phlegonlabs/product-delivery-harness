@@ -12,6 +12,7 @@ The stable org graph defines these roles:
 | architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
 | ux-wireframe | Journeys, UX obligations, routes, states, wireframe structure | UX/UI sections and wireframe requirements |
 | frontend-platform | Browser stack and platform evidence when applicable | Frontend decision and source evidence |
+| backend | Backend runtime, database, and auth technology decisions when the product has a backend, persistent data, or auth requirement | Backend and Data Technology Decision content and source evidence |
 | synthesis | Reconcile all lanes into one package | Draft artifact bodies |
 | trace-verifier | Check requirement and ID coverage | Findings and decision |
 | consistency-verifier | Check cross-document conflicts and unsupported claims | Findings and decision |
@@ -31,6 +32,7 @@ Before launch, the parent must have:
 - the Builder UX Direction record for UI-bearing products;
 - source paths or a complete source summary;
 - a decision on whether a browser frontend and optional implementation plan are in scope;
+- a decision on whether the product has a backend, persistent data, or auth requirement, which gates whether the `backend` role runs;
 - for a deployable product, the deployment platform resolved (via the interview's platform `AskUserQuestion` step, the user, or the current repository) before a lane launches — a running read-only lane cannot ask the user for this;
 - a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
 - a machine-enforced `builder_readonly` launch profile that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.

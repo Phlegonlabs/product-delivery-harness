@@ -35,7 +35,7 @@ Use this structure:
 ## Problem Statement
 [Current pain, trigger, and why now.]
 
-## Builder UX Direction
+## Builder UX Direction Decision
 Decision owner: [Human product/design owner or commissioning team]
 
 | Dimension | Direction | Product / user rationale | Status | Validation needed |
@@ -105,7 +105,7 @@ Use this structure:
 | ARCH-001 | [Stable architecture contract] | PRD-001 | UI-001, TEST-001 |
 
 ## Product Archetype
-[Web app, mobile app, internal tool, automation or agent workflow, API or hybrid.]
+[Web app, mobile app, desktop app, internal tool, automation or agent workflow, API or hybrid. For a mobile app, name the resolved platform: native iOS, native Android, Flutter, or React Native. For a desktop app, name the resolved platform: macOS, Windows, or cross-platform.]
 
 ## Frontend Technology Decision
 Use this section for every product with a browser frontend. Omit it only when no browser surface exists.
@@ -246,7 +246,7 @@ Use this structure:
 
 ## Wireframe Direction
 - Fidelity: Low
-- Builder UX direction source: [PRD.md#builder-ux-direction]
+- Builder UX direction source: [PRD.md#builder-ux-direction-decision]
 - Decision status: [selected / provisional / assumed, with unresolved items]
 - Product style intent: [User-selected direction, or provisional modern-minimal assumption]
 - Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]

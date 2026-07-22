@@ -21,7 +21,9 @@ Ask only questions that are not already answered.
    - What starts each workflow?
    - What is the successful end state?
 4. Product surface
-   - Should this be web, mobile app, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)
+   - Should this be web, mobile app, desktop app, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)
+   - If the answer is mobile app, which mobile platform: native iOS, native Android, Flutter (cross-platform), React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion)
+   - If the answer is desktop app, which desktop platform: macOS, Windows, cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion)
    - Which platforms, devices, or channels matter?
    - Are there accessibility, localization, or offline requirements?
 5. Data and integrations
@@ -51,7 +53,7 @@ Ask only questions that are not already answered.
 8. Architecture constraints
    - Is there a required stack, hosting environment, database, auth provider, or existing system?
    - What auth strategy should this product use: build custom authentication, a managed third-party provider (e.g., Auth0, Clerk, WorkOS), a platform-native provider (e.g., Cloudflare Access, AWS Cognito), or no auth needed? (AskUserQuestion)
-   - For a deployable product, which deployment platform should this use: Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, unless the user's prompt or the current repository already names one)
+   - For a deployable web product, which deployment platform should this use: Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, unless the user's prompt or the current repository already names one) — ask this only when the resolved product surface is web, or a hybrid that includes a web surface. It does not apply to a native iOS, native Android, Flutter, macOS, or Windows target, whose release path is an app store or a signed installer rather than a web host; for those, resolve distribution with the matching platform pattern in `architecture-playbook.md` instead of asking this question.
    - For a browser frontend, is the product primarily content-led, interaction-led, or a mixture? Which routes require SEO, static generation, server rendering, authenticated personalization, or SPA behavior?
    - If the platform is Cloudflare, does the frontend need Cloudflare Workers bindings or APIs such as D1, KV, R2, Durable Objects, Queues, Workflows, or Workers AI? For another platform, note the equivalent platform-managed services it needs.
    - Which team skills, existing components, package constraints, browser targets, and build/deployment workflows should shape the frontend choice?

@@ -46,16 +46,57 @@ Use for browser-based SaaS, marketplaces, dashboards, portals, and public web pr
 - Security: session management, CSRF when applicable, RBAC, tenant isolation, input validation, secure file upload, secrets handling.
 - Operations: environments, database migrations, feature flags, scheduled jobs, queues, monitoring, rollback.
 
-## Mobile App Pattern
+## Mobile and Desktop Distribution Discipline
 
-Use for native or cross-platform iOS and Android products.
+The mobile and desktop patterns below name concrete toolchains, store fees, code-signing steps, testing tracks, and OS-version deadlines. These change on the vendors' schedule, not yours. Do not copy any specific fee, tester count, testing-window rule, target-API deadline, minimum OS version, or signing/notarization step from memory into a PRD. Verify each against the official source cited in the pattern on the date the PRD is written, and record that check date and the direct link in `architecture.md`'s deployment/operations section, the same way `frontend-stack-selection.md` records a verification date for web platform claims. When you cannot verify a specific number live, write the requirement without the number and mark it as needing live verification rather than asserting a stale figure.
 
-- Client: navigation structure, local state, offline behavior, push notifications, permissions, deep links, device capabilities.
-- Backend: sync API, auth sessions, notification service, media upload, entitlement or subscription checks when relevant.
-- Data: local cache, remote canonical records, conflict resolution, sync timestamps, deletion behavior.
-- APIs: mobile-friendly payloads, versioning, pagination, retry-safe mutations, upload progress, token refresh.
-- Security: secure storage, biometric or device auth if needed, PII minimization, jailbreak or rooted device assumptions only when required.
-- Operations: app release channels, server compatibility windows, analytics, crash reporting, rollback limitations after app store release.
+The native iOS, native Android, Flutter, and desktop targets do not use the web deployment-platform question (Cloudflare/Vercel/AWS/self-hosted). Their release path is an app store or a signed installer. A mobile or desktop product that also has a server backend still resolves that backend's own hosting separately.
+
+## Native iOS Pattern
+
+Use for a native Apple-platform app built directly against Apple's SDKs (not a cross-platform runtime).
+
+- Toolchain: Xcode as the IDE, Swift with SwiftUI or UIKit for the UI, Swift Package Manager for dependencies. CocoaPods is an older dependency manager now in maintenance mode — prefer Swift Package Manager for new work and only carry CocoaPods forward for existing pods, verifying its current support status before relying on it.
+- Client architecture: navigation and screen structure (commonly MVVM with a coordinator or navigation-stack pattern), local persistence (Core Data, SwiftData, or SQLite), local state, offline behavior, permissions, deep links, and device capabilities.
+- Distribution: a paid Apple Developer Program membership is required to ship to the App Store and TestFlight — confirm the current annual fee live. Builds must be code-signed with a distribution certificate and a provisioning profile. TestFlight is the beta channel before public release; confirm the current internal and external tester limits live. Push notifications go through APNs (Apple Push Notification service).
+- Backend: sync API, auth sessions, notification sending to APNs, media upload, and entitlement or subscription checks when the app sells content.
+- Data: local cache versus remote canonical records, conflict resolution, sync timestamps, and deletion behavior.
+- Security: Keychain for secrets, biometric or device auth when needed, PII minimization, and jailbroken-device assumptions only when the product requires them.
+- Operations and required verification: app-review turnaround, server compatibility windows across app versions in the wild, analytics, crash reporting, and the limited rollback after an App Store release (you ship a new build or use phased release / expedited review, you do not silently roll back an installed version). Verify current signing, TestFlight, and submission requirements at [Apple Developer Program](https://developer.apple.com/programs/), [TestFlight](https://developer.apple.com/testflight/), and [code signing and provisioning profiles (TN3125)](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles) on the PRD date.
+
+## Native Android Pattern
+
+Use for a native Android app built directly against the Android SDK (not a cross-platform runtime).
+
+- Toolchain: Android Studio as the IDE, Kotlin as the language, Gradle as the build system, and Jetpack Compose (or the older Views system) for the UI.
+- Client architecture: navigation and screen structure (commonly MVVM with Jetpack components), local persistence (Room over SQLite or DataStore), local state, offline behavior, permissions, deep links, and device capabilities.
+- Distribution: a Google Play Console developer account requires a one-time registration fee — confirm the current amount live. Play offers internal, closed, and open testing tracks before production. Play App Signing has Google hold and manage the app signing key while you sign uploads with an upload key. New personal developer accounts are subject to a pre-production testing requirement (a minimum number of testers opted in for a minimum number of days before you can apply for production access) — verify the current tester count and duration live, since these have changed. New apps and updates must target a minimum Android API level by a Play deadline that moves each year — verify the current required target API level and its deadline live. Push notifications go through FCM (Firebase Cloud Messaging).
+- Backend: sync API, auth sessions, notification sending to FCM, media upload, and entitlement or subscription checks when relevant.
+- Data: local cache versus remote canonical records, conflict resolution, sync timestamps, and deletion behavior.
+- Security: EncryptedSharedPreferences or the Keystore for secrets, biometric or device auth when needed, PII minimization, and rooted-device assumptions only when required.
+- Operations and required verification: staged rollout percentages, server compatibility windows across app versions, analytics, crash reporting (for example via Play Console vitals), and rollback constraints after release (halt or reduce a staged rollout rather than un-shipping an installed version). Verify current fees, testing tracks, signing, testing gates, and target-API rules at [Play Console registration](https://support.google.com/googleplay/android-developer/answer/6112435), [Play App Signing](https://developer.android.com/studio/publish/app-signing), [test your app](https://developer.android.com/guide/app-bundle/test), and [target API level requirements](https://developer.android.com/google/play/requirements/target-sdk) on the PRD date.
+
+## Flutter Pattern
+
+Use for a single cross-platform codebase targeting iOS and Android from one source (and optionally web, macOS, Windows, and Linux).
+
+- Toolchain: one Dart codebase, dependencies declared in `pubspec.yaml` and resolved from pub.dev. Native-only capabilities are reached through platform channels (MethodChannel, or a typed generator such as Pigeon) that call into Kotlin/Java on Android and Swift/Objective-C on iOS.
+- Targets: Flutter compiles to native binaries per platform. Confirm the current supported OS-version ranges for each target you intend to ship live, since they move with releases.
+- Distribution: because it compiles to native, Flutter does not bypass either store. An iOS+Android product still needs BOTH an Apple path (Apple Developer Program, code signing, TestFlight, App Store review) exactly as in the Native iOS Pattern AND a Google path (Play Console, testing tracks, Play App Signing, target-API rules) exactly as in the Native Android Pattern. Budget for both memberships, both signing setups, and both review processes. If you also ship Flutter desktop, add the matching desktop distribution path below.
+- Client architecture, backend, data, and security: follow the same concerns as the native patterns (navigation and state, local persistence, sync API, secure storage, push via APNs on iOS and FCM on Android). A plugin that wraps a native capability may differ per platform — record which platforms each plugin actually supports.
+- Operations and required verification: one build pipeline produces multiple platform artifacts, but each still goes through its own store's release and rollback rules. Verify the current supported platforms and per-store deployment steps at [Flutter supported platforms](https://docs.flutter.dev/reference/supported-platforms), [Flutter iOS deployment](https://docs.flutter.dev/deployment/ios), and [Flutter Android deployment](https://docs.flutter.dev/deployment/android), plus the Apple and Google sources named in the native patterns, on the PRD date.
+
+## Desktop App Pattern
+
+Use for an installable desktop application on macOS, Windows, or both.
+
+- macOS toolchain and distribution: build with SwiftUI or AppKit (or a cross-platform toolkit, see below). Apps are code-signed with a Developer ID certificate; apps distributed outside the Mac App Store must also be notarized by Apple (submitted with `notarytool`) so Gatekeeper runs them without an "unidentified developer" warning. Distribution is either direct download (Developer ID, signed and notarized) or the Mac App Store (sandboxing required). Verify current signing and notarization requirements at [notarizing macOS software](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [macOS distribution](https://developer.apple.com/macos/distribution/) on the PRD date.
+- Windows toolchain and distribution: build with WinUI or .NET (WPF or WinForms), or a cross-platform toolkit. Package as MSIX (the modern Windows package format; MSIX packages must be signed) or a traditional installer. Distribute by direct download or the Microsoft Store; the Store re-signs MSIX submissions, while direct download needs a certificate that chains to a trusted root. Verify current packaging, signing, and distribution options at [MSIX overview](https://learn.microsoft.com/en-us/windows/msix/overview), [signing an MSIX package](https://learn.microsoft.com/en-us/windows/msix/package/signing-package-overview), and [choose a distribution path](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/choose-distribution-path) on the PRD date.
+- Cross-platform desktop alternative: when one codebase should target both macOS and Windows (and often Linux), consider Tauri (a web frontend over the OS-native webview with a Rust backend, small binaries) or Electron (bundles Chromium and Node.js, larger binaries but a full browser runtime). A cross-platform build still has to satisfy each OS's own signing and distribution rules above — the framework does not remove macOS notarization or Windows signing. Verify current platform support at [Tauri](https://tauri.app/) and [Electron](https://www.electronjs.org/) on the PRD date.
+- Client architecture: window and view structure, local persistence and file handling, offline-first behavior (desktop apps typically run without a network), auto-update mechanism, OS integration (menu bar, tray, notifications, file associations), and permissions.
+- Backend and data: many desktop apps are local-first with optional sync; when a backend exists, resolve its hosting separately, and specify sync, conflict resolution, and auth-session handling.
+- Security: OS keychain/credential store for secrets, code-signing integrity, update-channel integrity (signed updates), and PII minimization.
+- Operations and required verification: signed auto-update delivery, per-OS minimum-version support, crash reporting, and staged rollout where the update framework supports it. Rollback means shipping a prior signed version through the same update channel. Record the verification date and the official sources above in `architecture.md`.
 
 ## Internal Tool Pattern
 

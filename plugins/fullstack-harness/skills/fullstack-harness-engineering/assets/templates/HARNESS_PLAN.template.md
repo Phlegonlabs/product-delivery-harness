@@ -461,7 +461,7 @@ Scope entries must be POSIX, repository-relative exact paths or subtrees ending 
 
 `required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`, `design-package-builder`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
 
-On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `architecture.md` Frontend Technology Decision names, before any archetype-specific mission runs:
+On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `architecture.md` Frontend Technology Decision names, before any archetype-specific mission runs. This is a complete, copy-paste-ready mission object rather than new field-level guidance: every field keeps the same meaning and default already explained above for the main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
 
 ```json
 {

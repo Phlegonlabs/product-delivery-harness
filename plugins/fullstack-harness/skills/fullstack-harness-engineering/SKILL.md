@@ -73,6 +73,7 @@ Explicit adapter invocation still begins with this core. The adapters may select
 - Read `references/worktree-thread-orchestration.md` only after the selected runtime adapter requires multiple missions, subagents, threads, or worktrees.
 - Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
 - Read `references/cloudflare-deployment-lifecycle.md` only for Cloudflare delivery.
+- Read `references/mobile-desktop-deployment-lifecycle.md` only for iOS/Android/Flutter/macOS/Windows delivery.
 - Read `references/commit-convention.md` before a harness-managed commit.
 - Read `references/orchestration-research-notes.md` for the underlying Codex/Claude Code orchestration capability facts, version gates, and GitHub review/merge mechanics behind this skill's guidance, including the Codex Cloud connection requirement and the `@codex review` manual trigger the GitHub landing adapter depends on.
 - Use `assets/templates/HARNESS_PLAN.template.md` for `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` for `RUN.md`. Load another template only for its named expansion:
@@ -95,7 +96,7 @@ worktree workers      -> temporary per-mission reports only while integration ne
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
 - Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md`, when present, is a regenerated mission/task listing view only — it never becomes a second source of truth.
-- A compact `RUN.md` without `PLAN.md` is sequential (one mission at a time, no leases or deterministic wave claim), but not a `shared_checkout` writer by default: each mission still gets its own `parent_managed_worktree` merged into local `main`, per the Default Runtime And Wave Policy below.
+- A compact `RUN.md` without `PLAN.md` is sequential (one mission at a time, no leases or deterministic wave claim); its workspace default still follows the Default Runtime And Wave Policy below, not `shared_checkout`.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
 - On first bootstrap of a new target repository, seed a missing root `AGENTS.md` from `assets/templates/PROJECT_AGENTS.template.md` and a missing root `CLAUDE.md` from `assets/templates/PROJECT_CLAUDE.template.md`. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
@@ -122,7 +123,7 @@ Apply this to all large plan-backed work, whether the frontier ever holds more t
 3. Use three as the configured plan-backed write-worker maximum unless the user or observed capacity sets a lower limit.
 4. New plan-backed files use PLAN schema v4 and RUN schema v9. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select up to three dependency-ready, nonconflicting nodes in deterministic order.
-6. Default every mission, even when only one is ever ready at a time, to its own `parent_managed_worktree` merged into local `main` after its integration gate passes; the primary checkout is a merge target, not an implementation surface. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it. Parallel writes always require isolated workspaces and durable authorized branch/commit handoff.
+6. Default every mission, even when only one is ever ready at a time, to its own `parent_managed_worktree` merged into local `main` after its integration gate passes; the primary checkout is a merge target, never a direct implementation surface. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it. Parallel writes always require isolated workspaces and durable authorized branch/commit handoff.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
 8. Default the landing mode from the requested outcome: local implementation, branch, or commit work uses `local_only`; explicit push, PR, review, merge, or deployed delivery uses `pull_request` and loads the GitHub landing adapter. In `local_only` mode, `integration.branch` is local `main` itself: each mission's worktree branch merges directly into it once that mission's integration gate passes, and that same merge is the local dev-test point — there is no separate long-lived integration branch to reconcile later.
 

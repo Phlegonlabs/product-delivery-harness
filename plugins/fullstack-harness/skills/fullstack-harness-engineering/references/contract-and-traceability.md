@@ -40,7 +40,7 @@ Record every canonical input and its status:
 | Architecture | <path> | <hash or revision> | Codex / team | draft / frozen | <contract surfaces> |
 ```
 
-For plan-backed work, the PLAN JSON `sources` array is canonical; the table is its human view. Every schema-v4 source includes `content_sha256`, an immutable `source_revision`, or both. A mutable path or URL without either binding is not frozen. Recompute the PLAN digest and invalidate old attempts whenever source content or its upstream revision changes. Each trace references `source_ids` and records `priority`, `disposition`, and any disposition `rationale`. Canonical `ui_surfaces`, `risks`, mission `stop_conditions`, and verifier arrays similarly own the static facts shown in later tables.
+For plan-backed work, the PLAN JSON `sources` array is canonical; the table is its human view. Every schema-v4 source includes `content_sha256`, an immutable `source_revision`, or both. A mutable path or URL without either binding is not frozen. Recompute the PLAN digest and invalidate old attempts whenever source content or its upstream revision changes. Each trace references `source_ids` and records `priority`, `disposition`, and any disposition `rationale`. Canonical `ui_surfaces`, `risks`, mission `stop_conditions`, and verifier arrays are likewise the static source of truth; any Markdown table showing them elsewhere is a view only.
 
 If an external source is unavailable, ask for screenshots, exports, or written specs before claiming design-faithful implementation.
 
@@ -140,3 +140,4 @@ Stop before implementation when:
 - The requested write scope would modify unrelated modules.
 - The user has not approved overwrites, deletes, moves, resets, or worktree cleanup.
 - The canonical plan/run manifest is missing, invalid, stale, or inconsistent with the proposed wave.
+- A PLAN-v4 graph does not cover every mission's write scope with at least one review-type node (`backend_code`/`frontend_code`/`visual` as applicable), regardless of `landing.mode`. `local_only` runs get no independent GitHub/Codex review at merge time, so this graph-level review is their only review gate — it is not optional there just because `pull_request` mode would add a second one.
