@@ -384,4 +384,5 @@ Before archiving earlier documents or publishing the staged package, verify:
 - The artifacts match the selected product archetype.
 - No current-package artifact will be published outside `doc/` unless the user explicitly requested another location.
 - The superseded-document inventory excludes `doc/archived/`, unrelated documents, and ambiguous candidates.
+- In enhancement mode, unaffected sections and trace IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed.
 - Validation does not trigger publication by itself. Exact overwrite and archive moves are already authorized, or the staged package remains unchanged while approval is requested.

@@ -79,13 +79,21 @@ Discovery is complete enough to draft when the agent can state:
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider.
 - The UI screens or interaction points that need wireframes.
-- A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, interaction familiarity, preferred layout pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
+- A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
 - Approved or draft exact wording and bounded display responsibilities for wireframed regions, or permission to derive them.
 - The requested overall interface style, or permission to record `modern-minimal` as a provisional assumption.
 - Required style and motion intent for visually important regions, or permission to derive it.
 - The success metrics and acceptance criteria.
 
 If any item is missing and the user did not authorize assumptions, ask follow-up questions before drafting.
+
+## Enhancement Mode
+
+When `doc/PRD.md` (or another document clearly describing the same product) already exists, this run enhances it instead of starting fresh. Read the existing package in full first, then run a delta interview:
+
+- Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
+- Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
+- If the new idea conflicts with an existing decision, surface the conflict explicitly and ask which should win instead of silently overwriting it.
 
 ## Assumption Mode
 

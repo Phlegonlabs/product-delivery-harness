@@ -2,6 +2,16 @@
 
 Use this procedure to keep the current PRD package in `doc/` and retain superseded product documents safely in `doc/archived/`.
 
+## Detect Enhancement Mode
+
+Before doing anything else, check whether `doc/PRD.md` — or another Markdown document whose title or content clearly describes the same product — already exists. If it does, this run enhances that package; it does not start a new one.
+
+- Read the existing `PRD.md`, `architecture.md`, and `wireframes.md` in full before drafting anything.
+- Treat their content, decisions, and trace IDs (`PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`) as the baseline. Carry forward every section the new request does not touch, unchanged.
+- Draft only the additions, edits, or removals the new discovery actually requires. Never regenerate the whole package from a blank slate because a new idea came up.
+- The final publish paths stay the same fixed locations (`doc/PRD.md`, `doc/architecture.md`, `doc/wireframes.md`) — enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
+- Enhancement mode still uses the staging, validation, and archive steps below: the prior version is archived for history once the enhanced draft is validated, even though its content already carried forward into that draft.
+
 ## Resolve Locations
 
 - Treat the Git repository root as the workspace root. If no Git repository exists, use the current workspace root.
