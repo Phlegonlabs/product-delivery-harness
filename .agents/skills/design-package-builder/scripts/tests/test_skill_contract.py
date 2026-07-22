@@ -25,7 +25,7 @@ class DesignPackageSkillContractTests(unittest.TestCase):
 
         self.assertIn("## Taste & Anti-Slop Review Checklist", output_contract)
         self.assertIn("## Product-Specific Visual Thesis", design_system)
-        self.assertIn("### Product-Specific Design Decisions", ui_mockups)
+        self.assertIn("Product-specific decisions:", ui_mockups)
         self.assertIn("Taste and anti-slop review", visual_acceptance)
         self.assertIn("Rendered visual review loop", visual_acceptance)
         self.assertIn("Spec-only review path", visual_acceptance)
@@ -37,7 +37,6 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         icon_guide = self.read("references/icon-system-guide.md")
         output_contract = self.read("references/output-contract.md")
         design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
-        ui_mockups = self.read("assets/templates/UI_MOCKUPS.template.md")
         visual_acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
 
         self.assertIn("references/icon-system-guide.md", skill)
@@ -46,7 +45,6 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("## Iconography System", design_system)
         self.assertIn("### Example Icon Usage Code", output_contract)
         self.assertIn("### Example Icon Usage Code", design_system)
-        self.assertIn("### Icon Usage", ui_mockups)
         self.assertIn("Icon system conformance", visual_acceptance)
 
     def test_motion_system_supports_hero_choreography_and_runnable_demo(self) -> None:
@@ -63,7 +61,7 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("## Hero Section Blueprint", motion_guide)
         self.assertIn("## Motion System", output_contract)
         self.assertIn("### Hero Choreography", design_system)
-        self.assertIn("### Motion & Choreography", ui_mockups)
+        self.assertIn("Motion choreography:", ui_mockups)
         self.assertIn("Motion system conformance", visual_acceptance)
         self.assertIn('id="reduced-motion"', motion_showcase)
         self.assertIn("Element.prototype.animate", motion_showcase)
@@ -89,7 +87,7 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("Exact wording / display contract", output_contract)
         self.assertIn("Container and border purpose", output_contract)
         self.assertIn("## Landing Page Simplicity & Media Plan", design_system)
-        self.assertIn("### Content Budget", ui_mockups)
+        self.assertIn("Content budget (landing/content-heavy pages only):", ui_mockups)
         self.assertIn("exact copy / display contract", ui_mockups)
         self.assertIn("required / optional / none", ui_mockups)
         self.assertIn("Content specificity", visual_acceptance)

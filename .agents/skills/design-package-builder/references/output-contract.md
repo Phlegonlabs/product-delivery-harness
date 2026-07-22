@@ -1,15 +1,30 @@
 # Output Contract
 
-Produce a multi-file Markdown design package. Use exactly these artifact names unless the user requests different names:
+Produce a multi-file design package. Every platform (web, native iOS, native Android, Flutter, React Native, macOS, Windows, cross-platform desktop) uses the same file set — HTML is a visual demonstration medium here, used to SHOW what a screen looks like, not the target's production technology.
+
+Always produce:
 
 - `design-system.md`
-- `page-ui-matrix.md`
-- `ui-mockups.md`
 - `visual-acceptance.md`
+- One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links so the set reads as a connected clickable prototype.
+- A slim `ui-mockups.md` index that points at those HTML files and carries the route → trace → test mapping (see below).
+
+Do not produce `page-ui-matrix.md`; the route → breakpoint/size-class → state → component mapping is shown directly in the HTML, and the machine-checkable route → trace → test mapping lives in the `ui-mockups.md` index.
 
 Default all artifact content to English unless the user explicitly asks for another language.
 
-Use the templates in `assets/templates/` when creating these files.
+Use the templates in `assets/templates/` when creating these files: `MOCKUP_PAGE.template.html` for every page mockup (style it to the resolved platform), and the Markdown templates for the rest.
+
+## Platform-Conditional Vocabulary
+
+Two different things follow the resolved platform, and they are not the same artifact:
+
+1. **The page mockup's visual styling** (`mockups/*.html`) — always real HTML/CSS, but styled to LOOK like the target platform: web uses ordinary web layout; iOS/macOS uses HIG cues (SF-Symbols-style glyphs, safe-area-style padding, iOS/macOS navigation and control shapes); Android uses Material cues (Material-Symbols-style glyphs, edge-to-edge layout, Material navigation and control shapes); desktop uses window chrome (title bar, menu bar, native-looking controls) instead of a browser viewport. This is a visual demonstration, not the real rendering engine — an "iOS-styled" HTML mockup does not run on iOS, it shows what the iOS screen should look like.
+2. **The design-system's reference component code** (`design-system.md`'s "Example Component Reference Design Code" and icon-usage examples) — this is separate implementation guidance for whoever builds the real app, and uses the target's real language: `tsx`/React + Tailwind for web, SwiftUI (or UIKit/AppKit) for iOS/macOS, Jetpack Compose for Android, a Flutter widget for Flutter, a React Native component for React Native, WinUI/.NET (or a cross-platform toolkit) for Windows.
+
+Icon family follows the platform in both places: web (Lucide, Heroicons, Phosphor, Tabler, Font Awesome, or similar), iOS/macOS (SF Symbols), Android (Material Symbols), Windows (for example Fluent UI System Icons), Flutter/React Native (the icon family matching whichever platform convention that build follows).
+
+State the resolved platform in `design-system.md`'s Overview, then keep every icon, component-code, and breakpoint/size-class section consistent with it. Keep the web guidance available for a web target rather than removing it; it just stops being the default for every target.
 
 When Claude Code Dynamic Workflow is used, treat its structured design package as a candidate source. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
 
@@ -96,7 +111,7 @@ Pay attention to font family, font weight, font size, line height, and how diffe
 [Primary package/import path or asset source, version policy, tree-shaking or subsetting, RTL handling, brand-icon source, custom-icon construction rules, and approved secondary-library exceptions.]
 
 ### Example Icon Usage Code
-Include stack-appropriate code using the chosen primary library. Show one action with visible text and one icon-only action. Use the exact package import and icon token, place the accessible name on the control, hide a redundant glyph from assistive technology, and define tooltip behavior for the icon-only control.
+Include stack-appropriate code using the chosen primary library. Show one action with visible text and one icon-only action. Use the exact package import and icon token, place the accessible name on the control, hide a redundant glyph from assistive technology, and define tooltip behavior for the icon-only control. Match the resolved platform: the `tsx`/web example below applies to a web target; for a native or desktop target, show the equivalent shape in the platform's language and icon family (for example SwiftUI with SF Symbols for iOS/macOS, Jetpack Compose with Material Symbols for Android, a Flutter widget with the platform-matched icon family, or WinUI/.NET with a desktop icon family), using that platform's accessibility API for the accessible name.
 
 ```tsx
 // Example structure only. Replace with the selected library and project primitives.
@@ -161,11 +176,13 @@ Include a static-first, stack-appropriate implementation for one important patte
 [Grid, max widths, navigation layout, responsive breakpoints.]
 
 ## Common Tailwind CSS Usage In Project
+Use this section for a web target. For a native or desktop target, replace it with the platform's recurring styling patterns (for example SwiftUI view modifiers and `Color`/`Font` tokens, Compose `Modifier` chains and `MaterialTheme` tokens, Flutter `ThemeData`/widget style patterns, or WinUI resource/style patterns), keeping the same purpose: the reusable style patterns implementers apply.
+
 | Pattern | Classes / tokens | Usage | Notes |
 | --- | --- | --- | --- |
 
 ## Example Component Reference Design Code
-Include a small reference component that demonstrates the design rules. Use the project's likely stack and mark framework assumptions clearly.
+Include a small reference component that demonstrates the design rules. Use the resolved platform's stack and mark framework assumptions clearly: `tsx`/Tailwind for a web target, SwiftUI for iOS/macOS, Jetpack Compose for Android, a Flutter widget for Flutter, or WinUI/.NET for Windows desktop. The `tsx` example below is the web case.
 
 ```tsx
 // Example only. Adapt to the target project stack.
@@ -187,78 +204,47 @@ export function ExampleContentSection() {
 - [Question]
 ````
 
-## `page-ui-matrix.md`
+## `page-ui-matrix.md` — retired
 
-Use this structure:
+Do not produce this file for any platform. The route → breakpoint/size-class → state → component mapping is shown directly in the `mockups/*.html` files; the machine-checkable route → trace → test mapping and any annotation the HTML can't carry live in the `ui-mockups.md` index below.
 
-```markdown
-# Page UI Matrix: [Product Name]
+## `mockups/*.html`
 
-| UI ID | Page / route | Upstream trace IDs | DS IDs | UI source | Motion source | Breakpoints | States | Components | Data source | TEST IDs / acceptance evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UI-001 | /example | PRD-001, UX-001, ARCH-001 | DS-001 | ui-mockups.md#example | motion-showcase.html#example | mobile/tablet/desktop | ready/loading/error | cards/table/actions | API-001 | TEST-VIS-001 + screenshot |
+For every platform, the primary mockup deliverable is one real, static HTML file per important page/route/screen under `mockups/`, named by route or screen (for example `mockups/dashboard.html`, `mockups/settings.html`). Start from `assets/templates/MOCKUP_PAGE.template.html`. Each file must:
 
-## State Coverage Notes
-- [Page]: [missing or derived states]
-```
+- Be dependency-free and runnable in a browser with no build step and no external CDN, exactly like `MOTION_SHOWCASE.template.html`. Inline the design-system tokens as CSS custom properties; you may inline the same Tailwind-style utility classes the design system documents for a web target, but do not fetch anything over the network.
+- Be styled to the resolved platform's own visual conventions (see Platform-Conditional Vocabulary above) — this is a visual demonstration medium, not the target's rendering engine. A native or desktop mockup should visually read as that platform, not as a generic web page.
+- Render the page's real content with exact wording preserved (no generic mockup placeholders), using the design-system colors, typography, spacing, icons, and components.
+- Represent each required state (ready, loading, empty, error, disabled, permission denied, long content) as a visible, labeled `<section>` stacked in the same file — a "state gallery." Every state stays visible with no JavaScript, so the file is reviewable and diff-able as-is. A small JS toggle to switch between states is an optional enhancement layered on top, never the only way to see a state.
+- Express responsive/size-class behavior with real CSS media queries in the file, not a separate breakpoint column. The reviewer resizes the browser to see the size range.
+- Link to other mockup pages with plain relative `<a href="other-page.html">` links where the real product would navigate between them, so the set of files reviews as a connected clickable prototype.
+- Carry the route's trace IDs and DS IDs in an HTML comment at the top of the file (for example `<!-- UI-001 | PRD-001, UX-001, ARCH-001 | DS-001, DS-002 -->`) so the mapping survives in the artifact itself.
+
+Treat these files as reference/prototype artifacts, not production code; `fullstack-harness-engineering` reimplements each screen in the project's real framework (a web stack, SwiftUI, Jetpack Compose, a Flutter widget tree, or WinUI/.NET) using the HTML as the visual and structural source of truth, never as source to port directly.
 
 ## `ui-mockups.md`
 
-Use this structure:
+`ui-mockups.md` is a slim index into the `mockups/*.html` files — the machine-checkable route → trace mapping, plus any annotation the HTML itself can't carry (rationale, asset sourcing, motion choreography). Use this structure:
 
 ```markdown
-# UI Mockups: [Product Name]
+# UI Mockups Index: [Product Name]
 
-## Mockup Index
-| Mockup ID | UI ID | Page / route | Breakpoint | State | Upstream trace IDs | DS IDs | Source / artifact | Motion demo |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-
-## Mockup: [Page Name] - [Breakpoint] - [State]
-UI ID: UI-001
-
-Trace IDs: PRD-001, UX-001, ARCH-001, DS-001
-
-### Purpose
-[What this screen accomplishes.]
-
-### Layout
-[Regions, hierarchy, grid, spacing, responsive behavior.]
-
-### Components
-| Component | Variant | Content / data | State |
-| --- | --- | --- | --- |
-
-### Visual Details
-[Color, typography, imagery, icons, density, alignment.]
-
-### Content Budget
-Use for landing pages and other content-heavy public pages.
-
-| Region | Single job | Content mode | Exact wording / display contract | Style direction | Defer / exclude |
-| --- | --- | --- | --- | --- | --- |
-| [Region] | [User understanding or action] | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [Visual job; open/container/background/layout treatment; purpose] | [Move elsewhere or omit] |
-
-### Product-Specific Design Decisions
-- Signature cues applied: [decisions]
-- Generic patterns intentionally avoided: [patterns and rationale]
-- Container and border treatment: [open-layout default and the named purpose of any visible frame or elevation]
-- Content realism: [representative content/data or explicit placeholders]
-
-### Icon Usage
-| Intent / object | Icon name | Source | Token / variant | Label / accessibility | State |
-| --- | --- | --- | --- | --- | --- |
-
-### Motion & Choreography
-| Motion ID | Element | Purpose | Trigger | Sequence / token | Responsive behavior | Reduced-motion fallback | Demo path |
+| UI ID | Page / screen | Mockup HTML | Upstream trace IDs | DS IDs | States represented | Motion demo | TEST IDs / acceptance evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| UI-001 | /example | mockups/example.html | PRD-001, UX-001, ARCH-001 | DS-001 | ready/loading/empty/error | motion-showcase.html#example | TEST-VIS-001 |
 
-### Asset Requirements
-| Region | Asset type | Need | Purpose | Source / creation | Responsive and static fallback |
-| --- | --- | --- | --- | --- | --- |
-| [Region] | [image, product media, illustration, video, icon, logo, generated asset, screenshot, or none] | [required / optional / none] | [What it helps the user understand or do] | [Existing path, source, or create] | [Crop, alternate, poster, or text/structure fallback] |
+## Page Notes
 
-### Acceptance Criteria
-- [Visual requirement]
+Add one block per page only for what the HTML mockup itself cannot show — do not restate what's already visible in the file.
+
+### [Page Name]
+- Product-specific decisions: [signature cues applied; generic patterns intentionally avoided and why]
+- Content realism: [representative content/data source, or exact copy / display contract for content that is unavailable or data-driven]
+- Container and border treatment: [the default open-layout treatment, and the named purpose of any visible border, accent rail, nested frame, or elevation — a border with no stated purpose fails review]
+- Content budget (landing/content-heavy pages only): [single job per region, and what content is intentionally deferred or excluded]
+- Asset requirements: [image/media/icon needs — type, required / optional / none, purpose, source or creation need, responsive/static fallback]
+- Motion choreography: [element, trigger, sequence/token, reduced-motion fallback — if not already in the motion system]
+- Open questions / assumptions: [anything unresolved for this page]
 ```
 
 ## `visual-acceptance.md`
@@ -301,7 +287,8 @@ Use this structure:
 
 Before finalizing, verify:
 
-- All four artifacts are present.
+- `design-system.md` and `visual-acceptance.md` are present, one real `mockups/*.html` file exists per important page/route/screen, and `ui-mockups.md` is the slim index into them (`page-ui-matrix.md` is not produced).
+- The resolved platform is stated in `design-system.md`'s Overview, and the icon family, component-code language, breakpoint/size-class vocabulary, and styling-pattern section match it rather than defaulting to web/Tailwind.
 - Upstream `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, and `TEST-*` IDs are preserved. Design decisions and components use stable `DS-*` IDs, and every page and visual gate carries the IDs it implements or verifies.
 - `design-system.md` defines overview, a product-specific visual thesis, taste and anti-slop guardrails, container and border rules, content/data realism, color palette, typography, iconography, spacing, component styles, shadows/elevation, a complete motion system, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules.
 - For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
@@ -314,10 +301,9 @@ Before finalizing, verify:
 - The motion system defines purpose, stack choice, tokens, pattern inventory, triggers, interruption/repeat rules, responsive variants, reduced-motion behavior, performance limits, a stated motion-personality archetype justified against the taste statement, and hero choreography when a hero exists.
 - Every non-hero motion surface identified during discovery (modal/sheet, list reorder/add/remove, toast, skeleton, form validation, drag-and-drop, scroll reveal, empty state, chart/data-viz) has a Motion Pattern Inventory row with trigger, properties, token, and reduced-motion fallback, or is explicitly marked `n/a`.
 - Requested runnable motion showcases exist, work without production dependencies unless justified, expose preview controls, and keep essential content usable when animation is unavailable.
-- `page-ui-matrix.md` maps every important page or route to UI and motion sources, breakpoints, states, components, data source, and acceptance evidence.
-- `ui-mockups.md` includes high-fidelity page-level specifications or links to actual visual artifacts, plus product-specific decisions, content-realism notes, and motion choreography for every important animated page.
-- `ui-mockups.md` preserves product-source exact wording or a bounded display contract for every visible region; generic mockup placeholders do not pass validation.
-- `ui-mockups.md` resolves each required style label, states the container and border treatment, and does not default regions to framed panels, nested cards, or colored accent rails without a named purpose.
+- Every important page/route/screen has a real `mockups/*.html` file, styled to the resolved platform's own conventions, that renders exact content, shows each required state as a visible labeled section, expresses responsive/size-class behavior with CSS media queries, links to related pages, and carries its trace/DS IDs in a top-of-file comment; the `ui-mockups.md` index maps every page to its HTML file, trace IDs, DS IDs, represented states, and acceptance TEST IDs.
+- Every mockup preserves product-source exact wording or a bounded display contract for every visible region; generic mockup placeholders do not pass validation.
+- Every mockup resolves each required style label, states the container and border treatment, and does not default regions to framed panels, nested cards, or colored accent rails without a named purpose.
 - When a landing page is in scope, `design-system.md` and `ui-mockups.md` define the first-viewport message and action, one job per section, content to defer, and per-region image/media/motion status.
 - `visual-acceptance.md` defines implementation-verifiable visual gates, including taste, unsupported AI-UI pattern clusters, and container and border purpose.
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.

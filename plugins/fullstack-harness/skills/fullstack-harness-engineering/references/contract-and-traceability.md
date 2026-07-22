@@ -71,6 +71,7 @@ Rules:
 - When `implementation-plan.md` is present, read its `Harness Handoff Signals` table (dependency order, parallel candidates, shared resources, required reviews, human gates) as non-canonical planning hints before drafting the mission graph from scratch, instead of re-deriving the same analysis unassisted.
 - If design-system or page UI sources are missing and UI quality matters, classify the design input state as `missing` or `partial` and stop for acceptance or assumptions before claiming a design-faithful build.
 - If a page UI reference omits states or breakpoints, record the gap in the handoff readiness table and resolve it before implementation or mark the surface `UNVALIDATED`.
+- For every platform (web, native iOS/Android/Flutter, macOS, Windows), `mockups/*.html` is the per-page visual and structural source of truth — a real, viewable HTML file styled to the resolved platform's own conventions, treated like a Figma export: reimplemented in the project's real framework (a web stack, SwiftUI, Jetpack Compose, a Flutter widget tree, or WinUI/.NET), never shipped as-is. `page-ui-matrix.md` is normally absent; its route/trace/test mapping lives in `ui-mockups.md`'s index instead. Do not treat a missing `page-ui-matrix.md` as a gap when `mockups/*.html` and that index are present.
 - When `architecture.md`'s Frontend Technology Decision is `Selected` or `Recommended` and no matching framework/UI-library/styling stack exists in the repository yet, that decision is the scaffold mission's install target: every named layer (deployment/runtime, framework, UI library, build tool, styling/components) becomes a task in mission M1, not just the framework. See `platform-archetypes.md`'s Greenfield / Empty Repository section and `HARNESS_PLAN.template.md`'s workspace-foundation example. A layer still `Provisional` is a stop condition, not a default guess.
 
 ## Trace IDs
@@ -91,6 +92,7 @@ Rules:
 - Upstream contract files mint IDs.
 - Mission tasks and acceptance rows reference existing IDs.
 - Every must-have PRD/UI/UX/ARCH/DS ID needs at least one downstream task and one verification row.
+- The archetype-specific families in `platform-archetypes.md`'s "Trace ID Families" (including the native `APPSHELL-*`, `CAP-*`, `STORE-*`, and `SIGN-*` families) get the same enforcement as the six core families: any such ID carrying a must-have requirement needs at least one downstream task and one verification row, and is a launch blocker when uncovered.
 - A trace ID with no downstream coverage is a launch blocker unless the user accepts it as out of scope.
 - A task with no upstream trace ID is scope drift unless it is harness, test, cleanup, or explicitly approved.
 - Executable missions/tasks reference only traces with `disposition: planned`. `deferred` and `out_of_scope` traces require rationale and do not count as uncovered executable work until reclassified in a new plan revision.
@@ -135,6 +137,7 @@ Stop before implementation when:
 - PRD and wireframe conflict on the primary flow.
 - Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.
 - The design system contradicts the wireframe in a user-visible way.
+- The design source's mockup HTML is styled to a different platform than the resolved target — for example web viewport/breakpoint styling and web-family icons handed off for a native iOS/Android/Flutter/desktop mission, or the reverse. Every platform's mockup is real HTML (see `design-package-builder`'s Platform-Conditional Vocabulary), so the mismatch to catch here is the visual convention, not the file format. Do not silently implement against a mismatched-styling mockup or guess the intended platform; confirm with the user first. See `verification-gates.md`'s "Capture Mechanism By Platform" for how the resolved platform separately decides the UI evidence capture mechanism after implementation.
 - Auth, permissions, or destructive data behavior is ambiguous.
 - Required secrets, services, databases, or browser tools are unavailable.
 - The requested write scope would modify unrelated modules.

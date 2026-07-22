@@ -626,11 +626,19 @@ Use the replacement disposition only after the automated E2E passes on the exact
 
 ## UI Evidence
 
-Include only when UI evidence is required or optional.
+Include only when UI evidence is required or optional. Use one column set, chosen by the resolved platform. See `references/verification-gates.md`'s "Capture Mechanism By Platform" for how each row is captured.
+
+For a web mission (browser-rendered), use the web columns:
 
 | Route / flow | Viewport | State | Browser result | Console / network | A11y | Visual evidence | Status |
 |---|---|---|---|---|---|---|---|
 | <route> | <size> | ready / loading / empty / error / disabled / permission / long-running | <result> | <result> | <result> | <path> | planned |
+
+For a native iOS/Android/Flutter/macOS/Windows mission, use the native columns (same shape, capture mechanism differs — Simulator/Emulator/device screenshot from the platform's UI-test tooling, not a browser):
+
+| Screen / flow | Device / OS version | State | Native test result | Crash / log | A11y | Visual evidence | Status |
+|---|---|---|---|---|---|---|---|
+| <screen> | <device + OS/SDK version> | ready / loading / empty / error / disabled / permission / long-running | <result> | <result> | <result> | <path> | planned |
 
 Record every screenshot in canonical `ui_evidence` before updating this human view. Each entry binds one PLAN surface, route, breakpoint, and state to a repo-relative `.png`, `.jpg`, `.jpeg`, or `.webp` path under `docs/goal/evidence/`, its lowercase SHA-256, the exact integration head SHA, and a gate status. For `evidence_gate: "required"`, `complete` requires the full breakpoint-by-state matrix to PASS. A trace, console log, or written review does not replace the screenshot.
 

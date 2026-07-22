@@ -42,11 +42,20 @@ const laneSchema = {
   },
   additionalProperties: false,
 };
+const mockupPageSchema = {
+  type: "object",
+  required: ["route", "html"],
+  properties: {
+    route: { type: "string" },
+    html: { type: "string" },
+  },
+  additionalProperties: false,
+};
 const packageSchema = {
   type: "object",
   required: [
     "design_system_markdown",
-    "page_ui_matrix_markdown",
+    "mockup_html_pages",
     "ui_mockups_markdown",
     "visual_acceptance_markdown",
     "motion_showcase_html",
@@ -57,7 +66,7 @@ const packageSchema = {
   ],
   properties: {
     design_system_markdown: { type: "string" },
-    page_ui_matrix_markdown: { type: "string" },
+    mockup_html_pages: { type: "array", items: mockupPageSchema },
     ui_mockups_markdown: { type: "string" },
     visual_acceptance_markdown: { type: "string" },
     motion_showcase_html: { type: ["string", "null"] },
@@ -143,7 +152,7 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const designPackage = await agent(
-  "You are the synthesis role in a design org graph. Reconcile the role results into complete Markdown bodies for design-system.md, page-ui-matrix.md, ui-mockups.md, and visual-acceptance.md. " +
+  "You are the synthesis role in a design org graph. Reconcile the role results into complete Markdown bodies for design-system.md and visual-acceptance.md, one real dependency-free HTML mockup body per important page/route/screen (styled to the resolved platform's own conventions, never web styling by default for a native or desktop product), and the ui-mockups.md index that maps each page to its mockup, trace IDs, DS IDs, and states. Do not produce a page-ui-matrix.md body; that file is retired for every platform. " +
     "Return a motion showcase only when motion is in scope. Preserve upstream PRD/ARCH/UI/UX/TEST IDs, mint stable DS IDs, keep assumptions explicit, and do not claim rendered visual or usability validation. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
   { label: "design:synthesis", phase: "Synthesize", schema: packageSchema },
@@ -159,7 +168,7 @@ const reviewers = [
   },
   {
     key: "trace-verifier",
-    task: "Check upstream trace preservation, DS ID stability, route/breakpoint/state coverage, internal consistency, and evidence claims across all four artifacts.",
+    task: "Check upstream trace preservation, DS ID stability, route/breakpoint-or-size-class/state coverage, internal consistency, and evidence claims across the design system, every mockup page, the ui-mockups index, and visual acceptance.",
   },
 ];
 phase("Verify");

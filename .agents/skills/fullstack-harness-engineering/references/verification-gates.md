@@ -164,6 +164,23 @@ Prefer targeted viewport, element, or region screenshots over whole-page capture
 
 For every PLAN surface with `evidence_gate: required`, capture one screenshot for each planned route-by-breakpoint-by-state combination. Schema-v9 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash.
 
+### Capture Mechanism By Platform
+
+Only the capture mechanism changes with the resolved platform; the evidence discipline above is identical everywhere. Every platform must still produce a real binary screenshot under `docs/goal/evidence/`, record a lowercase SHA-256, bind it to the exact integration head, and cover the full breakpoint-by-state (native: device/OS-by-state) matrix. Placeholder, fabricated, or hand-drawn images never satisfy the gate.
+
+For a web mission, capture through a browser: Playwright/headless-browser screenshots or browser DevTools, at the planned viewports. The route-by-breakpoint-by-state matrix and the runbook's web UI Evidence columns apply.
+
+For a native iOS/Android/Flutter/macOS/Windows mission, capture through the platform's own UI-test tooling instead of a browser, using the device/OS-by-state matrix and the runbook's native UI Evidence columns:
+
+- iOS: iOS Simulator screenshots produced by `xcodebuild test` running XCUITest cases.
+- Android: Android Emulator screenshots produced by Espresso via `./gradlew connectedAndroidTest`.
+- Flutter: integration-test screenshots via `flutter test integration_test/` (or `flutter drive`), captured for each native target in scope.
+- macOS desktop: XCUITest screenshots from `xcodebuild test`.
+- Windows desktop: WinAppDriver or a .NET UI-test framework driving the app.
+- Fallback: when no UI-test tooling exists for the project yet, a manually captured Simulator/Emulator/device screenshot is acceptable, recorded with the same path, hash, and head binding and labeled as a manual capture.
+
+When the design source's mockup HTML is styled to a different platform than the resolved target (for example web-styled mockups for a native mission), do not silently implement against it or guess the capture mechanism; stop and ask per `contract-and-traceability.md`'s mismatch condition.
+
 ## UX Direction And Usability Evidence
 
 Keep these proofs separate:

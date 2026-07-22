@@ -13,7 +13,9 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them
 - What product or page set is this design package for?
 - Who uses it, and what are they trying to accomplish?
 - Who is the human builder or product/design decision owner for the UX direction?
-- Is the target a SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, or hybrid? (AskUserQuestion, using SaaS app/dashboard / public website or marketing page / internal tool / ecommerce or catalog as the four options and the tool's built-in Other for docs/content site, mobile app, or hybrid)
+- Is the target a SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, desktop app, or hybrid? (AskUserQuestion, using SaaS app/dashboard / public website or marketing page / internal tool / ecommerce or catalog as the four options and the tool's built-in Other for docs/content site, mobile app, desktop app, or hybrid) Skip this when `architecture.md`'s `Product Archetype` already resolved the platform; carry that value forward.
+- If the answer is a mobile app, which platform does it target: native iOS, native Android, Flutter (cross-platform), or React Native (cross-platform)? (AskUserQuestion) This decides the visual vocabulary — iOS follows Apple's Human Interface Guidelines, Android follows Material Design, and Flutter or React Native follow the target platform's own convention per `references/visual-decision-guide.md`. Skip it when the PRD or `architecture.md` already resolved the mobile platform.
+- If the answer is a desktop app, which platform does it target: macOS, Windows, or cross-platform (e.g. Electron or Tauri)? (AskUserQuestion) This decides platform-native chrome and desktop interaction patterns per `references/visual-decision-guide.md`. Skip it when the PRD or `architecture.md` already resolved the desktop platform.
 
 ### Builder UX Direction
 
@@ -57,7 +59,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them
 - Are there accessibility, localization, dark mode, charting, table density, mobile, or content/CMS constraints?
 - Are there performance budgets, low-power/device constraints, reduced-motion requirements, autoplay restrictions, or analytics events that affect animation?
 - Is representative product copy, data, or imagery available, or should the package define realistic content constraints without inventing claims?
-- Should the output be only Markdown specs, or should actual mockup images/prototypes be generated if tools are available?
+- The mockup deliverable defaults to real static HTML files under `mockups/` for every platform, styled to the resolved platform's own conventions (see `references/output-contract.md`); confirm whether additional generated bitmap images or prototypes are also wanted if image tools are available.
 
 ## Readiness Criteria
 

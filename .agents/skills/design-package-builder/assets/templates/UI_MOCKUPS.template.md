@@ -1,68 +1,25 @@
-# UI Mockups: <product name>
+<!--
+  ui-mockups.md is a slim index into the real mockups/*.html files, for every platform
+  (see references/output-contract.md). Do not restate what the HTML already shows; use
+  Page Notes only for what the HTML can't carry (rationale, sourcing, justification).
+-->
 
-## Mockup Index
+# UI Mockups Index: <product name>
 
-| Mockup ID | UI ID | Page / route | Breakpoint | State | Upstream trace IDs | DS IDs | Source / artifact | Motion demo |
-|---|---|---|---|---|---|---|---|---|
-| UI-001-DESKTOP-READY | UI-001 | <route> | desktop | ready | PRD-001, UX-001, ARCH-001 | DS-001 | <section or file path> | <demo path or n/a> |
-
-## Mockup: <page name> - <breakpoint> - <state>
-
-UI ID: UI-001
-
-Trace IDs: PRD-001, UX-001, ARCH-001, DS-001
-
-### Purpose
-
-<What this screen accomplishes.>
-
-### Layout
-
-<Regions, hierarchy, grid, spacing, responsive behavior.>
-
-### Components
-
-| Component | Variant | Content / data | State |
-|---|---|---|---|
-| <component> | <variant> | <content/data> | <state> |
-
-### Visual Details
-
-<Color, typography, imagery, icons, density, alignment, and visual hierarchy.>
-
-### Content Budget
-
-<Use for landing pages and other content-heavy public pages.>
-
-| Region | Single job | Content mode | Exact wording / display contract | Style direction | Defer / exclude |
-|---|---|---|---|---|---|
-| <region> | <what the user must understand or do> | <exact copy / display contract> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <visual job; open/container/background/layout treatment; purpose> | <move elsewhere or omit> |
-
-### Product-Specific Design Decisions
-
-- Signature cues applied: <recurring product-specific decisions>
-- Generic patterns intentionally avoided: <patterns and rationale>
-- Container and border treatment: <open-layout default and the named purpose of any visible frame or elevation>
-- Content realism: <representative content/data or explicit placeholders>
-
-### Icon Usage
-
-| Intent / object | Icon name | Source | Token / variant | Label / accessibility | State |
-|---|---|---|---|---|---|
-| <action, status, navigation, or domain object> | <exact name> | <approved library or custom source> | <token / variant> | <visible label, accessible name, hidden, or tooltip> | <state> |
-
-### Motion & Choreography
-
-| Motion ID | Element | Purpose | Trigger | Sequence / token | Responsive behavior | Reduced-motion fallback | Demo path |
+| UI ID | Page / screen | Mockup HTML | Upstream trace IDs | DS IDs | States represented | Motion demo | TEST IDs / acceptance evidence |
 |---|---|---|---|---|---|---|---|
-| <ID> | <element> | <hierarchy, feedback, continuity, orientation, or storytelling> | <trigger> | <sequence / token> | <behavior> | <fallback> | <path or n/a> |
+| UI-001 | <route or screen> | mockups/<name>.html | PRD-001, UX-001, ARCH-001 | DS-001 | ready / loading / empty / error | <demo path or n/a> | TEST-VIS-001 |
 
-### Asset Requirements
+## Page Notes
 
-| Region | Asset type | Need | Purpose | Source / creation | Responsive and static fallback |
-|---|---|---|---|---|---|
-| <region> | <image, product media, illustration, video, icon, logo, generated asset, screenshot, or none> | <required / optional / none> | <what it helps the user understand or do> | <existing path, source, or create> | <crop, alternate, poster, or text/structure fallback> |
+Add one block per page only for what the HTML mockup itself cannot show — do not restate what's already visible in the file.
 
-### Acceptance Criteria
+### <page name>
 
-- <visual requirement>
+- Product-specific decisions: <signature cues applied; generic patterns intentionally avoided and why>
+- Content realism: <representative content/data source, or exact copy / display contract for content that is unavailable or data-driven>
+- Container and border treatment: <the default open-layout treatment, and the named purpose of any visible border, accent rail, nested frame, or elevation — a border with no stated purpose fails review>
+- Content budget (landing/content-heavy pages only): <single job per region, and what content is intentionally deferred or excluded>
+- Asset requirements: <image/media/icon needs — type, required / optional / none, purpose, source or creation need, responsive/static fallback>
+- Motion choreography: <element, trigger, sequence/token, reduced-motion fallback — if not already in the motion system>
+- Open questions / assumptions: <anything unresolved for this page>

@@ -4,6 +4,8 @@
 
 <Product archetype, audience, visual intent, density, tone, constraints, and source priority.>
 
+<Resolved platform (web, native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop). The platform sets the vocabulary for the sections below: icon family, component-code language, breakpoint vs. size-class model, and the styling-pattern section. Do not default to web/Tailwind for a native or desktop target — see references/output-contract.md "Platform-Conditional Vocabulary".>
+
 ## Source Inputs
 
 | Source | Path / URL | Role | Notes |
@@ -216,6 +218,8 @@ export function IconActions() {
 <Grid, max widths, navigation layout, responsive breakpoints, and region rules.>
 
 ## Common Tailwind CSS Usage In Project
+
+<Web target. For a native or desktop target, rename this to the platform's styling model (SwiftUI view modifiers, Compose Modifier chains and MaterialTheme tokens, Flutter ThemeData/widget styles, or WinUI resources) and list the reusable style patterns implementers apply.>
 
 | Pattern | Classes / tokens | Usage | Notes |
 |---|---|---|---|

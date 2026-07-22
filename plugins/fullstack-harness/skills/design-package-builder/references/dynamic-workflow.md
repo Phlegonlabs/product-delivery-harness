@@ -12,8 +12,8 @@ The stable org graph defines these roles:
 | system-components | Tokens, typography, layout, components, states, accessibility | Design-system sections and DS IDs |
 | iconography | Current source scan, semantic coverage, token and accessibility rules | Icon system decision |
 | motion | Purpose, stack, tokens, choreography, performance and reduced-motion rules | Motion system and demo contract |
-| page-coverage | Route, breakpoint, state, mockup, data, and evidence mapping | Page UI matrix and visual gates |
-| synthesis | Reconcile all role outputs | Four design-package artifact bodies |
+| page-coverage | Route/screen, breakpoint or size class, state, mockup, data, and evidence mapping | Page coverage and visual gates: a per-page HTML mockup plan (styled to the resolved platform) plus the slim `ui-mockups.md` index |
+| synthesis | Reconcile all role outputs | The design-package artifact bodies, including the per-page mockup HTML |
 | taste-verifier | Check product specificity, hierarchy, and anti-slop rules | Findings and decision |
 | trace-verifier | Check upstream/DS/test trace coverage and internal consistency | Findings and decision |
 
@@ -44,7 +44,7 @@ Use `assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js` with structured argume
 4. Taste and trace verifiers independently inspect the synthesis.
 5. The parent repairs findings, renders or reviews evidence when available, stages the artifacts, and applies the existing publish gate.
 
-The workflow does not create production images or claim rendered visual verification. A returned motion showcase is candidate source text only until the parent writes and runs it.
+The workflow does not create production images or claim rendered visual verification. A returned motion showcase, and the per-page mockup markup, are candidate source text only until the parent writes them to real `mockups/*.html` files and reviews them. The workflow's synthesis returns candidate artifact bodies for every platform; the parent produces the final `mockups/*.html` files plus the slim `ui-mockups.md` index.
 
 ## Failure And Resume
 

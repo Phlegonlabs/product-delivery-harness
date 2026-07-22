@@ -197,6 +197,8 @@ Required E2E scenarios:
 
 Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows desktop app. These do not have a URL model, SEO metadata, or a Worker redeploy — their distribution runs through app stores or signed installers. Read `references/mobile-desktop-deployment-lifecycle.md` for the release/promotion model; freeze the surfaces below before implementation.
 
+The design-source input for this profile is a real HTML mockup under `mockups/` (from `design-package-builder`), styled to the platform's own conventions (HIG, Material, or desktop window chrome) as a visual reference — it is a demonstration medium, not the platform's rendering engine, so it does not replace implementation and is never shipped as-is. UI evidence for these targets, once the real app is implemented, uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots or the mockup HTML itself.
+
 Freeze these surfaces:
 
 ```text

@@ -4,19 +4,18 @@ Keep the current design package directly under `doc/` and retain superseded desi
 
 ## Fixed Paths
 
-Use the repository root as the workspace root. Publish these files unless the user names different exact paths:
+Use the repository root as the workspace root. Publish these files unless the user names different exact paths (see `references/output-contract.md` for the deliverable contract):
 
-- `doc/design-system.md`
-- `doc/page-ui-matrix.md`
-- `doc/ui-mockups.md`
-- `doc/visual-acceptance.md`
+- `doc/design-system.md` (always)
+- `doc/visual-acceptance.md` (always)
+- `doc/ui-mockups.md` (the slim index) plus one file per page/route/screen under `doc/mockups/` (for example `doc/mockups/dashboard.html`), for every platform. Do not publish `doc/page-ui-matrix.md`.
 - `doc/motion-showcase.html` or bounded files under `doc/motion-demos/` when requested
 
-Stage a run under `doc/.design-staging/<run-id>/`. Do not draft over existing final files.
+Stage a run under `doc/.design-staging/<run-id>/`, mirroring the same relative layout (including a `mockups/` subdirectory). Do not draft over existing final files.
 
 ## Inventory
 
-Before drafting, list exact final-path files and other clearly superseded design-package artifacts for the same product. Exclude `doc/archived/`, PRDs, architecture, research, test evidence, and ambiguous files. Leave ambiguous candidates untouched and report them.
+Before drafting, list exact final-path files and other clearly superseded design-package artifacts for the same product, including any existing `doc/mockups/` HTML files. Exclude `doc/archived/`, PRDs, architecture, research, test evidence, and ambiguous files. Leave ambiguous candidates untouched and report them. When archiving a superseded package, move the whole prior `doc/mockups/` directory alongside the other superseded files rather than leaving orphaned page HTML behind.
 
 ## Validate Then Ask
 

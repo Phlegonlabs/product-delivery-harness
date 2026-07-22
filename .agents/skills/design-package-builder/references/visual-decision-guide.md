@@ -29,9 +29,32 @@ Ecommerce and catalog experiences:
 - Prioritize product inspection, filtering, comparison, pricing/inventory clarity, PDP/PLP structure, cart boundaries, and trust cues.
 - Define image ratios, product card variants, search/filter states, unavailable states, and schema/SEO surfaces when relevant.
 
-Mobile apps:
+Mobile apps — general:
 
 - Prioritize thumb reach, native navigation patterns, compact states, offline/loading/error handling, and platform conventions.
+- Follow the resolved mobile platform's own convention rather than inventing a third, web-flavored vocabulary. Use size classes and safe areas instead of CSS breakpoints and the viewport, and the platform's native navigation model instead of a web header/footer.
+
+Native iOS (SwiftUI or UIKit):
+
+- Follow Apple's Human Interface Guidelines. Use SF Symbols as the icon family, respect safe areas and the Dynamic Island/notch insets, and use native navigation (navigation stack, tab bar, sheets) instead of web nav patterns.
+- Express responsiveness through size classes (compact/regular) and Dynamic Type, not pixel breakpoints. Prefer system materials and the platform's motion feel over bespoke web effects.
+
+Native Android (Jetpack Compose or Views):
+
+- Follow Material Design. Use Material Symbols as the icon family, draw edge-to-edge with correct system-bar insets, and use native navigation (navigation bar, top app bar, bottom sheets, navigation drawer).
+- Express responsiveness through Material window size classes, not pixel breakpoints. Use Material elevation, state layers, and ripple feedback rather than web hover styling.
+
+Flutter and React Native (cross-platform):
+
+- These render through native widgets per platform, so generally follow the target platform's own convention (Human Interface Guidelines on iOS, Material Design on Android) rather than inventing a third vocabulary. State per platform whether the app adapts its chrome (Cupertino vs. Material) or deliberately ships one unified look, and record the reason.
+- Keep icon, navigation, and motion choices consistent with whichever platform convention each build targets; note any component that must differ per platform.
+
+Desktop apps (macOS, Windows, or cross-platform):
+
+- Size to a resizable window with sensible minimum and default dimensions and multi-pane layouts, not a mobile viewport or web breakpoints. Reflow by window width, and account for very wide windows and multi-monitor use.
+- Use platform-native chrome: on macOS a native title bar and the system menu bar with standard menus and keyboard shortcuts; on Windows a title bar and system/app menus. For a cross-platform toolkit (Electron, Tauri), state whether it uses native chrome per OS or a custom frame, and why.
+- Use desktop interaction patterns that do not apply to touch-first mobile or web: real hover states, right-click context menus, full keyboard shortcut maps, drag-and-drop, resizable split panes, and tooltips. Use SF Symbols on macOS and a desktop-appropriate icon family (for example Fluent UI System Icons) on Windows.
+- Design for offline-first behavior, local file handling, and OS integration (tray/menu bar, notifications, file associations) where the product needs them.
 
 ## Product-Specific Visual Thesis
 
@@ -171,22 +194,17 @@ Define only rules that implementation can apply:
 - Interaction rules: focus, hover, active, loading, disabled, selected, expanded, and validation feedback
 - Accessibility: contrast intent, focus visibility, keyboard path, reduced motion
 
-## Page UI Matrix Rules
+## Page Coverage Rules
 
-Every important page or route should name:
+Every important page, route, or screen must still map to its UI source, states, components, data source, and acceptance evidence, for every platform. The route/screen → breakpoint-or-size-class → state → component mapping is shown directly in the real `mockups/*.html` file (responsive CSS or size-class media queries, plus per-state sections). Do not maintain `page-ui-matrix.md` for any platform. Keep the machine-checkable route → upstream trace IDs → DS IDs → HTML file → acceptance TEST IDs mapping in the slim `ui-mockups.md` index, so `fullstack-harness-engineering`'s trace-ID system still has a route-to-trace source.
 
-- UI source
-- Breakpoints
-- Required states
-- Components
-- Data source
-- Acceptance evidence
-
-If only ready-state mockups exist, derive other states from the design system and mark that decision.
+If only the ready state exists, derive other states from the design system and mark that decision.
 
 ## Mockup Rules
 
 Use mockups to define high-fidelity layout and visual hierarchy, not product scope.
+
+Build each important page as a real static HTML file under `mockups/` (see `references/output-contract.md` for the deliverable contract), styled to the resolved platform's own conventions for a native or desktop target rather than defaulting to web styling. It uses the design-system tokens, preserves exact wording, represents each state as a visible labeled section, and expresses responsive/size-class behavior with real CSS media queries. Treat it as a reference/prototype artifact, not production code — HTML is a visual demonstration medium here, not the target's rendering engine.
 
 For each page mockup, specify:
 
