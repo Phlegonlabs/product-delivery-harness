@@ -152,6 +152,8 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("| TEST ID | Gate | Required | Upstream trace IDs", acceptance)
         self.assertIn("doc/.design-staging/<run-id>/", lifecycle)
         self.assertIn("Passing validation does not authorize overwrite, move, or archive", lifecycle)
+        self.assertIn("ask one explicit yes/no publication question", skill)
+        self.assertIn("execute the approved publish and archive moves in the same run", skill)
 
     def test_dynamic_workflow_uses_design_org_roles_and_parent_staging(self) -> None:
         skill = self.read("SKILL.md")

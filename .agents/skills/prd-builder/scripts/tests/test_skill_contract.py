@@ -277,6 +277,8 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("| TEST ID | Test Type", contract)
         self.assertIn("Passing validation does not authorize an overwrite, move, or archive", lifecycle)
         self.assertIn("keep the staged package", lifecycle)
+        self.assertIn("ask one explicit yes/no publication question", skill)
+        self.assertIn("execute the approved publish and archive moves in the same run", skill)
 
     def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")
