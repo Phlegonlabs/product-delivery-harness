@@ -278,7 +278,7 @@ Use this structure:
 | TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
 | TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, contrast intent, labels, keyboard path checked | audit / screenshot |
 | TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
-| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
+| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks, and covers every in-scope non-hero pattern | live demo / code review |
 | TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
 | TEST-VIS-010 | Taste and anti-slop review | yes | DS-* | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
 | TEST-VIS-011 | Rendered visual review loop | when visual artifacts or an implementation exist | UI-*, DS-* | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
@@ -311,7 +311,8 @@ Before finalizing, verify:
 - The container and border table defaults ordinary regions to open layouts, chooses one primary grouping cue per nesting level, and gives every visible frame or elevation a named purpose.
 - The iconography section records a current official-source market scan, evidence-based primary choice, actual required-icon coverage, token rules, semantic inventory, package or asset source, checked date, license, accessibility behavior, and documented exceptions.
 - The iconography section includes stack-appropriate reference code for labeled and icon-only actions using the exact approved import, tokens, accessible-name ownership, decorative hiding, and tooltip behavior.
-- The motion system defines purpose, stack choice, tokens, pattern inventory, triggers, interruption/repeat rules, responsive variants, reduced-motion behavior, performance limits, and hero choreography when a hero exists.
+- The motion system defines purpose, stack choice, tokens, pattern inventory, triggers, interruption/repeat rules, responsive variants, reduced-motion behavior, performance limits, a stated motion-personality archetype justified against the taste statement, and hero choreography when a hero exists.
+- Every non-hero motion surface identified during discovery (modal/sheet, list reorder/add/remove, toast, skeleton, form validation, drag-and-drop, scroll reveal, empty state, chart/data-viz) has a Motion Pattern Inventory row with trigger, properties, token, and reduced-motion fallback, or is explicitly marked `n/a`.
 - Requested runnable motion showcases exist, work without production dependencies unless justified, expose preview controls, and keep essential content usable when animation is unavailable.
 - `page-ui-matrix.md` maps every important page or route to UI and motion sources, breakpoints, states, components, data source, and acceptance evidence.
 - `ui-mockups.md` includes high-fidelity page-level specifications or links to actual visual artifacts, plus product-specific decisions, content-realism notes, and motion choreography for every important animated page.

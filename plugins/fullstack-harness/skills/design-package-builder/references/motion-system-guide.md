@@ -31,6 +31,19 @@ Use these as starting ranges, then tune against product density and device evide
 
 Define named easing or spring tokens. Use ease-out for entrances, ease-in for exits, and ease-in-out for repositioning unless product evidence supports another behavior.
 
+## Motion Personality
+
+Tie token choices to the product's taste statement instead of leaving duration and easing generic. Name which archetype the taste statement maps to and justify token choices against it in `design-system.md`.
+
+| Archetype | Easing bias | Duration bias | Stagger | Distance / scale | Avoid |
+| --- | --- | --- | --- | --- | --- |
+| Precise / technical | Linear-ish, minimal overshoot | Low end of `motion-fast`/`motion-standard` | Minimal or none | Small (near the 4–8px control range) | Bounce, overshoot, long settles |
+| Warm / editorial | Soft ease-out | `motion-standard`/`motion-expressive` | Visible, toward the 90ms end of `motion-stagger` | Larger content-entrance distances (toward 20px) | Mechanical linear motion |
+| Playful | Spring/overshoot permitted | `motion-fast`/`motion-standard` | Faster, energetic | Moderate, with light overshoot | Overly restrained or flat motion |
+| Premium / restrained | Ease-out, no overshoot | Longest allowed (`motion-expressive` range) | None | Moderate, unhurried | Bounce, overshoot, stagger flourish |
+
+A product does not have to fit one archetype exactly — blend adjacent rows when the taste statement justifies it, but state the blend explicitly rather than defaulting to generic middle-of-the-road values.
+
 ## Hero Section Blueprint
 
 Build the hero in its final, readable state first. Run animation as progressive enhancement; if JavaScript, an animation dependency, or media fails, the headline, copy, CTA, and product proof must remain visible and operable.
@@ -47,9 +60,32 @@ Target a coherent entrance of roughly 700–1000ms rather than serially animatin
 
 For mobile, reduce layers, distance, parallax, and simultaneous media work. For reduced motion, remove spatial transforms, parallax, auto-playing video, and continuous ambience; use immediate rendering or a short opacity change. Do not communicate meaning only through animation.
 
+## Non-Hero Choreography Blueprints
+
+Most motion in a real product lives outside the hero. Specify these patterns whenever they are in scope, using the same static-first, progressive-enhancement discipline as the hero.
+
+| Pattern | Entrance | Exit / reversal | Notes |
+| --- | --- | --- | --- |
+| Modal / sheet open-close | Backdrop opacity fade; panel translate/scale in at `motion-standard` | Exact reverse of entrance at `motion-fast`/`motion-standard` | Trap focus only after the panel is visible; lock body scroll or reserve `scrollbar-gutter` so the page does not shift width |
+| List add / remove / reorder | New items: opacity + translate at `motion-fast`/`motion-standard` | Removed items: reverse of entrance, then unmount | Reposition surviving siblings with a FLIP-style transform-only animation, never by animating `height`/`top`, to avoid layout shift |
+| Toast / notification | Opacity + translate in, `motion-fast` | Auto-dismiss after a stated duration, or manual dismiss; reverse of entrance | Stack with a fixed offset in a fixed-position layer so toasts never push document flow |
+| Skeleton-to-content swap | Skeleton renders immediately, no entrance needed | Crossfade to resolved content at `motion-fast` | Skeleton must match the resolved content's box dimensions exactly |
+| Form validation feedback | Inline error: opacity + settle at `motion-fast`; success: opacity confirmation | Error clears on correction | Any attention cue (e.g. shake) stays low-amplitude and capped to one repetition |
+| Drag-and-drop | Lift: scale/shadow increase on pickup | Drop: settle to final position; invalid drop snaps back at `motion-standard` | — |
+| Scroll-triggered reveal (grids/sections) | Opacity + translate at `motion-standard`, staggered at `motion-stagger` | One-shot by default; do not re-animate on scroll-back unless the pattern is explicitly decorative/ambient | Trigger via an IntersectionObserver at roughly 10–20% visibility |
+| Empty-state illustration | Single bounded one-shot entrance, or a low-amplitude capped loop (a few pixels, several-second period) | — | Reduced motion: static illustration, no loop |
+
+Interruption rules for these patterns:
+
+- Toast: an auto-dismiss timer pauses on hover/focus; a new toast does not restart other toasts' timers.
+- Modal: rapid re-toggling cancels the in-flight animation cleanly rather than queuing a backlog of open/close transitions.
+- List reorder: a reorder triggered while a prior reorder animation is still in flight re-measures current positions before starting the new FLIP pass, rather than animating from stale coordinates.
+
+For removal, delay DOM/unmount until the exit transition completes — use the framework's exit-animation primitive (for example a React `AnimatePresence`-equivalent or Vue's built-in leave hooks), an `animationend`/`transitionend` listener, or a timeout matched to the token duration as a fallback. Do not remove the node immediately on state change and let the exit animation get cut off.
+
 ## Demonstration Contract
 
-When the user asks to see motion, create a runnable `motion-showcase.html` or bounded demo in the target stack. Use `assets/templates/MOTION_SHOWCASE.template.html` for a dependency-free baseline.
+When the user asks to see motion, create a runnable `motion-showcase.html` or bounded demo in the target stack. Use `assets/templates/MOTION_SHOWCASE.template.html` for a dependency-free baseline. When the Motion Pattern Inventory includes non-hero surfaces in scope, the showcase or `motion-demos/` folder must include one runnable, controllable section per in-scope pattern (for example a toast trigger, a modal open/close demo, a reorderable list), not only the hero entrance.
 
 The showcase must include:
 
