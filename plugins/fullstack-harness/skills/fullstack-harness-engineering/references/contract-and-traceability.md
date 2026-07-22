@@ -144,3 +144,6 @@ Stop before implementation when:
 - The user has not approved overwrites, deletes, moves, resets, or worktree cleanup.
 - The canonical plan/run manifest is missing, invalid, stale, or inconsistent with the proposed wave.
 - A PLAN-v4 graph does not cover every mission's write scope with at least one review-type node (`backend_code`/`frontend_code`/`visual` as applicable), regardless of `landing.mode`. `local_only` runs get no independent GitHub/Codex review at merge time, so this graph-level review is their only review gate — it is not optional there just because `pull_request` mode would add a second one.
+- An autonomous production deploy is about to fire whose target SHA differs from the SHA that was current head when `deploy:production` was authorized, or whose in-scope migration is classified potentially destructive.
+
+A planner MAY satisfy the mandatory review-coverage requirement above with either one review-type node per covered surface (the default) or an N-reviewer fan-out for a higher-risk surface — several independent verifier nodes of the same `review.type` bound to the same SHA, reconciled by a parent-side rule. Both forms count as covering the surface; see `graph-orchestration.md`'s "Multi-Reviewer Fan-Out" for the node/edge shape and the any-blocks vs majority-pass reconciliation patterns.

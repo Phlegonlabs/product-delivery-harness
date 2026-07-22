@@ -66,6 +66,19 @@ One explicit user statement may authorize both targets, but neither is inferred 
 
 Use `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` as the default deployment workflow. It is explicitly dispatched with the target environment and exact source SHA after the parent verifies RUN authorization and gates. Do not make arbitrary feature-branch pushes or every `main` push an unconditional deployment path, because that would turn push authorization into implicit deploy authorization.
 
+## Pre-Deploy Confirmation Checkpoint
+
+The `deploy:production` ledger authorization granted at Plan Readiness lets the landing-and-deploy loop run without pausing for a second authorization. It does not license firing the production deploy blindly. Before the parent actually runs the production deploy command, verify two things and surface them to the user. This is a confirmation/notification checkpoint at the moment of execution, not a new ledger action — do not add a field to RUN or change any schema for it.
+
+**Deploying SHA drift.** Record the SHA that was the current head when `deploy:production` was authorized. Before the production deploy fires, compare it to the SHA about to be deployed. If they differ — because review-repair, a new push, or re-integration changed the head since authorization — stop and ask for a fresh, explicit confirmation naming the new SHA. The old authorization covered the code the user saw when they granted it; do not silently ship a different SHA under it.
+
+**Migration destructiveness.** Before running any migration as part of the production deploy, classify it:
+
+- Additive — new column, table, or index with safe defaults and no possible data loss. This rides the general `deploy:production` authorization.
+- Potentially destructive — column or table drop, type narrowing, a `NOT NULL` added to existing data, or any data transformation that cannot be trivially reversed. This needs its own explicit confirmation, separate from `deploy:production`. Do not let it ride through on the same blanket authorization as a routine additive migration. Name the exact destructive operation when asking, and confirm the rollback/backup plan is ready first.
+
+If either check trips, stop and ask before proceeding. If both are clean — same SHA, additive-or-no migration — proceed under the existing authorization without a redundant prompt.
+
 ## Migration And Data Rules
 
 Apply migrations in dependency order and use backward-compatible schema changes when old and new Worker versions can overlap. Development migration and reset/seed checks run only against development resources. Production migration runs only after the production deployment gate is authorized and its rollback/compatibility plan is ready.

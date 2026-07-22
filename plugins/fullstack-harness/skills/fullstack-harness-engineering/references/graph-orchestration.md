@@ -7,6 +7,7 @@ Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing,
 - Org graph and work graph
 - Authority and projection
 - Nodes and executors
+- Multi-reviewer fan-out
 - Dependency and route edges
 - Readiness and outcomes
 - Runtime binding
@@ -80,6 +81,26 @@ contract freeze
 Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. Every correction loop is bounded and has a blocked or human-owned exit.
 
 PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type, so the planner cannot mark a review required only in prose. Use an empty list only when none of the three review surfaces applies, and record that rationale in the human plan view.
+
+## Multi-Reviewer Fan-Out
+
+One review node per surface is the default and covers most work. But an independent review agent costs almost nothing next to a human reviewer, so for a high-risk review surface a planner MAY fan out to N independent reviewers of the same `review.type` and reconcile their verdicts, which catches more real issues than raising a single reviewer's `reasoning_effort` alone. This is an optional, additive planning choice: a PLAN with just one review node per surface is unchanged and fully valid. Reserve fan-out for surfaces where the extra reviewers pay for themselves — security-sensitive code, destructive or irreversible migrations, and genuinely ambiguous visual/taste judgment.
+
+Express it with the existing typed graph mechanism; no new PLAN or RUN schema field is required. Instead of one `kind: "verifier"` node for the surface, declare N verifier nodes that are identical in what they judge:
+
+- same `review.type` (`frontend_code`, `backend_code`, or `visual`);
+- same reviewed `mission_ids` and repository `scope`;
+- the same incoming `dependency` edges, so every reviewer binds to the SAME exact integrated or PR-head SHA;
+- each its own node ID, its own attempt, and no shared state with the others — an independent read-only review, never a mission, and never granted write scope, a lease, or commit authority.
+
+These still count as normal `runtime_worker` review nodes for `required_reviews` validation (each is a matching verifier for its type) and for the shared runtime budget. Give the reviewers different `reasoning_effort` or providers if you want diversity of judgment; keep any delegated Claude Code model at `sonnet` per the Runtime Binding rules.
+
+Reconciliation is a PARENT-SIDE convention, not a graph feature. The N reviewer results are independent node outcomes; the parent combines them into ONE proceed/block decision and drives the surface's existing `fix_required` route edge from that combined decision (the repair loop, its bound, and its blocked/human-owned exit are unchanged). Name the rule in the human plan view so the reconciliation is auditable. Two patterns:
+
+- **Any-blocks (unanimous pass required).** Treat the surface as `fix_required`/blocked if ANY reviewer returns `fix_required`. Use it for safety-critical surfaces — security-sensitive code, destructive migrations — where a single true finding matters more than reviewer agreement and a false block is cheaper than a missed defect. Every reviewer's blocking finding must be addressed before the surface proceeds.
+- **Majority-pass.** Proceed when a majority of reviewers pass; route to `fix_required` only when a majority ask for it. Use it for more subjective or taste-driven judgment (typically `visual`) where one dissenting reviewer should not block indefinitely. Record the dissent, but do not let a lone minority verdict hold the surface. Use an odd N so majority is unambiguous.
+
+Pick any-blocks when a missed issue is dangerous and a needless repair loop is cheap; pick majority-pass when the judgment is genuinely contestable and an over-strict single voter would stall delivery. When unsure, default to any-blocks, since it degrades to the single-reviewer behavior for N=1 and never lets a real blocking finding through.
 
 ## Dependency And Route Edges
 

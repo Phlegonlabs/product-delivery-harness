@@ -25,7 +25,24 @@ status: draft | ready | running | blocked | complete
 plan_readiness: draft | ready | blocked
 ```
 
-`complete` is an execution closeout state, not a label the parent may set independently. It requires execution intent, ready/frozen inputs, a recorded integration head, every mission integrated or superseded, every live task mission-recorded with a PASS verifier, no blockers, no active or blocked mission/review worker, and no proposed or active wave. Pull-request mode also requires a merged landing that preserves current-head checks and review, plus `merge_pr` authorization for every mission and the exact `pr:<full-PR-URL>` target. PLAN-v4 graph runs require every node to be succeeded, skipped, or superseded, every edge to be terminal, and no retained node blocker; a failed node must be routed or superseded before closeout. Schema v9 additionally requires every PLAN batch and final gate to have a PASS result bound to the integration head and every required UI screenshot matrix entry to PASS. A changed integration head invalidates an earlier gate PASS immediately in every RUN lifecycle state. Valid v2 through v8 RUN files remain readable without the new v9 arrays, but the core complete-state checks still apply.
+`complete` is an execution closeout state, not a label the parent may set independently. Setting `status: complete` requires every applicable condition below to hold:
+
+| Condition | Requirement |
+|---|---|
+| Execution intent | The run carries execution intent, not plan-only |
+| Inputs frozen | Every source input is ready/frozen or accepted |
+| Integration head | A `integration_head_sha` is recorded |
+| Missions | Every mission is integrated or superseded |
+| Tasks | Every live task is `mission_recorded` with a PASS verifier |
+| Blockers | No blockers remain |
+| Workers | No active or blocked mission or review worker |
+| Waves | No proposed or active wave |
+| Pull-request mode | A merged landing preserves current-head checks and review, and `merge_pr` authorization covers every mission plus the exact `pr:<full-PR-URL>` target |
+| PLAN-v4 graph run | Every node is succeeded, skipped, or superseded; every edge is terminal; no retained node blocker (a failed node must be routed or superseded before closeout) |
+| Schema v9 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS |
+| Gate freshness | A changed integration head invalidates an earlier gate PASS immediately, in every RUN lifecycle state |
+
+Valid v2 through v8 RUN files remain readable without the new v9 arrays, but the core complete-state checks still apply.
 
 `plan_readiness: ready` is the machine gate. Human verification tables may display `PASS`, but selectors never substitute a table cell for canonical readiness.
 
@@ -177,6 +194,8 @@ delete_branches
 ```
 
 `invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization.
+
+Seven of these entries — `invoke_external_runtime`, `spawn_subagents`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally` — are local and reversible. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers all seven together in a single authorization request or checkpoint, recording its `source` under each entry, while the externally-visible or hard-to-reverse entries (`push`, `create_pr`, `manage_pr_review`, `merge_pr`, `deploy`, `configure_repository`, `remove_worktrees`, `delete_branches`) stay independent gates that each need their own authorization moment. Each of the seven still records its own `source`; grouping them only avoids manufacturing separate confirmation pauses — it does not merge or remove any ledger entry.
 
 Each `authorizations` entry has this minimum shape:
 
@@ -387,7 +406,7 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 
 If any capability, isolation, permission, or completion row is unknown, do not fan out. Observe it first; if it remains unavailable, select a supported sequential combination, normally `parent` or `subagent` with `shared_checkout`, and apply the same verification gates. Missing launch authorization is not an unknown capability: request the exact run-wide launch bundle once and pause rather than rewriting the runtime adapter or silently downgrading.
 
-For plan-backed multi-mission execution, the configured write-worker maximum defaults to three. Deterministic mission selection is the default immediately after Plan Readiness and execution authorization; run validation and selection before any production task. The effective wave remains the minimum of that default, live worker slots, isolated workspaces, dependency-ready nonconflicting missions, and every capability and permission gate above.
+For plan-backed multi-mission execution, the configured write-worker maximum defaults to three as a conservative starting point; per `SKILL.md`'s Default Runtime And Wave Policy the parent may set `max_parallel_workers` above three when observed worker slots, isolation capacity, and a large dependency-ready conflict-free frontier all support it. Deterministic mission selection is the default immediately after Plan Readiness and execution authorization; run validation and selection before any production task. The effective wave remains the minimum of that configured maximum, live worker slots, isolated workspaces, dependency-ready nonconflicting missions, and every capability and permission gate above.
 
 ## Parent-Owned Wave State
 
