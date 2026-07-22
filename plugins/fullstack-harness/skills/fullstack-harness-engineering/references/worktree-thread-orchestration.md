@@ -48,7 +48,7 @@ A PLAN node's required or preferred provider must match the host adapter that is
 
 ## Default Plan-Backed Wave
 
-After Plan Readiness and execution authorization, run validation and deterministic mission selection before starting any production task. Use a configured maximum of three write missions, then let live slots, worktree isolation, dependencies, conflicts, runtime resources, permission boundaries, and any lower user limit reduce the effective wave.
+After Plan Readiness and execution authorization, run validation and deterministic mission selection before starting any production task. Set the configured maximum generously high, then let live slots, worktree isolation, dependencies, conflicts, runtime resources, permission boundaries, and any explicit user limit determine the effective wave.
 
 If the preferred route's task/worktree/branch/commit bundle is missing, request it once for the run and pause. Retain the observed route while waiting, record the answer, and rerun selection. When it is already authorized, create every selected worker without another confirmation. Fall back to fewer workers or sequential parent execution only after user refusal or concrete runtime evidence requires it.
 

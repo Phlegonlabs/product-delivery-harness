@@ -1228,11 +1228,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         _add(errors, "plan.revision", "must be a positive integer")
     if not _nonempty_string(plan["objective"]):
         _add(errors, "plan.objective", "must be a non-empty string")
-    if (
-        not _is_int(plan["max_parallel_workers"])
-        or not 1 <= plan["max_parallel_workers"] <= 3
-    ):
-        _add(errors, "plan.max_parallel_workers", "must be an integer from 1 to 3")
+    if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
+        _add(errors, "plan.max_parallel_workers", "must be a positive integer")
 
     required_reviews: list[str] = []
     if schema_version == 4:
@@ -3231,8 +3228,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "user_relay",
         }:
             _add(errors, "run.runtime_capabilities.completion_channel", "has an unsupported value")
-        if not _is_int(runtime["max_parallel_workers"]) or not 1 <= runtime["max_parallel_workers"] <= 3:
-            _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be 1..3")
+        if not _is_int(runtime["max_parallel_workers"]) or runtime["max_parallel_workers"] < 1:
+            _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be a positive integer")
         adapter = runtime.get("runtime_adapter")
         adapter_path = "run.runtime_capabilities.runtime_adapter"
         if schema_version in {6, 7, 8, 9} and adapter is None:

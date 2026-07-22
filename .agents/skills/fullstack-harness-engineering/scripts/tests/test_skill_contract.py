@@ -101,7 +101,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
         self.assertIn("Codex-hosted large run", agent)
 
-    def test_plan_backed_runs_detect_then_select_up_to_three(self) -> None:
+    def test_plan_backed_runs_detect_then_select_full_frontier(self) -> None:
         skill = self.read("SKILL.md")
         state = self.read("references/execution-state-model.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
@@ -116,7 +116,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "Use three as the configured plan-backed write-worker maximum",
+            "Do not cap `max_parallel_workers` at a small fixed number",
             skill,
         )
         self.assertIn("default immediately after Plan Readiness", state)

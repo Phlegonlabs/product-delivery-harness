@@ -6,7 +6,7 @@ The Project Size Gate runs first. Small work never reaches this selector. Large 
 
 This file defines the legacy PLAN-v2/v3 mission-DAG selector. PLAN v4 and RUN v8 or v9 use `scripts/select_ready_nodes.py`: it computes the typed graph frontier first, then applies these same scope/resource conflicts and deterministic write budget to ready mission nodes. Never run the legacy selector directly against a schema-v4 plan.
 
-For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, use three as the configured maximum unless the user sets a lower limit, and run the selector before any production task. The selected wave may contain fewer than three missions when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization require it.
+For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, set the configured maximum generously high unless the user sets an explicit lower limit, and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number.
 
 ## Inputs And Output
 
@@ -190,7 +190,7 @@ min(
 )
 ```
 
-The general default maximum is three. Runtime limits may be lower. `shared_checkout` has workspace isolation capacity one for writes.
+There is no default numeric ceiling on the configured maximum; set it generously high and let observed worker slots, isolation capacity, and conflict capacity do the actual bounding. Set it lower only when the user or a real runtime limit requires that. `shared_checkout` has workspace isolation capacity one for writes.
 
 Then scan candidates in order:
 
