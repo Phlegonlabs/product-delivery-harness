@@ -97,6 +97,7 @@ def mission(
         "serialized_resources": [],
         "runtime_resources": [],
         "worktree_eligible": True,
+        "required_skills": [],
         "stop_conditions": ["Stop on contract conflict"],
         "worker_verifiers": [verifier(f"worker-{mission_id.lower()}", "tool", "worker")],
         "integration_verifiers": [
@@ -619,6 +620,20 @@ class PlanValidationTests(unittest.TestCase):
         plan = valid_plan()
         self.assertEqual(validate_plan(plan), [])
         self.assertEqual(topological_levels(plan), {"M1": 0, "M2": 1})
+
+    def test_required_skills_accepts_empty_and_populated_lists(self) -> None:
+        plan = valid_plan()
+        self.assertEqual(validate_plan(plan), [])
+        plan["missions"][0]["required_skills"] = ["frontend-design", "design-package-builder"]
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_required_skills_rejects_non_list_and_missing_key(self) -> None:
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = "frontend-design"
+        self.assert_error_contains(plan, "required_skills")
+        plan = valid_plan()
+        del plan["missions"][0]["required_skills"]
+        self.assert_error_contains(plan, "missing keys: required_skills")
 
     def test_targeted_verifier_metadata_is_bounded(self) -> None:
         plan = valid_plan()

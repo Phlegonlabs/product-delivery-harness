@@ -86,6 +86,7 @@ def make_plan() -> dict[str, object]:
                 "serialized_resources": [],
                 "runtime_resources": [],
                 "worktree_eligible": True,
+                "required_skills": [],
                 "stop_conditions": ["scope escape"],
                 "worker_verifiers": [verifier("mission-focused")],
                 "integration_verifiers": [verifier("mission-integration")],

@@ -78,7 +78,7 @@ Workers never edit the parent-owned `PLAN.md` or `RUN.md`, never expand their ow
 
 ### Shared checkout
 
-Use `shared_checkout` for direct work, sequential write missions, and parallel read-only analysis.
+Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate) and for parallel read-only analysis. It is a fallback for plan-backed mission writes, not the default — use it there only when worktree creation is unavailable or unauthorized.
 
 - Allow at most one writer at a time, whether that writer is the parent or a subagent.
 - Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
@@ -86,7 +86,7 @@ Use `shared_checkout` for direct work, sequential write missions, and parallel r
 
 ### Parent-managed worktree
 
-Use `parent_managed_worktree` only when `create_local_worktrees` is authorized and isolated parallel writes materially reduce delivery time.
+Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. The primary checkout is a merge target, never a direct implementation surface: each mission's worktree branch merges into it only after that mission's integration gate passes.
 
 - The parent creates every worktree from the same recorded `batch_base_sha`; portable write handoff also requires `create_local_branches` and `create_local_commits`, because the parent integrates a durable committed head rather than an uncommitted patch.
 - The parent records the exact path, branch/ref, lease, ports, databases, fixtures, and external resource claims.
@@ -199,7 +199,7 @@ When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`,
 
 1. Resolve the repository's saved project once.
 2. For each selected mission in deterministic order, allocate its worker ID, lease ID, and branch/ref. Recheck `create_user_owned_tasks` and `create_app_managed_worktrees` against the explicit pre-allocation `*` grant because the app assigns their concrete identities; recheck `create_local_branches`, `create_local_commits`, and `spawn_subagents` against every already-known target.
-3. Build the initial prompt from `WORKER_GOAL.template.md`, including the frozen plan identity, fixed base, mission/task scope, verifiers, permission boundary, and nested policy. Tell the app task directly to use its authorized multi-agent policy.
+3. Build the initial prompt from `WORKER_GOAL.template.md`, including the frozen plan identity, fixed base, mission/task scope, verifiers, permission boundary, nested policy, and the mission's `required_skills` list. Tell the app task directly to use its authorized multi-agent policy.
 4. Create one worktree task/thread per mission from the recorded integration branch/ref. Record either the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.
 5. When nested capability is unobserved, keep the task in a no-production-edit handshake. Poll its capability result, update RUN, and send the explicit enabled or disabled policy before releasing implementation.
 6. Poll running threads with backoff, route necessary follow-up through the thread-message tool, and preserve terminal, blocked, interrupted, and partial results. Do not rely on the user to relay completion when programmatic polling is available.
@@ -219,6 +219,7 @@ mission ID and lease ID
 batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
 runtime provider and selected driver
+required_skills (the mission's skill list, verbatim, or "none")
 enabled nested-subagent policy or an explicit disabled policy
 allowed and denied paths
 declared serialized/runtime resources

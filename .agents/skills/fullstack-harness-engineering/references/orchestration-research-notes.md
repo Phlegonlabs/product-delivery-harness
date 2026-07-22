@@ -18,9 +18,9 @@ This replaces the older single mode enum. A mode label hid important differences
 
 Schema v6 adds a small runtime adapter beside those axes. It records `provider`, observed `available_drivers`, and `detection_source`. The selector uses a deterministic provider route: Codex prefers app threads, Claude Code prefers Dynamic Workflow, both fall back to direct subagents when observed, and every provider has sequential parent execution as the final fallback. Provider routing does not replace authorization, isolation, or completion-channel checks.
 
-The portable default remains serialized writes in one checkout. Read-only work may fan out. Parallel writes require isolated eligible worktrees, complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
+The portable default for large plan-backed mission writes is one isolated worktree per mission merged into local `main`, whether one mission or several are in flight at once; serialized writes in the shared checkout are the fallback for when worktree creation is unavailable or unauthorized, not the default. Read-only work may fan out freely. Parallel writes additionally require complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
 
-Before any planner, scheduler, worker-capability scan, or external-runtime preflight, the skill uses a two-way project-size gate. Small work stays in the current parent with no PLAN/RUN or delegation by default. Large work enters managed planning, but it still uses the sequential parent unless at least two dependency-ready nonconflicting missions make scheduler fan-out useful. Size means coordination scope and blast radius, not a raw file or line count. If direct work grows, checkpoint completed work and plan only the remainder.
+Before any planner, scheduler, worker-capability scan, or external-runtime preflight, the skill uses a two-way project-size gate. Small work stays in the current parent with no PLAN/RUN or delegation by default. Large work enters managed planning and defaults every mission to its own worktree; scheduler fan-out beyond one mission at a time additionally requires at least two dependency-ready nonconflicting missions. Size means coordination scope and blast radius, not a raw file or line count. If direct work grows, checkpoint completed work and plan only the remainder.
 
 For plan-backed multi-mission execution, runtime detection is now proactive and deterministic selection is the default immediately after Plan Readiness. The configured write-worker maximum is three, while the effective wave can be smaller. Capability observation remains independent from authorization: a missing task/worktree/branch/commit grant triggers one bundled request and reselection, not a false claim that the preferred driver is unavailable. Shared-checkout writes remain serialized.
 
@@ -117,9 +117,9 @@ True event-driven Codex integration is an App Server client capability. App Serv
 
 | Worker runtime | Typical workspace | Valid completion examples | Write concurrency rule |
 |---|---|---|---|
-| `parent` | `shared_checkout` | `agent_result` | one write mission at a time |
+| `parent` | `shared_checkout` | `agent_result` | fallback only, one write mission at a time, for when worktree creation is unavailable or unauthorized |
 | `subagent` | `shared_checkout` | `agent_result` | serialize writes; read-only fan-out is allowed |
-| `subagent` | `parent_managed_worktree` | `agent_result` or `report_file` | parallel writes only after full fan-out gate |
+| `subagent` | `parent_managed_worktree` | `agent_result` or `report_file` | default for plan-backed mission writes, one mission at a time or several after the full fan-out gate |
 | `app_task` | `app_managed_worktree` | `thread_poll`, `report_file`, or `user_relay` | parallel writes only after full fan-out gate and lifecycle acknowledgement |
 
 The `subagent` + `parent_managed_worktree` + `agent_result` row covers both direct parent-owned subagents and Claude Dynamic Workflow mission agents.

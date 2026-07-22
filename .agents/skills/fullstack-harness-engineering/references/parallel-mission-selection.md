@@ -116,6 +116,8 @@ Use exclusive serialized keys or typed runtime keys for migration streams, gener
 
 Worktrees isolate repository files only. They do not make runtime resources non-conflicting.
 
+Only declare a mission-level `runtime_resources`/`serialized_resources` claim for a resource that concurrent *workers* would actually contend for — for example, each worktree's own worker booting a live dev server on the same fixed port, or writing to one shared live database at the same time. A resource exercised only by `integration_verifiers` (a shared local dev server or local database an end-to-end/migration check depends on) does not need a mission-level exclusive claim: integration already happens one mission at a time (see Batch Integration And Recompute below), so that resource is naturally serialized at the point it is actually used. Declaring it exclusive at the mission level instead blocks worker-stage worktree parallelism the resource was never contending for in the first place, forcing missions to run fully sequentially even when their actual file changes do not overlap. When a mission's own `worker_verifiers` need a live local service, prefer a per-worktree or dynamically assigned port/database path over one fixed shared instance so the claim can stay `shared_read` or be omitted rather than defaulting to `exclusive`.
+
 ## Conflict Graph
 
 Create an undirected edge between two structurally valid candidate missions for every proven or conservative pairwise conflict. Keep all reason codes, not only the first. Pairwise edge codes are:
@@ -248,6 +250,7 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 6. Stop the batch on worker failure, integration failure, unexpected conflict, stale base, or contract gap.
 7. Run cross-mission/batch verification after all selected missions integrate.
 8. Refresh RUN observations and recompute the next ready frontier and conflict graph.
+9. Repeat steps 1-8 with the recomputed frontier — each integration merges directly into local `main` and is itself the local dev-test point for that mission — until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the Final/current-head gate; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
 
 Never reuse the prior wave's independence result. Each merge changes the integration head and may change dependencies, generated artifacts, or resource availability. Push, PR, deploy, task archival, worktree removal, and branch deletion remain separate authorization-gated actions.
 

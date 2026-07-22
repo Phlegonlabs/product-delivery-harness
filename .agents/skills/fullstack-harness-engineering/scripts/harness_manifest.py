@@ -1405,6 +1405,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "serialized_resources",
         "runtime_resources",
         "worktree_eligible",
+        "required_skills",
         "stop_conditions",
         "worker_verifiers",
         "integration_verifiers",
@@ -1491,6 +1492,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 resource_map[resource["key"]] = resource["access"]
         if not isinstance(mission["worktree_eligible"], bool):
             _add(errors, f"{mission_path}.worktree_eligible", "must be boolean")
+        _strings(errors, f"{mission_path}.required_skills", mission["required_skills"])
         _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
         for verifier_group in ("worker_verifiers", "integration_verifiers"):
             values = mission[verifier_group]

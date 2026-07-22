@@ -13,6 +13,7 @@ Frozen inputs:
 - Batch base SHA: <full SHA>
 
 Coordination:
+- Skills to load: <mission's required_skills, or "none">
 - runtime_provider: codex | claude_code | generic
 - runtime_driver: app_threads | dynamic_workflow | subagents | sequential_parent
 - worker_runtime: parent | subagent | app_task
@@ -27,7 +28,7 @@ Coordination:
 Write only within: <mission write_scope>.
 Deny: <mission deny_scope>, parent-owned PLAN.md and RUN.md, frozen contracts, and unrelated files.
 
-Before editing, verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
+Before editing, load every skill named in "Skills to load" above — that is this mission's complete required-skill set; do not add or skip one on your own judgment. Then verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
 
 For each ready task: make the smallest coherent change, use the local diff for provisional `selection.mode: "changed_files"` matching, run every applicable declared verifier, and return literal evidence. Omitted selection metadata means always run. A targeted verifier may be absent only when no changed path matches its declared scope; the parent recomputes applicability from parent-observed changed files and may require a fresh check. If the parent supplied a repository-external verifier cache root, reuse is allowed only through `verifier_runtime.py` for an opted-in deterministic local `exit 0` command with exact immutable inputs; never claim a cache hit from memory or prose. Create a commit only when create_local_commits is explicitly authorized. Every isolated successful handoff needs durable task commits, each attributed to exactly one task, with the final commit equal to the reported head. Do not create another app task, mission worker, branch, worktree, or harness lease. Direct read-only subagents are the sole exception and only when the supplied nested policy is enabled and `spawn_subagents` covers this worker. Do not switch branches, pull, rebase, merge, integrate, push, open a PR, deploy, remove a worktree, delete a branch, or archive a task; those remain parent/user-owned actions unless separately and explicitly assigned.
 
@@ -170,6 +171,7 @@ Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_fail
 
 ## Launch Checklist
 
+- [ ] Every skill in "Skills to load" is loaded before the first production edit; "none" needs no action.
 - [ ] Canonical PLAN validates; supplied ID, revision, and digest match RUN.
 - [ ] RUN records `plan_readiness: "ready"` and overall execution authorization.
 - [ ] Mission is `leased` at the fixed base SHA and its dependencies are already integrated.

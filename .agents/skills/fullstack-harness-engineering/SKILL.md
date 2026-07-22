@@ -95,7 +95,7 @@ worktree workers      -> temporary per-mission reports only while integration ne
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
 - Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md`, when present, is a regenerated mission/task listing view only — it never becomes a second source of truth.
-- A compact `RUN.md` without `PLAN.md` is sequential: one parent writer in `shared_checkout`, no leases, worktree fan-out, or deterministic wave claim.
+- A compact `RUN.md` without `PLAN.md` is sequential (one mission at a time, no leases or deterministic wave claim), but not a `shared_checkout` writer by default: each mission still gets its own `parent_managed_worktree` merged into local `main`, per the Default Runtime And Wave Policy below.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
 - On first bootstrap of a new target repository, seed a missing root `AGENTS.md` from `assets/templates/PROJECT_AGENTS.template.md` and a missing root `CLAUDE.md` from `assets/templates/PROJECT_CLAUDE.template.md`. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
@@ -115,16 +115,16 @@ These shared validation and selection paths are Python-stdlib-only and determini
 
 ## Default Runtime And Wave Policy
 
-Apply this only to large plan-backed work with multiple missions:
+Apply this to all large plan-backed work, whether the frontier ever holds more than one ready mission or processes them one at a time:
 
 1. Before the first production edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
 2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear.
 3. Use three as the configured plan-backed write-worker maximum unless the user or observed capacity sets a lower limit.
 4. New plan-backed files use PLAN schema v4 and RUN schema v9. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select up to three dependency-ready, nonconflicting nodes in deterministic order.
-6. Never run more than one writer in `shared_checkout`. Parallel writes require isolated workspaces and durable authorized branch/commit handoff.
+6. Default every mission, even when only one is ever ready at a time, to its own `parent_managed_worktree` merged into local `main` after its integration gate passes; the primary checkout is a merge target, not an implementation surface. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it. Parallel writes always require isolated workspaces and durable authorized branch/commit handoff.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
-8. Default the landing mode from the requested outcome: local implementation, branch, or commit work uses `local_only`; explicit push, PR, review, merge, or deployed delivery uses `pull_request` and loads the GitHub landing adapter.
+8. Default the landing mode from the requested outcome: local implementation, branch, or commit work uses `local_only`; explicit push, PR, review, merge, or deployed delivery uses `pull_request` and loads the GitHub landing adapter. In `local_only` mode, `integration.branch` is local `main` itself: each mission's worktree branch merges directly into it once that mission's integration gate passes, and that same merge is the local dev-test point — there is no separate long-lived integration branch to reconcile later.
 
 ## Execution Authorization Gate
 

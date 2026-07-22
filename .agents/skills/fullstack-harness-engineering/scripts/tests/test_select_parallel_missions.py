@@ -52,6 +52,7 @@ def mission(
         "serialized_resources": [],
         "runtime_resources": [],
         "worktree_eligible": True,
+        "required_skills": [],
         "stop_conditions": ["contract changes"],
         "worker_verifiers": [verifier(f"worker-{mission_id.lower()}")],
         "integration_verifiers": [verifier(f"integration-{mission_id.lower()}")],

@@ -26,6 +26,31 @@ Development Worker and non-production resource boundary:
 Production Worker and production resource boundary:
 ```
 
+## Greenfield / Empty Repository
+
+Detect this before applying any archetype profile below: no workspace manifest (`package.json`, lockfile), no app source tree, or no locally runnable dev command exists yet. Every archetype's "Common missions" list below assumes the workspace and chosen frontend stack already exist — on a greenfield repository, insert one workspace-foundation mission before them and shift the archetype's own list down by one (its `M1` becomes `M2`, and so on).
+
+The scaffold mission installs every layer the frozen `architecture.md` Frontend Technology Decision names (see `prd-builder`'s `references/frontend-stack-selection.md`), not the framework alone:
+
+```text
+Workspace manager: init the chosen manager (Bun/npm/pnpm/Yarn) and its workspace layout, lockfile, and root script contract
+Deployment/runtime: install and configure the resolved platform adapter (e.g. Cloudflare adapter, Vercel adapter)
+Web framework: install and wire the decided framework (e.g. Astro, a React framework)
+UI library: install the decided UI library when one is named (e.g. React, Preact, Vue), including the framework's integration for it
+Build tool: install/configure the build tool the framework doesn't already own
+Styling/components: install the decided styling and component approach (e.g. Tailwind, a component library) and wire its build-time configuration
+Routing/data, testing: scaffold the minimal contract needed for later missions to extend, per the decision record
+```
+
+Exit criterion: a locally runnable dev server and a passing build/typecheck, proving every installed layer actually works together rather than merely appearing in `package.json`. Treat an unselected layer (still `Provisional` in `architecture.md`) as a stop condition, not a default guess — request the missing decision instead of picking a stack yourself.
+
+Common missions:
+
+```text
+M1 workspace-foundation: workspace manager, framework, UI library, build tool, and styling/components installed and locally runnable
+M2+ the archetype's own mission list below, renumbered to follow M1
+```
+
 ## Authenticated App, Dashboard, Internal Tool, SaaS
 
 Freeze these surfaces before implementation:

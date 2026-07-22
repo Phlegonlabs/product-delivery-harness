@@ -16,7 +16,7 @@ The harness has three distinct authorities. Do not merge them into one table or 
 
 The parent is the only writer of `PLAN.md` and `RUN.md`. Workers return reports and evidence. The parent verifies those reports against observed facts before changing canonical state.
 
-Compact RUN-only work is a deliberately sequential exception: its RUN plan identity fields are `null`, it uses `parent` + `shared_checkout` with one writer, and it makes no validated scheduling claim. The parent may set compact `plan_readiness` to `ready` after the applicable human readiness checks pass, then set `status` to `running` only with explicit execution authorization. Before delegation, execution-time task decomposition, worktree use, or parallel selection, create a canonical PLAN, populate the RUN plan identity/digest, and pass validation.
+Compact RUN-only work is a deliberately sequential exception: its RUN plan identity fields are `null` and it makes no validated scheduling claim. "Sequential" describes the mission cadence, not the workspace: default it to `subagent` + `parent_managed_worktree`, one mission's worktree at a time, merged into local `main` once its integration gate passes — the primary checkout stays a merge target even with no real parallelism in play. Use `parent` + `shared_checkout` only when worktree creation itself is unavailable or unauthorized. The parent may set compact `plan_readiness` to `ready` after the applicable human readiness checks pass, then set `status` to `running` only with explicit execution authorization. Before execution-time task decomposition or parallel selection beyond one mission at a time, create a canonical PLAN, populate the RUN plan identity/digest, and pass validation.
 
 Use exact RUN lifecycle values:
 

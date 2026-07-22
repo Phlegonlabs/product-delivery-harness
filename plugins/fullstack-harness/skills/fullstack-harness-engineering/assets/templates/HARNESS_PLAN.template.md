@@ -346,6 +346,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           }
         ],
         "worktree_eligible": true,
+        "required_skills": [],
         "stop_conditions": [
           "<mission-specific stop condition>"
         ],
@@ -457,6 +458,65 @@ Task and worker verifiers may declare `selection.mode: "changed_files"`; keep ev
 Plan focused checks at task/worker level, the mission's integration surface at integration level, true cross-mission checks at batch level, and broad regression/browser/UI/release proof at final level. Place expensive final browser and screenshot work after exact-SHA code review and repair loops converge.
 
 Scope entries must be POSIX, repository-relative exact paths or subtrees ending in `/**`. Reject absolute paths, `..`, backslashes, negation, and other wildcard syntax. Use `runtime_resources: []` when no runtime resource applies; never use a string such as `"none"`. Allowed access values are `exclusive` and `shared_read`. Treat an incomplete or unsupported resource inventory as unsafe for parallel write execution.
+
+`required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`, `design-package-builder`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
+
+On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `architecture.md` Frontend Technology Decision names, before any archetype-specific mission runs:
+
+```json
+{
+  "id": "M1",
+  "alias": "workspace-foundation",
+  "objective": "Create the workspace manager root and a locally runnable application foundation with every decided frontend layer installed.",
+  "priority": 100,
+  "merge_rank": 10,
+  "trace_ids": ["PRD-<architecture-decision-trace>"],
+  "write_scope": ["package.json", "<lockfile>", "apps/web/**"],
+  "deny_scope": ["docs/goal/PLAN.md", "docs/goal/RUN.md"],
+  "resource_inventory_complete": true,
+  "serialized_resources": [],
+  "runtime_resources": [],
+  "worktree_eligible": true,
+  "required_skills": [],
+  "stop_conditions": [
+    "Stop if any Frontend Technology Decision layer is still Provisional; request the missing decision instead of guessing a stack."
+  ],
+  "worker_verifiers": [
+    {
+      "id": "m1-typecheck",
+      "cwd": ".",
+      "argv": ["<package-manager>", "run", "typecheck"],
+      "pass_signal": "Typecheck exits 0"
+    }
+  ],
+  "integration_verifiers": [
+    {
+      "id": "m1-build",
+      "cwd": ".",
+      "argv": ["<package-manager>", "run", "build"],
+      "pass_signal": "Production build exits 0 with every installed layer (framework, UI library, build tool, styling/components) wired and locally runnable"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "M1/T01",
+      "alias": "workspace-init",
+      "objective": "Initialize the workspace manager, lockfile, and root script contract.",
+      "depends_on": [],
+      "write_scope": ["package.json", "<lockfile>"],
+      "verifiers": [{"id": "m1-t01", "cwd": ".", "argv": ["<package-manager>", "ci"], "pass_signal": "Frozen install exits 0"}]
+    },
+    {
+      "id": "M1/T02",
+      "alias": "framework-and-ui-stack",
+      "objective": "Install and wire the decided framework, UI library, build tool, and styling/components together.",
+      "depends_on": ["M1/T01"],
+      "write_scope": ["apps/web/**"],
+      "verifiers": [{"id": "m1-t02", "cwd": ".", "argv": ["<package-manager>", "run", "build"], "pass_signal": "Build exits 0 and the dev server serves a page locally"}]
+    }
+  ]
+}
+```
 
 ## Source Map
 
