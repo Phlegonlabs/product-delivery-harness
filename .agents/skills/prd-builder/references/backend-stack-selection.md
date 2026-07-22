@@ -40,15 +40,15 @@ Do not let one factor decide by itself. A product that is mostly read-heavy cont
 
 ## Product-Fit Patterns
 
-Use these as starting hypotheses, then validate them against the decision evidence.
+Use these as starting hypotheses, then validate them against the decision evidence. Platform is a separate, already-resolved input (see the interview's platform `AskUserQuestion` step) — these rows recommend the database category/auth strategy layer only. Where the Why or Watch-outs column names a platform-specific implementation detail (for example Durable Objects), treat it as one example of a platform-appropriate equivalent, not a requirement to use that vendor on a different resolved platform.
 
 | Product shape | Starting recommendation | Why | Watch-outs |
 | --- | --- | --- | --- |
 | Transactional SaaS or web app (accounts, billing, records with relationships) | Relational database with an ORM/query builder; managed third-party auth provider | Joins, transactions, and referential integrity matter; auth with billing/roles is rarely worth building from scratch | Confirm multi-tenancy model, migration strategy, and provider pricing at expected scale |
 | Internal tool with an existing IdP | Relational database; platform-native or existing-IdP auth (SSO) | Operational data is usually structured; reusing the org's IdP avoids duplicate identity systems | Confirm SSO protocol (SAML/OIDC) support and role/claim mapping |
-| Content-led site with minimal dynamic data | Key-value or document store for light dynamic data (comments, contact forms); no auth or minimal auth | Most content is static; a full relational database is unnecessary overhead | Confirm whether any workflow later needs relational integrity (for example paid content) |
+| Content-led site with minimal dynamic data | Key-value or document store for light dynamic data (comments, contact forms); no auth | Most content is static; a full relational database is unnecessary overhead | Confirm whether any workflow later needs relational integrity (for example paid content) |
 | Automation or agent workflow | Key-value or document store for run records/state; no auth or platform-native service auth | Workloads are usually append-heavy run/step logs, not relational entities | Confirm idempotency keys and replay/dedup needs before picking a store |
-| Real-time or collaborative app | Document or key-value store with a real-time layer (e.g., Durable Objects, WebSocket/pub-sub service); managed third-party auth | Flexible, fast-changing state fits document/key-value better than rigid relational schemas | Confirm conflict resolution and consistency guarantees under concurrent writes |
+| Real-time or collaborative app | Document or key-value store with a real-time layer; managed third-party auth | Flexible, fast-changing state fits document/key-value better than rigid relational schemas, backed by a real-time/pub-sub primitive appropriate to the resolved platform (e.g., Cloudflare Durable Objects, a managed WebSocket/pub-sub service on AWS, or a self-hosted equivalent) | Confirm conflict resolution and consistency guarantees under concurrent writes |
 | Existing app with a healthy backend/data stack | Preserve the existing stack unless measured constraints justify migration | Reduces rewrite risk and preserves team velocity | Document the actual limitation and measurable exit criteria before migrating |
 
 ## Data and Auth Decision Rules
@@ -58,6 +58,7 @@ Verify these rules against current official documentation on the date the PRD is
 ### Any Category or Strategy
 
 - Use isolated development and production credentials, connection strings, and data for every store and auth provider. Never let development access production customer data or live sessions.
+- Isolation does not mean development stays empty: for content-shaped entities (articles, images, catalog items), seed development with representative mock/sample data as part of its setup or migration step, so development has realistic-looking data without ever reading real production records. Only source seed data from a real production copy when the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process.
 - Record migration order, rollback path, and deployed-environment verification for every schema or data change.
 - Vendor and managed-service support changes quickly. Do not copy limits, pricing, or capability claims from memory; record the verification date and direct official sources in `architecture.md`.
 

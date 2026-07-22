@@ -20,6 +20,19 @@ Each target declares its Worker name, repository-relative Wrangler config path, 
 
 Use the repository's Wrangler config as the application deployment source of truth. Define environment-specific bindings explicitly; do not assume D1, KV, R2, Durable Objects, queues, service bindings, vars, or secrets inherit safely between environments. Keep payment mode, auth clients and redirect URLs, cookie scope, databases, buckets, queues, and third-party webhook endpoints isolated.
 
+## Wrangler Config and Account Bootstrap
+
+Both of these are one-time prerequisites, not part of every deploy attempt. Complete them before the first Cloudflare deploy for a product, and re-check the account gate before every later deploy attempt.
+
+**Config scaffolding.** When a PLAN declares `release.provider: cloudflare` and a target's `wrangler_config_path` does not yet exist in the repository, generate `wrangler.jsonc` before attempting any deploy. Verify the current Wrangler config schema against official documentation first; do not rely on a memorized or stale schema, since Cloudflare's config format changes. Generate a config containing `name`, `compatibility_date` (from current docs, not memory), the application's entry point, and per-environment sections for `development` and `production` that use the exact `worker_name` and `wrangler_environment` values already recorded in the PLAN's `release.targets` — never invent different names than what the PLAN declares. Declare bindings (D1, KV, R2, Durable Objects, queues, vars, secrets) explicitly per environment; never let a binding default to being shared between development and production.
+
+**Account verification gate.** Before attempting any Cloudflare deploy command — development or production, whether a local `wrangler deploy` or the dispatched GitHub Actions workflow — confirm Cloudflare account access is actually available:
+
+- GitHub Actions path (`assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml`): confirm `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are configured as secrets on the `cloudflare-development`/`cloudflare-production` GitHub Environments the workflow dispatches against (`environment: cloudflare-${{ inputs.target_environment }}`).
+- Local/manual deploy path: confirm an authenticated Wrangler session exists (for example, `wrangler whoami` succeeds).
+
+If neither can be confirmed, stop — do not attempt the deploy — and tell the user exactly what is missing and how to fix it (run `wrangler login` locally, or add the two secrets to the named GitHub Environments). Never ask the user to paste a token or secret value into chat, and never write one into PLAN, RUN, workflow files, or any committed file; direct them to set it via the Cloudflare dashboard, `wrangler login`, or the GitHub repository/environment secrets UI themselves.
+
 ## Live Deployment State
 
 Every new schema-v4 PLAN that declares a release uses a schema-v9 RUN with `deployments`; existing schema-v4/schema-v8 and schema-v3/schema-v7 pairs remain readable. A RUN without a release PLAN omits `deployments`. `deployments.development` and `deployments.production` record:
@@ -79,6 +92,7 @@ On failure:
 Recheck current official Cloudflare documentation and the installed Wrangler config schema before using fast-moving configuration fields or command options:
 
 - https://developers.cloudflare.com/workers/wrangler/environments/
+- https://developers.cloudflare.com/workers/wrangler/configuration/
 - https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/
 - https://developers.cloudflare.com/workers/versions-and-deployments/
 - https://developers.cloudflare.com/d1/reference/migrations/

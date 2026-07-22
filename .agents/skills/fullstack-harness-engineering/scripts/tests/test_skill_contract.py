@@ -290,6 +290,40 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("production", content.lower())
             self.assertIn("separate", content.lower())
 
+    def test_cloudflare_deploy_requires_wrangler_config_and_account_verification(self) -> None:
+        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
+        verification = self.read("references/verification-gates.md")
+        deploy_workflow = self.read("assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml")
+        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("## Wrangler Config and Account Bootstrap", lifecycle)
+        self.assertIn(
+            "generate `wrangler.jsonc` before attempting any deploy",
+            lifecycle,
+        )
+        self.assertIn("Verify the current Wrangler config schema against official documentation", lifecycle)
+        self.assertIn("stop — do not attempt the deploy", lifecycle)
+        self.assertIn("wrangler whoami", lifecycle)
+        self.assertIn("https://developers.cloudflare.com/workers/wrangler/configuration/", lifecycle)
+
+        self.assertIn(
+            "Before either gate below can be attempted, a blocking prerequisite gate must pass",
+            verification,
+        )
+
+        self.assertIn(
+            '"cloudflare-development" and "cloudflare-production" GitHub Environments',
+            deploy_workflow,
+        )
+
+        for content in (project_claude, project_agents):
+            self.assertIn(
+                "confirm Cloudflare account access is verified",
+                content,
+            )
+            self.assertIn("Never attempt a deploy while either is unverified", content)
+
     def test_builder_ux_direction_is_ready_before_implementation_and_not_usability_proof(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/contract-and-traceability.md")

@@ -244,11 +244,20 @@ def generic_release(provider: str) -> dict[str, object]:
         "targets": [
             {
                 "id": "primary",
+                "data_mode": "isolated_non_production",
                 "prerequisites": ["ci_pass"],
                 "migration_command": None,
                 "deploy_command": verifier("deploy-primary", "npm", "run", "deploy"),
                 "smoke_verifiers": [verifier("smoke-primary", "tool", "smoke-primary")],
-            }
+            },
+            {
+                "id": "secondary",
+                "data_mode": "production",
+                "prerequisites": ["ci_pass"],
+                "migration_command": None,
+                "deploy_command": verifier("deploy-secondary", "npm", "run", "deploy"),
+                "smoke_verifiers": [verifier("smoke-secondary", "tool", "smoke-secondary")],
+            },
         ],
     }
 
@@ -737,6 +746,38 @@ class PlanValidationTests(unittest.TestCase):
         del plan["release"]["targets"][0]["deploy_command"]
         self.assert_error_contains(plan, "missing keys: deploy_command")
 
+    def test_schema_v3_generic_release_requires_isolated_and_production_data_modes(
+        self,
+    ) -> None:
+        single_target = valid_plan()
+        single_target["schema_version"] = 3
+        release = generic_release("vercel")
+        release["targets"] = release["targets"][:1]
+        single_target["release"] = release
+        self.assert_error_contains(
+            single_target,
+            "must include at least one isolated_non_production and one production data_mode",
+        )
+
+        both_isolated = valid_plan()
+        both_isolated["schema_version"] = 3
+        release = generic_release("vercel")
+        release["targets"][1]["data_mode"] = "isolated_non_production"
+        both_isolated["release"] = release
+        self.assert_error_contains(
+            both_isolated,
+            "must include at least one isolated_non_production and one production data_mode",
+        )
+
+    def test_schema_v3_generic_release_rejects_invalid_data_mode(self) -> None:
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("vercel")
+        plan["release"]["targets"][0]["data_mode"] = "staging"
+        self.assert_error_contains(
+            plan, "must be isolated_non_production or production"
+        )
+
     def test_schema_v3_release_rejects_malformed_values_without_crashing(self) -> None:
         malformed_id = valid_release_plan()
         malformed_id["release"]["targets"][0]["id"] = {}
@@ -938,6 +979,51 @@ class RunValidationTests(unittest.TestCase):
         run = valid_release_run(plan)
         run["deployments"]["provider"] = "gcp"
         self.assert_run_error_contains(plan, run, "must be one of")
+
+    def test_schema_v7_matching_invalid_providers_skip_the_mismatch_error(self) -> None:
+        # PLAN release.provider and RUN deployments.provider carry the identical,
+        # equally-invalid provider string. validate_run must not early-return on
+        # the unrecognized provider (that would hide real per-target problems),
+        # but it also must not pile on a spurious "must match PLAN release
+        # provider" error when both sides already agree with each other.
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("gcp")
+        run = generic_release_run(plan, "gcp")
+        expected_provider_error = (
+            f"run.deployments.provider: must be one of {sorted(DEPLOYMENT_PROVIDERS)}"
+        )
+        self.assertEqual(validate_run(plan, run), [expected_provider_error])
+
+    def test_schema_v7_unrecognized_provider_pass_target_excluded_from_lenient_sha_check(
+        self,
+    ) -> None:
+        # The generic (non-cloudflare) PASS-state source_sha requirement is
+        # narrowed to providers in DEPLOYMENT_PROVIDERS. An unrecognized
+        # provider like "gcp" must not trip that per-target check (it isn't a
+        # recognized generic provider), but it must still fail overall via the
+        # top-level provider error -- no crash, and no false accept.
+        plan = valid_plan()
+        plan["schema_version"] = 3
+        plan["release"] = generic_release("gcp")
+        run = generic_release_run(plan, "gcp")
+        run["deployments"]["development"]["status"] = "PASS"
+        run["deployments"]["development"]["migration_status"] = "not_required"
+        run["deployments"]["development"]["verification_status"] = "PASS"
+        run["deployments"]["development"]["evidence"] = ["artifact:development-smoke"]
+        # source_sha stays None: a recognized generic provider would fail with
+        # "PASS requires a source SHA" here; an unrecognized one must not.
+
+        errors = validate_run(plan, run)
+
+        self.assertFalse(
+            any("PASS requires a source SHA" in error for error in errors),
+            f"unrecognized provider must not use the generic-provider SHA check: {errors!r}",
+        )
+        self.assertTrue(
+            any("run.deployments.provider: must be one of" in error for error in errors),
+            f"unrecognized provider must still be rejected overall: {errors!r}",
+        )
 
     def test_schema_v7_deployments_provider_must_match_plan_release_provider(self) -> None:
         plan = valid_plan()

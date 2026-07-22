@@ -607,12 +607,14 @@ def _validate_generic_release_targets(errors: list[str], path: str, targets_valu
 
     target_keys = {
         "id",
+        "data_mode",
         "prerequisites",
         "migration_command",
         "deploy_command",
         "smoke_verifiers",
     }
     seen_ids: set[str] = set()
+    seen_data_modes: set[str] = set()
     for index, target in enumerate(targets_value):
         target_path = f"{path}.targets[{index}]"
         if not _keys(errors, target_path, target, target_keys):
@@ -624,6 +626,15 @@ def _validate_generic_release_targets(errors: list[str], path: str, targets_valu
             _add(errors, f"{target_path}.id", "must be unique")
         else:
             seen_ids.add(target_id)
+        data_mode = target["data_mode"]
+        if data_mode not in ("isolated_non_production", "production"):
+            _add(
+                errors,
+                f"{target_path}.data_mode",
+                "must be isolated_non_production or production",
+            )
+        else:
+            seen_data_modes.add(data_mode)
         _strings(
             errors,
             f"{target_path}.prerequisites",
@@ -654,6 +665,14 @@ def _validate_generic_release_targets(errors: list[str], path: str, targets_valu
                     verifier,
                     cache_allowed=False,
                 )
+
+    missing_data_modes = {"isolated_non_production", "production"} - seen_data_modes
+    if missing_data_modes:
+        _add(
+            errors,
+            f"{path}.targets",
+            "must include at least one isolated_non_production and one production data_mode",
+        )
 
 
 def _validate_cloudflare_release_targets(errors: list[str], path: str, targets_value: Any) -> None:
@@ -1901,7 +1920,7 @@ def _validate_deployments(
                     for key in ("worker_name", "url", "version_id")
                 ) or not is_full_sha(target["source_sha"]):
                     _add(errors, target_path, "PASS requires source SHA, worker, URL, and version ID")
-            elif not is_full_sha(target["source_sha"]):
+            elif provider in DEPLOYMENT_PROVIDERS and not is_full_sha(target["source_sha"]):
                 _add(errors, target_path, "PASS requires a source SHA")
             if target["migration_status"] not in ("PASS", "not_required"):
                 _add(errors, target_path, "PASS requires migration PASS or not_required")

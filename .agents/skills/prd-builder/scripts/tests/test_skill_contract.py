@@ -146,6 +146,24 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         for option in ("Relational", "Document", "key-value or cache only", "Build custom", "managed third-party"):
             self.assertIn(option, guide)
 
+    def test_isolated_development_is_seeded_with_mock_content_data(self) -> None:
+        architecture = self.read("references/architecture-playbook.md")
+        backend = self.read("references/backend-stack-selection.md")
+
+        for content in (architecture, backend):
+            self.assertIn("Isolation does not mean development stays empty", content)
+            self.assertIn("explicitly authorizes and scopes", content)
+        self.assertIn("seed the development environment with representative mock/sample data", architecture)
+        self.assertIn("seed development with representative mock/sample data", backend)
+        self.assertIn(
+            "Do not let a development environment access production customer data, production sessions, or live payment mutations.",
+            architecture,
+        )
+        self.assertIn(
+            "Never let development access production customer data or live sessions.",
+            backend,
+        )
+
     def test_output_contract_adds_backend_and_data_technology_decision(self) -> None:
         contract = self.read("references/output-contract.md")
 

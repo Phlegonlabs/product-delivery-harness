@@ -32,6 +32,8 @@ For a deployable product, resolve the deployment platform explicitly (via the in
 
 Do not model development as a second codebase or a long-lived development branch by default. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward-compatibility needs, secret ownership, rollback, and which evidence becomes stale after a new commit or deployment.
 
+Isolation does not mean development stays empty. When the product has content-shaped data (for example articles, images, or other catalog-style entities), seed the development environment with representative mock/sample data as part of the development migration or setup step, so development testing sees realistic content without ever reading real production records. Record the mock-data seed in the development row's Migration Order cell of the environment-contract table (see `references/output-contract.md`'s architecture.md template) or an equivalent setup step, and never source it from a live production copy unless the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process. (If this PRD is later handed off to the fullstack-harness-engineering skill, that Migration Order entry is what becomes its PLAN release-target `migration_command` field.)
+
 ## Web App Pattern
 
 Use for browser-based SaaS, marketplaces, dashboards, portals, and public web products.

@@ -66,6 +66,9 @@ jobs:
         id: cloudflare-deploy
         uses: cloudflare/wrangler-action@v3
         with:
+          # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID must be configured as secrets on the
+          # "cloudflare-development" and "cloudflare-production" GitHub Environments this workflow
+          # dispatches against (see the `environment:` field on the job above) before this can run.
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: <app-directory>

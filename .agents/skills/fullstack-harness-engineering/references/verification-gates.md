@@ -131,6 +131,8 @@ Manual smoke or another environment-specific check is still required when automa
 
 ## Cloudflare Development And Production Gates
 
+Before either gate below can be attempted, a blocking prerequisite gate must pass: `wrangler.jsonc` exists for the target (scaffolded per `references/cloudflare-deployment-lifecycle.md`'s Wrangler Config and Account Bootstrap when missing) and Cloudflare account access is verified (GitHub Environment secrets for the CD path, or an authenticated Wrangler session for a local deploy). Do not attempt a development or production deploy while this prerequisite gate is unmet; stop and tell the user what is missing instead.
+
 For a new PLAN schema-v4 Cloudflare release, use two deployed-environment gates rather than treating a successful upload as release completion; existing schema-v3 release plans retain the same gates:
 
 | Gate | Source | Required proof |

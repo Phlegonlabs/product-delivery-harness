@@ -68,6 +68,7 @@
 - Deploy the exact merged `<base-branch>` SHA to `environment:production` only after GitHub reports the PR merged and matching production deploy authorization is present. Production smoke must pass before release completion.
 - Use the exact-SHA dispatched Cloudflare deployment workflow. Do not make an arbitrary branch push or base-branch push an unconditional deployment path, and do not infer deploy authorization from push or merge.
 - Keep Wrangler configuration as the repository source of truth. Never store Cloudflare tokens or environment secret values in PLAN, RUN, workflow files, or committed dotenv files.
+- Before the first deploy for this product, confirm `wrangler.jsonc` exists (scaffold it per the Full-Stack Harness's `cloudflare-deployment-lifecycle.md` if missing) and confirm Cloudflare account access is verified (GitHub Environment secrets for the CD workflow, or an authenticated Wrangler session locally). Never attempt a deploy while either is unverified.
 
 ## Review Guidelines
 
