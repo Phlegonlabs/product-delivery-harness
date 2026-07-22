@@ -10,7 +10,7 @@ Required full-stack freeze fields:
 
 ```text
 Product: objective, users, workflows, must-have requirements, non-goals, success criteria
-Builder UX direction: human decision owner, experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, and selected/provisional/assumed status
+Builder UX direction: human decision owner, experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, and selected/provisional/assumed status. When the source PRD came from `prd-builder`, its `PRD.md` Builder UX Direction table (see that skill's `references/output-contract.md`) is the authority for each axis's valid values, e.g. experience priority is one of speed/clarity/guided completion/expert control/exploration/conversion/comprehension, guidance and control is guided/balanced/expert-flexible, and information density is sparse/balanced/dense. When no such upstream table exists, resolve each axis's value with the human decision owner instead of inventing terminology.
 Architecture: module boundaries, data model, API/action contracts, auth, permissions, side effects
 UI structure: routes, screens, navigation, regions, data-to-UI mapping, states
 Visual design: design system, tokens, components, spacing, typography, breakpoints, interaction states
@@ -22,15 +22,9 @@ For large work, including parallel mission work, implementation starts only afte
 
 ## Canonical Harness State
 
-For long or multi-mission work, keep one versioned plan and one live run record:
+For long or multi-mission work, keep one versioned plan and one live run record. See `execution-state-model.md`'s "Three Authorities" table for exactly what `PLAN.md`, `RUN.md`, and observed Git/runtime facts each own; do not re-derive that split here.
 
-- `PLAN.md` owns declarative inputs: sources, traces, missions, flat task definitions, dependency DAGs, allowed scopes, resource claims, and verifier definitions.
-- `RUN.md` owns mutable execution state: authorization, selected runtime capabilities, phase transitions, leases, active waves, worker reports, observed base/head SHAs, integration results, blockers, and closeout.
-- Git, Codex threads, worktrees, services, and ports are runtime facts. Observe them at the relevant gate and record a snapshot in `RUN.md`; do not treat a stale Markdown row as proof of current state.
-- The canonical machine-readable data is the JSON manifest named by each template. Human-readable tables are views only. Validators and selectors must never scrape those tables.
-- Every accepted plan change increments `plan_revision`; recompute the canonical plan digest, validate both DAGs, and invalidate any wave proposal bound to the previous revision or digest.
-
-The parent/coordinator is the sole writer of `PLAN.md` and `RUN.md` during execution. Workers return structured results or refinement requests and never edit either file.
+The parent/coordinator is the sole writer of `PLAN.md` and `RUN.md` during execution. Workers return structured results or refinement requests and never edit either file. Every accepted plan change increments `plan_revision`; recompute the canonical plan digest, validate both DAGs, and invalidate any wave proposal bound to the previous revision or digest.
 
 ## Source Map
 
@@ -63,7 +57,6 @@ wireframes.md
 implementation-plan.md
 design-system.md
 page-ui-matrix.md
-page-ui-notes.md
 ui-mockups.md
 visual-acceptance.md
 mockups/
@@ -75,6 +68,7 @@ Rules:
 
 - Do not require upstream files to come from a specific skill or pipeline.
 - Do not write harness-owned artifacts into the upstream document folder unless the user explicitly asks for that location.
+- When `implementation-plan.md` is present, read its `Harness Handoff Signals` table (dependency order, parallel candidates, shared resources, required reviews, human gates) as non-canonical planning hints before drafting the mission graph from scratch, instead of re-deriving the same analysis unassisted.
 - If design-system or page UI sources are missing and UI quality matters, classify the design input state as `missing` or `partial` and stop for acceptance or assumptions before claiming a design-faithful build.
 - If a page UI reference omits states or breakpoints, record the gap in the handoff readiness table and resolve it before implementation or mark the surface `UNVALIDATED`.
 
@@ -119,16 +113,7 @@ Rules:
 
 ## Compact Artifact Defaults
 
-When no repo convention exists, enforce this file budget:
-
-```text
-small direct work      -> no management files
-large sequential work -> docs/goal/RUN.md
-large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md
-real binary proof     -> docs/goal/evidence/** only when needed
-```
-
-Keep Goal text, checkpoint, task state, verification, evidence links, blockers, and closeout together in `RUN.md`. Use temporary `docs/goal/evidence/<mission>/REPORT.md` files only for parallel worker integration, then fold their durable result into `RUN.md`.
+When no repo convention exists, apply `SKILL.md`'s File Budget. Use temporary `docs/goal/evidence/<mission>/REPORT.md` files only for parallel worker integration, then fold their durable result into `RUN.md`.
 
 Do not duplicate canonical manifest fields into another state database. If the target repository already has an execution-state convention, map these ownership rules into it and document the mapping instead of creating competing truth sources.
 

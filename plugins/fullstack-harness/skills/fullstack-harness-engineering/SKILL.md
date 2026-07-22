@@ -74,35 +74,44 @@ Explicit adapter invocation still begins with this core. The adapters may select
 - Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
 - Read `references/cloudflare-deployment-lifecycle.md` only for Cloudflare delivery.
 - Read `references/commit-convention.md` before a harness-managed commit.
-- Use `assets/templates/HARNESS_PLAN.template.md` for `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` for `RUN.md`. Load another template only for its named expansion.
+- Read `references/orchestration-research-notes.md` for the underlying Codex/Claude Code orchestration capability facts, version gates, and GitHub review/merge mechanics behind this skill's guidance, including the Codex Cloud connection requirement and the `@codex review` manual trigger the GitHub landing adapter depends on.
+- Use `assets/templates/HARNESS_PLAN.template.md` for `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` for `RUN.md`. Load another template only for its named expansion:
+  - `assets/templates/TASKS.template.md` for `tasks.md`, a non-canonical mission/task listing view regenerated from `RUN.md` whenever a RUN.md exists.
+  - `assets/templates/GOAL.template.md` for a standalone copy-ready goal prompt when a workflow needs one without creating `RUN.md`.
+  - `assets/templates/WORKER_GOAL.template.md` for a mission worker's frozen launch prompt.
+  - `assets/templates/PULL_REQUEST.template.md` as the PR body base when the GitHub landing adapter creates a pull request.
+  - `assets/templates/E2E_VERIFICATION.template.md` only as a standalone expansion of `RUN.md`'s verification matrix when it becomes too large to scan inline.
+  - `assets/templates/REFINEMENT_BACKLOG.template.md` only as a standalone expansion of `RUN.md`'s refinement backlog when it becomes too large to scan inline.
 
 ## File Budget
 
 ```text
 small direct work      -> no management files
-large sequential work -> docs/goal/RUN.md
-large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md
+large sequential work -> docs/goal/RUN.md (+ optional docs/goal/tasks.md)
+large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md (+ optional docs/goal/tasks.md)
 binary UI evidence    -> docs/goal/evidence/** only when artifacts exist
 worktree workers      -> temporary per-mission reports only while integration needs them
 ```
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
-- Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`.
+- Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md`, when present, is a regenerated mission/task listing view only — it never becomes a second source of truth.
 - A compact `RUN.md` without `PLAN.md` is sequential: one parent writer in `shared_checkout`, no leases, worktree fan-out, or deterministic wave claim.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
 - On first bootstrap of a new target repository, seed a missing root `AGENTS.md` from `assets/templates/PROJECT_AGENTS.template.md` and a missing root `CLAUDE.md` from `assets/templates/PROJECT_CLAUDE.template.md`. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
+- On that same first bootstrap, also seed a missing CI workflow from `assets/templates/PROJECT_CI.template.yml`, and, only for Cloudflare delivery, its separate CD companion `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` (see `references/cloudflare-deployment-lifecycle.md`). Skip either file that already exists; never overwrite established CI configuration.
 
 ## Shared Validation Tools
 
 - `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, and schema-v9 UI evidence.
+- `scripts/upgrade_harness_schema.py` rewrites an older PLAN/RUN in place to the current schema (PLAN v4, RUN v9), adding only each version's neutral keys — never a fabricated authorization, gate, SHA, or evidence — and validates the result before writing; `--dry-run` reports the per-step additions without touching the file.
 - `scripts/select_ready_nodes.py` selects the typed PLAN-v4/RUN-v8-or-v9 frontier and provider-neutral launch directives.
 - `scripts/select_parallel_missions.py` supports older readable plans.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, final, release, migration, or smoke gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
 
-These shared validation and selection paths are Python-stdlib-only, read-only, deterministic, and do not mutate Git, PLAN, RUN, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
+These shared validation and selection paths are Python-stdlib-only and deterministic. All but `upgrade_harness_schema.py` are read-only and never mutate Git, PLAN, RUN, tasks, or worktrees; `upgrade_harness_schema.py` is the one exception and only ever rewrites the exact PLAN/RUN files it was pointed at, never Git, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
 
 ## Default Runtime And Wave Policy
 

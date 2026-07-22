@@ -302,6 +302,23 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 The exact fenced JSON block above is the canonical run state. Scripts read this block only; Markdown tables later in this document are non-canonical human views. Update the JSON first, keep it valid, and never infer authorization from plan readiness, a template, or a Goal prompt.
 
+### RUN Schema Version History
+
+New RUN files always use v9 (see `SKILL.md`'s Default Runtime And Wave Policy). Older schemas below exist only so a parent can keep reading a RUN.md written before this history table existed; nothing here changes what a new file must contain.
+
+| Schema | Added | Still readable |
+|---|---|---|
+| v2 | Baseline: 13-action ledger, no landing/deployment/graph state | yes |
+| v3 | 16-action ledger (`configure_repository`, `manage_pr_review`, `merge_pr`), `landing` object | yes |
+| v4 | `auto_merge_requested` / `auto_merge_head_sha` on `landing` | yes |
+| v5 | `post_merge_cleanup` | yes |
+| v6 | `runtime_adapter`, `future-pr:` authorization targets | yes |
+| v7 | Cloudflare `deployments` (required only when PLAN declares `release`) | yes |
+| v8 | `graph_state` for PLAN-v4 typed nodes/edges, 17-action ledger (+`invoke_external_runtime`) | yes |
+| v9 (current default) | `batch_gate_results`, `final_gate_results`, `ui_evidence`; `workflow_runs` when also paired with a PLAN-v4 graph run | current |
+
+The rest of this document states rules as the current v9 shape. Where a rule differs for an older, still-readable file, that file's own recorded `schema_version` decides which fields apply — do not backfill v9-only fields into an older valid file just because this history table lists them.
+
 The schema-v9 action ledger has 17 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. `invoke_external_runtime` is separate from `spawn_subagents` and uses an exact `runtime:<provider>` target because it can cross a data, cost, and permission boundary. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. At Plan Readiness, one prompt may request all missing execution, launch, branch, commit, integration, push, PR creation, review-management, and merge actions for exact targets, but every action remains a separate ledger entry. Use the schema-v6-through-v9 `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` target for review and merge only until that PR is created. Repository configuration may join that checkpoint only for an observed exact setup change. Deploy, archive, worktree removal, and branch deletion remain outside the landing bundle.
 
 `graph_state` is the canonical routing record for PLAN-v4 nodes and edges. Initialize one state for every declared node and edge. A mission node reaches `succeeded` with outcome `pass` only when its matching mission state is `integrated` with an integration `PASS`; keep mission state for lease/Git/integration details and graph state for attempt/outcome/routing details. Every retry uses a new `last_attempt_id`, increments `attempts`, preserves the prior attempt evidence in `attempt_log`, and rechecks authorization. Edge `traversals` never exceeds the PLAN bound. Run `select_ready_nodes.py` after every terminal node result, integration, graph revision, or changed external state.
@@ -540,10 +557,7 @@ For plan-backed work, do not set the run to `running` until all required readine
 
 ## Mission And Task View
 
-| Mission / task | Trace | Depends on | Phase | Worker gate | Integration gate | Evidence / commit |
-|---|---|---|---|---|---|---|
-| M1 | REQ-001 | none | queued | planned | planned | |
-| M1/T01 | REQ-001 | none | queued | planned | n/a | |
+The mission ("milestone") and task listing view moved to `docs/goal/tasks.md` (`assets/templates/TASKS.template.md`). It is a non-canonical human view derived from this file's `mission_states`, `task_states`, and `graph_state`; regenerate it from here, never treat it as a second source of truth.
 
 ## Active Wave View
 
