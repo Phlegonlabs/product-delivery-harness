@@ -115,6 +115,19 @@ blocked | worker_failed | superseded
 
 `worker_passed -> mission_recorded` occurs when the parent confirms the passing task's commit/change is reachable from the reported mission head and represented by its `task_results` entry in the accepted worker result/report. The parent may record both observations in one serialized RUN update, but it must preserve the evidence distinction. A blocked/failed mission result names `current_task_id` and preserves earlier task results. `mission_recorded` does not make the mission `integrated`. Refined parent tasks use `superseded`; their replacement tasks carry the executable work.
 
+## Resume Reconciliation Gate
+
+A `running` RUN can be picked up by a different session than the one that last touched it — the same host resuming after an interruption, or a different agent entirely. Before that parent selects or launches any ready node, it must reconcile the observed working tree against canonical `task_states`/`mission_states`, not just trust the last recorded checkpoint.
+
+Read `observed.git.parent_dirty` and the actual diff live. If the checkout is dirty, map every changed path to the task(s) whose `write_scope` covers it. Any dirty content that falls inside a task still at `queued`, `ready`, or `running` — i.e. not yet `worker_passed` — is drift: real work exists that canonical state does not account for. This is exactly how an interrupted session leaves a large, unverified pile behind: implementation kept going across several tasks without the verify-then-commit checkpoint ever firing in between, so nothing downstream ever learned the work existed.
+
+Drift blocks new work. The parent must resolve it before advancing to the next ready node, by one of:
+
+- Running the covering task's own verifier against the current dirty state. If it passes, commit per `commit-convention.md` and record the task as `worker_passed` (then `mission_recorded` once integration-reachability is confirmed) so canonical state now matches reality.
+- If the drift does not pass verification, is partial, or its origin is unclear, stop and ask the user how to proceed (finish and verify it, stash it, or discard it) rather than silently building further work on top of unverified, unrecorded state.
+
+Never treat a dirty checkout as either "safe to ignore" or "safe to build on" without this reconciliation — both let the same gap compound on the next resume.
+
 ## Typed Graph State
 
 PLAN schema v4 adds typed nodes and explicit dependency/route edges. RUN schema v8 and v9 add one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.

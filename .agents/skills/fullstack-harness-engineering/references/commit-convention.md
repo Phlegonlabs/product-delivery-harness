@@ -10,6 +10,7 @@ Use this convention for every harness-managed task commit. Commit permission is 
 - Split an oversized task through the parent-owned refinement protocol before committing when it contains independently useful outcomes. Never rewrite only `RUN.md` to invent accepted scope.
 - Stage explicit files, inspect the staged diff, and commit only after the task verifier passes and commits are authorized.
 - Do not commit failed work except an explicitly planned harness or test artifact whose purpose is to expose the failure.
+- Do not start a second task's implementation before the current task's verifier has run and, on pass, its commit is made. Checkpoint each task as you finish it, not in a batch at the end of a mission or session — an interruption before that checkpoint leaves unverified, unrecorded drift that a later resume has to reconstruct from the diff alone (see `execution-state-model.md`'s Resume Reconciliation Gate).
 
 ## Commit Message
 

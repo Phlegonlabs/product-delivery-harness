@@ -185,6 +185,8 @@ Verification: focused local | integration | final local | remote final-head
 
 Do not scan every optional platform or adapter. Inspect only what the selected route needs.
 
+When an existing `RUN.md` is `running`, pass the Resume Reconciliation Gate (`references/execution-state-model.md`) before selecting or launching any ready node: a dirty checkout may hold real work an earlier, interrupted session never verified or committed, and canonical state does not know about it yet.
+
 ### 2. Plan Large Work
 
 Freeze relevant source paths and SHA-256 digests, functional and non-functional requirements, Builder UX Direction, architecture boundaries, frontend stack, data/integration contracts, failure states, security, observability, migration/release order, acceptance criteria, and exact verification commands. Preserve stable PRD, ARCH, UI, UX, DS, and TEST trace IDs.
