@@ -95,10 +95,12 @@ Record each text-on-background, text-on-surface, and text-on-accent pairing's ac
 ## Typography
 Pay attention to font family, font weight, font size, line height, and how different fonts or font roles are used together.
 
-| Role | Font / family | Size | Weight | Line height | Usage |
-| --- | --- | --- | --- | --- | --- |
+Pairing rationale: <why these families/roles work together, and the type-scale ratio or logic tying the sizes into one system>
 
-Record each role's actual line-height ratio (line height ÷ font size) and check it against `visual-decision-guide.md`'s Typography Decision thresholds: at least 1.5x for body/paragraph text (WCAG 2.2 Success Criterion 1.4.12) and at least 1.1x for heading/display roles. Adjust the token when a role fails rather than recording a failing ratio. See `visual-decision-guide.md`'s Typography Decision for the full method, the type-scale rationale requirement, and when to offer `frontend-design` for an expert pairing pass.
+| Role | Font / family | Size | Weight | Line height | Line-height ratio | Usage |
+| --- | --- | --- | --- | --- | --- | --- |
+
+Record each role's actual line-height ratio (line height ÷ font size) in the last column and check it against `visual-decision-guide.md`'s Typography Decision thresholds: at least 1.5x for body/paragraph text (WCAG 2.2 Success Criterion 1.4.12) and at least 1.1x for heading/display roles. Adjust the token when a role fails rather than recording a failing ratio. See `visual-decision-guide.md`'s Typography Decision for the full method, the type-scale rationale requirement, and when to offer `frontend-design` for an expert pairing pass.
 
 ## Iconography System
 

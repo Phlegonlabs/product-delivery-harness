@@ -118,7 +118,7 @@ Verify these rules against current official documentation on the date the PRD is
 1. Classify data entities, access patterns, and identity/authorization needs.
 2. Eliminate options that cannot satisfy a hard constraint or whose current support is unverified.
 3. Choose the simplest coherent combination of runtime, database, and auth that covers the dominant access patterns and identity needs without unnecessary infrastructure.
-4. Name the required/selected stack for backend runtime, database engine, and auth provider, or one recommendation when no choice exists — informed by the already-resolved database category and auth strategy. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
+4. Name the required/selected stack for backend runtime, service topology, database engine, and auth provider, or one recommendation when no choice exists — informed by the already-resolved database category, auth strategy, and service topology decision. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
 5. Explain at least two serious alternatives, where each would fit better, why it loses here, and what would trigger reconsideration.
 6. Verify current platform/vendor documentation and capture direct sources plus the check date.
 7. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional`, not `Selected`.

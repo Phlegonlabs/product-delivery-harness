@@ -22,7 +22,7 @@ Use the repository's Wrangler config as the application deployment source of tru
 
 ## Wrangler Config and Account Bootstrap
 
-Both of these are one-time prerequisites, not part of every deploy attempt. Complete them before the first Cloudflare deploy for a product, and re-check the account gate before every later deploy attempt.
+These are one-time prerequisites, not part of every deploy attempt. Complete them before the first Cloudflare deploy for a product, and re-check the account gate before every later deploy attempt.
 
 **Config scaffolding.** When a PLAN declares `release.provider: cloudflare` and a target's `wrangler_config_path` does not yet exist in the repository, generate `wrangler.jsonc` before attempting any deploy. Verify the current Wrangler config schema against official documentation first; do not rely on a memorized or stale schema, since Cloudflare's config format changes. Generate a config containing `name`, `compatibility_date` (from current docs, not memory), the application's entry point, and per-environment sections for `development` and `production` that use the exact `worker_name` and `wrangler_environment` values already recorded in the PLAN's `release.targets` — never invent different names than what the PLAN declares. Declare bindings (D1, KV, R2, Durable Objects, queues, vars, secrets) explicitly per environment; never let a binding default to being shared between development and production.
 

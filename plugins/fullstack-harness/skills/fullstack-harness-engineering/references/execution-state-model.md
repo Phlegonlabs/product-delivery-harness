@@ -241,14 +241,14 @@ In schemas v4 through v9, `auto_merge_requested: true` records that GitHub auto-
 
 ## Cloudflare Deployment State
 
-PLAN schemas v3 and v4 support an optional static `release` contract. Schema version alone does not enable release behavior. For the default Cloudflare path, the declared contract contains exactly two targets: development from the current PR head and production from merged `main`. Each target owns its Worker name, Wrangler config/environment, data/auth/payment mode, prerequisites, migration command, deploy command, and smoke verifiers. PLAN never stores secret values or live deployment results.
+PLAN schemas v3 and v4 support an optional static `release` contract. Schema version alone does not enable release behavior. For the default Cloudflare path, the declared contract contains exactly two targets: development from the current PR head and production from merged `landing.base_branch` (commonly `main`). Each target owns its Worker name, Wrangler config/environment, data/auth/payment mode, prerequisites, migration command, deploy command, and smoke verifiers. PLAN never stores secret values or live deployment results.
 
 RUN schemas v7 through v9 support `deployments` with the provider plus development and production state. It is required when the matching PLAN declares `release` and omitted otherwise, so deployment state cannot affect unrelated runtime, landing, or authorization fields. Valid older RUN schemas remain readable without it. Each target records status, source SHA, Worker, URL, Cloudflare version ID, migration and verification state, optional rollback version, and retained evidence.
 
 Development `PASS` requires (the exact binding depends on the PLAN release target's declared `source` — see `cloudflare-deployment-lifecycle.md`):
 
 - When `source: pr_head` (the default dispatched-Actions model): `landing.checks_status: PASS` on the exact current `landing.pr_head_sha`, and `deployments.development.source_sha == landing.pr_head_sha`.
-- When `source: integration_head` (the Auto-Deploy Release Model): `deployments.development.source_sha == run.integration.integration_head_sha`. No `landing`/PR field applies in this case, since Cloudflare deploys continuously on every push to the integration branch regardless of whether a PR against `main` is even open.
+- When `source: integration_head` (the Auto-Deploy Release Model): `deployments.development.source_sha == run.integration.integration_head_sha`. No `landing`/PR field applies in this case, since Cloudflare deploys continuously on every push to the integration branch regardless of whether a PR against `landing.base_branch` (commonly `main`) is even open.
 - Either case: migration `PASS` or `not_required`, deployed-environment verification `PASS`, and retained evidence.
 - Either case: unexpired `deploy` authorization for every run mission and `environment:development`.
 
