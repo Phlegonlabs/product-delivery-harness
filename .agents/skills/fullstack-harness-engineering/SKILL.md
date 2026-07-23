@@ -83,6 +83,7 @@ Explicit adapter invocation still begins with this core. The adapters may select
   - `assets/templates/PULL_REQUEST.template.md` as the PR body base when the GitHub landing adapter creates a pull request.
   - `assets/templates/E2E_VERIFICATION.template.md` only as a standalone expansion of `RUN.md`'s verification matrix when it becomes too large to scan inline.
   - `assets/templates/REFINEMENT_BACKLOG.template.md` only as a standalone expansion of `RUN.md`'s refinement backlog when it becomes too large to scan inline.
+  - `assets/templates/PROJECT_CLOUDFLARE_DEPLOYMENT_GUIDE.template.md` for `doc/deployment.md`, an operational setup guide recording how this project's Cloudflare Workers are actually configured, only for Cloudflare-deploying products.
 
 ## File Budget
 

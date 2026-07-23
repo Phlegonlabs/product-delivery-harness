@@ -18,9 +18,20 @@ Label the decision status accurately:
 | Database engine | Which specific engine implements that category? | Postgres, MySQL, SQLite, Cloudflare D1, PlanetScale, MongoDB Atlas, DynamoDB, Cloudflare KV, Upstash Redis |
 | Auth strategy | Who builds and owns identity/session verification? | Build custom, managed third-party provider, platform-native provider, no auth needed |
 | Auth provider | Which specific vendor or mechanism implements that strategy? | Clerk, Auth0, WorkOS, Cloudflare Access, AWS Cognito, custom JWT/session store |
+| Service topology | How many independently deployable backend services does the product need, and how is code organized across them? | Single service (monolith), Bun/npm workspace monorepo with multiple services (microservices), polyrepo |
 | Supporting choices | How are secondary backend concerns implemented? | API style (REST/GraphQL/RPC), background jobs/queue, file/object storage, caching, rate limiting |
 
 Database category and auth strategy are separate decisions from database engine and auth provider: category and strategy are resolved via `AskUserQuestion` because each is a short, often organizationally- or compliance-driven choice; engine and provider are product-fit recommendations made within the already-resolved category or strategy, the same way frontend framework is recommended within an already-resolved deployment platform.
+
+## Service Topology Decision
+
+Decide this before naming a specific backend runtime, since the topology choice frames it.
+
+1. Monolith vs microservices — default to a single service (monolith) unless the product already has two or more confirmed independent deployment boundaries (separate release cadence, separate scaling profile, separate team ownership, or a hard platform constraint requiring separate deployables). Do not choose microservices for a hypothetical future need; splitting a well-organized monolith later is cheaper than un-splitting a premature microservice split, and the added operational complexity (service discovery, cross-service contracts, distributed tracing, more deployment surfaces) is real cost that KISS/YAGNI weighs against speculative scaling headroom.
+2. When microservices is justified: use a Bun workspace monorepo (`bun workspaces` declared in the root `package.json`, one package per service under `apps/` or `services/`, shared internal code under `packages/`) as the default project structure rather than a polyrepo — one repository keeps cross-service contract changes atomic and reviewable in one PR, and avoids the coordination overhead of separate release cycles for tightly-coupled internal services.
+3. Bun vs Node.js or another JavaScript runtime for the chosen service(s) — prefer Bun when startup time and per-request overhead matter (serverless/edge deployment, Cloudflare Workers compatibility) and the product's dependencies are confirmed compatible with Bun's current Node-API compatibility surface; fall back to Node.js when a required dependency's Bun compatibility is unverified or explicitly unsupported. Verify current compatibility against Bun's own documentation before committing, since it changes — do not assume parity with Node from memory.
+
+Record the decision status (`Required`/`Selected`/`Recommended`/`Provisional`) for topology and runtime the same way as every other layer in this guide.
 
 ## Collect Decision Evidence
 
@@ -118,7 +129,7 @@ The `Backend and Data Technology Decision` section in `architecture.md` must inc
 
 - Product evidence and hard constraints.
 - Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`) per layer.
-- One recorded stack separated by backend runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
+- One recorded stack separated by backend runtime/framework, service topology (monolith vs microservices, and monorepo/polyrepo structure), database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - A data-entity-to-store mapping when more than one store is used.
 - Alternatives and revisit triggers.
 - Official documentation links and verification date.
@@ -139,6 +150,7 @@ Use primary documentation, not marketplace roundups. These links cover Cloudflar
 ## Failure Modes
 
 - Picking a database engine before establishing category from data-shape evidence.
+- Choosing microservices without two or more confirmed independent deployment boundaries, adding distributed-systems complexity (service discovery, cross-service contracts, more deployment surfaces) for a product that does not need it yet.
 - Silently defaulting to "just use Postgres" or "just use Firebase" without recording the decision or alternatives.
 - Treating auth as a late bolt-on with unresolved session or authorization boundaries.
 - Building custom auth when SSO or compliance effectively mandates a managed or platform-native provider.
