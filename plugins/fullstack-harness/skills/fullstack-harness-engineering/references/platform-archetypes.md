@@ -147,6 +147,8 @@ M5 accessibility, visual QA, performance
 M6 deployed URL smoke, sitemap/robots/redirect checks
 ```
 
+M2 and M5 above are illustrative single lines, not a mandate to lump every page into one mission or defer all visual QA to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M2 into one mission per page (or a small tightly-coupled group, for example the legal/about/contact pages sharing one trivial template) and pair each with its own scoped `visual` review as soon as that mission integrates, rather than one M2 covering the whole page inventory reviewed once by a later M5.
+
 Required E2E scenarios:
 
 - Primary CTA or form submission reaches the expected destination.

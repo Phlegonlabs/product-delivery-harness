@@ -84,6 +84,8 @@ M5 design-system conformance and responsive states
 M6 E2E and visual evidence
 ```
 
+M4 and M6 above are illustrative single lines, not a mandate to implement the whole UI matrix in one mission and defer visual evidence to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M4 into one mission per page (or a small tightly-coupled group) and pair each with its own scoped `visual` review as soon as that mission integrates, rather than one M4 covering the entire matrix reviewed once by a later M6.
+
 ## Existing App Refinement Flow
 
 For an existing app with updated PRD/wireframe/design system/page UI:
