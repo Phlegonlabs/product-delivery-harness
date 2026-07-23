@@ -68,6 +68,8 @@ plan_digest_sha256
 
 A selected wave also binds a committed `batch_base_sha`. A proposal becomes stale when its plan revision, plan digest, or base SHA no longer matches current observed facts. Recompute it; do not edit the old result into apparent validity.
 
+Any script or manual edit that mutates `PLAN.md`/`RUN.md`'s JSON content must pipe its result through `scripts/validate_harness_plan.py` (and `validate_node_result.py`/`validate_worker_result.py` where applicable) before writing back and before the mutation is treated as authoritative. A one-off script that recomputes a digest or bumps a revision without running the shared validator can silently produce an invalid plan — a broken DAG, an unreachable trace, a malformed verifier — that nothing catches until a much later gate, if ever.
+
 Observed facts are read live before every mutating action. `RUN.md` may record a timestamped snapshot under `observed` for auditability, but the snapshot never replaces a fresh check.
 
 The minimum RUN snapshot shape is:

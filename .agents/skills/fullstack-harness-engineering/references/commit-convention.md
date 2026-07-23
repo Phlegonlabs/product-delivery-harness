@@ -64,6 +64,8 @@ Commits:
 
 Record the final hash after commit creation. Do not amend a task commit merely to place its own hash in `RUN.md`; land parent-owned `RUN.md` bookkeeping at the next authorized checkpoint or closeout, and do not require a checkpoint commit to self-reference.
 
+Commit `PLAN.md`/`RUN.md` themselves to git at every mission integration or wave close — do not let "the next authorized checkpoint" drift into several missions' or a full day's worth of code landing in git while the plan/run bookkeeping that explains those changes remains only a local uncommitted file. A crash, fresh clone, or reset before that commit permanently severs the integrated code from the record of why it was integrated, what it was reviewed against, and what revision authorized it.
+
 ## Integration Commits
 
 When the parent creates a merge or integration-only commit, do not pretend it is a task commit. Use a mission-level body:

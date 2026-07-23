@@ -26,6 +26,7 @@ Task gate:
 - Runs focused checks selected from parent-observed changed files when the verifier declares `selection.mode: "changed_files"`; omitted selection metadata means `always`.
 - Must pass before a worker result can become `worker_passed` and before a task commit when commits are authorized.
 - After it passes, create at most one coherent task commit using `commit-convention.md`; split the task first when independent outcomes remain.
+- Confirms every file the task touched still satisfies the project's File Size Limit (see the seeded root `CLAUDE.md`/`AGENTS.md`). A task that leaves a touched module over the limit without a stated exception fails this gate, rather than being caught, if at all, only by a later code review's subjective judgment.
 
 Worker mission gate:
 
@@ -258,7 +259,7 @@ Final PASS requires:
 - Schema-v9 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
 - Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Every skipped gate is justified.
-- Every `UNVALIDATED` surface is named.
+- Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. A required row's screenshot or other evidence artifact changing after being marked PASS (a working-tree diff to an already-recorded evidence file) invalidates that recorded PASS until a fresh evidence-capture attempt reruns and re-binds it to the current head.
 - Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; accepted non-file evidence applies only to gates that do not require screenshots.
 - Baseline and skipped-check justifications are recorded when relevant.
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
