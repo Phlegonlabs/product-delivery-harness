@@ -46,6 +46,9 @@ Decision owner: [Human product/design owner or commissioning team]
 | Interaction and layout | [Familiar / expressive; preferred primary pattern] | [Reason] | [selected / provisional / assumed] | [Method or none] |
 | Confirmation and recovery | [Confirm / undo / retry / escalation expectations] | [Reason] | [selected / provisional / assumed] | [Method or none] |
 
+Validation depth: [lightweight direction-conformance review only / moderate (conformance plus targeted checks) / deep (formal usability or user-evidence validation)] — [selected / provisional / assumed], decided by [decision owner]
+This is the single recorded home for the interview's validation-depth answer, so downstream skills (design-package-builder) can read it here instead of re-asking.
+
 Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
 
 ## User Journeys
