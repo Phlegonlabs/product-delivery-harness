@@ -318,7 +318,7 @@ Before finalizing, verify:
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.
 - When Dynamic Workflow was used, every required design role has an explicit result, failed agents remain blocked roles, and taste/trace verifier findings are resolved or recorded before finalization. Workflow output is a candidate and does not itself prove rendered visual conformance.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.
-- The package is validated in `docs/.design-staging/<run-id>/`; exact overwrites and archive moves are authorized before publication, or the staged package remains unchanged awaiting approval.
+- The package is validated in `docs/product/.design-staging/<run-id>/`; exact overwrites and archive moves are authorized before publication, or the staged package remains unchanged awaiting approval.
 
 ## Taste & Anti-Slop Review Checklist
 

@@ -55,7 +55,7 @@ If an external source is unavailable, ask for screenshots, exports, or written s
 
 ## Document Folder Handoff
 
-When the user provides a document folder path, inspect that folder before drafting harness artifacts. Treat files in the folder as upstream sources and register recognized inputs in the source map.
+When the user provides a document folder path, inspect that folder before drafting harness artifacts. Treat files in the folder as upstream sources and register recognized inputs in the source map. This is commonly `docs/product/` when `prd-builder` and `design-package-builder` published there, but the harness does not assume a fixed path — take whatever folder the user names.
 
 Recognize common upstream files and folders:
 

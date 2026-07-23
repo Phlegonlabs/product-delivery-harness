@@ -1,21 +1,21 @@
 # Artifact Lifecycle
 
-Keep the current design package directly under `docs/` and retain superseded design artifacts safely.
+Keep the current design package directly under `docs/product/` and retain superseded design artifacts safely.
 
 ## Fixed Paths
 
 Use the repository root as the workspace root. Publish these files unless the user names different exact paths (see `references/output-contract.md` for the deliverable contract):
 
-- `docs/design-system.md` (always)
-- `docs/visual-acceptance.md` (always)
-- `docs/ui-mockups.md` (the slim index) plus one file per page/route/screen under `docs/mockups/` (for example `docs/mockups/dashboard.html`), for every platform. Do not publish `docs/page-ui-matrix.md`.
-- `docs/motion-showcase.html` or bounded files under `docs/motion-demos/` when requested
+- `docs/product/design-system.md` (always)
+- `docs/product/visual-acceptance.md` (always)
+- `docs/product/ui-mockups.md` (the slim index) plus one file per page/route/screen under `docs/product/mockups/` (for example `docs/product/mockups/dashboard.html`), for every platform. Do not publish `docs/product/page-ui-matrix.md`.
+- `docs/product/motion-showcase.html` or bounded files under `docs/product/motion-demos/` when requested
 
-Stage a run under `docs/.design-staging/<run-id>/`, mirroring the same relative layout (including a `mockups/` subdirectory). Do not draft over existing final files.
+Stage a run under `docs/product/.design-staging/<run-id>/`, mirroring the same relative layout (including a `mockups/` subdirectory). Do not draft over existing final files.
 
 ## Inventory
 
-Before drafting, list exact final-path files and other clearly superseded design-package artifacts for the same product, including any existing `docs/mockups/` HTML files. Exclude `docs/archived/`, PRDs, architecture, research, test evidence, and ambiguous files. Leave ambiguous candidates untouched and report them. When archiving a superseded package, move the whole prior `docs/mockups/` directory alongside the other superseded files rather than leaving orphaned page HTML behind.
+Before drafting, list exact final-path files and other clearly superseded design-package artifacts for the same product, including any existing `docs/product/mockups/` HTML files. Exclude `docs/product/archived/`, PRDs, architecture, research, test evidence, and ambiguous files. Leave ambiguous candidates untouched and report them. When archiving a superseded package, move the whole prior `docs/product/mockups/` directory alongside the other superseded files rather than leaving orphaned page HTML behind.
 
 ## Validate Then Ask
 
@@ -27,9 +27,9 @@ If approval is absent, keep the staged package and all existing files unchanged.
 
 After approval:
 
-1. Create `docs/archived/<YYYYMMDD-HHMMSS>-<product-slug>-design/` only when superseded artifacts exist.
+1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>-design/` only when superseded artifacts exist.
 2. Move only the approved superseded files into that new archive directory. Never overwrite an archive.
-3. Move the validated staged artifacts to their final `docs/` paths.
+3. Move the validated staged artifacts to their final `docs/product/` paths.
 4. Remove only the now-empty run staging directory.
 5. If any move fails, preserve every recoverable copy, stop, and report the exact state.
 

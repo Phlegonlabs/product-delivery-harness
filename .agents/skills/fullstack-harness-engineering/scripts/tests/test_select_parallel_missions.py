@@ -87,7 +87,7 @@ def make_plan(missions: list[dict[str, object]]) -> dict[str, object]:
             {
                 "id": "SRC-001",
                 "kind": "prd",
-                "location": "docs/PRD.md",
+                "location": "docs/product/PRD.md",
                 "owner": "team",
                 "status": "frozen",
                 "notes": "canonical",

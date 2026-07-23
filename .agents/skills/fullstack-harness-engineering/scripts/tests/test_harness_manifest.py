@@ -145,7 +145,7 @@ def valid_plan() -> dict[str, object]:
             {
                 "id": "SRC-001",
                 "kind": "prd",
-                "location": "docs/prd.md",
+                "location": "docs/product/prd.md",
                 "owner": "product",
                 "status": "frozen",
                 "notes": "product contract",
@@ -153,7 +153,7 @@ def valid_plan() -> dict[str, object]:
             {
                 "id": "SRC-002",
                 "kind": "architecture",
-                "location": "docs/architecture.md",
+                "location": "docs/product/architecture.md",
                 "owner": "engineering",
                 "status": "frozen",
                 "notes": "technical contract",

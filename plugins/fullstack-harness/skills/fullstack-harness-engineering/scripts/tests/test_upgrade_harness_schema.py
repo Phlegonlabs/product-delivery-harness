@@ -54,11 +54,11 @@ def downgrade_run_to_v2(run: dict[str, object]) -> dict[str, object]:
 class UpgradeHelpers:
     def _seed_repo(self) -> Path:
         root = Path(tempfile.mkdtemp())
-        (root / "docs").mkdir()
-        # valid_plan() sources point at docs/prd.md and docs/architecture.md;
+        (root / "docs" / "product").mkdir(parents=True)
+        # valid_plan() sources point at docs/product/prd.md and docs/product/architecture.md;
         # real files let the v4 upgrade freeze a real content_sha256.
-        (root / "docs" / "prd.md").write_text("product requirements", encoding="utf-8")
-        (root / "docs" / "architecture.md").write_text("architecture", encoding="utf-8")
+        (root / "docs" / "product" / "prd.md").write_text("product requirements", encoding="utf-8")
+        (root / "docs" / "product" / "architecture.md").write_text("architecture", encoding="utf-8")
         return root
 
     def _write_plan(self, root: Path, plan: dict[str, object]) -> Path:
