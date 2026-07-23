@@ -66,14 +66,16 @@ Taste statement: <one sentence naming the intended visual character and the conc
 
 ## Color Palette
 
-| Token | Value / Direction | Tailwind / CSS reference | Usage |
-|---|---|---|---|
-| Background | <value> | <class or CSS var> | <usage> |
-| Surface | <value> | <class or CSS var> | <usage> |
-| Text | <value> | <class or CSS var> | <usage> |
-| Accent | <value> | <class or CSS var> | <usage> |
-| Border | <value> | <class or CSS var> | <usage> |
-| Success / warning / danger | <value> | <class or CSS var> | <usage> |
+Harmony method: <complementary / analogous / monochromatic / triadic / brand-anchored, and why it fits the product-specific visual thesis>
+
+| Token | Value / Direction | Tailwind / CSS reference | Usage | Contrast ratio (if text/UI pairing) |
+|---|---|---|---|---|
+| Background | <value> | <class or CSS var> | <usage> | <n/a> |
+| Surface | <value> | <class or CSS var> | <usage> | <n/a> |
+| Text | <value> | <class or CSS var> | <usage> | <e.g. 7.2:1 on Background> |
+| Accent | <value> | <class or CSS var> | <usage> | <e.g. 4.8:1 on Background> |
+| Border | <value> | <class or CSS var> | <usage> | <n/a> |
+| Success / warning / danger | <value> | <class or CSS var> | <usage> | <ratio on their usual background, plus the non-color cue used to keep them colorblind-safe> |
 
 ## Typography
 

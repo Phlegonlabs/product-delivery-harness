@@ -31,6 +31,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them
 - Should the design feel dense and operational, editorial and content-led, commercial and conversion-led, premium and minimal, playful, technical, or another direction? (AskUserQuestion, using dense and operational / editorial and content-led / commercial and conversion-led / premium and minimal as the four options and the tool's built-in Other for playful, technical, or another direction) Skip this question when the PRD or `wireframes.md` already records a `selected` interface-style / visual direction; carry that value forward silently instead. Only ask when it is `provisional` or `assumed` (for example a provisional `modern-minimal` baseline), missing, or the design interview's own free-text discovery surfaces a genuine conflict with it.
 - Which visual or content details should make the product recognizable even without its logo?
 - Are there visual directions or generic AI-UI patterns to avoid?
+- Are there existing brand colors, a required palette, or a dark-mode requirement to preserve, or should the palette be recommended? When a recommendation is wanted, choose it with `visual-decision-guide.md`'s Color Palette Decision guidance, and offer `frontend-design` (per `SKILL.md`'s Optional External Skill Assist) for an expert color-pairing pass only after an explicit yes, when the user wants a more distinctive combination than that guidance alone would produce.
 
 ### Scope And Pages
 

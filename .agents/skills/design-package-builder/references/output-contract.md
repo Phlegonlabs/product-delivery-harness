@@ -84,8 +84,13 @@ Use this section when a public website, marketing page, or landing page is in sc
 | [Region] | [What the user must understand or do] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [Visual job; open/container/background/layout treatment; purpose] | [required / optional / none; purpose; source or creation need; responsive and static fallback] | [required / optional / none; purpose; trigger; reduced-motion fallback] | [Content that belongs elsewhere] |
 
 ## Color Palette
-| Token | Value / Direction | Tailwind / CSS reference | Usage |
-| --- | --- | --- | --- |
+
+Harmony method: [complementary / analogous / monochromatic / triadic / brand-anchored, and why it fits the product-specific visual thesis]
+
+| Token | Value / Direction | Tailwind / CSS reference | Usage | Contrast ratio (if text/UI pairing) |
+| --- | --- | --- | --- | --- |
+
+Record each text-on-background, text-on-surface, and text-on-accent pairing's actual computed WCAG 2.2 AA ratio (4.5:1 normal text, 3:1 large text/UI components) in the last column; adjust the token when a pairing fails rather than recording a failing ratio. When dark mode is in scope, add its own token rows with their own contrast ratios, not an assumed inversion of the light tokens. See `visual-decision-guide.md`'s Color Palette Decision for the full method, the colorblind-safety rule for semantic colors, and when to offer `frontend-design` for an expert pairing pass.
 
 ## Typography
 Pay attention to font family, font weight, font size, line height, and how different fonts or font roles are used together.
@@ -262,7 +267,7 @@ Use this structure:
 | TEST-VIS-003 | Page UI conformance | yes | UI-*, DS-* | Implemented page matches mockup source | screenshot / trace |
 | TEST-VIS-004 | Responsive behavior | yes | UI-* | No overflow or broken hierarchy at required breakpoints | screenshot |
 | TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
-| TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, contrast intent, labels, keyboard path checked | audit / screenshot |
+| TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, computed WCAG 2.2 AA contrast ratio for every recorded text/UI color pairing (not just visual intent), labels, keyboard path checked | audit / screenshot |
 | TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
 | TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks, and covers every in-scope non-hero pattern | live demo / code review |
 | TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
