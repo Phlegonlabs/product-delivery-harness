@@ -26,6 +26,15 @@ For long or multi-mission work, keep one versioned plan and one live run record.
 
 The parent/coordinator is the sole writer of `PLAN.md` and `RUN.md` during execution. Workers return structured results or refinement requests and never edit either file. Every accepted plan change increments `plan_revision`; recompute the canonical plan digest, validate both DAGs, and invalidate any wave proposal bound to the previous revision or digest.
 
+### Starting A New Plan vs Extending The Current One
+
+When `docs/goal/PLAN.md`/`RUN.md` already exist, decide whether new work extends the current plan or starts a new one:
+
+- Extend the current plan (a new `plan_revision` on the same `PLAN.md`/`RUN.md`) when the new work is incremental discovery inside the same ongoing initiative and its upstream contract sources (PRD, design system, architecture) have not materially changed.
+- Start a new plan when the new work is anchored by a freshly regenerated upstream contract source — for example `prd-builder` or `design-package-builder` just published a new or refreshed `PRD.md`/`design-system.md` with a new `content_sha256` — signaling a distinct new initiative rather than a continuation of the prior plan's frozen contract.
+- To start a new plan: first confirm the current `PLAN.md`/`RUN.md` actually reached the Closeout Bar (`verification-gates.md`). Archive the completed `PLAN.md` and `RUN.md`, plus their `docs/goal/evidence/` directory, into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/`, mirroring the same archival convention `prd-builder` and `design-package-builder` already use for their own superseded documents. Then create a fresh `docs/goal/PLAN.md`/`RUN.md` from the templates and freeze the new contract from the newly published upstream sources.
+- Do not silently overwrite an unarchived `PLAN.md`/`RUN.md` to start the new plan — that destroys the only record of what the prior plan covered and how it was verified.
+
 ## Source Map
 
 Record every canonical input and its status:

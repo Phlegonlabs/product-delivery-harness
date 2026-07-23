@@ -254,7 +254,7 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 6. Stop the batch on worker failure, integration failure, unexpected conflict, stale base, or contract gap.
 7. Run cross-mission/batch verification after all selected missions integrate.
 8. Refresh RUN observations and recompute the next ready frontier and conflict graph.
-9. Repeat steps 1-8 with the recomputed frontier — each integration merges directly into local `main` and is itself the local dev-test point for that mission — until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the Final/current-head gate; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
+9. Repeat steps 1-8 with the recomputed frontier — each integration merges directly into the primary checkout's own base branch (`landing.base_branch` — commonly `main`, but any branch the primary checkout treats as its base) and is itself the local dev-test point for that mission — until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the Final/current-head gate; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
 
 Never reuse the prior wave's independence result. Each merge changes the integration head and may change dependencies, generated artifacts, or resource availability. Push, PR, deploy, task archival, worktree removal, and branch deletion remain separate authorization-gated actions.
 
