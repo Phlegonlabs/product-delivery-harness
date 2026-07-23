@@ -1,14 +1,14 @@
 # Output Contract
 
-Produce a core multi-file Markdown PRD package. Stage and publish it according to `artifact-lifecycle.md`. The final package belongs under `doc/`. Use exactly these artifact names unless the user requests different names:
+Produce a core multi-file Markdown PRD package. Stage and publish it according to `artifact-lifecycle.md`. The final package belongs under `docs/`. Use exactly these artifact names unless the user requests different names:
 
-- `doc/PRD.md`
-- `doc/architecture.md`
-- `doc/wireframes.md`
+- `docs/PRD.md`
+- `docs/architecture.md`
+- `docs/wireframes.md`
 
 This package stays in the product/spec layer. Do not add design-system, high-fidelity UI mockup, visual token, or page-level visual acceptance artifacts to this output contract.
 
-Produce `doc/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
+Produce `docs/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
 Default all artifact content to English unless the user explicitly asks for another language.
 
@@ -373,7 +373,7 @@ These are planning hints, not a canonical Harness PLAN or RUN graph.
 
 Before archiving earlier documents or publishing the staged package, verify:
 
-- All three core artifacts are present in the run-specific staging directory and are ready to publish under `doc/`.
+- All three core artifacts are present in the run-specific staging directory and are ready to publish under `docs/`.
 - `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
 - Product requirements use stable `PRD-*` IDs; architecture contracts use `ARCH-*`; screens and visible regions use `UI-*`; usability needs use `UX-*`; test obligations use `TEST-*`. Cross-document tables carry the upstream IDs they satisfy.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
@@ -408,7 +408,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
 - Assumptions and open questions are explicit.
 - The artifacts match the selected product archetype.
-- No current-package artifact will be published outside `doc/` unless the user explicitly requested another location.
-- The superseded-document inventory excludes `doc/archived/`, unrelated documents, and ambiguous candidates.
+- No current-package artifact will be published outside `docs/` unless the user explicitly requested another location.
+- The superseded-document inventory excludes `docs/archived/`, unrelated documents, and ambiguous candidates.
 - In enhancement mode, unaffected sections and trace IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed.
 - Validation does not trigger publication by itself. Exact overwrite and archive moves are already authorized, or the staged package remains unchanged while approval is requested.

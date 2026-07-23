@@ -148,7 +148,7 @@ class DesignPackageSkillContractTests(unittest.TestCase):
         self.assertIn("| DS ID | Cue / signature decision", contract)
         self.assertIn("| UI ID | Page / route | Upstream trace IDs | DS IDs", matrix)
         self.assertIn("| TEST ID | Gate | Required | Upstream trace IDs", acceptance)
-        self.assertIn("doc/.design-staging/<run-id>/", lifecycle)
+        self.assertIn("docs/.design-staging/<run-id>/", lifecycle)
         self.assertIn("Passing validation does not authorize overwrite, move, or archive", lifecycle)
         self.assertIn("ask one explicit yes/no publication question", skill)
         self.assertIn("execute the approved publish and archive moves in the same run", skill)
