@@ -67,13 +67,25 @@ class PackagedSkillSmokeTests(unittest.TestCase):
 
     def test_harness_module_imports_from_skill_scripts(self) -> None:
         module_path = HARNESS_ROOT / "scripts" / "harness_manifest.py"
-        spec = importlib.util.spec_from_file_location(
-            "packaged_harness_manifest", module_path
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        scripts_dir = str(module_path.parent)
+        # harness_manifest.py imports sibling modules (harness_schema, harness_core,
+        # etc.) by bare name; a real invocation always has its own directory on
+        # sys.path (python script.py adds it automatically), so this manual loader
+        # must add it too to faithfully simulate that, not to bypass it.
+        path_inserted = scripts_dir not in sys.path
+        if path_inserted:
+            sys.path.insert(0, scripts_dir)
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "packaged_harness_manifest", module_path
+            )
+            self.assertIsNotNone(spec)
+            self.assertIsNotNone(spec.loader)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        finally:
+            if path_inserted:
+                sys.path.remove(scripts_dir)
 
         self.assertEqual(module.PLAN_HEADING, "## Harness Plan Manifest")
 
