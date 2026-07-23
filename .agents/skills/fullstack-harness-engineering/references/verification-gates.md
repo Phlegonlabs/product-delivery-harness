@@ -95,6 +95,8 @@ Changed-file selection is allowed only for task and worker verifiers. The declar
 
 The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
 
+Every applicable declared verifier runs through `verifier_runtime.py`'s `run_verifier()`, cache configured or not; its returned `execution_key` is the worker result's reported `evidence`. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
+
 A local verifier may declare:
 
 ```json
@@ -230,7 +232,7 @@ Base is an ancestor of head
 Actual changed files stay inside mission write scope
 No parent-owned PLAN.md or RUN.md was changed
 No denied path or undeclared runtime resource was touched
-Required worker verifiers are PASS with literal command/action evidence
+Required worker verifiers are PASS with `evidence` equal to the literal `execution_key` produced by `verifier_runtime.py`
 ```
 
 If any check fails, set `worker_failed` or `blocked`; do not integrate. A clean worker result transitions through `integrating`, then either `integrated` after the integration gate passes or `integration_failed` if it does not.

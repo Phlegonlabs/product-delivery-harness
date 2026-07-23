@@ -1359,6 +1359,134 @@ class RunValidationTests(unittest.TestCase):
             )
         )
 
+    def test_schema_v7_production_migration_past_not_started_requires_classification(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        run["deployments"]["production"]["migration_status"] = "PASS"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "production migration past not_started/not_required requires migration_classification",
+        )
+
+    def test_schema_v7_production_additive_migration_without_confirmed_sha_accepted(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        run["deployments"]["production"]["migration_status"] = "PASS"
+        run["deployments"]["production"]["migration_classification"] = "additive"
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_schema_v7_production_destructive_migration_without_confirmed_sha_rejected(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        run["deployments"]["production"]["migration_status"] = "PASS"
+        run["deployments"]["production"]["migration_classification"] = "destructive"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "destructive migration_classification requires destructive_migration_confirmed_sha",
+        )
+
+    def test_schema_v7_production_destructive_migration_with_confirmed_sha_accepted(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        run["deployments"]["production"]["migration_status"] = "PASS"
+        run["deployments"]["production"]["migration_classification"] = "destructive"
+        run["deployments"]["production"]["destructive_migration_confirmed_sha"] = SHA_A
+        self.assertEqual(validate_run(plan, run), [])
+
+    def test_schema_v7_production_additive_migration_with_confirmed_sha_rejected(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        run["deployments"]["production"]["migration_status"] = "PASS"
+        run["deployments"]["production"]["migration_classification"] = "additive"
+        run["deployments"]["production"]["destructive_migration_confirmed_sha"] = SHA_A
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "destructive_migration_confirmed_sha requires destructive migration_classification",
+        )
+
+    def test_schema_v7_production_malformed_migration_classification_rejected(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self._authorize_and_pass_production(plan, run)
+        run["deployments"]["production"]["authorized_head_sha"] = SHA_A
+        run["deployments"]["production"]["migration_status"] = "PASS"
+        run["deployments"]["production"]["migration_classification"] = "maybe"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.deployments.production.migration_classification: must be null, additive, or destructive",
+        )
+
+    def test_schema_v7_development_migration_classification_never_required(self) -> None:
+        plan = valid_release_plan()
+        run = valid_release_run(plan)
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["deployments"]["development"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_A,
+                "worker_name": "test-app-development",
+                "url": "https://test-app-development.example.workers.dev",
+                "version_id": "dev-version-1",
+                "migration_status": "PASS",
+                "verification_status": "PASS",
+                "evidence": ["artifact:development-smoke"],
+            }
+        )
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy development for this run",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["environment:development"],
+            },
+            "expires_when": "run_complete",
+        }
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+            }
+        )
+        self.assertFalse(
+            any(
+                "migration_classification" in error
+                for error in validate_run(plan, run)
+            )
+        )
+
     def test_complete_run_rejects_unfinished_missions_and_tasks(self) -> None:
         plan = valid_plan()
         run = valid_closeout_run(plan)

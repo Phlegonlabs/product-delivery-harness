@@ -497,12 +497,16 @@ class HarnessCliE2ETests(unittest.TestCase):
                 {
                     "id": task_verifier_id,
                     "status": "PASS",
-                    "evidence": "synthetic task verifier passed",
+                    "evidence": hashlib.sha256(
+                        f"{mission_id}-{task_verifier_id}-{head_sha}".encode()
+                    ).hexdigest(),
                 },
                 {
                     "id": worker_verifier_id,
                     "status": "PASS",
-                    "evidence": "synthetic mission verifier passed",
+                    "evidence": hashlib.sha256(
+                        f"{mission_id}-{worker_verifier_id}-{head_sha}".encode()
+                    ).hexdigest(),
                 },
             ],
             "commits": [head_sha],

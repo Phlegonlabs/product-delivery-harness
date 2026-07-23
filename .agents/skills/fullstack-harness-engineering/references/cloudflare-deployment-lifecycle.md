@@ -47,6 +47,8 @@ worker_name
 url
 version_id
 migration_status
+migration_classification when recorded
+destructive_migration_confirmed_sha when recorded
 verification_status
 rollback_version when available
 retained evidence
@@ -100,8 +102,8 @@ The `deploy:production` ledger authorization granted at Plan Readiness lets the 
 
 **Migration destructiveness.** Before running any migration as part of the production deploy, classify it:
 
-- Additive — new column, table, or index with safe defaults and no possible data loss. This rides the general `deploy:production` authorization.
-- Potentially destructive — column or table drop, type narrowing, a `NOT NULL` added to existing data, or any data transformation that cannot be trivially reversed. This needs its own explicit confirmation, separate from `deploy:production`. Do not let it ride through on the same blanket authorization as a routine additive migration. Name the exact destructive operation when asking, and confirm the rollback/backup plan is ready first.
+- Additive — new column, table, or index with safe defaults and no possible data loss. This rides the general `deploy:production` authorization. Record the classification as `deployments.production.migration_classification: "additive"`.
+- Potentially destructive — column or table drop, type narrowing, a `NOT NULL` added to existing data, or any data transformation that cannot be trivially reversed. This needs its own explicit confirmation, separate from `deploy:production`. Do not let it ride through on the same blanket authorization as a routine additive migration. Name the exact destructive operation when asking, and confirm the rollback/backup plan is ready first. Record the classification as `deployments.production.migration_classification: "destructive"` and, once the separate confirmation is obtained, the exact SHA it was obtained at in `deployments.production.destructive_migration_confirmed_sha` — so the decision is auditable after the fact rather than only decided informally in conversation.
 
 If either check trips, stop and ask before proceeding. If both are clean — same SHA, additive-or-no migration — proceed under the existing authorization without a redundant prompt.
 

@@ -1879,7 +1879,17 @@ def _validate_deployments(
     for target_id in ("development", "production"):
         target = value[target_id]
         target_path = f"{path}.{target_id}"
-        if not _keys(errors, target_path, target, target_keys, {"authorized_head_sha"}):
+        if not _keys(
+            errors,
+            target_path,
+            target,
+            target_keys,
+            {
+                "authorized_head_sha",
+                "migration_classification",
+                "destructive_migration_confirmed_sha",
+            },
+        ):
             continue
         targets[target_id] = target
         if target["status"] not in status_values:
@@ -1904,6 +1914,46 @@ def _validate_deployments(
                 target_path,
                 "production deployment past not_started requires authorized_head_sha",
             )
+        migration_classification = target.get("migration_classification")
+        if migration_classification not in (None, "additive", "destructive"):
+            _add(
+                errors,
+                f"{target_path}.migration_classification",
+                "must be null, additive, or destructive",
+            )
+        destructive_migration_confirmed_sha = target.get("destructive_migration_confirmed_sha")
+        _optional_sha(
+            errors,
+            f"{target_path}.destructive_migration_confirmed_sha",
+            destructive_migration_confirmed_sha,
+        )
+        if target_id == "production":
+            if target["migration_status"] not in ("not_started", "not_required") and (
+                migration_classification is None
+            ):
+                _add(
+                    errors,
+                    target_path,
+                    "production migration past not_started/not_required requires migration_classification",
+                )
+            if (
+                migration_classification == "destructive"
+                and destructive_migration_confirmed_sha is None
+            ):
+                _add(
+                    errors,
+                    target_path,
+                    "destructive migration_classification requires destructive_migration_confirmed_sha",
+                )
+            if (
+                migration_classification != "destructive"
+                and destructive_migration_confirmed_sha is not None
+            ):
+                _add(
+                    errors,
+                    target_path,
+                    "destructive_migration_confirmed_sha requires destructive migration_classification",
+                )
         for key in ("worker_name", "url", "version_id", "rollback_version"):
             _optional_string(errors, f"{target_path}.{key}", target[key])
         declared_target = release_targets.get(target_id)
@@ -4065,6 +4115,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "task_thread_id",
             "report_path",
             "phase",
+            "outcome",
+            "findings",
         }
         if not isinstance(review_workers, list):
             _add(errors, "run.review_workers", "must be a list")
@@ -4089,6 +4141,21 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 node = review_nodes.get(worker["node_id"])
                 if node is None:
                     _add(errors, f"{path}.node_id", "must reference a runtime-worker verifier")
+                outcome = worker["outcome"]
+                if outcome is not None and (
+                    not isinstance(outcome, str)
+                    or (node is not None and outcome not in node.get("allowed_outcomes", []))
+                ):
+                    _add(errors, f"{path}.outcome", "is not declared by the reviewed node")
+                findings = _strings(errors, f"{path}.findings", worker["findings"])
+                if outcome not in (None, "pass") and not findings:
+                    _add(errors, f"{path}.findings", "is required when outcome is not pass")
+                if worker["phase"] in {"worker_passed", "blocked", "worker_failed"} and outcome is None:
+                    _add(
+                        errors,
+                        f"{path}.outcome",
+                        "is required once the review worker reaches a terminal phase",
+                    )
                 if not _is_int(worker["plan_revision"]) or worker["plan_revision"] < 1:
                     _add(errors, f"{path}.plan_revision", "must be a positive integer")
                 if worker["plan_revision"] != plan.get("revision"):

@@ -29,6 +29,8 @@ BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
 BRANCH_REF = "refs/heads/codex/worker-m1"
 CHANGED_FILE = "src/m1/feature.py"
+TASK_EXECUTION_KEY = "c" * 64
+MISSION_EXECUTION_KEY = "d" * 64
 
 
 def verifier(verifier_id: str) -> dict[str, object]:
@@ -303,12 +305,12 @@ def make_result(plan: dict[str, object]) -> dict[str, object]:
             {
                 "id": "task-focused",
                 "status": "PASS",
-                "evidence": "python3 -m unittest: exit 0",
+                "evidence": TASK_EXECUTION_KEY,
             },
             {
                 "id": "mission-focused",
                 "status": "PASS",
-                "evidence": "python3 -m unittest: exit 0",
+                "evidence": MISSION_EXECUTION_KEY,
             },
         ],
         "commits": [HEAD_SHA],
@@ -479,6 +481,25 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 "uncommitted_handoff",
             }.issubset(error_codes(errors))
         )
+
+    def test_verifier_evidence_must_be_a_well_formed_execution_key(self) -> None:
+        result = copy.deepcopy(self.result)
+        result["verifiers"][0]["evidence"] = TASK_EXECUTION_KEY
+        self.assertEqual(validate(self.plan, self.run, result), [])
+
+    def test_verifier_evidence_rejects_free_form_text(self) -> None:
+        result = copy.deepcopy(self.result)
+        result["verifiers"][0]["evidence"] = "tests passed"
+        errors = validate(self.plan, self.run, result)
+        self.assertIn("invalid_execution_key", error_codes(errors))
+
+    def test_verifier_evidence_rejects_missing_or_empty_value(self) -> None:
+        for missing_value in (None, ""):
+            with self.subTest(missing_value=missing_value):
+                result = copy.deepcopy(self.result)
+                result["verifiers"][0]["evidence"] = missing_value
+                errors = validate(self.plan, self.run, result)
+                self.assertIn("invalid_type", error_codes(errors))
 
     def test_task_head_must_be_reachable_through_its_reported_commit(self) -> None:
         result = copy.deepcopy(self.result)

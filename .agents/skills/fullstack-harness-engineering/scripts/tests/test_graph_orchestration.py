@@ -1322,6 +1322,8 @@ class GraphManifestTests(unittest.TestCase):
                 "task_thread_id": None,
                 "report_path": None,
                 "phase": "worker_running",
+                "outcome": None,
+                "findings": [],
             }
         ]
         self.assertEqual([], validate_run(plan, run))
@@ -1357,6 +1359,164 @@ class GraphManifestTests(unittest.TestCase):
         self.assertTrue(
             any("does not match the review worker" in error for error in validate_node_result(plan, run, result))
         )
+
+    def _frontend_review_node(self) -> dict[str, object]:
+        review = graph_node(
+            "N-FRONTEND-REVIEW",
+            "verifier",
+            "batch",
+            "runtime_worker",
+            ["pass", "fix_required", "blocked", "contract_gap"],
+            providers=["claude_code"],
+            preferred="claude_code",
+            provider_options={
+                "claude_code": {"model": "claude-fable-5", "reasoning_effort": "xhigh"}
+            },
+        )
+        review["review"] = {
+            "type": "frontend_code",
+            "mission_ids": ["M1"],
+            "scope": ["src/a/**"],
+            "required_evidence": ["reviewed_sha", "findings"],
+        }
+        return review
+
+    def _review_worker_runtime_binding(self) -> dict[str, object]:
+        return {
+            "provider": "claude_code",
+            "driver": "dynamic_workflow",
+            "source": "host",
+            "model": "claude-fable-5",
+            "reasoning_effort": "xhigh",
+            "option_source": "plan_provider_options",
+        }
+
+    def test_review_worker_outcome_and_findings_are_validated_per_reviewer(self) -> None:
+        plan = valid_graph_plan()
+        review = self._frontend_review_node()
+        plan["graph"]["nodes"].append(review)
+        plan["required_reviews"] = ["frontend_code"]
+        plan["graph"]["entry_nodes"].append(review["id"])
+        run = valid_graph_run(plan)
+        run["integration"]["integration_head_sha"] = "a" * 40
+        run["graph_state"]["node_states"][review["id"]].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-1",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-1",
+            }
+        )
+        base_worker = {
+            "worker_id": "RW-1",
+            "node_id": review["id"],
+            "attempt_id": "ATT-REVIEW-1",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "reviewed_sha": "a" * 40,
+            "review_path": "C:/repo/review",
+            "worker_runtime": "subagent",
+            "completion_channel": "agent_result",
+            "runtime_binding": self._review_worker_runtime_binding(),
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "worker_passed",
+            "outcome": "pass",
+            "findings": [],
+        }
+
+        run["review_workers"] = [copy.deepcopy(base_worker)]
+        self.assertEqual([], validate_run(plan, run))
+
+        bad_outcome = copy.deepcopy(run)
+        bad_outcome["review_workers"][0]["outcome"] = "not_a_declared_outcome"
+        self.assertTrue(
+            any(
+                "is not declared by the reviewed node" in error
+                for error in validate_run(plan, bad_outcome)
+            )
+        )
+
+        missing_findings = copy.deepcopy(run)
+        missing_findings["review_workers"][0]["outcome"] = "fix_required"
+        self.assertTrue(
+            any(
+                "is required when outcome is not pass" in error
+                for error in validate_run(plan, missing_findings)
+            )
+        )
+
+        with_findings = copy.deepcopy(run)
+        with_findings["review_workers"][0]["outcome"] = "fix_required"
+        with_findings["review_workers"][0]["findings"] = ["missing null check on line 42"]
+        self.assertEqual([], validate_run(plan, with_findings))
+
+    def test_multiple_reviewers_on_same_node_keep_independent_outcomes(self) -> None:
+        plan = valid_graph_plan()
+        review = self._frontend_review_node()
+        plan["graph"]["nodes"].append(review)
+        plan["required_reviews"] = ["frontend_code"]
+        plan["graph"]["entry_nodes"].append(review["id"])
+        run = valid_graph_run(plan)
+        run["integration"]["integration_head_sha"] = "a" * 40
+        run["graph_state"]["node_states"][review["id"]].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-1",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-1",
+            }
+        )
+        passing_reviewer = {
+            "worker_id": "RW-1",
+            "node_id": review["id"],
+            "attempt_id": "ATT-REVIEW-1",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "reviewed_sha": "a" * 40,
+            "review_path": "C:/repo/review-1",
+            "worker_runtime": "subagent",
+            "completion_channel": "agent_result",
+            "runtime_binding": self._review_worker_runtime_binding(),
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "worker_passed",
+            "outcome": "pass",
+            "findings": [],
+        }
+        dissenting_reviewer = {
+            "worker_id": "RW-2",
+            "node_id": review["id"],
+            "attempt_id": "ATT-REVIEW-2",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "reviewed_sha": "a" * 40,
+            "review_path": "C:/repo/review-2",
+            "worker_runtime": "subagent",
+            "completion_channel": "agent_result",
+            "runtime_binding": self._review_worker_runtime_binding(),
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "superseded",
+            "outcome": "fix_required",
+            "findings": ["missing null check on line 42"],
+        }
+        run["review_workers"] = [passing_reviewer, dissenting_reviewer]
+
+        # Majority-pass reconciliation lets the parent record an overall
+        # "pass" even though one reviewer independently found fix_required;
+        # both reviewers' own verdicts remain on the record unmodified.
+        self.assertEqual([], validate_run(plan, run))
+        self.assertEqual(
+            "pass", run["graph_state"]["node_states"][review["id"]]["last_outcome"]
+        )
+        self.assertEqual("pass", run["review_workers"][0]["outcome"])
+        self.assertEqual("fix_required", run["review_workers"][1]["outcome"])
 
     def test_node_result_is_bound_to_the_active_graph_attempt(self) -> None:
         plan = valid_graph_plan()

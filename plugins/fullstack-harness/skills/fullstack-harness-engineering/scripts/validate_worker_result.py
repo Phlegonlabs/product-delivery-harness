@@ -239,6 +239,24 @@ def _require_sha(
     return checked
 
 
+def _require_execution_key(
+    value: Any, path: str, errors: list[dict[str, str]]
+) -> str | None:
+    checked = _require_string(value, path, errors)
+    if checked is None:
+        return None
+    if not DIGEST_RE.fullmatch(checked):
+        _issue(
+            errors,
+            "invalid_execution_key",
+            path,
+            "must be the execution_key produced by verifier_runtime.py "
+            "(64 lowercase hexadecimal characters), not free-form text",
+        )
+        return None
+    return checked
+
+
 def _canonical_changed_path(
     value: Any, path: str, errors: list[dict[str, str]]
 ) -> str | None:
@@ -509,7 +527,7 @@ def validate_worker_result_data(
                 continue
             verifier_id = _require_string(verifier.get("id"), f"{item_path}.id", errors)
             verifier_status = _require_string(verifier.get("status"), f"{item_path}.status", errors)
-            _require_string(verifier.get("evidence"), f"{item_path}.evidence", errors)
+            _require_execution_key(verifier.get("evidence"), f"{item_path}.evidence", errors)
             if verifier_id is not None:
                 if verifier_id in verifier_results:
                     _issue(errors, "duplicate_verifier", f"{item_path}.id", "verifier ID must be unique")
