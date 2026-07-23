@@ -45,6 +45,8 @@ A refined task must have all of these properties:
 
 Test cases, fault scenarios, browser sizes, retry attempts, and small implementation steps normally belong in the task's acceptance matrix. They are not separate tasks solely because they can be enumerated.
 
+A task's own module crossing the project's File Size Limit (see the seeded root `CLAUDE.md`/`AGENTS.md`'s File Size Limit rule) is itself a concrete, checkable trigger for `REFINEMENT_REQUEST` — check at the moment that task's own file would cross the limit, during that task's own implementation and verification, not as a later end-of-project audit across many already-completed missions.
+
 `acceptance_matrix` is a canonical list on the PLAN task object. Updating it is a plan revision even when the task is not split.
 
 The parallel write unit is always a mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker.

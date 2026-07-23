@@ -8,6 +8,11 @@
 - Prefer the simplest thing that works. Don't over-engineer.
 - Don't "improve" code you weren't asked to touch.
 
+### File Size Limit
+
+- A module must not exceed 500 lines. When an implementation would cross that limit, split it before committing — check and split at the moment the task's own file would cross the limit (via the task-refinement protocol in the Full-Stack Harness's `execution-task-decomposition.md`), not as a later end-of-project audit.
+- Exceptions require stating the reason in the same commit: generated code/migrations, configuration files, schema/type-definition files, and a package's own re-export/entrypoint module.
+
 ### No Backwards-Compatibility Code
 
 - Don't add hacks, shims, or dual-path logic for compatibility unless explicitly asked.
