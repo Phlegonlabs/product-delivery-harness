@@ -3,6 +3,11 @@
 </p>
 
 <p align="center">
+  <strong>English</strong> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
@@ -20,7 +25,7 @@ It is not just a collection of prompts. The plugin separates product definition,
 | Skill | Use it for | Main output |
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `wireframes.md` |
-| `design-package-builder` | Design direction, tokens, icon and motion rules, page specs, and visual acceptance | `design-system.md`, `page-ui-matrix.md`, `ui-mockups.md`, `visual-acceptance.md` |
+| `design-package-builder` | Design direction, tokens, icon and motion rules, real per-page HTML mockups, and visual acceptance | `design-system.md`, `visual-acceptance.md`, one HTML file per page under `mockups/`, `ui-mockups.md` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex app tasks, app-managed worktrees, and nested read-only helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -193,7 +198,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
 
-Parallel implementation is capped at three write missions by default. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 
@@ -229,83 +234,8 @@ Before a release, update the matching version in both plugin manifests and `.cla
 - Do not delete old standalone skill copies until the plugin is confirmed to load correctly.
 - The orchestration skill requires explicit authorization for every state-changing GitHub or lifecycle action.
 
----
+## Version history
 
-## 繁體中文
+Update this section with each release, alongside the version bump described above.
 
-### 這是什麼
-
-Full Stack Harness 是給 Codex 與 Claude Code 使用的私有 skill marketplace。它把一個產品想法或既有系統改動，拆成三個可交接的階段：產品定義、視覺設計、以及可驗證的交付流程。
-
-| Skill | 用途 | 主要產出 |
-| --- | --- | --- |
-| `prd-builder` | 產品需求、架構、前端技術選擇、低保真 wireframe | PRD、架構與 wireframe 文件 |
-| `design-package-builder` | 視覺方向、設計系統、icon 與 motion 規範、頁面規格 | Design system、頁面規格、視覺驗收條件 |
-| `fullstack-harness-engineering` | 共用大小判斷、PLAN/RUN、授權、本地驗證與整合 | 直接處理、`RUN.md`，或 `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Codex task、worktree、唯讀子 agent | Codex runtime 執行結果 |
-| `fullstack-harness-claude-code` | Claude Dynamic Workflow 與 parent-managed worktree | Claude runtime 執行結果 |
-| `fullstack-harness-github-landing` | 最終 head 的 push、PR、並行 CI/review 與 merge | 遠端 landing evidence |
-
-你可以從任何一段開始：已有 PRD 就直接做設計；已有產品就用 Harness 做盤點、規劃或實作。
-
-### 安裝與更新
-
-需具備 `Phlegonlabs/fullstack-goal-dev` 的存取權限，並先登入 GitHub CLI：
-
-```bash
-gh auth login
-gh auth setup-git
-```
-
-從 repository clone 後，在 Windows 或已安裝 PowerShell 7 的 macOS/Linux 執行：
-
-```powershell
-pwsh -File .\scripts\update-private-skills.ps1
-```
-
-Updater 會偵測 Codex 與 Claude Code，更新 marketplace 並安裝 plugin。Codex 更新後請開新的 task；Claude Code 則執行 `/reload-plugins` 或重新啟動。
-
-### 使用方式
-
-Codex 可使用下面的 `$skill-name`。Claude Code 請使用已安裝的 namespaced skill，例如 `/fullstack-harness:prd-builder`，或直接用名稱要求執行。
-
-```text
-Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
-```
-
-```text
-Use $design-package-builder to create a design package from the current PRD and wireframes.
-```
-
-```text
-Use $fullstack-harness-engineering to review the existing app, plan the work, and stop before implementation.
-```
-
-### 交付原則
-
-Harness 會先把工作分成小項目或大項目。小項目直接處理，預設不啟動 planner、scheduler、PLAN/RUN、subagent 或外部 runtime preflight。大項目才進入 managed planning；只有存在兩個以上可獨立執行的 ready missions 時才啟動 scheduler。Core 只會載入目前 host 的 adapter：Codex parent 使用 Codex adapter，Claude Code parent 使用 Claude Code adapter。外部 runtime 也只會在選定的 ready route 確實需要時 preflight。
-
-本地實作、branch 或 commit 預設是 `local_only`，不載入 GitHub landing adapter，也不等待遠端 CI。只有明確要求 push、PR、review 或 merge 時才載入 landing adapter；完成本地驗證後只推送最終 candidate，並讓 current-head CI 與 Codex review 同時進行。任何新 push 都會讓兩者的舊結果失效。
-
-大小看的是協調範圍與影響面，不是單純計算檔案數或程式碼行數。小項目途中變大時，Harness 會保留已完成的工作，只規劃剩餘範圍。
-
-Graph engineering 分成兩層：org graph 定義長期穩定的產品、架構、UX、設計、worker、review、approval 與 integration 職責；work graph 則是單次工作的暫時節點、依賴、route、attempt 與 evidence。PRD 與 design workflow 只有在 host 能強制 `builder_readonly` tool profile 時才執行；否則回到 sequential parent。工程 work graph 仍以 PLAN v4 與 RUN v9 為唯一控制面。
-
-多 agent 寫入預設最多三個 mission。Harness 先驗證並選出 ready frontier，之後才配置 worktree。原生 Claude mission 會在 `.claude/worktrees/` 建立 exact-base worktree，Claude worker 必須先用 `EnterWorktree` 進入指定路徑。Claude wave 會按 model、reasoning effort 與 `mission_write`、`code_review_readonly`、`visual_review_readonly` tool profile 分開，避免 review worker 取得寫入工具。
-
-每個 PLAN node 的 allowed providers 必須包含目前實際執行 Harness 的 host，該 node 才能被選中；Codex adapter 與 Claude Code adapter 之間沒有互相呼叫的機制。當 ready node 需要的 provider 與目前 host 不符時，會被記錄為 provider mismatch 而 blocked，留給對應 host 的另一次執行來處理。
-
-每個 mission 都必須有獨立 worktree、限定寫入範圍、驗證指令與明確授權。Worker 絕不修改 parent 的 `PLAN.md` 或 `RUN.md`，也不執行 push、開 PR、merge、deploy 或清理；整合與所有 landing、lifecycle 動作只由 parent 負責。建立 branch、commit、整合、push、開 PR、管理 review、merge、deploy 與清理，都是分開的授權動作；測試通過不等於可以自動執行這些動作。
-
-### 維護 repository
-
-只修改 `.agents/skills/` 下的 canonical skills。`plugins/fullstack-harness/skills/` 是產生檔，使用以下命令同步與驗證：
-
-```bash
-python scripts/sync_plugin_skills.py
-python scripts/sync_plugin_skills.py --check
-python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
-git diff --check
-```
-
-版本發布前需同步更新兩份 plugin manifest 與 `.claude-plugin/marketplace.json` 的版本，跑完 CI 對應測試，並依 PR 流程合併。不要直接 push 到 `main`。
+- **0.2.0** — Worktree-per-mission default; PLAN-v4 typed graph with multi-reviewer fan-out; Cloudflare dispatched-deploy and Auto-Deploy (native Git auto-deploy) release models; persistent integration branches; universal per-page HTML mockups replacing the retired page UI matrix; mobile/desktop platform support including a dedicated mobile stack-selection guide (native iOS/Android, Flutter, React Native/Expo); environment-secret scaffolding via `.env.example`; a Haiku cost tier for bounded/mechanical delegated work.

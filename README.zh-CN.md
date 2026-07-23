@@ -1,0 +1,241 @@
+<p align="center">
+  <img src="./assets/readme-banner.svg" alt="Full Stack Harness" width="100%">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a> | <a href="README.zh-TW.md">繁體中文</a> | <strong>简体中文</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
+  <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
+  <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
+  <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-059669?style=flat-square">
+</p>
+
+# Full Stack Harness
+
+私有技能市场，用于借助 Codex 或 Claude Code 把一个产品想法变成一条经过验证的交付流程。
+
+它不只是一堆提示词的集合。这个插件把产品定义、视觉设计和交付编排拆开，让每个阶段都有清晰的事实源，并能安全地移交给下一个阶段。
+
+## 包含哪些内容
+
+| 技能 | 适用场景 | 主要产出 |
+| --- | --- | --- |
+| `prd-builder` | 产品探索、需求、架构、前端技术栈决策，以及低保真线框图 | `PRD.md`、`architecture.md`、`wireframes.md` |
+| `design-package-builder` | 设计方向、设计令牌、图标与动效规则、真实的逐页 HTML 原型，以及视觉验收 | `design-system.md`、`visual-acceptance.md`、`mockups/` 目录下每个页面一个 HTML 文件、`ui-mockups.md` |
+| `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
+| `fullstack-harness-codex` | Codex 应用任务、应用托管的工作树，以及嵌套的只读辅助 | 运行时启动指令和工作节点结果 |
+| `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
+| `fullstack-harness-github-landing` | 终态提交推送、PR、并发的 CI/审查，以及精确到提交点的合并 | 远程落地证据 |
+
+交付核心在调用托管编排之前，会先做一个规模判定：
+
+- 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
+- 大型工作进入托管规划。它可以用 `RUN.md` 完成一次顺序交付，或者用 `PLAN.md` 和 `RUN.md` 处理多个任务并实现可持久的移交。
+- 只有当一个大型计划中至少有两个彼此独立、可立即执行的任务时，调度器才会开始扇出。此时核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
+- 本地的实现、分支和提交工作不会加载 GitHub 适配器，也不会等待远程 CI。拉取请求（PR）交付会推送最终验证通过的候选版本，并对同一提交点的 CI 和 Codex 审查并发评估。
+
+规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
+
+## 系统如何协同
+
+```mermaid
+flowchart LR
+  Idea["产品想法或变更请求"] --> PRD["prd-builder\n产品与技术定义"]
+  PRD --> Design["design-package-builder\n视觉系统与页面规则"]
+  PRD --> Harness["fullstack-harness-engineering\n共享交付核心"]
+  Design --> Harness
+  Harness --> Runtime["单一宿主适配器\nCodex 或 Claude Code"]
+  Harness --> Landing["可选的 GitHub 落地适配器"]
+  Runtime --> Evidence["本地测试与 UI 证据"]
+  Evidence --> Landing
+```
+
+你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用，或者在 PRD 已存在时使用设计技能。这些技能各自的职责保持分离：PRD 技能不会自己发明一套设计系统，设计技能也不会去写交付计划。
+
+## 交付模型
+
+Harness 是围绕明确的边界构建的：
+
+1. 检查当前项目，识别需要完成的工作。
+2. 冻结相关的契约、来源、范围和验证步骤。
+3. 当任务大到需要时，在动手实现之前先规划依赖关系。
+4. 只有当工作彼此独立、相互隔离且获得明确授权时，才使用并行工作节点。
+5. 验证任务结果、集成、相关的 UI 流程，以及最终的差异（diff）。
+6. 默认在本地停下，除非明确要求远程结果；届时才通过仓库的 PR 流程落地，并且每一个 GitHub 动作都需要单独授权。
+
+对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、开 PR、执行审查动作、合并、部署或清理。
+
+## 轻量的运行时与落地适配器
+
+共享核心掌管唯一的 PLAN/RUN 控制平面。运行时相关的启动细节按需惰性加载：
+
+- Codex 宿主只加载 `fullstack-harness-codex`，并且只执行 `codex` 提供方的 PLAN 节点。
+- Claude Code 宿主只加载 `fullstack-harness-claude-code`，并且只执行 `claude_code` 提供方的 PLAN 节点。
+- 两个适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被报告为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
+- 只有在明确需要推送、PR、CI、审查、合并或仓库配置这类结果时，才会加载 `fullstack-harness-github-landing`。
+
+共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简，并避免在纯本地工作时进行远程验证。
+
+对于远程交付，最终的本地候选版本只推送一次。GitHub Actions 和 Codex 审查会作为同一个 PR 提交点上的并列门禁被启动或观察，并被并发轮询。一次新的推送会使二者同时失效，合并仍然要求二者在同一个 SHA 上都通过。
+
+## 图工程与动态工作流
+
+这些技能使用两层图：
+
+- **组织图（org graph）** 是稳定的角色契约：产品、架构、UX、设计系统、任务工作节点、审查者、审批、集成和生命周期职责。
+- **工作图（work graph）** 是单次运行的临时任务图。只有当宿主能够强制执行 `builder_readonly` 工具画像时，PRD 和设计工作流才会使用有界的分析图；否则它们退回到顺序执行的父级。工程部分使用规范的 PLAN v4 图和 RUN v9 状态。
+
+访谈和审批保持在运行中的工作流之外，因为 Claude Code 的动态工作流无法在运行途中征询用户输入。父级先冻结输入，运行一个有界的工作流，再自行负责分阶段写入、冲突解决、审批和发布。
+
+对于工程部分，Harness 会在创建或申请工作树之前，先验证并选出依赖已就绪的前沿（frontier）。原生 Claude 任务使用 `.claude/worktrees/` 下父级托管的工作树，把每个工作节点绑定到精确的批次基点，并要求在访问仓库前先执行 `EnterWorktree`。在每一条路线中，父级都会验证返回的提交和实际的 Git 差异，串行地集成被接受的提交，并重新计算图的前沿。
+
+Claude 的批次波（wave）按模型、推理强度和工具画像区分开：
+
+- `mission_write` 包含 `EnterWorktree` 和有界的写入工具。
+- `code_review_readonly` 不含任何具备写入能力的工具。
+- `visual_review_readonly` 使用精确的读取/搜索白名单，审查保留下来的截图或其他既有证据。任何新的浏览器工具都必须先经过审核并加入画像后才能使用。
+
+当 Claude Code 返回真实的工作流运行 ID 时，RUN 状态可以保留工作流/任务 ID、脚本摘要、节点分组、图/基点绑定、工具画像、状态和可用指标。同会话续跑可以复用该绑定；跨会话恢复则从规范的 PLAN/RUN 状态开启一次新的工作流尝试。
+
+图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Claude Code 不能把节点委派给 Codex，Codex 也不能把节点委派给 Claude Code；两者之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被记录为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
+
+## 安装
+
+这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且安装了 Codex、Claude Code，或两者。
+
+```bash
+gh auth login
+gh auth setup-git
+git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
+```
+
+### 一条命令完成更新
+
+克隆仓库，然后运行共享的更新脚本。它会检测已安装的运行时，添加或更新市场，并在支持的地方安装插件。
+
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
+Set-Location .\fullstack-goal-dev
+pwsh -File .\scripts\update-private-skills.ps1
+```
+
+装有 PowerShell 7 的 macOS 或 Linux shell：
+
+```bash
+git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
+cd fullstack-goal-dev
+pwsh -File ./scripts/update-private-skills.ps1
+```
+
+更新后请开一个新的 Codex 任务。更新 Claude Code 的插件后请重新加载或重启 Claude Code。
+
+### 直接在 Codex 中安装
+
+```bash
+codex plugin marketplace add Phlegonlabs/fullstack-goal-dev --ref main
+codex plugin add fullstack-harness@fullstack-goal-dev
+codex plugin list
+```
+
+### 直接在 Claude Code 中安装
+
+```bash
+claude plugin marketplace add Phlegonlabs/fullstack-goal-dev --scope user
+claude plugin install fullstack-harness@fullstack-goal-dev --scope user
+claude plugin list
+```
+
+插件安装完成后，运行 `/reload-plugins` 或重启 Claude Code。
+
+### 开发时使用本地检出
+
+在本仓库中测试改动时，使用本地市场。不要同时以相同名称注册本地市场和 GitHub 市场。
+
+```powershell
+$repo = (Resolve-Path .).Path
+codex plugin marketplace add $repo
+codex plugin add fullstack-harness@fullstack-goal-dev
+claude plugin marketplace add $repo --scope user
+claude plugin install fullstack-harness@fullstack-goal-dev --scope user
+```
+
+## 常见提示词
+
+Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。
+
+```text
+Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
+```
+
+```text
+Use $design-package-builder to create a design package from doc/PRD.md and doc/wireframes.md.
+```
+
+```text
+Use $fullstack-harness-engineering to review the existing app, plan the required work, and stop before implementation.
+```
+
+```text
+Use $fullstack-harness-engineering to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
+```
+
+对于多任务交付，请在请求中写清完整的启动与落地权限。分支创建、提交、集成、推送、创建 PR、审查管理、合并、部署和清理都是彼此独立的动作。
+
+## Codex 与 Claude Code 执行
+
+Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去假定一个。
+
+| 运行时 | 首选并行路线 | 回退方案 |
+| --- | --- | --- |
+| Codex 应用（`fullstack-harness-codex`） | 在隔离的、应用托管的工作树中运行应用任务 | 直接子代理，然后退到单一顺序父级 |
+| Claude Code（`fullstack-harness-claude-code`） | 采用精确基点、父级托管的 `.claude/worktrees/` 工作树的动态工作流 | 直接子代理，然后退到单一顺序父级 |
+
+每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被报告为“因提供方不匹配而阻塞”，而不会在这里执行。
+
+并行实现默认没有一个小的固定上限；配置的写入工作节点上限设得足够高，实际的波宽转而由观察到的工作节点槽位、隔离容量，以及依赖已就绪、无冲突的前沿大小来限定。每个工作节点都需要一个隔离的工作区、一个有界的写入范围、一个验证器和明确的授权。工作树只在前沿选定之后才分配。原生 Claude 任务会进入分配给它的、父级托管的工作树。工作节点绝不编辑父级的 `PLAN.md` 或 `RUN.md`，也不推送、开 PR、合并、部署或删除工作树。集成以及每一个落地或生命周期动作都由父级负责。
+
+## 仓库结构
+
+```text
+.agents/skills/                   规范的技能源
+plugins/fullstack-harness/skills/ 生成的插件副本；请勿直接编辑
+.agents/plugins/marketplace.json  Codex 市场定义
+.claude-plugin/marketplace.json   Claude Code 市场定义
+scripts/sync_plugin_skills.py     把规范技能复制到插件包
+scripts/update-private-skills.ps1 更新已安装的市场和插件
+.github/workflows/harness-ci.yml  契约、单元和 E2E 检查
+```
+
+## 维护市场
+
+只编辑 `.agents/skills/` 中的规范源，然后同步并校验生成的插件包。
+
+```bash
+python scripts/sync_plugin_skills.py
+python scripts/sync_plugin_skills.py --check
+python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+python -m unittest discover -s .agents/skills/design-package-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+git diff --check
+```
+
+发布前，请在两个插件清单和 `.claude-plugin/marketplace.json` 中更新一致的版本号，检查整个 diff，并走仓库的 PR 流程。不要直接推送到 `main`。
+
+## 安全与数据安全
+
+- 不要把 GitHub 令牌和其他凭据留在本仓库中。
+- 更新脚本使用你现有的 GitHub CLI 会话；它不会在项目中存储令牌。
+- 在确认插件能正确加载之前，不要删除旧的独立技能副本。
+- 编排技能对每一个改变状态的 GitHub 或生命周期动作都要求明确授权。
+
+## 版本历史
+
+每次发布都要更新本节，同时完成上文所述的版本号提升。
+
+- **0.2.0** — 默认每个任务一个工作树；带多审查者扇出的 PLAN-v4 类型化图；Cloudflare 派发式部署（dispatched-deploy）和自动部署（Auto-Deploy，即原生 Git 自动部署）发布模型；持久化的集成分支；用通用的逐页 HTML 原型取代已下线的页面 UI 矩阵；移动端/桌面端平台支持，包含一份专门的移动端技术栈选型指南（原生 iOS/Android、Flutter、React Native/Expo）；通过 `.env.example` 生成环境密钥脚手架；为有界/机械式委派工作提供的 Haiku 成本档位。
