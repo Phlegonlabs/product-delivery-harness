@@ -439,6 +439,19 @@ def _validate_deployments(
     development_source = (
         declared_development.get("source") if isinstance(declared_development, dict) else None
     )
+    if development_source == "integration_head":
+        integration_for_retention = run.get("integration")
+        retention = (
+            integration_for_retention.get("retention")
+            if isinstance(integration_for_retention, dict)
+            else None
+        )
+        if retention != "persistent":
+            _add(
+                errors,
+                "run.integration.retention",
+                "must be persistent when development release source is integration_head",
+            )
     if development is not None and development["status"] == "PASS":
         if development_source == "integration_head":
             integration = run.get("integration")

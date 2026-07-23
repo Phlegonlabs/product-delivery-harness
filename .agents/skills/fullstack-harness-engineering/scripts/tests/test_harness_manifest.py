@@ -1022,6 +1022,7 @@ class RunValidationTests(unittest.TestCase):
         plan["release"]["targets"][0]["source"] = "integration_head"
         run = valid_release_run(plan)
         run["integration"]["integration_head_sha"] = SHA_A
+        run["integration"]["retention"] = "persistent"
 
         run["authorizations"]["deploy"] = {
             "authorized": True,
@@ -1052,6 +1053,30 @@ class RunValidationTests(unittest.TestCase):
             plan,
             run,
             "PASS must bind to the current integration branch head (run.integration.integration_head_sha)",
+        )
+
+    def test_schema_v7_integration_head_development_requires_persistent_retention(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        plan["release"]["targets"][0]["source"] = "integration_head"
+        run = valid_release_run(plan)
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["integration"]["retention"] = "persistent"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["retention"] = "ephemeral"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.integration.retention: must be persistent when development release source is integration_head",
+        )
+
+        run["integration"]["retention"] = None
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.integration.retention: must be persistent when development release source is integration_head",
         )
 
     def test_schema_v7_accepts_non_cloudflare_deployment_providers(self) -> None:
