@@ -27,7 +27,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them
 
 ### Visual Direction
 
-- Are there existing brand guidelines, logo files, screenshots, Figma frames, websites, or reference products to follow?
+- Are there existing brand guidelines, logo files, screenshots, Figma frames, websites, or reference products to follow? When the answer names a live reference website rather than a supplied file, see `SKILL.md`'s workflow step 8 for capturing it with a browser tool before extracting brand cues from it.
 - Should the design feel dense and operational, editorial and content-led, commercial and conversion-led, premium and minimal, playful, technical, or another direction? (AskUserQuestion, using dense and operational / editorial and content-led / commercial and conversion-led / premium and minimal as the four options and the tool's built-in Other for playful, technical, or another direction) Skip this question when the PRD or `wireframes.md` already records a `selected` interface-style / visual direction; carry that value forward silently instead. Only ask when it is `provisional` or `assumed` (for example a provisional `modern-minimal` baseline), missing, or the design interview's own free-text discovery surfaces a genuine conflict with it.
 - Which visual or content details should make the product recognizable even without its logo?
 - Are there visual directions or generic AI-UI patterns to avoid?
