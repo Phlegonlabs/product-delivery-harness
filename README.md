@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme-banner.svg" alt="Full Stack Harness" width="100%">
+  <img src="./assets/readme-cover-en.png" alt="Full Stack Harness — plan, build, verify, and land" width="100%">
 </p>
 
 <p align="center">
@@ -16,9 +16,31 @@
 
 # Full Stack Harness
 
-Private skill marketplace for turning a product idea into a verified delivery flow with Codex or Claude Code.
+Private skill marketplace for turning a product idea or change request into a verified delivery flow with Codex or Claude Code.
 
-It is not just a collection of prompts. The plugin separates product definition, visual design, and delivery orchestration so each stage has a clear source of truth and a safe handoff to the next.
+It is not a prompt collection. The plugin separates product definition, visual design, engineering execution, and GitHub landing so each stage has one source of truth, a bounded handoff, and its own verification.
+
+> Define the product. Make the design concrete. Execute only the work that is ready. Verify the exact result before it moves.
+
+## Start here
+
+| If you have... | Start with | What you get |
+| --- | --- | --- |
+| A product idea | `prd-builder` | Requirements, architecture, stack decisions, and wireframes |
+| A PRD or an existing product direction | `design-package-builder` | A design system, real page mockups, and visual acceptance criteria |
+| A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
+| A verified local candidate that must reach GitHub | `fullstack-harness-github-landing` | Current-head push, PR, CI/review convergence, and exact-head merge |
+
+The skills can be used independently. You do not need to run the entire pipeline for every task.
+
+## Core guarantees
+
+- **Small work stays small.** One bounded change uses a direct inspect, implement, verify, and review loop.
+- **Large work is explicit.** PLAN v4 defines the typed graph; RUN v9 records authorization, attempts, evidence, and landing state.
+- **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
+- **Capability is not permission.** A runtime may be able to push, merge, deploy, or clean up, but each action still needs exact authorization.
+- **Evidence follows the SHA.** A new push invalidates earlier CI, review, deployment, and UI evidence for the old head.
+- **Deployment is a separate lifecycle.** Development and production targets keep separate data, secrets, auth, payment modes, and verification.
 
 ## What is included
 
@@ -69,6 +91,12 @@ The Harness is built around explicit boundaries:
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, PR, review action, merge, deploy, or cleanup.
 
+<p align="center">
+  <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness workflow from intake through verified local or GitHub landing" width="100%">
+</p>
+
+<p align="center"><sub>Illustrated control flow. The canonical behavior lives in the installed skills and current PLAN/RUN schemas.</sub></p>
+
 ## Lightweight runtime and landing adapters
 
 The shared core owns the one PLAN/RUN control plane. Runtime-specific launch details are loaded lazily:
@@ -103,6 +131,18 @@ When Claude Code returns real Workflow run IDs, RUN state may retain the workflo
 
 A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
 
+## Release and deployment safety
+
+The delivery graph treats deployment as a first-class, separately authorized lifecycle:
+
+- A deployable product records its provider, targets, commands, migrations, prerequisites, and deployed-environment checks in the plan.
+- Cloudflare projects use one codebase with isolated `development` and `production` Workers and separate D1, KV, R2, queue, Durable Object, secret, auth, payment, route, and webhook configuration.
+- The default Cloudflare model uses an exact-SHA GitHub Actions dispatch. Development binds to the current PR head; production binds to the merged base-branch SHA.
+- An optional Cloudflare Workers Builds model can auto-deploy a persistent integration branch to development and the base branch to production. It is used only when explicitly selected and never mixed with the dispatched model.
+- Day-one bootstrap creates only the confirmed environment resources and Worker shells. Real feature deployment still needs target-specific authorization.
+- `doc/deployment.md` records the human-facing topology and setup; RUN remains the machine-readable execution record.
+- Mobile and desktop deliveries use the same separation of development/beta and production credentials, backends, store tracks, and release evidence without forcing a Cloudflare-shaped contract.
+
 ## Install
 
 This is a private GitHub marketplace. You need access to `Phlegonlabs/fullstack-goal-dev`, GitHub CLI authentication, and either Codex, Claude Code, or both.
@@ -113,11 +153,7 @@ gh auth setup-git
 git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 ```
 
-### One-command updater
-
-Clone the repository, then run the shared updater. It detects the installed runtimes, adds or updates the marketplace, and installs the plugin where supported.
-
-Windows PowerShell:
+### Fastest setup
 
 ```powershell
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
@@ -125,10 +161,27 @@ Set-Location .\fullstack-goal-dev
 pwsh -File .\scripts\update-private-skills.ps1
 ```
 
+Then open a new Codex task or reload Claude Code. Confirm the plugin is visible:
+
+```powershell
+codex plugin list
+claude plugin list
+```
+
+### One-command updater
+
+The shared updater detects installed runtimes, adds or updates the marketplace, and installs the plugin where supported. Re-run the same command when this repository changes.
+
+Windows PowerShell:
+
+```powershell
+Set-Location .\fullstack-goal-dev
+pwsh -File .\scripts\update-private-skills.ps1
+```
+
 macOS or Linux shell with PowerShell 7:
 
 ```bash
-git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 cd fullstack-goal-dev
 pwsh -File ./scripts/update-private-skills.ps1
 ```
@@ -185,7 +238,11 @@ Use $fullstack-harness-engineering to review the existing app, plan the required
 Use $fullstack-harness-engineering to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
-For a multi-mission delivery, state the complete launch and landing permissions in the request. Branch creation, commits, integration, push, PR creation, review management, merge, deployment, and cleanup are independent actions.
+```text
+Use $fullstack-harness-engineering to deliver this through a Draft PR. Request current-head CI and Codex review, but stop before merge or deployment.
+```
+
+For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, PR creation, review management, merge, deployment, worktree removal, and branch deletion are independent actions.
 
 ## Codex and Claude Code execution
 
@@ -207,6 +264,7 @@ Parallel implementation has no small fixed cap by default; the configured write-
 plugins/fullstack-harness/skills/ Generated plugin copies; do not edit directly
 .agents/plugins/marketplace.json  Codex marketplace definition
 .claude-plugin/marketplace.json   Claude Code marketplace definition
+assets/                           README covers and workflow illustrations
 scripts/sync_plugin_skills.py     Copies canonical skills into the plugin bundle
 scripts/update-private-skills.ps1 Updates installed marketplaces and plugin
 .github/workflows/harness-ci.yml  Contract, unit, and E2E checks
