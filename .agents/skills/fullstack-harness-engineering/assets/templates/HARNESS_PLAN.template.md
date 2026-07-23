@@ -471,7 +471,7 @@ On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield
   "priority": 100,
   "merge_rank": 10,
   "trace_ids": ["PRD-<architecture-decision-trace>"],
-  "write_scope": ["package.json", "<lockfile>", "apps/web/**"],
+  "write_scope": ["package.json", "<lockfile>", "apps/web/**", ".env.example", ".gitignore"],
   "deny_scope": ["docs/goal/PLAN.md", "docs/goal/RUN.md"],
   "resource_inventory_complete": true,
   "serialized_resources": [],
@@ -513,10 +513,20 @@ On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield
       "depends_on": ["M1/T01"],
       "write_scope": ["apps/web/**"],
       "verifiers": [{"id": "m1-t02", "cwd": ".", "argv": ["<package-manager>", "run", "build"], "pass_signal": "Build exits 0 and the dev server serves a page locally"}]
+    },
+    {
+      "id": "M1/T03",
+      "alias": "environment-configuration",
+      "objective": "Reserve every known environment variable in a tracked .env.example with placeholder values, and git-ignore the real local secret file.",
+      "depends_on": ["M1/T02"],
+      "write_scope": [".env.example", ".gitignore"],
+      "verifiers": [{"id": "m1-t03", "cwd": ".", "argv": ["<package-manager>", "run", "typecheck"], "pass_signal": "Typecheck exits 0 with no committed .env, and .env.example lists every variable read by the scaffolded app with a placeholder, not a real value"}]
     }
   ]
 }
 ```
+
+`M1/T03` is a worked example, not a fixed template: list only the environment variables the scaffolded layers actually read at this point (for example a database connection string or an auth provider client ID), one placeholder line each, and add more entries in later tasks/missions exactly when they introduce a new read — see `commit-convention.md`'s atomic-boundary rule for this and `platform-archetypes.md`'s Greenfield / Empty Repository section for the full convention.
 
 ## Source Map
 

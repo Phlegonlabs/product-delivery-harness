@@ -28,7 +28,7 @@ Production Worker and production resource boundary:
 
 ## Greenfield / Empty Repository
 
-Detect this before applying any archetype profile below: no toolchain manifest, no app source tree, or no locally runnable dev/build command exists yet. Every archetype's "Common missions" list below assumes the workspace and chosen stack already exist — on a greenfield repository, insert one workspace-foundation mission before them and shift the archetype's own list down by one (its `M1` becomes `M2`, and so on).
+Detect this before applying any archetype profile below: no toolchain manifest, no app source tree, or no locally runnable dev/build command exists yet. Greenfield detection is per-toolchain, not whole-repo — a repository can be simultaneously non-greenfield for an already-established platform (e.g. a working web app) and greenfield for a newly-added one (e.g. no iOS project yet); apply the toolchain-detection table below per target platform, and scope the new workspace-foundation mission only to the platform that is actually greenfield. Every archetype's "Common missions" list below assumes the workspace and chosen stack already exist — on a greenfield repository, insert one workspace-foundation mission before them and shift the archetype's own list down by one (its `M1` becomes `M2`, and so on). This renumbering applies only when drafting a fresh single-archetype plan from scratch; when a later plan revision adds a new platform to an already-integrated project, mint the new workspace-foundation mission with the next available mission ID in that revision instead — mission IDs are opaque and do not encode order (see `contract-and-traceability.md`'s Mission And Task Identity section), so do not renumber or disturb any already-integrated mission's ID.
 
 Detect which toolchain is (or should be) in play before scaffolding, and branch — do not assume a JS package manager. Match the frozen `architecture.md` Frontend/Platform Technology Decision (see `prd-builder`'s `references/frontend-stack-selection.md`) to one of these, checking the repository for an existing manifest of each shape first:
 
@@ -77,9 +77,11 @@ Windows .NET:
   Config: record the target framework and packaging shape (MSIX vs installer) for the release lifecycle
 ```
 
+**Environment configuration (every toolchain).** Reserve a place for environment secrets from the first scaffold commit, before any task needs one: create a tracked `.env.example` (or the toolchain's native equivalent — e.g. `local.properties.example` for Android, an `.xcconfig` template for Swift) listing every environment variable the app currently needs by name, with a placeholder or one-line description and no real value. Ensure the real `.env` (or equivalent local secret file) is git-ignored from this same commit, never committed. Treat `.env.example` as living documentation: a later task that reads a new environment variable adds its entry to `.env.example` in the same commit that introduces the read (see `commit-convention.md`), not as a separate cleanup pass. Never invent a placeholder's real value — when a required variable's actual value is unavailable, stop and ask per `contract-and-traceability.md`'s Stop And Ask Conditions rather than guessing.
+
 Exit criterion: a locally runnable dev/build for the detected toolchain and its passing build/compile plus test discovery — a running dev server and passing build/typecheck for JS/TS web, a successful `xcodebuild build`/`swift build` for Swift, a successful `./gradlew assembleDebug` for Android, `flutter build` (or `flutter run` device check) for Flutter, `dotnet build` for .NET — proving every installed layer actually works together rather than merely appearing in a manifest. Treat an unselected layer (still `Provisional` in `architecture.md`) as a stop condition, not a default guess — request the missing decision instead of picking a stack yourself.
 
-Common missions: `M1 workspace-foundation` (above), then the archetype's own list below renumbered to start at `M2`.
+Common missions: `M1 workspace-foundation` (above), then the archetype's own list below renumbered to start at `M2` — but this renumbering is only for a fresh from-scratch single-archetype plan; a later revision that adds a new platform to an already-integrated project mints the workspace-foundation mission with the next available mission ID instead (see the per-toolchain and mission-ID note above).
 
 ## Authenticated App, Dashboard, Internal Tool, SaaS
 
@@ -208,6 +210,7 @@ App shell and navigation: entry point, navigation model, deep links / universal 
 Local persistence and sync: on-device storage (Core Data/SwiftData, Room, SQLite, Hive/Isar), offline behavior, background sync, migration of on-device schema across app versions
 Platform capabilities: push notifications (APNs/FCM), permissions (camera, location, contacts), background tasks, in-app purchase/entitlements when present
 Identity and data: auth flow (native, OAuth, platform sign-in), secure credential storage (Keychain/Keystore/DPAPI), account recovery
+Analytics / crash reporting / feature flags: crash-reporting tool and its symbol-upload step, analytics events for key user actions, feature-flag mechanism when used — or explicitly out of scope for this product
 Signing and distribution identity: bundle/application identifier, signing certificates and provisioning profiles / keystore / code-signing cert (configured, never stored in PLAN/RUN), distribution channel (TestFlight + App Store, Play tracks + production, Developer ID/notarized, Microsoft Store/MSIX/installer)
 Release isolation: development/staging build config (sandbox APIs, test push, non-production backend, debug entitlements) kept separate from production build config (live APIs, production push, production backend, release entitlements)
 ```
@@ -216,11 +219,12 @@ Common missions:
 
 ```text
 M1 project/app-shell and navigation foundation for the chosen toolchain
-M2 core feature and platform-capability integration (persistence, permissions, native APIs)
-M3 identity, secure storage, and backend/data contract
-M4 push notifications, background tasks, in-app purchase/entitlements when present
-M5 beta distribution (TestFlight / Play internal or closed track) and store metadata/assets
-M6 store submission/review readiness and E2E across device/OS states
+M2 crash-reporting/analytics SDK wired into the app shell (symbol-upload step, key-event capture), feature flags when used
+M3 core feature and platform-capability integration (persistence, permissions, native APIs)
+M4 identity, secure storage, and backend/data contract
+M5 push notifications, background tasks, in-app purchase/entitlements when present
+M6 beta distribution (TestFlight / Play internal or closed track) and store metadata/assets
+M7 store submission/review readiness and E2E across device/OS states
 ```
 
 Required E2E scenarios:
@@ -233,6 +237,7 @@ Required E2E scenarios:
 - Push notification receipt and tap-through, when notifications are in scope.
 - Auth login, logout, and credential-storage behavior across app relaunch.
 - Deep link / universal link / app link opens the correct in-app destination, when in scope.
+- A representative crash or logged error reaches the crash-reporting tool, and a key user action reaches the analytics pipeline (or both are explicitly marked out of scope with a stated reason).
 
 Required verification per toolchain (run before any distribution gate):
 

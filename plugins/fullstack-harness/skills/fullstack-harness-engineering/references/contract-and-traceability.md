@@ -139,7 +139,7 @@ Stop before implementation when:
 - The design system contradicts the wireframe in a user-visible way.
 - The design source's mockup HTML is styled to a different platform than the resolved target — for example web viewport/breakpoint styling and web-family icons handed off for a native iOS/Android/Flutter/desktop mission, or the reverse. Every platform's mockup is real HTML (see `design-package-builder`'s Platform-Conditional Vocabulary), so the mismatch to catch here is the visual convention, not the file format. Do not silently implement against a mismatched-styling mockup or guess the intended platform; confirm with the user first. See `verification-gates.md`'s "Capture Mechanism By Platform" for how the resolved platform separately decides the UI evidence capture mechanism after implementation.
 - Auth, permissions, or destructive data behavior is ambiguous.
-- Required secrets, services, databases, or browser tools are unavailable.
+- Required secrets, services, databases, or browser tools are unavailable. When a required environment variable has no placeholder yet in the project's `.env.example` (see `platform-archetypes.md`'s Greenfield / Empty Repository section), add the placeholder entry as part of the task that introduces the read, then stop and ask the user for the real value instead of inventing or guessing one.
 - The requested write scope would modify unrelated modules.
 - The user has not approved overwrites, deletes, moves, resets, or worktree cleanup.
 - The canonical plan/run manifest is missing, invalid, stale, or inconsistent with the proposed wave.

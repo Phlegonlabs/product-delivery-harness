@@ -148,6 +148,26 @@ Use only when a stack layer cannot yet be decided.
 | Open Decision | Missing Evidence | Owner | Decision Date | Time-boxed Spike | Pass / Fail Criteria |
 | --- | --- | --- | --- | --- | --- |
 
+## Mobile/Desktop Technology Decision
+A product may add this section in a later revision after Frontend Technology Decision is already frozen, when a mobile or desktop target is added to an existing web product; freezing this section does not reopen or require revisiting the already-frozen Frontend Technology Decision. Use this section for every product with a mobile app or desktop app target (native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop) — omit it when no such target exists.
+
+Decision status: [Required / Selected / Recommended / Provisional]
+
+Decision authority: [User constraint, existing repository, or PRD recommendation]
+
+### Decision Drivers
+- [Product evidence that determines the choice, weighed per `references/mobile-stack-selection.md`: target platforms and reach, native capability needs, offline/sync requirements, team capability, code reuse with an existing web frontend, distribution and store constraints, and performance expectations.]
+
+### Recorded or Recommended Stack
+| Layer | Selection | Why It Fits | Constraint or Follow-up |
+| --- | --- | --- | --- |
+| Platform | [native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop] | [Reason] | [Constraint] |
+| Toolchain | [e.g. Xcode/SwiftUI, Android Studio/Jetpack Compose, Flutter/Dart, Expo/React Native, or the desktop equivalent] | [Reason] | [Constraint] |
+| Distribution mechanism | [e.g. App Store/TestFlight, Play Console tracks, EAS Submit, MSIX, notarization — as applicable] | [Reason] | [Constraint] |
+| Backend/API integration | [Approach for reaching the backend or APIs] | [Reason] | [Constraint] |
+| Push / offline sync | [Push notification and offline/sync approach, when applicable] | [Reason] | [Constraint] |
+| Testing | [Unit and UI-automation framework per platform] | [Reason] | [Constraint] |
+
 ## Backend and Data Technology Decision
 Use this section for every product with a backend, persistent data, or auth requirement. Omit it only when the product provably has none of these.
 

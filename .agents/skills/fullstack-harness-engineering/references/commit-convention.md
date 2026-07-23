@@ -11,6 +11,7 @@ Use this convention for every harness-managed task commit. Commit permission is 
 - Stage explicit files, inspect the staged diff, and commit only after the task verifier passes and commits are authorized.
 - Do not commit failed work except an explicitly planned harness or test artifact whose purpose is to expose the failure.
 - Do not start a second task's implementation before the current task's verifier has run and, on pass, its commit is made. Checkpoint each task as you finish it, not in a batch at the end of a mission or session — an interruption before that checkpoint leaves unverified, unrecorded drift that a later resume has to reconstruct from the diff alone (see `execution-state-model.md`'s Resume Reconciliation Gate).
+- When a task reads a new required environment variable, add its placeholder entry to `.env.example` in that same commit (see `platform-archetypes.md`'s Greenfield / Empty Repository section) — never land the code that reads it without the matching documented placeholder, and never commit the real `.env`/local secret file itself.
 
 ## Commit Message
 
