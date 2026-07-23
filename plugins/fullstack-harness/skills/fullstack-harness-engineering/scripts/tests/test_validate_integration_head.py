@@ -56,6 +56,8 @@ class ValidateIntegrationHeadAgainstGitTests(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.repo_root = Path(self._tmp.name)
         _run_git(["init"], self.repo_root)
+        _run_git(["config", "user.name", "Harness Test"], self.repo_root)
+        _run_git(["config", "user.email", "harness@example.invalid"], self.repo_root)
         (self.repo_root / "file.txt").write_text("first\n", encoding="utf-8")
         _run_git(["add", "file.txt"], self.repo_root)
         _run_git(["commit", "-m", "first commit"], self.repo_root)
