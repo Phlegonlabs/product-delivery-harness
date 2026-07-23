@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme-banner.svg" alt="Full Stack Harness" width="100%">
+  <img src="./assets/readme-cover-zh-CN.png" alt="全栈交付控制框架：规划、构建、验证、落地" width="100%">
 </p>
 
 <p align="center">
@@ -16,9 +16,31 @@
 
 # Full Stack Harness
 
-私有技能市场，用于借助 Codex 或 Claude Code 把一个产品想法变成一条经过验证的交付流程。
+私有技能市场，用于借助 Codex 或 Claude Code 把产品想法或变更需求变成一条经过验证的交付流程。
 
-它不只是一堆提示词的集合。这个插件把产品定义、视觉设计和交付编排拆开，让每个阶段都有清晰的事实源，并能安全地移交给下一个阶段。
+它不是提示词集合。这个插件把产品定义、视觉设计、工程执行和 GitHub 落地拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
+
+> 定义产品。把设计做具体。只执行已就绪的工作。每次移交前，都验证实际结果。
+
+## 从这里开始
+
+| 你目前有什么 | 从哪个技能开始 | 会得到什么 |
+| --- | --- | --- |
+| 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策和线框图 |
+| PRD 或现有产品方向 | `design-package-builder` | 设计系统、真实页面原型和视觉验收条件 |
+| 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
+| 已验证、需要送上 GitHub 的本地候选版本 | `fullstack-harness-github-landing` | 绑定当前 head 的推送、PR、CI/审查收敛和精确合并 |
+
+这些技能可以单独使用。不是每个任务都要运行整条流程。
+
+## 核心保证
+
+- **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
+- **大型工作明确记录。** PLAN v4 定义 typed graph；RUN v9 记录授权、尝试、证据和落地状态。
+- **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
+- **有能力不等于有权限。** 即使运行时能够推送、合并、部署或清理，每个动作仍需要精确授权。
+- **证据跟随 SHA。** 新的推送会让旧 head 的 CI、审查、部署和 UI 证据失效。
+- **部署是独立生命周期。** 开发与生产环境使用分离的数据、密钥、认证、支付模式和验证。
 
 ## 包含哪些内容
 
@@ -69,6 +91,12 @@ Harness 是围绕明确的边界构建的：
 
 对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、开 PR、执行审查动作、合并、部署或清理。
 
+<p align="center">
+  <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness 从需求输入到本地验证或 GitHub 落地的流程" width="100%">
+</p>
+
+<p align="center"><sub>流程示意图。规范行为以已安装的技能和当前 PLAN/RUN schema 为准。</sub></p>
+
 ## 轻量的运行时与落地适配器
 
 共享核心掌管唯一的 PLAN/RUN 控制平面。运行时相关的启动细节按需惰性加载：
@@ -103,6 +131,18 @@ Claude 的批次波（wave）按模型、推理强度和工具画像区分开：
 
 图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Claude Code 不能把节点委派给 Codex，Codex 也不能把节点委派给 Claude Code；两者之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被记录为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
 
+## 发布与部署安全
+
+交付图把部署视为一级且需要独立授权的生命周期：
+
+- 可部署产品会在计划中记录提供方、目标环境、命令、迁移、前置条件和部署后检查。
+- Cloudflare 项目使用同一份代码库，但 `development` 与 `production` Worker 完全分离；D1、KV、R2、queue、Durable Object、密钥、认证、支付模式、路由和 webhook 也按环境设置。
+- 默认 Cloudflare 模型使用绑定精确 SHA 的 GitHub Actions 调度。开发环境绑定当前 PR head；生产环境绑定已合并的基准分支 SHA。
+- 可选的 Cloudflare Workers Builds 模型可以把持久集成分支自动部署到开发环境，再把基准分支自动部署到生产环境。只有明确选择时才启用，也不会与调度模型混用。
+- 第一天引导只创建已确认需要的环境资源和 Worker 外壳。真正部署功能代码仍需要目标环境专属授权。
+- `doc/deployment.md` 保存供维护者阅读的拓扑与设置；RUN 仍是机器可读的执行记录。
+- 移动端和桌面端交付同样分离 development/beta 与 production 的凭据、后端、商店轨道和发布证据，不会强套 Cloudflare 格式。
+
 ## 安装
 
 这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且安装了 Codex、Claude Code，或两者。
@@ -113,11 +153,7 @@ gh auth setup-git
 git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 ```
 
-### 一条命令完成更新
-
-克隆仓库，然后运行共享的更新脚本。它会检测已安装的运行时，添加或更新市场，并在支持的地方安装插件。
-
-Windows PowerShell：
+### 最快安装方式
 
 ```powershell
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
@@ -125,10 +161,27 @@ Set-Location .\fullstack-goal-dev
 pwsh -File .\scripts\update-private-skills.ps1
 ```
 
+然后打开新的 Codex 任务，或重新加载 Claude Code。确认插件已出现在列表中：
+
+```powershell
+codex plugin list
+claude plugin list
+```
+
+### 一条命令完成更新
+
+共享更新脚本会检测已安装的运行时，添加或更新市场，并在支持的地方安装插件。这个仓库更新后，重新运行同一条命令即可。
+
+Windows PowerShell：
+
+```powershell
+Set-Location .\fullstack-goal-dev
+pwsh -File .\scripts\update-private-skills.ps1
+```
+
 装有 PowerShell 7 的 macOS 或 Linux shell：
 
 ```bash
-git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 cd fullstack-goal-dev
 pwsh -File ./scripts/update-private-skills.ps1
 ```
@@ -185,7 +238,11 @@ Use $fullstack-harness-engineering to review the existing app, plan the required
 Use $fullstack-harness-engineering to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
-对于多任务交付，请在请求中写清完整的启动与落地权限。分支创建、提交、集成、推送、创建 PR、审查管理、合并、部署和清理都是彼此独立的动作。
+```text
+Use $fullstack-harness-engineering to deliver this through a Draft PR. Request current-head CI and Codex review, but stop before merge or deployment.
+```
+
+对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、创建 PR、审查管理、合并、部署、移除工作树和删除分支都是彼此独立的动作。
 
 ## Codex 与 Claude Code 执行
 
@@ -207,6 +264,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 plugins/fullstack-harness/skills/ 生成的插件副本；请勿直接编辑
 .agents/plugins/marketplace.json  Codex 市场定义
 .claude-plugin/marketplace.json   Claude Code 市场定义
+assets/                           README 封面和流程图
 scripts/sync_plugin_skills.py     把规范技能复制到插件包
 scripts/update-private-skills.ps1 更新已安装的市场和插件
 .github/workflows/harness-ci.yml  契约、单元和 E2E 检查
