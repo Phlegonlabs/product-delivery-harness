@@ -98,6 +98,8 @@ Pay attention to font family, font weight, font size, line height, and how diffe
 | Role | Font / family | Size | Weight | Line height | Usage |
 | --- | --- | --- | --- | --- | --- |
 
+Record each role's actual line-height ratio (line height ÷ font size) and check it against `visual-decision-guide.md`'s Typography Decision thresholds: at least 1.5x for body/paragraph text (WCAG 2.2 Success Criterion 1.4.12) and at least 1.1x for heading/display roles. Adjust the token when a role fails rather than recording a failing ratio. See `visual-decision-guide.md`'s Typography Decision for the full method, the type-scale rationale requirement, and when to offer `frontend-design` for an expert pairing pass.
+
 ## Iconography System
 
 ### Market Scan & Decision
@@ -267,7 +269,7 @@ Use this structure:
 | TEST-VIS-003 | Page UI conformance | yes | UI-*, DS-* | Implemented page matches mockup source | screenshot / trace |
 | TEST-VIS-004 | Responsive behavior | yes | UI-* | No overflow or broken hierarchy at required breakpoints | screenshot |
 | TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
-| TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, computed WCAG 2.2 AA contrast ratio for every recorded text/UI color pairing (not just visual intent), labels, keyboard path checked | audit / screenshot |
+| TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, computed WCAG 2.2 AA contrast ratio for every recorded text/UI color pairing, computed line-height ratio for every typography role (not just visual intent), labels, keyboard path checked | audit / screenshot |
 | TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
 | TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks, and covers every in-scope non-hero pattern | live demo / code review |
 | TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |

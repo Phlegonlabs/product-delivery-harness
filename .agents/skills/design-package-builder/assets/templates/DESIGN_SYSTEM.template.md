@@ -81,12 +81,14 @@ Harmony method: <complementary / analogous / monochromatic / triadic / brand-anc
 
 Pay attention to font family, font weight, font size, line height, and how different fonts or font roles are used together.
 
-| Role | Font / family | Size | Weight | Line height | Usage |
-|---|---|---|---|---|---|
-| Display / page title | <font> | <size> | <weight> | <line height> | <usage> |
-| Section heading | <font> | <size> | <weight> | <line height> | <usage> |
-| Body | <font> | <size> | <weight> | <line height> | <usage> |
-| Caption / metadata | <font> | <size> | <weight> | <line height> | <usage> |
+Pairing rationale: <why these families/roles work together, and the type-scale ratio or logic tying the sizes below into one system>
+
+| Role | Font / family | Size | Weight | Line height | Line-height ratio | Usage |
+|---|---|---|---|---|---|---|
+| Display / page title | <font> | <size> | <weight> | <line height> | <e.g. 1.15 (heading floor 1.1)> | <usage> |
+| Section heading | <font> | <size> | <weight> | <line height> | <e.g. 1.2 (heading floor 1.1)> | <usage> |
+| Body | <font> | <size> | <weight> | <line height> | <e.g. 1.5 (WCAG 1.4.12 minimum)> | <usage> |
+| Caption / metadata | <font> | <size> | <weight> | <line height> | <e.g. 1.5 (WCAG 1.4.12 minimum)> | <usage> |
 
 ## Iconography System
 

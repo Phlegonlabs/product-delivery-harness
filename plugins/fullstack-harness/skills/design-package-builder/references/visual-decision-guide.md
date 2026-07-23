@@ -78,6 +78,16 @@ Resolve the palette with the same decision discipline as the rest of the visual 
 5. Keep the semantic colors (success/warning/danger and any chart/status colors) distinguishable for common color-vision deficiencies: pair hue with a shape, icon, or label so meaning never depends on color alone, and avoid a red/green-only distinction with no other cue.
 6. When the user wants a more distinctive or expert-tuned combination than this guidance alone produces, offer `frontend-design` (per `SKILL.md`'s Optional External Skill Assist) for a color-pairing suggestion pass — only after an explicit yes, and only as input to the decision above, not a replacement for recording the harmony method and contrast ratios here.
 
+## Typography Decision
+
+Resolve font pairing and the type scale with the same decision discipline as the color palette, not as an arbitrary font pick:
+
+1. Start from a real constraint: existing brand fonts, platform convention (native iOS/Android/desktop system fonts), or the product-specific visual thesis's chosen tone. Do not default to the Inter/Poppins/Manrope/Geist stack without a stated reason (see the Anti-Generic Review's Typography and iconography rule).
+2. Name why the chosen families or font roles work together as a pairing (contrast in role, weight, or character that serves a purpose) rather than only that it "looks good."
+3. Compute and record the actual line-height ratio for every role in the type scale. Use `scripts/check_type_scale.py --step "<role>,<font-size>,<line-height>[,text|heading]"` (repeatable) rather than eyeballing it: body/paragraph text needs at least 1.5x its font size per WCAG 2.2 Success Criterion 1.4.12, while a heading/display role only needs to clear a lower readability floor (1.1x) since that SC targets blocks of text, not isolated headings. Adjust the token when a role's ratio fails, rather than accepting a line-height that only looks fine in the mockup.
+4. Keep the type scale itself deliberate: state the step ratio or rationale between roles (for example a 1.25 or 1.333 modular scale) so sizes read as a system, not a set of independent guesses.
+5. When the user wants a more distinctive or expert-tuned pairing than this guidance alone produces, offer `frontend-design` (per `SKILL.md`'s Optional External Skill Assist) for a font-pairing suggestion pass — only after an explicit yes, and only as input to the decision above, not a replacement for recording the pairing rationale and line-height ratios here.
+
 ## Builder UX Direction Handoff
 
 Use the PRD's Builder UX Direction Decision before composing pages or choosing tokens. Preserve the named human owner and the status of every choice:
