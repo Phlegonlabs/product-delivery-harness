@@ -759,8 +759,12 @@ def _validate_cloudflare_release_targets(errors: list[str], path: str, targets_v
         return
     development = targets["development"]
     production = targets["production"]
-    if development["source"] != "pr_head":
-        _add(errors, f"{path}.targets.development.source", "must equal pr_head")
+    if development["source"] not in ("pr_head", "integration_head"):
+        _add(
+            errors,
+            f"{path}.targets.development.source",
+            "must equal pr_head or integration_head",
+        )
     if production["source"] != "merged_main":
         _add(errors, f"{path}.targets.production.source", "must equal merged_main")
     if development["data_mode"] != "isolated_non_production":
@@ -1964,18 +1968,34 @@ def _validate_deployments(
     landing = run.get("landing")
     development = targets.get("development")
     production = targets.get("production")
-    if isinstance(landing, dict) and development is not None and development["status"] == "PASS":
-        if (
-            landing.get("pr_state") not in ("draft", "open", "merged")
-            or development["source_sha"] != landing.get("pr_head_sha")
-            or landing.get("checks_status") != "PASS"
-            or landing.get("checks_head_sha") != development["source_sha"]
-        ):
-            _add(
-                errors,
-                f"{path}.development",
-                "PASS must bind to the current PR head after current-head CI passes",
+    declared_development = release_targets.get("development")
+    development_source = (
+        declared_development.get("source") if isinstance(declared_development, dict) else None
+    )
+    if development is not None and development["status"] == "PASS":
+        if development_source == "integration_head":
+            integration = run.get("integration")
+            integration_head_sha = (
+                integration.get("integration_head_sha") if isinstance(integration, dict) else None
             )
+            if development["source_sha"] != integration_head_sha:
+                _add(
+                    errors,
+                    f"{path}.development",
+                    "PASS must bind to the current integration branch head (run.integration.integration_head_sha)",
+                )
+        elif isinstance(landing, dict):
+            if (
+                landing.get("pr_state") not in ("draft", "open", "merged")
+                or development["source_sha"] != landing.get("pr_head_sha")
+                or landing.get("checks_status") != "PASS"
+                or landing.get("checks_head_sha") != development["source_sha"]
+            ):
+                _add(
+                    errors,
+                    f"{path}.development",
+                    "PASS must bind to the current PR head after current-head CI passes",
+                )
     if isinstance(landing, dict) and production is not None and production["status"] == "PASS":
         if development is None or development.get("status") != "PASS":
             _add(errors, f"{path}.production", "PASS requires development PASS first")
@@ -2060,6 +2080,17 @@ def _validate_post_merge_cleanup(
         _optional_sha(errors, f"{path}.local_branch.head_sha", local_branch["head_sha"])
         if local_branch["status"] not in CLEANUP_BRANCH_STATUSES:
             _add(errors, f"{path}.local_branch.status", "has an unsupported value")
+        integration = run.get("integration")
+        if (
+            isinstance(integration, dict)
+            and integration.get("retention") == "persistent"
+            and local_branch["status"] == "deleted"
+        ):
+            _add(
+                errors,
+                f"{path}.local_branch.status",
+                "must not be deleted when run.integration.retention is persistent",
+            )
 
     evidence = _strings(errors, f"{path}.evidence", value["evidence"])
     _optional_string(errors, f"{path}.deferred_reason", value["deferred_reason"])
@@ -2328,8 +2359,15 @@ def _validate_post_merge_cleanup(
         if worktree_status not in {"pending", "not_applicable"}:
             _add(errors, f"{path}.worktree.status", "must be pending or not_applicable when cleanup is ready")
     elif status == "complete":
-        if local_branch.get("status") != "deleted":
-            _add(errors, f"{path}.local_branch.status", "must be deleted when cleanup is complete")
+        integration = run.get("integration")
+        retained = isinstance(integration, dict) and integration.get("retention") == "persistent"
+        required_branch_status = "preserved" if retained else "deleted"
+        if local_branch.get("status") != required_branch_status:
+            _add(
+                errors,
+                f"{path}.local_branch.status",
+                f"must be {required_branch_status} when cleanup is complete",
+            )
         if worktree_status not in {"removed", "not_applicable"}:
             _add(errors, f"{path}.worktree.status", "must be removed or not_applicable when cleanup is complete")
         if not evidence:
@@ -3550,10 +3588,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, "run.observed.runtime.completion_channel_available", "must be boolean")
 
     integration = run["integration"]
-    if _keys(errors, "run.integration", integration, {"branch", "batch_base_sha", "integration_head_sha"}):
+    if _keys(
+        errors,
+        "run.integration",
+        integration,
+        {"branch", "batch_base_sha", "integration_head_sha"},
+        {"retention"},
+    ):
         _optional_string(errors, "run.integration.branch", integration["branch"])
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
+        retention = integration.get("retention")
+        if retention is not None and retention not in {"persistent", "ephemeral"}:
+            _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
         if (
             schema_version in {3, 4, 5, 6, 7, 8, 9}
             and isinstance(run["landing"], dict)

@@ -117,6 +117,8 @@ blocked | worker_failed | integration_failed | superseded
 | `worker_passed -> integrating` | Parent rechecks ancestry, actual diff scope, forbidden files, head stability, and integration authorization |
 | `integrating -> integrated` | Changes are on the integration branch, integration verifier passed, and `integrated_sha` is recorded |
 
+These phase transitions describe one run's lifecycle; when `run.integration.retention` is `"persistent"`, the integration branch itself survives across runs rather than being scoped to a single run.
+
 `worker_passed` is not completion for dependency purposes. It means only that the worker-level gate passed in its workspace. A dependent mission becomes ready only when every dependency is `integrated`, its integration gate is `PASS`, and observed Git ancestry confirms its `integrated_sha` is an ancestor of the current integration head.
 
 `worker_failed` preserves the worker result and evidence. `integration_failed` preserves the worker-passed state plus the failed integration attempt. Neither unlocks downstream dependencies. Retrying creates a new attempt or lease; it does not overwrite the failed evidence.

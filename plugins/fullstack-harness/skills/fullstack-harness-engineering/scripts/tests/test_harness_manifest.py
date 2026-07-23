@@ -734,6 +734,18 @@ class PlanValidationTests(unittest.TestCase):
         ]
         self.assert_error_contains(missing_promotion_gate, "must include development_pass")
 
+    def test_schema_v3_cloudflare_release_accepts_integration_head_development_source(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        plan["release"]["targets"][0]["source"] = "integration_head"
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_schema_v3_cloudflare_release_rejects_unknown_development_source(self) -> None:
+        plan = valid_release_plan()
+        plan["release"]["targets"][0]["source"] = "something_else"
+        self.assert_error_contains(plan, "must equal pr_head or integration_head")
+
     def test_schema_v3_accepts_non_cloudflare_release_providers(self) -> None:
         for provider in sorted(DEPLOYMENT_PROVIDERS - {"cloudflare"}):
             plan = valid_plan()
@@ -981,6 +993,66 @@ class RunValidationTests(unittest.TestCase):
 
         run["deployments"]["production"]["worker_name"] = "wrong-production"
         self.assert_run_error_contains(plan, run, "must match PLAN release target")
+
+    def test_integration_retention_accepts_known_values_only(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["retention"] = "persistent"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["retention"] = "ephemeral"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["retention"] = None
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["retention"] = "forever"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.integration.retention: must be null, persistent, or ephemeral",
+        )
+
+    def test_schema_v7_integration_head_development_binds_to_integration_branch(
+        self,
+    ) -> None:
+        plan = valid_release_plan()
+        plan["release"]["targets"][0]["source"] = "integration_head"
+        run = valid_release_run(plan)
+        run["integration"]["integration_head_sha"] = SHA_A
+
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy development for this run",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["environment:development"],
+            },
+            "expires_when": "run_complete",
+        }
+        run["deployments"]["development"].update(
+            {
+                "status": "PASS",
+                "source_sha": SHA_A,
+                "worker_name": "test-app-development",
+                "url": "https://test-app-development.example.workers.dev",
+                "version_id": "dev-version-1",
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+                "evidence": ["artifact:development-smoke"],
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["deployments"]["development"]["source_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "PASS must bind to the current integration branch head (run.integration.integration_head_sha)",
+        )
 
     def test_schema_v7_accepts_non_cloudflare_deployment_providers(self) -> None:
         for provider in sorted(DEPLOYMENT_PROVIDERS - {"cloudflare"}):
@@ -2025,6 +2097,121 @@ class RunValidationTests(unittest.TestCase):
             "not_applicable requires no matching linked worktree",
         )
         run["observed"]["git"]["worktrees"] = []
+
+    def test_post_merge_cleanup_persistent_retention_forbids_deleted_branch(
+        self,
+    ) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["landing"].update(
+            {
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "merged",
+                "pr_head_sha": SHA_A,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_A,
+                "review_status": "PASS",
+                "review_head_sha": SHA_A,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": SHA_B,
+            }
+        )
+        for state in run["mission_states"].values():
+            state.update(
+                {
+                    "phase": "integrated",
+                    "integration_gate": "PASS",
+                    "integrated_sha": SHA_A,
+                }
+            )
+        run["observed"].update(
+            {
+                "captured_at": "2026-07-15T08:00:00Z",
+                "git": {
+                    "parent_worktree_path": "C:/repo/fullstack-goal-dev",
+                    "parent_branch": "codex/test",
+                    "parent_head_sha": SHA_A,
+                    "parent_dirty": False,
+                    "worktrees": [],
+                },
+            }
+        )
+        run["authorizations"]["delete_branches"] = {
+            "authorized": True,
+            "source": "user: remove the merged local feature branch",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["branch:refs/heads/codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        authorize_merge(run, "https://github.com/example/repo/pull/7")
+        run["post_merge_cleanup"] = {
+            "status": "ready",
+            "base": {
+                "branch": "main",
+                "head_sha": SHA_B,
+                "merged_sha_reachable": True,
+            },
+            "worktree": {
+                "path": None,
+                "branch_ref": None,
+                "head_sha": None,
+                "dirty": None,
+                "managed_by": None,
+                "status": "not_applicable",
+            },
+            "local_branch": {
+                "ref": "refs/heads/codex/test",
+                "head_sha": SHA_A,
+                "status": "pending",
+            },
+            "evidence": [],
+            "deferred_reason": None,
+        }
+        run["integration"]["retention"] = "persistent"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["post_merge_cleanup"]["local_branch"]["status"] = "deleted"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.post_merge_cleanup.local_branch.status: must not be deleted when run.integration.retention is persistent",
+        )
+
+        # "not_started" has no fixed branch-status requirement, unlike ready/complete.
+        run["post_merge_cleanup"]["status"] = "not_started"
+        run["post_merge_cleanup"]["local_branch"]["status"] = "preserved"
+        self.assertEqual(validate_run(plan, run), [])
+
+        # "complete" normally requires "deleted", but a persistent-retention branch
+        # must reach "complete" via "preserved" instead — "deleted" stays rejected.
+        run["post_merge_cleanup"]["status"] = "complete"
+        run["post_merge_cleanup"]["evidence"] = ["artifact:cleanup"]
+        run["observed"]["git"]["parent_branch"] = "main"
+        run["observed"]["git"]["parent_head_sha"] = SHA_B
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["post_merge_cleanup"]["local_branch"]["status"] = "deleted"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.post_merge_cleanup.local_branch.status: must be preserved when cleanup is complete",
+        )
+        run["post_merge_cleanup"]["local_branch"]["status"] = "preserved"
+
+        run["integration"]["retention"] = "ephemeral"
+        run["post_merge_cleanup"]["local_branch"]["status"] = "deleted"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["integration"]["retention"] = None
+        self.assertEqual(validate_run(plan, run), [])
 
     def test_post_merge_cleanup_requires_clean_observed_worktree(self) -> None:
         plan = valid_plan()
