@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Shared, stdlib-only manifest validation and conflict helpers."""
+"""Orchestrates PLAN/RUN validation (validate_plan, validate_run) plus landing,
+cleanup, and gate-result checks, and re-exports the public API that
+scripts/tests import from this module by name."""
 
 from __future__ import annotations
 
@@ -16,15 +18,8 @@ from harness_schema import (
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GATE_VALUES,
-    GITHUB_PR_URL_RE,
-    GRAPH_EDGE_PHASES,
-    GRAPH_EXECUTORS,
-    GRAPH_NODE_KINDS,
-    GRAPH_NODE_PHASES,
-    GRAPH_OUTCOMES,
     ID_RE,
     MISSION_PHASES,
-    MODEL_TOKEN_RE,
     NESTED_SUBAGENT_ROLES,
     PERMISSION_APPROVAL_POLICIES,
     PERMISSION_FILESYSTEM_SCOPES,
@@ -46,9 +41,6 @@ from harness_schema import (
     SUPPORTED_RUN_SCHEMA_VERSIONS,
     TASK_ID_RE,
     TASK_PHASES,
-    TARGET_RE,
-    UI_EVIDENCE_IMAGE_SUFFIXES,
-    WORKER_HEADING,
     WORKER_PHASES,
     WORKFLOW_RUN_DRIVERS_BY_PROVIDER,
     WORKFLOW_RUN_STATUSES,
@@ -59,20 +51,16 @@ from harness_schema import (
 from harness_core import (
     ManifestError,
     _add,
-    _canonicalize,
-    _claim_parts,
     _is_int,
     _keys,
     _nonempty_string,
     _optional_nonnegative_int,
     _optional_sha,
     _optional_string,
-    _parts_prefix,
     _strings,
     _validate_scope_list,
     _validate_verifier,
     canonical_json,
-    extract_json_manifest,
     is_full_sha,
     is_safe_model_token,
     load_plan,
@@ -91,7 +79,6 @@ from harness_core import (
     validate_scope_claim,
 )
 from harness_authorization import (
-    _authorization_not_expired,
     _landing_future_pr_target,
     _validate_authorization_scope,
     authorization_covers,
@@ -103,14 +90,10 @@ from harness_graph import (
     _validate_graph_state,
 )
 from harness_release import (
-    _validate_cloudflare_release_targets,
     _validate_deployments,
-    _validate_generic_release_targets,
     _validate_release,
 )
 from harness_ui_evidence import (
-    _has_ui_image_signature,
-    _valid_ui_artifact_path,
     _validate_ui_evidence,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
