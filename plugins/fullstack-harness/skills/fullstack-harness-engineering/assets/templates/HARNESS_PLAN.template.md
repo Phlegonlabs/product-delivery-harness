@@ -543,6 +543,8 @@ Release target:
 
 For deployable Cloudflare applications, the canonical `release` object owns the development and production Worker names, Wrangler environments, isolated data/auth/payment modes, exact deployment commands, smoke verifiers, and promotion prerequisites. Use `migration_command: null` only when the target has no remote migration step. The development target binds to the current PR head after CI; production binds to the merged `main` SHA only after development passes.
 
+The development target's `source` field is `"pr_head"` by default (the dispatched-GitHub-Actions model shown in the JSON above), but may instead be `"integration_head"` when the repository uses Cloudflare's native Git auto-deploy — in which case development binds to the tracked integration-branch head rather than any PR field, and the plan must also declare `run.integration.retention: "persistent"` so that branch survives across runs. See `references/cloudflare-deployment-lifecycle.md`'s "Auto-Deploy Release Model (Alternative Trigger)" section for the full topology and when this alternative applies.
+
 These are planning expectations, not authorization. Record explicit action authorization only in the `RUN.md` ledger.
 
 ## Scope And Contract Freeze

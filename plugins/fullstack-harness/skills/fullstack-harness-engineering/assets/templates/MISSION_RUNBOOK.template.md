@@ -10,6 +10,8 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 `deployments.provider` accepts `cloudflare | vercel | aws | self_hosted | other` and must match the PLAN's `release.provider`. The `development`/`production` fields below (including `worker_name`/`url`/`version_id`) apply to any provider, but a `PASS` status only requires a non-empty `worker_name`/`url`/`version_id` when `provider` is `cloudflare`; other providers only require `source_sha` and retained `evidence`.
 
+`deployments.production.authorized_head_sha` records the integration head SHA that was current when `deploy:production` was authorized; it is `null` while production is `not_started` but is required once production leaves `not_started`, so the deploy-time SHA-drift comparison has a recorded baseline — see `references/cloudflare-deployment-lifecycle.md`'s Pre-Deploy Confirmation Checkpoint.
+
 ```json
 {
   "harness_run": {
@@ -211,6 +213,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       "production": {
         "status": "not_started",
         "source_sha": null,
+        "authorized_head_sha": null,
         "worker_name": null,
         "url": null,
         "version_id": null,

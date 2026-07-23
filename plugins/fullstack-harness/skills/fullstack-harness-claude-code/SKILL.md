@@ -27,16 +27,17 @@ dynamic_workflow + parent_managed_worktree + agent_result
 -> sequential parent
 ```
 
-Use three as the configured write-worker maximum; the effective wave may be smaller. Never run parallel writers in `shared_checkout`.
+Do not cap the configured write-worker maximum at a small fixed number; set it generously high per the core's Default Runtime And Wave Policy, and let observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size determine the effective wave — it may still end up smaller. Never run parallel writers in `shared_checkout`.
 
 ## Claude Provider Defaults
 
-Reserve the parent's own top-tier model — whichever model opened the current session (for example `claude-fable-5` or `claude-opus-4-8`) — for the parent's own coordination and planning. Do not assign it to a delegated node by default. Preserve explicit user and PLAN choices. Otherwise, for new PLAN-v4 runtime-worker nodes, every delegated node — mission (including frontend/UI implementation) and review alike — defaults to Claude Code `sonnet`:
+Reserve the parent's own top-tier model — whichever model opened the current session (for example `claude-fable-5` or `claude-opus-4-8`) — for the parent's own coordination and planning. Do not assign it to a delegated node by default. Preserve explicit user and PLAN choices. Otherwise, for new PLAN-v4 runtime-worker nodes, a delegated implementation or review node defaults to Claude Code `sonnet`; a node doing bounded, mechanical, or purely read-only work (exploration, research, test/log analysis, discovery, inexpensive preflight checks) instead defaults to `haiku`, per the core's Runtime Binding point 6:
 
 - frontend/UI implementation, general-purpose, and backend mission nodes use `sonnet` with `high` effort;
 - routine `frontend_code`, `backend_code`, and visual review use `sonnet` with `medium` effort;
 - raise a delegated node's effort to `xhigh` — while keeping its model at `sonnet` — only for security, migration, difficult correctness, broad architecture, or genuine visual ambiguity;
-- raise a delegated node's model above `sonnet` only on an explicit user request naming that specific node.
+- raise a delegated node's model above `sonnet` only on an explicit user request naming that specific node;
+- bounded/mechanical/discovery/read-only nodes use `haiku` with `low` or `medium` reasoning effort instead of `sonnet` — this is a lower tier than the `sonnet` default above, not a request to raise a node's model above `sonnet`, so it does not need the explicit-user-request bullet above.
 
 Pass each node's PLAN-selected `model` (and non-null `reasoning_effort` as `effort`) from its `runtime_binding` directly into that node's own `agent()` call inside the Workflow script, or into the `model`/`effort` parameters of a direct `Agent` tool call. Do not silently widen tools or substitute a rejected model or effort; revise policy and reselect.
 
@@ -48,7 +49,7 @@ Use `subagent` + `parent_managed_worktree` + `agent_result` only with exact auth
 2. Allocate one collision-resistant branch, lease, and exact-base worktree per mission under `.claude/worktrees/<run>-<mission>-<attempt>/`.
 3. Build immutable handoffs from `../fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md`.
 4. Route by wave composition, not schema version alone: for a single-role, all-mission wave (no review node, one tool profile), call `../fullstack-harness-engineering/assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js`. For a typed wave that mixes mission and review nodes, or that must enforce per-node tool profiles or `EnterWorktree`, call `../fullstack-harness-engineering/assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js`. The flat script covers schema v6 through v9 when the wave is single-role; a PLAN-v4 graph wave does not by itself require the graph script.
-5. Mission and read-only review profiles include `EnterWorktree`. Before repository access, every agent enters the exact existing path and verifies root, branch, and base. Review profiles omit `Edit`, `Write`, `NotebookEdit`, and `Bash`.
+5. In the typed-graph route (`CLAUDE_GRAPH_WORKFLOW.template.js`), mission and read-only review profiles include the actual `EnterWorktree` tool: before repository access, every agent enters the exact existing path and verifies root, branch, and base, and review profiles omit `Edit`, `Write`, `NotebookEdit`, and `Bash`. In the flat route (`CLAUDE_DYNAMIC_WORKFLOW.template.js`), there is no `EnterWorktree` tool or allowlist enforcement — the mission prompt instructs the agent in plain English to enter the existing worktree path and verify root, branch, and base before any repository action, and it returns blocked if it cannot bind (see `../fullstack-harness-engineering/references/worktree-thread-orchestration.md`).
 6. Group waves by tool profile only. Pass each node's own `model`/`reasoning_effort` (from its `runtime_binding`) into that node's `agent()` call — a single Workflow call may freely mix models and reasoning efforts across nodes, since each spawned agent call selects its own. Do not mix tool profiles (mission-write vs. read-only review) in one call.
 7. Do not ask for user input inside a running Workflow. Return a blocked/refinement result, let the parent resolve it, then start a later attempt.
 8. Validate each `agent_result` against live worktree, branch, head, scope, and verifier facts before serial integration.

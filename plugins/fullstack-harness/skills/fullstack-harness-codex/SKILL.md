@@ -27,7 +27,7 @@ app_task + app_managed_worktree + thread_poll
 -> sequential parent
 ```
 
-Use three as the configured write-worker maximum; the effective wave may be smaller. Never run parallel writers in `shared_checkout`.
+Do not cap the configured write-worker maximum at a small fixed number; set it generously high per the core's Default Runtime And Wave Policy, and let observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size determine the effective wave — it may still end up smaller. Never run parallel writers in `shared_checkout`.
 
 ## Codex Provider Defaults
 
@@ -37,6 +37,7 @@ Preserve an explicit user or PLAN choice. Otherwise, for new PLAN-v4 runtime-wor
 - frontend/UI implementation uses Codex `gpt-5.6-sol` with `high` reasoning;
 - routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`;
 - routine `frontend_code` and visual review use Codex `gpt-5.6-sol` with `medium` reasoning;
+- for bounded mechanical edits, discovery, or inexpensive preflight work (codebase exploration, documentation/API research, test/log analysis), prefer Codex's fastest/cheapest available model with `low` or `medium` reasoning instead of the general-purpose/implementation defaults above;
 - raise a mission node's effort to `xhigh`, or a review node's effort above `medium`, only for security, migration, difficult correctness, broad architecture, or genuine ambiguity.
 
 Pass non-null PLAN-selected values to task creation as `model` and `thinking`. Never silently substitute a rejected model, effort, permission mode, or tool profile; revise the affected runtime policy and reselect.
@@ -51,12 +52,23 @@ Do not stop after printing a non-empty app-task wave. After validating PLAN/RUN,
 2. Allocate the worker and lease identity, then recheck pre-allocation `*` grants only for app-assigned task/worktree identities; recheck every already-known branch, commit, mission, and worker target exactly.
 3. Build the initial prompt from `../fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md`, including plan digest, immutable base, scope, tasks, resources, verifiers, permission boundary, and nested policy.
 4. Create one app-managed worktree task per selected mission from the recorded integration branch/ref. Record the returned thread ID or queued client-thread ID; never invent it from a mission name.
-5. Poll with bounded backoff, send necessary follow-up through the thread message surface, and preserve terminal, blocked, interrupted, and partial results.
+5. Poll with bounded backoff: start at 15 seconds, double the interval after each unchanged poll up to a 5-minute ceiling, and treat a thread as stalled after 30 minutes with no observed status change — record `blocked: no_progress_timeout` and stop polling that thread instead of polling indefinitely. This poll-timeout budget is independent from a mission's `max_attempts` retry count and from the worker-level three-consecutive-no-progress-iteration guardrail (`GOAL.template.md`). Send necessary follow-up through the thread message surface, and preserve terminal, blocked, interrupted, and partial results.
 6. Observe the actual Git common directory, path, branch/ref, base, head, changed files, and commit ancestry. Validate before serial parent integration.
 
 App-managed worktrees may start detached. When durable handoff is required, create the authorized branch/ref early. The task is the sole writer in its worktree. Never assume a managed worktree also isolates ports, databases, queues, caches, secrets, or third-party sandboxes.
 
+## Launch Selected Codex Read-Only Review Nodes
+
+A `verifier`/review node (`backend_code`, `frontend_code`, or `visual` review) never requests `create_app_managed_worktrees`, `create_local_branches`, or `create_local_commits` — per `scripts/select_ready_nodes.py`, a read-only review node's required actions are only `create_user_owned_tasks` (for the `app_threads` driver) and `spawn_subagents`. Do not route it through the mission worktree-allocation steps above.
+
+1. Resolve the exact SHA under review (the mission or integration head named by the accepted wave). Do not allocate a new worktree, branch, or commit for this node.
+2. Create one app task (or direct subagent, if that route is selected) scoped read-only to that exact SHA, using the reviewer's role/task description from the PLAN node and its own `model`/`thinking` values.
+3. Poll it with the same bounded-backoff and stall rules as a mission task above.
+4. Record `review_head_sha`, decision, and findings in RUN. A PASS binds only to that exact SHA; a later local integration or push invalidates it per `../fullstack-harness-engineering/references/verification-gates.md`.
+
 ## Nested Read-Only Subagents
+
+A mission is `non-trivial` when its task list spans more than one file or module boundary, or changes business logic rather than pure configuration, copy, or a mechanical rename/move; a single mechanical edit confined to one file is `trivial` and may report an allowed triviality reason instead of launching a child.
 
 Every non-trivial app-task mission gets a depth-one policy capped at three direct read-only children when current capability and `spawn_subagents` authorization are both proven. Eligible lanes are codebase exploration, documentation/API research, test/log analysis, and post-edit proposed-diff review.
 

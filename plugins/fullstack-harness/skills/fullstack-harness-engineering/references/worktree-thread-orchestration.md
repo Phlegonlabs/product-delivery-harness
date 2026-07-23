@@ -260,7 +260,7 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
-- Delete only the exact recorded, fully integrated branch when `delete_branches` is true.
+- Delete only the exact recorded, fully integrated branch when `delete_branches` is true, unless `run.integration.retention == "persistent"`, in which case the branch is preserved rather than deleted (see `execution-state-model.md`'s Post-Merge Cleanup State).
 - Archive only worker tasks explicitly covered by `archive_worker_tasks`.
 - Record manual cleanup as complete, deferred, or not authorized. Record app-managed lifecycle separately because platform retention remains outside the harness's control.
 
