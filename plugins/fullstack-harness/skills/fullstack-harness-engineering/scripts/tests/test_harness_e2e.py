@@ -176,8 +176,12 @@ class HarnessCliE2ETests(unittest.TestCase):
         plan = valid_graph_plan()
         plan["missions"][0]["tasks"] = [plan["missions"][0]["tasks"][0]]
         plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
-        plan["graph"]["edges"] = []
+        plan["graph"]["edges"] = [
+            edge for edge in plan["graph"]["edges"] if edge["to"] == "N-COVERAGE-REVIEW"
+        ]
         for node in plan["graph"]["nodes"]:
+            if node["kind"] != "mission":
+                continue
             node["runtime"] = {
                 "preferred_provider": "codex",
                 "allowed_providers": ["codex"],

@@ -95,7 +95,43 @@ def valid_graph_plan() -> dict[str, object]:
             }
         ],
     }
+    coverage_review = graph_node(
+        "N-COVERAGE-REVIEW",
+        "verifier",
+        "batch",
+        "runtime_worker",
+        ["pass", "fix_required", "retryable_failure", "blocked", "contract_gap"],
+    )
+    coverage_review["review"] = {
+        "type": "backend_code",
+        "mission_ids": ["M1", "M2"],
+        "scope": ["src/a/**", "src/ab/**"],
+        "required_evidence": ["reviewed_sha", "findings"],
+    }
+    plan["graph"]["nodes"].append(coverage_review)
+    plan["graph"]["edges"].append(
+        {
+            "id": "E-M2-COVERAGE-REVIEW",
+            "kind": "dependency",
+            "from": "N-M2",
+            "to": coverage_review["id"],
+            "on_outcomes": ["pass"],
+            "max_traversals": None,
+        }
+    )
     return plan
+
+
+def detach_mission_edges(plan: dict[str, object]) -> None:
+    """Make M1 and M2 independent roots while keeping the review node wired."""
+    plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
+    plan["graph"]["edges"] = [
+        edge for edge in plan["graph"]["edges"] if edge["to"] == "N-COVERAGE-REVIEW"
+    ]
+
+
+def mission_nodes(plan: dict[str, object]) -> list[dict[str, object]]:
+    return [node for node in plan["graph"]["nodes"] if node["kind"] == "mission"]
 
 
 def valid_graph_run(plan: dict[str, object]) -> dict[str, object]:
@@ -811,12 +847,66 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual("run_parent", result["dispatchable_nodes"][0]["launch_kind"])
         self.assertEqual("parent", result["dispatchable_nodes"][0]["worker_runtime"])
 
+    def test_execution_authorization_requires_review_coverage_per_write_scope(self) -> None:
+        # contract-and-traceability.md requires every mission write scope to be
+        # covered by a review-type node regardless of landing.mode. local_only
+        # gets no GitHub review, so an uncovered scope means no review at all.
+        # The gate is execution authorization, not plan structure: an upgraded
+        # v3 projection stays a valid PLAN, it just cannot be executed until
+        # the review nodes are authored.
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M1", "M2"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+
+        uncovered = valid_graph_plan()
+        review = next(
+            node for node in uncovered["graph"]["nodes"] if node["id"] == "N-COVERAGE-REVIEW"
+        )
+        review["review"]["mission_ids"] = ["M1"]
+        errors = validate_run(uncovered, run)
+        self.assertTrue(
+            any(
+                "these missions have a write scope and no review node: M2" in error
+                for error in errors
+            ),
+            f"expected an uncovered-M2 error in {errors!r}",
+        )
+
+        # An unauthorized run is still valid: the plan may legitimately be a
+        # draft that has not authored its review nodes yet.
+        draft = dict(run)
+        draft["execution_authorized"] = False
+        draft["execution_authorization_source"] = None
+        draft["execution_authorization_scope"] = None
+        draft["status"] = "planning"
+        self.assertEqual(
+            [
+                error
+                for error in validate_run(uncovered, draft)
+                if "no review node" in error
+            ],
+            [],
+        )
+
     def test_shared_checkout_caps_parent_writers_at_one(self) -> None:
         plan = valid_graph_plan()
-        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
-        plan["graph"]["edges"] = []
+        detach_mission_edges(plan)
         plan["max_parallel_workers"] = 2
-        for node in plan["graph"]["nodes"]:
+        for node in mission_nodes(plan):
             node["executor"] = "harness_parent"
             node["runtime"] = None
         run = valid_graph_run(plan)
@@ -848,8 +938,7 @@ class GraphManifestTests(unittest.TestCase):
 
     def test_unauthorized_mission_does_not_consume_write_budget(self) -> None:
         plan = valid_graph_plan()
-        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
-        plan["graph"]["edges"] = []
+        detach_mission_edges(plan)
         run = valid_graph_run(plan)
         run.update(
             {
@@ -967,10 +1056,9 @@ class GraphManifestTests(unittest.TestCase):
         # the only thing that makes it dispatchable, and it dispatches
         # natively (source "host"), never through a guarded external route.
         plan = valid_graph_plan()
-        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
-        plan["graph"]["edges"] = []
+        detach_mission_edges(plan)
         plan["max_parallel_workers"] = 2
-        for node in plan["graph"]["nodes"]:
+        for node in mission_nodes(plan):
             node["runtime"] = {
                 "preferred_provider": "codex",
                 "allowed_providers": ["codex"],
@@ -1590,9 +1678,8 @@ class GraphManifestTests(unittest.TestCase):
         # dispatchable node still carries its own exact PLAN-selected
         # runtime_binding so the adapter can group them itself.
         plan = valid_graph_plan()
-        plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
-        plan["graph"]["edges"] = []
-        for node, model in zip(plan["graph"]["nodes"], ("sonnet", "opus"), strict=True):
+        detach_mission_edges(plan)
+        for node, model in zip(mission_nodes(plan), ("sonnet", "opus"), strict=True):
             node["runtime"] = {
                 "preferred_provider": "claude_code",
                 "allowed_providers": ["claude_code"],

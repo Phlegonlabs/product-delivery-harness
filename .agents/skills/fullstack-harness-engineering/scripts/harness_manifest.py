@@ -1398,6 +1398,38 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.plan_readiness", "has an unsupported value")
     if not isinstance(run["execution_authorized"], bool):
         _add(errors, "run.execution_authorized", "must be boolean")
+    if (
+        run.get("execution_authorized") is True
+        and plan.get("schema_version") == 4
+        and isinstance(plan.get("graph"), dict)
+    ):
+        reviewed_missions: set[str] = set()
+        for node in plan["graph"].get("nodes", []):
+            if not isinstance(node, dict):
+                continue
+            if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
+                continue
+            review = node.get("review")
+            if not isinstance(review, dict):
+                continue
+            for mission_id in review.get("mission_ids") or []:
+                if isinstance(mission_id, str):
+                    reviewed_missions.add(mission_id)
+        unreviewed = sorted(
+            mission["id"]
+            for mission in plan.get("missions", [])
+            if isinstance(mission, dict)
+            and isinstance(mission.get("id"), str)
+            and mission.get("write_scope")
+            and mission["id"] not in reviewed_missions
+        )
+        if unreviewed:
+            _add(
+                errors,
+                "run.execution_authorized",
+                "cannot authorize execution while these missions have a write scope "
+                "and no review node: " + ", ".join(unreviewed),
+            )
     if run["execution_authorized"]:
         if not _nonempty_string(run["execution_authorization_source"]):
             _add(errors, "run.execution_authorization_source", "is required when authorized")
