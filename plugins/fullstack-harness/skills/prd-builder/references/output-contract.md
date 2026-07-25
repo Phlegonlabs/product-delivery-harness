@@ -6,7 +6,7 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/architecture.md`
 - `docs/product/wireframes.md`
 
-This package stays in the product/spec layer. Do not add design-system, high-fidelity UI mockup, visual token, or page-level visual acceptance artifacts to this output contract.
+This package stays in the product/spec layer. Do not add design-system, visual-token, primitive- or component-contract, UI-registry, page-recipe, high-fidelity UI mockup, or page-level visual acceptance artifacts to this output contract. `ui-architecture-builder` owns them and publishes `ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, `mockups/*.html` plus `mockups/catalog.html`, and `visual-acceptance.md` alongside this package.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -47,7 +47,7 @@ Decision owner: [Human product/design owner or commissioning team]
 | Confirmation and recovery | [Confirm / undo / retry / escalation expectations] | [Reason] | [selected / provisional / assumed] | [Method or none] |
 
 Validation depth: [lightweight direction-conformance review only / moderate (conformance plus targeted checks) / deep (formal usability or user-evidence validation)] — [selected / provisional / assumed], decided by [decision owner]
-This is the single recorded home for the interview's validation-depth answer, so downstream skills (design-package-builder) can read it here instead of re-asking.
+This is the single recorded home for the interview's validation-depth answer, so downstream skills (ui-architecture-builder) can read it here instead of re-asking.
 
 Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
 
@@ -273,7 +273,7 @@ Use this structure:
 - Decision status: [selected / provisional / assumed, with unresolved items]
 - Product style intent: [User-selected direction, or provisional modern-minimal assumption]
 - Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
-- High-fidelity decisions deferred: [Tokens, typefaces, palette, detailed art direction, and other design-package decisions]
+- High-fidelity decisions deferred: [Tokens, typefaces, palette, primitive contracts and their variant sets, page recipes, detailed art direction, and other `ui-architecture-builder` decisions]
 
 ## Navigation Model
 [Primary navigation, tabs, routes, or channels.]
@@ -402,7 +402,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every visually important wireframe region names its style direction and purpose. Every animated region labels motion as required, optional, or none and states what it communicates.
 - ASCII boxes represent real grouping, interaction, state, or hierarchy. Repeated bordered panels with colored side rails or accent stripes are not implied without a named semantic or approved brand role.
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
-- Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to the design package.
+- Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `ui-architecture-builder`.
 - UI states include loading, empty, error, permission, and success where applicable.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions.
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.

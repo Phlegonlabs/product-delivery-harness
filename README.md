@@ -27,7 +27,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 | If you have... | Start with | What you get |
 | --- | --- | --- |
 | A product idea | `prd-builder` | Requirements, architecture, stack decisions, and wireframes |
-| A PRD or an existing product direction | `design-package-builder` | A design system, real page mockups, and visual acceptance criteria |
+| A PRD or an existing product direction | `ui-architecture-builder` | A UI architecture, a machine-readable registry, per-route page recipes, real page mockups, and visual acceptance criteria |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A verified local candidate that must reach GitHub | `fullstack-harness-github-landing` | Current-head push, PR, CI/review convergence, and exact-head merge |
 
@@ -47,7 +47,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | Skill | Use it for | Main output |
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `wireframes.md` |
-| `design-package-builder` | Design direction, tokens, icon and motion rules, real per-page HTML mockups, and visual acceptance | `design-system.md`, `visual-acceptance.md`, one HTML file per page under `mockups/`, `ui-mockups.md` |
+| `ui-architecture-builder` | The UI architecture a page may be built from: layers, tokens, primitive contracts with closed variant sets, product components, motion rules, per-route recipes, real per-page HTML mockups, and visual acceptance | `ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, one HTML file per route under `mockups/` plus `mockups/catalog.html`, `visual-acceptance.md` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex app tasks, app-managed worktrees, and nested read-only helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -67,7 +67,7 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
-  PRD --> Design["design-package-builder\nVisual system and page rules"]
+  PRD --> Design["ui-architecture-builder\nUI architecture, registry, and page recipes"]
   PRD --> Harness["fullstack-harness-engineering\nShared delivery core"]
   Design --> Harness
   Harness --> Runtime["One host adapter\nCodex or Claude Code"]
@@ -140,7 +140,7 @@ The delivery graph treats deployment as a first-class, separately authorized lif
 - The default Cloudflare model uses an exact-SHA GitHub Actions dispatch. Development binds to the current PR head; production binds to the merged base-branch SHA.
 - An optional Cloudflare Workers Builds model can auto-deploy a persistent integration branch to development and the base branch to production. It is used only when explicitly selected and never mixed with the dispatched model.
 - Day-one bootstrap creates only the confirmed environment resources and Worker shells. Real feature deployment still needs target-specific authorization.
-- `doc/deployment.md` records the human-facing topology and setup; RUN remains the machine-readable execution record.
+- `docs/deployment.md` records the human-facing topology and setup; RUN remains the machine-readable execution record.
 - Mobile and desktop deliveries use the same separation of development/beta and production credentials, backends, store tracks, and release evidence without forcing a Cloudflare-shaped contract.
 
 ## Install
@@ -227,7 +227,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
 ```
 
 ```text
-Use $design-package-builder to create a design package from doc/PRD.md and doc/wireframes.md.
+Use $ui-architecture-builder to create the UI architecture, registry, page recipes, and mockups from docs/product/PRD.md and docs/product/wireframes.md.
 ```
 
 ```text
@@ -278,7 +278,7 @@ Edit only the canonical sources in `.agents/skills/`, then sync and verify the g
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
-python -m unittest discover -s .agents/skills/design-package-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/ui-architecture-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 git diff --check
 ```
