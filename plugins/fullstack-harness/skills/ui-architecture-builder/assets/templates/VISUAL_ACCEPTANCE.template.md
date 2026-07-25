@@ -1,0 +1,44 @@
+# Visual Acceptance: <product name>
+
+## Review Gates
+
+| TEST ID | Gate | Required | Upstream trace IDs | Expected Signal | Evidence |
+|---|---|---|---|---|---|
+| TEST-VIS-001 | Design system conformance | yes | DS-* | Components use approved tokens and variants | screenshot / code review |
+| TEST-VIS-002 | Builder UX Direction conformance | when a Builder UX Direction exists | UX-*, DS-* | Selected decisions are implemented; provisional or assumed decisions and conflicts remain explicit | source review / design review |
+| TEST-VIS-003 | Page UI conformance | yes | UI-*, DS-* | Implemented page matches mockup source | screenshot / trace |
+| TEST-VIS-004 | Responsive behavior | yes | UI-* | No overflow or broken hierarchy at required breakpoints | screenshot |
+| TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
+| TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, contrast intent, labels, keyboard path checked | audit / screenshot |
+| TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
+| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks | live demo / code review |
+| TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
+| TEST-VIS-010 | Taste and anti-slop review | yes | DS-* | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
+| TEST-VIS-011 | Rendered visual review loop | when visual artifacts or an implementation exist | UI-*, DS-* | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
+| TEST-VIS-012 | Spec-only review path | when rendered visuals do not exist | UI-*, DS-* | The Markdown package was checked for taste, hierarchy, container and border purpose, responsive intent, and internal consistency; render evidence is marked unavailable and no visual-verification claim is made | text review notes |
+| TEST-VIS-013 | Content specificity | yes | PRD-*, UI-* | Every visible region preserves exact wording or a bounded display contract; generic placeholder copy is absent | product source / mockup review |
+| TEST-VIS-014 | Container and border purpose | yes | DS-*, UI-* | Regions default to open layouts; every visible border, frame, rail, or elevation has a named hierarchy, interaction, state, data, or accessibility purpose | screenshot / border inventory / design review |
+| TEST-VIS-015 | Landing-page simplicity | when applicable | PRD-*, UI-* | First viewport has one clear message and primary action; each section has one job; secondary detail is deferred | content review / screenshot |
+| TEST-VIS-016 | Media and motion traceability | when applicable | UI-*, DS-* | Every relevant region labels image/media and motion as required, optional, or none with a purpose and fallback | design system / mockup review |
+| TEST-VIS-017 | Component architecture conformance | yes | DS-*, UI-* | Every component maps to exactly one layer, composition runs downward only, and pages compose primitives instead of introducing one-off spacing, surfaces, or colors | component inventory / code review |
+| TEST-VIS-018 | Registry conformance | yes | DS-*, UI-* | Every primitive, variant, motion variant, product component, and recipe used exists in `ui-registry.json`; no raw values, arbitrary variants, or page-local controls appear outside the token layer | registry diff / code review |
+| TEST-VIS-019 | Page recipe conformance | yes | UI-*, DS-* | Each route matches its recipe's section order, container, density, allowed surfaces, and primary action, and contains none of its forbidden patterns | recipe diff / screenshot |
+| TEST-VIS-020 | Content contract conformance | yes | PRD-*, UI-* | Every rendered product component keeps its required content order and never-drop fields, and respects limits, formats, empty, and long-content rules | content review / screenshot |
+| TEST-VIS-021 | State matrix coverage | yes | UI-*, PRD-* | Every required state in the State Matrix is implemented or marked `n/a` with a reason, at every required viewport | screenshot / test |
+| TEST-VIS-022 | Contract check | yes | DS-*, UI-* | The project's UI contract check passes: no raw colors or dimensions outside the token layer, no inline layout styles, sections wrap approved containers, motion uses registered variants | project UI contract check / CI run |
+| TEST-VIS-023 | Catalog completeness | yes | DS-* | `mockups/catalog.html` shows every registry entry under realistic content at every required viewport and in reduced motion; every catalog entry exists in the registry | catalog review |
+| TEST-VIS-024 | No-JavaScript path | when server-rendered content exists | UI-*, ARCH-* | Content the route must render server-side is present and readable with JavaScript disabled | screenshot with JS disabled |
+
+Viewports verified: 390 / 768 / 1200 / 1440 px. States verified: the State Matrix in `ui-architecture.md`.
+
+## Page Acceptance
+
+| UI ID | Page / route | Source | TEST IDs | Required evidence | Status |
+|---|---|---|---|---|---|
+| UI-001 | <route> | <source> | TEST-VIS-001 | <evidence> | planned |
+
+## Known Visual Risks
+
+| Risk | Impact | Decision |
+|---|---|---|
+| <risk> | <impact> | <decision> |

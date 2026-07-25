@@ -1,0 +1,493 @@
+<!--
+  CATALOG TEMPLATE — mockups/catalog.html
+
+  This is the one page where every token, every primitive variant, and every
+  component state is visible at once, under realistic content. It is the shared
+  visual reference a human or agent opens instead of hunting through routes, and
+  the artifact the two-way registry check reads:
+
+    Every entry in `ui-registry.json` appears somewhere on this page, and every
+    entry on this page exists in `ui-registry.json`. Adding a primitive, variant,
+    or motion variant without updating both is not a usable change.
+
+  Reference/prototype medium, not production code. Dependency-free: no build step,
+  no external CDN — every token and primitive is inlined below, identical in
+  spirit to mockups/*.html so the catalog and the pages never drift apart.
+  Do not fabricate product copy here; use the bracketed placeholders and replace
+  them with real representative content, including real large numbers/currency
+  when the domain has them.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UI Catalog — [Product Name]</title>
+  <style>
+    :root {
+      color-scheme: light;
+
+      /* ---- Visual tokens — identical set to mockups/*.html; keep the two in sync ---- */
+      --bg: #f6f5f2;
+      --surface: #ffffff;
+      --surface-inset: #edeae3;
+      --ink: #16181d;
+      --muted: #5b6069;
+      --accent: #2f5bea;
+      --accent-contrast: #ffffff;
+      --line: #d8d6cf;
+      --warning: #9a6b12;
+      --danger: #b42318;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 20px;
+      --shadow-raised: 0 1px 2px rgba(22, 24, 29, .06), 0 10px 24px rgba(22, 24, 29, .08);
+
+      /* ---- Layout tokens ---- */
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --container-content: 1120px;
+      --container-narrow: 720px;
+      --container-dialog: 560px;
+      --hit-target-min: 44px;
+      --catalog-label-width: 64px;   /* catalog-only label column */
+      --catalog-demo-min-height: 72px;
+      --catalog-demo-width: 320px;
+
+      /* ---- Motion tokens ---- */
+      --motion-duration-fast: 120ms;
+      --motion-duration-standard: 220ms;
+      --motion-duration-expressive: 400ms;
+      --motion-distance-sm: 4px;
+      --motion-distance-md: 12px;
+      --motion-ease-standard: cubic-bezier(.2, .8, .2, 1);
+      --motion-ease-enter: cubic-bezier(0, 0, .2, 1);
+      --motion-ease-exit: cubic-bezier(.4, 0, 1, 1);
+
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+
+    /* Global reduced-motion policy — identical to mockups/*.html */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    button, input { font: inherit; }
+
+    /* ==========================================================================
+       PRIMITIVE LAYERS — identical to mockups/*.html. This file demonstrates
+       these classes; it does not define a second set. If a class here has no
+       twin in mockups/*.html and ui-registry.json, it is not a real primitive.
+       ========================================================================== */
+
+    .container { width: 100%; max-width: var(--container-content); margin-inline: auto; padding-inline: var(--space-4); }
+    .container--narrow { max-width: var(--container-narrow); }
+    .container--dialog { max-width: var(--container-dialog); }
+    .container--shell { max-width: none; }
+
+    .section { padding-block: var(--space-8); }
+    .section--compact { padding-block: var(--space-6); }
+    .section--editorial { padding-block: var(--space-12); }
+
+    .stack { display: flex; flex-direction: column; }
+    .cluster { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; }
+    .cluster--start { align-items: flex-start; }
+    .cluster--center { align-items: center; }
+    .cluster--end { align-items: flex-end; }
+    .cluster--baseline { align-items: baseline; }
+    .grid { display: grid; }
+    .grid--2, .grid--3, .grid--4 { grid-template-columns: 1fr; }
+
+    .gap-1 { gap: var(--space-1); }
+    .gap-2 { gap: var(--space-2); }
+    .gap-3 { gap: var(--space-3); }
+    .gap-4 { gap: var(--space-4); }
+    .gap-5 { gap: var(--space-5); }
+    .gap-6 { gap: var(--space-6); }
+    .gap-8 { gap: var(--space-8); }
+    .gap-12 { gap: var(--space-12); }
+
+    .surface { padding: var(--space-4); border-radius: var(--radius-md); background: var(--surface); }
+    .surface--plain { background: transparent; }
+    .surface--raised { border: 1px solid var(--line); box-shadow: var(--shadow-raised); }
+    .surface--inset { background: var(--surface-inset); }
+    .surface--selected { border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+    .surface--warning { border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line)); }
+    .surface--danger { border: 1px solid color-mix(in srgb, var(--danger) 40%, var(--line)); }
+    .divider { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+    .text-display { margin: 0; font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 700; line-height: 1.1; color: var(--ink); }
+    .text-heading { margin: 0; font-size: 1.25rem; font-weight: 600; line-height: 1.3; color: var(--ink); }
+    .text-body { margin: 0; font-size: 1rem; font-weight: 400; line-height: 1.55; color: var(--ink); }
+    .text-caption { margin: 0; font-size: .8125rem; font-weight: 500; line-height: 1.4; color: var(--muted); }
+    .text--truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .text--clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: var(--hit-target-min);
+      padding-inline: var(--space-4);
+      border: 1px solid transparent; border-radius: var(--radius-sm);
+      background: var(--accent); color: var(--accent-contrast);
+      font: inherit; font-weight: 600; cursor: pointer;
+    }
+    .btn--secondary { background: transparent; border-color: var(--line); color: var(--ink); }
+    .btn--tertiary { background: transparent; border-color: transparent; color: var(--ink); }
+    .btn--danger { background: var(--danger); border-color: var(--danger); color: var(--accent-contrast); }
+    .btn--sm { padding-inline: var(--space-3); font-size: .875rem; }
+    .btn--lg { padding-inline: var(--space-6); font-size: 1.0625rem; min-height: calc(var(--hit-target-min) + var(--space-2)); }
+    .btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 60%, white); outline-offset: 2px; }
+    .btn[disabled] { opacity: .5; cursor: not-allowed; }
+    .btn[aria-pressed="true"] { border-color: var(--accent); }
+
+    .btn-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: var(--hit-target-min); min-width: var(--hit-target-min);
+      border: 1px solid var(--line); border-radius: var(--radius-sm);
+      background: var(--surface); color: var(--ink); cursor: pointer;
+    }
+    .btn-icon--sm { font-size: .875rem; }
+    .btn-icon--lg { min-height: calc(var(--hit-target-min) + var(--space-2)); min-width: calc(var(--hit-target-min) + var(--space-2)); }
+    .btn-icon:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 60%, white); outline-offset: 2px; }
+    .btn-icon[disabled] { opacity: .5; cursor: not-allowed; }
+
+    .motion-demo { transition: transform var(--motion-duration-standard) var(--motion-ease-standard), box-shadow var(--motion-duration-standard) var(--motion-ease-standard); }
+    .motion-demo:hover, .motion-demo:focus-within { transform: translateY(calc(-1 * var(--motion-distance-sm))); box-shadow: var(--shadow-raised); }
+    /* Static "settled" twin of the demo above — shows what reduced motion looks
+       like without needing to change an OS setting to preview it. */
+    .motion-demo--settled { box-shadow: var(--shadow-raised); }
+
+    /* ==========================================================================
+       Catalog-only display scaffolding (not a primitive — never used in mockups/*.html)
+       ========================================================================== */
+    .catalog-nav { position: sticky; top: 0; z-index: 10; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); background: var(--surface); }
+    .catalog-nav a { margin-right: var(--space-4); color: var(--ink); font-size: .875rem; }
+    .catalog-section { border-top: 1px solid var(--line); }
+    .swatch { display: flex; flex-direction: column; gap: var(--space-2); }
+    .swatch-color { height: 56px; border-radius: var(--radius-sm); border: 1px solid var(--line); }
+    .token-bar--space-1 { width: var(--space-1); }
+    .token-bar--space-2 { width: var(--space-2); }
+    .token-bar--space-3 { width: var(--space-3); }
+    .token-bar--space-4 { width: var(--space-4); }
+    .token-bar--space-5 { width: var(--space-5); }
+    .token-bar--space-6 { width: var(--space-6); }
+    .token-bar--space-8 { width: var(--space-8); }
+    .token-bar--space-12 { width: var(--space-12); }
+    .surface--tight { padding: var(--space-2); } /* purpose: catalog demo chip, not a product surface */
+    .text--demo-width { max-width: var(--catalog-demo-width); }
+    .skeleton--full { width: 70%; }
+    .skeleton--half { width: 45%; }
+    .motion-demo-frame { min-height: var(--catalog-demo-min-height); }
+    .token-label { flex: 0 0 var(--catalog-label-width); }
+    .token-bar { height: var(--space-4); border-radius: var(--radius-sm); background: var(--accent); }
+    .skeleton { height: var(--space-3); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--ink) 10%, transparent); }
+    .viewport-frame { border: 1px dashed var(--line); border-radius: var(--radius-sm); padding: var(--space-2); }
+
+    @media (min-width: 768px) {
+      .grid--2, .grid--3, .grid--4 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (min-width: 1200px) {
+      .grid--3 { grid-template-columns: repeat(3, 1fr); }
+      .grid--4 { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (min-width: 1440px) {
+      .container, .container--narrow { padding-inline: var(--space-6); }
+    }
+  </style>
+</head>
+<body>
+  <nav class="catalog-nav cluster gap-3" aria-label="Catalog sections">
+    <a href="#tokens">Tokens</a>
+    <a href="#layout">Layout</a>
+    <a href="#surfaces">Surfaces</a>
+    <a href="#typography">Typography</a>
+    <a href="#controls">Controls</a>
+    <a href="#states">Component states</a>
+    <a href="#viewports">Viewports</a>
+    <a href="#motion">Motion</a>
+  </nav>
+
+  <main class="container stack gap-12">
+    <header class="section stack gap-2">
+      <h1 class="text-display">UI Catalog: [Product Name]</h1>
+      <p class="text-body">Every token, primitive variant, and component state this product registers, under realistic content. Anything shown here that is not in <code>ui-registry.json</code>, and anything in that registry not shown here, is a drift bug — fix the file that is behind, not this one in isolation.</p>
+    </header>
+
+    <!-- ===================== TOKENS ===================== -->
+    <section id="tokens" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Design tokens</h2>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Color</strong></h3>
+        <div class="grid grid--4 gap-3">
+          <div class="swatch"><div class="swatch-color" style="background: var(--bg)"></div><span class="text-caption">--bg</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--surface)"></div><span class="text-caption">--surface</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--surface-inset)"></div><span class="text-caption">--surface-inset</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--ink)"></div><span class="text-caption">--ink</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--muted)"></div><span class="text-caption">--muted</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--accent)"></div><span class="text-caption">--accent</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--line)"></div><span class="text-caption">--line</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--warning)"></div><span class="text-caption">--warning</span></div>
+          <div class="swatch"><div class="swatch-color" style="background: var(--danger)"></div><span class="text-caption">--danger</span></div>
+        </div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Spacing scale</strong> (Stack/Cluster/Grid gaps in ui-registry.json)</h3>
+        <div class="stack gap-2">
+          <div class="cluster gap-3"><span class="text-caption token-label">space-1</span><div class="token-bar token-bar--space-1"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-2</span><div class="token-bar token-bar--space-2"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-3</span><div class="token-bar token-bar--space-3"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-4</span><div class="token-bar token-bar--space-4"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-5</span><div class="token-bar token-bar--space-5"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-6</span><div class="token-bar token-bar--space-6"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-8</span><div class="token-bar token-bar--space-8"></div></div>
+          <div class="cluster gap-3"><span class="text-caption token-label">space-12</span><div class="token-bar token-bar--space-12"></div></div>
+        </div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Radius</strong></h3>
+        <div class="cluster gap-4">
+          <div class="surface surface--raised" style="border-radius: var(--radius-sm); width: 96px; height: 56px;"><span class="text-caption">radius-sm</span></div>
+          <div class="surface surface--raised" style="border-radius: var(--radius-md); width: 96px; height: 56px;"><span class="text-caption">radius-md</span></div>
+          <div class="surface surface--raised" style="border-radius: var(--radius-lg); width: 96px; height: 56px;"><span class="text-caption">radius-lg</span></div>
+        </div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Motion</strong></h3>
+        <table class="text-body">
+          <thead><tr><th class="text-caption">Token</th><th class="text-caption">Duration</th><th class="text-caption">Easing</th><th class="text-caption">Usage</th></tr></thead>
+          <tbody>
+            <tr><td>motion-duration-fast</td><td>120ms</td><td>—</td><td>Hover/press feedback</td></tr>
+            <tr><td>motion-duration-standard</td><td>220ms</td><td>ease-standard</td><td>Enter/exit, hover lift</td></tr>
+            <tr><td>motion-duration-expressive</td><td>400ms</td><td>ease-enter / ease-exit</td><td>Dialogs, choreographed sequences</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Hit target</strong></h3>
+        <p class="text-body">--hit-target-min: 44px — the floor for every Button and IconButton size (see Controls below).</p>
+      </div>
+    </section>
+
+    <!-- ===================== LAYOUT ===================== -->
+    <section id="layout" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Layout primitives</h2>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Container</strong> sizes</h3>
+        <div class="stack gap-2">
+          <div class="container--narrow surface surface--inset"><span class="text-caption">container--narrow — 720px</span></div>
+          <div class="surface surface--inset"><span class="text-caption">container (default) — 1120px</span></div>
+          <div class="container--dialog surface surface--inset"><span class="text-caption">container--dialog — 560px</span></div>
+        </div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Section</strong> densities</h3>
+        <div class="section--compact surface surface--inset"><span class="text-caption">section--compact</span></div>
+        <div class="section surface surface--inset"><span class="text-caption">section (default)</span></div>
+        <div class="section--editorial surface surface--inset"><span class="text-caption">section--editorial</span></div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Cluster</strong> alignment</h3>
+        <div class="cluster cluster--start gap-2 surface surface--inset motion-demo-frame">
+          <div class="surface surface--raised surface--tight">short</div>
+          <div class="surface surface--raised surface--tight">a bit taller item</div>
+        </div>
+        <p class="text-caption">cluster--start / --center / --end / --baseline — all four are registered aligns</p>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Grid</strong> column sets</h3>
+        <div class="grid grid--3 gap-3">
+          <div class="surface surface--raised"><span class="text-caption">grid--3, item 1</span></div>
+          <div class="surface surface--raised"><span class="text-caption">grid--3, item 2</span></div>
+          <div class="surface surface--raised"><span class="text-caption">grid--3, item 3</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== SURFACES ===================== -->
+    <section id="surfaces" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Surface primitives</h2>
+      <div class="grid grid--3 gap-4">
+        <div class="surface surface--plain stack gap-2"><strong class="text-heading">plain</strong><p class="text-caption">purpose: default open grouping — no border, no elevation</p></div>
+        <div class="surface surface--raised stack gap-2"><strong class="text-heading">raised</strong><p class="text-caption">purpose: independently actionable, self-contained module</p></div>
+        <div class="surface surface--inset stack gap-2"><strong class="text-heading">inset</strong><p class="text-caption">purpose: recessed nested content, not its own interactive region</p></div>
+        <div class="surface surface--selected stack gap-2"><strong class="text-heading">selected</strong><p class="text-caption">purpose: selection / active-state marker</p></div>
+        <div class="surface surface--warning stack gap-2"><strong class="text-heading">warning</strong><p class="text-caption">purpose: cautionary or stale-data notice</p></div>
+        <div class="surface surface--danger stack gap-2"><strong class="text-heading">danger</strong><p class="text-caption">purpose: error identification</p></div>
+      </div>
+    </section>
+
+    <!-- ===================== TYPOGRAPHY ===================== -->
+    <section id="typography" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Typography primitives</h2>
+      <div class="stack gap-4">
+        <div><p class="text-caption">text-display</p><p class="text-display">[Short real headline]</p></div>
+        <div><p class="text-caption">text-heading</p><p class="text-heading">[Short real section heading]</p></div>
+        <div><p class="text-caption">text-body — short</p><p class="text-body">[Short real body copy in the product's own language]</p></div>
+        <div><p class="text-caption">text-body — long</p><p class="text-body">[Full real long-form body copy, long enough to wrap across several lines and show real line-height and measure — replace with representative product content, not lorem ipsum]</p></div>
+        <div><p class="text-caption">text-body, text--truncate</p><p class="text-body text--truncate text--demo-width">[A long real single-line value forced to truncate with an ellipsis at a fixed width]</p></div>
+        <div><p class="text-caption">text-body, text--clamp</p><p class="text-body text--clamp text--demo-width">[A long real multi-line value clamped to three lines before it cuts off, demonstrating the wrap and clamp behavior a long-content state relies on]</p></div>
+        <div><p class="text-caption">text-caption</p><p class="text-caption">[Short real caption or metadata line]</p></div>
+      </div>
+    </section>
+
+    <!-- ===================== CONTROLS ===================== -->
+    <section id="controls" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Control primitives</h2>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Button</strong> variants</h3>
+        <div class="cluster gap-3">
+          <button class="btn">Primary</button>
+          <button class="btn btn--secondary">Secondary</button>
+          <button class="btn btn--tertiary">Tertiary</button>
+          <button class="btn btn--danger">Danger</button>
+        </div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Button</strong> sizes — every size keeps the 44px hit-target floor</h3>
+        <div class="cluster gap-3 cluster--center">
+          <button class="btn btn--sm">Small</button>
+          <button class="btn">Medium (default)</button>
+          <button class="btn btn--lg">Large</button>
+        </div>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Button</strong> states</h3>
+        <div class="cluster gap-3">
+          <button class="btn">Default</button>
+          <button class="btn" aria-pressed="true">Selected</button>
+          <button class="btn" disabled>Disabled</button>
+        </div>
+        <p class="text-caption">Tab to a button to see the focus-visible outline; it is not reproducible as a static screenshot.</p>
+      </div>
+
+      <div class="stack gap-3">
+        <h3 class="text-body"><strong>Icon button</strong> sizes and states — always paired with aria-label</h3>
+        <div class="cluster gap-3 cluster--center">
+          <button class="btn-icon btn-icon--sm" aria-label="[Descriptive action]">&#9679;</button>
+          <button class="btn-icon" aria-label="[Descriptive action]">&#9679;</button>
+          <button class="btn-icon btn-icon--lg" aria-label="[Descriptive action]">&#9679;</button>
+          <button class="btn-icon" aria-label="[Descriptive action]" disabled>&#9679;</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== COMPONENT STATES ===================== -->
+    <section id="states" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Component states</h2>
+      <p class="text-body">The full state matrix from <code>ui-registry.json</code>, shown on one representative product component under short content, long content, and large numeric/currency values.</p>
+
+      <div class="grid grid--3 gap-4">
+        <article class="surface surface--raised stack gap-2">
+          <p class="text-caption">Ready — short content</p>
+          <strong class="text-heading">[Real item title]</strong>
+          <p class="text-body">[Real item content]</p>
+        </article>
+        <article class="surface surface--raised stack gap-2">
+          <p class="text-caption">Ready — long content</p>
+          <strong class="text-heading text--truncate">[Full real long title, long enough to force truncation]</strong>
+          <p class="text-body text--clamp">[Full real long-form content, long enough to verify wrap and clamp across three lines]</p>
+        </article>
+        <article class="surface surface--raised stack gap-2">
+          <p class="text-caption">Ready — large numeric/currency value</p>
+          <strong class="text-heading">[Large representative currency value, e.g. $12,489.30]</strong>
+          <p class="text-body">[Large representative count, e.g. 1,204,588 units]</p>
+        </article>
+
+        <div class="surface surface--plain stack gap-2">
+          <p class="text-caption">Loading</p>
+          <div class="skeleton skeleton--full"></div>
+          <div class="skeleton skeleton--half"></div>
+        </div>
+        <div class="surface surface--plain stack gap-2">
+          <p class="text-caption">Empty</p>
+          <strong class="text-heading">[Exact empty-state heading]</strong>
+          <p class="text-body">[Exact empty-state guidance]</p>
+        </div>
+        <div class="surface surface--danger stack gap-2" role="alert">
+          <p class="text-caption">Error</p>
+          <strong class="text-heading">[Exact error heading]</strong>
+          <p class="text-body">[Exact error explanation and recovery action]</p>
+        </div>
+
+        <div class="surface surface--raised stack gap-2">
+          <p class="text-caption">Disabled</p>
+          <button class="btn" disabled>[Exact primary action]</button>
+        </div>
+        <div class="surface surface--plain stack gap-2">
+          <p class="text-caption">Permission denied</p>
+          <p class="text-body">[Exact permission-denied explanation]</p>
+        </div>
+        <div class="surface surface--warning stack gap-2">
+          <p class="text-caption">Stale</p>
+          <p class="text-body">[Exact "data may be out of date" notice]</p>
+        </div>
+        <div class="surface surface--danger stack gap-2">
+          <p class="text-caption">Expired</p>
+          <p class="text-body">[Exact "this has expired" explanation]</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== VIEWPORTS ===================== -->
+    <section id="viewports" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Required viewports</h2>
+      <p class="text-body">Resize the browser through each width below; the real media queries in the token block above drive every layout change on this page and in every mockup.</p>
+      <div class="cluster gap-3">
+        <div class="viewport-frame"><span class="text-caption">390px — mobile</span></div>
+        <div class="viewport-frame"><span class="text-caption">768px — tablet</span></div>
+        <div class="viewport-frame"><span class="text-caption">1200px — desktop</span></div>
+        <div class="viewport-frame"><span class="text-caption">1440px — wide desktop</span></div>
+      </div>
+    </section>
+
+    <!-- ===================== MOTION ===================== -->
+    <section id="motion" class="catalog-section section stack gap-6">
+      <h2 class="text-heading">Motion — normal vs. reduced</h2>
+      <div class="grid grid--2 gap-4">
+        <article class="surface surface--raised motion-demo stack gap-2" tabindex="0">
+          <p class="text-caption">Normal motion — hover or focus this card</p>
+          <strong class="text-heading">[Representative interactive item]</strong>
+        </article>
+        <article class="surface surface--raised motion-demo--settled stack gap-2">
+          <p class="text-caption">Reduced motion — the same card's settled end state, shown instantly with no transition</p>
+          <strong class="text-heading">[Representative interactive item]</strong>
+        </article>
+      </div>
+      <p class="text-caption">Both cards are visible and meaningful without JavaScript. Enabling "prefers reduced motion" in the OS/browser makes the left card behave exactly like the right one, per the global token-block policy above.</p>
+    </section>
+  </main>
+</body>
+</html>
