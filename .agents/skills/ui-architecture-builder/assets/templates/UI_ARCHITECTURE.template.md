@@ -13,7 +13,7 @@ Registry enforcement: <advisory / blocking contract check>
 |---|---|---|---|
 | Product rules | What the product must always show, never hide, never claim | Visual values | PRD-*, this document |
 | Content contracts | Required fields, limits, formats, empty and long-content handling | Layout, color | this document |
-| Route and state contracts | Routes, required states, what must render without JavaScript | Component internals | `page-recipes.md` |
+| Route and state contracts | Routes, required states, what must render without JavaScript (or `n/a` plus a reason when the route has no server-rendered web surface) | Component internals | `page-recipes.md` |
 | Design tokens | Every raw visual, layout, and motion value | Markup, structure | `design-system.md` |
 | Layout primitives | Space, flow, alignment, max width, responsive rearrangement | Color, background, border, elevation, domain content | this document |
 | Surface primitives | Background, border, divider, radius, elevation, own padding | Spacing between its own children, domain content | this document |
@@ -122,7 +122,7 @@ Reduced-motion policy is set once, globally: <where and how>. Pages reference va
 | Expired | <yes / n/a> | <scope> | <behavior> | TEST-VIS-* |
 | Long content | yes | <scope> | <behavior> | TEST-VIS-* |
 | Reduced motion | yes | <scope> | <final state shown> | TEST-VIS-* |
-| Mobile reflow | yes | <scope> | <behavior at 390px> | TEST-VIS-* |
+| Mobile reflow | yes | <scope> | <behavior at the narrowest entry in the verified responsive set: 390px for a web target, the compact size class or smallest window size otherwise> | TEST-VIS-* |
 
 ## Registry
 
@@ -132,7 +132,7 @@ Adding a primitive, variant, motion variant, product component, or recipe means 
 
 ## Catalog
 
-`mockups/catalog.html` shows every token, primitive variant, and component state under realistic content: short and long real copy, large numeric and currency values where the domain has them, empty and error data, each required viewport, and normal versus reduced motion. Every registry entry appears there, and every catalog entry exists in the registry.
+`mockups/catalog.html` shows every token, primitive variant, and component state under realistic content: short and long real copy, large numeric and currency values where the domain has them, empty and error data, every entry in the verified responsive set below, and normal versus reduced motion. Every registry entry appears there, and every catalog entry exists in the registry.
 
 ## Automated Guardrails
 
@@ -147,7 +147,9 @@ Adding a primitive, variant, motion variant, product component, or recipe means 
 | Registry ↔ catalog completeness | two-way | <blocking / advisory> | project verify command |
 | Evidence present for claims that need it | required | <blocking / advisory> | design + code review |
 
-Viewports verified: 390 / 768 / 1200 / 1440 px. States verified: the State Matrix above, plus the JavaScript-disabled path for anything that must render server-side.
+Responsive set verified: <the set recorded in ui-registry.json — the 390 / 768 / 1200 / 1440 px web default unless a stated reason changed it, or the resolved platform's own model for a native or desktop target — iOS/macOS size classes and safe areas, Android window size classes, or the named desktop window sizes. `ui-registry.json` carries `viewports` or `sizeClasses`, exactly one of the two; name the one this package uses here: <viewports / sizeClasses, with the values>.
+
+States verified: the State Matrix above, plus the JavaScript-disabled path for anything that must render server-side. A native or desktop target has no such path; record that as `n/a` with the reason rather than leaving it blank.
 
 This document specifies the checks. `fullstack-harness-engineering` runs them against the real source with its own `scripts/check_ui_contract.py` and wires them into the project's verify command, CI, and visual-regression tooling. They are not run against this package's mockups, which inline their own tokens and primitive definitions by design.
 
@@ -163,8 +165,8 @@ A route is done only when all of these hold:
 - Every required state complete
 - Keyboard path and focus work
 - Reduced motion works
-- No overflow at 390 / 768 / 1200 / 1440
-- Server-rendered content still renders with JavaScript disabled
+- No overflow anywhere in the verified responsive set recorded above
+- Server-rendered content still renders with JavaScript disabled, or the route records that requirement as `n/a` with a reason
 - Visual regression reviewed
 - Contract check passes
 

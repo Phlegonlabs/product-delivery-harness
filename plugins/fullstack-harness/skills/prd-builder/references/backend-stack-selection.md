@@ -71,7 +71,7 @@ Verify these rules against current official documentation on the date the PRD is
 - Use isolated development and production credentials, connection strings, and data for every store and auth provider. Never let development access production customer data or live sessions.
 - Isolation does not mean development stays empty: for content-shaped entities (articles, images, catalog items), seed development with representative mock/sample data as part of its setup or migration step, so development has realistic-looking data without ever reading real production records. Only source seed data from a real production copy when the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process.
 - Record migration order, rollback path, and deployed-environment verification for every schema or data change.
-- Vendor and managed-service support changes quickly. Do not copy limits, pricing, or capability claims from memory; record the verification date and direct official sources in `architecture.md`.
+- Vendor and managed-service support changes quickly. Do not copy limits, pricing, or capability claims from memory; record the verification date and direct official sources in `stack-decisions.md`.
 
 ### Relational
 
@@ -125,17 +125,17 @@ Verify these rules against current official documentation on the date the PRD is
 
 ## Required Architecture Record
 
-The `Backend and Data Technology Decision` section in `architecture.md` must include:
+The `Backend and Data Technology Decision` section in `stack-decisions.md` must include:
 
 - Product evidence and hard constraints.
 - Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`) per layer.
 - One recorded stack separated by backend runtime/framework, service topology (monolith vs microservices, and monorepo/polyrepo structure), database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - A data-entity-to-store mapping when more than one store is used.
-- Alternatives and revisit triggers.
+- Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.
 - Platform-managed-service bindings or configuration where applicable.
 - For a deployable product, migration order, development/production isolation, and rollback path for schema or data changes.
-- Owners, deadlines, spikes, and pass/fail criteria for any provisional decision.
+- Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck
 

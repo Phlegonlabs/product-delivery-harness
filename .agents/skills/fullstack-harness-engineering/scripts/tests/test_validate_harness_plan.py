@@ -109,6 +109,74 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertEqual("FAIL", payload["status"])
         self.assertTrue(payload["errors"])
 
+    def test_recipe_state_coverage_is_cross_checked_against_the_registry(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "home",
+                "trace_ids": ["REQ-001"],
+                "route": "/home",
+                "breakpoints": ["390"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+            }
+        ]
+        registry = {
+            "recipes": {
+                "/home": {"requiredStates": ["ready", "loading", "empty", "n/a"]},
+                "/settings": {"requiredStates": ["ready"]},
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
+            registry_path = root / "ui-registry.json"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS_DIR / "validate_harness_plan.py"),
+                    "--plan",
+                    str(plan_path),
+                    "--ui-registry",
+                    str(registry_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        payload = json.loads(result.stdout)
+        self.assertEqual("FAIL", payload["status"])
+        joined = " ".join(payload["errors"])
+        self.assertIn("omits state loading", joined)
+        self.assertIn("omits state empty", joined)
+        self.assertIn("no surface for route /settings", joined)
+        # `n/a` in a recipe is a documented exemption, not a required state.
+        self.assertNotIn("omits state n/a", joined)
+
+    def test_registry_cross_check_is_skipped_without_the_flag(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "home",
+                "trace_ids": ["REQ-001"],
+                "route": "/home",
+                "breakpoints": ["390"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            plan_path = Path(directory) / "PLAN.md"
+            plan_path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
+
+            result = self.run_cli(plan_path, None)
+
+        self.assertEqual(0, result.returncode)
+
     def test_malformed_manifest_reports_error_with_exit_code_two(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             plan_path = Path(directory) / "PLAN.md"

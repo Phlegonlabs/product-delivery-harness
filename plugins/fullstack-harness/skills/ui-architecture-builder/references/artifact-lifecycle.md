@@ -22,7 +22,7 @@ Stage a run under `docs/product/.design-staging/<run-id>/`, mirroring the same r
 
 ## Inventory
 
-Before drafting, list exact final-path files and other clearly superseded design-package artifacts for the same product, including any existing `docs/product/mockups/` HTML files, any existing `docs/product/ui-registry.json`, and any retired `docs/product/ui-mockups.md` or `docs/product/page-ui-matrix.md` left over from an earlier package. Exclude `docs/product/archived/`, PRDs, architecture, research, test evidence, and ambiguous files. Leave ambiguous candidates untouched and report them. When archiving a superseded package, move the whole prior `docs/product/mockups/` directory — catalog included — alongside the other superseded files rather than leaving orphaned page HTML behind.
+Before drafting, list exact final-path files and other clearly superseded design-package artifacts for the same product, including any existing `docs/product/mockups/` HTML files, any existing `docs/product/ui-registry.json`, and any retired `docs/product/ui-mockups.md` or `docs/product/page-ui-matrix.md` left over from an earlier package. Exclude `docs/product/archived/`, PRDs, architecture, stack decisions, research, test evidence, and ambiguous files. Leave ambiguous candidates untouched and report them. When archiving a superseded package, move the whole prior `docs/product/mockups/` directory — catalog included — alongside the other superseded files rather than leaving orphaned page HTML behind.
 
 ## Validate Then Ask
 

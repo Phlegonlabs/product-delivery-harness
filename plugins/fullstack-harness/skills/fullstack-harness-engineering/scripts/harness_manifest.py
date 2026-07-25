@@ -97,6 +97,7 @@ from harness_ui_evidence import (
     _validate_ui_evidence,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
+    validate_ui_surface_recipe_coverage,
 )
 
 
@@ -446,6 +447,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     parent_edges: dict[str, list[str]] = {}
     legacy_owner: dict[str, str] = {}
     planned_trace_coverage: set[str] = set()
+    verified_trace_coverage: set[str] = set()
     for task_id, (mission_id, task, path) in task_records.items():
         for key in ("alias", "objective"):
             if not _nonempty_string(task[key]):
@@ -459,6 +461,11 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not planned")
             else:
                 planned_trace_coverage.add(trace_id)
+                if (
+                    isinstance(task["acceptance_matrix"], list)
+                    and task["acceptance_matrix"]
+                ):
+                    verified_trace_coverage.add(trace_id)
             mission_trace_set = set(missions.get(mission_id, {}).get("trace_ids", []))
             if trace_id not in mission_trace_set:
                 _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not declared by its mission")
@@ -544,8 +551,17 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             _add(errors, f"task {owner}.legacy_task_ids", f"legacy ID collides with canonical task {legacy_id!r}")
 
     for trace_id, trace in traces.items():
-        if trace.get("disposition") == "planned" and trace_id not in planned_trace_coverage:
+        if trace.get("disposition") != "planned":
+            continue
+        if trace_id not in planned_trace_coverage:
             _add(errors, f"trace {trace_id}", "planned trace has no task coverage")
+        elif trace_id not in verified_trace_coverage:
+            _add(
+                errors,
+                f"trace {trace_id}",
+                "planned trace has no verification row: every task carrying it has "
+                "an empty acceptance_matrix",
+            )
 
     if plan["schema_version"] == 4:
         _validate_graph(errors, plan["graph"], missions, declared_verifier_ids)
@@ -1397,6 +1413,50 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.plan_readiness", "has an unsupported value")
     if not isinstance(run["execution_authorized"], bool):
         _add(errors, "run.execution_authorized", "must be boolean")
+    if (
+        run.get("execution_authorized") is True
+        and plan_declares_release
+        and isinstance(run.get("landing"), dict)
+        and run["landing"].get("mode") == "local_only"
+    ):
+        _add(
+            errors,
+            "run.execution_authorized",
+            "cannot authorize execution for a release PLAN in local_only mode: the "
+            "production target requires a merged PR, which local_only never records",
+        )
+    if (
+        run.get("execution_authorized") is True
+        and plan.get("schema_version") == 4
+        and isinstance(plan.get("graph"), dict)
+    ):
+        reviewed_missions: set[str] = set()
+        for node in plan["graph"].get("nodes", []):
+            if not isinstance(node, dict):
+                continue
+            if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
+                continue
+            review = node.get("review")
+            if not isinstance(review, dict):
+                continue
+            for mission_id in review.get("mission_ids") or []:
+                if isinstance(mission_id, str):
+                    reviewed_missions.add(mission_id)
+        unreviewed = sorted(
+            mission["id"]
+            for mission in plan.get("missions", [])
+            if isinstance(mission, dict)
+            and isinstance(mission.get("id"), str)
+            and mission.get("write_scope")
+            and mission["id"] not in reviewed_missions
+        )
+        if unreviewed:
+            _add(
+                errors,
+                "run.execution_authorized",
+                "cannot authorize execution while these missions have a write scope "
+                "and no review node: " + ", ".join(unreviewed),
+            )
     if run["execution_authorized"]:
         if not _nonempty_string(run["execution_authorization_source"]):
             _add(errors, "run.execution_authorization_source", "is required when authorized")

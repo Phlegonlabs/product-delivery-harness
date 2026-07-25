@@ -2,7 +2,7 @@ export const meta = {
   name: "prd-builder-graph",
   description: "Draft and cross-check one PRD package from frozen discovery inputs.",
   phases: [
-    { title: "Analyze", detail: "Run product, architecture, UX, and platform roles" },
+    { title: "Analyze", detail: "Run product, architecture, UX, platform, and backend roles" },
     { title: "Synthesize", detail: "Join role outputs into one PRD package" },
     { title: "Verify", detail: "Cross-check trace coverage and consistency" },
   ],
@@ -24,6 +24,9 @@ if (!Array.isArray(workflowArgs.source_paths)) {
 if (typeof workflowArgs.browser_frontend !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.browser_frontend");
 }
+if (typeof workflowArgs.ui_bearing !== "boolean") {
+  throw new Error("prd-builder-graph requires boolean args.ui_bearing");
+}
 if (typeof workflowArgs.has_backend !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.has_backend");
 }
@@ -36,8 +39,11 @@ if (typeof workflowArgs.include_implementation_plan !== "boolean") {
 if (workflowArgs.tool_profile !== "builder_readonly") {
   throw new Error("prd-builder-graph requires args.tool_profile builder_readonly");
 }
-if (workflowArgs.browser_frontend && (typeof workflowArgs.builder_ux_direction !== "string" || !workflowArgs.builder_ux_direction.trim())) {
-  throw new Error("prd-builder-graph requires non-empty args.builder_ux_direction for a browser_frontend product");
+if (workflowArgs.ui_bearing && (typeof workflowArgs.builder_ux_direction !== "string" || !workflowArgs.builder_ux_direction.trim())) {
+  throw new Error("prd-builder-graph requires non-empty args.builder_ux_direction for a ui_bearing product");
+}
+if (workflowArgs.browser_frontend && (typeof workflowArgs.deployment_platform !== "string" || !workflowArgs.deployment_platform.trim())) {
+  throw new Error("prd-builder-graph requires non-empty args.deployment_platform for a browser_frontend product");
 }
 
 const stringArray = { type: "array", items: { type: "string" } };
@@ -60,6 +66,7 @@ const draftSchema = {
   required: [
     "prd_markdown",
     "architecture_markdown",
+    "stack_decisions_markdown",
     "wireframes_markdown",
     "implementation_plan_markdown",
     "trace_index",
@@ -70,6 +77,7 @@ const draftSchema = {
   properties: {
     prd_markdown: { type: "string" },
     architecture_markdown: { type: "string" },
+    stack_decisions_markdown: { type: "string" },
     wireframes_markdown: { type: "string" },
     implementation_plan_markdown: { type: ["string", "null"] },
     trace_index: { type: "array", items: { type: "object" } },
@@ -99,7 +107,10 @@ const sourceContext = JSON.stringify({
   source_summary: workflowArgs.source_summary || "",
   interview_summary: workflowArgs.interview_summary,
   builder_ux_direction: workflowArgs.builder_ux_direction || null,
+  ui_bearing: workflowArgs.ui_bearing,
   browser_frontend: workflowArgs.browser_frontend,
+  deployment_platform: workflowArgs.deployment_platform || null,
+  mobile_desktop_platform: workflowArgs.mobile_desktop_platform || null,
   has_backend: workflowArgs.has_backend,
   include_implementation_plan: workflowArgs.include_implementation_plan,
   has_public_marketing_content: workflowArgs.has_public_marketing_content,
@@ -112,17 +123,17 @@ const roles = [
   },
   {
     key: "architecture",
-    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope.",
+    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Build the deployment and environment contract on the supplied deployment_platform; never substitute or invent a platform.",
   },
   {
     key: "ux-wireframe",
     task: "Define UX obligations, routes, states, exact wording or bounded display contracts, low-fidelity wireframe structure, Builder UX Direction consequences, and stable UX/UI trace IDs.",
   },
 ];
-if (workflowArgs.browser_frontend) {
+if (workflowArgs.browser_frontend || workflowArgs.mobile_desktop_platform) {
   roles.push({
     key: "frontend-platform",
-    task: "Recommend or preserve one explicit browser stack and rendering/platform strategy, separate technology layers, identify official-source checks, and leave unresolved decisions explicit.",
+    task: "Recommend or preserve one explicit browser stack and rendering/platform strategy, separate technology layers, identify official-source checks, and leave unresolved decisions explicit. When a mobile or desktop target is in scope, also cover the Mobile/Desktop Technology Decision layers — platform, toolchain, distribution, backend/API integration, push/offline sync, testing — on the supplied mobile_desktop_platform; never substitute or invent a platform.",
   });
 }
 if (workflowArgs.has_backend) {
@@ -156,8 +167,9 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and wireframes.md, plus implementation-plan.md only when requested. " +
+  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, stack-decisions.md, and wireframes.md, plus implementation-plan.md only when requested. " +
     "Preserve stable PRD, ARCH, UI, UX, and TEST IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. " +
+    "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
   { label: "prd:synthesis", phase: "Synthesize", schema: draftSchema },
 );
@@ -172,7 +184,7 @@ const reviewers = [
   },
   {
     key: "consistency-verifier",
-    task: "Check the three documents for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims.",
+    task: "Check all four documents for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {

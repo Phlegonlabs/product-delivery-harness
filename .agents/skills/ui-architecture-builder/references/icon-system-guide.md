@@ -1,6 +1,6 @@
 # Icon System Guide
 
-Use this guide when a design package includes functional icons, brand marks, platform symbols, or custom icon requirements.
+Use this guide when a UI architecture package includes functional icons, brand marks, platform symbols, or custom icon requirements.
 
 ## Selection Workflow
 
@@ -54,7 +54,7 @@ Use this as a starting point, not as a substitute for current official verificat
 
 ## Required Evidence
 
-The design package must include:
+The UI architecture package must include:
 
 - Candidate market-scan table with official URLs and checked date
 - Primary library decision and rejected-candidate rationale

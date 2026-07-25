@@ -9,7 +9,7 @@ Always produce:
 - `design-system.md` — the token layer and visual language
 - `page-recipes.md` — one binding recipe per route, plus the route → mockup → trace → test index
 - `visual-acceptance.md` — the visual and contract gates
-- One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links so the set reads as a connected clickable prototype.
+- One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links wherever the real product would navigate between them, so the set reads as a connected clickable prototype. A single-route product has nothing to link.
 - `mockups/catalog.html` — the component catalog showing every registry entry under realistic content
 
 The binding rule the whole package exists to enforce: a page cannot be freely designed; a page may only use approved content contracts, page recipes, product components, and primitives. Read `references/ui-architecture-guide.md` before producing any of these files.
@@ -17,6 +17,35 @@ The binding rule the whole package exists to enforce: a page cannot be freely de
 Do not produce `page-ui-matrix.md` or `ui-mockups.md`. The route → breakpoint/size-class → state → component mapping is shown directly in the HTML; the recipe and the machine-checkable route → trace → test mapping live in `page-recipes.md`.
 
 Default all artifact content to English unless the user explicitly asks for another language.
+
+## How To Read This Package
+
+Every artifact has one primary reader and one job. Write for that reader.
+
+| Artifact | Primary reader | Answers |
+| --- | --- | --- |
+| `mockups/*.html` + `catalog.html` | Anyone judging how it looks | What the product actually looks like |
+| `design-system.md` | A designer or frontend engineer | The visual language and its tokens |
+| `page-recipes.md` | Whoever builds or reviews one route | What this route may and may not contain |
+| `ui-architecture.md` | An engineer adopting the system | The layer model, precedence, and definition of done |
+| `ui-registry.json` | Agents and contract checks | The machine-readable allowlist |
+| `visual-acceptance.md` | A reviewer at the gate | What must pass before this ships |
+
+Reading order is the mockups first, then `design-system.md`, then the route's recipe, then `ui-architecture.md`. Open the catalog before hunting through routes.
+
+The same two rules `prd-builder`'s `references/output-contract.md` states in its own "How To Read This Package" apply here verbatim; that file is the wording of record:
+
+- **Meaning before bookkeeping.** Each file opens with what a human needs and ends with the ID matrices machines and reviewers scan. `page-recipes.md` opens with its recipes and closes with the Route Index; never the reverse.
+- **One notation per block.** Prose, code, and ID tables do not interleave inside a section.
+
+Length budget. Targets, not caps — say less when the product is simple:
+
+- `design-system.md`: about 400 lines. Its Overview fits on one screen.
+- `ui-architecture.md`: about 300 lines.
+- `page-recipes.md`: about 60 lines per route.
+- `visual-acceptance.md`: about 150 lines.
+
+Tables stay at seven columns or fewer, with two named exceptions that are lookup matrices rather than prose: `page-recipes.md`'s Route Index and `design-system.md`'s Motion Pattern Inventory. Anywhere else, a row needing more than seven fields becomes one block per item.
 
 Use the templates in `assets/templates/` when creating these files: `UI_ARCHITECTURE.template.md`, `UI_REGISTRY.template.json`, `DESIGN_SYSTEM.template.md`, `PAGE_RECIPES.template.md`, `VISUAL_ACCEPTANCE.template.md`, `MOCKUP_PAGE.template.html` for every route mockup (style it to the resolved platform), and `CATALOG.template.html` for the catalog.
 
@@ -30,7 +59,7 @@ Non-negotiable content:
 - Every surface variant carries a named purpose from `visual-decision-guide.md`'s Container & Border Decision Rules. A variant with no purpose is deleted, not documented.
 - Every product component names its content contract and its required content order, and states that the order is not reorderable.
 - The state matrix covers all eleven states; each is `yes` or `n/a` with a reason.
-- The guardrail table states enforcement (`blocking` or `advisory`) per check, the verified viewport set (390 / 768 / 1200 / 1440), and who owns wiring the check.
+- The guardrail table states enforcement (`blocking` or `advisory`) per check, the verified responsive set for the resolved platform (390 / 768 / 1200 / 1440 for a web target, the platform's own size classes or window sizes otherwise — see Responsive Verification Set below), and who owns wiring the check.
 
 ## `ui-registry.json`
 
@@ -39,7 +68,8 @@ Follow `assets/templates/UI_REGISTRY.template.json`. This is the allowlist both 
 - Every primitive carries its layer, its closed variant sets, and `rawStylesAllowed: false` unless a documented exception exists.
 - `tokenSources` lists the only paths where raw color, dimension, and motion values may appear.
 - Every product component carries its DS ID, content contract, required content order, and `reorderable: false`.
-- Every route carries its recipe: container, density, section order, allowed surfaces, forbidden patterns, required states, and what must render without JavaScript.
+- Every route carries its recipe: container, density, section order, allowed surfaces, forbidden patterns, required states, and what must render without JavaScript — the last one is `["n/a — <reason>"]` for a route with no server-rendered web surface, such as any native or desktop route.
+- The registry carries `viewports` for a web target or `sizeClasses` for a native or desktop target, exactly one of the two.
 - Adding an entry here means updating `ui-architecture.md` and `mockups/catalog.html` in the same change. An unregistered primitive is not usable.
 - The file must parse as JSON and agree with `ui-architecture.md` and `page-recipes.md` entry for entry. A registry that disagrees with the documents is not a contract. `fullstack-harness-engineering` reads it at implementation time to run the contract check.
 
@@ -52,9 +82,15 @@ Two different things follow the resolved platform, and they are not the same art
 
 Icon family follows the platform in both places: web (Lucide, Heroicons, Phosphor, Tabler, Font Awesome, or similar), iOS/macOS (SF Symbols), Android (Material Symbols), Windows (for example Fluent UI System Icons), Flutter/React Native (the icon family matching whichever platform convention that build follows).
 
+### Responsive Verification Set
+
+The required responsive verification set is platform-conditional, and this package is where it gets decided and recorded — every downstream reader takes it from `ui-registry.json` rather than assuming numbers. For a web target the default set is 390 / 768 / 1200 / 1440, chosen to cover a small phone, a tablet, a laptop, and a wide desktop. Replace a member of that set, or add to it, when the product's real audience or design target differs — a mobile-only web app or a product designed at 1920 — and record the reason next to the set. For a native or desktop target it is that platform's own model — iOS/macOS size classes and safe areas, Android window size classes, or the named desktop window sizes — recorded in the package. The registry carries `viewports` for a web target or `sizeClasses` for a native or desktop target, exactly one of the two, and the package states which.
+
+Everywhere below that says "every required viewport" or "required breakpoints" — including the review gates — means this set, resolved for the target platform. `references/visual-decision-guide.md` owns each platform's model.
+
 State the resolved platform in `design-system.md`'s Overview, then keep every icon, component-code, and breakpoint/size-class section consistent with it. Keep the web guidance available for a web target rather than removing it; it just stops being the default for every target.
 
-When Claude Code Dynamic Workflow is used, treat its structured design package as a candidate source. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
+When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
 
 When the user requests a runnable animation demonstration, also produce `motion-showcase.html` or bounded files under `motion-demos/`. Use `assets/templates/MOTION_SHOWCASE.template.html` as the dependency-free baseline unless the project stack or requested animation requires another implementation. Record every demo path in `design-system.md` and `page-recipes.md`.
 
@@ -214,7 +250,7 @@ Include a static-first, stack-appropriate implementation for one important patte
 | --- | --- | --- |
 
 ## Layout Rules
-[Grid, max widths, navigation layout, responsive breakpoints — expressed through the layer-2 layout primitives above, not as per-page one-offs.]
+[Grid, max widths, navigation layout, and the responsive rules for the resolved platform's verification set — breakpoints for a web target, size classes or window sizes otherwise — expressed through the layer-2 layout primitives above, not as per-page one-offs.]
 
 ## Common Tailwind CSS Usage In Project
 Use this section for a web target. For a native or desktop target, replace it with the platform's recurring styling patterns (for example SwiftUI view modifiers and `Color`/`Font` tokens, Compose `Modifier` chains and `MaterialTheme` tokens, Flutter `ThemeData`/widget style patterns, or WinUI resource/style patterns), keeping the same purpose: the reusable style patterns implementers apply.
@@ -259,13 +295,14 @@ Each file must:
 
 - Be dependency-free and runnable in a browser with no build step and no external CDN, exactly like `MOTION_SHOWCASE.template.html`. Inline the design-system tokens as CSS custom properties; you may inline the same Tailwind-style utility classes the design system documents for a web target, but do not fetch anything over the network.
 - Declare every raw value once, in the token block at the top — visual, layout, and motion. Nothing below the token block contains a hex, a raw dimension, or a duration.
-- Define the registry's layout, surface, typography, and control primitives as CSS classes named after their registry entries, with one class per closed variant, and build the page only by composing them. No inline layout styles, no page-local button or surface styling, no per-page ad-hoc spacing or color.
+- Define the registry's layout, surface, typography, and control primitives as CSS classes named after their registry entries, with one class per closed variant, and build the page's product content only by composing them. No inline layout styles, no page-local button or surface styling, no per-page ad-hoc spacing or color.
+- Review scaffolding — the state-gallery labels, the optional state switcher, the prototype navigation, skeleton bars, and the catalog's swatches and demo frames — is allowed and expected, because the contract also requires a reviewable state gallery that product primitives alone cannot express. Keep it visually quiet, name it in its own namespace (for example `state-label`, `prototype-nav`, `catalog-section`), and never let it introduce a new product visual treatment. Scaffolding must not use a registered primitive's variant namespace: `surface--tight` or `text--demo-width` reads as an unregistered variant of a real primitive and fails review, while `catalog-chip` does not.
 - Follow the route's recipe: its section order, container size, density, allowed surfaces, and single primary action, and none of its forbidden patterns.
 - Be styled to the resolved platform's own visual conventions (see Platform-Conditional Vocabulary above) — this is a visual demonstration medium, not the target's rendering engine. A native or desktop mockup should visually read as that platform, not as a generic web page.
 - Render the page's real content with exact wording preserved (no generic mockup placeholders), and satisfy each product component's content contract: required content order, never-drop fields, limits, and formats.
 - Represent every state the recipe requires as a visible, labeled `<section>` stacked in the same file — a "state gallery" covering ready, loading, empty, error, disabled, permission denied, stale, expired, long content, reduced motion, and mobile reflow, with `n/a` markers and a reason where a state does not apply. Every state stays visible with no JavaScript, so the file is reviewable and diff-able as-is. A small JS toggle to switch between states is an optional enhancement layered on top, never the only way to see a state.
-- Express responsive behavior with real CSS media queries for 390, 768, 1200, and 1440, plus a `prefers-reduced-motion` block that shows the final state. The reviewer resizes the browser instead of reading a breakpoint column.
-- Keep content that must render server-side present without JavaScript.
+- Express responsive behavior with real CSS media queries for the required verification set: 390, 768, 1200, and 1440 for a web target, or the widths that stand in for the resolved platform's size classes or window sizes for a native or desktop target. Add a `prefers-reduced-motion` block that shows the final state. The reviewer resizes the browser instead of reading a breakpoint column.
+- For a server-rendered web surface, keep content that must render server-side present without JavaScript. A native or desktop route has no such surface, so its recipe marks the field `n/a` with that reason and the mockup carries nothing extra.
 - Link to other mockup pages with plain relative `<a href="other-page.html">` links where the real product would navigate between them, so the set of files reviews as a connected clickable prototype.
 - Carry the route's trace IDs and DS IDs in an HTML comment at the top of the file (for example `<!-- UI-001 | PRD-001, UX-001, ARCH-001 | DS-001, DS-002 -->`) so the mapping survives in the artifact itself.
 
@@ -288,11 +325,6 @@ Follow `assets/templates/PAGE_RECIPES.template.md`. This file carries two things
 
 A page recipe is the only legal way to assemble a route. Read the route's recipe before writing any markup. A route with no recipe is a blocker, not an invitation to improvise.
 
-## Route Index
-| UI ID | Route / screen | Recipe | Mockup HTML | Upstream trace IDs | DS IDs | States represented | Motion demo | TEST IDs / acceptance evidence |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UI-001 | /example | [recipe name] | mockups/example.html | PRD-001, UX-001, ARCH-001 | DS-001, DS-LAY-001 | ready/loading/empty/error/long-content/reduced-motion/mobile-reflow | motion-showcase.html#example | TEST-VIS-001, TEST-VIS-019 |
-
 ## Recipes
 
 ### [Recipe name] — [route]
@@ -305,7 +337,7 @@ A page recipe is the only legal way to assemble a route. Read the route's recipe
 | Allowed surfaces | [the only surface variants this route may use] |
 | Forbidden patterns | [the compositions this route must never grow into] |
 | Required states | [from the State Matrix; mark n/a with a reason] |
-| Must render without JavaScript | [content that must be server-rendered] |
+| Must render without JavaScript | [content that must be server-rendered, or n/a + reason — the field applies to a server-rendered web surface] |
 | Primary action | [the single primary action, or none] |
 
 Page notes — only what the mockup HTML cannot show.
@@ -325,6 +357,15 @@ Page notes — only what the mockup HTML cannot show.
 ## Coverage
 | Requirement | Status |
 | --- | --- |
+
+---
+
+## Route Index
+| UI ID | Route / screen | Recipe | Mockup HTML | Upstream trace IDs | DS IDs | States represented | Motion demo | TEST IDs / acceptance evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| UI-001 | /example | [recipe name] | mockups/example.html | PRD-001, UX-001, ARCH-001 | DS-001, DS-LAY-001 | ready/loading/empty/error/long-content/reduced-motion/mobile-reflow | motion-showcase.html#example | TEST-VIS-001, TEST-VIS-019 |
+
+Lookup table, not reading material. Fill it last; scan it when checking that a route reached a mockup, a trace, and a test.
 ```
 
 Forbidden patterns carry as much weight as the allowed lists. They are where a route's known failure mode gets written down — a wall of cards, a feature grid, a second primary action, a comparison table on a page meant to ask one question. Derive them from the anti-slop review in `visual-decision-guide.md` and from what the route has drifted into before.
@@ -366,7 +407,7 @@ Use this structure:
 | TEST-VIS-023 | Catalog completeness | yes | DS-* | `mockups/catalog.html` shows every registry entry under realistic content at every required viewport and in reduced motion; every catalog entry exists in the registry | catalog review |
 | TEST-VIS-024 | No-JavaScript path | when server-rendered content exists | UI-*, ARCH-* | Content the route must render server-side is present and readable with JavaScript disabled | screenshot with JS disabled |
 
-Viewports verified: 390 / 768 / 1200 / 1440 px. States verified: the State Matrix in `ui-architecture.md`.
+Responsive set verified: 390 / 768 / 1200 / 1440 px for a web target, or the resolved platform's size classes or window sizes for a native or desktop target. States verified: the State Matrix in `ui-architecture.md`.
 
 ## Page Acceptance
 | UI ID | Page / route | Source | TEST IDs | Required evidence | Status |
@@ -381,13 +422,22 @@ Viewports verified: 390 / 768 / 1200 / 1440 px. States verified: the State Matri
 
 Before finalizing, verify:
 
+### Readability
+
+- Each artifact opens with human-readable content and keeps ID matrices at the end: `page-recipes.md` opens with its recipes and closes with the Route Index.
+- Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved elsewhere instead of expanding.
+- No table exceeds seven columns except the two named lookup matrices: `page-recipes.md`'s Route Index and `design-system.md`'s Motion Pattern Inventory.
+- `design-system.md`'s Overview states the resolved platform and the visual character in one screen, before any token table.
+
+### Completeness
+
 - `ui-architecture.md`, `ui-registry.json`, `design-system.md`, `page-recipes.md`, and `visual-acceptance.md` are present, one real `mockups/*.html` file exists per important page/route/screen, and `mockups/catalog.html` exists (`page-ui-matrix.md` and `ui-mockups.md` are not produced).
 - `ui-architecture.md` states the binding rule, the layer model, source-of-truth precedence, content contracts, primitive contracts with closed variant sets, product components with a required content order, motion architecture with registered variants, the eleven-state matrix, the guardrail specification with per-check enforcement, the definition of done, and the adoption sequence.
 - Every primitive prop is a closed set with named variants and a stated purpose per variant. No primitive accepts a free numeric, color, or spacing value, and no page-specific preference overrides a contract — the precedence order settles it.
 - `ui-registry.json` parses and agrees with `ui-architecture.md` and `page-recipes.md` entry for entry. `tokenSources` names the only places raw values may appear.
-- Every route has a recipe with section order, container, density, allowed surfaces, forbidden patterns, required states, and its no-JavaScript requirement; every recipe has a mockup file; every mockup shows the recipe's required states.
+- Every route has a recipe with section order, container, density, allowed surfaces, forbidden patterns, required states, and its no-JavaScript requirement or an `n/a` plus reason; every recipe has a mockup file; every mockup shows the recipe's required states.
 - The mockups and the catalog define primitives as registry-named CSS classes and compose them. No inline layout styles, no page-local control or surface styling, no raw values below the token block.
-- `mockups/catalog.html` covers every registry entry under realistic content at 390 / 768 / 1200 / 1440 and in reduced motion, and contains nothing absent from the registry.
+- `mockups/catalog.html` covers every registry entry under realistic content across the required verification set (390 / 768 / 1200 / 1440 for a web target, the platform's size classes or window sizes otherwise) and in reduced motion, and contains nothing absent from the registry.
 - Motion splits by mechanism, every variant is registered, reduced motion is set once globally, and no page writes a duration, distance, easing, or spring value.
 - The resolved platform is stated in `design-system.md`'s Overview, and the icon family, component-code language, breakpoint/size-class vocabulary, and styling-pattern section match it rather than defaulting to web/Tailwind.
 - Upstream `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, and `TEST-*` IDs are preserved. Design decisions and components use stable `DS-*` IDs, and every page and visual gate carries the IDs it implements or verifies.
@@ -404,7 +454,7 @@ Before finalizing, verify:
 - The motion system defines purpose, stack choice, tokens, pattern inventory, triggers, interruption/repeat rules, responsive variants, reduced-motion behavior, performance limits, a stated motion-personality archetype justified against the taste statement, and hero choreography when a hero exists.
 - Every non-hero motion surface identified during discovery (modal/sheet, list reorder/add/remove, toast, skeleton, form validation, drag-and-drop, scroll reveal, empty state, chart/data-viz) has a Motion Pattern Inventory row with trigger, properties, token, and reduced-motion fallback, or is explicitly marked `n/a`.
 - Requested runnable motion showcases exist, work without production dependencies unless justified, expose preview controls, and keep essential content usable when animation is unavailable.
-- Every important page/route/screen has a real `mockups/*.html` file, styled to the resolved platform's own conventions, that renders exact content, shows each required state as a visible labeled section, expresses responsive/size-class behavior with CSS media queries, links to related pages, and carries its trace/DS IDs in a top-of-file comment; `page-recipes.md` maps every page to its HTML file, trace IDs, DS IDs, represented states, and acceptance TEST IDs.
+- Every important page/route/screen has a real `mockups/*.html` file, styled to the resolved platform's own conventions, that renders exact content, shows each required state as a visible labeled section, expresses responsive/size-class behavior with CSS media queries across the required verification set, links to related pages wherever the real product would navigate between them, and carries its trace/DS IDs in a top-of-file comment; `page-recipes.md` maps every page to its HTML file, trace IDs, DS IDs, represented states, and acceptance TEST IDs.
 - Every mockup preserves product-source exact wording or a bounded display contract for every visible region; generic mockup placeholders do not pass validation.
 - Every mockup resolves each required style label, states the container and border treatment, and does not default regions to framed panels, nested cards, or colored accent rails without a named purpose.
 - When a landing page is in scope, `design-system.md` and `page-recipes.md` define the first-viewport message and action, one job per section, content to defer, and per-region image/media/motion status.

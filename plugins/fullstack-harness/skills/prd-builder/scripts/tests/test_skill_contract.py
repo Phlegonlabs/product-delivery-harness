@@ -191,13 +191,32 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "Skip this call only when the product provably has no backend, persistent data, or auth surface",
+            "Skip the database-category and auth-strategy pair only when the product provably has no backend, persistent data, or auth surface",
             skill,
         )
+        self.assertIn("Skip the whole call only when none of its questions apply.", skill)
         self.assertIn(
             "Do not silently pick a database category or auth strategy on the user's behalf.",
             skill,
         )
+
+    def test_archetype_dependent_questions_come_after_the_archetype_answer(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+
+        self.assertIn("Keep the deployment platform out of this call", skill)
+        self.assertIn("depend on step 4's archetype answer", skill)
+        self.assertIn("see Workflow step 6, after the archetype is known", skill)
+        self.assertIn("The closed-set questions fit three `AskUserQuestion` calls", interview)
+        self.assertIn("Never ask a call-3 question in call 1", interview)
+        for slotted_bullet in (
+            "React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, in call 3",
+            "cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion, in call 3",
+            "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, in call 3",
+        ):
+            self.assertIn(slotted_bullet, interview)
+        self.assertIn("first to drop when the closed-set budget is full", interview)
+        self.assertIn("Deployment platform, database category, and auth strategy never drop", interview)
 
     def test_wireframes_keep_landing_pages_simple_and_label_media(self) -> None:
         skill = self.read("SKILL.md")
@@ -301,6 +320,40 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Read only. Do not edit, create, move, or publish files", workflow)
         self.assertIn("## Harness Handoff Signals", contract)
         self.assertIn("not a canonical Harness PLAN or RUN graph", contract)
+
+    def test_workflow_lanes_receive_resolved_platform_and_ux_direction(self) -> None:
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+
+        self.assertIn(
+            'throw new Error("prd-builder-graph requires boolean args.ui_bearing");',
+            workflow,
+        )
+        self.assertIn(
+            "requires non-empty args.builder_ux_direction for a ui_bearing product",
+            workflow,
+        )
+        self.assertIn(
+            "requires non-empty args.deployment_platform for a browser_frontend product",
+            workflow,
+        )
+        self.assertIn("deployment_platform: workflowArgs.deployment_platform || null,", workflow)
+        self.assertIn("ui_bearing: workflowArgs.ui_bearing,", workflow)
+        self.assertIn("never substitute or invent a platform", workflow)
+
+    def test_lifecycle_keeps_the_package_in_docs_product_not_flat_docs(self) -> None:
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        self.assertIn(
+            "Never publish PRD artifacts at the repository root or flat in `docs/` by default.",
+            lifecycle,
+        )
+        self.assertIn("They belong in `docs/product/`.", lifecycle)
+        self.assertIn(
+            "in `docs/product/`, the repository root, or a legacy flat `docs/` directory",
+            lifecycle,
+        )
+        self.assertNotIn("or under `docs/product/` by default", lifecycle)
+        self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
 
 if __name__ == "__main__":

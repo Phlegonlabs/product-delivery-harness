@@ -6,15 +6,15 @@ Use this procedure to keep the current PRD package in `docs/product/` and retain
 
 Before doing anything else, check whether `docs/product/PRD.md` — or another Markdown document whose title or content clearly describes the same product — already exists. If it does, this run enhances that package; it does not start a new one.
 
-- Read the existing `PRD.md`, `architecture.md`, and `wireframes.md` in full before drafting anything.
+- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and `wireframes.md` in full before drafting anything.
 - Treat their content, decisions, and trace IDs (`PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`) as the baseline. Carry forward every section the new request does not touch, unchanged.
 - Draft only the additions, edits, or removals the new discovery actually requires. Never regenerate the whole package from a blank slate because a new idea came up.
-- The final publish paths stay the same fixed locations (`docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/wireframes.md`) — enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
+- The final publish paths stay the same fixed locations (`docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-decisions.md`, `docs/product/wireframes.md`) — enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
 - Enhancement mode still uses the staging, validation, and archive steps below: the prior version is archived for history once the enhanced draft is validated, even though its content already carried forward into that draft.
 
 ## Handle an Unrelated Document at a Fixed Publish Path
 
-If `docs/product/PRD.md`, `docs/product/architecture.md`, or `docs/product/wireframes.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
+If `docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-decisions.md`, or `docs/product/wireframes.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
 
 The publish step still overwrites that exact path regardless of whether it enhances or replaces it, so the existing file must still be archived for safety — add it to the superseded-document inventory even though it is an unrelated product document. The general exclusion for unrelated product documents in "Inventory Superseded Documents" below applies to other documents found elsewhere in the repository, not to one already occupying a path this run will publish to.
 
@@ -27,16 +27,17 @@ In the Approval Gate, label this path explicitly as "existing unrelated content 
 - Publish the current package to these final paths unless the user explicitly requests different filenames:
   - `docs/product/PRD.md`
   - `docs/product/architecture.md`
+  - `docs/product/stack-decisions.md`
   - `docs/product/wireframes.md`
   - `docs/product/implementation-plan.md` when requested
-- Never publish PRD artifacts at the repository root or under `docs/product/` by default.
+- Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`.
 - Never use `docs/product/archived/` as an input or output location for the current package.
 
 ## Inventory Superseded Documents
 
 Before drafting, identify the documents that the new package will supersede. Candidates include:
 
-- Earlier versions of the package's exact filenames in `docs/product/`, the repository root, or a legacy `docs/product/` directory.
+- Earlier versions of the package's exact filenames in `docs/product/`, the repository root, or a legacy flat `docs/` directory.
 - Other Markdown product documents whose title or contents clearly identify the same product and whose purpose is replaced by one of the new artifacts.
 - A previous implementation plan only when a new implementation plan is being produced or the user explicitly says it is obsolete.
 

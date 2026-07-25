@@ -93,17 +93,17 @@ Follow `architecture-playbook.md`'s Native iOS Pattern and Native Android Patter
 
 ## Required Architecture Record
 
-The `Mobile/Desktop Technology Decision` section in `architecture.md` must include (a sibling section template for it lives in `references/output-contract.md`):
+The `Mobile/Desktop Technology Decision` section in `stack-decisions.md` must include (a sibling section template for it lives in `references/output-contract.md`):
 
 - Product evidence and hard constraints, including existing-codebase reuse potential and target platforms at launch.
 - Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`) per layer.
 - One recorded stack separated by cross-platform-vs-native, framework (Flutter or React Native), React Native workflow (Expo or bare) when applicable, navigation, local persistence, state, offline/sync, secure storage, push, native-module boundaries, and testing.
 - The extra target surfaces (React Native for Web, Windows/macOS, Flutter web/desktop) that are in scope, if any.
-- Alternatives and revisit triggers.
+- Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.
 - Store distribution obligations per platform: developer-program requirement, code signing, testing track, target-API rules, and push service (APNs / FCM), cross-referenced to the matching `architecture-playbook.md` pattern; and EAS Build/Submit/Update usage when Expo is selected.
 - The release and rollback path per store (a new build or staged rollout, not a silent un-ship of an installed version).
-- Owners, deadlines, spikes, and pass/fail criteria for any provisional decision.
+- Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck
 

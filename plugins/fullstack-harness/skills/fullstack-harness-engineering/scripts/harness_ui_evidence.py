@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -166,6 +167,84 @@ def _validate_ui_evidence(
             "run.ui_evidence",
             f"required UI screenshot coverage is missing {'|'.join(key)}",
         )
+
+
+def validate_ui_surface_recipe_coverage(
+    plan: dict[str, Any], ui_registry: str | Path
+) -> list[str]:
+    """Cross-check the PLAN's UI surfaces against the design package's recipes.
+
+    Required screenshot coverage is otherwise derived only from the PLAN's own
+    `ui_surfaces[].states`, so a PLAN that lists `ready` alone validates clean
+    and reaches a PASS closeout with one state of eleven. The recipes in
+    `ui-registry.json` are the frozen contract, so they decide what a route owes
+    (TEST-VIS-021). A state the route genuinely cannot have belongs in the
+    recipe as `n/a` with a reason, not omitted from the PLAN.
+    """
+    errors: list[str] = []
+    path = Path(ui_registry)
+    try:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        _add(errors, "ui_registry", f"cannot be read ({exc})")
+        return errors
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _add(errors, "ui_registry", f"is not valid JSON ({exc})")
+        return errors
+    if not isinstance(registry, dict):
+        _add(errors, "ui_registry", "must be a JSON object")
+        return errors
+    recipes = registry.get("recipes")
+    if not isinstance(recipes, dict):
+        _add(errors, "ui_registry.recipes", "must be an object")
+        return errors
+
+    surfaces = plan.get("ui_surfaces")
+    by_route: dict[str, set[str]] = {}
+    if isinstance(surfaces, dict):
+        surface_values: Any = surfaces.values()
+    elif isinstance(surfaces, list):
+        surface_values = surfaces
+    else:
+        surface_values = []
+    for surface in surface_values:
+        if not isinstance(surface, dict):
+            continue
+        route = surface.get("route")
+        states = surface.get("states")
+        if not _nonempty_string(route):
+            continue
+        covered = by_route.setdefault(route, set())
+        if isinstance(states, list):
+            covered.update(state for state in states if _nonempty_string(state))
+
+    for route, recipe in sorted(recipes.items()):
+        if not isinstance(recipe, dict):
+            continue
+        required = recipe.get("requiredStates")
+        if not isinstance(required, list):
+            continue
+        wanted = {
+            state
+            for state in required
+            if _nonempty_string(state) and state.strip().lower() != "n/a"
+        }
+        if not wanted:
+            continue
+        if route not in by_route:
+            _add(
+                errors,
+                "plan.ui_surfaces",
+                f"has no surface for route {route} required by ui-registry.json",
+            )
+            continue
+        for state in sorted(wanted - by_route[route]):
+            _add(
+                errors,
+                "plan.ui_surfaces",
+                f"route {route} omits state {state} required by its recipe",
+            )
+    return errors
 
 
 def validate_ui_evidence_files(

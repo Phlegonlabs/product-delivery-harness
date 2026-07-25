@@ -11,7 +11,7 @@ The stable org graph defines these roles:
 | requirements | Product scope, requirements, trace IDs, metrics, risks | PRD sections and trace coverage |
 | architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
 | ux-wireframe | Journeys, UX obligations, routes, states, wireframe structure | UX/UI sections and wireframe requirements |
-| frontend-platform | Browser stack and platform evidence when applicable | Frontend decision and source evidence |
+| frontend-platform | Browser stack and platform evidence when applicable, plus the mobile/desktop platform decision when that target is in scope | Frontend and mobile/desktop decisions with source evidence |
 | backend | Backend runtime, database, and auth technology decisions when the product has a backend, persistent data, or auth requirement | Backend and Data Technology Decision content and source evidence |
 | synthesis | Reconcile all lanes into one package | Draft artifact bodies |
 | trace-verifier | Check requirement and ID coverage | Findings and decision |
@@ -29,11 +29,11 @@ Before launch, the parent must have:
 - a stable run ID;
 - the product name and archetype;
 - an interview summary or explicit assumption authorization;
-- the Builder UX Direction record for UI-bearing products;
+- the Builder UX Direction record for UI-bearing products, passed as `args.builder_ux_direction` alongside `args.ui_bearing`. UI-bearing is not the same as having a browser frontend: a native mobile or desktop app is UI-bearing with `browser_frontend: false`, and the template rejects a UI-bearing launch with no direction;
 - source paths or a complete source summary;
 - a decision on whether a browser frontend and optional implementation plan are in scope;
 - a decision on whether the product has a backend, persistent data, or auth requirement, which gates whether the `backend` role runs;
-- for a deployable product, the deployment platform resolved (via the interview's platform `AskUserQuestion` step, the user, or the current repository) before a lane launches — a running read-only lane cannot ask the user for this;
+- for a deployable product, the deployment platform resolved (via the interview's platform `AskUserQuestion` step in workflow step 6, the user, or the current repository) before a lane launches, and passed as `args.deployment_platform` — a running read-only lane cannot ask the user for this, and the template rejects a `browser_frontend` launch without it;
 - a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
 - a machine-enforced `builder_readonly` launch profile that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.
 

@@ -64,7 +64,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 - Use one codebase with separately named development and production environments. Development deploys the current PR head only after current-head CI and uses isolated non-production bindings, data, auth, and sandbox payment credentials. Production deploys the exact merged base-branch SHA only after development passes and uses production bindings, auth, and live payment credentials.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
-- Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `architecture.md`.
+- Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 
 ### Cloudflare
 
@@ -94,17 +94,17 @@ Platform-specific rule sets for these targets are not yet authored in this guide
 
 ## Required Architecture Record
 
-The `Frontend Technology Decision` section in `architecture.md` must include:
+The `Frontend Technology Decision` section in `stack-decisions.md` must include:
 
 - Product evidence and hard constraints.
 - Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`).
 - One selected stack separated by deployment/runtime, rendering, framework, UI library, build tool, routing/data, styling/components, and testing.
 - A route-level rendering table.
-- Alternatives and revisit triggers.
+- Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.
 - Platform adapter/plugin, build runtime, compatibility date, asset routing, binding, auth, and local-preview constraints when applicable (Cloudflare `compatibility_date` and bindings when that is the resolved platform).
 - For a deployable product, the distinct development and production deployment-unit names (Workers for Cloudflare, the platform's equivalent for another target), exact release sources, resource/auth/payment isolation, migration order, deployed-environment verification, and rollback path.
-- Owners, deadlines, spikes, and pass/fail criteria for any provisional decision.
+- Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck
 
