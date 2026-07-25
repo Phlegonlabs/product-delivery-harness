@@ -9,16 +9,20 @@
   "rawValuesAllowedOutsideTokens": false,
   "pageLocalControlStylingAllowed": false,
   "inlineLayoutStylesAllowed": false,
+  "$comment": "Responsive verification set: keep `viewports` for a web target or `sizeClasses` for a native or desktop target, and delete the other. Exactly one of the two ships.",
   "viewports": [390, 768, 1200, 1440],
+  "sizeClasses": ["<the resolved platform's own model: iOS/macOS size classes and safe areas, Android window size classes, or the named desktop window sizes>"],
   "primitives": {
     "Container": {
       "layer": "layout",
       "sizes": ["shell", "content", "narrow", "dialog"],
+      "defaults": { "sizes": "content" },
       "rawStylesAllowed": false
     },
     "Section": {
       "layer": "layout",
       "densities": ["compact", "default", "editorial"],
+      "defaults": { "densities": "default" },
       "rawStylesAllowed": false
     },
     "Stack": {
@@ -66,6 +70,7 @@
       "class": "btn",
       "variants": ["primary", "secondary", "tertiary", "danger"],
       "sizes": ["sm", "md", "lg"],
+      "defaults": { "variants": "primary", "sizes": "md" },
       "minTargetPx": 44,
       "rawStylesAllowed": false
     },
@@ -74,6 +79,7 @@
       "class": "btn-icon",
       "variants": ["default"],
       "sizes": ["sm", "md", "lg"],
+      "defaults": { "variants": "default", "sizes": "md" },
       "minTargetPx": 44,
       "requiresAccessibleName": true,
       "rawStylesAllowed": false
@@ -99,7 +105,7 @@
       "allowedSurfaces": ["<surface variant>"],
       "forbiddenPatterns": ["<pattern this route must never grow into>"],
       "requiredStates": ["ready", "loading", "empty", "error", "long-content", "reduced-motion", "mobile-reflow"],
-      "mustRenderWithoutJavaScript": ["<content that must render server-side>"]
+      "mustRenderWithoutJavaScript": ["<content that must render server-side, or \"n/a — <reason>\" when the route has no server-rendered web surface>"]
     }
   },
   "stateMatrix": [

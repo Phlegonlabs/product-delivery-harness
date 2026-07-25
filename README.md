@@ -46,7 +46,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `wireframes.md` |
+| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md` |
 | `ui-architecture-builder` | The UI architecture a page may be built from: layers, tokens, primitive contracts with closed variant sets, product components, motion rules, per-route recipes, real per-page HTML mockups, and visual acceptance | `ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, one HTML file per route under `mockups/` plus `mockups/catalog.html`, `visual-acceptance.md` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex app tasks, app-managed worktrees, and nested read-only helpers | Runtime launch directives and worker results |
@@ -223,7 +223,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name.
 
 ```text
-Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
+Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, and wireframes.
 ```
 
 ```text

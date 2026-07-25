@@ -9,6 +9,13 @@ merged main SHA -> production Worker -> production smoke
 
 `development` and `production` are Cloudflare environments. `main` is the Git base branch, not an environment name. Do not add a long-lived `development` branch unless the repository already uses one or the user explicitly chooses that branching model.
 
+Resolve the branching model before freezing the release contract, because the two models bind the development deploy to different sources and cannot be swapped mid-run:
+
+- **No long-lived development branch (default).** The development Worker deploys from the current PR head. This requires `landing.mode: pull_request` — `local_only` has no PR head to bind to, so it cannot satisfy a development deploy.
+- **Long-lived development branch.** The user asked for one, or the repository already has one. This is the Auto-Deploy Release Model below: `source: integration_head` with a persistent integration branch. Ask which branch is the integration branch and record it before planning.
+
+A user asking for work to "land on a development branch" has chosen the second model. Do not plan the default shape and then discover the mismatch at deploy time.
+
 ## Static Release Contract
 
 New Cloudflare release PLAN files use schema v4 and define `release.provider: cloudflare` with exactly two targets. Existing schema-v3 release plans remain readable. Non-Cloudflare or non-deployable plans omit `release` instead of inheriting Cloudflare behavior:

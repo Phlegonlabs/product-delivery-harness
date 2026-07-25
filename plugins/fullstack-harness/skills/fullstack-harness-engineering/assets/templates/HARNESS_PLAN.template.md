@@ -463,7 +463,7 @@ Scope entries must be POSIX, repository-relative exact paths or subtrees ending 
 
 `required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`, `ui-architecture-builder`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
 
-On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `architecture.md` Frontend Technology Decision names, before any archetype-specific mission runs. This is a complete, copy-paste-ready mission object rather than new field-level guidance: every field keeps the same meaning and default already explained above for the main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
+On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `stack-decisions.md` Frontend Technology Decision names, before any archetype-specific mission runs. This is a complete, copy-paste-ready mission object rather than new field-level guidance: every field keeps the same meaning and default already explained above for the main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
 
 ```json
 {
@@ -537,6 +537,7 @@ On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield
 | Product requirements | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Builder UX Direction | <PRD section, path, or URL> | <hash or revision> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Stack decisions (frontend, backend/data, mobile/desktop) | <path> | <hash or revision> | required / selected / recommended / provisional / missing / n/a | <resolved layers; a still-provisional layer is a stop condition> |
 | Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Design system (tokens, visual language) | <path or URL> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | UI architecture | <path> | <hash or revision> | draft / frozen / missing / n/a | <layers, precedence, state matrix, definition of done> |
@@ -618,9 +619,9 @@ Include only when UI evidence is required or optional.
 
 | Route / screen | Source | Breakpoints | Required states | Evidence |
 |---|---|---|---|---|
-| <route> | <mockups/*.html + page-recipes.md row> | 390 / 768 / 1200 / 1440 | ready/loading/empty/error/... | <screenshot/trace/test> |
+| <route> | <mockups/*.html + page-recipes.md row> | <copied from ui-registry.json: viewports or sizeClasses> | ready/loading/empty/error/... | <screenshot/trace/test> |
 
-When a `ui-architecture-builder` package is the design source, each route's recipe in `page-recipes.md` decides that surface's required states and `ui-architecture.md`'s state matrix is the full checklist behind them; the required viewport set is 390 / 768 / 1200 / 1440 px unless the package names a different one. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
+When a `ui-architecture-builder` package is the design source, each route's recipe in `page-recipes.md` decides that surface's required states and `ui-architecture.md`'s state matrix is the full checklist behind them; the required responsive set is the registry's `viewports` or its `sizeClasses`, whichever the package carries — copy it, do not restate a default here. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
 
 ## Plan Readiness Gate
 

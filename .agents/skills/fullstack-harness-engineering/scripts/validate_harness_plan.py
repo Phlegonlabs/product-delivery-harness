@@ -16,6 +16,7 @@ from harness_manifest import (
     validate_plan,
     validate_run,
     validate_ui_evidence_files,
+    validate_ui_surface_recipe_coverage,
 )
 
 
@@ -28,10 +29,18 @@ def main(argv: list[str] | None = None) -> int:
         default=".",
         help="Repository root used to verify schema-v9 screenshot artifacts",
     )
+    parser.add_argument(
+        "--ui-registry",
+        help="Optional path to the design package's ui-registry.json. When given, "
+        "each recipe's requiredStates is cross-checked against the PLAN's UI "
+        "surfaces so a PLAN cannot under-declare state coverage (TEST-VIS-021).",
+    )
     args = parser.parse_args(argv)
     try:
         plan = load_plan(args.plan)
         errors = validate_plan(plan)
+        if args.ui_registry:
+            errors.extend(validate_ui_surface_recipe_coverage(plan, args.ui_registry))
         run_errors: list[str] = []
         if args.run:
             run = load_run(args.run)

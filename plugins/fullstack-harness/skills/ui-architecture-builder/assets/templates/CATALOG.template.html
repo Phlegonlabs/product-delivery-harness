@@ -194,8 +194,8 @@
     .token-bar--space-6 { width: var(--space-6); }
     .token-bar--space-8 { width: var(--space-8); }
     .token-bar--space-12 { width: var(--space-12); }
-    .surface--tight { padding: var(--space-2); } /* purpose: catalog demo chip, not a product surface */
-    .text--demo-width { max-width: var(--catalog-demo-width); }
+    .catalog-chip { padding: var(--space-2); } /* catalog scaffolding, not a product surface variant */
+    .catalog-demo-width { max-width: var(--catalog-demo-width); }
     .skeleton--full { width: 70%; }
     .skeleton--half { width: 45%; }
     .motion-demo-frame { min-height: var(--catalog-demo-min-height); }
@@ -304,6 +304,7 @@
           <div class="container--narrow surface surface--inset"><span class="text-caption">container--narrow — 720px</span></div>
           <div class="surface surface--inset"><span class="text-caption">container (default) — 1120px</span></div>
           <div class="container--dialog surface surface--inset"><span class="text-caption">container--dialog — 560px</span></div>
+          <div class="container--shell surface surface--inset"><span class="text-caption">container--shell — full-bleed band, no max width</span></div>
         </div>
       </div>
 
@@ -316,19 +317,44 @@
 
       <div class="stack gap-3">
         <h3 class="text-body"><strong>Cluster</strong> alignment</h3>
+        <p class="text-caption">cluster--start</p>
         <div class="cluster cluster--start gap-2 surface surface--inset motion-demo-frame">
-          <div class="surface surface--raised surface--tight">short</div>
-          <div class="surface surface--raised surface--tight">a bit taller item</div>
+          <div class="surface surface--raised catalog-chip">short</div>
+          <div class="surface surface--raised catalog-chip">a bit taller item</div>
         </div>
-        <p class="text-caption">cluster--start / --center / --end / --baseline — all four are registered aligns</p>
+        <p class="text-caption">cluster--center</p>
+        <div class="cluster cluster--center gap-2 surface surface--inset motion-demo-frame">
+          <div class="surface surface--raised catalog-chip">short</div>
+          <div class="surface surface--raised catalog-chip">a bit taller item</div>
+        </div>
+        <p class="text-caption">cluster--end</p>
+        <div class="cluster cluster--end gap-2 surface surface--inset motion-demo-frame">
+          <div class="surface surface--raised catalog-chip">short</div>
+          <div class="surface surface--raised catalog-chip">a bit taller item</div>
+        </div>
+        <p class="text-caption">cluster--baseline</p>
+        <div class="cluster cluster--baseline gap-2 surface surface--inset motion-demo-frame">
+          <div class="surface surface--raised catalog-chip">short</div>
+          <div class="surface surface--raised catalog-chip">a bit taller item</div>
+        </div>
       </div>
 
       <div class="stack gap-3">
         <h3 class="text-body"><strong>Grid</strong> column sets</h3>
+        <div class="grid grid--2 gap-3">
+          <div class="surface surface--raised"><span class="text-caption">grid--2, item 1</span></div>
+          <div class="surface surface--raised"><span class="text-caption">grid--2, item 2</span></div>
+        </div>
         <div class="grid grid--3 gap-3">
           <div class="surface surface--raised"><span class="text-caption">grid--3, item 1</span></div>
           <div class="surface surface--raised"><span class="text-caption">grid--3, item 2</span></div>
           <div class="surface surface--raised"><span class="text-caption">grid--3, item 3</span></div>
+        </div>
+        <div class="grid grid--4 gap-3">
+          <div class="surface surface--raised"><span class="text-caption">grid--4, item 1</span></div>
+          <div class="surface surface--raised"><span class="text-caption">grid--4, item 2</span></div>
+          <div class="surface surface--raised"><span class="text-caption">grid--4, item 3</span></div>
+          <div class="surface surface--raised"><span class="text-caption">grid--4, item 4</span></div>
         </div>
       </div>
     </section>
@@ -354,8 +380,8 @@
         <div><p class="text-caption">text-heading</p><p class="text-heading">[Short real section heading]</p></div>
         <div><p class="text-caption">text-body — short</p><p class="text-body">[Short real body copy in the product's own language]</p></div>
         <div><p class="text-caption">text-body — long</p><p class="text-body">[Full real long-form body copy, long enough to wrap across several lines and show real line-height and measure — replace with representative product content, not lorem ipsum]</p></div>
-        <div><p class="text-caption">text-body, text--truncate</p><p class="text-body text--truncate text--demo-width">[A long real single-line value forced to truncate with an ellipsis at a fixed width]</p></div>
-        <div><p class="text-caption">text-body, text--clamp</p><p class="text-body text--clamp text--demo-width">[A long real multi-line value clamped to three lines before it cuts off, demonstrating the wrap and clamp behavior a long-content state relies on]</p></div>
+        <div><p class="text-caption">text-body, text--truncate</p><p class="text-body text--truncate catalog-demo-width">[A long real single-line value forced to truncate with an ellipsis at a fixed width]</p></div>
+        <div><p class="text-caption">text-body, text--clamp</p><p class="text-body text--clamp catalog-demo-width">[A long real multi-line value clamped to three lines before it cuts off, demonstrating the wrap and clamp behavior a long-content state relies on]</p></div>
         <div><p class="text-caption">text-caption</p><p class="text-caption">[Short real caption or metadata line]</p></div>
       </div>
     </section>

@@ -46,7 +46,7 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `prd-builder` | 產品探索、需求、架構、前端技術選型，以及低保真線框圖 | `PRD.md`、`architecture.md`、`wireframes.md` |
+| `prd-builder` | 產品探索、需求、架構、前端技術選型，以及低保真線框圖 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md` |
 | `ui-architecture-builder` | 頁面只能照著組出來的那套 UI 架構：分層、設計 token、帶封閉變體集的基礎元件契約、產品元件、動效規則、逐路由的頁面配方、逐頁的真實 HTML 樣稿，以及視覺驗收 | `ui-architecture.md`、`ui-registry.json`、`page-recipes.md`、`design-system.md`、`mockups/` 底下每個路由一個 HTML 檔再加上 `mockups/catalog.html`、`visual-acceptance.md` |
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex app 任務、由 app 管理的 worktree，以及巢狀的唯讀輔助器 | 執行環境啟動指令與 worker 結果 |
@@ -223,7 +223,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 Codex 接受下列的 `$skill-name` 寫法。在 Claude Code 中，請呼叫已安裝、帶命名空間的技能，例如 `/fullstack-harness:prd-builder`，或直接用名稱指定。
 
 ```text
-Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
+Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, and wireframes.
 ```
 
 ```text

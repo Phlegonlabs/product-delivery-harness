@@ -4,6 +4,21 @@ Ask a full product interview before drafting artifacts unless the user explicitl
 
 Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them with Claude Code's `AskUserQuestion` tool immediately after the free-text interview message, not as open questions inside it. Everything else stays free text, since it is too product-specific or too action-specific to enumerate.
 
+The closed-set questions fit three `AskUserQuestion` calls of at most four questions each, in this order:
+
+1. The decisions that depend on no other answer: product archetype, validation depth, and overall visual style direction.
+2. For a UI-bearing product, the four closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, and preferred layout/interaction pattern.
+3. The decisions that depend on call 1's archetype answer: deployment platform, the mobile or desktop platform follow-up, database category, and auth strategy.
+
+Never ask a call-3 question in call 1. The product surface is still unknown there, so the answer can be about a platform the product does not have — and a wrong deployment platform then freezes a wrong environment contract into `architecture.md`.
+
+Every call-3 question carries a skip rule, so a real run asks fewer than four. Only a hybrid spanning web, mobile, and desktop surfaces with a backend leaves all five unresolved. Drop in this order rather than opening a fourth call, and resolve the dropped question as an explicit `Recommended` decision per `mobile-stack-selection.md`, never as `Selected`:
+
+1. Desktop platform — recommend one desktop target and record it as `Recommended`.
+2. Mobile platform — recommend one mobile stack and record it as `Recommended`.
+
+Deployment platform, database category, and auth strategy never drop. Each has no documented default to fall back on, and guessing one silently freezes the wrong environment contract into `architecture.md`, or the wrong store or identity boundary into `stack-decisions.md`.
+
 ## Interview Structure
 
 Ask only questions that are not already answered.
@@ -22,8 +37,8 @@ Ask only questions that are not already answered.
    - What is the successful end state?
 4. Product surface
    - Should this be web, mobile app, desktop app, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)
-   - If the answer is mobile app, which mobile platform: native iOS, native Android, Flutter (cross-platform), React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion) When the answer is undecided, resolve the recommendation with `mobile-stack-selection.md`, the same way the browser frontend choice follows `frontend-stack-selection.md`.
-   - If the answer is desktop app, which desktop platform: macOS, Windows, cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion)
+   - If the answer is mobile app, which mobile platform: native iOS, native Android, Flutter (cross-platform), React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, in call 3, since it depends on the archetype answer; first to drop after the desktop follow-up when the closed-set budget is full) Skip it when the user's prompt, the existing package, or the current repository already names the mobile platform. When the answer is undecided or the question was dropped, resolve the recommendation with `mobile-stack-selection.md`, the same way the browser frontend choice follows `frontend-stack-selection.md`.
+   - If the answer is desktop app, which desktop platform: macOS, Windows, cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion, in call 3, since it depends on the archetype answer; first to drop when the closed-set budget is full) Skip it when the user's prompt, the existing package, or the current repository already names the desktop platform. When the answer is undecided or the question was dropped, resolve the recommendation with `mobile-stack-selection.md`.
    - Which platforms, devices, or channels matter?
    - Are there accessibility, localization, or offline requirements?
 5. Data and integrations
@@ -53,7 +68,7 @@ Ask only questions that are not already answered.
 8. Architecture constraints
    - Is there a required stack, hosting environment, database, auth provider, or existing system?
    - What auth strategy should this product use: build custom authentication, a managed third-party provider (e.g., Auth0, Clerk, WorkOS), a platform-native provider (e.g., Cloudflare Access, AWS Cognito), or no auth needed? (AskUserQuestion)
-   - For a deployable web product, which deployment platform should this use: Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, unless the user's prompt or the current repository already names one) — ask this only when the resolved product surface is web, or a hybrid that includes a web surface. It does not apply to a native iOS, native Android, Flutter, macOS, or Windows target, whose release path is an app store or a signed installer rather than a web host; for those, resolve distribution with the matching platform pattern in `architecture-playbook.md` instead of asking this question.
+   - For a deployable web product, which deployment platform should this use: Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, in call 3, unless the user's prompt or the current repository already names one) — ask this only when the resolved product surface is web, or a hybrid that includes a web surface, which is why it belongs in call 3 and never in the same batch as the product-surface question. It does not apply to a native iOS, native Android, Flutter, macOS, or Windows target, whose release path is an app store or a signed installer rather than a web host; for those, resolve distribution with the matching platform pattern in `architecture-playbook.md` instead of asking this question.
    - For a browser frontend, is the product primarily content-led, interaction-led, or a mixture? Which routes require SEO, static generation, server rendering, authenticated personalization, or SPA behavior?
    - If the platform is Cloudflare, does the frontend need Cloudflare Workers bindings or APIs such as D1, KV, R2, Durable Objects, Queues, Workflows, or Workers AI? For another platform, note the equivalent platform-managed services it needs.
    - Which team skills, existing components, package constraints, browser targets, and build/deployment workflows should shape the frontend choice?
@@ -95,7 +110,7 @@ When `docs/product/PRD.md` (or another document clearly describing the same prod
 
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
-- When the new idea adds a mobile or desktop target to a product that previously had only a web target (or, conversely, adds a web target to a previously mobile/desktop-only product), always re-trigger the platform-selection question (the mobile/desktop platform `AskUserQuestion` steps in this guide, "Product surface" lines 25-26) for the NEW target specifically. This holds even though the existing target's already-answered platform question is carried forward unchanged, per the "do not re-ask what's already answered" rule above — the new target has no answer yet, so it must be asked.
+- When the new idea adds a mobile or desktop target to a product that previously had only a web target (or, conversely, adds a web target to a previously mobile/desktop-only product), always re-trigger the platform-selection question (the mobile/desktop platform `AskUserQuestion` follow-ups under "Product surface" above) for the NEW target specifically. This holds even though the existing target's already-answered platform question is carried forward unchanged, per the "do not re-ask what's already answered" rule above — the new target has no answer yet, so it must be asked.
 - If the new idea conflicts with an existing decision, surface the conflict explicitly and ask which should win instead of silently overwriting it.
 
 ## Assumption Mode

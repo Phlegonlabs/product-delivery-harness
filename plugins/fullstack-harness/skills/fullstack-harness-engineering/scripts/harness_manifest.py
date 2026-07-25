@@ -97,6 +97,7 @@ from harness_ui_evidence import (
     _validate_ui_evidence,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
+    validate_ui_surface_recipe_coverage,
 )
 
 

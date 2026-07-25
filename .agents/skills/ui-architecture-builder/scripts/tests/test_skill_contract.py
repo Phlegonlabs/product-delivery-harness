@@ -1,4 +1,5 @@
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -357,6 +358,129 @@ class UiArchitectureContractTests(unittest.TestCase):
             with self.subTest(gate=gate):
                 self.assertIn(gate, acceptance)
                 self.assertIn(gate, contract)
+
+
+class PackageParityTests(unittest.TestCase):
+    """Mechanical parity between files that must describe the same system.
+
+    Name-only assertions let the contract and its template drift on substance
+    while staying green, so these compare whole rows and whole key sets.
+    """
+
+    def read(self, relative_path: str) -> str:
+        return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    @staticmethod
+    def _gate_rows(text: str) -> dict[str, str]:
+        rows: dict[str, str] = {}
+        for line in text.splitlines():
+            match = re.match(r"\|\s*(TEST-VIS-\d+)\s*\|(.*)$", line.strip())
+            if match:
+                cells = [cell.strip() for cell in match.group(2).split("|")]
+                rows[match.group(1)] = " | ".join(cell for cell in cells if cell)
+        return rows
+
+    def test_acceptance_gate_rows_match_the_contract(self) -> None:
+        contract = self._gate_rows(self.read("references/output-contract.md"))
+        template = self._gate_rows(self.read("assets/templates/VISUAL_ACCEPTANCE.template.md"))
+
+        self.assertEqual(sorted(contract), sorted(template))
+        for gate_id, row in contract.items():
+            with self.subTest(gate=gate_id):
+                self.assertEqual(row, template[gate_id])
+
+    @staticmethod
+    def _slug(name: str) -> str:
+        return re.sub(r"(?<!^)(?=[A-Z])", "-", name.strip("<>")).lower()
+
+    def _registry_classes(self) -> tuple[set[str], set[str]]:
+        """Base classes and every modifier class the registry implies.
+
+        A value the registry marks as an axis default is realized as the bare
+        base class, so it yields no modifier. Bracketed values are template
+        placeholders, not class names.
+        """
+        registry = json.loads(self.read("assets/templates/UI_REGISTRY.template.json"))
+        bases: set[str] = set()
+        classes: set[str] = set()
+        skip = {
+            "layer",
+            "class",
+            "defaults",
+            "rawStylesAllowed",
+            "minTargetPx",
+            "requiresAccessibleName",
+        }
+        for name, spec in registry["primitives"].items():
+            base = spec.get("class", self._slug(name))
+            defaults = spec.get("defaults", {})
+            bases.add(base)
+            classes.add(base)
+            for axis, values in spec.items():
+                if axis in skip or not isinstance(values, list):
+                    continue
+                for value in values:
+                    raw = str(value)
+                    if "<" in raw or " " in raw or raw == defaults.get(axis):
+                        continue
+                    slug = self._slug(raw)
+                    if axis == "gaps":
+                        classes.add(f"gap-{slug}")
+                    else:
+                        classes.update({f"{base}--{slug}", f"{base}-{slug}"})
+        return bases, classes
+
+    @staticmethod
+    def _used_classes(markup: str) -> set[str]:
+        used: set[str] = set()
+        for match in re.finditer(r'class="([^"]*)"', markup):
+            used.update(match.group(1).split())
+        return used
+
+    def test_html_templates_use_registered_primitives(self) -> None:
+        bases, registered = self._registry_classes()
+        for template in ("MOCKUP_PAGE", "CATALOG"):
+            used = self._used_classes(self.read(f"assets/templates/{template}.template.html"))
+            with self.subTest(template=template):
+                # Scaffolding is allowed, but it may never squat on a registered
+                # primitive's variant namespace — that reads as an unregistered
+                # variant of a real primitive.
+                squatting = {
+                    name
+                    for name in used - registered
+                    if "--" in name and name.split("--", 1)[0] in bases
+                }
+                self.assertEqual(squatting, set())
+
+    def test_every_registered_variant_appears_in_the_catalog(self) -> None:
+        _, registered = self._registry_classes()
+        catalog = self._used_classes(self.read("assets/templates/CATALOG.template.html"))
+        modifiers = {name for name in registered if "--" in name}
+
+        # The catalog is the two-way reference: every registered variant must be
+        # visible there. Both spellings are generated per axis, so a variant
+        # counts as shown when either form appears.
+        missing = {
+            name
+            for name in modifiers
+            if name not in catalog and name.replace("--", "-") not in catalog
+        }
+        self.assertEqual(missing, set())
+
+    def test_workflow_roles_match_the_role_graph(self) -> None:
+        graph = self.read("references/dynamic-workflow.md")
+        workflow = self.read("assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js")
+
+        documented = {
+            match.group(1)
+            for match in re.finditer(r"^\|\s*([a-z][a-z-]+)\s*\|", graph, re.M)
+        }
+        # A role is implemented either as a fan-out entry with a `key`, or as a
+        # single labeled agent call in its own phase (synthesis).
+        coded = set(re.findall(r'key:\s*"([a-z][a-z-]+)"', workflow))
+        coded |= set(re.findall(r'label:\s*"design:([a-z][a-z-]+)"', workflow))
+
+        self.assertEqual(documented, coded)
 
 
 if __name__ == "__main__":

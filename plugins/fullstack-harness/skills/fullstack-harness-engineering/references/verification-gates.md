@@ -81,6 +81,13 @@ Use or adapt this matrix:
 | Console/network | browser surface changed | no relevant errors | console/network log |
 | Accessibility | interactive UI changed | no serious blockers or named residuals | checker output |
 | Visual design | design source exists | matches wireframe/design system within stated tolerance | screenshots or human approval |
+| Page-to-mockup conformance (TEST-VIS-003) | a route has a `mockups/*.html` source | the built route matches its mockup in section order, hierarchy, spacing scale, and content, judged at every required viewport or size class; state the tolerance and what is allowed to differ (real data, live copy, platform chrome) | side-by-side screenshots + reviewer note |
+| UI contract check (TEST-VIS-018, TEST-VIS-022) | `ui-registry.json` exists | `scripts/check_ui_contract.py` reports no violation against the product's real source; a run that analyzed zero files is not a pass | checker output |
+| Page recipe conformance (TEST-VIS-019) | a route in `page-recipes.md` changed | section order, container, density, allowed surfaces, and primary action match the recipe; no forbidden pattern present | recipe diff + screenshot |
+| Content contract conformance (TEST-VIS-020) | a product component renders contract-governed content | required content order and never-drop fields intact; limits, formats, empty and long-content rules respected | screenshot or content review |
+| State matrix coverage (TEST-VIS-021) | a route with a recipe changed | every state the recipe requires is captured or marked `n/a` with a reason, at every required viewport or size class | `ui_evidence` rows |
+| Catalog completeness (TEST-VIS-023) | `mockups/catalog.html` exists | every `ui-registry.json` entry appears in the catalog and every catalog entry exists in the registry | catalog review or checker output |
+| No-JavaScript path (TEST-VIS-024) | a route declares `mustRenderWithoutJavaScript` | that content renders and is readable with JavaScript disabled | screenshot with JS disabled |
 | SEO metadata | public page changed | title/description/canonical/OG/schema as specified | rendered HTML or test |
 | CMS/content readback | content source changed | draft/preview/publish/readback works | command/log/screenshot |
 | Analytics / conversion | CTA/form/tracking changed | event/form/webhook observed or stub-verified | log/trace |
@@ -256,7 +263,9 @@ Final PASS requires:
 
 - Every must-have trace ID is covered.
 - Every required gate is PASS.
+- Every `TEST-VIS-*` obligation the design package declares maps to a specific verification row above and that row is PASS. A generically named visual gate does not satisfy a specific `TEST-VIS-*` obligation (see `contract-and-traceability.md`'s Trace IDs). A `TEST-VIS-*` ID with no matching row is an uncovered must-have trace, not an optional extra.
 - Schema-v9 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
+- Closeout runs `scripts/validate_harness_plan.py --ui-registry <path to the package's ui-registry.json>` whenever a UI architecture package is a contract source, so each recipe's `requiredStates` is cross-checked against the PLAN's UI surfaces. Without it, required screenshot coverage is derived from the PLAN's own state list, and a PLAN that declares `ready` alone reaches a PASS closeout with one state of eleven.
 - Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Every skipped gate is justified.
 - Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. A required row's screenshot or other evidence artifact changing after being marked PASS (a working-tree diff to an already-recorded evidence file) invalidates that recorded PASS until a fresh evidence-capture attempt reruns and re-binds it to the current head.

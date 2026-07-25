@@ -72,11 +72,10 @@ Carry all four lines into the Screen Template below verbatim. They make the layo
 
 ## Screen Template
 
+Lead the screen with the human-readable intent lines. The `UI ID` and trace IDs close the screen in a `### Trace` block, so a reader learns what the screen is for before meeting its identifiers.
+
 ````markdown
 ## Screen: [Name]
-UI ID: UI-001
-
-Trace IDs: PRD-001, UX-001, ARCH-001
 
 Main purpose: [Single primary goal, one sentence]
 
@@ -100,10 +99,25 @@ Density: [Sparse / balanced / dense, with a task or content reason]
 - Success: [Confirmation and next step]
 
 ### Content, Style, Media & Motion Notes
-| UI ID | Region | Trace IDs | Content mode | Exact wording or display contract | Content priority | Style direction | Image / media | Motion | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| UI-001-R01 | [Region] | PRD-001, UX-001 | [exact copy / display contract] | [Verbatim wording, or what to show + intended takeaway/action + source + constraints] | [must-have / secondary / defer] | [Visual job and hierarchy/comprehension purpose] | [required / optional / none; purpose] | [required / optional / none; purpose] | [Status, fallback, or handoff question] |
+One block per visible region, in the order the region appears on screen.
+
+**UI-001-R01 — [Region]**
+- Content mode: [exact copy / display contract]
+- Exact wording or display contract: [Verbatim wording, or what to show + intended takeaway/action + source + constraints]
+- Content priority: [must-have / secondary / defer]
+- Style direction: [Visual job and hierarchy/comprehension purpose]
+- Image / media: [required / optional / none; purpose]
+- Motion: [required / optional / none; purpose]
+- Notes: [Status, fallback, or handoff question]
+- Trace IDs: PRD-001, UX-001
+
+### Trace
+UI ID: UI-001
+
+Trace IDs: PRD-001, UX-001, ARCH-001
 ````
+
+Write the region notes as blocks, not as one wide table. The same fields in a ten-column Markdown table wrap or need horizontal scrolling in every viewer.
 
 ## Layout Skeletons by Pattern
 

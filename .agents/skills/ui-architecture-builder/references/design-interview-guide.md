@@ -1,6 +1,6 @@
 # Design Interview Guide
 
-Use this guide before drafting a design package.
+Use this guide before drafting a UI architecture package.
 
 ## Required Questions
 
@@ -11,19 +11,21 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them
 The closed-set questions fit one or two `AskUserQuestion` calls of at most four questions each. Almost every one carries a skip rule, so a real run asks far fewer. When more than eight are still unresolved, do not open a third call. Drop in this order and record the documented default as an explicit assumption instead:
 
 1. Validation depth — assume documented assumptions.
-2. Icon style — assume the primary library's default per `references/icon-system-guide.md`.
+2. Icon style — assume the outline or platform-native variant that matches the taste statement, name the exact variant in `design-system.md`'s Icon Tokens, and record it as an assumption. Do not claim a library default the shortlist in `references/icon-system-guide.md` does not state.
 3. Motion delivery format — assume storyboard plus implementation code, no runnable showcase.
 
 The architecture-contract questions — styling engine, registry enforcement, and adoption mode — outrank all three. A wrong guess there points the contract check at the wrong allowlist and invalidates the guardrails.
 
+The mobile-platform and desktop-platform follow-ups below are conditional: they fire only when the design-target answer is a mobile or desktop app AND no upstream document resolved the platform. When one fires it takes a slot in the second call by dropping the next question in the order above — it does not justify a third call. It outranks every question except the three architecture-contract ones, because the platform decides the whole visual vocabulary and cannot be assumed from a documented default.
+
 ### Product And Audience
 
-- What product or page set is this design package for?
+- What product or page set is this UI architecture package for?
 - Who uses it, and what are they trying to accomplish?
 - Who is the human builder or product/design decision owner for the UX direction?
 - Is the target a SaaS app, dashboard, internal tool, public website, marketing page, docs/content site, ecommerce/catalog, mobile app, desktop app, or hybrid? (AskUserQuestion, using SaaS app/dashboard / public website or marketing page / internal tool / ecommerce or catalog as the four options and the tool's built-in Other for docs/content site, mobile app, desktop app, or hybrid) Skip this when `architecture.md`'s `Product Archetype` already resolved the platform; carry that value forward.
-- If the answer is a mobile app, which platform does it target: native iOS, native Android, Flutter (cross-platform), or React Native (cross-platform)? (AskUserQuestion) This decides the visual vocabulary — iOS follows Apple's Human Interface Guidelines, Android follows Material Design, and Flutter or React Native follow the target platform's own convention per `references/visual-decision-guide.md`. Skip it when the PRD or `architecture.md` already resolved the mobile platform.
-- If the answer is a desktop app, which platform does it target: macOS, Windows, or cross-platform (e.g. Electron or Tauri)? (AskUserQuestion) This decides platform-native chrome and desktop interaction patterns per `references/visual-decision-guide.md`. Skip it when the PRD or `architecture.md` already resolved the desktop platform.
+- If the answer is a mobile app, which platform does it target: native iOS, native Android, Flutter (cross-platform), or React Native (cross-platform)? (AskUserQuestion) This decides the visual vocabulary — iOS follows Apple's Human Interface Guidelines, Android follows Material Design, and Flutter or React Native follow the target platform's own convention per `references/visual-decision-guide.md`. Skip it when the PRD or `stack-decisions.md` already resolved the mobile platform.
+- If the answer is a desktop app, which platform does it target: macOS, Windows, or cross-platform (e.g. Electron or Tauri)? (AskUserQuestion) This decides platform-native chrome and desktop interaction patterns per `references/visual-decision-guide.md`. Skip it when the PRD or `stack-decisions.md` already resolved the desktop platform.
 
 ### Builder UX Direction
 
@@ -44,8 +46,8 @@ The architecture-contract questions — styling engine, registry enforcement, an
 ### Scope And Pages
 
 - Which routes/pages/screens need high-fidelity UI treatment?
-- Which states matter for each page: ready, loading, empty, error, disabled, permission denied, long content, responsive overflow?
-- Which breakpoints must be specified? The default required set is 390 / 768 / 1200 / 1440 px; ask only whether the product needs different or additional ones.
+- Which of the eleven states matter for each page, and which are genuinely `n/a`: ready, loading, empty, error, disabled, permission denied, stale, expired, long content, reduced motion, mobile reflow? Every page carries ready, long content, reduced motion, and mobile reflow; the rest need a reason to be `n/a` (see `references/ui-architecture-guide.md`'s State Matrix).
+- Which responsive verification set must be specified? It follows the resolved platform. For a web target the default required set is 390 / 768 / 1200 / 1440 px. For a native or desktop target it is that platform's own model — iOS/macOS size classes and safe areas, Android window size classes, or the named desktop window sizes — and pixel breakpoints do not apply (see `references/visual-decision-guide.md`). Ask only whether the product needs different or additional entries in its own set.
 - For a landing page, what single message and primary action must the first viewport communicate? Which details can move to deeper pages or be omitted?
 - Which page regions require an image, product media, illustration, video, or animation, and what must each asset help the user understand or do?
 
@@ -60,7 +62,7 @@ The architecture-contract questions — styling engine, registry enforcement, an
 ### Implementation Constraints
 
 - What frontend stack or component library should the design respect, if any?
-- Which styling engine and theming mechanism must the token and primitive layers use: utility CSS, CSS-in-JS, CSS modules, or plain CSS? (AskUserQuestion, using utility CSS (for example Tailwind) / CSS-in-JS / CSS modules / plain CSS as the four options and the tool's built-in Other for a native platform theme system) The engine is swappable per `references/ui-architecture-guide.md`'s Stack Independence, but the answer fixes how tokens are declared and how the contract check recognizes a raw value. Skip it when the PRD or `architecture.md` already names the styling engine; carry that value forward.
+- Which styling engine and theming mechanism must the token and primitive layers use? (AskUserQuestion) Offer the options the resolved platform actually has. For a web target: utility CSS (for example Tailwind) / CSS-in-JS / CSS modules / plain CSS. For a native or desktop target: the resolved toolchain's own theming mechanism, and ask where the tokens are declared inside it — SwiftUI view modifiers plus a theme type or asset catalog for iOS/macOS, `MaterialTheme` tokens for Jetpack Compose, `ThemeData` for Flutter, `StyleSheet` plus a theme provider for React Native, or XAML resource styles for WinUI. Use the tool's built-in Other for anything else. The engine is swappable per `references/ui-architecture-guide.md`'s Stack Independence, but the answer fixes how tokens are declared and how the contract check recognizes a raw value. Skip it when an upstream document already fixes the mechanism: for a web target that is `stack-decisions.md`'s `Frontend Technology Decision` → `Styling and components` row. A native-only product has no `Frontend Technology Decision` section at all, so read `stack-decisions.md`'s `Mobile/Desktop Technology Decision` → `Toolchain` row instead; the toolchain's own theming mechanism is the answer. Carry that value forward.
 - How strictly is the registry enforced: a blocking contract check that fails the build when a page leaves the allowlist, or an advisory allowlist? (AskUserQuestion, using blocking contract check / advisory allowlist as the two options and the tool's built-in Other) Blocking is what `references/ui-architecture-guide.md` assumes — an architecture nothing enforces drifts back. Advisory still gets the full guardrail specification, but `visual-acceptance.md` must record that no check fails when a rule is violated.
 - Is this a greenfield build, or must an existing codebase be migrated in phases? (AskUserQuestion, using greenfield / phased migration of an existing codebase as the two options and the tool's built-in Other for a partial rewrite) This picks the adoption sequence in `references/ui-architecture-guide.md`: greenfield lands phases 1–2 before the first route and phase 5 with the first two routes, while a migration runs the phases in order. For a migration, also ask in free text which routes are highest traffic or highest risk, and which existing components must keep working unchanged.
 - Which animation runtime owns enter/exit, layout change, list insertion and removal, dialogs and drawers, gesture, and state choreography, given that the style layer already owns hover, focus, pressed, and color transitions? (AskUserQuestion, using Web Animations API (no dependency) / Motion (Framer Motion) / GSAP / native platform animation API as the four options and the tool's built-in Other for Rive or another dependency) `references/ui-architecture-guide.md`'s Motion Architecture splits motion three ways; only the runtime half needs a dependency decision. Ask in the same breath whether route-level transitions are wanted, and skip the question when a runtime is already approved in the project.
@@ -75,7 +77,7 @@ The architecture-contract questions — styling engine, registry enforcement, an
 
 ## Readiness Criteria
 
-The design package is ready to draft when these are known or explicitly assumed:
+The UI architecture package is ready to draft when these are known or explicitly assumed:
 
 - Product archetype and target audience
 - Human Builder UX Direction owner plus concrete selected, provisional, or assumed choices for experience priority, guidance/control, density, interaction/layout, confirmation/recovery, and validation depth
@@ -85,7 +87,7 @@ The design package is ready to draft when these are known or explicitly assumed:
 - Icon source constraints and representative icon needs, or permission to research and recommend them
 - Motion scope, trigger, delivery format, and reduced-motion behavior, or an explicit `n/a`. Scope includes non-hero surfaces in play — modal/sheet, list add/remove/reorder, toast, skeleton/loading, form validation, drag-and-drop, chart/data-viz, scroll-triggered reveal, empty state — each addressed or explicitly marked `n/a`
 - Landing-page content priority and per-region image/media/motion needs, or explicit permission to derive them
-- Required states and the required viewport set
+- Required states and the required responsive verification set: the pixel viewports for a web target, or the platform's size classes or window sizes for a native or desktop target
 - Brand/source references or confirmation that none exist
 - Implementation constraints that affect components and layout
 - Styling engine and theming mechanism, so the token layer has one declaration form
