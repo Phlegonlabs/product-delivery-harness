@@ -621,6 +621,21 @@ class PlanValidationTests(unittest.TestCase):
         self.assertEqual(validate_plan(plan), [])
         self.assertEqual(topological_levels(plan), {"M1": 0, "M2": 1})
 
+    def test_planned_trace_needs_a_verification_row_not_just_a_task(self) -> None:
+        # contract-and-traceability.md requires every must-have trace to have a
+        # downstream task AND a verification row. Task coverage alone let an
+        # implemented-but-unverified contract reach closeout as covered.
+        plan = valid_plan()
+        self.assertEqual(validate_plan(plan), [])
+
+        for task_entry in plan["missions"][0]["tasks"]:
+            task_entry["acceptance_matrix"] = []
+        self.assert_error_contains(plan, "planned trace has no verification row")
+
+        # One task carrying the trace with a real acceptance matrix is enough.
+        plan["missions"][0]["tasks"][0]["acceptance_matrix"] = ["M1/T01 passes"]
+        self.assertEqual(validate_plan(plan), [])
+
     def test_required_skills_accepts_empty_and_populated_lists(self) -> None:
         plan = valid_plan()
         self.assertEqual(validate_plan(plan), [])
@@ -1196,6 +1211,40 @@ class RunValidationTests(unittest.TestCase):
         run["deployments"]["development"]["evidence"] = ["artifact:development-smoke"]
         # Worker/url/version_id stay None: a generic provider's PASS does not require them.
         self.assertEqual(validate_run(plan, run), [])
+
+    def test_local_only_cannot_authorize_execution_for_a_release_plan(self) -> None:
+        # A release PLAN's production target requires a merged PR; local_only can
+        # never record one, so the run could never reach complete. Catch it at
+        # authorization instead of at closeout, after every mission is built.
+        plan = valid_release_plan()
+        run = valid_closeout_run(plan)
+        run["deployments"] = valid_release_run(plan)["deployments"]
+        self.assertEqual(run["landing"]["mode"], "local_only")
+        self.assertEqual(validate_run(plan, run), [])
+
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M1", "M2"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        self.assert_run_error_contains(
+            plan, run, "release PLAN in local_only mode"
+        )
+
+        run["landing"]["mode"] = "pull_request"
+        self.assertEqual(
+            [error for error in validate_run(plan, run) if "local_only" in error],
+            [],
+        )
 
     def test_release_plan_requires_schema_v7_or_v9_run(self) -> None:
         plan = valid_release_plan()
