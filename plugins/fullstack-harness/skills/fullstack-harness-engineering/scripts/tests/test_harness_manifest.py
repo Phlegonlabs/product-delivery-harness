@@ -624,7 +624,7 @@ class PlanValidationTests(unittest.TestCase):
     def test_required_skills_accepts_empty_and_populated_lists(self) -> None:
         plan = valid_plan()
         self.assertEqual(validate_plan(plan), [])
-        plan["missions"][0]["required_skills"] = ["frontend-design", "design-package-builder"]
+        plan["missions"][0]["required_skills"] = ["frontend-design", "ui-architecture-builder"]
         self.assertEqual(validate_plan(plan), [])
 
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:

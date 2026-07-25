@@ -51,6 +51,28 @@ A task's own module crossing the project's File Size Limit (see the seeded root 
 
 The parallel write unit is always a mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker.
 
+## UI Build Order
+
+When the design source is a `ui-architecture-builder` package, its layers decide task order. Each layer composes only the layers above it, so a task cannot be verified before the layer it depends on exists:
+
+```text
+1. Design tokens                              (every visual, layout, and motion value)
+2. Layout / surface / typography / control primitives
+   + ui-registry.json + mockups/catalog.html   (same layer, same change)
+   + the UI contract check and the 390/768/1200/1440 viewport check
+3. Product components                          (bound to their content contracts)
+4. Routes                                      (one route per mission per contract-and-traceability.md)
+```
+
+Rules:
+
+- The registry and the catalog land alongside the primitives, not after the routes. An unregistered primitive is not usable, and a primitive absent from the catalog cannot be reviewed.
+- The contract checks land with the first routes, not at the end. A guardrail that first runs after every route is built reports a backlog of violations instead of stopping the first one.
+- A route task may not introduce a new primitive, variant, or motion variant without updating `ui-registry.json` and `mockups/catalog.html` in the same change. That update is part of the route task's own write scope and acceptance matrix; it is never a follow-up task.
+- Each layer is one or more tasks, never one task spanning two layers — a task that adds a token and the component consuming it cannot fail the token independently.
+- A route's required states from its recipe are acceptance-matrix items inside that route's task, not separate tasks (see `What Deserves A Task` above). The same holds for the four viewports.
+- For an existing product, follow the adoption sequence in `ui-architecture.md` instead of this order when the two differ; it sequences the same layers around already-shipped routes.
+
 ## Refinement Limit
 
 Execution-time refinement allows one generation only:

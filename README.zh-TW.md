@@ -27,7 +27,7 @@
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
 | 一個產品構想 | `prd-builder` | 需求、架構、技術選型與線框圖 |
-| PRD 或既有產品方向 | `design-package-builder` | 設計系統、真實頁面樣稿與視覺驗收條件 |
+| PRD 或既有產品方向 | `ui-architecture-builder` | UI 架構、機器可讀的元件清單、逐路由的頁面配方、真實頁面樣稿與視覺驗收條件 |
 | 既有儲存庫中的明確變更 | `fullstack-harness-engineering` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 已驗證、需要送上 GitHub 的本機候選版本 | `fullstack-harness-github-landing` | 綁定當前 head 的推送、PR、CI／審查收斂與精確合併 |
 
@@ -47,7 +47,7 @@
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
 | `prd-builder` | 產品探索、需求、架構、前端技術選型，以及低保真線框圖 | `PRD.md`、`architecture.md`、`wireframes.md` |
-| `design-package-builder` | 設計方向、設計 token、圖示與動效規則、逐頁的真實 HTML 樣稿，以及視覺驗收 | `design-system.md`、`visual-acceptance.md`、`mockups/` 底下每頁一個 HTML 檔、`ui-mockups.md` |
+| `ui-architecture-builder` | 頁面只能照著組出來的那套 UI 架構：分層、設計 token、帶封閉變體集的基礎元件契約、產品元件、動效規則、逐路由的頁面配方、逐頁的真實 HTML 樣稿，以及視覺驗收 | `ui-architecture.md`、`ui-registry.json`、`page-recipes.md`、`design-system.md`、`mockups/` 底下每個路由一個 HTML 檔再加上 `mockups/catalog.html`、`visual-acceptance.md` |
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex app 任務、由 app 管理的 worktree，以及巢狀的唯讀輔助器 | 執行環境啟動指令與 worker 結果 |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow 與由 parent 管理的 worktree | 執行環境啟動指令與 worker 結果 |
@@ -67,7 +67,7 @@
 ```mermaid
 flowchart LR
   Idea["產品構想或變更需求"] --> PRD["prd-builder\n產品與技術定義"]
-  PRD --> Design["design-package-builder\n視覺系統與頁面規則"]
+  PRD --> Design["ui-architecture-builder\nUI 架構、元件清單與頁面配方"]
   PRD --> Harness["fullstack-harness-engineering\n共用交付核心"]
   Design --> Harness
   Harness --> Runtime["單一 host 轉接器\nCodex 或 Claude Code"]
@@ -140,7 +140,7 @@ Claude 的各波依模型、推理強度與工具設定檔區隔：
 - 預設的 Cloudflare 模型使用綁定精確 SHA 的 GitHub Actions dispatch。開發環境綁定當前 PR head；正式環境綁定已合併的 base branch SHA。
 - 選用的 Cloudflare Workers Builds 模型可以把持久的整合分支自動部署到開發環境，再把 base branch 自動部署到正式環境。只有明確選用時才啟用，也不會與 dispatch 模型混用。
 - Day-one bootstrap 只建立已確認需要的環境資源與 Worker shell。真正部署功能程式碼仍需要目標環境專屬授權。
-- `doc/deployment.md` 保存給維護者閱讀的拓樸與設定；RUN 仍是機器可讀的執行紀錄。
+- `docs/deployment.md` 保存給維護者閱讀的拓樸與設定；RUN 仍是機器可讀的執行紀錄。
 - 行動裝置與桌面交付同樣分離 development／beta 與 production 的憑證、後端、商店軌道與發佈佐證，不會硬套 Cloudflare 格式。
 
 ## 安裝
@@ -227,7 +227,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
 ```
 
 ```text
-Use $design-package-builder to create a design package from doc/PRD.md and doc/wireframes.md.
+Use $ui-architecture-builder to create the UI architecture, registry, page recipes, and mockups from docs/product/PRD.md and docs/product/wireframes.md.
 ```
 
 ```text
@@ -278,7 +278,7 @@ scripts/update-private-skills.ps1 更新已安裝的市集與外掛
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
-python -m unittest discover -s .agents/skills/design-package-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/ui-architecture-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 git diff --check
 ```

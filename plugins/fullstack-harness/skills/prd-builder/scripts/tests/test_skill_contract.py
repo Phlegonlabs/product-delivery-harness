@@ -23,7 +23,7 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "ask whether the user wants to run the `design-package-builder` skill next",
+            "ask whether the user wants to run the `ui-architecture-builder` skill next",
             skill,
         )
         self.assertIn("Do not invoke the design skill without an explicit yes", skill)

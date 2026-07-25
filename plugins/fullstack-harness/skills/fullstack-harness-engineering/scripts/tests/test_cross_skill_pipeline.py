@@ -25,9 +25,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
     def test_prd_design_and_harness_share_trace_and_lifecycle_contracts(self) -> None:
         prd = self.read("prd-builder/references/output-contract.md")
         prd_lifecycle = self.read("prd-builder/references/artifact-lifecycle.md")
-        design = self.read("design-package-builder/references/output-contract.md")
+        design = self.read("ui-architecture-builder/references/output-contract.md")
         design_lifecycle = self.read(
-            "design-package-builder/references/artifact-lifecycle.md"
+            "ui-architecture-builder/references/artifact-lifecycle.md"
         )
         harness = self.read(
             "fullstack-harness-engineering/references/contract-and-traceability.md"
@@ -47,7 +47,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "prd-builder/assets/templates/CLAUDE_PRD_WORKFLOW.template.js"
         )
         design_workflow = self.read(
-            "design-package-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+            "ui-architecture-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
         )
         plan = self.read(
             "fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md"

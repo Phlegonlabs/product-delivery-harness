@@ -149,6 +149,8 @@ M6 deployed URL smoke, sitemap/robots/redirect checks
 
 M2 and M5 above are illustrative single lines, not a mandate to lump every page into one mission or defer all visual QA to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M2 into one mission per page (or a small tightly-coupled group, for example the legal/about/contact pages sharing one trivial template) and pair each with its own scoped `visual` review as soon as that mission integrates, rather than one M2 covering the whole page inventory reviewed once by a later M5.
 
+When a `ui-architecture-builder` package is the design source, M2's page templates come after tokens, primitives, `ui-registry.json`, and `mockups/catalog.html` exist — see `execution-task-decomposition.md`'s UI Build Order. Each page mission then implements its route from the registry and that route's recipe in `page-recipes.md`.
+
 Required E2E scenarios:
 
 - Primary CTA or form submission reaches the expected destination.
@@ -201,7 +203,7 @@ Required E2E scenarios:
 
 Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows desktop app. These do not have a URL model, SEO metadata, or a Worker redeploy — their distribution runs through app stores or signed installers. Read `references/mobile-desktop-deployment-lifecycle.md` for the release/promotion model; freeze the surfaces below before implementation.
 
-The design-source input for this profile is a real HTML mockup under `mockups/` (from `design-package-builder`), styled to the platform's own conventions (HIG, Material, or desktop window chrome) as a visual reference — it is a demonstration medium, not the platform's rendering engine, so it does not replace implementation and is never shipped as-is. UI evidence for these targets, once the real app is implemented, uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots or the mockup HTML itself.
+The design-source input for this profile is a real HTML mockup under `mockups/` (from `ui-architecture-builder`), styled to the platform's own conventions (HIG, Material, or desktop window chrome) as a visual reference — it is a demonstration medium, not the platform's rendering engine, so it does not replace implementation and is never shipped as-is. `ui-architecture.md`, `ui-registry.json`, and `page-recipes.md` bind here too: the layers keep their meaning and take the platform's vocabulary, so tokens become theme values, layout primitives become the platform's layout containers, and control primitives wrap its native controls. Wrapping a platform's own component in a registered primitive is what keeps the closed variant sets — do not drop the primitive layer because the platform ships a component library. UI evidence for these targets, once the real app is implemented, uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots or the mockup HTML itself.
 
 Freeze these surfaces:
 

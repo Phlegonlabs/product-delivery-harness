@@ -50,8 +50,10 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
         ],
         "route": "<route or screen>",
         "breakpoints": [
-          "mobile",
-          "desktop"
+          "mobile-390",
+          "tablet-768",
+          "laptop-1200",
+          "desktop-1440"
         ],
         "states": [
           "ready",
@@ -459,7 +461,7 @@ Plan focused checks at task/worker level, the mission's integration surface at i
 
 Scope entries must be POSIX, repository-relative exact paths or subtrees ending in `/**`. Reject absolute paths, `..`, backslashes, negation, and other wildcard syntax. Use `runtime_resources: []` when no runtime resource applies; never use a string such as `"none"`. Allowed access values are `exclusive` and `shared_read`. Treat an incomplete or unsupported resource inventory as unsafe for parallel write execution.
 
-`required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`, `design-package-builder`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
+`required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`, `ui-architecture-builder`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
 
 On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `architecture.md` Frontend Technology Decision names, before any archetype-specific mission runs. This is a complete, copy-paste-ready mission object rather than new field-level guidance: every field keeps the same meaning and default already explained above for the main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
 
@@ -536,7 +538,11 @@ On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield
 | Builder UX Direction | <PRD section, path, or URL> | <hash or revision> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
-| Design system / page UI | <path or URL> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Design system (tokens, visual language) | <path or URL> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| UI architecture | <path> | <hash or revision> | draft / frozen / missing / n/a | <layers, precedence, state matrix, definition of done> |
+| UI registry | <path> | <hash or revision> | draft / frozen / missing / n/a | <primitives, closed variant sets, motion variants, components, recipes> |
+| Page recipes | <path> | <hash or revision> | draft / frozen / missing / n/a | <routes covered, route → mockup → trace → test index> |
+| Page mockups + catalog | <mockups/ path> | <hash or revision> | draft / frozen / missing / n/a | <one HTML file per route, plus catalog.html> |
 | Existing app baseline | <path or URL> | <hash or revision> | captured / missing / n/a | <notes> |
 
 ## Delivery Context
@@ -578,6 +584,7 @@ These are planning expectations, not authorization. Record explicit action autho
 | Identity / permissions | <path/section> | frozen / draft / missing / n/a | <decision> |
 | Builder UX Direction | <path/section> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, controlling decisions, validation need> |
 | UI flow and states | <path/section> | frozen / draft / missing / n/a | <decision> |
+| UI architecture, registry, and page recipes | <path/section> | frozen / draft / missing / n/a | <decision; a route with no recipe is a blocker> |
 | Verification | PLAN manifest | ready / partial | <decision> |
 
 ## Traceability View
@@ -611,7 +618,9 @@ Include only when UI evidence is required or optional.
 
 | Route / screen | Source | Breakpoints | Required states | Evidence |
 |---|---|---|---|---|
-| <route> | <source> | <sizes> | ready/loading/empty/error/... | <screenshot/trace/test> |
+| <route> | <mockups/*.html + page-recipes.md row> | 390 / 768 / 1200 / 1440 | ready/loading/empty/error/... | <screenshot/trace/test> |
+
+When a `ui-architecture-builder` package is the design source, each route's recipe in `page-recipes.md` decides that surface's required states and `ui-architecture.md`'s state matrix is the full checklist behind them; the required viewport set is 390 / 768 / 1200 / 1440 px unless the package names a different one. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
 
 ## Plan Readiness Gate
 
@@ -624,6 +633,7 @@ Include only when UI evidence is required or optional.
 | Frontend/backend/data integration points are defined | draft / PASS / BLOCKED | <note> |
 | Shared foundations and migrations are ordered | draft / PASS / BLOCKED | <note> |
 | UI routes, breakpoints, states, and evidence are planned | draft / PASS / BLOCKED / n/a | <note> |
+| Every in-scope route has a recipe, every `DS-*` trace resolves to a `ui-registry.json` entry, and the UI contract check is a planned verifier | draft / PASS / BLOCKED / n/a | <note> |
 | Builder UX Direction owner, decision statuses, conflicts, and UX validation depth are explicit | draft / PASS / BLOCKED / n/a | <note> |
 | Scopes use the supported grammar and resources are complete | draft / PASS / BLOCKED | <note> |
 | Worker, mission-integration, batch, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |

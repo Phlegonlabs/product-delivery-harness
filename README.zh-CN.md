@@ -27,7 +27,7 @@
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
 | 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策和线框图 |
-| PRD 或现有产品方向 | `design-package-builder` | 设计系统、真实页面原型和视觉验收条件 |
+| PRD 或现有产品方向 | `ui-architecture-builder` | UI 架构、机器可读的组件清单、逐路由的页面配方、真实页面原型和视觉验收条件 |
 | 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 已验证、需要送上 GitHub 的本地候选版本 | `fullstack-harness-github-landing` | 绑定当前 head 的推送、PR、CI/审查收敛和精确合并 |
 
@@ -47,7 +47,7 @@
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
 | `prd-builder` | 产品探索、需求、架构、前端技术栈决策，以及低保真线框图 | `PRD.md`、`architecture.md`、`wireframes.md` |
-| `design-package-builder` | 设计方向、设计令牌、图标与动效规则、真实的逐页 HTML 原型，以及视觉验收 | `design-system.md`、`visual-acceptance.md`、`mockups/` 目录下每个页面一个 HTML 文件、`ui-mockups.md` |
+| `ui-architecture-builder` | 页面只能这样搭出来的那套 UI 架构：分层、设计令牌、带封闭变体集的基础组件契约、业务组件、动效规则、逐路由的页面配方、真实的逐页 HTML 原型，以及视觉验收 | `ui-architecture.md`、`ui-registry.json`、`page-recipes.md`、`design-system.md`、`mockups/` 目录下每个路由一个 HTML 文件外加 `mockups/catalog.html`、`visual-acceptance.md` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex 应用任务、应用托管的工作树，以及嵌套的只读辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
@@ -67,7 +67,7 @@
 ```mermaid
 flowchart LR
   Idea["产品想法或变更请求"] --> PRD["prd-builder\n产品与技术定义"]
-  PRD --> Design["design-package-builder\n视觉系统与页面规则"]
+  PRD --> Design["ui-architecture-builder\nUI 架构、组件清单与页面配方"]
   PRD --> Harness["fullstack-harness-engineering\n共享交付核心"]
   Design --> Harness
   Harness --> Runtime["单一宿主适配器\nCodex 或 Claude Code"]
@@ -140,7 +140,7 @@ Claude 的批次波（wave）按模型、推理强度和工具画像区分开：
 - 默认 Cloudflare 模型使用绑定精确 SHA 的 GitHub Actions 调度。开发环境绑定当前 PR head；生产环境绑定已合并的基准分支 SHA。
 - 可选的 Cloudflare Workers Builds 模型可以把持久集成分支自动部署到开发环境，再把基准分支自动部署到生产环境。只有明确选择时才启用，也不会与调度模型混用。
 - 第一天引导只创建已确认需要的环境资源和 Worker 外壳。真正部署功能代码仍需要目标环境专属授权。
-- `doc/deployment.md` 保存供维护者阅读的拓扑与设置；RUN 仍是机器可读的执行记录。
+- `docs/deployment.md` 保存供维护者阅读的拓扑与设置；RUN 仍是机器可读的执行记录。
 - 移动端和桌面端交付同样分离 development/beta 与 production 的凭据、后端、商店轨道和发布证据，不会强套 Cloudflare 格式。
 
 ## 安装
@@ -227,7 +227,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, and wireframes.
 ```
 
 ```text
-Use $design-package-builder to create a design package from doc/PRD.md and doc/wireframes.md.
+Use $ui-architecture-builder to create the UI architecture, registry, page recipes, and mockups from docs/product/PRD.md and docs/product/wireframes.md.
 ```
 
 ```text
@@ -278,7 +278,7 @@ scripts/update-private-skills.ps1 更新已安装的市场和插件
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
-python -m unittest discover -s .agents/skills/design-package-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/ui-architecture-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 git diff --check
 ```

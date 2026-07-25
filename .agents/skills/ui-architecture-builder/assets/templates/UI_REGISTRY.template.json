@@ -1,0 +1,118 @@
+{
+  "product": "<product name>",
+  "platform": "<web | ios | android | flutter | react-native | macos | windows | desktop>",
+  "stylingMechanism": "<utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme>",
+  "enforcement": "<blocking | advisory>",
+  "tokenSources": [
+    "<the only paths where raw color, dimension, and motion values may appear>"
+  ],
+  "rawValuesAllowedOutsideTokens": false,
+  "pageLocalControlStylingAllowed": false,
+  "inlineLayoutStylesAllowed": false,
+  "viewports": [390, 768, 1200, 1440],
+  "primitives": {
+    "Container": {
+      "layer": "layout",
+      "sizes": ["shell", "content", "narrow", "dialog"],
+      "rawStylesAllowed": false
+    },
+    "Section": {
+      "layer": "layout",
+      "densities": ["compact", "default", "editorial"],
+      "rawStylesAllowed": false
+    },
+    "Stack": {
+      "layer": "layout",
+      "gaps": ["1", "2", "3", "4", "5", "6", "8", "12"],
+      "rawStylesAllowed": false
+    },
+    "Cluster": {
+      "layer": "layout",
+      "gaps": ["1", "2", "3", "4", "5", "6"],
+      "aligns": ["start", "center", "end", "baseline"],
+      "rawStylesAllowed": false
+    },
+    "Grid": {
+      "layer": "layout",
+      "columns": ["2", "3", "4"],
+      "gaps": ["1", "2", "3", "4", "5", "6", "8"],
+      "rawStylesAllowed": false
+    },
+    "Surface": {
+      "layer": "surface",
+      "variants": [
+        "plain",
+        "raised",
+        "inset",
+        "selected",
+        "warning",
+        "danger",
+        "<product-specific variant with a named purpose>"
+      ],
+      "rawStylesAllowed": false
+    },
+    "Divider": {
+      "layer": "surface",
+      "rawStylesAllowed": false
+    },
+    "Text": {
+      "layer": "typography",
+      "roles": ["display", "heading", "body", "caption"],
+      "truncation": ["truncate", "clamp"],
+      "rawStylesAllowed": false
+    },
+    "Button": {
+      "layer": "control",
+      "class": "btn",
+      "variants": ["primary", "secondary", "tertiary", "danger"],
+      "sizes": ["sm", "md", "lg"],
+      "minTargetPx": 44,
+      "rawStylesAllowed": false
+    },
+    "IconButton": {
+      "layer": "control",
+      "class": "btn-icon",
+      "variants": ["default"],
+      "sizes": ["sm", "md", "lg"],
+      "minTargetPx": 44,
+      "requiresAccessibleName": true,
+      "rawStylesAllowed": false
+    }
+  },
+  "productComponents": {
+    "<DomainComponentName>": {
+      "dsId": "DS-COMP-001",
+      "contract": "CONTRACT-001",
+      "requiredContentOrder": ["<field>", "<field>", "<field>"],
+      "composes": ["<DS-LAY-001>", "<DS-SUR-001>", "<DS-CTL-001>"],
+      "states": ["ready", "loading", "empty", "error"],
+      "reorderable": false
+    }
+  },
+  "motionVariants": ["<variant name>", "<variant name>"],
+  "recipes": {
+    "<route>": {
+      "uiId": "UI-001",
+      "container": "<container size>",
+      "sectionDensity": "<density>",
+      "sections": ["<section>", "<section>", "<section>"],
+      "allowedSurfaces": ["<surface variant>"],
+      "forbiddenPatterns": ["<pattern this route must never grow into>"],
+      "requiredStates": ["ready", "loading", "empty", "error", "long-content", "reduced-motion", "mobile-reflow"],
+      "mustRenderWithoutJavaScript": ["<content that must render server-side>"]
+    }
+  },
+  "stateMatrix": [
+    "ready",
+    "loading",
+    "empty",
+    "error",
+    "disabled",
+    "permission-denied",
+    "stale",
+    "expired",
+    "long-content",
+    "reduced-motion",
+    "mobile-reflow"
+  ]
+}

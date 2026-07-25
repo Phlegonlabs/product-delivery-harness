@@ -9,7 +9,7 @@ description: "Classify engineering work as small or large, then plan, execute, v
 
 Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Runtime launch mechanics and remote landing are separate adapters so ordinary work does not load every Codex, Claude Code, GitHub, CI, review, and deployment rule.
 
-Keep `prd-builder` and `design-package-builder` as separate upstream skills. Reuse their artifacts instead of duplicating them. If product, Builder UX Direction, architecture, or design evidence is missing, route to the matching skill, use an explicitly authorized assumption, or record the gap as `UNVALIDATED`. An implementation agent does not invent Builder UX Direction.
+Keep `prd-builder` and `ui-architecture-builder` as separate upstream skills. Reuse their artifacts instead of duplicating them. If product, Builder UX Direction, architecture, or design evidence is missing, route to the matching skill, use an explicitly authorized assumption, or record the gap as `UNVALIDATED`. An implementation agent does not invent Builder UX Direction.
 
 ## Project Size Gate
 
@@ -37,7 +37,8 @@ When small work touches a frontend/UI surface, insert a bounded UI review betwee
 ```
 
 - Small work creates no PLAN/RUN files, performs no scheduler or worker-capability scan, launches no subagent by default, and does not preflight an external runtime.
-- When small work touches a frontend/UI surface, run one bounded critique-repair-recheck cycle before the final review, the same shape `design-package-builder` already uses for its own package (`references/output-contract.md`'s TEST-VIS-011/012): when a rendered view or screenshot exists, critique required breakpoints against the product's `design-package-builder` output (or the anti-slop guardrails in `../design-package-builder/references/visual-decision-guide.md` when no design package exists for this product), repair the single highest-impact failure, and recheck; otherwise fall back to a text-only review of the actual markup/styles against the same guardrails and record that no visual-verification claim is made. Do not retry the same failed approach more than twice; after two repair attempts, stop and report the remaining gap to the user instead of looping further.
+- When small work touches a frontend/UI surface, run one bounded critique-repair-recheck cycle before the final review, the same shape `ui-architecture-builder` already uses for its own package (`references/output-contract.md`'s TEST-VIS-011/012): when a rendered view or screenshot exists, critique the required viewports against the product's `ui-architecture-builder` output (or the anti-slop guardrails in `../ui-architecture-builder/references/visual-decision-guide.md` when this product has no `ui-architecture-builder` package), repair the single highest-impact failure, and recheck; otherwise fall back to a text-only review of the actual markup/styles against the same guardrails and record that no visual-verification claim is made. Do not retry the same failed approach more than twice; after two repair attempts, stop and report the remaining gap to the user instead of looping further.
+- Small UI work obeys the UI Implementation Contract below exactly as large work does. It creates no PLAN/RUN file, so the registry, the route's recipe, and the exact user instruction are what bound it.
 - Large work enters the workflow below. Planning does not imply parallel execution.
 - Enable scheduler fan-out only when there are at least two dependency-ready, nonconflicting missions and every isolation, capacity, permission, and action gate passes.
 - A ready node is executable here only when its `allowed_providers` includes the current host adapter's provider; a declared `preferred_provider` affects only which allowed provider is chosen, it does not gate executability by itself. There is no cross-host fallback: a node whose `allowed_providers` excludes the running host is simply not executable here and is reported blocked on provider mismatch.
@@ -47,7 +48,7 @@ When small work touches a frontend/UI surface, insert a bounded UI review betwee
 
 This core does not bundle `frontend-design` or `feature-dev`. Both are separate Apache-2.0 plugins from the `claude-plugins-official` marketplace and require their own install (`claude plugin install frontend-design@claude-plugins-official`, `claude plugin install feature-dev@claude-plugins-official`). Before offering either, confirm it is actually loaded in the current session; if it is not installed, say so and continue on this core's own path instead of fabricating its presence.
 
-- Before writing frontend/UI code with no adequate `design-package-builder` output to follow, or when the user wants unusually distinctive visual execution beyond what an existing design package specifies, offer the `frontend-design` skill for that implementation step. Use it only after an explicit yes, and only for the visual/aesthetic execution itself; it does not replace this core's PLAN/RUN state, trace IDs, or authorization ledger.
+- Before writing frontend/UI code with no adequate `ui-architecture-builder` output to follow, or when the user wants unusually distinctive visual execution beyond what the existing UI architecture specifies, offer the `frontend-design` skill for that implementation step. When a UI architecture does exist, its registry and recipes still bind that step: distinctive execution means adding a variant to the registry, not passing raw values at a call site. Use it only after an explicit yes, and only for the visual/aesthetic execution itself; it does not replace this core's PLAN/RUN state, trace IDs, or authorization ledger.
 - For `small`-classified work that is really "build one feature well inside an existing codebase," offer the `/feature-dev` command as a richer alternative to this core's minimal `direct inspect -> implement -> local verify -> review` route before defaulting to it. Treat its output as this core's implementation and verification steps, still subject to this core's own authorization gate before any Git action.
 - Neither tool changes size classification, authorization, or verification requirements here. A `large` classification, an authorization boundary, or a required gate still applies regardless of which implementation path produced the change.
 
@@ -67,7 +68,7 @@ Explicit adapter invocation still begins with this core. The adapters may select
 - Read `references/contract-and-traceability.md` for source handoff, contract freeze, trace IDs, permissions, and file placement.
 - Read `references/execution-state-model.md` before creating or changing PLAN/RUN manifests, authorization, phases, runtime capability fields, landing, deployment, or integration state.
 - Read `references/graph-orchestration.md` for PLAN schema v4, RUN schema v8 or v9, typed nodes, conditional routes, provider policy, retry, or subgraph replay.
-- Read `references/execution-task-decomposition.md` for flat task IDs or one bounded execution-time split.
+- Read `references/execution-task-decomposition.md` for flat task IDs, one bounded execution-time split, or the UI build order a `ui-architecture-builder` package implies.
 - Read `references/parallel-mission-selection.md` before proposing a parallel write wave.
 - Read `references/design-input-updates.md`, `references/platform-archetypes.md`, or `references/existing-app-refinement.md` only when those inputs or product shapes apply.
 - Read `references/worktree-thread-orchestration.md` only after the selected runtime adapter requires multiple missions, subagents, threads, or worktrees.
@@ -172,6 +173,23 @@ delete_branches
 - PR creation, repository configuration, review-state mutation, merge, deploy, archival, worktree removal, and branch deletion are independent boundaries.
 - Workers never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, open PRs, merge, deploy, or clean up.
 
+## UI Implementation Contract
+
+When the product has a `ui-architecture-builder` package, a route is not freely designed — it is assembled from approved parts. Read `../ui-architecture-builder/references/ui-architecture-guide.md` once for the model; this section is only what an implementation mission owes.
+
+Every mission that writes UI code:
+
+1. Reads `ui-registry.json` and the route's recipe in `page-recipes.md` before writing anything, and implements from them. A route with no recipe is a blocker (see `references/contract-and-traceability.md`'s Stop And Ask Conditions).
+2. Invents no visual value. Color, spacing, radius, font size, duration, easing, and distance come from tokens; primitive props come from the registry's closed variant sets. `gap="4"` and `size="md"`, never `gap="13px"` or an arbitrary utility class.
+3. Reimplements no control, surface, section, or page-local styling. A route composes registered primitives and product components, and references registered motion variants only.
+4. Follows the recipe's section order, container, density, allowed surfaces, and required components, and grows into none of its forbidden patterns.
+5. Completes the recipe's required states, using the state matrix in `ui-architecture.md` as the checklist — ready, loading, empty, error, disabled, permission denied, stale, expired, long content, reduced motion, mobile reflow — with any inapplicable state explicitly marked `n/a`. Shipping the ready state alone does not close the task.
+6. Adds any genuinely missing variant to the primitive, `ui-registry.json`, and `mockups/catalog.html` in the same change, per `references/execution-task-decomposition.md`'s UI Build Order.
+7. Runs the project's UI contract check with this skill's `scripts/check_ui_contract.py`, reading the package's `ui-registry.json` as the allowlist: raw color and dimension values outside the declared token sources, inline layout styles, page-local control and surface styling, unregistered primitive classes, call-site motion values, and sections that do not wrap an approved container. Run it against the product's real source, not against the package's `mockups/*.html` — a dependency-free mockup inlines its own tokens and primitive definitions by design, so it is reviewed by reading it against the recipe instead. Wiring this check and the remaining guardrails (viewport, state, and catalog verification) into the project's verify command and CI is harness work.
+8. Runs the visual check at 390 / 768 / 1200 / 1440 px, in normal and reduced motion, and records the evidence per `references/verification-gates.md`.
+
+A drift from the registry or a recipe — a raw value, an unregistered variant, a page-local control, a skipped state, a forbidden pattern — is a contract violation, not a style preference. Handle it exactly like any other contract violation here: stop at a safe boundary, report it, and fix the contract or the code. Do not accept the drift because the page looks acceptable, and do not let a passing functional test stand in for the contract check.
+
 ## Workflow
 
 ### 1. Intake And Route
@@ -206,7 +224,7 @@ For `plan-then-stop`, stop after readiness. For execution intent, request only t
 
 ### 4. Execute And Integrate
 
-For small work, use one parent writer and the smallest relevant checks. For large work, select the ready frontier, then follow the chosen runtime adapter. Bind every worker to an immutable base, write/deny scope, resources, tasks, verifiers, permission boundary, and completion channel.
+For small work, use one parent writer and the smallest relevant checks. For large work, select the ready frontier, then follow the chosen runtime adapter. Bind every worker to an immutable base, write/deny scope, resources, tasks, verifiers, permission boundary, and completion channel. A worker writing UI code is also bound by the UI Implementation Contract above; carry it into the worker's launch prompt with the rest of its scope.
 
 The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and integrates passing heads serially. After each integration, run the required integration gate, update canonical RUN state, and recompute the frontier. Never accept a report merely because the runtime says it completed.
 
