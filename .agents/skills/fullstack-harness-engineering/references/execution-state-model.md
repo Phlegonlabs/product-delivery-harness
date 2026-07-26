@@ -363,7 +363,7 @@ The outer app task remains the mission lease holder and sole writer in its workt
 
 Each new app-task worker under a RUN that records `runtime_capabilities.nested_subagents` must carry an explicit `nested_subagent_policy` with `enabled`, `max_children`, allowed roles, read-only write policy, and `agent_result` completion. Its WORKER_RESULT records `subagent_activity`: completed child summaries, partial/failure evidence, or a concrete reason that eligible delegation was skipped or unavailable. An enabled integration candidate must include a completed exact-head PASS reviewer even when other child activity is partial; `unavailable` or reviewer-failed activity blocks the result. If the pre-edit capability handshake cannot supply that reviewer, record a disabled policy and route the exact-head review to the parent before integration. This report is worker-supplied evidence, not a substitute for parent-observed Git/runtime facts. Older schema-v2 records that omit both optional nested fields remain backward-compatible.
 
-The mandatory reviewer role, retained `nested_review_evidence`, and pre-integration review transition gate are RUN-v10 rules. RUN v6 through v9 keep their previously valid enabled-role policies and worker-result contract.
+The mandatory reviewer role, retained `nested_review_evidence`, and pre-integration review transition gate are RUN-v10 rules. RUN v2 through v9 keep their previously valid enabled-role policies and worker-result contract.
 
 ### Permission boundary
 

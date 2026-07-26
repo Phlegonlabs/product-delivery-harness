@@ -736,7 +736,7 @@ def validate_worker_result_data(
             result.get("subagent_activity"),
             policy=nested_policy if isinstance(nested_policy, dict) else None,
             expected_head_sha=head_sha,
-            require_reviewer=run.get("schema_version") not in {6, 7, 8, 9},
+            require_reviewer=run.get("schema_version") == 10,
             errors=errors,
         )
     worker_id = mission_state.get("worker_id")

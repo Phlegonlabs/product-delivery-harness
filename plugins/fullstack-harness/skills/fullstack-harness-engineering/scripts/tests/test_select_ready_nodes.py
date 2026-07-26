@@ -457,6 +457,25 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
+        worker["nested_review_evidence"]["reviewed_sha"] = None
+        worker["worker_head_sha"] = None
+        run["mission_states"]["M1"]["head_sha"] = None
+        null_sha_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "nested_review_evidence.reviewed_sha: must be a full lowercase Git SHA"
+                in error
+                for error in null_sha_errors
+            )
+        )
+        self.assertTrue(
+            any(
+                "requires retained task-local exact-head PASS review evidence"
+                in error
+                for error in null_sha_errors
+            )
+        )
+
     def test_plan_backed_parent_write_is_not_dispatched_in_shared_checkout(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["executor"] = "harness_parent"

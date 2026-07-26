@@ -793,6 +793,19 @@ class ValidateWorkerResultTests(unittest.TestCase):
 
     def test_enabled_nested_policy_requires_and_validates_activity(self) -> None:
         run = copy.deepcopy(self.run)
+        run["schema_version"] = 10
+        run["execution_authorization_scope"].update(
+            {
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+            }
+        )
+        run["authorizations"]["create_local_commits"]["scope"].update(
+            {
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+            }
+        )
         worker = run["workers"][0]
         run["runtime_capabilities"].update(
             {
@@ -834,6 +847,8 @@ class ValidateWorkerResultTests(unittest.TestCase):
             "source": "test user authorization",
             "scope": {
                 "run_id": "RUN_TEST",
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
                 "mission_ids": ["M1"],
                 "targets": ["worker:W1"],
             },
@@ -887,12 +902,14 @@ class ValidateWorkerResultTests(unittest.TestCase):
         }
         self.assertIn("missing_review", error_codes(validate(self.plan, run, explorer_only)))
 
-        legacy_run = copy.deepcopy(run)
-        legacy_run["schema_version"] = 6
-        self.assertNotIn(
-            "missing_review",
-            error_codes(validate(self.plan, legacy_run, explorer_only)),
-        )
+        for schema_version in range(2, 10):
+            legacy_run = copy.deepcopy(run)
+            legacy_run["schema_version"] = schema_version
+            self.assertNotIn(
+                "missing_review",
+                error_codes(validate(self.plan, legacy_run, explorer_only)),
+                f"RUN v{schema_version} must retain its worker-result contract",
+            )
 
         result = copy.deepcopy(self.result)
         result["subagent_activity"] = {

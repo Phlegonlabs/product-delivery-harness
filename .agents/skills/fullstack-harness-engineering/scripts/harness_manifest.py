@@ -3434,7 +3434,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             "must be a subset of runtime allowed_roles",
                         )
                     if (
-                        schema_version not in {6, 7, 8, 9}
+                        schema_version == 10
                         and "reviewer" not in policy_roles
                     ):
                         _add(
@@ -3505,11 +3505,21 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"{path}.nested_review_evidence.evidence_paths",
                     nested_review_evidence["evidence_paths"],
                 )
-                _optional_sha(
-                    errors,
-                    f"{path}.nested_review_evidence.reviewed_sha",
-                    nested_review_evidence["reviewed_sha"],
-                )
+                if (
+                    schema_version == 10
+                    and not is_full_sha(nested_review_evidence["reviewed_sha"])
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        "must be a full lowercase Git SHA",
+                    )
+                else:
+                    _optional_sha(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        nested_review_evidence["reviewed_sha"],
+                    )
                 if nested_review_evidence["decision"] != "PASS":
                     _add(
                         errors,
@@ -3766,9 +3776,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "nested_review_evidence"
                 )
                 has_task_local_review = (
-                    isinstance(nested_review_evidence, dict)
+                    is_full_sha(head_sha)
+                    and mission_worker.get("worker_head_sha") == head_sha
+                    and isinstance(nested_review_evidence, dict)
                     and nested_review_evidence.get("role") == "reviewer"
                     and nested_review_evidence.get("status") == "completed"
+                    and is_full_sha(nested_review_evidence.get("reviewed_sha"))
                     and nested_review_evidence.get("reviewed_sha") == head_sha
                     and nested_review_evidence.get("decision") == "PASS"
                 )

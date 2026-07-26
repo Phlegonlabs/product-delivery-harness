@@ -3171,6 +3171,16 @@ class RunValidationTests(unittest.TestCase):
             validate_run(plan, run),
             "legacy RUN v6 keeps its previously valid enabled-role policy",
         )
+        for schema_version in range(2, 10):
+            legacy_run = copy.deepcopy(run)
+            legacy_run["schema_version"] = schema_version
+            self.assertFalse(
+                any(
+                    "must include reviewer when enabled" in error
+                    for error in validate_run(plan, legacy_run)
+                ),
+                f"RUN v{schema_version} must retain its enabled-role policy",
+            )
         run["workers"][0]["nested_subagent_policy"]["allowed_roles"] = [
             "explorer",
             "reviewer",
