@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import sys
 import unittest
 from pathlib import Path
@@ -274,10 +275,10 @@ class SelectReadyNodesTests(unittest.TestCase):
         digest = plan_digest(plan)
         run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
             {
-                "phase": "running",
+                "phase": "succeeded",
                 "attempts": 1,
                 "last_attempt_id": "ATT-REVIEW-M1",
-                "last_outcome": None,
+                "last_outcome": "pass",
                 "bound_worker_id": "RW-M1",
                 "blockers": [],
             }
@@ -310,6 +311,138 @@ class SelectReadyNodesTests(unittest.TestCase):
             }
         ]
         run["mission_states"]["M1"]["phase"] = "integrating"
+
+        self.assertEqual([], validate_run(plan, run))
+
+    def test_integration_waits_for_every_planned_preintegration_review(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        review_node = next(
+            node
+            for node in plan["graph"]["nodes"]
+            if node["id"] == "N-FRONTEND-REVIEW"
+        )
+        second_review_node = copy.deepcopy(review_node)
+        second_review_node["id"] = "N-FRONTEND-REVIEW-SECOND"
+        plan["graph"]["nodes"].append(second_review_node)
+
+        dependency_edge = next(
+            edge
+            for edge in plan["graph"]["edges"]
+            if edge["id"] == "E-M1-FRONTEND-REVIEW"
+        )
+        second_dependency_edge = copy.deepcopy(dependency_edge)
+        second_dependency_edge["id"] = "E-M1-FRONTEND-REVIEW-SECOND"
+        second_dependency_edge["to"] = "N-FRONTEND-REVIEW-SECOND"
+        plan["graph"]["edges"].append(second_dependency_edge)
+
+        pass_route = next(
+            edge
+            for edge in plan["graph"]["edges"]
+            if edge["id"] == "E-FRONTEND-FINAL-GATE"
+        )
+        second_pass_route = copy.deepcopy(pass_route)
+        second_pass_route["id"] = "E-FRONTEND-REVIEW-SECOND-FINAL-GATE"
+        second_pass_route["from"] = "N-FRONTEND-REVIEW-SECOND"
+        plan["graph"]["edges"].append(second_pass_route)
+
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW-SECOND"] = (
+            copy.deepcopy(
+                run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]
+            )
+        )
+        run["graph_state"]["edge_states"][
+            "E-M1-FRONTEND-REVIEW-SECOND"
+        ] = copy.deepcopy(
+            run["graph_state"]["edge_states"]["E-M1-FRONTEND-REVIEW"]
+        )
+        run["graph_state"]["edge_states"][
+            "E-FRONTEND-REVIEW-SECOND-FINAL-GATE"
+        ] = copy.deepcopy(
+            run["graph_state"]["edge_states"]["E-FRONTEND-FINAL-GATE"]
+        )
+
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        run["authorizations"]["spawn_subagents"]["scope"][
+            "plan_digest_sha256"
+        ] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+
+        first_state = run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]
+        first_state.update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-FIRST",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-FIRST",
+                "blockers": [],
+            }
+        )
+        run["review_workers"] = [
+            {
+                "worker_id": "RW-FIRST",
+                "node_id": "N-FRONTEND-REVIEW",
+                "attempt_id": "ATT-REVIEW-FIRST",
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "graph_revision": run["graph_state"]["graph_revision"],
+                "reviewed_sha": "b" * 40,
+                "review_path": "C:/repo/worktrees/M1",
+                "worker_runtime": "subagent",
+                "completion_channel": "agent_result",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "subagents",
+                    "source": "host",
+                    "model": "gpt-5.6-sol",
+                    "reasoning_effort": "medium",
+                    "option_source": "plan_provider_options",
+                },
+                "task_thread_id": None,
+                "report_path": None,
+                "phase": "worker_passed",
+                "outcome": "pass",
+                "findings": [],
+            }
+        ]
+        run["mission_states"]["M1"]["phase"] = "integrating"
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        second_state = run["graph_state"]["node_states"][
+            "N-FRONTEND-REVIEW-SECOND"
+        ]
+        second_state.update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-SECOND",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-SECOND",
+                "blockers": [],
+            }
+        )
+        second_worker = copy.deepcopy(run["review_workers"][0])
+        second_worker.update(
+            {
+                "worker_id": "RW-SECOND",
+                "node_id": "N-FRONTEND-REVIEW-SECOND",
+                "attempt_id": "ATT-REVIEW-SECOND",
+            }
+        )
+        run["review_workers"].append(second_worker)
 
         self.assertEqual([], validate_run(plan, run))
 
