@@ -60,6 +60,29 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn('"trace_ids"', plan)
         self.assertIn('"required_reviews"', plan)
 
+    def test_wireframe_visual_direction_and_harness_conformance_boundary(self) -> None:
+        wireframes = self.read("prd-builder/references/wireframe-guide.md")
+        design = self.read("ui-architecture-builder/references/output-contract.md")
+        harness = self.read("fullstack-harness-engineering/SKILL.md")
+        worker_goal = self.read(
+            "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md"
+        )
+
+        self.assertIn("Visual Direction Handoff", wireframes)
+        self.assertIn(
+            "low-fidelity wireframes remain canonical for structure and flow",
+            wireframes,
+        )
+        self.assertIn("Frontend Design Visual Direction Pass", design)
+        self.assertIn(
+            "normalized into the frozen UI architecture package before implementation",
+            design,
+        )
+        self.assertIn("The normal UI handoff is", harness)
+        self.assertIn("frontend-design conformance mode", harness)
+        self.assertIn("missing contract entry returns as a design-input delta", harness)
+        self.assertIn("frontend-design conformance mode", worker_goal)
+
     def test_frontend_review_binds_to_the_host_provider_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(

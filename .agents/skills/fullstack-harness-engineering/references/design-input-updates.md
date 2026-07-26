@@ -6,6 +6,8 @@ Use this reference when the user provides a new or updated PRD, wireframe, desig
 
 Treat design and product inputs as versioned contract sources, not informal inspiration. When the design source is a `ui-architecture-builder` package, `ui-architecture.md`, `ui-registry.json`, and `page-recipes.md` are binding alongside `design-system.md`, and implementation works from the registry plus the route's recipe — see `SKILL.md`'s UI Implementation Contract.
 
+A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply its new visual direction, token, variant, component, motion pattern, or structure directly. Return it to `ui-architecture-builder`, normalize and freeze the accepted change, then resume against the revised package.
+
 ```text
 1. Identify source type and version.
 2. Compare updated input against the current contract, baseline app, or previous assumptions.
@@ -120,6 +122,7 @@ Stop and ask when:
 - Page UI reference omits required states or breakpoints.
 - An in-scope route has no recipe, or a recipe needs a primitive, variant, component, or motion variant that `ui-registry.json` does not list. Ask for the missing recipe or registry entry instead of improvising the route or passing a raw value at the call site.
 - The updated input can only be implemented by leaving the registry or a recipe — for example a spacing value no token carries, or a control the primitives do not cover. The fix is a delta on the primitive, token, or recipe, decided once by the design source, not a page-local exception.
+- A conformance-mode `frontend-design` pass proposes a value, variant, component, motion pattern, or page structure the frozen package does not contain. Record it as a delta and stop the implementation mission; do not treat the skill output as implicit design approval.
 - Updated input would remove existing app behavior without explicit acceptance.
 - The source version is unclear and multiple variants exist.
 - A pixel/design-faithful claim is requested but the source is unavailable.
