@@ -1,6 +1,6 @@
 # Run: Frontend design wireframe flow
 
-This is a local-only multi-agent run. Remote landing and cleanup actions are outside the authorized scope.
+This completed local-only multi-agent run retains its verified implementation head on a durable remote branch. Pull-request landing is tracked separately.
 
 ## Harness Run State
 
@@ -258,7 +258,7 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       }
     },
     "integration": {
-      "branch": "refs/heads/codex/frontend-design-wireframe-verified",
+      "branch": "origin/codex/frontend-design-wireframe-verified",
       "retention": "persistent",
       "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
       "integration_head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f"
@@ -287,8 +287,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
     "landing": {
       "mode": "local_only",
       "remote": "origin",
-      "head_branch": "refs/heads/codex/frontend-design-wireframe-verified",
-      "base_branch": "fix/full-skill-review-findings",
+      "head_branch": "origin/codex/frontend-design-wireframe-verified",
+      "base_branch": "main",
       "pushed_head_sha": null,
       "pr_number": null,
       "pr_url": null,
@@ -306,15 +306,15 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       "auto_merge_head_sha": null,
       "continuity": {
         "status": "preserved",
-        "branch_ref": "refs/heads/codex/frontend-design-wireframe-verified",
+        "branch_ref": "refs/heads/origin/codex/frontend-design-wireframe-verified",
         "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
-        "reason": "Retain the verified local integration branch for later user-authorized landing."
+        "reason": "Retain the verified implementation on a durable remote branch so fresh checkouts can validate the closed run."
       }
     },
     "post_merge_cleanup": {
       "status": "not_started",
       "base": {
-        "branch": "fix/full-skill-review-findings",
+        "branch": "main",
         "head_sha": null,
         "merged_sha_reachable": null
       },
@@ -327,7 +327,7 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "status": "not_applicable"
       },
       "local_branch": {
-        "ref": "refs/heads/codex/frontend-design-wireframe-verified",
+        "ref": "refs/remotes/origin/codex/frontend-design-wireframe-verified",
         "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
         "status": "preserved"
       },
