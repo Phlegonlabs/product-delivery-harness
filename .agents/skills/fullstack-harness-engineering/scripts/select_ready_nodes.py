@@ -127,6 +127,59 @@ def _incoming(plan: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], di
     return dependencies, routes
 
 
+def _preintegration_review_source_ready(
+    node: dict[str, Any],
+    source_node: dict[str, Any] | None,
+    run: dict[str, Any],
+) -> bool:
+    review = node.get("review")
+    if (
+        run.get("schema_version") != 10
+        or node.get("kind") != "verifier"
+        or node.get("executor") != "runtime_worker"
+        or not isinstance(review, dict)
+        or not isinstance(source_node, dict)
+        or source_node.get("kind") != "mission"
+        or source_node.get("ref") not in review.get("mission_ids", [])
+    ):
+        return False
+    mission_state = run.get("mission_states", {}).get(source_node["ref"])
+    if (
+        not isinstance(mission_state, dict)
+        or mission_state.get("phase") != "worker_passed"
+        or not isinstance(mission_state.get("head_sha"), str)
+    ):
+        return False
+    source_state = (
+        run.get("graph_state", {})
+        .get("node_states", {})
+        .get(source_node["id"])
+    )
+    if not isinstance(source_state, dict) or source_state.get("phase") != "running":
+        return False
+    matching_worker = next(
+        (
+            worker
+            for worker in run.get("workers", [])
+            if isinstance(worker, dict)
+            and worker.get("worker_id") == mission_state.get("worker_id")
+            and worker.get("mission_id") == source_node["ref"]
+        ),
+        None,
+    )
+    if (
+        not isinstance(matching_worker, dict)
+        or matching_worker.get("phase") != "worker_passed"
+        or matching_worker.get("worker_head_sha") != mission_state.get("head_sha")
+    ):
+        return False
+    nested_policy = matching_worker.get("nested_subagent_policy")
+    return not (
+        isinstance(nested_policy, dict)
+        and nested_policy.get("enabled") is True
+    )
+
+
 def _logical_reasons(
     node: dict[str, Any],
     plan: dict[str, Any],
@@ -149,9 +202,20 @@ def _logical_reasons(
         reasons.add("attempts_exhausted")
 
     node_states = run["graph_state"]["node_states"]
+    nodes_by_id = {
+        graph_node["id"]: graph_node
+        for graph_node in plan["graph"]["nodes"]
+    }
     for edge in dependencies[node_id]:
         source = node_states[edge["from"]]
-        if source["phase"] != "succeeded" or source["last_outcome"] != "pass":
+        if (
+            source["phase"] != "succeeded"
+            or source["last_outcome"] != "pass"
+        ) and not _preintegration_review_source_ready(
+            node,
+            nodes_by_id.get(edge["from"]),
+            run,
+        ):
             reasons.add("dependency_not_satisfied")
 
     incoming_routes = routes[node_id]
@@ -168,6 +232,25 @@ def _logical_reasons(
                 and (bound is None or edge_state["traversals"] < bound)
             ):
                 matched = True
+            elif (
+                "pass" in edge["on_outcomes"]
+                and _preintegration_review_source_ready(
+                    node,
+                    nodes_by_id.get(edge["from"]),
+                    run,
+                )
+                and (bound is None or edge_state["traversals"] < bound)
+            ):
+                matched = True
+        if not matched and state["attempts"] == 0 and any(
+            _preintegration_review_source_ready(
+                node,
+                nodes_by_id.get(edge["from"]),
+                run,
+            )
+            for edge in dependencies[node_id]
+        ):
+            matched = True
         if not matched:
             reasons.add("route_not_activated")
 

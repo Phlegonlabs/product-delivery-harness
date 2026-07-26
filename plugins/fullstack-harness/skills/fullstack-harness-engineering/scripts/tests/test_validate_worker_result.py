@@ -887,6 +887,13 @@ class ValidateWorkerResultTests(unittest.TestCase):
         }
         self.assertIn("missing_review", error_codes(validate(self.plan, run, explorer_only)))
 
+        legacy_run = copy.deepcopy(run)
+        legacy_run["schema_version"] = 6
+        self.assertNotIn(
+            "missing_review",
+            error_codes(validate(self.plan, legacy_run, explorer_only)),
+        )
+
         result = copy.deepcopy(self.result)
         result["subagent_activity"] = {
             "status": "completed",

@@ -125,8 +125,8 @@ Run `scripts/select_ready_nodes.py` for current PLAN v5 and RUN v10, and for sup
 
 - plan readiness and execution authorization are current;
 - its phase is `dormant` or `ready` and its attempt budget remains;
-- all dependency sources succeeded with `pass`;
-- at least one incoming route matches when route edges exist;
+- all dependency sources succeeded with `pass`, except that a current RUN-v10 runtime review may consume a covered mission's validated `worker_passed` exact head before the parent integrates it;
+- at least one incoming route matches when route edges exist, except that the same pre-integration dependency activates the review's initial attempt while a matching repair route activates later attempts;
 - no node blocker remains;
 - mission nodes still have a queued or ready mission state.
 

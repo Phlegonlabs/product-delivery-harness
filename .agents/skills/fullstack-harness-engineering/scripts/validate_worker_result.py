@@ -116,6 +116,7 @@ def _validate_subagent_activity(
     *,
     policy: dict[str, Any] | None,
     expected_head_sha: str | None,
+    require_reviewer: bool,
     errors: list[dict[str, str]],
 ) -> None:
     path = "worker_result.subagent_activity"
@@ -202,7 +203,7 @@ def _validate_subagent_activity(
         allowed_roles = set(policy.get("allowed_roles", []))
         if set(child_roles) - allowed_roles:
             _issue(errors, "invalid_value", f"{path}.children", "contains a role outside the worker policy")
-        if not completed_reviewer:
+        if require_reviewer and not completed_reviewer:
             _issue(
                 errors,
                 "missing_review",
@@ -735,6 +736,7 @@ def validate_worker_result_data(
             result.get("subagent_activity"),
             policy=nested_policy if isinstance(nested_policy, dict) else None,
             expected_head_sha=head_sha,
+            require_reviewer=run.get("schema_version") not in {6, 7, 8, 9},
             errors=errors,
         )
     worker_id = mission_state.get("worker_id")

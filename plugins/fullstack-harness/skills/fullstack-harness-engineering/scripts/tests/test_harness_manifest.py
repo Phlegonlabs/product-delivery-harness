@@ -3166,10 +3166,10 @@ class RunValidationTests(unittest.TestCase):
             "explorer",
             "tester",
         ]
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "must include reviewer when enabled",
+        self.assertEqual(
+            [],
+            validate_run(plan, run),
+            "legacy RUN v6 keeps its previously valid enabled-role policy",
         )
         run["workers"][0]["nested_subagent_policy"]["allowed_roles"] = [
             "explorer",

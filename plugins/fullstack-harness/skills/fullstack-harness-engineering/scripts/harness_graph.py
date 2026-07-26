@@ -489,7 +489,10 @@ def _validate_graph_state(
         for edge in graph.get("edges", [])
         if isinstance(edge, dict) and isinstance(edge.get("id"), str)
     }
-    mission_states = run.get("mission_states", {})
+    raw_mission_states = run.get("mission_states")
+    mission_states = (
+        raw_mission_states if isinstance(raw_mission_states, dict) else {}
+    )
 
     node_states = value["node_states"]
     node_state_keys = {

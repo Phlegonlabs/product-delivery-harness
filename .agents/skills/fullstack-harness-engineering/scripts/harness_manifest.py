@@ -3433,7 +3433,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.nested_subagent_policy.allowed_roles",
                             "must be a subset of runtime allowed_roles",
                         )
-                    if "reviewer" not in policy_roles:
+                    if (
+                        schema_version not in {6, 7, 8, 9}
+                        and "reviewer" not in policy_roles
+                    ):
                         _add(
                             errors,
                             f"{path}.nested_subagent_policy.allowed_roles",
@@ -3613,9 +3616,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if isinstance(node, dict) and isinstance(node.get("review"), dict)
                     else set()
                 )
+                mission_state_items = (
+                    mission_states.items()
+                    if isinstance(mission_states, dict)
+                    else []
+                )
                 reviewed_mission_states = [
                     state
-                    for mission_id, state in run.get("mission_states", {}).items()
+                    for mission_id, state in mission_state_items
                     if mission_id in reviewed_mission_ids and isinstance(state, dict)
                 ]
                 current_reviewable_shas = {
@@ -3728,7 +3736,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             else {}
         )
         mission_state_items = (
-            mission_states.items() if isinstance(mission_states, dict) else []
+            mission_states.items()
+            if schema_version == 10 and isinstance(mission_states, dict)
+            else []
         )
         for mission_id, state in mission_state_items:
             if not isinstance(state, dict) or state.get("phase") not in {
