@@ -843,6 +843,33 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, run, copy.deepcopy(self.result))
         self.assertIn("missing_field", error_codes(errors))
 
+        unavailable = copy.deepcopy(self.result)
+        unavailable["subagent_activity"] = {
+            "status": "unavailable",
+            "skip_reason": "the child runtime stopped before review",
+            "children": [],
+        }
+        self.assertIn("missing_review", error_codes(validate(self.plan, run, unavailable)))
+
+        partial = copy.deepcopy(self.result)
+        partial["subagent_activity"] = {
+            "status": "partial",
+            "skip_reason": "the reviewer failed before returning a decision",
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "reviewer",
+                    "task": "Review the proposed behavior and tests.",
+                    "status": "failed",
+                    "summary": "The reviewer stopped before producing a decision.",
+                    "evidence_paths": [],
+                    "reviewed_sha": partial["head_sha"],
+                    "decision": "fix_required",
+                }
+            ],
+        }
+        self.assertIn("missing_review", error_codes(validate(self.plan, run, partial)))
+
         explorer_only = copy.deepcopy(self.result)
         explorer_only["subagent_activity"] = {
             "status": "completed",

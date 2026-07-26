@@ -202,6 +202,13 @@ def _validate_subagent_activity(
         allowed_roles = set(policy.get("allowed_roles", []))
         if set(child_roles) - allowed_roles:
             _issue(errors, "invalid_value", f"{path}.children", "contains a role outside the worker policy")
+        if not completed_reviewer:
+            _issue(
+                errors,
+                "missing_review",
+                f"{path}.children",
+                "enabled activity requires a completed exact-head PASS reviewer",
+            )
     elif status in {"completed", "partial"}:
         _issue(
             errors,
@@ -214,13 +221,6 @@ def _validate_subagent_activity(
             _issue(errors, "missing_field", f"{path}.children", "completed activity requires at least one child")
         if any(item != "completed" for item in child_statuses):
             _issue(errors, "invalid_value", f"{path}.children", "completed activity requires completed children")
-        if enabled and not completed_reviewer:
-            _issue(
-                errors,
-                "missing_review",
-                f"{path}.children",
-                "enabled completed activity requires a completed post-edit reviewer",
-            )
         if skip_reason is not None:
             _issue(errors, "invalid_value", f"{path}.skip_reason", "must be null when completed")
     elif status == "partial":
