@@ -14,7 +14,11 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_manifest import AUTHORIZATION_KEYS, plan_digest, validate_plan, validate_run
-from select_parallel_missions import SelectionError, select_parallel_missions
+from select_parallel_missions import (
+    SelectionError,
+    _required_actions,
+    select_parallel_missions,
+)
 
 
 SHA = "a" * 40
@@ -548,6 +552,21 @@ class SelectorTests(unittest.TestCase):
         policy = result["launch_directives"][0]["nested_subagent_policy"]
         self.assertEqual("capability_handshake", policy["mode"])
         self.assertNotIn("spawn_subagents", result["launch_directives"][0]["required_actions"])
+
+    def test_current_app_task_handshake_requires_spawn_authorization(
+        self,
+    ) -> None:
+        runtime = {
+            "worker_runtime": "app_task",
+            "workspace_mode": "app_managed_worktree",
+            "runtime_adapter": {
+                "provider": "codex",
+                "available_drivers": ["app_threads"],
+                "detection_source": "observed",
+            },
+        }
+
+        self.assertIn("spawn_subagents", _required_actions(runtime, 10))
 
     def test_legacy_app_task_wave_retains_nested_policy_without_reviewer_role(
         self,

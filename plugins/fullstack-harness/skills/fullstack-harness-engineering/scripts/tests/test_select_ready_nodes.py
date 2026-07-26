@@ -388,6 +388,12 @@ class SelectReadyNodesTests(unittest.TestCase):
             _required_actions(node, binding, runtime, 10),
         )
 
+        runtime.pop("nested_subagents")
+        self.assertIn(
+            "spawn_subagents",
+            _required_actions(node, binding, runtime, 10),
+        )
+
     def test_visual_repair_mission_has_a_preintegration_review_path(
         self,
     ) -> None:

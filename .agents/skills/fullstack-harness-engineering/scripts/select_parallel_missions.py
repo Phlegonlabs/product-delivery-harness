@@ -85,7 +85,10 @@ def _required_actions(
         actions.append("spawn_subagents")
     elif runtime_driver == "app_threads":
         actions.append("create_user_owned_tasks")
-        if _nested_policy_enabled(runtime, schema_version):
+        if _nested_policy_enabled(runtime, schema_version) or (
+            schema_version == 10
+            and not isinstance(runtime.get("nested_subagents"), dict)
+        ):
             actions.append("spawn_subagents")
 
     if workspace_mode == "parent_managed_worktree":

@@ -427,16 +427,20 @@ def _required_actions(
     elif driver == "app_threads":
         actions.append("create_user_owned_tasks")
         nested = runtime.get("nested_subagents")
-        if (
-            not read_only_review
-            and isinstance(nested, dict)
-            and nested.get("available") is True
-            and (
-                schema_version != 10
-                or "reviewer" in set(nested.get("allowed_roles", []))
+        if not read_only_review:
+            nested_spawn_required = (
+                isinstance(nested, dict)
+                and nested.get("available") is True
+                and (
+                    schema_version != 10
+                    or "reviewer" in set(nested.get("allowed_roles", []))
+                )
+            ) or (
+                schema_version == 10
+                and not isinstance(nested, dict)
             )
-        ):
-            actions.append("spawn_subagents")
+            if nested_spawn_required:
+                actions.append("spawn_subagents")
     if read_only_review:
         return actions
     workspace = runtime.get("workspace_mode")
