@@ -1,5 +1,7 @@
 import json
 import re
+import shutil
+import subprocess
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -62,6 +64,34 @@ class SpecimenContractParser(HTMLParser):
 class UiArchitectureSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def run_dynamic_workflow(
+        self,
+        workflow_args: dict[str, object],
+        runtime_prelude: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required to execute the Dynamic Workflow template")
+
+        workflow_source = self.read(
+            "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        ).replace("export const meta =", "const meta =", 1)
+        script = (
+            f"const args = {json.dumps(json.dumps(workflow_args))};\n"
+            f"{runtime_prelude}\n"
+            "const result = await (async () => {\n"
+            f"{workflow_source}\n"
+            "})();\n"
+            "console.log(JSON.stringify(result));"
+        )
+        return subprocess.run(
+            [node, "--input-type=module", "--eval", script],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
 
     def test_skill_requires_product_specific_visual_thesis(self) -> None:
         skill = self.read("SKILL.md")
@@ -194,6 +224,7 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         page_recipes = self.read("assets/templates/PAGE_RECIPES.template.md")
         acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
 
@@ -208,7 +239,31 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("docs/product/.design-staging/<run-id>/", lifecycle)
         self.assertIn("Passing validation does not authorize overwrite, move, or archive", lifecycle)
         self.assertIn("ask one explicit yes/no publication question", skill)
-        self.assertIn("execute the approved publish and archive moves in the same run", skill)
+        self.assertIn("execute the canonical publish moves in the same run", skill)
+        self.assertIn("Candidate evidence:", design_system)
+        self.assertIn("exact final archive or retained path", design_system)
+        self.assertIn("Candidate evidence:", contract)
+        self.assertIn("exact final archive or retained path", contract)
+        self.assertNotIn(
+            "screen names and docs/product/.design-staging",
+            design_system,
+        )
+        candidate_move = lifecycle.index("3. Apply the approved candidate disposition:")
+        provenance_rewrite = lifecycle.index(
+            "4. Rewrite staged `design-system.md`'s `Candidate evidence`",
+            candidate_move,
+        )
+        revalidate = lifecycle.index(
+            "revalidate the canonical staged package",
+            provenance_rewrite,
+        )
+        publish = lifecycle.index(
+            "5. Move the revalidated staged artifacts",
+            revalidate,
+        )
+        self.assertLess(candidate_move, provenance_rewrite)
+        self.assertLess(provenance_rewrite, revalidate)
+        self.assertLess(revalidate, publish)
 
     def test_enhancement_mode_freezes_baseline_and_checks_non_regression(self) -> None:
         skill = self.read("SKILL.md")
@@ -232,6 +287,119 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("TEST-VIS-025 | Enhancement non-regression", acceptance)
         self.assertIn("baseline-to-staged diff / full package validation", acceptance)
         self.assertIn("TEST-VIS-025 | Enhancement non-regression", contract)
+
+    def test_frontend_design_pass_is_coherent_non_canonical_and_normalized(self) -> None:
+        skill = self.read("SKILL.md")
+        architecture = self.read("references/ui-architecture-guide.md")
+        guide = self.read("references/visual-decision-guide.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        workflow = self.read("references/dynamic-workflow.md")
+        workflow_template = self.read(
+            "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        )
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, guide, contract, design_system, agent):
+            self.assertIn("Frontend Design Visual Direction Pass", content)
+        for content in (skill, architecture, guide, contract, lifecycle, design_system):
+            self.assertIn("non-canonical", content)
+        self.assertIn("one to three representative candidate screens", skill)
+        self.assertIn("never invoke it independently per route", skill)
+        self.assertIn("one coherent set of one to three representative candidate screens", guide)
+        for content in (skill, guide):
+            self.assertIn("use exactly that set", content)
+            self.assertIn("do not add, remove, or substitute IDs", content)
+            self.assertIn(
+                "obtain explicit user authorization for the exact revised `UI-*` screen-ID set",
+                content,
+            )
+        contract_draft = skill.index(
+            "Draft and validate only the representative screens' `Content Contracts`"
+        )
+        visual_pass = skill.index(
+            "After the source inputs, structural wireframe contracts, and those content contracts are frozen"
+        )
+        continue_package = skill.index(
+            "Continue the staged package initialized in step 9"
+        )
+        self.assertLess(contract_draft, visual_pass)
+        self.assertLess(visual_pass, continue_package)
+        self.assertIn(
+            "does not freeze tokens, primitives, components, motion variants, recipes, the registry, or final mockups",
+            skill,
+        )
+        self.assertLess(
+            architecture.index("**Content contracts first.**"),
+            architecture.index("**Optional Frontend Design Visual Direction Pass.**"),
+        )
+        self.assertIn(
+            "docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/",
+            lifecycle,
+        )
+        self.assertIn(
+            "Candidate screens are normalized into the frozen UI architecture package before implementation",
+            contract,
+        )
+        self.assertIn("candidate still awaits human selection", workflow)
+        self.assertIn('visual_direction_pass.status: "not used"', workflow)
+        self.assertIn("visual_direction_pass: visualDirectionPass", workflow_template)
+        self.assertIn("a candidate awaiting selection is not a frozen input", workflow_template)
+        self.assertIn(
+            "Status: <not used / candidate awaiting selection / selected / rejected>",
+            design_system,
+        )
+        self.assertIn(
+            "Status: [not used / candidate awaiting selection / selected / rejected]",
+            contract,
+        )
+        self.assertIn("affected by the accepted delta", guide)
+        self.assertNotIn("Offer `frontend-design` only for the small pieces", skill)
+
+    def test_dynamic_workflow_rejects_missing_visual_direction_pass_at_runtime(self) -> None:
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires args.visual_direction_pass status not used, selected, or rejected",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_accepts_documented_not_used_status_at_runtime(self) -> None:
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {"status": "not used"},
+        }
+        runtime_prelude = """
+const phase = () => {};
+const parallel = async (tasks) => Promise.all(tasks.map((task) => task()));
+const agent = async (_prompt, options) => {
+  const role = options.label.replace("design:", "");
+  if (role === "synthesis") return {};
+  if (options.phase === "Analyze") return { role, status: "complete" };
+  return { role, decision: "pass" };
+};
+"""
+        result = self.run_dynamic_workflow(workflow_args, runtime_prelude)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "candidate_ready")
 
     def test_interview_uses_three_dependency_waves_and_portable_closed_choices(self) -> None:
         skill = self.read("SKILL.md")

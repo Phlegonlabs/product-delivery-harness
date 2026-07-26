@@ -138,6 +138,19 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             runbook,
         )
 
+    def test_frontend_design_is_loaded_only_in_ui_conformance_mode(self) -> None:
+        skill = self.read("SKILL.md")
+        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
+        design_updates = self.read("references/design-input-updates.md")
+
+        for content in (skill, plan, worker_goal):
+            self.assertIn("frontend-design conformance mode", content)
+            self.assertIn("design-input delta", content)
+        self.assertIn("user explicitly selected it", plan)
+        self.assertIn("new or high-impact visual surface", plan)
+        self.assertIn("proposed design-input delta", design_updates)
+
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-claude-code")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")

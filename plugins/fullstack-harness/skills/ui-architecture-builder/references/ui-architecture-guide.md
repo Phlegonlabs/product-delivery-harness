@@ -55,6 +55,8 @@ Product rules
 
 Page-specific preference is last on purpose. "This page looks better with a bit more space" is not a reason to leave the contract; it is a reason to change the token or the primitive, or to add a variant.
 
+`frontend-design` candidate screens do not enter this precedence list. They are non-canonical exploration. Only human-accepted visual decisions gain authority, and only after the parent normalizes them into the package's tokens, primitive and component contracts, recipes, registry, and final mockups.
+
 ## Layer Responsibilities
 
 | Layer | Owns | Must not own |
@@ -77,15 +79,16 @@ Page-specific preference is last on purpose. "This page looks better with a bit 
 Work from the real screens and product rules, not from a component-library catalog.
 
 1. **Content contracts first.** For each recurring product object, list required fields, max lengths, date and number formats, image ratios, CTA count, empty handling, long-content handling, mobile truncation, and the fields that may never be dropped for layout reasons. Sources, limits, dates, and commercial disclosure belong in the never-drop set whenever the product makes a claim a reader could act on.
-2. **Tokens.** Fix the visual, layout, and motion token sets. Every value a page could otherwise invent must exist here as a named token.
-3. **Layout primitives.** List the spacing and flow patterns that repeat across screens — the page shell and its widths, the section rhythm, vertical stacks, horizontal wrapping groups, grids. Name them, and give each a closed set of variants (sizes, gaps, densities) instead of a free numeric prop.
-4. **Surface primitives.** Take the surviving treatments from `visual-decision-guide.md`'s Container & Border Decision Rules and turn each into a named surface variant with its purpose. A treatment that failed those rules does not become a variant.
-5. **Typography and control primitives.** List the type roles and the interactive atoms the screens actually use, with their variants, sizes, and states. Controls own focus and accessible naming; record the minimum hit target per platform.
-6. **Product components.** Only now, name the domain compositions, in the domain's own words, and bind each to its content contract. A composition that appears on one screen only stays inside that page.
-7. **Motion patterns.** Split motion by mechanism (see below), then register every variant. A page may reference a registered variant; it may not write a duration, distance, spring, or easing value.
-8. **Page recipes.** For each route, fix the section order, container, density, allowed surfaces, required components, and forbidden patterns.
-9. **Registry.** Emit the machine-readable allowlist of everything above.
-10. **Verification.** Define the contract checks, the viewport set, and the state set that prove conformance.
+2. **Optional Frontend Design Visual Direction Pass.** After the structural wireframes, route/state contracts, exact wording, and content contracts are frozen, an explicitly authorized `frontend-design` call may render one coherent set of one to three representative candidate screens. Run it once for the direction, not once per route. Candidates may explore hierarchy, typography, palette, spatial composition, imagery, and motion while preserving the frozen product structure. A human selects the direction, or explicitly delegates selection. Normalize only accepted decisions into the canonical layers below; candidate markup and candidate-only values never become a source implementation can consume.
+3. **Tokens.** Fix the visual, layout, and motion token sets. Every accepted visual-direction value a page could otherwise invent must exist here as a named token.
+4. **Layout primitives.** List the spacing and flow patterns that repeat across screens — the page shell and its widths, the section rhythm, vertical stacks, horizontal wrapping groups, grids. Name them, and give each a closed set of variants (sizes, gaps, densities) instead of a free numeric prop.
+5. **Surface primitives.** Take the surviving treatments from `visual-decision-guide.md`'s Container & Border Decision Rules and turn each into a named surface variant with its purpose. A treatment that failed those rules does not become a variant.
+6. **Typography and control primitives.** List the type roles and the interactive atoms the screens actually use, with their variants, sizes, and states. Controls own focus and accessible naming; record the minimum hit target per platform.
+7. **Product components.** Only now, name the domain compositions, in the domain's own words, and bind each to its content contract. A composition that appears on one screen only stays inside that page.
+8. **Motion patterns.** Split motion by mechanism (see below), then register every variant. A page may reference a registered variant; it may not write a duration, distance, spring, or easing value.
+9. **Page recipes.** For each route, fix the section order, container, density, allowed surfaces, required components, and forbidden patterns.
+10. **Registry.** Emit the machine-readable allowlist of everything above.
+11. **Verification.** Define the contract checks, the viewport set, and the state set that prove conformance.
 
 Check the direction at the end: a layout primitive that sets color, a surface that spaces its own children, a product component holding a raw hex value, or a page defining its own button means a layer boundary leaked.
 

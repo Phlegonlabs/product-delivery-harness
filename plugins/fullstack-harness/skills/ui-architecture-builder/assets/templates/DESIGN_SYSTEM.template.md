@@ -40,6 +40,18 @@ Decision owner: <human product/design owner or commissioning team>
 
 Builder approval proves direction conformance only, not usability. Keep unsupported preferences provisional or assumed until separate user evidence exists.
 
+## Frontend Design Visual Direction Pass
+
+Status: <not used / candidate awaiting selection / selected / rejected>
+
+| Direction ID | Representative screens / UI IDs | Decision owner | Accepted cues | Rejected / deferred cues | Normalized package targets |
+|---|---|---|---|---|---|
+| <direction ID or n/a> | <one to three screen names and exact authorized UI-* IDs> | <human owner or explicit delegated selector> | <hierarchy, typography, color, composition, imagery, surface, or motion decisions> | <candidate choices that must not enter the package> | <DS IDs, token sections, primitive/component IDs, recipes, registry entries, and final mockups> |
+
+Candidate evidence: <Archive / Retain / n/a> — <exact final archive or retained path; `pending publication approval` is allowed only in staging>
+
+Candidate files are non-canonical. Record `n/a — pass not requested or not authorized` when unused. A published `design-system.md` records the actual final candidate evidence path, never an Archive source path under `.design-staging/`. When selected, every accepted cue is expressed through the package's named decisions and closed sets; no final artifact or implementation depends on candidate markup or candidate-only values. Candidate screens are normalized into the frozen UI architecture package before implementation.
+
 ## Product-Specific Visual Thesis
 
 | DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |

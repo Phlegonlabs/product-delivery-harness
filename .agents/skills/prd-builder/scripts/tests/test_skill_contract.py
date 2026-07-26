@@ -145,6 +145,30 @@ async function agent(_prompt, options) {
             "do not offer the handoff while the PRD workflow is incomplete",
             skill,
         )
+        self.assertIn(
+            "approval to run `ui-architecture-builder` alone does not authorize it",
+            skill,
+        )
+
+    def test_wireframes_remain_canonical_across_optional_visual_direction_pass(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        for content in (skill, guide, contract):
+            self.assertIn("canonical", content)
+            self.assertIn("non-canonical", content)
+            self.assertIn("explicitly authoriz", content)
+            self.assertIn("bounded wireframe revision", content)
+        self.assertIn("## Optional Frontend Design Visual Direction Handoff", guide)
+        self.assertIn("low-fidelity wireframes remain canonical for structure and flow", guide)
+        self.assertIn("usually one to three screens", guide)
+        self.assertIn("selected `UI-*` screen and region IDs", guide)
+        self.assertIn("Keep it outside the staged and published PRD package", guide)
+        self.assertIn(
+            "No `frontend-design` prototype, render, high-fidelity HTML",
+            contract,
+        )
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")

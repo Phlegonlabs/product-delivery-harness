@@ -26,6 +26,16 @@ for (const field of ["icons_in_scope", "motion_in_scope"]) {
 if (workflowArgs.tool_profile !== "builder_readonly") {
   throw new Error("ui-architecture-builder-graph requires args.tool_profile builder_readonly");
 }
+const visualDirectionPass = workflowArgs.visual_direction_pass;
+if (
+  typeof visualDirectionPass !== "object"
+  || visualDirectionPass === null
+  || !["not used", "selected", "rejected"].includes(visualDirectionPass.status)
+) {
+  throw new Error(
+    "ui-architecture-builder-graph requires args.visual_direction_pass status not used, selected, or rejected; a candidate awaiting selection is not a frozen input",
+  );
+}
 
 const stringArray = { type: "array", items: { type: "string" } };
 const laneSchema = {
@@ -102,6 +112,7 @@ const sourceContext = JSON.stringify({
   source_paths: workflowArgs.source_paths,
   source_summary: workflowArgs.source_summary || "",
   builder_ux_direction: workflowArgs.builder_ux_direction || null,
+  visual_direction_pass: visualDirectionPass,
   brand_constraints: workflowArgs.brand_constraints || [],
   icons_in_scope: workflowArgs.icons_in_scope,
   motion_in_scope: workflowArgs.motion_in_scope,

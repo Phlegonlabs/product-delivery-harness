@@ -2,6 +2,8 @@
 
 Use low-fidelity ASCII wireframes plus Mermaid flows. Do not produce Figma or HTML unless the user asks for them.
 
+Across the design handoff, low-fidelity wireframes remain canonical for structure and flow. They are also the product source for scope, visible-region responsibilities, actions, states, and trace IDs. A later visual prototype can interpret that structure, but it cannot replace it.
+
 ## Builder UX Direction Gate
 
 Before drafting interface wireframes, ask one organized set of questions about the builder's intended experience. Resolve the builder to the human product/design decision owner or commissioning team; the implementation agent does not supply its own taste as a substitute.
@@ -23,6 +25,21 @@ Builder preference controls direction, not usability claims. When preference con
   - Form or wizard: progress and context, grouped inputs, inline validation, then one clear next action.
   - Search, catalog, or comparison screen: query and filters, result summary, scannable results, then detail or comparison.
 - State the selected layout pattern and density for each important screen. Change the pattern only when the user task or content shape changes.
+
+## Optional Frontend Design Visual Direction Handoff
+
+Use this handoff only after the staged PRD package passes its quality checklist and the user explicitly authorizes a downstream `frontend-design` pass. Approval to run `ui-architecture-builder` does not imply approval for this additional skill.
+
+The downstream design parent selects a small representative set, usually one to three screens, and passes:
+
+- the selected `UI-*` screen and region IDs;
+- each screen's purpose, layout pattern, density, exact copy or display contracts, actions, states, and responsive constraints;
+- the Builder UX Direction Decision and recorded product style intent;
+- an instruction that scope, routes, content responsibilities, interaction behavior, and trace IDs are frozen.
+
+The resulting working prototype or rendered image is non-canonical design-stage evidence. Keep it outside the staged and published PRD package. It may explore typography, color, composition, texture, imagery, and motion, but it must not add product scope or silently change the canonical wireframes.
+
+If the visual pass exposes a structural problem, return a concise finding tied to the affected `UI-*` IDs. The parent or human product/design owner decides whether to make one bounded wireframe revision, preserves unaffected scope and IDs, and reruns the PRD quality checklist. Only then may the visual pass continue from the revised wireframe.
 
 ## ASCII Wireframe Rules
 
