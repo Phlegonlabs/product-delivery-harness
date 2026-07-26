@@ -22,7 +22,11 @@ from harness_manifest import (  # noqa: E402
     plan_digest,
     validate_run,
 )
-from select_ready_nodes import GraphSelectionError, select_ready_nodes  # noqa: E402
+from select_ready_nodes import (  # noqa: E402
+    GraphSelectionError,
+    _preintegration_review_source_ready,
+    select_ready_nodes,
+)
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
 
 
@@ -392,6 +396,20 @@ class SelectReadyNodesTests(unittest.TestCase):
             any(
                 item["kind"] == "mission"
                 for item in selected["dispatchable_nodes"]
+            )
+        )
+
+    def test_preintegration_shortcut_rejects_multi_mission_review(self) -> None:
+        plan, run = current_preintegration_review_state()
+        nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
+        review = nodes["N-FRONTEND-REVIEW"]
+        review["review"]["mission_ids"] = ["M1", "M3"]
+
+        self.assertFalse(
+            _preintegration_review_source_ready(
+                review,
+                nodes["N-M1"],
+                run,
             )
         )
 

@@ -138,6 +138,7 @@ def _preintegration_review_source_ready(
         or node.get("kind") != "verifier"
         or node.get("executor") != "runtime_worker"
         or not isinstance(review, dict)
+        or len(review.get("mission_ids", [])) != 1
         or not isinstance(source_node, dict)
         or source_node.get("kind") != "mission"
         or source_node.get("ref") not in review.get("mission_ids", [])
