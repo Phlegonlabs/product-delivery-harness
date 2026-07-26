@@ -1454,6 +1454,11 @@ class GraphManifestTests(unittest.TestCase):
             }
         ]
         self.assertEqual([], validate_run(plan, run))
+        run["mission_states"]["M1"]["head_sha"] = "b" * 40
+        run["review_workers"][0]["reviewed_sha"] = "b" * 40
+        self.assertEqual([], validate_run(plan, run))
+        run["mission_states"]["M1"]["head_sha"] = None
+        run["review_workers"][0]["reviewed_sha"] = "a" * 40
         run["status"] = "complete"
         self.assertTrue(
             any(

@@ -3162,6 +3162,21 @@ class RunValidationTests(unittest.TestCase):
         ]
         self.assertEqual(validate_run(plan, run), [])
 
+        run["workers"][0]["nested_subagent_policy"]["allowed_roles"] = [
+            "explorer",
+            "tester",
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must include reviewer when enabled",
+        )
+        run["workers"][0]["nested_subagent_policy"]["allowed_roles"] = [
+            "explorer",
+            "reviewer",
+            "tester",
+        ]
+
         del run["workers"][0]["nested_subagent_policy"]
         self.assert_run_error_contains(
             plan,

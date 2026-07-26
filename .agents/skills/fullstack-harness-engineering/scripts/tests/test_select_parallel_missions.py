@@ -523,6 +523,28 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual(0, policy["max_children"])
         self.assertEqual([], policy["allowed_roles"])
 
+    def test_app_task_wave_disables_nested_policy_without_reviewer_role(self) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1"])
+        run["runtime_capabilities"]["nested_subagents"]["allowed_roles"] = [
+            "explorer",
+            "tester",
+        ]
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        policy = result["launch_directives"][0]["nested_subagent_policy"]
+        self.assertEqual("not_applicable", policy["mode"])
+        self.assertEqual(0, policy["max_children"])
+        self.assertEqual([], policy["allowed_roles"])
+        self.assertNotIn("spawn_subagents", result["launch_directives"][0]["required_actions"])
+
     def test_static_edges_include_nonready_missions_but_unary_codes_do_not(self) -> None:
         plan = make_plan(
             [

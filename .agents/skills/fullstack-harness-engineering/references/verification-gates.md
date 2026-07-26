@@ -39,7 +39,7 @@ Worktree pre-integration review gate:
 
 - Runs after worker checks and before the parent merges that mission head.
 - Binds at least one independent read-only review to the exact current worktree head and records the reviewer, decision, findings, and evidence.
-- In a Codex app task, the task's own Multi-agent reviewer performs this round. If task-local review is unavailable, the parent must run an equivalent read-only review.
+- In a Codex app task, the task's own Multi-agent reviewer performs this round when its enabled policy permits `reviewer`. If that policy is disabled, the parent runs an equivalent read-only review and records a terminal `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head.
 - Requires zero unresolved blocking findings. Any repair changes the head, invalidates the prior review, and requires a fresh round.
 - Is the only gate that may transition a mission from `worker_passed` to `integrating`.
 

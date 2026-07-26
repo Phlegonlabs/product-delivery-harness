@@ -224,7 +224,7 @@ For `launch_kind: "create_thread"`, the parent must consume the directive after 
 2. Allocate a worker/lease and exact durable branch target. For task/worktree identities assigned only by creation, recheck the explicit pre-allocation `*` grant; recheck every already-known target exactly.
 3. Create one top-level app-managed worktree thread for the mission. It is a separate conversation in the Codex left sidebar; a direct subagent of the coordinator is not equivalent. Use the complete `WORKER_GOAL.template.md` handoff as the initial prompt and start from the recorded integration branch/ref that points at `batch_base_sha`.
 4. Record the returned thread ID or queued client-thread ID in the RUN worker record, bind later actions to that concrete identity, and move the mission to `worker_running` only when the task/workspace is observable.
-5. If the directive says `capability_handshake`, prohibit production edits until the thread reports direct child-tool/result availability. Update RUN and send the enabled or disabled nested policy through the thread-message surface.
+5. If the directive says `capability_handshake`, prohibit production edits until the thread reports direct child-tool/result availability. Update RUN and send the enabled or disabled nested policy through the thread-message surface. Enable the policy only when its allowed roles include `reviewer`; an observed child runtime without that role produces a disabled/not-applicable policy and routes exact-head review to the parent.
 6. Poll through the available read-thread/status surface with backoff. Treat the terminal task output as a worker result candidate and validate it normally.
 
 If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure. Use sequential parent execution only when the user did not explicitly require independent left-sidebar tasks; otherwise stop at the missing-capability boundary.
@@ -248,7 +248,7 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 
 1. Confirm worker base/head ancestry and head stability.
 2. Recompute actual changed paths and reject scope escape or parent-owned files.
-3. Require at least one read-only review PASS bound to the exact current worktree head. Repair findings in that worktree and review the changed head again.
+3. Require at least one read-only review PASS bound to the exact current worktree head. For a disabled task-local policy, first record a terminal covering `review_workers[]` PASS on that SHA; worker-result validation rejects the candidate without it. Repair findings in that worktree and review the changed head again.
 4. Integrate into persistent `development` only when `integrate_locally` is authorized.
 5. Run the affected mission's integration verifiers after its integration.
 6. Mark it `integrated` only after the gate passes and record `integrated_sha`.

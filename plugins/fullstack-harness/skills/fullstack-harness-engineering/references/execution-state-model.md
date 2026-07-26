@@ -118,7 +118,7 @@ blocked | worker_failed | integration_failed | superseded
 | `ready -> leased` | Parent records one worker lease bound to mission, plan revision/digest, and base SHA |
 | `leased -> worker_running` | Worker identity and workspace are observable |
 | `worker_running -> worker_passed` | Worker verifier passed and a result with head SHA, diff summary, and evidence was returned |
-| `worker_passed -> integrating` | Parent rechecks ancestry, actual diff scope, forbidden files, head stability, integration authorization, and at least one read-only review PASS bound to the exact worktree head |
+| `worker_passed -> integrating` | Parent rechecks ancestry, actual diff scope, forbidden files, head stability, integration authorization, and at least one read-only review PASS bound to the exact worktree head; a disabled task-local policy requires a terminal covering `review_workers[]` PASS before worker-result validation |
 | `integrating -> integrated` | Changes are on `development`, the integration verifier passed, and `integrated_sha` is recorded |
 
 These phase transitions describe one run's lifecycle; when `run.integration.retention` is `"persistent"`, the integration branch itself survives across runs rather than being scoped to a single run.

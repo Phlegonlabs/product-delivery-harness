@@ -3428,6 +3428,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.nested_subagent_policy.allowed_roles",
                             "must be a subset of runtime allowed_roles",
                         )
+                    if "reviewer" not in policy_roles:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must include reviewer when enabled",
+                        )
                     if not authorization_covers(
                         run,
                         "spawn_subagents",
@@ -3538,11 +3544,20 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             for state in run.get("mission_states", {}).values()
                             if isinstance(state, dict)
                         ),
+                        *(
+                            state.get("head_sha")
+                            for state in run.get("mission_states", {}).values()
+                            if isinstance(state, dict)
+                        ),
                     )
                     if is_full_sha(sha)
                 }
                 if worker["reviewed_sha"] not in current_reviewable_shas:
-                    _add(errors, f"{path}.reviewed_sha", "must identify a current integrated or PR head")
+                    _add(
+                        errors,
+                        f"{path}.reviewed_sha",
+                        "must identify a current worktree, integrated, or PR head",
+                    )
                 if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
                     _add(errors, f"{path}.worker_runtime", "has an unsupported value")
                 if worker["completion_channel"] not in {

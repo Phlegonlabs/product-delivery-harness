@@ -262,7 +262,7 @@ For small work, use one parent writer and the smallest relevant checks. For larg
 
 When a UI worker loads `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe, design-system, registry, route-recipe, and mockup inputs. A generic instruction to "make it distinctive" is not a valid handoff.
 
-The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into `development`, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
+The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. An enabled task-local reviewer records its exact-head PASS in WORKER_RESULT. A disabled task-local policy requires the parent to record the fallback as a terminal `review_workers[]` PASS covering that mission and worktree head before worker-result validation may pass. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into `development`, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
 
 ### 5. Verify Local-First
 

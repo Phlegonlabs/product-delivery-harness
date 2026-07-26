@@ -920,6 +920,60 @@ class ValidateWorkerResultTests(unittest.TestCase):
         self.assertIn("stale_binding", stale_errors)
         self.assertIn("missing_review", stale_errors)
 
+    def test_disabled_nested_policy_requires_parent_review_worker(self) -> None:
+        plan = copy.deepcopy(self.plan)
+        review_node = {
+            "id": "N-M1-PREINTEGRATION-REVIEW",
+            "kind": "verifier",
+            "executor": "runtime_worker",
+            "review": {
+                "type": "backend_code",
+                "mission_ids": ["M1"],
+                "scope": ["src/m1/**"],
+                "required_evidence": ["reviewed_sha", "decision"],
+            },
+        }
+        plan["graph"] = {"nodes": [review_node], "edges": []}
+        run = copy.deepcopy(self.run)
+        result = copy.deepcopy(self.result)
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["mission_states"]["M1"]["head_sha"] = HEAD_SHA
+        run["active_wave"]["plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+        run["workers"][0]["nested_subagent_policy"] = {
+            "enabled": False,
+            "max_children": 0,
+            "allowed_roles": [],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        }
+        result["plan_digest_sha256"] = digest
+        for verifier_result in result["verifiers"]:
+            verifier_result["evidence"] = retained_verifier_result(
+                verifier_result["id"],
+                plan,
+            )["execution_key"]
+        result["subagent_activity"] = {
+            "status": "not_applicable",
+            "skip_reason": "the capability handshake disabled nested subagents",
+            "children": [],
+        }
+
+        self.assertIn("missing_review", error_codes(validate(plan, run, result)))
+
+        run["review_workers"] = [
+            {
+                "node_id": review_node["id"],
+                "reviewed_sha": HEAD_SHA,
+                "worker_runtime": "subagent",
+                "phase": "worker_passed",
+                "outcome": "pass",
+            }
+        ]
+        self.assertEqual(validate(plan, run, result), [])
+
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "REPORT.md"
