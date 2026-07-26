@@ -61,7 +61,7 @@ Use this when the user provides different UI references for different pages. Whe
 | /dashboard | Figma frame <id> | mobile/tablet/desktop | loading/empty/error/ready | cards/table/filter | API-002 | screenshot + journey |
 ```
 
-For a required UI surface, `screenshot + journey` means a retained screenshot for every listed breakpoint-by-state combination, plus journey/console/network evidence where applicable. Record the screenshot path, hash, and integration head in schema-v9 RUN state.
+For a required UI surface, `screenshot + journey` means a retained screenshot for every listed breakpoint-by-state combination, plus journey/console/network evidence where applicable. Record the screenshot path, hash, and integration head in current RUN-v10 state. Older RUN-v9 UI evidence remains readable.
 
 States to consider:
 

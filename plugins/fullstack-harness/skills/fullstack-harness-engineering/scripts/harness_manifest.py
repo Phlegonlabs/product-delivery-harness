@@ -5,12 +5,15 @@ scripts/tests import from this module by name."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from harness_schema import (
     AUTHORIZATION_KEYS,
     AUTHORIZATION_KEYS_V2,
     AUTHORIZATION_KEYS_V8,
+    AUTHORIZATION_KEYS_V10,
     CLEANUP_BRANCH_STATUSES,
     CLEANUP_STATUSES,
     CLEANUP_WORKTREE_STATUSES,
@@ -18,6 +21,7 @@ from harness_schema import (
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GATE_VALUES,
+    HEAD_BOUND_AUTHORIZATION_ACTIONS,
     ID_RE,
     MISSION_PHASES,
     NESTED_SUBAGENT_ROLES,
@@ -92,6 +96,7 @@ from harness_graph import (
 from harness_release import (
     _validate_deployments,
     _validate_release,
+    _validate_targets,
 )
 from harness_ui_evidence import (
     _validate_ui_evidence,
@@ -99,6 +104,69 @@ from harness_ui_evidence import (
     validate_ui_evidence_files,
     validate_ui_surface_recipe_coverage,
 )
+
+
+def _validate_global_verifier_ids(errors: list[str], plan: dict[str, Any]) -> None:
+    if plan.get("schema_version") != 5:
+        return
+    seen: dict[str, str] = {}
+
+    def register(path: str, verifier: Any) -> None:
+        if not isinstance(verifier, dict) or not _nonempty_string(verifier.get("id")):
+            return
+        verifier_id = verifier["id"]
+        first_path = seen.get(verifier_id)
+        if first_path is None:
+            seen[verifier_id] = path
+        else:
+            _add(
+                errors,
+                f"{path}.id",
+                f"must be globally unique; {verifier_id!r} is already declared at {first_path}",
+            )
+
+    for group in ("batch_verifiers", "final_gates"):
+        for index, verifier in enumerate(plan.get(group, [])):
+            register(f"plan.{group}[{index}]", verifier)
+    for mission_index, mission in enumerate(plan.get("missions", [])):
+        if not isinstance(mission, dict):
+            continue
+        mission_path = f"plan.missions[{mission_index}]"
+        for group in ("worker_verifiers", "integration_verifiers"):
+            for index, verifier in enumerate(mission.get(group, [])):
+                register(f"{mission_path}.{group}[{index}]", verifier)
+        for task_index, task in enumerate(mission.get("tasks", [])):
+            if not isinstance(task, dict):
+                continue
+            for index, verifier in enumerate(task.get("verifiers", [])):
+                register(
+                    f"{mission_path}.tasks[{task_index}].verifiers[{index}]",
+                    verifier,
+                )
+    release = plan.get("release")
+    if isinstance(release, dict):
+        for target_index, target in enumerate(release.get("targets", [])):
+            if not isinstance(target, dict):
+                continue
+            target_path = f"plan.release.targets[{target_index}]"
+            commands = target.get("commands")
+            if isinstance(commands, dict):
+                for command_name, verifier in commands.items():
+                    register(f"{target_path}.commands.{command_name}", verifier)
+            for index, verifier in enumerate(target.get("smoke_verifiers", [])):
+                register(f"{target_path}.smoke_verifiers[{index}]", verifier)
+
+
+def _is_product_staging_location(value: Any) -> bool:
+    if not isinstance(value, str) or "://" in value:
+        return False
+    normalized = value.replace("\\", "/").removeprefix("./").strip("/").lower()
+    parts = normalized.split("/")
+    for staging_name in (".prd-staging", ".design-staging"):
+        for index in range(len(parts) - 2):
+            if parts[index : index + 3] == ["docs", "product", staging_name]:
+                return True
+    return False
 
 
 def validate_plan(plan: dict[str, Any]) -> list[str]:
@@ -120,13 +188,13 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "missions",
     }
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
-    if schema_version == 4:
+    if schema_version in {4, 5}:
         top_keys.update({"graph", "required_reviews"})
-    optional_keys = {"release"} if schema_version in {3, 4} else set()
+    optional_keys = {"release"} if schema_version in {3, 4, 5} else set()
     if not _keys(errors, "plan", plan, top_keys, optional_keys):
         return sorted(errors)
-    if plan["schema_version"] not in {2, 3, 4}:
-        _add(errors, "plan.schema_version", "must equal 2, 3, or 4")
+    if plan["schema_version"] not in {2, 3, 4, 5}:
+        _add(errors, "plan.schema_version", "must equal 2, 3, 4, or 5")
     if not _nonempty_string(plan["plan_id"]):
         _add(errors, "plan.plan_id", "must be a non-empty string")
     if not _is_int(plan["revision"]) or plan["revision"] < 1:
@@ -137,7 +205,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         _add(errors, "plan.max_parallel_workers", "must be a positive integer")
 
     required_reviews: list[str] = []
-    if schema_version == 4:
+    if schema_version in {4, 5}:
         required_reviews = _strings(
             errors,
             "plan.required_reviews",
@@ -158,8 +226,10 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         _add(errors, "plan.sources", "must be a non-empty list")
     else:
         source_keys = {"id", "kind", "location", "owner", "status", "notes"}
-        if schema_version == 4:
+        if schema_version in {4, 5}:
             source_keys.update({"content_sha256", "source_revision"})
+        if schema_version == 5:
+            source_keys.add("staged_revision")
         for index, source in enumerate(plan["sources"]):
             path = f"plan.sources[{index}]"
             if not _keys(errors, path, source, source_keys):
@@ -167,7 +237,23 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             for key in {"id", "kind", "location", "owner", "status", "notes"}:
                 if not _nonempty_string(source[key]):
                     _add(errors, f"{path}.{key}", "must be a non-empty string")
-            if schema_version == 4:
+            if schema_version == 5 and source["status"] not in {
+                "frozen",
+                "delta_accepted",
+                "revision staged",
+            }:
+                _add(
+                    errors,
+                    f"{path}.status",
+                    "must be frozen, delta_accepted, or revision staged",
+                )
+            if schema_version == 5 and _is_product_staging_location(source["location"]):
+                _add(
+                    errors,
+                    f"{path}.location",
+                    "published PLAN sources cannot use product staging paths",
+                )
+            if schema_version in {4, 5}:
                 content_sha = source["content_sha256"]
                 source_revision = source["source_revision"]
                 if content_sha is not None and (
@@ -180,8 +266,45 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                     _add(
                         errors,
                         path,
-                        "schema v4 sources require content_sha256 or source_revision",
+                        "schema v4+ sources require content_sha256 or source_revision",
                     )
+            if schema_version == 5:
+                staged = source["staged_revision"]
+                if staged is not None and _keys(
+                    errors,
+                    f"{path}.staged_revision",
+                    staged,
+                    {"content_sha256", "source_revision", "notes"},
+                ):
+                    staged_sha = staged["content_sha256"]
+                    staged_revision = staged["source_revision"]
+                    if staged_sha is not None and (
+                        not isinstance(staged_sha, str)
+                        or SHA256_RE.fullmatch(staged_sha) is None
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.staged_revision.content_sha256",
+                            "must be null or a lowercase SHA-256 digest",
+                        )
+                    if staged_revision is not None and not _nonempty_string(staged_revision):
+                        _add(
+                            errors,
+                            f"{path}.staged_revision.source_revision",
+                            "must be null or a non-empty immutable revision",
+                        )
+                    if staged_sha is None and staged_revision is None:
+                        _add(
+                            errors,
+                            f"{path}.staged_revision",
+                            "requires content_sha256 or source_revision",
+                        )
+                    if not _nonempty_string(staged["notes"]):
+                        _add(errors, f"{path}.staged_revision.notes", "must be a non-empty string")
+                if source["status"] == "revision staged" and staged is None:
+                    _add(errors, path, "revision staged source requires staged_revision")
+                if source["status"] != "revision staged" and staged is not None:
+                    _add(errors, path, "staged_revision requires source status 'revision staged'")
             source_id = source["id"]
             if source_id in sources:
                 _add(errors, f"{path}.id", f"duplicate source ID {source_id!r}")
@@ -287,8 +410,12 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                     ids.add(verifier["id"])
                     declared_verifier_ids.add(verifier["id"])
 
-    if plan["schema_version"] in {3, 4} and "release" in plan:
-        _validate_release(errors, plan["release"])
+    if plan["schema_version"] in {3, 4, 5} and "release" in plan:
+        _validate_release(
+            errors,
+            plan["release"],
+            schema_version=plan["schema_version"],
+        )
 
     missions: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["missions"], list) or not plan["missions"]:
@@ -313,7 +440,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         "integration_verifiers",
         "tasks",
     }
-    if plan["schema_version"] != 4:
+    if plan["schema_version"] not in {4, 5}:
         mission_keys.add("depends_on")
     for index, mission in enumerate(plan["missions"]):
         path = f"plan.missions[{index}]"
@@ -353,7 +480,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         for key in ("priority", "merge_rank"):
             if not _is_int(mission[key]):
                 _add(errors, f"{mission_path}.{key}", "must be an integer")
-        if plan["schema_version"] != 4:
+        if plan["schema_version"] not in {4, 5}:
             _strings(errors, f"{mission_path}.depends_on", mission["depends_on"])
         mission_trace_ids = _strings(
             errors, f"{mission_path}.trace_ids", mission["trace_ids"], nonempty=True
@@ -452,7 +579,40 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         for key in ("alias", "objective"):
             if not _nonempty_string(task[key]):
                 _add(errors, f"{path}.{key}", "must be a non-empty string")
-        _strings(errors, f"{path}.acceptance_matrix", task["acceptance_matrix"])
+        acceptance_trace_ids: set[str] = set()
+        if plan["schema_version"] == 5:
+            acceptance = task["acceptance_matrix"]
+            if not isinstance(acceptance, list):
+                _add(errors, f"{path}.acceptance_matrix", "must be a list")
+            else:
+                seen_test_ids: set[str] = set()
+                for acceptance_index, row in enumerate(acceptance):
+                    row_path = f"{path}.acceptance_matrix[{acceptance_index}]"
+                    if not _keys(
+                        errors,
+                        row_path,
+                        row,
+                        {"test_id", "trace_ids", "criterion"},
+                    ):
+                        continue
+                    test_id = row["test_id"]
+                    if not _nonempty_string(test_id) or not test_id.startswith("TEST-"):
+                        _add(errors, f"{row_path}.test_id", "must be a stable TEST-* ID")
+                    elif test_id in seen_test_ids:
+                        _add(errors, f"{row_path}.test_id", "must be unique within the task")
+                    else:
+                        seen_test_ids.add(test_id)
+                    row_traces = _strings(
+                        errors,
+                        f"{row_path}.trace_ids",
+                        row["trace_ids"],
+                        nonempty=True,
+                    )
+                    acceptance_trace_ids.update(row_traces)
+                    if not _nonempty_string(row["criterion"]):
+                        _add(errors, f"{row_path}.criterion", "must be a non-empty string")
+        else:
+            _strings(errors, f"{path}.acceptance_matrix", task["acceptance_matrix"])
         trace_ids = _strings(errors, f"{path}.trace_ids", task["trace_ids"], nonempty=True)
         for trace_id in trace_ids:
             if trace_id not in traces:
@@ -461,7 +621,10 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not planned")
             else:
                 planned_trace_coverage.add(trace_id)
-                if (
+                if plan["schema_version"] == 5:
+                    if trace_id in acceptance_trace_ids:
+                        verified_trace_coverage.add(trace_id)
+                elif (
                     isinstance(task["acceptance_matrix"], list)
                     and task["acceptance_matrix"]
                 ):
@@ -469,6 +632,15 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             mission_trace_set = set(missions.get(mission_id, {}).get("trace_ids", []))
             if trace_id not in mission_trace_set:
                 _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not declared by its mission")
+        if plan["schema_version"] == 5:
+            unknown_acceptance_traces = sorted(acceptance_trace_ids - set(trace_ids))
+            if unknown_acceptance_traces:
+                _add(
+                    errors,
+                    f"{path}.acceptance_matrix",
+                    "row trace_ids must be declared by the task: "
+                    + ", ".join(unknown_acceptance_traces),
+                )
         dependencies = _strings(errors, f"{path}.depends_on", task["depends_on"])
         task_edges[task_id] = dependencies
         for dependency in dependencies:
@@ -563,8 +735,14 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 "an empty acceptance_matrix",
             )
 
-    if plan["schema_version"] == 4:
-        _validate_graph(errors, plan["graph"], missions, declared_verifier_ids)
+    if plan["schema_version"] in {4, 5}:
+        _validate_graph(
+            errors,
+            plan["graph"],
+            missions,
+            declared_verifier_ids,
+            require_bounded_review_repair=plan["schema_version"] == 5,
+        )
         declared_reviews = {
             node.get("review", {}).get("type")
             for node in plan["graph"].get("nodes", [])
@@ -581,6 +759,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 "missing runtime review nodes: " + ", ".join(missing_reviews),
             )
 
+    _validate_global_verifier_ids(errors, plan)
     return sorted(set(errors))
 
 
@@ -607,6 +786,8 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
     }
     if schema_version >= 4:
         keys.update({"auto_merge_requested", "auto_merge_head_sha"})
+    if schema_version == 10:
+        keys.add("continuity")
     if not _keys(errors, path, value, keys):
         return
 
@@ -678,6 +859,32 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
         _add(errors, path, "local_only mode cannot record a created PR")
     if value["mode"] == "local_only" and value["pushed_head_sha"] is not None:
         _add(errors, path, "local_only mode cannot record a pushed head")
+    if schema_version == 10:
+        continuity = value["continuity"]
+        if continuity is not None and _keys(
+            errors,
+            f"{path}.continuity",
+            continuity,
+            {"status", "branch_ref", "head_sha", "reason"},
+        ):
+            if continuity["status"] not in {"planned", "preserved", "blocked", "not_required"}:
+                _add(errors, f"{path}.continuity.status", "has an unsupported value")
+            _optional_string(errors, f"{path}.continuity.branch_ref", continuity["branch_ref"])
+            _optional_sha(errors, f"{path}.continuity.head_sha", continuity["head_sha"])
+            _optional_string(errors, f"{path}.continuity.reason", continuity["reason"])
+            if continuity["status"] in {"planned", "preserved"}:
+                if not _nonempty_string(continuity["branch_ref"]):
+                    _add(errors, f"{path}.continuity.branch_ref", "is required for planned or preserved continuity")
+                elif not continuity["branch_ref"].startswith("refs/heads/"):
+                    _add(errors, f"{path}.continuity.branch_ref", "must be a full local branch ref")
+            if continuity["status"] == "preserved" and not is_full_sha(continuity["head_sha"]):
+                _add(errors, f"{path}.continuity.head_sha", "is required when continuity is preserved")
+            if continuity["status"] == "blocked" and not _nonempty_string(continuity["reason"]):
+                _add(errors, f"{path}.continuity.reason", "is required when continuity is blocked")
+            if value["mode"] == "pull_request" and continuity["status"] != "not_required":
+                _add(errors, f"{path}.continuity.status", "pull_request mode requires not_required")
+            if value["mode"] == "local_only" and continuity["status"] == "not_required":
+                _add(errors, f"{path}.continuity.status", "local_only mode requires a later-PR continuity path")
     if value["checks_status"] == "PASS" and (
         value["pr_state"] not in created_states
         or value["checks_head_sha"] is None
@@ -1159,6 +1366,29 @@ def _validate_gate_results(
             _add(errors, path, "PASS requires head_sha and non-empty evidence")
         if result["status"] == "PASS" and result["head_sha"] != integration_head:
             _add(errors, path, f"PASS {label} must match integration_head_sha")
+        if result["status"] == "PASS" and run.get("schema_version") == 10:
+            expected_layer = "batch" if plan_key == "batch_verifiers" else "final"
+            matching_executions = [
+                execution
+                for execution in run.get("verifier_executions", [])
+                if isinstance(execution, dict)
+                and execution.get("verifier_id") == gate_id
+                and execution.get("layer") == expected_layer
+                and execution.get("mission_id") is None
+                and execution.get("task_id") is None
+                and execution.get("attempt_id") is None
+                and execution.get("lease_id") is None
+                and execution.get("status") == "PASS"
+                and execution.get("exit_code") == 0
+                and execution.get("context", {}).get("head_sha") == result["head_sha"]
+                and execution.get("evidence_key") in evidence
+            ]
+            if not matching_executions:
+                _add(
+                    errors,
+                    path,
+                    f"PASS {label} requires exact PASS/exit-0 verifier execution evidence",
+                )
         valid_results.append(result)
 
     if seen != expected_ids:
@@ -1338,6 +1568,597 @@ def _validate_workflow_runs(
                 _add(errors, path, "complete RUN cannot retain a running workflow")
 
 
+def _validate_verifier_executions(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    value = run.get("verifier_executions")
+    if not isinstance(value, list):
+        _add(errors, "run.verifier_executions", "must be an append-only list")
+        return
+
+    verifier_owners: dict[
+        str, tuple[str, str | None, str | None, dict[str, Any]]
+    ] = {}
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        mission_id = mission.get("id")
+        for verifier in mission.get("worker_verifiers", []):
+            if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
+                verifier_owners[verifier["id"]] = ("worker", mission_id, None, verifier)
+        for verifier in mission.get("integration_verifiers", []):
+            if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
+                verifier_owners[verifier["id"]] = ("mission_integration", mission_id, None, verifier)
+        for task in mission.get("tasks", []):
+            if not isinstance(task, dict):
+                continue
+            task_id = task.get("id")
+            for verifier in task.get("verifiers", []):
+                if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
+                    verifier_owners[verifier["id"]] = ("task", mission_id, task_id, verifier)
+    for plan_key, layer in (("batch_verifiers", "batch"), ("final_gates", "final")):
+        for verifier in plan.get(plan_key, []):
+            if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
+                verifier_owners[verifier["id"]] = (layer, None, None, verifier)
+    release = plan.get("release")
+    if isinstance(release, dict):
+        for target in release.get("targets", []):
+            if not isinstance(target, dict):
+                continue
+            commands = target.get("commands")
+            if isinstance(commands, dict):
+                for verifier in commands.values():
+                    if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
+                        verifier_owners[verifier["id"]] = ("release", None, None, verifier)
+            for verifier in target.get("smoke_verifiers", []):
+                if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
+                    verifier_owners[verifier["id"]] = (
+                        "release",
+                        None,
+                        None,
+                        verifier,
+                    )
+
+    attempt_log = run.get("attempt_log")
+    attempt_items = attempt_log if isinstance(attempt_log, list) else []
+    attempts_by_id = {
+        item.get("attempt_id"): item
+        for item in attempt_items
+        if isinstance(item, dict) and _nonempty_string(item.get("attempt_id"))
+    }
+    attempt_ids = set(attempts_by_id)
+    mission_states = run.get("mission_states")
+    mission_state_items = mission_states.values() if isinstance(mission_states, dict) else []
+    lease_ids = {
+        state.get("lease_id")
+        for state in mission_state_items
+        if isinstance(state, dict) and _nonempty_string(state.get("lease_id"))
+    }
+    workers = run.get("workers")
+    worker_items = workers if isinstance(workers, list) else []
+    lease_ids.update(
+        worker.get("lease_id")
+        for worker in worker_items
+        if isinstance(worker, dict) and _nonempty_string(worker.get("lease_id"))
+    )
+
+    entry_keys = {
+        "execution_id",
+        "verifier_id",
+        "layer",
+        "mission_id",
+        "task_id",
+        "attempt_id",
+        "lease_id",
+        "protocol",
+        "execution_key",
+        "evidence_key",
+        "key_document",
+        "verifier",
+        "context",
+        "status",
+        "exit_code",
+        "cache_status",
+        "cache_reason",
+        "duration_ms",
+        "metrics",
+        "stdout_sha256",
+        "stderr_sha256",
+        "evidence_paths",
+    }
+    seen_execution_ids: set[str] = set()
+    for index, item in enumerate(value):
+        path = f"run.verifier_executions[{index}]"
+        if not _keys(errors, path, item, entry_keys):
+            continue
+        execution_id = item["execution_id"]
+        if not _nonempty_string(execution_id):
+            _add(errors, f"{path}.execution_id", "must be a non-empty string")
+        elif execution_id in seen_execution_ids:
+            _add(errors, f"{path}.execution_id", "must be unique")
+        else:
+            seen_execution_ids.add(execution_id)
+        verifier_id = item["verifier_id"]
+        owner = verifier_owners.get(verifier_id)
+        declaration: dict[str, Any] | None = None
+        if owner is None:
+            _add(errors, f"{path}.verifier_id", "must reference a PLAN verifier")
+        else:
+            expected_layer, expected_mission, expected_task, declaration = owner
+            if (item["layer"], item["mission_id"], item["task_id"]) != (
+                expected_layer,
+                expected_mission,
+                expected_task,
+            ):
+                _add(errors, path, "layer and mission/task association must match the PLAN verifier")
+        for key in ("mission_id", "task_id", "attempt_id", "lease_id"):
+            _optional_string(errors, f"{path}.{key}", item[key])
+        if item["layer"] == "mission_integration" and (
+            not _nonempty_string(item["mission_id"])
+            or any(item[key] is not None for key in ("task_id", "attempt_id", "lease_id"))
+        ):
+            _add(
+                errors,
+                path,
+                "mission integration execution requires mission_id and null task/attempt/lease IDs",
+            )
+        if item["layer"] in {"batch", "final", "release"} and any(
+            item[key] is not None
+            for key in ("mission_id", "task_id", "attempt_id", "lease_id")
+        ):
+            _add(
+                errors,
+                path,
+                f"{item['layer']} execution requires null mission/task/attempt/lease IDs",
+            )
+        if item["attempt_id"] is not None and item["attempt_id"] not in attempt_ids:
+            _add(errors, f"{path}.attempt_id", "must reference retained parent attempt state")
+        if item["lease_id"] is not None and item["lease_id"] not in lease_ids:
+            _add(errors, f"{path}.lease_id", "must reference retained lease state")
+        bound_worker: dict[str, Any] | None = None
+        if item["layer"] in {"task", "worker"}:
+            required_associations = ("mission_id", "attempt_id", "lease_id")
+            if item["layer"] == "task":
+                required_associations = (*required_associations, "task_id")
+            if any(not _nonempty_string(item[key]) for key in required_associations):
+                _add(
+                    errors,
+                    path,
+                    f"{item['layer']} execution requires exact mission/task, attempt, and lease association",
+                )
+            if item["layer"] == "worker" and item["task_id"] is not None:
+                _add(errors, f"{path}.task_id", "worker execution must use null task_id")
+            attempt = attempts_by_id.get(item["attempt_id"])
+            if isinstance(attempt, dict) and (
+                attempt.get("mission_id") != item["mission_id"]
+                or attempt.get("task_id") != item["task_id"]
+                or attempt.get("lease_id") != item["lease_id"]
+            ):
+                _add(
+                    errors,
+                    f"{path}.attempt_id",
+                    "must reference the exact retained mission/task/lease attempt",
+                )
+            matching_workers = [
+                worker
+                for worker in worker_items
+                if isinstance(worker, dict)
+                and worker.get("mission_id") == item["mission_id"]
+                and worker.get("lease_id") == item["lease_id"]
+            ]
+            if len(matching_workers) != 1:
+                _add(
+                    errors,
+                    f"{path}.lease_id",
+                    "must bind exactly one retained mission worker",
+                )
+            else:
+                bound_worker = matching_workers[0]
+        protocol = item["protocol"]
+        if protocol != "harness-verifier-execution-v1":
+            _add(errors, f"{path}.protocol", "has an unsupported value")
+        execution_key = item["execution_key"]
+        if not isinstance(execution_key, str) or SHA256_RE.fullmatch(execution_key) is None:
+            _add(errors, f"{path}.execution_key", "must be a lowercase SHA-256 digest")
+        if item["evidence_key"] != execution_key:
+            _add(errors, f"{path}.evidence_key", "must match execution_key")
+        key_document = item["key_document"]
+        key_document_keys = {
+            "protocol",
+            "verifier_id",
+            "layer",
+            "mission_id",
+            "task_id",
+            "attempt_id",
+            "lease_id",
+            "run_id",
+            "plan_revision",
+            "plan_digest_sha256",
+            "graph_revision",
+            "batch_base_sha",
+            "head_sha",
+            "changed_files_digest",
+            "trust_domain",
+            "checkout_role",
+            "checkout_dirty",
+            "cache_safe",
+            "cwd",
+            "argv",
+            "pass_signal",
+            "cache_mode",
+            "environment_keys",
+            "platform",
+            "executable_identity",
+            "environment_digests",
+        }
+        if _keys(errors, f"{path}.key_document", key_document, key_document_keys):
+            encoded = json.dumps(
+                key_document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+            if hashlib.sha256(encoded).hexdigest() != execution_key:
+                _add(errors, f"{path}.execution_key", "must match key_document")
+            if key_document["protocol"] != protocol:
+                _add(errors, f"{path}.key_document.protocol", "must match protocol")
+            for key in (
+                "verifier_id",
+                "layer",
+                "mission_id",
+                "task_id",
+                "attempt_id",
+                "lease_id",
+            ):
+                if key_document[key] != item[key]:
+                    _add(errors, f"{path}.key_document.{key}", f"must match {key}")
+            if not isinstance(key_document["checkout_dirty"], bool):
+                _add(errors, f"{path}.key_document.checkout_dirty", "must be boolean")
+            if not isinstance(key_document["cache_safe"], bool):
+                _add(errors, f"{path}.key_document.cache_safe", "must be boolean")
+            if key_document["cache_mode"] not in {"disabled", "session_exact"}:
+                _add(errors, f"{path}.key_document.cache_mode", "has an unsupported value")
+            environment_keys = _strings(
+                errors,
+                f"{path}.key_document.environment_keys",
+                key_document["environment_keys"],
+            )
+            if environment_keys != sorted(set(environment_keys)):
+                _add(errors, f"{path}.key_document.environment_keys", "must be sorted and unique")
+            if _keys(
+                errors,
+                f"{path}.key_document.platform",
+                key_document["platform"],
+                {"system", "machine"},
+            ):
+                for key in ("system", "machine"):
+                    if not isinstance(key_document["platform"][key], str):
+                        _add(
+                            errors,
+                            f"{path}.key_document.platform.{key}",
+                            "must be a string",
+                        )
+            if _keys(
+                errors,
+                f"{path}.key_document.executable_identity",
+                key_document["executable_identity"],
+                {"path", "size", "mtime_ns", "device", "inode"},
+            ):
+                if not _nonempty_string(key_document["executable_identity"]["path"]):
+                    _add(
+                        errors,
+                        f"{path}.key_document.executable_identity.path",
+                        "must be a non-empty string",
+                    )
+                for key in ("size", "mtime_ns", "device", "inode"):
+                    if (
+                        not _is_int(key_document["executable_identity"][key])
+                        or key_document["executable_identity"][key] < 0
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.key_document.executable_identity.{key}",
+                            "must be a non-negative integer",
+                        )
+            environment_digests = key_document["environment_digests"]
+            if not isinstance(environment_digests, dict):
+                _add(
+                    errors,
+                    f"{path}.key_document.environment_digests",
+                    "must be an object",
+                )
+            else:
+                for key, digest in environment_digests.items():
+                    if not _nonempty_string(key):
+                        _add(
+                            errors,
+                            f"{path}.key_document.environment_digests",
+                            "keys must be non-empty strings",
+                        )
+                    if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+                        _add(
+                            errors,
+                            f"{path}.key_document.environment_digests.{key}",
+                            "must be a lowercase SHA-256 digest",
+                        )
+        normalized_verifier = item["verifier"]
+        if not _keys(
+            errors,
+            f"{path}.verifier",
+            normalized_verifier,
+            {"id", "cwd", "argv", "pass_signal", "cache"},
+        ):
+            pass
+        else:
+            if normalized_verifier["id"] != verifier_id:
+                _add(errors, f"{path}.verifier.id", "must match verifier_id")
+            declared_cache = (
+                declaration.get("cache")
+                if declaration is not None and isinstance(declaration.get("cache"), dict)
+                else {"mode": "disabled", "environment_keys": []}
+            )
+            if declaration is not None and (
+                normalized_verifier["cwd"] != declaration.get("cwd")
+                or normalized_verifier["argv"] != declaration.get("argv")
+                or normalized_verifier["pass_signal"] != declaration.get("pass_signal")
+                or normalized_verifier["cache"] != declared_cache
+            ):
+                _add(errors, f"{path}.verifier", "must exactly match the PLAN verifier declaration")
+            if _keys(
+                errors,
+                f"{path}.verifier.cache",
+                normalized_verifier["cache"],
+                {"mode", "environment_keys"},
+            ):
+                if normalized_verifier["cache"]["mode"] not in {
+                    "disabled",
+                    "session_exact",
+                }:
+                    _add(
+                        errors,
+                        f"{path}.verifier.cache.mode",
+                        "has an unsupported value",
+                    )
+                environment_keys = _strings(
+                    errors,
+                    f"{path}.verifier.cache.environment_keys",
+                    normalized_verifier["cache"]["environment_keys"],
+                )
+                if len(environment_keys) != len(set(environment_keys)):
+                    _add(
+                        errors,
+                        f"{path}.verifier.cache.environment_keys",
+                        "must be unique",
+                    )
+                if isinstance(key_document, dict) and (
+                    key_document.get("cache_mode") != normalized_verifier["cache"]["mode"]
+                    or key_document.get("environment_keys")
+                    != sorted(normalized_verifier["cache"]["environment_keys"])
+                ):
+                    _add(errors, f"{path}.key_document", "must encode verifier cache policy")
+            if not _nonempty_string(normalized_verifier["cwd"]):
+                _add(errors, f"{path}.verifier.cwd", "must be a non-empty string")
+            _strings(errors, f"{path}.verifier.argv", normalized_verifier["argv"])
+            if not _nonempty_string(normalized_verifier["pass_signal"]):
+                _add(
+                    errors,
+                    f"{path}.verifier.pass_signal",
+                    "must be a non-empty string",
+                )
+            if isinstance(key_document, dict) and any(
+                key_document.get(key) != normalized_verifier[key]
+                for key in ("cwd", "argv", "pass_signal")
+            ):
+                _add(errors, f"{path}.key_document", "must encode the retained normalized verifier")
+        context = item["context"]
+        context_keys = {
+            "run_id",
+            "plan_revision",
+            "plan_digest_sha256",
+            "graph_revision",
+            "batch_base_sha",
+            "head_sha",
+            "changed_files",
+            "trust_domain",
+            "checkout_role",
+            "checkout_dirty",
+            "cache_safe",
+            "layer",
+            "mission_id",
+            "task_id",
+            "attempt_id",
+            "lease_id",
+        }
+        if _keys(errors, f"{path}.context", context, context_keys):
+            for key in ("layer", "mission_id", "task_id", "attempt_id", "lease_id"):
+                if context[key] != item[key]:
+                    _add(errors, f"{path}.context.{key}", f"must match {key}")
+            if context["run_id"] != run.get("run_id"):
+                _add(errors, f"{path}.context.run_id", "must match run_id")
+            if context["plan_revision"] != run.get("plan", {}).get("revision"):
+                _add(errors, f"{path}.context.plan_revision", "must match run.plan.revision")
+            if context["plan_digest_sha256"] != run.get("plan", {}).get("digest_sha256"):
+                _add(errors, f"{path}.context.plan_digest_sha256", "must match run.plan.digest_sha256")
+            if context["graph_revision"] is not None and not _is_int(
+                context["graph_revision"]
+            ):
+                _add(
+                    errors,
+                    f"{path}.context.graph_revision",
+                    "must be null or an integer",
+                )
+            for key in ("batch_base_sha", "head_sha"):
+                if not is_full_sha(context[key]):
+                    _add(
+                        errors,
+                        f"{path}.context.{key}",
+                        "must be a 40- or 64-character lowercase SHA",
+                    )
+            integration = run.get("integration")
+            if bound_worker is not None:
+                if context["batch_base_sha"] != bound_worker.get("batch_base_sha"):
+                    _add(
+                        errors,
+                        f"{path}.context.batch_base_sha",
+                        "must match the retained worker batch base",
+                    )
+                if context["head_sha"] != bound_worker.get("worker_head_sha"):
+                    _add(
+                        errors,
+                        f"{path}.context.head_sha",
+                        "must match the retained worker head",
+                    )
+                if context["checkout_role"] != "worker":
+                    _add(errors, f"{path}.context.checkout_role", "must equal worker")
+                observed_git = run.get("observed", {}).get("git", {})
+                if bound_worker.get("workspace_mode") in {
+                    "parent_managed_worktree",
+                    "app_managed_worktree",
+                }:
+                    observed_worktrees = (
+                        observed_git.get("worktrees", [])
+                        if isinstance(observed_git, dict)
+                        else []
+                    )
+                    matching_worktrees = [
+                        worktree
+                        for worktree in observed_worktrees
+                        if isinstance(worktree, dict)
+                        and worktree.get("path") == bound_worker.get("worktree_path")
+                        and worktree.get("branch_ref") == bound_worker.get("branch_ref")
+                        and worktree.get("head_sha") == bound_worker.get("worker_head_sha")
+                    ]
+                    if len(matching_worktrees) != 1:
+                        _add(
+                            errors,
+                            f"{path}.context",
+                            "worker execution requires one matching parent-observed worktree",
+                        )
+                    elif context["checkout_dirty"] != matching_worktrees[0].get("dirty"):
+                        _add(
+                            errors,
+                            f"{path}.context.checkout_dirty",
+                            "must match the parent-observed worker worktree",
+                        )
+                    elif context["checkout_dirty"] is not False:
+                        _add(
+                            errors,
+                            f"{path}.context.checkout_dirty",
+                            "dirty isolated worker worktrees cannot produce accepted verifier evidence",
+                        )
+                elif isinstance(observed_git, dict) and (
+                    context["checkout_dirty"] != observed_git.get("parent_dirty")
+                ):
+                    _add(
+                        errors,
+                        f"{path}.context.checkout_dirty",
+                        "must match the parent-observed shared checkout",
+                    )
+            elif isinstance(integration, dict):
+                if context["batch_base_sha"] != integration.get("batch_base_sha"):
+                    _add(
+                        errors,
+                        f"{path}.context.batch_base_sha",
+                        "must match run.integration.batch_base_sha",
+                    )
+                if context["head_sha"] != integration.get("integration_head_sha"):
+                    _add(
+                        errors,
+                        f"{path}.context.head_sha",
+                        "must match run.integration.integration_head_sha",
+                    )
+            for key in ("trust_domain", "checkout_role"):
+                if not _nonempty_string(context[key]):
+                    _add(
+                        errors,
+                        f"{path}.context.{key}",
+                        "must be a non-empty string",
+                    )
+            changed_files = _strings(errors, f"{path}.context.changed_files", context["changed_files"])
+            if changed_files != sorted(set(changed_files)):
+                _add(errors, f"{path}.context.changed_files", "must be sorted and unique")
+            if not isinstance(context["checkout_dirty"], bool):
+                _add(errors, f"{path}.context.checkout_dirty", "must be boolean")
+            if not isinstance(context["cache_safe"], bool):
+                _add(errors, f"{path}.context.cache_safe", "must be boolean")
+            if isinstance(key_document, dict):
+                for key in (
+                    "run_id",
+                    "plan_revision",
+                    "plan_digest_sha256",
+                    "graph_revision",
+                    "batch_base_sha",
+                    "head_sha",
+                    "trust_domain",
+                    "checkout_role",
+                    "checkout_dirty",
+                    "cache_safe",
+                    "layer",
+                    "mission_id",
+                    "task_id",
+                    "attempt_id",
+                    "lease_id",
+                ):
+                    if key_document.get(key) != context[key]:
+                        _add(errors, f"{path}.key_document.{key}", "must match context")
+                changed_digest = hashlib.sha256(
+                    json.dumps(
+                        changed_files,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    ).encode("utf-8")
+                ).hexdigest()
+                if key_document.get("changed_files_digest") != changed_digest:
+                    _add(errors, f"{path}.key_document.changed_files_digest", "must match context")
+        status = item["status"]
+        exit_code = item["exit_code"]
+        if status not in {"PASS", "FAIL", "TIMEOUT", "ERROR"}:
+            _add(errors, f"{path}.status", "has an unsupported value")
+        elif status == "PASS" and exit_code != 0:
+            _add(errors, f"{path}.exit_code", "PASS requires exit_code 0")
+        elif status == "FAIL" and (
+            not _is_int(exit_code) or exit_code == 0
+        ):
+            _add(errors, f"{path}.exit_code", "FAIL requires a nonzero integer exit_code")
+        elif status in {"TIMEOUT", "ERROR"} and exit_code is not None:
+            _add(errors, f"{path}.exit_code", f"{status} requires null exit_code")
+        if item["cache_status"] not in {"bypassed", "miss", "stored", "reused"}:
+            _add(errors, f"{path}.cache_status", "has an unsupported value")
+        elif item["cache_status"] in {"stored", "reused"} and (
+            status != "PASS" or exit_code != 0
+        ):
+            _add(
+                errors,
+                f"{path}.cache_status",
+                "stored or reused execution must be PASS with exit_code 0",
+            )
+        if not _nonempty_string(item["cache_reason"]):
+            _add(errors, f"{path}.cache_reason", "must be a non-empty string")
+        if not _is_int(item["duration_ms"]) or item["duration_ms"] < 0:
+            _add(errors, f"{path}.duration_ms", "must be a non-negative integer")
+        if _keys(errors, f"{path}.metrics", item["metrics"], {"executed", "reused"}):
+            metrics_valid = True
+            for metric in ("executed", "reused"):
+                if not _is_int(item["metrics"][metric]) or item["metrics"][metric] < 0:
+                    metrics_valid = False
+                    _add(errors, f"{path}.metrics.{metric}", "must be a non-negative integer")
+            if metrics_valid:
+                expected_metrics = (
+                    {"executed": 0, "reused": 1}
+                    if item["cache_status"] == "reused"
+                    else {"executed": 1, "reused": 0}
+                )
+                if item["metrics"] != expected_metrics:
+                    _add(
+                        errors,
+                        f"{path}.metrics",
+                        "must record exactly one execution or exact cache reuse",
+                    )
+        for key in ("stdout_sha256", "stderr_sha256"):
+            digest = item[key]
+            if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+                _add(errors, f"{path}.{key}", "must be a lowercase SHA-256 digest")
+        _strings(errors, f"{path}.evidence_paths", item["evidence_paths"])
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -1364,25 +2185,35 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
     plan_declares_release = (
-        plan.get("schema_version") in {3, 4} and "release" in plan
+        plan.get("schema_version") in {3, 4, 5} and "release" in plan
     )
-    graph_run = plan.get("schema_version") == 4 and schema_version in {8, 9}
+    graph_run = (
+        plan.get("schema_version") == 4 and schema_version in {8, 9}
+    ) or (plan.get("schema_version") == 5 and schema_version == 10)
     if graph_run:
         run_keys.update({"graph_state", "review_workers"})
-    if schema_version in {3, 4, 5, 6, 7, 8, 9}:
+    if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
         run_keys.add("landing")
-    if schema_version in {5, 6, 7, 8, 9}:
+    if schema_version in {5, 6, 7, 8, 9, 10}:
         run_keys.add("post_merge_cleanup")
     if schema_version in {7, 8, 9} and plan_declares_release:
         run_keys.add("deployments")
-    if schema_version == 9:
+    if schema_version == 10:
+        run_keys.add("verifier_executions")
+        if plan_declares_release:
+            run_keys.add("targets")
+    if schema_version in {9, 10}:
         run_keys.update({"batch_gate_results", "final_gate_results", "ui_evidence"})
     if schema_version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
-        _add(errors, "run.schema_version", "must equal 2, 3, 4, 5, 6, 7, 8, or 9")
+        _add(errors, "run.schema_version", "must equal 2 through 10")
     if plan.get("schema_version") == 4 and schema_version not in {8, 9}:
         _add(errors, "run.schema_version", "must equal 8 or 9 for a schema v4 graph PLAN")
+    elif plan.get("schema_version") == 5 and schema_version != 10:
+        _add(errors, "run.schema_version", "must equal 10 for a schema v5 graph PLAN")
     elif schema_version == 8 and plan.get("schema_version") != 4:
         _add(errors, "run.schema_version", "schema v8 requires a schema v4 graph PLAN")
+    elif schema_version == 10 and plan.get("schema_version") != 5:
+        _add(errors, "run.schema_version", "schema v10 requires a schema v5 graph PLAN")
     elif (
         plan_declares_release
         and plan.get("schema_version") == 3
@@ -1394,6 +2225,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "must equal 7 or 9 when a schema v3 PLAN declares release",
         )
     optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
+    if schema_version == 10:
+        optional_run_keys.add("targets")
     if graph_run:
         optional_run_keys.add("workflow_runs")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
@@ -1411,11 +2244,32 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.intent", "has an unsupported value")
     if run["plan_readiness"] not in {"draft", "ready", "blocked"}:
         _add(errors, "run.plan_readiness", "has an unsupported value")
+    if schema_version == 10 and (
+        run.get("plan_readiness") == "ready"
+        or run.get("execution_authorized") is True
+        or run.get("status") in {"running", "complete"}
+    ):
+        for index, source in enumerate(plan.get("sources", [])):
+            if not isinstance(source, dict):
+                continue
+            if source.get("status") not in {"frozen", "delta_accepted"}:
+                _add(
+                    errors,
+                    f"plan.sources[{index}].status",
+                    "ready or executable RUN requires a frozen or delta_accepted source",
+                )
+            if _is_product_staging_location(source.get("location")):
+                _add(
+                    errors,
+                    f"plan.sources[{index}].location",
+                    "ready or executable RUN cannot use product staging paths",
+                )
     if not isinstance(run["execution_authorized"], bool):
         _add(errors, "run.execution_authorized", "must be boolean")
     if (
         run.get("execution_authorized") is True
         and plan_declares_release
+        and plan.get("schema_version") in {3, 4}
         and isinstance(run.get("landing"), dict)
         and run["landing"].get("mode") == "local_only"
     ):
@@ -1426,8 +2280,44 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "production target requires a merged PR, which local_only never records",
         )
     if (
+        plan.get("schema_version") == 5
+        and isinstance(plan.get("release"), dict)
+        and (
+            run.get("plan_readiness") == "ready"
+            or run.get("execution_authorized") is True
+            or run.get("status") in {"running", "complete"}
+        )
+    ):
+        unresolved_targets = sorted(
+            target.get("id", "<unknown>")
+            for target in plan["release"].get("targets", [])
+            if isinstance(target, dict)
+            and (
+                any(
+                    target.get(key) is None
+                    for key in (
+                        "source",
+                        "artifact_kind",
+                        "requires_signing",
+                        "channel",
+                        "trigger",
+                        "migration_classification",
+                    )
+                )
+                or isinstance(target.get("commands"), dict)
+                and target["commands"].get("build") is None
+            )
+        )
+        if unresolved_targets:
+            _add(
+                errors,
+                "run.plan_readiness",
+                "ready or executable RUN has unresolved release semantics: "
+                + ", ".join(unresolved_targets),
+            )
+    if (
         run.get("execution_authorized") is True
-        and plan.get("schema_version") == 4
+        and plan.get("schema_version") in {4, 5}
         and isinstance(plan.get("graph"), dict)
     ):
         reviewed_missions: set[str] = set()
@@ -1465,9 +2355,17 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "run.execution_authorization_scope",
             run["execution_authorization_scope"],
             action=False,
+            require_plan_binding=(schema_version == 10),
         )
-        if isinstance(run["execution_authorization_scope"], dict) and run["execution_authorization_scope"].get("run_id") != run["run_id"]:
-            _add(errors, "run.execution_authorization_scope.run_id", "must match run_id")
+        if isinstance(run["execution_authorization_scope"], dict):
+            execution_scope = run["execution_authorization_scope"]
+            if execution_scope.get("run_id") != run["run_id"]:
+                _add(errors, "run.execution_authorization_scope.run_id", "must match run_id")
+            if schema_version == 10:
+                if execution_scope.get("plan_revision") != run.get("plan", {}).get("revision"):
+                    _add(errors, "run.execution_authorization_scope.plan_revision", "must match run.plan.revision")
+                if execution_scope.get("plan_digest_sha256") != run.get("plan", {}).get("digest_sha256"):
+                    _add(errors, "run.execution_authorization_scope.plan_digest_sha256", "must match run.plan.digest_sha256")
     else:
         _optional_string(
             errors, "run.execution_authorization_source", run["execution_authorization_source"]
@@ -1485,10 +2383,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
     authorization_keys = (
-        AUTHORIZATION_KEYS_V8
+        AUTHORIZATION_KEYS_V10
+        if schema_version == 10
+        else AUTHORIZATION_KEYS_V8
         if schema_version in {8, 9}
         else AUTHORIZATION_KEYS
-        if schema_version in {3, 4, 5, 6, 7, 8, 9}
+        if schema_version in {3, 4, 5, 6, 7}
         else AUTHORIZATION_KEYS_V2
     )
     authorizations = run["authorizations"]
@@ -1506,7 +2406,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 continue
             entry = authorizations[action]
             path = f"run.authorizations.{action}"
-            if not _keys(errors, path, entry, {"authorized", "source"}, {"scope", "expires_when"}):
+            optional_entry_keys = {"scope", "expires_when"}
+            if schema_version == 10:
+                optional_entry_keys.add("authorized_head_sha")
+            if not _keys(
+                errors,
+                path,
+                entry,
+                {"authorized", "source"},
+                optional_entry_keys,
+            ):
                 continue
             if not isinstance(entry["authorized"], bool):
                 _add(errors, f"{path}.authorized", "must be boolean")
@@ -1522,26 +2431,172 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         entry["scope"],
                         action=True,
                         action_name=action,
-                        allow_future_pr=(schema_version in {6, 7, 8, 9}),
+                        allow_future_pr=(schema_version in {6, 7, 8, 9, 10}),
+                        require_plan_binding=(schema_version == 10),
                     )
-                    if isinstance(entry["scope"], dict) and entry["scope"].get("run_id") != run["run_id"]:
-                        _add(errors, f"{path}.scope.run_id", "must match run_id")
+                    if isinstance(entry["scope"], dict):
+                        action_scope = entry["scope"]
+                        if action_scope.get("run_id") != run["run_id"]:
+                            _add(errors, f"{path}.scope.run_id", "must match run_id")
+                        if schema_version == 10:
+                            if action_scope.get("plan_revision") != run.get("plan", {}).get("revision"):
+                                _add(errors, f"{path}.scope.plan_revision", "must match run.plan.revision")
+                            if action_scope.get("plan_digest_sha256") != run.get("plan", {}).get("digest_sha256"):
+                                _add(errors, f"{path}.scope.plan_digest_sha256", "must match run.plan.digest_sha256")
                     if entry["expires_when"] not in EXPIRY_BOUNDARIES:
                         _add(
                             errors,
                             f"{path}.expires_when",
                             "must be wave_closed, run_complete, or explicit_revocation",
                         )
+                if schema_version == 10 and action in HEAD_BOUND_AUTHORIZATION_ACTIONS:
+                    authorized_head = entry.get("authorized_head_sha")
+                    if not is_full_sha(authorized_head):
+                        _add(
+                            errors,
+                            f"{path}.authorized_head_sha",
+                            "is required for this exact head-bound action",
+                        )
+                    targets = entry.get("scope", {}).get("targets", []) if isinstance(entry.get("scope"), dict) else []
+                    if "*" in targets:
+                        _add(
+                            errors,
+                            f"{path}.scope.targets",
+                            "head-bound remote actions require exact targets, not *",
+                        )
+                elif schema_version == 10 and entry.get("authorized_head_sha") is not None:
+                    _add(
+                        errors,
+                        f"{path}.authorized_head_sha",
+                        "is only allowed for head-bound remote actions",
+                    )
             else:
                 if entry["source"] is not None:
                     _add(errors, f"{path}.source", "must be null when unauthorized")
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
+                if schema_version == 10 and "authorized_head_sha" in entry:
+                    _add(errors, f"{path}.authorized_head_sha", "must be omitted when unauthorized")
 
-    if schema_version in {3, 4, 5, 6, 7, 8, 9}:
+    if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
         _validate_landing(errors, run["landing"], schema_version)
+    if schema_version == 10 and isinstance(run.get("landing"), dict):
+        landing = run["landing"]
+        continuity = landing.get("continuity")
+        integration = run.get("integration") if isinstance(run.get("integration"), dict) else {}
+        head_branch = landing.get("head_branch")
+        integration_branch = integration.get("branch")
+        base_branch = landing.get("base_branch")
+        normalized_head = (
+            head_branch.removeprefix("refs/heads/")
+            if _nonempty_string(head_branch)
+            else None
+        )
+        normalized_integration = (
+            integration_branch.removeprefix("refs/heads/")
+            if _nonempty_string(integration_branch)
+            else None
+        )
+        normalized_base = (
+            base_branch.removeprefix("refs/heads/")
+            if _nonempty_string(base_branch)
+            else None
+        )
+        if normalized_head is None:
+            _add(errors, "run.landing.head_branch", "is required for PLAN v5 branch continuity")
+        if normalized_head != normalized_integration:
+            _add(errors, "run.integration.branch", "must match landing.head_branch for PLAN v5")
+        if normalized_head is not None and normalized_head == normalized_base:
+            _add(errors, "run.landing.head_branch", "must differ from landing.base_branch")
+        expected_branch_ref = (
+            f"refs/heads/{normalized_integration}"
+            if normalized_integration is not None
+            else None
+        )
+        if isinstance(continuity, dict):
+            continuity_status = continuity.get("status")
+            continuity_branch = continuity.get("branch_ref")
+            continuity_head = continuity.get("head_sha")
+            if continuity_status in {"planned", "preserved", "blocked"} and (
+                continuity_branch != expected_branch_ref
+            ):
+                _add(
+                    errors,
+                    "run.landing.continuity.branch_ref",
+                    "must equal the exact retained integration branch ref",
+                )
+            if continuity_status == "planned" and continuity_head is not None:
+                _add(errors, "run.landing.continuity.head_sha", "must be null while continuity is planned")
+            if continuity_status in {"preserved", "blocked"} and continuity_head is not None and (
+                continuity_head != integration.get("integration_head_sha")
+            ):
+                _add(
+                    errors,
+                    "run.landing.continuity.head_sha",
+                    "must match the current integration head when recorded",
+                )
+            if continuity_status == "not_required" and any(
+                continuity.get(key) is not None for key in ("branch_ref", "head_sha", "reason")
+            ):
+                _add(
+                    errors,
+                    "run.landing.continuity",
+                    "not_required continuity must not record branch, head, or reason",
+                )
+        if landing.get("mode") == "local_only" and (
+            landing.get("checks_status") != "not_started"
+            or landing.get("review_status") != "not_requested"
+            or landing.get("merge_status") != "not_ready"
+            or landing.get("auto_merge_requested") is not False
+            or any(
+                landing.get(key) is not None
+                for key in (
+                    "checks_head_sha",
+                    "review_head_sha",
+                    "blocking_findings",
+                    "unresolved_threads",
+                    "merged_sha",
+                    "auto_merge_head_sha",
+                )
+            )
+        ):
+            _add(errors, "run.landing", "local_only mode cannot record remote landing evidence")
+        if landing.get("mode") == "local_only" and run.get("execution_authorized") is True:
+            if not isinstance(continuity, dict) or continuity.get("status") not in {"planned", "preserved"}:
+                _add(
+                    errors,
+                    "run.landing.continuity",
+                    "authorized local_only execution requires a planned or preserved later-PR branch",
+                )
+        if landing.get("mode") == "local_only" and run.get("status") == "complete":
+            integration = run.get("integration")
+            integration_head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
+            if (
+                not isinstance(continuity, dict)
+                or continuity.get("status") != "preserved"
+                or continuity.get("head_sha") != integration_head
+            ):
+                _add(
+                    errors,
+                    "run.landing.continuity",
+                    "complete local_only run requires preserved continuity at the integration head",
+                )
+        if (
+            landing.get("mode") == "pull_request"
+            and landing.get("pr_state") in {"draft", "open", "merged"}
+            and (
+                landing.get("merge_status") in {"ready", "merged"}
+                or run.get("status") == "complete"
+            )
+            and landing.get("pr_head_sha") != integration.get("integration_head_sha")
+        ):
+            _add(
+                errors,
+                "run.landing.pr_head_sha",
+                "closing PR, review, CI, and final evidence must match the current integration head",
+            )
     if (
-        schema_version in {4, 5, 6, 7, 8, 9}
+        schema_version in {4, 5, 6, 7, 8, 9, 10}
         and isinstance(run["landing"], dict)
         and run["landing"].get("auto_merge_requested") is True
     ):
@@ -1573,6 +2628,64 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         merge_entry = authorizations.get("merge_pr", {}) if isinstance(authorizations, dict) else {}
         merge_scope = merge_entry.get("scope", {}) if isinstance(merge_entry, dict) else {}
         merge_targets = merge_scope.get("targets", []) if isinstance(merge_scope, dict) else []
+        if schema_version == 10:
+            if merge_entry.get("authorized_head_sha") != run["landing"].get("pr_head_sha"):
+                _add(
+                    errors,
+                    "run.authorizations.merge_pr.authorized_head_sha",
+                    "must match the exact current PR head for auto-merge",
+                )
+            release = plan.get("release")
+            release_targets = release.get("targets", []) if isinstance(release, dict) else []
+            merge_triggered_ids = [
+                target.get("id")
+                for target in release_targets
+                if isinstance(target, dict) and target.get("trigger") == "merge"
+            ]
+            missing_consequences = [
+                target_id
+                for target_id in merge_triggered_ids
+                if f"release:{target_id}" not in merge_targets
+            ]
+            if missing_consequences:
+                _add(
+                    errors,
+                    "run.authorizations.merge_pr.scope.targets",
+                    "merge authorization must include its auto-deploy release targets: "
+                    + ", ".join(sorted(missing_consequences)),
+                )
+            deploy_entry = (
+                authorizations.get("deploy", {})
+                if isinstance(authorizations, dict)
+                else {}
+            )
+            triggering_head = run["landing"].get("pr_head_sha")
+            missing_deploy_authorizations = [
+                target_id
+                for target_id in merge_triggered_ids
+                if deploy_entry.get("authorized_head_sha") != triggering_head
+                or not isinstance(mission_states, dict)
+                or not mission_states
+                or any(
+                    not authorization_covers(
+                        run,
+                        "deploy",
+                        mission_id,
+                        f"release:{target_id}",
+                        preserve_completed_run_expiry=(
+                            run["landing"].get("merge_status") == "merged"
+                        ),
+                    )
+                    for mission_id in mission_states
+                )
+            ]
+            if missing_deploy_authorizations:
+                _add(
+                    errors,
+                    "run.authorizations.deploy",
+                    "auto-merge requires separate exact deploy authorization at the triggering PR head for: "
+                    + ", ".join(sorted(missing_deploy_authorizations)),
+                )
         future_targets = {
             target
             for target in merge_targets
@@ -1584,10 +2697,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested exact PR does not match its authorized future PR binding",
             )
-    if schema_version in {5, 6, 7, 8, 9}:
+    if schema_version in {5, 6, 7, 8, 9, 10}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
     if schema_version in {7, 8, 9} and "deployments" in run:
         _validate_deployments(errors, run["deployments"], run, plan)
+    if schema_version == 10 and "targets" in run:
+        _validate_targets(errors, run["targets"], run, plan)
 
     runtime_keys = {
         "worker_runtime",
@@ -1596,7 +2711,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "max_parallel_workers",
         "platform_lifecycle",
     }
-    if schema_version in {6, 7, 8, 9}:
+    if schema_version in {6, 7, 8, 9, 10}:
         runtime_keys.add("runtime_adapter")
     runtime = run["runtime_capabilities"]
     if _keys(
@@ -1625,7 +2740,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be a positive integer")
         adapter = runtime.get("runtime_adapter")
         adapter_path = "run.runtime_capabilities.runtime_adapter"
-        if schema_version in {6, 7, 8, 9} and adapter is None:
+        if schema_version in {6, 7, 8, 9, 10} and adapter is None:
             _add(errors, adapter_path, "must be an object")
         elif adapter is not None and _keys(
             errors,
@@ -1849,10 +2964,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "parent_dirty",
             "worktrees",
         }
-        if schema_version in {5, 6, 7, 8, 9}:
+        if schema_version in {5, 6, 7, 8, 9, 10}:
             observed_git_keys.add("parent_worktree_path")
         if _keys(errors, "run.observed.git", git, observed_git_keys):
-            if schema_version in {5, 6, 7, 8, 9}:
+            if schema_version in {5, 6, 7, 8, 9, 10}:
                 _optional_string(
                     errors,
                     "run.observed.git.parent_worktree_path",
@@ -2069,7 +3184,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         node.get("ref"): node
         for node in plan.get("graph", {}).get("nodes", [])
         if isinstance(node, dict) and node.get("kind") == "mission"
-    } if plan.get("schema_version") == 4 and isinstance(plan.get("graph"), dict) else {}
+    } if plan.get("schema_version") in {4, 5} and isinstance(plan.get("graph"), dict) else {}
     worker_keys = {
         "worker_id",
         "mission_id",
@@ -2206,7 +3321,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
             if (
-                schema_version in {6, 7, 8, 9}
+                schema_version in {6, 7, 8, 9, 10}
                 and isinstance(runtime, dict)
                 and route_runtime_driver(runtime) == "dynamic_workflow"
                 and nested_policy is not None
@@ -2526,7 +3641,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.task_id", "is unknown")
             _strings(errors, f"{path}.evidence", attempt["evidence"])
 
-    if schema_version == 9:
+    if schema_version == 10:
+        _validate_verifier_executions(errors, plan, run)
+
+    if schema_version in {9, 10}:
         _validate_gate_results(
             errors,
             plan,
@@ -2545,14 +3663,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         _validate_ui_evidence(errors, plan, run)
 
-    if schema_version in {8, 9} and run.get("status") == "complete":
+    if schema_version in {8, 9, 10} and run.get("status") == "complete":
         if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:
             _add(errors, "run.intent", "complete run requires execution intent")
         if run.get("plan_readiness") != "ready":
             _add(errors, "run.plan_readiness", "complete run requires ready plan")
         plan_sources = plan.get("sources")
+        complete_source_statuses = (
+            {"frozen", "delta_accepted"}
+            if schema_version == 10
+            else {"frozen", "delta accepted"}
+        )
         if isinstance(plan_sources, list) and any(
-            source.get("status") not in {"frozen", "delta accepted"}
+            source.get("status") not in complete_source_statuses
             for source in plan_sources
             if isinstance(source, dict)
         ):
@@ -2618,6 +3741,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     errors,
                     "run.authorizations.merge_pr",
                     "complete pull-request run requires merge authorization for the exact PR",
+                )
+            if schema_version == 10 and (
+                not isinstance(merge_authorization, dict)
+                or merge_authorization.get("authorized_head_sha")
+                != landing.get("pr_head_sha")
+            ):
+                _add(
+                    errors,
+                    "run.authorizations.merge_pr.authorized_head_sha",
+                    "complete pull-request run requires merge authorization at the current PR head",
                 )
         if graph_run:
             graph_state = run.get("graph_state")

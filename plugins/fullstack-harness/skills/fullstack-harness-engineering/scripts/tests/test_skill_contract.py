@@ -161,7 +161,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
 
-        self.assertIn("Keep all 17 schema-v9 RUN authorization entries false", goal)
+        self.assertIn("Keep all 19 schema-v10 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("create one worktree thread per selected mission", goal)
 
@@ -269,15 +269,17 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         agent = self.read("agents/openai.yaml")
 
         self.assertIn("one repository and one codebase deployed to two isolated Workers", lifecycle)
-        self.assertIn("environment:development", lifecycle)
-        self.assertIn("environment:production", lifecycle)
-        self.assertIn("schema v4", plan_template)
+        self.assertIn("`release:<target-id>`", lifecycle)
+        self.assertIn("`web-development`", lifecycle)
+        self.assertIn("`web-production`", lifecycle)
+        self.assertIn("PLAN schema v5", plan_template)
         self.assertIn('"release"', plan_template)
-        self.assertIn("schema v9", runbook)
-        self.assertIn('"deployments"', runbook)
-        self.assertIn("version support does not enable Cloudflare release state by itself", runbook)
-        self.assertIn("required only when the matching PLAN declares `release`", runbook)
-        self.assertIn("Schema version alone does not enable release behavior", state_model)
+        self.assertIn("RUN schema v10", runbook)
+        self.assertIn('"targets"', runbook)
+        self.assertIn("Older RUN schemas remain readable", runbook)
+        self.assertIn("keys must exactly equal the PLAN `release.targets[].id` set", runbook)
+        self.assertIn("Current PLAN schema v5 uses provider-neutral `release.targets`", state_model)
+        self.assertIn("Older RUN v7-v9 `deployments` objects remain readable", state_model)
         self.assertIn("workflow_dispatch:", deploy_workflow)
         self.assertIn("source_sha:", deploy_workflow)
         self.assertIn("cloudflare/wrangler-action@v3", deploy_workflow)
@@ -342,7 +344,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Builder approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)
 
-    def test_schema_v4_graph_is_first_class(self) -> None:
+    def test_schema_v5_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
@@ -352,8 +354,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         for content in (skill, run):
             self.assertIn("invoke_external_runtime", content)
-        self.assertIn('"schema_version": 4', plan)
-        self.assertIn('"schema_version": 9', run)
+        self.assertIn('"schema_version": 5', plan)
+        self.assertIn('"schema_version": 10', run)
         self.assertIn('"graph_state"', run)
         self.assertIn("dependency", graph)
         self.assertIn("max_traversals", graph)
@@ -430,17 +432,17 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("broad regression, browser E2E", skill)
         self.assertIn("after exact-SHA code review and repair loops converge", plan)
 
-    def test_schema_v9_closes_only_with_real_ui_evidence(self) -> None:
+    def test_schema_v10_closes_only_with_real_ui_evidence(self) -> None:
         skill = self.read("SKILL.md")
         state = self.read("references/execution-state-model.md")
         verification = self.read("references/verification-gates.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn('"schema_version": 9', runbook)
+        self.assertIn('"schema_version": 10', runbook)
         self.assertIn('"batch_gate_results"', runbook)
         self.assertIn('"final_gate_results"', runbook)
         self.assertIn('"ui_evidence"', runbook)
-        self.assertIn("New plan-backed files use PLAN schema v4 and RUN schema v9", skill)
+        self.assertIn("New plan-backed files use PLAN schema v5 and RUN schema v10", skill)
         self.assertIn("complete` is an execution closeout state", state)
         for content in (skill, verification, runbook):
             self.assertIn("breakpoint-by-state", content)

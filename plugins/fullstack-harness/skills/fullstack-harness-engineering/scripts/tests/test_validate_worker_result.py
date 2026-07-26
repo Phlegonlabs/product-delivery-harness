@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import json
 import sys
@@ -39,6 +40,101 @@ def verifier(verifier_id: str) -> dict[str, object]:
         "cwd": ".",
         "argv": ["python3", "-m", "unittest"],
         "pass_signal": "exit_code_0",
+    }
+
+
+def retained_verifier_result(
+    verifier_id: str,
+    plan: dict[str, object],
+    changed_files: list[str] | None = None,
+) -> dict[str, object]:
+    changed_files = sorted([CHANGED_FILE] if changed_files is None else changed_files)
+    is_task = verifier_id == "task-focused"
+    context = {
+        "run_id": "RUN_TEST",
+        "plan_revision": 1,
+        "plan_digest_sha256": plan_digest(plan),
+        "graph_revision": None,
+        "batch_base_sha": BASE_SHA,
+        "head_sha": HEAD_SHA,
+        "changed_files": changed_files,
+        "trust_domain": "parent_local",
+        "checkout_role": "worker",
+        "checkout_dirty": False,
+        "cache_safe": True,
+        "layer": "task" if is_task else "worker",
+        "mission_id": "M1",
+        "task_id": "M1/T01" if is_task else None,
+        "attempt_id": "ATTEMPT_TASK" if is_task else "ATTEMPT_WORKER",
+        "lease_id": "LEASE1",
+    }
+    declaration = verifier(verifier_id)
+    key_document = {
+        "protocol": "harness-verifier-execution-v1",
+        "verifier_id": verifier_id,
+        "layer": context["layer"],
+        "mission_id": context["mission_id"],
+        "task_id": context["task_id"],
+        "attempt_id": context["attempt_id"],
+        "lease_id": context["lease_id"],
+        "run_id": context["run_id"],
+        "plan_revision": context["plan_revision"],
+        "plan_digest_sha256": context["plan_digest_sha256"],
+        "graph_revision": context["graph_revision"],
+        "batch_base_sha": context["batch_base_sha"],
+        "head_sha": context["head_sha"],
+        "changed_files_digest": hashlib.sha256(
+            json.dumps(changed_files, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest(),
+        "trust_domain": context["trust_domain"],
+        "checkout_role": context["checkout_role"],
+        "checkout_dirty": context["checkout_dirty"],
+        "cache_safe": context["cache_safe"],
+        "cwd": declaration["cwd"],
+        "argv": declaration["argv"],
+        "pass_signal": declaration["pass_signal"],
+        "cache_mode": "disabled",
+        "environment_keys": [],
+        "platform": {"system": "test", "machine": "test"},
+        "executable_identity": {
+            "path": "C:/python3",
+            "size": 1,
+            "mtime_ns": 1,
+            "device": 1,
+            "inode": 1,
+        },
+        "environment_digests": {},
+    }
+    execution_key = hashlib.sha256(
+        json.dumps(
+            key_document,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "protocol": "harness-verifier-execution-v1",
+        "verifier_id": verifier_id,
+        "status": "PASS",
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "execution_key": execution_key,
+        "evidence_key": execution_key,
+        "verifier": {
+            "id": verifier_id,
+            "cwd": declaration["cwd"],
+            "argv": declaration["argv"],
+            "pass_signal": declaration["pass_signal"],
+            "cache": {"mode": "disabled", "environment_keys": []},
+        },
+        "context": context,
+        "key_document": key_document,
+        "cache_status": "bypassed",
+        "cache_reason": "cache_disabled",
+        "duration_ms": 1,
+        "metrics": {"executed": 1, "reused": 0},
     }
 
 
@@ -272,7 +368,26 @@ def make_run(plan: dict[str, object]) -> dict[str, object]:
                 "worker_head_sha": None,
             }
         ],
-        "attempt_log": [],
+        "attempt_log": [
+            {
+                "attempt_id": "ATTEMPT_TASK",
+                "mission_id": "M1",
+                "task_id": "M1/T01",
+                "lease_id": "LEASE1",
+                "kind": "task_verifier",
+                "result": "PASS",
+                "evidence": [],
+            },
+            {
+                "attempt_id": "ATTEMPT_WORKER",
+                "mission_id": "M1",
+                "task_id": None,
+                "lease_id": "LEASE1",
+                "kind": "worker_verifier",
+                "result": "PASS",
+                "evidence": [],
+            },
+        ],
     }
 
 
@@ -305,12 +420,12 @@ def make_result(plan: dict[str, object]) -> dict[str, object]:
             {
                 "id": "task-focused",
                 "status": "PASS",
-                "evidence": TASK_EXECUTION_KEY,
+                "evidence": retained_verifier_result("task-focused", plan)["execution_key"],
             },
             {
                 "id": "mission-focused",
                 "status": "PASS",
-                "evidence": MISSION_EXECUTION_KEY,
+                "evidence": retained_verifier_result("mission-focused", plan)["execution_key"],
             },
         ],
         "commits": [HEAD_SHA],
@@ -329,14 +444,31 @@ def validate(
     observed_files: list[str] | None = None,
     observed_head: str = HEAD_SHA,
     ancestry: bool = True,
+    retained: list[dict[str, object]] | None = None,
 ) -> list[dict[str, str]]:
+    effective_observed_files = [CHANGED_FILE] if observed_files is None else observed_files
+    verifier_changed_files = [
+        path
+        for path in effective_observed_files
+        if not (
+            run["workers"][0].get("completion_channel") == "report_file"
+            and path == run["workers"][0].get("report_path")
+        )
+    ]
+    if retained is None:
+        retained = [
+            retained_verifier_result(item["id"], plan, verifier_changed_files)
+            for item in result.get("verifiers", [])
+            if isinstance(item, dict) and isinstance(item.get("id"), str)
+        ]
     return subject.validate_worker_result_data(
         plan,
         run,
         result,
         observed_head_sha=observed_head,
-        observed_changed_files=[CHANGED_FILE] if observed_files is None else observed_files,
+        observed_changed_files=effective_observed_files,
         ancestry_confirmed=ancestry,
+        retained_verifier_results=retained,
     )
 
 
@@ -482,10 +614,100 @@ class ValidateWorkerResultTests(unittest.TestCase):
             }.issubset(error_codes(errors))
         )
 
-    def test_verifier_evidence_must_be_a_well_formed_execution_key(self) -> None:
+    def test_verifier_evidence_must_match_a_parent_retained_result(self) -> None:
+        retained = [
+            retained_verifier_result("task-focused", self.plan),
+            retained_verifier_result("mission-focused", self.plan),
+        ]
+        self.assertEqual(validate(self.plan, self.run, self.result, retained=retained), [])
+
+    def test_failed_history_is_retained_when_a_later_exact_execution_passes(self) -> None:
+        task_pass = retained_verifier_result("task-focused", self.plan)
+        task_fail = copy.deepcopy(task_pass)
+        task_fail["status"] = "FAIL"
+        task_fail["exit_code"] = 1
+        retained = [
+            task_fail,
+            task_pass,
+            retained_verifier_result("mission-focused", self.plan),
+        ]
+
+        self.assertEqual(validate(self.plan, self.run, self.result, retained=retained), [])
+
+        retained[0], retained[1] = retained[1], retained[0]
+        self.assertIn(
+            "retained_verifier_not_pass",
+            error_codes(validate(self.plan, self.run, self.result, retained=retained)),
+        )
+
+    def test_dirty_isolated_worker_worktree_cannot_supply_verifier_evidence(self) -> None:
+        run = copy.deepcopy(self.run)
+        run["observed"]["git"]["worktrees"][0]["dirty"] = True
+
+        errors = validate(self.plan, run, self.result)
+
+        self.assertIn("dirty_worker_handoff", error_codes(errors))
+        self.assertIn("retained_verifier_context_mismatch", error_codes(errors))
+
+    def test_fabricated_hash_is_rejected_without_a_matching_retained_result(self) -> None:
         result = copy.deepcopy(self.result)
         result["verifiers"][0]["evidence"] = TASK_EXECUTION_KEY
-        self.assertEqual(validate(self.plan, self.run, result), [])
+        errors = validate(self.plan, self.run, result)
+        self.assertIn("retained_verifier_result_mismatch", error_codes(errors))
+
+    def test_missing_retained_result_is_rejected(self) -> None:
+        errors = validate(self.plan, self.run, self.result, retained=[])
+        self.assertIn("retained_verifier_result_missing", error_codes(errors))
+
+    def test_forged_or_mismatched_retained_result_is_rejected(self) -> None:
+        retained = [
+            retained_verifier_result("task-focused", self.plan),
+            retained_verifier_result("mission-focused", self.plan),
+        ]
+        retained[0]["execution_key"] = "f" * 64
+        retained[1]["context"]["head_sha"] = "c" * 40
+        codes = error_codes(validate(self.plan, self.run, self.result, retained=retained))
+        self.assertIn("retained_verifier_key_mismatch", codes)
+        self.assertIn("retained_verifier_context_mismatch", codes)
+
+    def test_retained_result_requires_exact_id_declaration_and_pass_status(self) -> None:
+        retained = [
+            retained_verifier_result("task-focused", self.plan),
+            retained_verifier_result("mission-focused", self.plan),
+        ]
+        retained[0]["verifier_id"] = "other-verifier"
+        retained[1]["status"] = "FAIL"
+        retained[1]["exit_code"] = 1
+        retained[1]["verifier"]["argv"] = ["python3", "unexpected.py"]
+
+        codes = error_codes(validate(self.plan, self.run, self.result, retained=retained))
+
+        self.assertIn("retained_verifier_result_missing", codes)
+        self.assertIn("retained_verifier_mismatch", codes)
+        self.assertIn("retained_verifier_not_pass", codes)
+
+    def test_retained_key_document_must_encode_the_declared_verifier(self) -> None:
+        result = copy.deepcopy(self.result)
+        retained = [
+            retained_verifier_result("task-focused", self.plan),
+            retained_verifier_result("mission-focused", self.plan),
+        ]
+        retained[0]["key_document"]["argv"] = ["python3", "forged.py"]
+        execution_key = hashlib.sha256(
+            json.dumps(
+                retained[0]["key_document"],
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        retained[0]["execution_key"] = execution_key
+        retained[0]["evidence_key"] = execution_key
+        result["verifiers"][0]["evidence"] = execution_key
+
+        codes = error_codes(validate(self.plan, self.run, result, retained=retained))
+
+        self.assertIn("retained_verifier_mismatch", codes)
 
     def test_verifier_evidence_rejects_free_form_text(self) -> None:
         result = copy.deepcopy(self.result)
@@ -671,6 +893,8 @@ class ValidateWorkerResultTests(unittest.TestCase):
             plan_path = root / "PLAN.md"
             run_path = root / "RUN.md"
             result_path = root / "REPORT.md"
+            task_verifier_path = root / "task-verifier.json"
+            mission_verifier_path = root / "mission-verifier.json"
             plan_path.write_text(
                 "## Harness Plan Manifest\n\n```json\n"
                 + json.dumps({"harness_plan": self.plan})
@@ -689,6 +913,14 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 + "\n```\n",
                 encoding="utf-8",
             )
+            task_verifier_path.write_text(
+                json.dumps(retained_verifier_result("task-focused", self.plan)),
+                encoding="utf-8",
+            )
+            mission_verifier_path.write_text(
+                json.dumps(retained_verifier_result("mission-focused", self.plan)),
+                encoding="utf-8",
+            )
 
             output = io.StringIO()
             with redirect_stdout(output):
@@ -705,6 +937,10 @@ class ValidateWorkerResultTests(unittest.TestCase):
                         "--observed-changed-file",
                         CHANGED_FILE,
                         "--ancestry-confirmed",
+                        "--verifier-result",
+                        str(task_verifier_path),
+                        "--verifier-result",
+                        str(mission_verifier_path),
                     ]
                 )
             payload = json.loads(output.getvalue())
@@ -726,6 +962,10 @@ class ValidateWorkerResultTests(unittest.TestCase):
                         HEAD_SHA,
                         "--observed-changed-file",
                         "src/m1/different.py",
+                        "--verifier-result",
+                        str(task_verifier_path),
+                        "--verifier-result",
+                        str(mission_verifier_path),
                     ]
                 )
             payload = json.loads(output.getvalue())

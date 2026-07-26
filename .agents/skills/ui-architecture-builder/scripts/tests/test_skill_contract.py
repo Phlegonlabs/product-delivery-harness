@@ -1,10 +1,62 @@
 import json
 import re
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
+
+
+class SpecimenContractParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.specimens: list[list[str]] = []
+        self.specimens_by_section: dict[str, list[list[str]]] = {}
+        self._section_id: str | None = None
+        self._article_depth = 0
+        self._fields: list[str] | None = None
+        self._in_contract = False
+        self._capture_dt = False
+        self._dt_text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        classes = set((attributes.get("class") or "").split())
+        if tag == "section":
+            self._section_id = attributes.get("id")
+        if tag == "article":
+            if self._fields is not None:
+                self._article_depth += 1
+            elif "specimen" in classes:
+                self._fields = []
+                self._article_depth = 1
+        if self._fields is not None and tag == "dl" and "contract" in classes:
+            self._in_contract = True
+        if self._in_contract and tag == "dt":
+            self._capture_dt = True
+            self._dt_text = []
+
+    def handle_data(self, data: str) -> None:
+        if self._capture_dt:
+            self._dt_text.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "dt" and self._capture_dt:
+            assert self._fields is not None
+            self._fields.append("".join(self._dt_text).strip())
+            self._capture_dt = False
+        elif tag == "dl" and self._in_contract:
+            self._in_contract = False
+        elif tag == "article" and self._fields is not None:
+            self._article_depth -= 1
+            if self._article_depth == 0:
+                self.specimens.append(self._fields)
+                if self._section_id is not None:
+                    self.specimens_by_section.setdefault(self._section_id, []).append(self._fields)
+                self._fields = None
+        elif tag == "section":
+            self._section_id = None
 
 
 class UiArchitectureSkillContractTests(unittest.TestCase):
@@ -158,6 +210,269 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("ask one explicit yes/no publication question", skill)
         self.assertIn("execute the approved publish and archive moves in the same run", skill)
 
+    def test_enhancement_mode_freezes_baseline_and_checks_non_regression(self) -> None:
+        skill = self.read("SKILL.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        contract = self.read("references/output-contract.md")
+        architecture = self.read("assets/templates/UI_ARCHITECTURE.template.md")
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, lifecycle, contract, architecture, agent):
+            self.assertIn("enhancement baseline", content.lower())
+        self.assertIn("## Enhancement Baseline & Delta", architecture)
+        self.assertIn("| Delta ID | Action | Target IDs / artifacts", architecture)
+        self.assertIn("seed staging", lifecycle.lower())
+        self.assertIn("preserve every untouched", skill.lower())
+        self.assertIn("apply only accepted add/modify/remove delta", agent)
+        self.assertIn("package enhancement", skill)
+        self.assertIn("implementation adoption mode", skill)
+        self.assertIn("Do not run the fresh-generation Dynamic Workflow", skill)
+        self.assertIn("Validate the complete staged package", skill)
+        self.assertIn("TEST-VIS-025 | Enhancement non-regression", acceptance)
+        self.assertIn("baseline-to-staged diff / full package validation", acceptance)
+        self.assertIn("TEST-VIS-025 | Enhancement non-regression", contract)
+
+    def test_interview_uses_three_dependency_waves_and_portable_closed_choices(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/design-interview-guide.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, interview, agent):
+            self.assertIn("at most three dependency waves", content)
+            self.assertIn("at most four", content)
+            self.assertIn("platform-independent", content)
+            self.assertIn("conditional platform resolution", content.lower())
+            self.assertIn("structured closed-choice", content)
+            self.assertIn("numbered", content)
+            self.assertIn("Other", content)
+        self.assertIn("Never ask styling, theming, or runtime questions", interview)
+        self.assertIn("without selecting a default or converting", skill)
+        self.assertNotIn("one or two `AskUserQuestion` calls", interview)
+        self.assertNotIn("never opening a third call", agent)
+
+    def test_motion_purpose_vocabulary_is_canonical(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/motion-system-guide.md")
+        contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+
+        canonical = "feedback, continuity, processing, or storytelling"
+        self.assertIn(canonical, skill)
+        self.assertIn(canonical, guide)
+        self.assertIn(canonical, contract)
+        self.assertIn(canonical, design_system)
+        self.assertNotIn("feedback, orientation, continuity, emphasis, or storytelling", design_system)
+        self.assertNotIn("decorative/ambient", guide)
+        hero_section = guide.split("## Hero Section Blueprint", 1)[1].split(
+            "## Non-Hero Choreography Blueprints", 1
+        )[0]
+        self.assertEqual(hero_section.count("storytelling —"), 5)
+        self.assertIn("There is no decorative or ambient exception", contract)
+
+    def test_rendered_design_system_is_fixed_complete_and_derived(self) -> None:
+        skill = self.read("SKILL.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        contract = self.read("references/output-contract.md")
+        architecture = self.read("assets/templates/UI_ARCHITECTURE.template.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        showcase = self.read("assets/templates/DESIGN_SYSTEM_SHOWCASE.template.html")
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        fixed_path = "docs/product/design/design-system.html"
+        self.assertIn(f"`{fixed_path}` (always", lifecycle)
+        self.assertIn(f"`{fixed_path}` (always)", skill)
+        self.assertIn(f"## `{fixed_path}`", contract)
+        self.assertIn("## Rendered Design System", architecture)
+        self.assertIn("## Rendered HTML Projection", design_system)
+        for content in (skill, lifecycle, contract, architecture, design_system, showcase, agent):
+            lowered = content.lower()
+            self.assertTrue(
+                "second authority" in lowered
+                or "semantic source" in lowered
+                or "semantic authority" in lowered
+                or "second source of truth" in lowered
+            )
+        for section_id in (
+            "tokens",
+            "type",
+            "buttons",
+            "forms",
+            "states",
+            "surfaces",
+            "navigation",
+            "status",
+            "icons",
+            "layout",
+            "motion",
+            "responsive",
+        ):
+            with self.subTest(section=section_id):
+                self.assertIn(f'id="{section_id}"', showcase)
+        for required in (
+            "Typography hierarchy",
+            "Buttons: variants, sizes, and states",
+            "Form controls and field messaging",
+            "Cards and surfaces",
+            "Alerts and status",
+            "Spacing and layout primitives",
+            "Motion and reduced motion",
+            "Responsive behavior",
+            "<dt>IDs</dt>",
+            "<dt>Parameters</dt>",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, showcase)
+        self.assertIn("preserve this file unchanged", contract.lower())
+        self.assertIn("rebuild", lifecycle.lower())
+        self.assertIn("TEST-VIS-026 | Rendered design-system parity", acceptance)
+        self.assertIn("TEST-VIS-026 | Rendered design-system parity", contract)
+
+    def test_every_design_system_specimen_has_reproduction_metadata(self) -> None:
+        showcase = self.read("assets/templates/DESIGN_SYSTEM_SHOWCASE.template.html")
+        parser = SpecimenContractParser()
+        parser.feed(showcase)
+
+        required_fields = [
+            "IDs",
+            "Parameters",
+            "States",
+            "Responsive",
+            "Accessibility",
+            "Use",
+            "Do not use",
+        ]
+        required_sections = {
+            "tokens",
+            "type",
+            "buttons",
+            "forms",
+            "states",
+            "surfaces",
+            "navigation",
+            "status",
+            "icons",
+            "layout",
+            "motion",
+            "responsive",
+        }
+        self.assertGreater(len(parser.specimens), 0)
+        for section_id in required_sections:
+            with self.subTest(section=section_id):
+                self.assertGreater(len(parser.specimens_by_section.get(section_id, [])), 0)
+        for index, fields in enumerate(parser.specimens, start=1):
+            with self.subTest(specimen=index):
+                self.assertEqual(fields, required_fields)
+
+        self.assertIn('id="states"', showcase)
+        for state in ("Loading", "Disabled", "Error", "Empty"):
+            with self.subTest(state=state):
+                self.assertIn(f">{state}<", showcase)
+        self.assertIn("aria-busy", showcase)
+        self.assertIn('role="alert"', showcase)
+        self.assertIn("prefers-reduced-motion", showcase)
+
+    def test_design_system_showcase_uses_only_derived_tokens_below_the_token_block(self) -> None:
+        showcase = self.read("assets/templates/DESIGN_SYSTEM_SHOWCASE.template.html")
+        css = showcase.split("<style>", 1)[1].split("</style>", 1)[0]
+        token_block, rendered_rules = css.split("/* END DERIVED TOKEN BLOCK */", 1)
+
+        raw_value_pattern = re.compile(
+            r"#[0-9a-fA-F]{3,8}\b|"
+            r"(?:rgba?|hsla?)\([^)]*\)|"
+            r"(?<![-\w])(?:transparent|white|black)(?![-\w])|"
+            r"(?<![-\w.])-?(?:\d*\.\d+|\d+)"
+            r"(?:px|rem|em|ms|s|vh|vw|vmin|vmax|%|fr|deg|rad|turn)\b"
+        )
+        self.assertEqual(raw_value_pattern.findall(rendered_rules), [])
+
+        without_variable_names = re.sub(r"var\(--[a-z0-9-]+\)", "", rendered_rules)
+        raw_unitless_number = re.compile(
+            r"(?<![-\w.])-?(?:\d*\.\d+|\d+)(?![-\w.])"
+        )
+        self.assertEqual(raw_unitless_number.findall(without_variable_names), [])
+
+        declared = set(re.findall(r"--([a-z0-9-]+)\s*:", token_block))
+        referenced = set(re.findall(r"var\(--([a-z0-9-]+)\)", rendered_rules))
+        self.assertEqual(referenced - declared, set())
+        self.assertIn("--projection-border-width:", token_block)
+        self.assertIn("--projection-motion-transform:", token_block)
+
+    def test_showcase_focus_token_has_non_text_contrast_and_fields_are_described(self) -> None:
+        showcase = self.read("assets/templates/DESIGN_SYSTEM_SHOWCASE.template.html")
+
+        def token(name: str) -> str:
+            match = re.search(rf"{re.escape(name)}:\s*(#[0-9a-fA-F]{{6}});", showcase)
+            self.assertIsNotNone(match, name)
+            assert match is not None
+            return match.group(1)
+
+        def luminance(color: str) -> float:
+            channels = [int(color[index : index + 2], 16) / 255 for index in (1, 3, 5)]
+            linear = [
+                value / 12.92
+                if value <= 0.04045
+                else ((value + 0.055) / 1.055) ** 2.4
+                for value in channels
+            ]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        def contrast(first: str, second: str) -> float:
+            lighter, darker = sorted((luminance(first), luminance(second)), reverse=True)
+            return (lighter + 0.05) / (darker + 0.05)
+
+        focus = token("--color-focus")
+        for adjacent_token in ("--color-surface", "--color-background", "--color-accent"):
+            with self.subTest(adjacent=adjacent_token):
+                self.assertGreaterEqual(contrast(focus, token(adjacent_token)), 3.0)
+
+        self.assertIn('aria-describedby="field-help"', showcase)
+        self.assertIn('id="field-help" class="field-help"', showcase)
+        self.assertIn('aria-describedby="invalid-field-help field-error"', showcase)
+        self.assertIn('id="invalid-field-help" class="field-help"', showcase)
+        self.assertIn('id="field-error" class="field-error"', showcase)
+
+    def test_visual_acceptance_resolves_the_platform_responsive_set(self) -> None:
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        contract = self.read("references/output-contract.md")
+
+        for content in (acceptance, contract):
+            self.assertIn("Responsive set verified:", content)
+            self.assertIn("web `viewports`", content)
+            self.assertIn("native `sizeClasses` and safe areas", content)
+            self.assertIn("named desktop window sizes", content)
+        self.assertNotIn(
+            "Viewports verified: 390 / 768 / 1200 / 1440 px.",
+            acceptance,
+        )
+
+    def test_motion_contract_separates_mechanism_and_global_reduced_motion(self) -> None:
+        contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        for content in (contract, design_system):
+            self.assertIn("| Mechanism | Technology | Owns |", content)
+            self.assertNotIn("| Layer / purpose | Technology |", content)
+            self.assertIn("### Global Reduced-Motion Configuration", content)
+            self.assertIn("| Motion ID | Surface / component | Mechanism | Purpose |", content)
+            self.assertIn("| Configuration point | Location | Normal behavior", content)
+            self.assertIn("route-level opt-out", content.lower())
+            self.assertIn("Call sites do not query reduced-motion preferences", content)
+        self.assertIn("mechanism separately from approved purpose", acceptance)
+        self.assertIn("global reduced-motion configuration", acceptance)
+
+    def test_design_acceptance_preserves_upstream_test_identity(self) -> None:
+        skill = self.read("SKILL.md")
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("generic `TEST-*` IDs", skill)
+        self.assertIn("mint only `TEST-VIS-*` IDs", skill)
+        self.assertIn("preserved upstream TEST-*", acceptance)
+        self.assertIn("upstream TEST identities are preserved", contract)
+
     def test_dynamic_workflow_uses_design_org_roles_and_parent_staging(self) -> None:
         skill = self.read("SKILL.md")
         guide = self.read("references/dynamic-workflow.md")
@@ -208,6 +523,7 @@ class UiArchitectureContractTests(unittest.TestCase):
             "`ui-architecture.md`",
             "`ui-registry.json`",
             "`design-system.md`",
+            "`docs/product/design/design-system.html`",
             "`page-recipes.md`",
             "`visual-acceptance.md`",
             "`mockups/catalog.html`",
@@ -221,6 +537,7 @@ class UiArchitectureContractTests(unittest.TestCase):
             "assets/templates/UI_ARCHITECTURE.template.md",
             "assets/templates/UI_REGISTRY.template.json",
             "assets/templates/DESIGN_SYSTEM.template.md",
+            "assets/templates/DESIGN_SYSTEM_SHOWCASE.template.html",
             "assets/templates/PAGE_RECIPES.template.md",
             "assets/templates/VISUAL_ACCEPTANCE.template.md",
             "assets/templates/MOCKUP_PAGE.template.html",
@@ -283,6 +600,7 @@ class UiArchitectureContractTests(unittest.TestCase):
             "### Registered Motion Variants",
             "## State Matrix",
             "## Registry",
+            "## Rendered Design System",
             "## Catalog",
             "## Automated Guardrails",
             "## Definition Of Done",
@@ -354,6 +672,7 @@ class UiArchitectureContractTests(unittest.TestCase):
             "Contract check",
             "Catalog completeness",
             "No-JavaScript path",
+            "Rendered design-system parity",
         ):
             with self.subTest(gate=gate):
                 self.assertIn(gate, acceptance)

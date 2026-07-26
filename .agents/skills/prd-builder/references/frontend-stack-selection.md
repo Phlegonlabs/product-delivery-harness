@@ -9,6 +9,8 @@ Label the decision status accurately:
 - `Recommended`: the PRD's evidence-backed advice; not yet user-approved.
 - `Provisional`: the leading choice pending named evidence or a spike.
 
+Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
+
 ## First Separate the Layers
 
 Never compare `Cloudflare vs Astro vs Vite vs React` as though they solve the same problem.
@@ -62,7 +64,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Any Platform
 
-- Use one codebase with separately named development and production environments. Development deploys the current PR head only after current-head CI and uses isolated non-production bindings, data, auth, and sandbox payment credentials. Production deploys the exact merged base-branch SHA only after development passes and uses production bindings, auth, and live payment credentials.
+- Use one codebase with separately named development and production environments. Development uses PLAN-v5 source `pr_head` after current-head CI, or `integration_head` for an explicitly retained integration-branch release model, and has isolated non-production bindings, data, auth, and sandbox payment credentials. Production uses `merged_main` only after development passes and has production bindings, auth, and live payment credentials.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
 - Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 
@@ -97,8 +99,8 @@ Platform-specific rule sets for these targets are not yet authored in this guide
 The `Frontend Technology Decision` section in `stack-decisions.md` must include:
 
 - Product evidence and hard constraints.
-- Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`).
-- One selected stack separated by deployment/runtime, rendering, framework, UI library, build tool, routing/data, styling/components, and testing.
+- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, `Recommended`, and `Provisional` rows.
+- One recorded stack separated by deployment/runtime, rendering, framework, UI library, build tool, routing/data, styling/components, and testing.
 - A route-level rendering table.
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.

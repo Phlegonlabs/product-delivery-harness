@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for PLAN schema v4, RUN schema v8 or v9, conditional routing, retries, or graph traces.
+Use this reference for current PLAN schema v5 and RUN schema v10 typed graphs, conditional routing, retries, and graph traces. PLAN v4 with RUN v8 or v9 remains readable as an older typed-graph contract.
 
 ## Contents
 
@@ -39,7 +39,7 @@ PLAN graph definition
 
 PLAN owns static nodes, edges, outcomes, attempt limits, and runtime policy. RUN owns node attempts, outcomes, edge traversals, runtime bindings, and evidence. Git and live runtime observations remain separate facts. Do not add another graph database or let a workflow script edit PLAN/RUN.
 
-For PLAN v2 and v3, `missions[].depends_on` remains the canonical mission DAG. For PLAN v4, remove that field and use graph dependency edges as the only cross-mission ordering source. Task dependencies remain flat, same-mission, and acyclic.
+For current PLAN v5 typed graphs, use graph dependency edges as the only cross-mission ordering source. PLAN v4 uses the same graph rule. PLAN v2 and v3 retain the legacy `missions[].depends_on` DAG. Task dependencies remain flat, same-mission, and acyclic.
 
 ## Nodes And Executors
 
@@ -121,7 +121,7 @@ Every `runtime_worker` or parent-executed mission declares at least one failure 
 
 ## Readiness And Outcomes
 
-Run `scripts/select_ready_nodes.py` for PLAN v4 and RUN v8 or v9. A node is logically ready only when:
+Run `scripts/select_ready_nodes.py` for current PLAN v5 and RUN v10, and for supported PLAN-v4/RUN-v8-or-v9 typed graphs. A node is logically ready only when:
 
 - plan readiness and execution authorization are current;
 - its phase is `dormant` or `ready` and its attempt budget remains;

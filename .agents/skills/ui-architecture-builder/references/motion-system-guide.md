@@ -97,13 +97,13 @@ A product does not have to fit one archetype exactly — blend adjacent rows whe
 
 Build the hero in its final, readable state first. Run animation as progressive enhancement; if JavaScript, an animation dependency, or media fails, the headline, copy, CTA, and product proof must remain visible and operable.
 
-| Phase | Typical element | Start | Recommended motion | Purpose |
+| Phase | Typical element | Start | Recommended motion | Purpose and rationale |
 | --- | --- | --- | --- | --- |
-| 1 | Eyebrow or brand cue | 0ms | Opacity plus 4–8px vertical settle | Establish context without delaying the headline |
-| 2 | Headline | 60–120ms after phase 1 | Opacity plus 8–16px settle | Lead attention to the core proposition |
-| 3 | Supporting copy and CTA group | 80–140ms after headline starts | Short opacity/translate stagger | Reveal explanation and action in reading order |
-| 4 | Product media or subject | Overlap phases 2–3 | Opacity plus subtle scale/translate or masked reveal | Connect the claim to real product proof |
-| 5 | Decorative accent | After critical content is stable | One-shot or low-amplitude bounded motion | Add brand character without competing with conversion |
+| 1 | Eyebrow or brand cue | 0ms | Opacity plus 4–8px vertical settle | storytelling — establish context without delaying the headline |
+| 2 | Headline | 60–120ms after phase 1 | Opacity plus 8–16px settle | storytelling — lead attention to the core proposition |
+| 3 | Supporting copy and CTA group | 80–140ms after headline starts | Short opacity/translate stagger | storytelling — reveal explanation and action in reading order |
+| 4 | Product media or subject | Overlap phases 2–3 | Opacity plus subtle scale/translate or masked reveal | storytelling — connect the claim to real product proof |
+| 5 | Brand accent | After critical content is stable | One-shot or low-amplitude bounded motion | storytelling — reinforce a documented brand cue without competing with conversion |
 
 Target a coherent entrance of roughly 700–1000ms rather than serially animating every word or control. Keep the CTA interactive throughout. Run once per page navigation by default, not on every small scroll reversal.
 
@@ -125,7 +125,7 @@ Every pattern below is animation-runtime work — each one needs sequencing, an 
 | Skeleton-to-content swap | Skeleton renders immediately, no entrance needed | Crossfade to resolved content at `motion-fast` | Skeleton must match the resolved content's box dimensions exactly |
 | Form validation feedback | Inline error: opacity + settle at `motion-fast`; success: opacity confirmation | Error clears on correction | Any attention cue (e.g. shake) stays low-amplitude and capped to one repetition |
 | Drag-and-drop | Lift: scale/shadow increase on pickup | Drop: settle to final position; invalid drop snaps back at `motion-standard` | — |
-| Scroll-triggered reveal (grids/sections) | Opacity + translate at `motion-standard`, staggered at `motion-stagger` | One-shot by default; do not re-animate on scroll-back unless the pattern is explicitly decorative/ambient | Trigger via an IntersectionObserver at roughly 10–20% visibility |
+| Scroll-triggered reveal (grids/sections) | Opacity + translate at `motion-standard`, staggered at `motion-stagger` | One-shot by default; do not re-animate on scroll-back | Trigger via an IntersectionObserver at roughly 10–20% visibility; use only when the reveal has one canonical purpose |
 | Empty-state illustration | Single bounded one-shot entrance | — | No permanent loop. If a repeat is genuinely wanted, cap it at a stated number of cycles and register it as storytelling. Reduced motion: static illustration |
 
 Interruption rules for these patterns:

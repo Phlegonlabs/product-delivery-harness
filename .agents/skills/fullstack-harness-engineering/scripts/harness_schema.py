@@ -34,6 +34,11 @@ AUTHORIZATION_KEYS = AUTHORIZATION_KEYS_V2 + (
 
 AUTHORIZATION_KEYS_V8 = AUTHORIZATION_KEYS + ("invoke_external_runtime",)
 
+AUTHORIZATION_KEYS_V10 = AUTHORIZATION_KEYS_V8 + (
+    "trigger_remote_ci",
+    "provision_cloud_resources",
+)
+
 MISSION_PHASES = {
     "queued",
     "ready",
@@ -71,7 +76,10 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 ID_RE = re.compile(r"^[A-Z][A-Z0-9_-]{0,63}$")
 TASK_ID_RE = re.compile(r"^([A-Z][A-Z0-9_-]{0,63})/([A-Z][A-Z0-9_-]{0,63})$")
 TARGET_RE = re.compile(
-    r"^(?:worker|task|worktree|branch|remote|pr|repository|environment|runtime):.+$"
+    r"^(?:worker|task|worktree|branch|remote|pr|repository|environment|release|runtime|workflow|cloud-resource):.+$"
+)
+CLOUD_RESOURCE_TARGET_RE = re.compile(
+    r"^cloud-resource:[^:\s]+:[^:\s]+:[^:\s]+:[^:\s]+$"
 )
 FUTURE_PR_TARGET_RE = re.compile(
     r"^future-pr:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+):"
@@ -123,11 +131,23 @@ CLEANUP_BRANCH_STATUSES = {
     "deferred",
     "not_applicable",
 }
-SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9}
+SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9, 10}
 UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # Deployment target for plan.release / run.deployments. Unrelated to RUNTIME_PROVIDERS below,
 # which selects the agent runtime that executes PLAN nodes, not where the product deploys.
 DEPLOYMENT_PROVIDERS = {"cloudflare", "vercel", "aws", "self_hosted", "other"}
+RELEASE_STAGES = {"development", "production"}
+RELEASE_SOURCES = {"pr_head", "integration_head", "merged_main"}
+RELEASE_DATA_MODES = {"isolated_non_production", "production"}
+RELEASE_TRIGGERS = {"manual", "merge"}
+MIGRATION_CLASSIFICATIONS = {None, "not_applicable", "additive", "destructive"}
+HEAD_BOUND_AUTHORIZATION_ACTIONS = {
+    "push",
+    "create_pr",
+    "manage_pr_review",
+    "merge_pr",
+    "deploy",
+}
 RUNTIME_PROVIDERS = {"codex", "claude_code", "generic"}
 RUNTIME_REASONING_EFFORTS = {
     "none",

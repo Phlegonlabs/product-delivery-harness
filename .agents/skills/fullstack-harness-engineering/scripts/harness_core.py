@@ -241,7 +241,7 @@ def mission_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
         for mission in plan.get("missions", [])
         if isinstance(mission, dict) and isinstance(mission.get("id"), str)
     }
-    if plan.get("schema_version") != 4:
+    if plan.get("schema_version") not in {4, 5}:
         return {
             mission_id: list(mission.get("depends_on", []))
             for mission_id, mission in missions.items()

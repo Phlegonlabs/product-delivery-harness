@@ -11,7 +11,7 @@
 | TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
 | TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, computed WCAG 2.2 AA contrast ratio for every recorded text/UI color pairing, computed line-height ratio for every typography role (not just visual intent), labels, keyboard path checked | audit / screenshot |
 | TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
-| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks, and covers every in-scope non-hero pattern | live demo / code review |
+| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion records mechanism separately from approved purpose, uses registered tokens and choreography, inherits the global reduced-motion configuration or a justified exception, and covers every in-scope non-hero pattern | live demo / code review |
 | TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
 | TEST-VIS-010 | Taste and anti-slop review | yes | DS-* | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
 | TEST-VIS-011 | Rendered visual review loop | when visual artifacts or an implementation exist | UI-*, DS-* | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
@@ -28,8 +28,10 @@
 | TEST-VIS-022 | Contract check | yes | DS-*, UI-* | The UI contract check passes: no raw colors or dimensions outside the token layer, no inline layout styles, sections wrap approved containers, motion uses registered variants | project UI contract check / CI run |
 | TEST-VIS-023 | Catalog completeness | yes | DS-* | `mockups/catalog.html` shows every registry entry under realistic content at every required viewport and in reduced motion; every catalog entry exists in the registry | catalog review |
 | TEST-VIS-024 | No-JavaScript path | when server-rendered content exists | UI-*, ARCH-* | Content the route must render server-side is present and readable with JavaScript disabled | screenshot with JS disabled |
+| TEST-VIS-025 | Enhancement non-regression | when enhancing an existing same-product UI package | UI-*, DS-*, preserved upstream TEST-* | Every accepted add/modify/remove delta is present; untouched baseline IDs, content, artifacts, decisions, and upstream TEST identities are preserved; the complete revised package passes validation | baseline-to-staged diff / full package validation |
+| TEST-VIS-026 | Rendered design-system parity | yes | DS-*, UI-* | `docs/product/design/design-system.html` renders every reusable element category in scope; each specimen uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`; `IDs` includes valid token, primitive/component, and variant IDs as applicable; applicable motion/reduced-motion behavior agrees with `design-system.md` and `ui-registry.json` | rendered showcase review / source-to-projection diff |
 
-Viewports verified: 390 / 768 / 1200 / 1440 px. States verified: the State Matrix in `ui-architecture.md`.
+Responsive set verified: <resolved platform set from `ui-registry.json`: web `viewports` (390 / 768 / 1200 / 1440 px by default), native `sizeClasses` and safe areas, or named desktop window sizes>. States verified: the State Matrix in `ui-architecture.md`.
 
 ## Page Acceptance
 

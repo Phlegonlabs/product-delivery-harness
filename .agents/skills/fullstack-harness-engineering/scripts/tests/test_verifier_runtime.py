@@ -18,6 +18,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from verifier_runtime import (  # noqa: E402
     PROTOCOL,
+    VerifierRuntimeError,
     build_execution_key,
     run_verifier,
 )
@@ -41,6 +42,11 @@ def context() -> dict[str, object]:
         "checkout_role": "integration",
         "checkout_dirty": False,
         "cache_safe": True,
+        "layer": "batch",
+        "mission_id": None,
+        "task_id": None,
+        "attempt_id": None,
+        "lease_id": None,
     }
 
 
@@ -82,7 +88,7 @@ class VerifierRuntimeTests(unittest.TestCase):
     def read_count(self, counter: Path) -> int:
         return int(counter.read_text(encoding="utf-8"))
 
-    def test_exact_pass_is_reused_without_second_subprocess(self) -> None:
+    def test_exact_pass_reuses_only_the_same_verifier_declaration(self) -> None:
         counter = self.root / "counter.txt"
         first = run_verifier(
             verifier(counter),
@@ -91,9 +97,15 @@ class VerifierRuntimeTests(unittest.TestCase):
             cache_root=self.cache,
             environment=self.environment,
         )
-        second_verifier = verifier(counter, identifier="mission-focused")
         second = run_verifier(
-            second_verifier,
+            verifier(counter),
+            context(),
+            checkout_root=self.checkout,
+            cache_root=self.cache,
+            environment=self.environment,
+        )
+        relabeled = run_verifier(
+            verifier(counter, identifier="mission-focused"),
             context(),
             checkout_root=self.checkout,
             cache_root=self.cache,
@@ -101,11 +113,12 @@ class VerifierRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(first["status"], "PASS")
         self.assertEqual(first["cache_status"], "stored")
-        self.assertEqual(second["status"], "PASS")
-        self.assertEqual(second["verifier_id"], "mission-focused")
         self.assertEqual(second["cache_status"], "reused")
         self.assertEqual(first["execution_key"], second["execution_key"])
-        self.assertEqual(self.read_count(counter), 1)
+        self.assertEqual(relabeled["verifier_id"], "mission-focused")
+        self.assertNotEqual(first["execution_key"], relabeled["execution_key"])
+        self.assertEqual(relabeled["cache_status"], "stored")
+        self.assertEqual(self.read_count(counter), 2)
 
     def test_exact_key_invalidates_on_every_immutable_input_axis(self) -> None:
         variants = []
@@ -169,6 +182,40 @@ class VerifierRuntimeTests(unittest.TestCase):
                 self.assertNotEqual(result["execution_key"], baseline_key)
                 self.assertEqual(result["metrics"]["executed"], 1)
         self.assertEqual(self.read_count(self.root / "counter.txt"), 1 + len(variants))
+
+    def test_layer_associations_reject_detached_or_spurious_ids(self) -> None:
+        candidate = verifier(self.root / "counter.txt")
+        invalid_contexts = []
+
+        task = context()
+        task.update({"layer": "task", "mission_id": "M1", "task_id": "T1"})
+        invalid_contexts.append(task)
+
+        worker = context()
+        worker.update(
+            {
+                "layer": "worker",
+                "mission_id": "M1",
+                "task_id": "T1",
+                "attempt_id": "A1",
+                "lease_id": "L1",
+            }
+        )
+        invalid_contexts.append(worker)
+
+        final = context()
+        final["mission_id"] = "M1"
+        invalid_contexts.append(final)
+
+        for invalid in invalid_contexts:
+            with self.subTest(layer=invalid["layer"]):
+                with self.assertRaises(VerifierRuntimeError):
+                    build_execution_key(
+                        candidate,
+                        invalid,
+                        checkout_root=self.checkout,
+                        environment=self.environment,
+                    )
 
     def test_dirty_checkout_bypasses_existing_pass(self) -> None:
         counter = self.root / "counter.txt"

@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install harness test dependencies
+        run: python -m pip install -r .agents/skills/fullstack-harness-engineering/requirements-test.txt
+
       - name: Check generated plugin skill bundle
         run: python scripts/sync_plugin_skills.py --check
 

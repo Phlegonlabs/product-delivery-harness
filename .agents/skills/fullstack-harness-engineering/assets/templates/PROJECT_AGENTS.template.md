@@ -68,9 +68,9 @@
 ## Cloudflare Release Flow
 
 - For deployable Cloudflare applications, use one codebase with isolated `development` and `production` Workers and environment-specific storage, secrets, auth configuration, payment mode, routes, and webhooks.
-- Deploy the exact current PR head to `environment:development` only after current-head CI passes and matching `deploy` authorization is present. A new push makes the development deployment and its E2E evidence stale.
+- Deploy the exact current PR head to the PLAN-v5 development target only after current-head CI passes and `deploy` authorization covers its exact `release:<target-id>` and authorized head. A new push makes that grant and its evidence stale.
 - Require development migration and deployed-environment E2E PASS before merge. Development uses non-production data and payment sandbox mode when payment applies.
-- Deploy the exact merged `<base-branch>` SHA to `environment:production` only after GitHub reports the PR merged and matching production deploy authorization is present. Production smoke must pass before release completion.
+- Publish the exact merged `<base-branch>` SHA to the production target only after GitHub reports the PR merged and exact production-target deploy authorization is present. Keep the authorized candidate head separate from the resulting merged source SHA. Production smoke must pass before release completion.
 - Use the exact-SHA dispatched Cloudflare deployment workflow. Do not make an arbitrary branch push or base-branch push an unconditional deployment path, and do not infer deploy authorization from push or merge.
 - Keep Wrangler configuration as the repository source of truth. Never store Cloudflare tokens or environment secret values in PLAN, RUN, workflow files, or committed dotenv files.
 - Before the first deploy for this product, confirm `wrangler.jsonc` exists (scaffold it per the Full-Stack Harness's `cloudflare-deployment-lifecycle.md` if missing) and confirm Cloudflare account access is verified (GitHub Environment secrets for the CD workflow, or an authenticated Wrangler session locally). Never attempt a deploy while either is unverified.

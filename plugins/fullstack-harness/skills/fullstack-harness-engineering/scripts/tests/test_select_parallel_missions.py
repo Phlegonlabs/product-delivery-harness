@@ -14,7 +14,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_manifest import AUTHORIZATION_KEYS, plan_digest, validate_plan, validate_run
-from select_parallel_missions import select_parallel_missions
+from select_parallel_missions import SelectionError, select_parallel_missions
 
 
 SHA = "a" * 40
@@ -328,6 +328,18 @@ def manifest_markdown(heading: str, wrapper: str, value: dict[str, object]) -> s
 
 
 class SelectorTests(unittest.TestCase):
+    def test_graph_plan_versions_must_use_ready_node_selector(self) -> None:
+        for schema_version in (4, 5):
+            with self.subTest(schema_version=schema_version):
+                plan = make_plan([mission("M1", priority=10, merge_rank=10)])
+                run = make_run(plan)
+                plan["schema_version"] = schema_version
+                with self.assertRaisesRegex(
+                    SelectionError,
+                    "schema v4/v5 typed graphs must use select_ready_nodes.py",
+                ):
+                    select_parallel_missions(plan, run)
+
     def assert_valid(self, plan: dict[str, object], run: dict[str, object]) -> None:
         self.assertEqual([], validate_plan(plan))
         self.assertEqual([], validate_run(plan, run))

@@ -6,17 +6,17 @@ Use this guide before drafting a UI architecture package.
 
 Ask one organized interview message. Skip questions already answered by the user's prompt or supplied files.
 
-Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them with Claude Code's `AskUserQuestion` tool immediately after the free-text interview message, not as open questions inside it. Everything else stays free text, since it is too product-specific to enumerate.
+Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Use the host's structured closed-choice facility when it is available. When it is not, present the same options as numbered closed choices and include `Other`; do not select a default, remove choices, or convert the decision into an open-ended question. Everything else stays free text because it is product-specific.
 
-The closed-set questions fit one or two `AskUserQuestion` calls of at most four questions each. Almost every one carries a skip rule, so a real run asks far fewer. When more than eight are still unresolved, do not open a third call. Drop in this order and record the documented default as an explicit assumption instead:
+Resolve closed choices in at most three dependency waves, with at most four questions in each wave:
 
-1. Validation depth — assume documented assumptions.
-2. Icon style — assume the outline or platform-native variant that matches the taste statement, name the exact variant in `design-system.md`'s Icon Tokens, and record it as an assumption. Do not claim a library default the shortlist in `references/icon-system-guide.md` does not state.
-3. Motion delivery format — assume storyboard plus implementation code, no runnable showcase.
+1. **Target and platform-independent decisions.** Resolve the design target first, plus platform-independent choices such as registry enforcement, implementation adoption mode, experience priority, or visual direction as space allows.
+2. **Conditional platform resolution.** Run this wave only when the target is mobile, desktop, or hybrid and the upstream package did not resolve the platform. Resolve native/cross-platform and platform family before continuing.
+3. **Platform-specific and remaining decisions.** Ask styling/theming mechanism and animation runtime only now, using options valid for the resolved platform, then fill remaining slots with still-unanswered validation, motion, or icon choices.
 
-The architecture-contract questions — styling engine, registry enforcement, and adoption mode — outrank all three. A wrong guess there points the contract check at the wrong allowlist and invalidates the guardrails.
+Never ask styling, theming, or runtime questions while the design target or required platform is unresolved. Skip questions already answered by the prompt or supplied files. If more unresolved closed decisions remain after the bounded waves, leave them as explicit open questions; do not silently default them.
 
-The mobile-platform and desktop-platform follow-ups below are conditional: they fire only when the design-target answer is a mobile or desktop app AND no upstream document resolved the platform. When one fires it takes a slot in the second call by dropping the next question in the order above — it does not justify a third call. It outranks every question except the three architecture-contract ones, because the platform decides the whole visual vocabulary and cannot be assumed from a documented default.
+When a same-product UI package already exists, freeze it before this interview and switch to package enhancement mode. Ask only about the requested add/modify/remove delta or conflicts it creates. Do not reopen untouched baseline decisions. Package enhancement is separate from implementation adoption mode: enhancement revises the design package; greenfield or phased migration controls how code adopts it.
 
 ### Product And Audience
 

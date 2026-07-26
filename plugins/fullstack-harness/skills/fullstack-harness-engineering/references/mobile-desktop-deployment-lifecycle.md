@@ -11,7 +11,7 @@ verified build -> development target (beta channel / testing track) -> tester/QA
 approved build -> production target (store / notarized channel)     -> production availability + smoke
 ```
 
-`development` and `production` here are promotion stages, not environments named in a Wrangler config. The PLAN schema is already provider-neutral: a non-Cloudflare release uses `release.provider: other` with the generic fallback contract. Record the platform's real targets under that, do not force Cloudflare-shaped fields.
+`development` and `production` here are promotion stages. Current PLAN-v5 uses the same provider-neutral target shape for every platform; it has no provider discriminator or provider-specific fallback object. Put platform identity in prerequisites and retained evidence, and keep target fields limited to the exact PLAN-v5 contract.
 
 ## Prerequisite and Signing Bootstrap
 

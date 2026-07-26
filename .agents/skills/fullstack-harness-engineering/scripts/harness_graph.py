@@ -17,6 +17,7 @@ from harness_core import (
 )
 from harness_schema import (
     AUTHORIZATION_KEYS_V8,
+    AUTHORIZATION_KEYS_V10,
     GRAPH_EDGE_PHASES,
     GRAPH_EXECUTORS,
     GRAPH_NODE_KINDS,
@@ -62,8 +63,15 @@ def _validate_graph(
     value: Any,
     missions: dict[str, dict[str, Any]],
     verifier_ids: set[str],
+    *,
+    require_bounded_review_repair: bool = False,
 ) -> None:
     path = "plan.graph"
+    authorization_actions = (
+        AUTHORIZATION_KEYS_V10
+        if require_bounded_review_repair
+        else AUTHORIZATION_KEYS_V8
+    )
     if not _keys(errors, path, value, {"entry_nodes", "nodes", "edges"}):
         return
 
@@ -193,7 +201,7 @@ def _validate_graph(
             elif kind == "lifecycle":
                 if executor != "harness_parent":
                     _add(errors, f"{node_path}.executor", "lifecycle requires harness_parent")
-                if valid_ref and ref not in AUTHORIZATION_KEYS_V8:
+                if valid_ref and ref not in authorization_actions:
                     _add(errors, f"{node_path}.ref", "must reference an authorization action")
             if kind != "verifier" and node.get("review") is not None:
                 _add(
@@ -351,6 +359,69 @@ def _validate_graph(
             combined_map[target].append(source)
             outgoing[source].append(target)
             incoming[target].append(source)
+
+    if require_bounded_review_repair:
+        for node_id, node in nodes.items():
+            if (
+                node.get("kind") != "verifier"
+                or node.get("executor") != "runtime_worker"
+                or not isinstance(node.get("review"), dict)
+                or "fix_required" not in node.get("allowed_outcomes", [])
+            ):
+                continue
+            fix_routes = [
+                edge
+                for edge in edges.values()
+                if edge.get("kind") == "route"
+                and edge.get("from") == node_id
+                and "fix_required" in edge.get("on_outcomes", [])
+            ]
+            if not fix_routes:
+                _add(
+                    errors,
+                    f"{path}.nodes.{node_id}",
+                    "runtime review with fix_required requires an outgoing repair route",
+                )
+                continue
+            bounded_fix_routes = [
+                edge for edge in fix_routes if _is_int(edge.get("max_traversals"))
+            ]
+            if len(bounded_fix_routes) != len(fix_routes):
+                _add(
+                    errors,
+                    f"{path}.nodes.{node_id}",
+                    "fix_required repair routes require an explicit traversal bound",
+                )
+            repair_targets = {edge.get("to") for edge in bounded_fix_routes}
+            has_rereview = any(
+                edge.get("kind") == "route"
+                and edge.get("from") in repair_targets
+                and edge.get("to") == node_id
+                and "pass" in edge.get("on_outcomes", [])
+                and _is_int(edge.get("max_traversals"))
+                for edge in edges.values()
+            )
+            if not has_rereview:
+                _add(
+                    errors,
+                    f"{path}.nodes.{node_id}",
+                    "repair route must have a bounded pass route back to the review",
+                )
+            has_final_gate = any(
+                edge.get("kind") == "route"
+                and edge.get("from") == node_id
+                and "pass" in edge.get("on_outcomes", [])
+                and isinstance(nodes.get(edge.get("to")), dict)
+                and nodes[edge["to"]].get("kind") == "verifier"
+                and nodes[edge["to"]].get("executor") in {"harness_parent", "local_command"}
+                for edge in edges.values()
+            )
+            if not has_final_gate:
+                _add(
+                    errors,
+                    f"{path}.nodes.{node_id}",
+                    "review pass requires an outgoing route to a deterministic final gate",
+                )
 
     cyclic_dependencies = _cycle_nodes(dependency_map)
     if cyclic_dependencies:

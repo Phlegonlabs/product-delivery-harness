@@ -47,8 +47,9 @@ def validate_node_result(
     errors = [*validate_plan(plan), *validate_run(plan, run)]
     if errors:
         return sorted(set(errors))
-    if plan.get("schema_version") != 4 or run.get("schema_version") not in {8, 9}:
-        return ["node result validation requires PLAN v4 and RUN v8 or v9"]
+    schema_pair = (plan.get("schema_version"), run.get("schema_version"))
+    if schema_pair not in {(4, 8), (4, 9), (5, 10)}:
+        return ["node result validation requires PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10"]
     if not isinstance(result, dict) or set(result) != RESULT_KEYS:
         return ["node_result must contain the exact typed graph result fields"]
     node_map = {node["id"]: node for node in plan["graph"]["nodes"]}

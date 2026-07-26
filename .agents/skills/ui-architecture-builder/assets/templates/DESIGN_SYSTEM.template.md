@@ -14,6 +14,18 @@
 | Wireframes | <path> | structure source | <notes> |
 | Brand / reference | <path or URL> | visual source | <notes> |
 
+## Rendered HTML Projection
+
+Artifact: `docs/product/design/design-system.html`
+
+This Markdown file is the semantic authority for token values and visual decisions. `ui-registry.json` is the authority for registered closed sets. `design-system.html` is a dependency-free rendered projection generated from both; its token block copies their resolved values for rendering and must not introduce tokens, primitives, variants, states, or parameters.
+
+| Projection coverage | IDs | Parameters | Status |
+|---|---|---|---|
+| Typography hierarchy and paragraph styles; links; buttons and all variants/states; form controls; labels/help/error text; cards/surfaces; navigation; alerts/status; icons; spacing/layout; colors/tokens; applicable motion; responsive behavior | <token + primitive/component + variant IDs as applicable> | <implementation-relevant values or named parameters beside each rendered specimen> | <complete / gaps> |
+
+Every rendered specimen's reproduction block uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`.
+
 ## Builder UX Direction Handoff
 
 Decision owner: <human product/design owner or commissioning team>
@@ -167,9 +179,19 @@ Two rules bind this document to those:
 
 ### Motion Principles & Stack
 
-| Layer / purpose | Technology | Why | Dependency / version | Performance constraints | Fallback |
+| Mechanism | Technology | Owns | Dependency / version | Performance constraints | Fallback |
 |---|---|---|---|---|---|
-| <feedback, orientation, continuity, emphasis, or storytelling> | <CSS, WAAPI, Motion, GSAP, Rive, native, or none> | <rationale> | <dependency / version or built-in> | <constraints> | <fallback> |
+| <style-layer transition / animation runtime / route-level transition> | <CSS, WAAPI, Motion, GSAP, Rive, native, or none> | <the work this mechanism owns> | <dependency / version or built-in> | <constraints> | <fallback> |
+
+Mechanism and purpose are separate decisions. Every pattern below uses exactly one purpose: feedback, continuity, processing, or storytelling. There is no decorative or ambient exception.
+
+### Global Reduced-Motion Configuration
+
+| Configuration point | Location | Normal behavior | Reduced-motion behavior | Opt-out / exception rule |
+|---|---|---|---|---|
+| Application boundary | <single style-layer media query, runtime provider/configuration, and route-transition setting> | <global default inherited by every registered variant> | <final state immediately, or opacity-only; no spatial transform, parallax, autoplay, continuous ambience, or scale> | <route-level opt-out or justified per-variant exception; name the owner and reason> |
+
+Call sites do not query reduced-motion preferences. They reference registered variants that inherit this global configuration. Any exception is recorded once in the pattern inventory with its reason.
 
 ### Motion Tokens
 
@@ -179,15 +201,15 @@ Two rules bind this document to those:
 
 ### Motion Pattern Inventory
 
-| Motion ID | Surface / component | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
-|---|---|---|---|---|---|---|---|
-| MOTION-001 | <surface> | <purpose> | <load, viewport, interaction, state, or scroll> | <opacity/transform/etc.> | <tokens> | <rules> | <behavior> |
+| Motion ID | Surface / component | Mechanism | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
+|---|---|---|---|---|---|---|---|---|
+| MOTION-001 | <surface> | <style-layer transition / animation runtime / route-level transition> | <feedback / continuity / processing / storytelling> | <load, viewport, interaction, state, or scroll> | <opacity/transform/etc.> | <tokens> | <rules> | <behavior> |
 
 ### Hero Choreography
 
 | Step | Element | Start / relation | From → to | Purpose | Mobile behavior | Reduced-motion behavior |
 |---|---|---|---|---|---|---|
-| 1 | <eyebrow, headline, copy, CTA, media, or decoration> | <time or relation> | <values> | <reason> | <variant> | <fallback> |
+| 1 | <eyebrow, headline, copy, CTA, media, or brand accent> | <time or relation> | <values> | storytelling — <rationale> | <variant> | <fallback> |
 
 ### Motion Demo Index
 
