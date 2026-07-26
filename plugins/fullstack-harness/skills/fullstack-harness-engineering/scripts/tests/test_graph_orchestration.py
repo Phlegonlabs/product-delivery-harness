@@ -1457,6 +1457,15 @@ class GraphManifestTests(unittest.TestCase):
         run["mission_states"]["M1"]["head_sha"] = "b" * 40
         run["review_workers"][0]["reviewed_sha"] = "b" * 40
         self.assertEqual([], validate_run(plan, run))
+        run["mission_states"]["M2"]["head_sha"] = "c" * 40
+        run["review_workers"][0]["reviewed_sha"] = "c" * 40
+        self.assertTrue(
+            any(
+                "must identify a current covered-mission worktree" in error
+                for error in validate_run(plan, run)
+            )
+        )
+        run["mission_states"]["M2"]["head_sha"] = None
         run["mission_states"]["M1"]["head_sha"] = None
         run["review_workers"][0]["reviewed_sha"] = "a" * 40
         run["status"] = "complete"

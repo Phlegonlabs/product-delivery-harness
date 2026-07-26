@@ -417,6 +417,47 @@ class HarnessCliE2ETests(unittest.TestCase):
                     base_sha,
                     heads[mission_id],
                 ).stdout.splitlines()
+                for prior_review in run["review_workers"]:
+                    prior_review["phase"] = "superseded"
+                review_attempt_id = f"ATT-REVIEW-{mission_id}"
+                review_worker_id = f"RW-{mission_id}"
+                run["mission_states"][mission_id]["head_sha"] = heads[mission_id]
+                run["graph_state"]["node_states"]["N-COVERAGE-REVIEW"].update(
+                    {
+                        "phase": "succeeded",
+                        "attempts": len(run["review_workers"]) + 1,
+                        "last_attempt_id": review_attempt_id,
+                        "last_outcome": "pass",
+                        "bound_worker_id": review_worker_id,
+                    }
+                )
+                run["review_workers"].append(
+                    {
+                        "worker_id": review_worker_id,
+                        "node_id": "N-COVERAGE-REVIEW",
+                        "attempt_id": review_attempt_id,
+                        "plan_revision": plan["revision"],
+                        "plan_digest_sha256": digest,
+                        "graph_revision": run["graph_state"]["graph_revision"],
+                        "reviewed_sha": heads[mission_id],
+                        "review_path": str(worktrees[mission_id]),
+                        "worker_runtime": "subagent",
+                        "completion_channel": "agent_result",
+                        "runtime_binding": {
+                            "provider": "codex",
+                            "driver": "subagents",
+                            "source": "host",
+                            "model": None,
+                            "reasoning_effort": None,
+                            "option_source": "provider_default",
+                        },
+                        "task_thread_id": None,
+                        "report_path": None,
+                        "phase": "worker_passed",
+                        "outcome": "pass",
+                        "findings": [],
+                    }
+                )
                 self.assertEqual(
                     [],
                     validate_worker_result_data(

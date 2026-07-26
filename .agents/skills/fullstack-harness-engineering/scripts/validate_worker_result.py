@@ -766,9 +766,13 @@ def validate_worker_result_data(
             expected_head_sha=head_sha,
             errors=errors,
         )
+    requires_parent_review = (
+        isinstance(nested_policy, dict) and nested_policy.get("enabled") is False
+    ) or (
+        nested_policy is None and isinstance(run.get("review_workers"), list)
+    )
     if (
-        isinstance(nested_policy, dict)
-        and nested_policy.get("enabled") is False
+        requires_parent_review
         and not _has_passing_parent_review(
             plan,
             run,
@@ -780,7 +784,7 @@ def validate_worker_result_data(
             errors,
             "missing_review",
             "harness_run.review_workers",
-            "disabled nested policy requires a parent-owned exact-head PASS review",
+            "worker without an enabled nested policy requires a parent-owned exact-head PASS review",
         )
 
     worker_id = mission_state.get("worker_id")
