@@ -48,7 +48,11 @@ When small work touches a frontend/UI surface, insert a bounded UI review betwee
 
 This core does not bundle `frontend-design` or `feature-dev`. Both are separate Apache-2.0 plugins from the `claude-plugins-official` marketplace and require their own install (`claude plugin install frontend-design@claude-plugins-official`, `claude plugin install feature-dev@claude-plugins-official`). Before offering either, confirm it is actually loaded in the current session; if it is not installed, say so and continue on this core's own path instead of fabricating its presence.
 
-- Before writing frontend/UI code with no adequate `ui-architecture-builder` output to follow, or when the user wants unusually distinctive visual execution beyond what the existing UI architecture specifies, offer the `frontend-design` skill for that implementation step. When a UI architecture does exist, its registry and recipes still bind that step: distinctive execution means adding a variant to the registry, not passing raw values at a call site. Use it only after an explicit yes, and only for the visual/aesthetic execution itself; it does not replace this core's PLAN/RUN state, trace IDs, or authorization ledger.
+The normal UI handoff is `prd-builder` low-fidelity wireframes -> an optional, explicitly selected `frontend-design` visual-direction pass -> `ui-architecture-builder` normalization and freeze -> Harness implementation. Wireframes remain the product authority for structure and flow. A visual-direction candidate is not an implementation contract until the UI architecture package has normalized it into frozen tokens, primitive contracts, registry entries, page recipes, mockups, and acceptance criteria.
+
+- Do not use `frontend-design` to compensate for a missing or partial UI architecture package. Route that gap upstream and freeze the resolved package first.
+- `frontend-design` may appear in a UI mission's `required_skills` only when the planner records the user's explicit selection for a new or high-impact visual surface. That mission runs in **frontend-design conformance mode**: it may improve the quality of execution inside the frozen wireframes, design system, registry, route recipe, and mockup, but it may not choose a new aesthetic direction or invent a token, primitive, variant, component, motion pattern, or page structure at the call site.
+- In conformance mode, a missing contract entry returns as a design-input delta. The worker stops at a safe boundary; the parent routes the delta through `references/design-input-updates.md`, freezes the revised package, updates the PLAN revision and digest, and only then resumes implementation. Loading `frontend-design` never turns contract drift into an allowed local exception.
 - For `small`-classified work that is really "build one feature well inside an existing codebase," offer the `/feature-dev` command as a richer alternative to this core's minimal `direct inspect -> implement -> local verify -> review` route before defaulting to it. Treat its output as this core's implementation and verification steps, still subject to this core's own authorization gate before any Git action.
 - Neither tool changes size classification, authorization, or verification requirements here. A `large` classification, an authorization boundary, or a required gate still applies regardless of which implementation path produced the change.
 
@@ -179,6 +183,8 @@ delete_branches
 
 When the product has a `ui-architecture-builder` package, a route is not freely designed — it is assembled from approved parts. Read `../ui-architecture-builder/references/ui-architecture-guide.md` once for the model; this section is only what an implementation mission owes.
 
+The frozen UI architecture package is the default implementation source. If the mission's explicitly planned `required_skills` includes `frontend-design`, the worker still follows every rule below in frontend-design conformance mode. The skill changes execution craft, not the contract or its precedence.
+
 Every mission that writes UI code:
 
 1. Reads `ui-registry.json` and the route's recipe in `page-recipes.md` before writing anything, and implements from them. A route with no recipe is a blocker (see `references/contract-and-traceability.md`'s Stop And Ask Conditions).
@@ -216,6 +222,8 @@ When an existing `RUN.md` is `running`, pass the Resume Reconciliation Gate (`re
 
 Freeze relevant source paths and SHA-256 digests, functional and non-functional requirements, Builder UX Direction, architecture boundaries, frontend stack, data/integration contracts, failure states, security, observability, migration/release order, acceptance criteria, and exact verification commands. Preserve stable PRD, ARCH, UI, UX, DS, and TEST trace IDs. Every task acceptance row is structured as `{test_id, trace_ids, criterion}` so each planned trace has named verification coverage.
 
+For every UI implementation mission, default `required_skills` to `[]`. Add `frontend-design` only when the user explicitly selected it for that mission's new or high-impact visual surface, and record frontend-design conformance mode in the mission objective or stop conditions. Do not infer the skill from a frontend path, a visual review requirement, or a desire to make the page look better.
+
 A PLAN-v5 source may record a `staged_revision`, but that is not an executable publication. The current canonical `location`, `content_sha256`, and `source_revision` stay binding until the accepted revision is published to the canonical source location, the source becomes `frozen` or `delta_accepted`, and the PLAN revision and digest change. A ready or executing RUN never points at a product staging path.
 
 For deployable work, declare stable provider-neutral release target IDs for both `development` and `production`. Every target names its exact stage, source, artifact kind, signing requirement, channel, data mode, trigger, migration classification, build/migrate/publish commands, prerequisites, and smoke verifiers. RUN-v10 `targets` keys exactly equal those PLAN target IDs and retain PASS artifact, channel, promotion, and availability evidence with hashes, build/version identity, and signing status.
@@ -231,6 +239,8 @@ For `plan-then-stop`, stop after readiness. For execution intent, request only t
 ### 4. Execute And Integrate
 
 For small work, use one parent writer and the smallest relevant checks. For large work, select the ready frontier, then follow the chosen runtime adapter. Bind every worker to an immutable base, write/deny scope, resources, tasks, verifiers, permission boundary, and completion channel. A worker writing UI code is also bound by the UI Implementation Contract above; carry it into the worker's launch prompt with the rest of its scope.
+
+When a UI worker loads `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe, design-system, registry, route-recipe, and mockup inputs. A generic instruction to "make it distinctive" is not a valid handoff.
 
 The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and integrates passing heads serially. After each integration, run the required integration gate, update canonical RUN state, and recompute the frontier. Never accept a report merely because the runtime says it completed.
 

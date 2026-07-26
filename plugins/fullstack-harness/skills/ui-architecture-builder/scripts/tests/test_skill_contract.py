@@ -233,6 +233,40 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("baseline-to-staged diff / full package validation", acceptance)
         self.assertIn("TEST-VIS-025 | Enhancement non-regression", contract)
 
+    def test_frontend_design_pass_is_coherent_non_canonical_and_normalized(self) -> None:
+        skill = self.read("SKILL.md")
+        architecture = self.read("references/ui-architecture-guide.md")
+        guide = self.read("references/visual-decision-guide.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        workflow = self.read("references/dynamic-workflow.md")
+        workflow_template = self.read(
+            "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        )
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, guide, contract, design_system, agent):
+            self.assertIn("Frontend Design Visual Direction Pass", content)
+        for content in (skill, architecture, guide, contract, lifecycle, design_system):
+            self.assertIn("non-canonical", content)
+        self.assertIn("one to three representative candidate screens", skill)
+        self.assertIn("never invoke it independently per route", skill)
+        self.assertIn("one coherent set of one to three representative candidate screens", guide)
+        self.assertIn(
+            "docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/",
+            lifecycle,
+        )
+        self.assertIn(
+            "Candidate screens are normalized into the frozen UI architecture package before implementation",
+            contract,
+        )
+        self.assertIn("candidate still awaits human selection", workflow)
+        self.assertIn("visual_direction_pass: visualDirectionPass", workflow_template)
+        self.assertIn("a candidate awaiting selection is not a frozen input", workflow_template)
+        self.assertIn("affected by the accepted delta", guide)
+        self.assertNotIn("Offer `frontend-design` only for the small pieces", skill)
+
     def test_interview_uses_three_dependency_waves_and_portable_closed_choices(self) -> None:
         skill = self.read("SKILL.md")
         interview = self.read("references/design-interview-guide.md")

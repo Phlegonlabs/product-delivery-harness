@@ -98,6 +98,22 @@ Use the PRD's Builder UX Direction Decision before composing pages or choosing t
 
 Translate preference into consequences for task hierarchy, guidance versus expert control, density, layout, feedback, confirmation, recovery, content, and motion. Builder approval proves that the design follows the intended direction. It does not prove usability for representative users or show that they can understand and complete the task.
 
+## Frontend Design Visual Direction Pass
+
+Use this optional pass to establish one coherent high-quality visual direction before tokens, primitives, components, recipes, the registry, and final mockups are frozen. It produces one coherent set of one to three representative candidate screens, not a separate design exercise for every route.
+
+Run it only when `frontend-design` is loaded and the user explicitly requested or authorized it. The pass has these boundaries:
+
+1. Freeze the structural contract first: routes, flow, required regions, exact wording, content contracts, platform conventions, required states, accessibility constraints, and product scope.
+2. Select one to three representative screens that cover the product's main surface or workflow types. One coherent set is enough; do not invoke `frontend-design` independently for every route, because separate calls can create separate design systems.
+3. Give the single call the same frozen inputs, visual thesis, Builder UX Direction, brand evidence, anti-slop rules, and platform constraints. It may explore hierarchy, typography, color, spatial composition, imagery, surface treatment, and motion. It may not add or remove routes, features, regions, steps, claims, required content, or states.
+4. Write the candidate set only to `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`. Candidate HTML and notes are non-canonical review material, not package mockups, registry input, or production code.
+5. Have the named human owner select, reject, or request one coherent revision of the direction. An agent may select only when that choice was explicitly delegated. If a candidate exposes a structural conflict, record it for the upstream product owner; do not let the visual pass silently rewrite the frozen wireframe.
+6. Record accepted, rejected, and deferred cues in `design-system.md`'s `Frontend Design Visual Direction Pass` section. Translate every accepted cue into named tokens, closed variants, product components, recipes, registry entries, and final package mockups as applicable. Candidate-only values do not survive.
+7. Validate the normalized package through the ordinary parity, taste, accessibility, state, responsive, and rendered-review gates. The candidate itself cannot satisfy a final visual gate.
+
+In package enhancement mode, the frozen package and accepted delta remain authoritative. Limit the pass to representative screens affected by the accepted delta, preserve every untouched decision and ID, and normalize only that accepted delta. Do not use the pass to restart the product's visual direction.
+
 ## Taste & Anti-Slop Guardrails
 
 Taste here means product-specific judgment that is visible in the hierarchy, restraint, and recurring decisions. It is not a universal style or a longer blacklist.
@@ -238,6 +254,8 @@ If only the ready state exists, derive other states from the design system and m
 ## Mockup Rules
 
 Use mockups to define high-fidelity layout and visual hierarchy, not product scope.
+
+Final `mockups/*.html` are canonical package projections composed from the accepted design system, registry, and page recipes. Files under `visual-directions/` are only candidates and must never be linked or copied in as if they were route mockups.
 
 Build each important page as a real static HTML file under `mockups/` (see `references/output-contract.md` for the deliverable contract), styled to the resolved platform's own conventions for a native or desktop target rather than defaulting to web styling. It uses the design-system tokens, preserves exact wording, represents each state as a visible labeled section, and expresses responsive/size-class behavior with real CSS media queries. Treat it as a reference/prototype artifact, not production code — HTML is a visual demonstration medium here, not the target's rendering engine.
 

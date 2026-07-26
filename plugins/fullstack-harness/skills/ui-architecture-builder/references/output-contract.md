@@ -13,6 +13,8 @@ Always produce:
 - One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links wherever the real product would navigate between them, so the set reads as a connected clickable prototype. A single-route product has nothing to link.
 - `mockups/catalog.html` — the component catalog showing every registry entry under realistic content
 
+An explicitly authorized Frontend Design Visual Direction Pass may also create one non-canonical set of one to three representative candidate screens under `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`. These candidates are working review evidence, not package deliverables. They are never published as `mockups/`, never added to `ui-registry.json`, and never consumed by implementation. Only their human-accepted decisions enter the package.
+
 The binding rule the whole package exists to enforce: a page cannot be freely designed; a page may only use approved content contracts, page recipes, product components, and primitives. Read `references/ui-architecture-guide.md` before producing any of these files.
 
 Do not produce `page-ui-matrix.md` or `ui-mockups.md`. The route → breakpoint/size-class → state → component mapping is shown directly in the HTML; the recipe and the machine-checkable route → trace → test mapping live in `page-recipes.md`.
@@ -102,7 +104,7 @@ Everywhere below that says "every required viewport" or "required breakpoints" �
 
 State the resolved platform in `design-system.md`'s Overview, then keep every icon, component-code, and breakpoint/size-class section consistent with it. Keep the web guidance available for a web target rather than removing it; it just stops being the default for every target.
 
-When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
+When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. Any selected Frontend Design Visual Direction Pass record is a frozen input to every workflow role; roles may normalize it but may not independently reopen or replace it. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
 
 When the user requests a runnable animation demonstration, also produce `motion-showcase.html` or bounded files under `motion-demos/`. Use `assets/templates/MOTION_SHOWCASE.template.html` as the dependency-free baseline unless the project stack or requested animation requires another implementation. Record every demo path in `design-system.md` and `page-recipes.md`.
 
@@ -167,6 +169,16 @@ Decision owner: [Human product/design owner or commissioning team]
 | Confirmation and recovery | [Direction] | [selected / provisional / assumed] | [System expression] | [Need] |
 
 Builder approval proves direction conformance only. It does not prove usability; keep unsupported preferences provisional or assumed until separate user evidence exists.
+
+## Frontend Design Visual Direction Pass
+
+Status: [not used / candidate awaiting selection / selected / rejected]
+
+| Direction ID | Representative screens | Decision owner | Accepted cues | Rejected / deferred cues | Normalized package targets |
+| --- | --- | --- | --- | --- | --- |
+| [direction ID or n/a] | [one to three screen names and candidate staging path] | [human owner or explicit delegated selector] | [hierarchy, typography, color, composition, imagery, surface, or motion decisions] | [candidate choices that must not enter the package] | [DS IDs, token sections, primitive/component IDs, recipes, registry entries, and final mockups] |
+
+Candidate files are non-canonical. Record `n/a — pass not requested or not authorized` when unused. When selected, every accepted cue must be expressed through the package's named decisions and closed sets; no final artifact or implementation may depend on candidate markup or candidate-only values. Candidate screens are normalized into the frozen UI architecture package before implementation.
 
 ## Product-Specific Visual Thesis
 | DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |
@@ -509,6 +521,8 @@ Before finalizing, verify:
 - Product components compose primitives only and carry no raw values or ad-hoc spacing and color; layout primitives carry no color or border, and every surface variant carries the named purpose the Container & Border Rules require.
 - For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
 - Builder direction conformance is not presented as usability validation; unsupported preferences remain explicit hypotheses.
+- `design-system.md` includes the `Frontend Design Visual Direction Pass` section. When unused it says why; when used it records the one coherent representative set, human decision owner, accepted/rejected cues, and the canonical DS IDs, tokens, primitives/components, recipes, registry entries, and final mockups that normalize the selection.
+- `visual-directions/` candidates remain non-canonical and outside the fixed publish set. No implementation or final mockup depends on candidate markup or candidate-only values, and package enhancement limits the pass to the accepted delta without reopening untouched decisions.
 - The visual thesis includes three to five concrete brand or context cues, at least two recurring signature decisions, and avoided defaults tied to product evidence or explicit assumptions.
 - The taste statement names a concrete visual character and the compositional choices that create it; it does not stop at generic adjectives.
 - The container and border table defaults ordinary regions to open layouts, chooses one primary grouping cue per nesting level, and gives every visible frame or elevation a named purpose.

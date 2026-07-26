@@ -11,18 +11,18 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
     "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
     "plan": {
       "id": "PLAN-FRONTEND-DESIGN-WIREFRAME",
-      "revision": 1,
-      "digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc"
+      "revision": 2,
+      "digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485"
     },
-    "status": "ready",
+    "status": "running",
     "intent": "plan-then-execute",
     "plan_readiness": "ready",
     "execution_authorized": true,
     "execution_authorization_source": "User instruction: 落實 use multi agent",
     "execution_authorization_scope": {
       "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
-      "plan_revision": 1,
-      "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+      "plan_revision": 2,
+      "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
       "mission_ids": [
         "M1",
         "M2",
@@ -40,8 +40,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "source": "User instruction: 落實 use multi agent",
         "scope": {
           "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
-          "plan_revision": 1,
-          "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
           "mission_ids": [
             "M1",
             "M2",
@@ -62,8 +62,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "source": "User instruction: 落實 use multi agent",
         "scope": {
           "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
-          "plan_revision": 1,
-          "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
           "mission_ids": [
             "M1",
             "M2",
@@ -84,8 +84,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "source": "User instruction: 落實 use multi agent",
         "scope": {
           "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
-          "plan_revision": 1,
-          "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
           "mission_ids": [
             "M1",
             "M2",
@@ -102,8 +102,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "source": "User instruction: 落實 use multi agent",
         "scope": {
           "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
-          "plan_revision": 1,
-          "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
           "mission_ids": [
             "M1",
             "M2",
@@ -120,8 +120,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "source": "User instruction: 落實 use multi agent",
         "scope": {
           "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
-          "plan_revision": 1,
-          "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
           "mission_ids": [
             "M1",
             "M2",
@@ -221,13 +221,35 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       }
     },
     "observed": {
-      "captured_at": "2026-07-25T00:00:00-06:00",
+      "captured_at": "2026-07-25T00:20:00-06:00",
       "git": {
         "parent_worktree_path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-parent",
         "parent_branch": "refs/heads/codex/frontend-design-wireframe-flow",
-        "parent_head_sha": "1cf0f306c0cbc0bac6fee20761cfa52ded1b78d7",
-        "parent_dirty": true,
-        "worktrees": []
+        "parent_head_sha": "be3c7fb732a458eb16830311153995ead18ae8a3",
+        "parent_dirty": false,
+        "worktrees": [
+          {
+            "path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-prd",
+            "branch_ref": "refs/heads/codex/fdw-prd",
+            "head_sha": "8300f2042189b60e8147809afc398754b700d3af",
+            "managed_by": "parent",
+            "dirty": false
+          },
+          {
+            "path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-ui",
+            "branch_ref": "refs/heads/codex/fdw-ui",
+            "head_sha": "3b93f7bb9d27971f143367c33f892dba52739142",
+            "managed_by": "parent",
+            "dirty": false
+          },
+          {
+            "path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-harness",
+            "branch_ref": "refs/heads/codex/fdw-harness",
+            "head_sha": "b582b807b397f49428d68eee217698eac8c3d8b7",
+            "managed_by": "parent",
+            "dirty": false
+          }
+        ]
       },
       "runtime": {
         "available_worker_slots": 3,
@@ -238,8 +260,8 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
     "integration": {
       "branch": "refs/heads/codex/frontend-design-wireframe-flow",
       "retention": "persistent",
-      "batch_base_sha": "1cf0f306c0cbc0bac6fee20761cfa52ded1b78d7",
-      "integration_head_sha": "1cf0f306c0cbc0bac6fee20761cfa52ded1b78d7"
+      "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+      "integration_head_sha": "be3c7fb732a458eb16830311153995ead18ae8a3"
     },
     "batch_gate_results": [
       {
@@ -309,34 +331,34 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       "deferred_reason": null
     },
     "graph_state": {
-      "graph_revision": 1,
+      "graph_revision": 2,
       "node_states": {
         "N-M1": {
-          "phase": "dormant",
-          "attempts": 0,
-          "last_attempt_id": null,
-          "last_outcome": null,
-          "bound_worker_id": null,
+          "phase": "succeeded",
+          "attempts": 1,
+          "last_attempt_id": "ATT-M1-1",
+          "last_outcome": "pass",
+          "bound_worker_id": "W1",
           "blockers": []
         },
         "N-M2": {
-          "phase": "dormant",
-          "attempts": 0,
-          "last_attempt_id": null,
-          "last_outcome": null,
-          "bound_worker_id": null,
+          "phase": "succeeded",
+          "attempts": 1,
+          "last_attempt_id": "ATT-M2-1",
+          "last_outcome": "pass",
+          "bound_worker_id": "W2",
           "blockers": []
         },
         "N-M3": {
-          "phase": "dormant",
-          "attempts": 0,
-          "last_attempt_id": null,
-          "last_outcome": null,
-          "bound_worker_id": null,
+          "phase": "succeeded",
+          "attempts": 1,
+          "last_attempt_id": "ATT-M3-1",
+          "last_outcome": "pass",
+          "bound_worker_id": "W3",
           "blockers": []
         },
         "N-CONTRACT-REVIEW": {
-          "phase": "dormant",
+          "phase": "ready",
           "attempts": 0,
           "last_attempt_id": null,
           "last_outcome": null,
@@ -354,19 +376,19 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       },
       "edge_states": {
         "E-M1-REVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
+          "status": "traversed",
+          "traversals": 1,
+          "source_attempt_id": "ATT-M1-1"
         },
         "E-M2-REVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
+          "status": "traversed",
+          "traversals": 1,
+          "source_attempt_id": "ATT-M2-1"
         },
         "E-M3-REVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
+          "status": "traversed",
+          "traversals": 1,
+          "source_attempt_id": "ATT-M3-1"
         },
         "E-REVIEW-FINAL": {
           "status": "dormant",
@@ -377,86 +399,210 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
     },
     "mission_states": {
       "M1": {
-        "phase": "queued",
-        "lease_id": null,
-        "lease_plan_revision": null,
-        "lease_plan_digest_sha256": null,
-        "worker_id": null,
-        "base_sha": null,
-        "head_sha": null,
-        "integration_gate": "planned",
-        "integrated_sha": null,
+        "phase": "integrated",
+        "lease_id": "LEASE-M1-1",
+        "lease_plan_revision": 1,
+        "lease_plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+        "worker_id": "W1",
+        "base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+        "head_sha": "8300f2042189b60e8147809afc398754b700d3af",
+        "integration_gate": "PASS",
+        "integrated_sha": "9d953c15f00501b6c2d2e6d6ad9d264ff3f8e030",
         "blockers": [],
         "report_path": null
       },
       "M2": {
-        "phase": "queued",
-        "lease_id": null,
-        "lease_plan_revision": null,
-        "lease_plan_digest_sha256": null,
-        "worker_id": null,
-        "base_sha": null,
-        "head_sha": null,
-        "integration_gate": "planned",
-        "integrated_sha": null,
+        "phase": "integrated",
+        "lease_id": "LEASE-M2-1",
+        "lease_plan_revision": 1,
+        "lease_plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+        "worker_id": "W2",
+        "base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+        "head_sha": "3b93f7bb9d27971f143367c33f892dba52739142",
+        "integration_gate": "PASS",
+        "integrated_sha": "e58628a48222469f179fe126bd796b4214930183",
         "blockers": [],
         "report_path": null
       },
       "M3": {
-        "phase": "queued",
-        "lease_id": null,
-        "lease_plan_revision": null,
-        "lease_plan_digest_sha256": null,
-        "worker_id": null,
-        "base_sha": null,
-        "head_sha": null,
-        "integration_gate": "planned",
-        "integrated_sha": null,
+        "phase": "integrated",
+        "lease_id": "LEASE-M3-1",
+        "lease_plan_revision": 1,
+        "lease_plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+        "worker_id": "W3",
+        "base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+        "head_sha": "b582b807b397f49428d68eee217698eac8c3d8b7",
+        "integration_gate": "PASS",
+        "integrated_sha": "be3c7fb732a458eb16830311153995ead18ae8a3",
         "blockers": [],
         "report_path": null
       }
     },
     "task_states": {
       "M1/T01": {
-        "phase": "queued",
-        "attempts": 0,
-        "commit_sha": null,
-        "verifier_status": "planned",
+        "phase": "mission_recorded",
+        "attempts": 1,
+        "commit_sha": "8300f2042189b60e8147809afc398754b700d3af",
+        "verifier_status": "PASS",
         "blockers": [],
         "refinement_request": null
       },
       "M2/T01": {
-        "phase": "queued",
-        "attempts": 0,
-        "commit_sha": null,
-        "verifier_status": "planned",
+        "phase": "mission_recorded",
+        "attempts": 1,
+        "commit_sha": "3b93f7bb9d27971f143367c33f892dba52739142",
+        "verifier_status": "PASS",
         "blockers": [],
         "refinement_request": null
       },
       "M3/T01": {
-        "phase": "queued",
-        "attempts": 0,
-        "commit_sha": null,
-        "verifier_status": "planned",
+        "phase": "mission_recorded",
+        "attempts": 1,
+        "commit_sha": "b582b807b397f49428d68eee217698eac8c3d8b7",
+        "verifier_status": "PASS",
         "blockers": [],
         "refinement_request": null
       }
     },
     "active_wave": {
-      "wave_id": null,
-      "status": "idle",
+      "wave_id": "WAVE-1",
+      "status": "closed",
       "plan_revision": 1,
       "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
-      "batch_base_sha": "1cf0f306c0cbc0bac6fee20761cfa52ded1b78d7",
-      "selected_missions": [],
+      "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+      "selected_missions": [
+        "M1",
+        "M2",
+        "M3"
+      ],
       "deferred_missions": [],
       "conflict_edges": []
     },
-    "workers": [],
+    "workers": [
+      {
+        "worker_id": "W1",
+        "mission_id": "M1",
+        "lease_id": "LEASE-M1-1",
+        "plan_revision": 1,
+        "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+        "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+        "worker_runtime": "subagent",
+        "workspace_mode": "parent_managed_worktree",
+        "completion_channel": "agent_result",
+        "runtime_binding": {
+          "provider": "codex",
+          "driver": "subagents",
+          "source": "host",
+          "model": null,
+          "reasoning_effort": null,
+          "option_source": "plan_provider_options"
+        },
+        "task_thread_id": "/root/prd_visual_handoff",
+        "worktree_path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-prd",
+        "branch_ref": "refs/heads/codex/fdw-prd",
+        "report_path": null,
+        "phase": "worker_passed",
+        "worker_head_sha": "8300f2042189b60e8147809afc398754b700d3af"
+      },
+      {
+        "worker_id": "W2",
+        "mission_id": "M2",
+        "lease_id": "LEASE-M2-1",
+        "plan_revision": 1,
+        "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+        "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+        "worker_runtime": "subagent",
+        "workspace_mode": "parent_managed_worktree",
+        "completion_channel": "agent_result",
+        "runtime_binding": {
+          "provider": "codex",
+          "driver": "subagents",
+          "source": "host",
+          "model": null,
+          "reasoning_effort": null,
+          "option_source": "plan_provider_options"
+        },
+        "task_thread_id": "/root/ui_visual_direction",
+        "worktree_path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-ui",
+        "branch_ref": "refs/heads/codex/fdw-ui",
+        "report_path": null,
+        "phase": "worker_passed",
+        "worker_head_sha": "3b93f7bb9d27971f143367c33f892dba52739142"
+      },
+      {
+        "worker_id": "W3",
+        "mission_id": "M3",
+        "lease_id": "LEASE-M3-1",
+        "plan_revision": 1,
+        "plan_digest_sha256": "414e2b2f005c7eb2e142cf5df3e4ece81a25897904e518a2ee23f444d0c5e5dc",
+        "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+        "worker_runtime": "subagent",
+        "workspace_mode": "parent_managed_worktree",
+        "completion_channel": "agent_result",
+        "runtime_binding": {
+          "provider": "codex",
+          "driver": "subagents",
+          "source": "host",
+          "model": null,
+          "reasoning_effort": null,
+          "option_source": "plan_provider_options"
+        },
+        "task_thread_id": "/root/harness_ui_conformance",
+        "worktree_path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-harness",
+        "branch_ref": "refs/heads/codex/fdw-harness",
+        "report_path": null,
+        "phase": "worker_passed",
+        "worker_head_sha": "b582b807b397f49428d68eee217698eac8c3d8b7"
+      }
+    ],
     "review_workers": [],
     "workflow_runs": [],
     "verifier_executions": [],
-    "attempt_log": []
+    "attempt_log": [
+      {
+        "attempt_id": "ATT-M1-1",
+        "mission_id": "M1",
+        "task_id": "M1/T01",
+        "lease_id": "LEASE-M1-1",
+        "kind": "mission",
+        "result": "pass",
+        "evidence": [
+          "worker commit 8300f2042189b60e8147809afc398754b700d3af",
+          "PRD suite 34/34 PASS",
+          "cross-skill pipeline PASS",
+          "integration commit 9d953c15f00501b6c2d2e6d6ad9d264ff3f8e030"
+        ]
+      },
+      {
+        "attempt_id": "ATT-M2-1",
+        "mission_id": "M2",
+        "task_id": "M2/T01",
+        "lease_id": "LEASE-M2-1",
+        "kind": "mission",
+        "result": "pass",
+        "evidence": [
+          "worker commit 3b93f7bb9d27971f143367c33f892dba52739142",
+          "UI architecture suite 68/68 PASS",
+          "cross-skill pipeline PASS",
+          "integration commit e58628a48222469f179fe126bd796b4214930183"
+        ]
+      },
+      {
+        "attempt_id": "ATT-M3-1",
+        "mission_id": "M3",
+        "task_id": "M3/T01",
+        "lease_id": "LEASE-M3-1",
+        "kind": "mission",
+        "result": "pass",
+        "evidence": [
+          "worker commit b582b807b397f49428d68eee217698eac8c3d8b7",
+          "Harness skill contract 24/24 PASS",
+          "Harness manifest suite 100/100 PASS",
+          "cross-skill pipeline 4/4 PASS",
+          "integration commit be3c7fb732a458eb16830311153995ead18ae8a3"
+        ]
+      }
+    ]
   }
 }
 ```

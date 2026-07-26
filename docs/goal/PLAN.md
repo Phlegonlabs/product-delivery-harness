@@ -9,7 +9,7 @@ This plan adds one stable visual-direction step between product wireframes and t
   "harness_plan": {
     "schema_version": 5,
     "plan_id": "PLAN-FRONTEND-DESIGN-WIREFRAME",
-    "revision": 1,
+    "revision": 2,
     "objective": "Define and verify one cross-skill flow where structural wireframes stay canonical, frontend-design produces a bounded visual direction, UI architecture freezes the selected direction, and implementation missions conform to the frozen package.",
     "max_parallel_workers": 3,
     "required_reviews": [
@@ -76,10 +76,7 @@ This plan adds one stable visual-direction step between product wireframes and t
         "cwd": ".",
         "argv": [
           "python",
-          "-m",
-          "unittest",
-          ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-          "-v"
+          ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
         ],
         "pass_signal": "exit 0"
       }
@@ -319,10 +316,7 @@ This plan adds one stable visual-direction step between product wireframes and t
             "cwd": ".",
             "argv": [
               "python",
-              "-m",
-              "unittest",
-              ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-              "-v"
+              ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
             ],
             "pass_signal": "exit 0",
             "selection": {
@@ -343,10 +337,7 @@ This plan adds one stable visual-direction step between product wireframes and t
             "cwd": ".",
             "argv": [
               "python",
-              "-m",
-              "unittest",
-              ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-              "-v"
+              ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
             ],
             "pass_signal": "exit 0"
           }
@@ -383,10 +374,7 @@ This plan adds one stable visual-direction step between product wireframes and t
                 "cwd": ".",
                 "argv": [
                   "python",
-                  "-m",
-                  "unittest",
-                  ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-                  "-v"
+                  ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
                 ],
                 "pass_signal": "exit 0",
                 "selection": {
@@ -438,10 +426,7 @@ This plan adds one stable visual-direction step between product wireframes and t
             "cwd": ".",
             "argv": [
               "python",
-              "-m",
-              "unittest",
-              ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-              "-v"
+              ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
             ],
             "pass_signal": "exit 0",
             "selection": {
@@ -462,10 +447,7 @@ This plan adds one stable visual-direction step between product wireframes and t
             "cwd": ".",
             "argv": [
               "python",
-              "-m",
-              "unittest",
-              ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-              "-v"
+              ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
             ],
             "pass_signal": "exit 0"
           }
@@ -502,10 +484,7 @@ This plan adds one stable visual-direction step between product wireframes and t
                 "cwd": ".",
                 "argv": [
                   "python",
-                  "-m",
-                  "unittest",
-                  ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-                  "-v"
+                  ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
                 ],
                 "pass_signal": "exit 0",
                 "selection": {
@@ -559,10 +538,7 @@ This plan adds one stable visual-direction step between product wireframes and t
             "cwd": ".",
             "argv": [
               "python",
-              "-m",
-              "unittest",
-              ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-              "-v"
+              ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
             ],
             "pass_signal": "exit 0",
             "selection": {
@@ -584,10 +560,7 @@ This plan adds one stable visual-direction step between product wireframes and t
             "cwd": ".",
             "argv": [
               "python",
-              "-m",
-              "unittest",
-              ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-              "-v"
+              ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
             ],
             "pass_signal": "exit 0"
           }
@@ -625,10 +598,7 @@ This plan adds one stable visual-direction step between product wireframes and t
                 "cwd": ".",
                 "argv": [
                   "python",
-                  "-m",
-                  "unittest",
-                  ".agents.skills.fullstack-harness-engineering.scripts.tests.test_cross_skill_pipeline",
-                  "-v"
+                  ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
                 ],
                 "pass_signal": "exit 0",
                 "selection": {

@@ -36,6 +36,7 @@ Before launch, the parent must have:
 - a stable run ID and product name;
 - product archetype, audience, and source paths or source summary;
 - Builder UX Direction and its selected/provisional/assumed status for UI-bearing products;
+- the selected `Frontend Design Visual Direction Pass` record, or an explicit `not used`; the workflow never launches while a candidate still awaits human selection;
 - explicit decisions on whether iconography and motion are in scope;
 - the closed-set architecture answers from `references/design-interview-guide.md`: styling engine, animation runtime split, registry enforcement mode, and greenfield-or-phased adoption;
 - the required viewport set (390 / 768 / 1200 / 1440 px unless the user names different ones);
@@ -48,7 +49,7 @@ If the host cannot enforce that read-only tool boundary, use the sequential pare
 
 Use `assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js` with structured arguments. The workflow is read-only:
 
-1. Visual thesis/content, content contracts, system/components, primitive contracts, page recipes, page coverage, and conditional icon/motion roles run independently.
+1. Visual thesis/content, content contracts, system/components, primitive contracts, page recipes, page coverage, and conditional icon/motion roles run independently. Every role treats the selected visual-direction record as frozen input and may normalize it into its own layer, but no role may generate a different direction or reinterpret candidate-only values.
 2. Failed or skipped agents remain explicit blocked role results.
 3. Synthesis waits for the complete role barrier and returns candidate artifact bodies. It derives `ui-registry.json` from the primitive contracts, product components, registered motion variants, and page recipes it returns in the same result, so the registry and the architecture body cannot describe different systems.
 4. Taste, trace, and registry verifiers independently inspect the synthesis.

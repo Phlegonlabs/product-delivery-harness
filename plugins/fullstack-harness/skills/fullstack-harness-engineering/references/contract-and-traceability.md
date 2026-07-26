@@ -18,6 +18,8 @@ Verification: commands, E2E journey, evidence paths, acceptance thresholds
 Write scope: allowed paths, read-only paths, destructive-action approval gates
 ```
 
+Low-fidelity wireframes remain the product authority for structure and flow. An upstream `frontend-design` visual-direction candidate is non-canonical until `ui-architecture-builder` normalizes it into the frozen visual-design sources above. Harness implementation consumes those frozen sources, not the candidate prototype.
+
 For large work, including parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
 ## Canonical Harness State
@@ -159,6 +161,7 @@ Stop before implementation when:
 - PRD and wireframe conflict on the primary flow.
 - Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.
 - The design system contradicts the wireframe in a user-visible way.
+- A UI mission lists `frontend-design` without an explicit user selection for that new or high-impact visual surface, or its handoff asks the skill to choose a new direction instead of conforming to the frozen package.
 - An in-scope route has no recipe in `page-recipes.md`, or a route's recipe requires a primitive, variant, component, or motion variant that `ui-registry.json` does not list. Ask for the missing recipe or registry entry; do not improvise the route or pass a raw value at the call site.
 - The design source's mockup HTML is styled to a different platform than the resolved target — for example web viewport/breakpoint styling and web-family icons handed off for a native iOS/Android/Flutter/desktop mission, or the reverse. Every platform's mockup is real HTML (see `ui-architecture-builder`'s Platform-Conditional Vocabulary), so the mismatch to catch here is the visual convention, not the file format. Do not silently implement against a mismatched-styling mockup or guess the intended platform; confirm with the user first. See `verification-gates.md`'s "Capture Mechanism By Platform" for how the resolved platform separately decides the UI evidence capture mechanism after implementation.
 - Auth, permissions, or destructive data behavior is ambiguous.
