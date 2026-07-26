@@ -2333,7 +2333,17 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         and isinstance(plan.get("graph"), dict)
     ):
         reviewed_missions: set[str] = set()
-        for node in plan["graph"].get("nodes", []):
+        graph_nodes = plan["graph"].get("nodes", [])
+        graph_edges = plan["graph"].get("edges", [])
+        mission_node_ids = {
+            node["ref"]: node["id"]
+            for node in graph_nodes
+            if isinstance(node, dict)
+            and node.get("kind") == "mission"
+            and isinstance(node.get("id"), str)
+            and isinstance(node.get("ref"), str)
+        }
+        for node in graph_nodes:
             if not isinstance(node, dict):
                 continue
             if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
@@ -2341,7 +2351,21 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review = node.get("review")
             if not isinstance(review, dict):
                 continue
-            for mission_id in review.get("mission_ids") or []:
+            mission_ids = review.get("mission_ids") or []
+            if schema_version == 10:
+                if (
+                    len(mission_ids) != 1
+                    or not isinstance(mission_ids[0], str)
+                    or not any(
+                        isinstance(edge, dict)
+                        and edge.get("kind") == "dependency"
+                        and edge.get("from") == mission_node_ids.get(mission_ids[0])
+                        and edge.get("to") == node.get("id")
+                        for edge in graph_edges
+                    )
+                ):
+                    continue
+            for mission_id in mission_ids:
                 if isinstance(mission_id, str):
                     reviewed_missions.add(mission_id)
         unreviewed = sorted(
@@ -2353,11 +2377,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             and mission["id"] not in reviewed_missions
         )
         if unreviewed:
+            review_requirement = (
+                "no direct singleton pre-integration review node"
+                if schema_version == 10
+                else "no review node"
+            )
             _add(
                 errors,
                 "run.execution_authorized",
                 "cannot authorize execution while these missions have a write scope "
-                "and no review node: " + ", ".join(unreviewed),
+                f"and {review_requirement}: " + ", ".join(unreviewed),
             )
     if run["execution_authorized"]:
         if not _nonempty_string(run["execution_authorization_source"]):

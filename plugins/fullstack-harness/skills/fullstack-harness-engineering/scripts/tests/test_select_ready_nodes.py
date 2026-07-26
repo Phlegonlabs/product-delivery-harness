@@ -994,7 +994,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
-    def test_multi_mission_review_cannot_replace_preintegration_review(
+    def test_multi_mission_review_cannot_authorize_preintegration_coverage(
         self,
     ) -> None:
         plan, run = current_preintegration_review_state()
@@ -1018,12 +1018,11 @@ class SelectReadyNodesTests(unittest.TestCase):
         ] = digest
         run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
         run["workers"][0]["plan_digest_sha256"] = digest
-        run["mission_states"]["M1"]["phase"] = "integrating"
 
         errors = validate_run(plan, run)
         self.assertTrue(
             any(
-                "every planned pre-integration review node" in error
+                "no direct singleton pre-integration review node: M1" in error
                 for error in errors
             ),
             errors,
