@@ -875,6 +875,50 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
+    def test_batch_pass_review_rejects_a_superseded_integration_head(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        node_id = "N-VISUAL-REVIEW"
+        attempt_id = "ATT-VISUAL-REVIEW-OLD"
+        run["graph_state"]["node_states"][node_id].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": attempt_id,
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-VISUAL-OLD",
+                "blockers": [],
+            }
+        )
+        review_worker = exact_head_review_worker(
+            node_id=node_id,
+            worker_id="RW-VISUAL-OLD",
+            attempt_id=attempt_id,
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        review_worker["reviewed_sha"] = "a" * 40
+        review_worker["review_path"] = "C:/repo"
+        run["review_workers"] = [review_worker]
+        self.assertEqual([], validate_run(plan, run))
+
+        run["integration"]["prior_head_shas"] = ["a" * 40]
+        run["integration"]["integration_head_sha"] = "c" * 40
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_multi_mission_review_cannot_replace_preintegration_review(
         self,
     ) -> None:

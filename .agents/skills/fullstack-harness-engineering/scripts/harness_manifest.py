@@ -3707,6 +3707,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and mission_node_refs.get(edge.get("from"))
                     in reviewed_mission_ids
                 }
+                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
                 current_reviewable_shas = {
                     sha
                     for sha in (
@@ -3721,7 +3722,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             for mission_id, state in reviewed_mission_states.items()
                             if mission_id in direct_preintegration_mission_ids
                         ),
-                        *integration_prior_heads,
                         *(
                             sha
                             for mission_id in direct_preintegration_mission_ids
@@ -3730,7 +3730,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     )
                     if is_full_sha(sha)
                 }
-                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
+                if (
+                    state.get("last_outcome") == "fix_required"
+                    and worker.get("outcome") == "fix_required"
+                ):
+                    current_reviewable_shas.update(integration_prior_heads)
                 is_current_attempt = state.get("last_attempt_id") == worker["attempt_id"]
                 if (
                     worker["reviewed_sha"] not in current_reviewable_shas
