@@ -14,7 +14,7 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       "revision": 2,
       "digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485"
     },
-    "status": "running",
+    "status": "complete",
     "intent": "plan-then-execute",
     "plan_readiness": "ready",
     "execution_authorized": true,
@@ -221,11 +221,11 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       }
     },
     "observed": {
-      "captured_at": "2026-07-25T00:20:00-06:00",
+      "captured_at": "2026-07-25T00:35:00-06:00",
       "git": {
         "parent_worktree_path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-parent",
         "parent_branch": "refs/heads/codex/frontend-design-wireframe-flow",
-        "parent_head_sha": "be3c7fb732a458eb16830311153995ead18ae8a3",
+        "parent_head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
         "parent_dirty": false,
         "worktrees": [
           {
@@ -258,32 +258,36 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       }
     },
     "integration": {
-      "branch": "refs/heads/codex/frontend-design-wireframe-flow",
+      "branch": "refs/heads/codex/frontend-design-wireframe-verified",
       "retention": "persistent",
       "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
-      "integration_head_sha": "be3c7fb732a458eb16830311153995ead18ae8a3"
+      "integration_head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f"
     },
     "batch_gate_results": [
       {
         "id": "batch-cross-skill-contract",
-        "status": "planned",
-        "head_sha": null,
-        "evidence": []
+        "status": "PASS",
+        "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+        "evidence": [
+          "7ea80f15d6184a05a6a2927cbb42bcb4a304424052b251d205f82e0913384857"
+        ]
       }
     ],
     "final_gate_results": [
       {
         "id": "final-harness-suite",
-        "status": "planned",
-        "head_sha": null,
-        "evidence": []
+        "status": "PASS",
+        "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+        "evidence": [
+          "ce234c797989ce72aff3dc2f36f1f7cbcfa1ce794b605687caab4083bd735d35"
+        ]
       }
     ],
     "ui_evidence": [],
     "landing": {
       "mode": "local_only",
       "remote": "origin",
-      "head_branch": "refs/heads/codex/frontend-design-wireframe-flow",
+      "head_branch": "refs/heads/codex/frontend-design-wireframe-verified",
       "base_branch": "fix/full-skill-review-findings",
       "pushed_head_sha": null,
       "pr_number": null,
@@ -301,9 +305,9 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
       "auto_merge_requested": false,
       "auto_merge_head_sha": null,
       "continuity": {
-        "status": "planned",
-        "branch_ref": "refs/heads/codex/frontend-design-wireframe-flow",
-        "head_sha": null,
+        "status": "preserved",
+        "branch_ref": "refs/heads/codex/frontend-design-wireframe-verified",
+        "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
         "reason": "Retain the verified local integration branch for later user-authorized landing."
       }
     },
@@ -323,9 +327,9 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "status": "not_applicable"
       },
       "local_branch": {
-        "ref": "refs/heads/codex/frontend-design-wireframe-flow",
-        "head_sha": null,
-        "status": "pending"
+        "ref": "refs/heads/codex/frontend-design-wireframe-verified",
+        "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+        "status": "preserved"
       },
       "evidence": [],
       "deferred_reason": null
@@ -358,18 +362,18 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
           "blockers": []
         },
         "N-CONTRACT-REVIEW": {
-          "phase": "ready",
-          "attempts": 0,
-          "last_attempt_id": null,
-          "last_outcome": null,
-          "bound_worker_id": null,
+          "phase": "succeeded",
+          "attempts": 1,
+          "last_attempt_id": "ATT-REVIEW-1",
+          "last_outcome": "pass",
+          "bound_worker_id": "RW1",
           "blockers": []
         },
         "N-FINAL-GATE": {
-          "phase": "dormant",
-          "attempts": 0,
-          "last_attempt_id": null,
-          "last_outcome": null,
+          "phase": "succeeded",
+          "attempts": 1,
+          "last_attempt_id": "ATT-FINAL-1",
+          "last_outcome": "pass",
           "bound_worker_id": null,
           "blockers": []
         }
@@ -391,9 +395,9 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
           "source_attempt_id": "ATT-M3-1"
         },
         "E-REVIEW-FINAL": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
+          "status": "traversed",
+          "traversals": 1,
+          "source_attempt_id": "ATT-REVIEW-1"
         }
       }
     },
@@ -555,9 +559,330 @@ This is a local-only multi-agent run. Remote landing and cleanup actions are out
         "worker_head_sha": "b582b807b397f49428d68eee217698eac8c3d8b7"
       }
     ],
-    "review_workers": [],
+    "review_workers": [
+      {
+        "worker_id": "RW1",
+        "node_id": "N-CONTRACT-REVIEW",
+        "attempt_id": "ATT-REVIEW-1",
+        "plan_revision": 2,
+        "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
+        "graph_revision": 2,
+        "reviewed_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+        "review_path": "C:\\Users\\mps19\\Documents\\GitHub\\fullstack-goal-dev-worktrees\\frontend-design-wireframe-parent",
+        "worker_runtime": "subagent",
+        "completion_channel": "agent_result",
+        "runtime_binding": {
+          "provider": "codex",
+          "driver": "subagents",
+          "source": "host",
+          "model": null,
+          "reasoning_effort": null,
+          "option_source": "plan_provider_options"
+        },
+        "task_thread_id": "/root/integrated_contract_review",
+        "report_path": null,
+        "phase": "worker_passed",
+        "outcome": "pass",
+        "findings": []
+      }
+    ],
     "workflow_runs": [],
-    "verifier_executions": [],
+    "verifier_executions": [
+      {
+        "execution_id": "VE-BATCH-CROSS-SKILL-1",
+        "verifier_id": "batch-cross-skill-contract",
+        "layer": "batch",
+        "mission_id": null,
+        "task_id": null,
+        "attempt_id": null,
+        "lease_id": null,
+        "protocol": "harness-verifier-execution-v1",
+        "execution_key": "7ea80f15d6184a05a6a2927cbb42bcb4a304424052b251d205f82e0913384857",
+        "evidence_key": "7ea80f15d6184a05a6a2927cbb42bcb4a304424052b251d205f82e0913384857",
+        "key_document": {
+          "protocol": "harness-verifier-execution-v1",
+          "verifier_id": "batch-cross-skill-contract",
+          "layer": "batch",
+          "mission_id": null,
+          "task_id": null,
+          "attempt_id": null,
+          "lease_id": null,
+          "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
+          "graph_revision": 2,
+          "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+          "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+          "changed_files_digest": "cfc0efe6ef9363d8161870dbe971a1465879356014b047e898e33e22f2fb1453",
+          "trust_domain": "parent_local",
+          "checkout_role": "integration",
+          "checkout_dirty": false,
+          "cache_safe": false,
+          "cwd": ".",
+          "argv": [
+            "python",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
+          ],
+          "pass_signal": "exit 0",
+          "cache_mode": "disabled",
+          "environment_keys": [],
+          "platform": {
+            "system": "Windows",
+            "machine": "AMD64"
+          },
+          "executable_identity": {
+            "path": "c:\\python314\\python.exe",
+            "size": 106208,
+            "mtime_ns": 1778384554000000000,
+            "device": 16345964255906345721,
+            "inode": 36591746972481370
+          },
+          "environment_digests": {}
+        },
+        "verifier": {
+          "id": "batch-cross-skill-contract",
+          "cwd": ".",
+          "argv": [
+            "python",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py"
+          ],
+          "pass_signal": "exit 0",
+          "cache": {
+            "mode": "disabled",
+            "environment_keys": []
+          }
+        },
+        "context": {
+          "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
+          "graph_revision": 2,
+          "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+          "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+          "changed_files": [
+            ".agents/skills/fullstack-harness-engineering/SKILL.md",
+            ".agents/skills/fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md",
+            ".agents/skills/fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md",
+            ".agents/skills/fullstack-harness-engineering/references/contract-and-traceability.md",
+            ".agents/skills/fullstack-harness-engineering/references/design-input-updates.md",
+            ".agents/skills/fullstack-harness-engineering/references/execution-task-decomposition.md",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests/test_skill_contract.py",
+            ".agents/skills/prd-builder/SKILL.md",
+            ".agents/skills/prd-builder/references/output-contract.md",
+            ".agents/skills/prd-builder/references/wireframe-guide.md",
+            ".agents/skills/prd-builder/scripts/tests/test_skill_contract.py",
+            ".agents/skills/ui-architecture-builder/SKILL.md",
+            ".agents/skills/ui-architecture-builder/agents/openai.yaml",
+            ".agents/skills/ui-architecture-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js",
+            ".agents/skills/ui-architecture-builder/assets/templates/DESIGN_SYSTEM.template.md",
+            ".agents/skills/ui-architecture-builder/references/artifact-lifecycle.md",
+            ".agents/skills/ui-architecture-builder/references/dynamic-workflow.md",
+            ".agents/skills/ui-architecture-builder/references/output-contract.md",
+            ".agents/skills/ui-architecture-builder/references/ui-architecture-guide.md",
+            ".agents/skills/ui-architecture-builder/references/visual-decision-guide.md",
+            ".agents/skills/ui-architecture-builder/scripts/tests/test_skill_contract.py",
+            "docs/goal/PLAN.md",
+            "docs/goal/RUN.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/SKILL.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/references/contract-and-traceability.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/references/design-input-updates.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/references/execution-task-decomposition.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests/test_skill_contract.py",
+            "plugins/fullstack-harness/skills/prd-builder/SKILL.md",
+            "plugins/fullstack-harness/skills/prd-builder/references/output-contract.md",
+            "plugins/fullstack-harness/skills/prd-builder/references/wireframe-guide.md",
+            "plugins/fullstack-harness/skills/prd-builder/scripts/tests/test_skill_contract.py",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/SKILL.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/agents/openai.yaml",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/assets/templates/DESIGN_SYSTEM.template.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/artifact-lifecycle.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/dynamic-workflow.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/output-contract.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/ui-architecture-guide.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/visual-decision-guide.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/scripts/tests/test_skill_contract.py"
+          ],
+          "trust_domain": "parent_local",
+          "checkout_role": "integration",
+          "checkout_dirty": false,
+          "cache_safe": false,
+          "layer": "batch",
+          "mission_id": null,
+          "task_id": null,
+          "attempt_id": null,
+          "lease_id": null
+        },
+        "status": "PASS",
+        "exit_code": 0,
+        "cache_status": "bypassed",
+        "cache_reason": "cache_disabled",
+        "duration_ms": 126,
+        "metrics": {
+          "executed": 1,
+          "reused": 0
+        },
+        "stdout_sha256": "356001bec3058d4594fa05e339f798c80f0c6c8e7a12662457d6599cf869688b",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "evidence_paths": []
+      },
+      {
+        "execution_id": "VE-FINAL-HARNESS-1",
+        "verifier_id": "final-harness-suite",
+        "layer": "final",
+        "mission_id": null,
+        "task_id": null,
+        "attempt_id": null,
+        "lease_id": null,
+        "protocol": "harness-verifier-execution-v1",
+        "execution_key": "ce234c797989ce72aff3dc2f36f1f7cbcfa1ce794b605687caab4083bd735d35",
+        "evidence_key": "ce234c797989ce72aff3dc2f36f1f7cbcfa1ce794b605687caab4083bd735d35",
+        "key_document": {
+          "protocol": "harness-verifier-execution-v1",
+          "verifier_id": "final-harness-suite",
+          "layer": "final",
+          "mission_id": null,
+          "task_id": null,
+          "attempt_id": null,
+          "lease_id": null,
+          "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
+          "graph_revision": 2,
+          "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+          "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+          "changed_files_digest": "cfc0efe6ef9363d8161870dbe971a1465879356014b047e898e33e22f2fb1453",
+          "trust_domain": "parent_local",
+          "checkout_role": "integration",
+          "checkout_dirty": false,
+          "cache_safe": false,
+          "cwd": ".",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests",
+            "-v"
+          ],
+          "pass_signal": "exit 0",
+          "cache_mode": "disabled",
+          "environment_keys": [],
+          "platform": {
+            "system": "Windows",
+            "machine": "AMD64"
+          },
+          "executable_identity": {
+            "path": "c:\\python314\\python.exe",
+            "size": 106208,
+            "mtime_ns": 1778384554000000000,
+            "device": 16345964255906345721,
+            "inode": 36591746972481370
+          },
+          "environment_digests": {}
+        },
+        "verifier": {
+          "id": "final-harness-suite",
+          "cwd": ".",
+          "argv": [
+            "python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests",
+            "-v"
+          ],
+          "pass_signal": "exit 0",
+          "cache": {
+            "mode": "disabled",
+            "environment_keys": []
+          }
+        },
+        "context": {
+          "run_id": "RUN-FRONTEND-DESIGN-WIREFRAME",
+          "plan_revision": 2,
+          "plan_digest_sha256": "e0c34c30b722a2571395439bbe509cc8a8c18d93f0da80368ec33c2a59318485",
+          "graph_revision": 2,
+          "batch_base_sha": "4e6b9ae861cb3c2f1afdbf5cfbe4f2934705c7d0",
+          "head_sha": "77536e402d6b9edab9f4b09a8870d8926bf0589f",
+          "changed_files": [
+            ".agents/skills/fullstack-harness-engineering/SKILL.md",
+            ".agents/skills/fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md",
+            ".agents/skills/fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md",
+            ".agents/skills/fullstack-harness-engineering/references/contract-and-traceability.md",
+            ".agents/skills/fullstack-harness-engineering/references/design-input-updates.md",
+            ".agents/skills/fullstack-harness-engineering/references/execution-task-decomposition.md",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py",
+            ".agents/skills/fullstack-harness-engineering/scripts/tests/test_skill_contract.py",
+            ".agents/skills/prd-builder/SKILL.md",
+            ".agents/skills/prd-builder/references/output-contract.md",
+            ".agents/skills/prd-builder/references/wireframe-guide.md",
+            ".agents/skills/prd-builder/scripts/tests/test_skill_contract.py",
+            ".agents/skills/ui-architecture-builder/SKILL.md",
+            ".agents/skills/ui-architecture-builder/agents/openai.yaml",
+            ".agents/skills/ui-architecture-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js",
+            ".agents/skills/ui-architecture-builder/assets/templates/DESIGN_SYSTEM.template.md",
+            ".agents/skills/ui-architecture-builder/references/artifact-lifecycle.md",
+            ".agents/skills/ui-architecture-builder/references/dynamic-workflow.md",
+            ".agents/skills/ui-architecture-builder/references/output-contract.md",
+            ".agents/skills/ui-architecture-builder/references/ui-architecture-guide.md",
+            ".agents/skills/ui-architecture-builder/references/visual-decision-guide.md",
+            ".agents/skills/ui-architecture-builder/scripts/tests/test_skill_contract.py",
+            "docs/goal/PLAN.md",
+            "docs/goal/RUN.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/SKILL.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/references/contract-and-traceability.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/references/design-input-updates.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/references/execution-task-decomposition.md",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests/test_cross_skill_pipeline.py",
+            "plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests/test_skill_contract.py",
+            "plugins/fullstack-harness/skills/prd-builder/SKILL.md",
+            "plugins/fullstack-harness/skills/prd-builder/references/output-contract.md",
+            "plugins/fullstack-harness/skills/prd-builder/references/wireframe-guide.md",
+            "plugins/fullstack-harness/skills/prd-builder/scripts/tests/test_skill_contract.py",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/SKILL.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/agents/openai.yaml",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/assets/templates/DESIGN_SYSTEM.template.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/artifact-lifecycle.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/dynamic-workflow.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/output-contract.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/ui-architecture-guide.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/references/visual-decision-guide.md",
+            "plugins/fullstack-harness/skills/ui-architecture-builder/scripts/tests/test_skill_contract.py"
+          ],
+          "trust_domain": "parent_local",
+          "checkout_role": "integration",
+          "checkout_dirty": false,
+          "cache_safe": false,
+          "layer": "final",
+          "mission_id": null,
+          "task_id": null,
+          "attempt_id": null,
+          "lease_id": null
+        },
+        "status": "PASS",
+        "exit_code": 0,
+        "cache_status": "bypassed",
+        "cache_reason": "cache_disabled",
+        "duration_ms": 7250,
+        "metrics": {
+          "executed": 1,
+          "reused": 0
+        },
+        "stdout_sha256": "3499a57ee70e49f3c2c802b8e7998862b64564f7908263c744bdc2dad867f0eb",
+        "stderr_sha256": "4abb9ebc9e37b07712c8fa5d0b6d06d07279e6567c6f7d4adeca5856fd337e26",
+        "evidence_paths": []
+      }
+    ],
     "attempt_log": [
       {
         "attempt_id": "ATT-M1-1",
