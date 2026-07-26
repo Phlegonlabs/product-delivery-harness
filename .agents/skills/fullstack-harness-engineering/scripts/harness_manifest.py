@@ -3981,13 +3981,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         and review_worker.get("reviewed_sha") == head_sha
                         and review_worker.get("worker_runtime")
                         in {"parent", "subagent", "app_task"}
-                        and review_worker.get("phase")
-                        in {
-                            "worker_passed",
-                            "blocked",
-                            "worker_failed",
-                            "superseded",
-                        }
+                        and review_worker.get("phase") == "worker_passed"
                         and review_worker.get("outcome") is not None
                     ),
                     None,

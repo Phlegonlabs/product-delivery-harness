@@ -654,6 +654,39 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
+    def test_failed_review_worker_cannot_satisfy_integration_gate(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-FAILED",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-FAILED",
+                "blockers": [],
+            }
+        )
+        failed_worker = exact_head_review_worker(
+            node_id="N-FRONTEND-REVIEW",
+            worker_id="RW-FAILED",
+            attempt_id="ATT-REVIEW-FAILED",
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        failed_worker["phase"] = "worker_failed"
+        run["review_workers"] = [failed_worker]
+        run["mission_states"]["M1"]["phase"] = "integrating"
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("every planned pre-integration review node" in error for error in errors),
+            errors,
+        )
+
     def test_integration_waits_for_every_planned_preintegration_review(
         self,
     ) -> None:
@@ -715,6 +748,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                 outcome="fix_required",
             )
         )
+        run["review_workers"][-1]["phase"] = "worker_passed"
         third_state = run["graph_state"]["node_states"][
             "N-FRONTEND-REVIEW-THIRD"
         ]
