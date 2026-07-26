@@ -707,7 +707,9 @@ class SelectReadyNodesTests(unittest.TestCase):
             )
         )
 
-    def test_preintegration_shortcut_rejects_multi_mission_review(self) -> None:
+    def test_multi_mission_review_cannot_replace_preintegration_review(
+        self,
+    ) -> None:
         plan, run = current_preintegration_review_state()
         nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
         review = nodes["N-FRONTEND-REVIEW"]
@@ -731,7 +733,14 @@ class SelectReadyNodesTests(unittest.TestCase):
         run["workers"][0]["plan_digest_sha256"] = digest
         run["mission_states"]["M1"]["phase"] = "integrating"
 
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_malformed_current_mission_states_return_validation_errors(self) -> None:
         plan, run = current_preintegration_review_state()

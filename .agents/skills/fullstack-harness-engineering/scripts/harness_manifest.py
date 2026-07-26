@@ -3858,8 +3858,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 .get("review", {})
                 .get("mission_ids", [])
             }
-            if not preintegration_review_ids:
-                continue
             raw_graph_state = run.get("graph_state")
             raw_node_states = (
                 raw_graph_state.get("node_states")
