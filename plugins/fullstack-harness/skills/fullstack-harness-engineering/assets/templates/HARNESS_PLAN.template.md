@@ -111,7 +111,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         {
           "id": "web-development",
           "stage": "development",
-          "source": "pr_head",
+          "source": "integration_head",
           "artifact_kind": "cloudflare_worker_bundle",
           "requires_signing": false,
           "channel": "workers-development",

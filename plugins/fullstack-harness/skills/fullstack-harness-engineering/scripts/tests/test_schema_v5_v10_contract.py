@@ -108,7 +108,10 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("Publish the accepted revision to the canonical source location", plan)
 
     def test_plan_release_targets_are_provider_neutral_and_complete(self) -> None:
-        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        plan_text = self.read("assets/templates/HARNESS_PLAN.template.md")
+        plan = self.canonical_manifest(
+            "assets/templates/HARNESS_PLAN.template.md", "harness_plan"
+        )
 
         for field in (
             '"id": "web-development"',
@@ -126,8 +129,11 @@ class SchemaV5V10ContractTests(unittest.TestCase):
             '"prerequisites":',
             '"smoke_verifiers":',
         ):
-            self.assertIn(field, plan)
-        self.assertIn("Stable target IDs are provider-neutral", plan)
+            self.assertIn(field, plan_text)
+        targets = {target["id"]: target for target in plan["release"]["targets"]}
+        self.assertEqual("integration_head", targets["web-development"]["source"])
+        self.assertEqual("production_head", targets["web-production"]["source"])
+        self.assertIn("Stable target IDs are provider-neutral", plan_text)
 
     def test_run_v10_binds_plan_targets_authorization_and_evidence(self) -> None:
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
@@ -232,6 +238,10 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         )
         self.assertIn("`workflow:<identity>`", lifecycle)
         self.assertIn("PLAN-v5 keeps provider-neutral release targets", guide)
+        self.assertIn("<resolved-integration-branch>", guide)
+        self.assertIn("<resolved-protected-base-branch>", guide)
+        self.assertNotIn("watches branch: `development`", guide)
+        self.assertNotIn("watches branch: `production`", guide)
 
     def test_lazy_pillow_and_readme_current_outputs_are_documented(self) -> None:
         skill = self.read("SKILL.md")

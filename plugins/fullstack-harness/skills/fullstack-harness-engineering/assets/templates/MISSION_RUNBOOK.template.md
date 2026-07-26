@@ -20,7 +20,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "edfaaf4cb300d77f23d8f4c30fb49e25710c6819a896c7118cca2131d4f0a1eb"
+      "digest_sha256": "b3d2e84059f28ec9a041e02ea380d20d3041813fdaf2963d30bddad2edb95a2f"
     },
     "status": "draft",
     "intent": "plan-only",
