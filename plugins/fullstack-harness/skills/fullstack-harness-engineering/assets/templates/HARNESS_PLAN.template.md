@@ -146,7 +146,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         {
           "id": "web-production",
           "stage": "production",
-          "source": "merged_main",
+          "source": "production_head",
           "artifact_kind": "cloudflare_worker_bundle",
           "requires_signing": false,
           "channel": "workers-production",
@@ -163,7 +163,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
             "migrate": null,
             "publish": null
           },
-          "prerequisites": ["development_pass", "merged_main"],
+          "prerequisites": ["development_pass", "production_promoted"],
           "smoke_verifiers": [
             {
               "id": "smoke-web-production",
@@ -955,7 +955,7 @@ Release target:
 
 Stable target IDs are provider-neutral and must survive provider configuration changes. Each canonical target declares `id`, `stage`, `source`, `artifact_kind`, `requires_signing`, `channel`, `data_mode`, `trigger`, `migration_classification`, exact `commands.build`/`commands.migrate`/`commands.publish`, `prerequisites`, and `smoke_verifiers`. Include at least one development and one production target. Use `migration_classification: "not_applicable"` with `commands.migrate: null` only when no migration is needed. A manual target requires a publish command; a merge-triggered target sets it to null because the provider performs publication after the authorized merge.
 
-A development target may bind to `pr_head` or a retained `integration_head`; a production target binds to `merged_main`. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
+A development target may bind to `pr_head` or the retained `development` `integration_head`; a production target binds to `production_head` after the user-approved `development -> production` promotion. `merged_main` remains readable only for older plans. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
 
 These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10. A native merge-triggered publication requires exact merge/landing authorization for the PR and its `release:<target-id>` consequence plus exact deployment authorization for the same target and head. Never infer deployment authorization from merge authorization.
 

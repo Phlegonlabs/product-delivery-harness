@@ -148,8 +148,15 @@ def _validate_release_targets_v5(
             if target["data_mode"] != "isolated_non_production":
                 _add(errors, f"{target_path}.data_mode", "development must use isolated_non_production")
         if stage == "production":
-            if target["source"] is not None and target["source"] != "merged_main":
-                _add(errors, f"{target_path}.source", "production must use merged_main")
+            if target["source"] is not None and target["source"] not in {
+                "production_head",
+                "merged_main",
+            }:
+                _add(
+                    errors,
+                    f"{target_path}.source",
+                    "production must use production_head (or legacy merged_main)",
+                )
             if target["data_mode"] != "production":
                 _add(errors, f"{target_path}.data_mode", "production must use production")
 
@@ -773,6 +780,7 @@ def _validate_targets(
         expected_source = {
             "pr_head": landing.get("pr_head_sha"),
             "integration_head": integration.get("integration_head_sha"),
+            "production_head": landing.get("merged_sha"),
             "merged_main": landing.get("merged_sha"),
         }.get(source)
         trigger = declared.get("trigger")

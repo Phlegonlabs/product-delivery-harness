@@ -154,7 +154,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
             "cloud-resource:<provider>:<environment>:<kind>:<logical-name>", run
         )
 
-    def test_run_v10_retains_parent_owned_verifier_executions_and_branch_continuity(self) -> None:
+    def test_run_v10_retains_verifier_executions_and_development_continuity(self) -> None:
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
         self.assertIn('"verifier_executions": [', run)
@@ -162,7 +162,9 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("append-only and parent-owned", run)
         self.assertIn('"continuity": {', run)
         self.assertIn('"status": "planned"', run)
-        self.assertIn("later-PR branch continuity", run)
+        self.assertIn('"branch": "refs/heads/development"', run)
+        self.assertIn('"base_branch": "production"', run)
+        self.assertIn("Retain reviewed work on development", run)
 
     def test_review_repair_review_graph_is_bounded(self) -> None:
         plan = self.canonical_manifest(

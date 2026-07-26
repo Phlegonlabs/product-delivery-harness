@@ -30,11 +30,11 @@ Confirm with `scripts/check_wrangler_binding_isolation.py --wrangler-config <pat
 
 ### If Auto-Deploy Release Model
 
-- Development Worker's Cloudflare dashboard Git connection watches branch: `<integration branch name>`.
-- Production Worker's Cloudflare dashboard Git connection watches branch: `<base branch name, e.g. main>`.
+- Development Worker's Cloudflare dashboard Git connection watches branch: `development`.
+- Production Worker's Cloudflare dashboard Git connection watches branch: `production`.
 - Deploy command per environment: `wrangler deploy --env development` / `wrangler deploy --env production`.
 - Non-production branch deploy command (any other branch): `wrangler versions upload` (default; uploads a version without promoting it live).
-- `run.integration.retention` must be `"persistent"` for this model — confirm the integration branch is not deleted between runs.
+- `run.integration.retention` must be `"persistent"` for this model — confirm `development` is not deleted between runs and `production` is protected from direct pushes.
 
 ## Custom Domains
 

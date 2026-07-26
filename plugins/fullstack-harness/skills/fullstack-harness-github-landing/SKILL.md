@@ -30,15 +30,21 @@ manage_pr_review
 merge_pr
 ```
 
-Local branch, commit, and integration authorization remains in the core ledger. At Plan Readiness, request every missing launch and landing action once. Before a PR exists, bind `manage_pr_review` and `merge_pr` to `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>`. After PR creation, verify repository/base/head and append the exact `pr:<full-PR-URL>` target without discarding the future binding or user source.
+Local branch, commit, review, and integration authorization remains in the core ledger. At Plan Readiness, request every missing action for the outcome that is currently in scope. Ordinary mission work ends on `development`; do not include a future `development -> production` promotion merely because implementation is authorized. After the user gives final approval to start production promotion, bind `manage_pr_review` and `merge_pr` to `future-pr:<owner>/<repo>:base=production:head=development`. After PR creation, verify repository/base/head and append the exact `pr:<full-PR-URL>` target without discarding the future binding or user source.
 
 `create_pr` does not authorize marking ready, requesting or resolving review, changing repository settings, or merging. `manage_pr_review`, `configure_repository`, and `merge_pr` remain independent.
+
+## Development To Production Promotion
+
+The target repository uses `development` as the persistent implementation and integration branch and `production` as the protected promotion branch. Mission worktrees are reviewed before they merge into `development`; this adapter does not open one production PR per worktree.
+
+Do not push, create a promotion PR, request production review, or merge toward `production` until the user explicitly reviews the accumulated `development` result and approves starting the promotion. That late approval is not inferred from earlier implementation, local integration, deployment, or generic landing authorization. After it is recorded, require the exact `development` head and `production` base for every head-bound action and run the normal current-head convergence loop. Later PRD/PLD, UI, and feature changes start from `development` again, never from `production`.
 
 ## Local-First, Remote-Final Policy
 
 Remote CI is a final-head release gate, not a per-mission development loop:
 
-1. Complete selected task checks, real integration checks, exact-SHA runtime review/repair, broad regression, E2E/UI evidence, `git diff --check`, and final diff review locally.
+1. Complete selected task checks, per-worktree exact-head review before integration, real `development` integration checks, exact-SHA runtime review/repair, broad regression, E2E/UI evidence, `git diff --check`, and final diff review locally.
 2. Commit the verified integration head under exact local authorization.
 3. Push only that final candidate head. Do not push intermediate worker heads merely to obtain CI.
 4. Create the PR only when authorized, using `gh pr create --body-file` rendered from `../fullstack-harness-engineering/assets/templates/PULL_REQUEST.template.md` (fill in the verification command and landing checklist) as the body base. If review management is authorized and the repository requires a ready PR for review, mark it ready and request Codex review immediately after creation — when the repository does not have Automatic reviews enabled, this means commenting `@codex review` on the PR (`gh pr comment --body "@codex review"`); do not wait for CI first.
@@ -69,11 +75,12 @@ Do not repeatedly run the complete GitHub pipeline for unchanged local work. Do 
 
 ## Authorized Automatic Pull-Request Landing
 
-When every remaining action is authorized, do not stop after local verification, push, PR creation, CI start, or review request. The parent owns one continuous landing loop through current-head convergence.
+After final user approval starts the `development -> production` promotion and every remaining action is authorized, do not stop after local verification, push, PR creation, CI start, or review request. The parent owns one continuous landing loop through current-head convergence.
 
 Enable squash auto-merge only after:
 
 - the PR head still equals the verified integration head;
+- the PR head branch is `development` and the base branch is `production`;
 - required current-head CI, including required E2E, is PASS;
 - current-head Codex review is PASS;
 - blocking findings and unresolved threads are zero;

@@ -3,25 +3,19 @@
 Use this reference when a deployable application targets Cloudflare. The default release shape is one repository and one codebase deployed to two isolated Workers:
 
 ```text
-current PR head -> development Worker -> deployed-environment E2E
-merged main SHA -> production Worker -> production smoke
+reviewed development head -> development Worker -> deployed-environment E2E
+user-approved development -> production promotion
+production head -> production Worker -> production smoke
 ```
 
-`development` and `production` are Cloudflare environments. `main` is the Git base branch, not an environment name. Do not add a long-lived `development` branch unless the repository already uses one or the user explicitly chooses that branching model.
-
-Resolve the branching model before freezing the release contract, because the two models bind the development deploy to different sources and cannot be swapped mid-run:
-
-- **No long-lived development branch (default).** The development Worker deploys from the current PR head. This requires `landing.mode: pull_request` — `local_only` has no PR head to bind to, so it cannot satisfy a development deploy.
-- **Long-lived development branch.** The user asked for one, or the repository already has one. This is the Auto-Deploy Release Model below: `source: integration_head` with a persistent integration branch. Ask which branch is the integration branch and record it before planning.
-
-A user asking for work to "land on a development branch" has chosen the second model. Do not plan the default shape and then discover the mismatch at deploy time.
+`development` and `production` are both Git branches and isolated Cloudflare environments in the target repository's standard model. Mission worktrees start from and merge back into the persistent `development` branch after exact-head review. The `production` branch changes only through a later user-approved promotion from `development`.
 
 ## Static Release Contract
 
 New Cloudflare release PLAN files use PLAN schema v5 and the same provider-neutral target shape as every other release. Use stable target IDs such as `web-development` and `web-production`; do not add provider-specific PLAN keys. Existing older release schemas remain readable. Non-deployable plans omit `release`.
 
-- The development target uses `stage: development`, `source: pr_head` by default, `data_mode: isolated_non_production`, and `trigger: manual`. It may use `source: integration_head` with `trigger: merge` only for the explicit native Git model below.
-- The production target uses `stage: production`, `source: merged_main`, `data_mode: production`, and either a manual or merge trigger chosen at plan time.
+- The development target uses `stage: development`, `source: integration_head`, `data_mode: isolated_non_production`, and a manual or merge trigger chosen at plan time.
+- The production target uses `stage: production`, `source: production_head`, `data_mode: production`, and a manual or merge trigger chosen at plan time. `merged_main` remains readable only in older plans.
 
 Every target contains exactly `id`, `stage`, `source`, `artifact_kind`, `requires_signing`, `channel`, `data_mode`, `trigger`, `migration_classification`, `commands`, `prerequisites`, and `smoke_verifiers`. `commands` contains `build`, `migrate`, and `publish`; a manual target requires a publish command, while a merge-triggered target records `publish: null`. A null `migration_classification` is unresolved and blocks execution. Never store secrets, tokens, private keys, customer data, or copied production credentials in PLAN or RUN.
 
@@ -54,7 +48,7 @@ Production reaches `PASS` only after applicable prerequisite targets pass, GitHu
 
 ## Authorization And Triggering
 
-Deployment remains separate from push, PR merge, remote workflow triggering, cloud-resource provisioning, and repository configuration. At Plan Readiness, ask once for every known exact target. `deploy` uses `release:<target-id>`. Dispatching remote CI additionally uses `trigger_remote_ci` with `workflow:<identity>`. Installing or changing the workflow uses `configure_repository`; creating provider resources uses `provision_cloud_resources` with exact cloud-resource targets.
+Deployment remains separate from push, PR merge, remote workflow triggering, cloud-resource provisioning, and repository configuration. Development deploy authorization may be requested with ordinary work. Production deploy and promotion actions wait for the user's separate final approval to start `development -> production`. `deploy` uses `release:<target-id>`. Dispatching remote CI additionally uses `trigger_remote_ci` with `workflow:<identity>`. Installing or changing the workflow uses `configure_repository`; creating provider resources uses `provision_cloud_resources` with exact cloud-resource targets.
 
 One explicit user statement may authorize several exact targets, but no action is inferred from another. For a native merge-triggered publication, require independent exact `merge_pr` and `deploy` grants, bound to the same PLAN revision/digest, candidate head, and `release:<target-id>`. The merge grant authorizes landing the candidate head. The deploy grant authorizes the publication consequence. After merge, observe and retain the resulting merged source SHA separately.
 
@@ -64,12 +58,12 @@ Use `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` for a manual targe
 
 This is an explicit alternative to the default dispatched-GitHub-Actions model in "Authorization And Triggering" above. Choose it only when the user explicitly wants Cloudflare's own native Git integration (Workers Builds) to auto-deploy on push instead of harness-dispatched deploys. Do not default to this model; the dispatched-Actions model above remains the default.
 
-**Branch and Worker topology.** Unlike the default dispatched-Actions model, where `run.integration.branch` equals `landing.base_branch` itself and mission work merges directly into `main`, this model uses `run.integration.branch` as a separate, persistent branch distinct from `main` (commonly named `development`) — mission work lands there first, Cloudflare deploys it continuously, and promoting it into `main` (which triggers the production Worker) is a separate, later, harness-owned action; see "No pause point" below for exactly when that promotion happens. Connect the repository directly to Cloudflare Workers Builds using two separate Cloudflare Worker resources, each independently connected via Cloudflare's Git integration to the *same* repository:
+**Branch and Worker topology.** This model uses persistent `development` for `run.integration.branch` and protected `production` for `landing.base_branch`. Mission work lands on `development` only after worktree review. Promoting `development` into `production`, which triggers the production Worker, is a separate later action that starts only after final user approval. Connect the repository directly to Cloudflare Workers Builds using two separate Cloudflare Worker resources, each independently connected via Cloudflare's Git integration to the same repository:
 
-- The **development** Worker watches the harness's own integration branch (`run.integration.branch` — the long-lived branch where mission work lands before promotion; the user may name this branch literally `development`). Its Cloudflare "Deploy command" is `wrangler deploy --env development`.
-- The **production** Worker watches `main` (the harness's `landing.base_branch`). Its Cloudflare "Deploy command" is `wrangler deploy --env production`.
+- The **development** Worker watches `development`. Its Cloudflare "Deploy command" is `wrangler deploy --env development`.
+- The **production** Worker watches `production`. Its Cloudflare "Deploy command" is `wrangler deploy --env production`.
 - Both Workers, and any confirmed D1/KV/R2/Durable Object/queue bindings they need, should already exist per this doc's "Day one resource creation" step above (in "Wrangler Config and Account Bootstrap") before wiring up their Git connections — creating them at that point, rather than only now, avoids a second isolation check later and means the per-environment binding IDs are already correct in `wrangler.jsonc` before Cloudflare starts auto-deploying on every push. Then connect the same repository separately to each Worker — each with its own branch-to-listen-to setting and its own deploy command, per Cloudflare's own advanced-setup guidance.
-- The persistent `run.integration.branch` itself (for example `development`) must also already exist before wiring the development Worker's Git connection — Cloudflare's dashboard can only select from branches that already exist in the repository. On the first run that adopts this model, create it once (branch off `landing.base_branch`, push it), per `MISSION_RUNBOOK.template.md`'s integration-branch-creation paragraph; every later run then finds it already there and reuses it instead of creating it again.
+- Both persistent branches must exist before wiring the Workers' Git connections. If either is missing, report it and obtain exact branch-creation authorization; do not create it implicitly.
 - Declare `run.integration.retention: "persistent"` for this model, since the development Worker's Cloudflare Git connection depends on this branch surviving across runs rather than being recreated and deleted each time. This is enforced, not just a reminder: `validate_harness_plan.py` rejects a `development` release target whose `source` is `integration_head` unless `run.integration.retention` is exactly `"persistent"`. See `MISSION_RUNBOOK.template.md`'s integration-branch-creation paragraph for the exact mechanics of how a persistent branch is reused as a run's starting base instead of created fresh.
 - `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` is NOT used in this model at all. That template belongs only to the default dispatched-Actions model. Do not wire up both at once.
 
@@ -78,17 +72,17 @@ Cloudflare's own mechanism has no approval or review gate: pushing to a Worker's
 - https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
 - https://developers.cloudflare.com/workers/ci-cd/builds/advanced-setups/
 
-**Release-target `source` value.** Under this model, the development release target's `source` may be `integration_head` (in addition to the existing `pr_head`), chosen at PLAN-authoring time to declare that this alternative model is in use. When `source: integration_head`, the development RUN target's PASS binds to `run.integration.integration_head_sha` (the harness's already-tracked, live-Git-cross-checked integration branch head) instead of to any PR field. There is no per-PR development deploy in this model, since Cloudflare deploys continuously on every push to the integration branch regardless of whether a PR against `main` is even open yet. Production's `source` stays `merged_main` unchanged — that part of the contract does not change between the two models.
+**Release-target `source` value.** The development release target uses `integration_head`, binding PASS to the live-Git-cross-checked `development` head in `run.integration.integration_head_sha`. Production uses `production_head`, which binds to `landing.merged_sha` after the approved `development -> production` promotion.
 
-**No pause point — the checkpoint moves to the merge, not the deploy.** Because Cloudflare's infrastructure fires the deploy automatically and immediately on push, the harness cannot intercept "the moment before the deploy command runs" the way it does in the dispatched model — there is no separate deploy command for the harness to gate. The control point the harness DOES still fully own is **merging/pushing the integration branch into `main`** (an `integrate_locally`/`merge_pr`/`push`-authorized action already gated by the existing authorization ledger), since that merge is what triggers the production Worker's auto-deploy almost immediately afterward. Therefore, in this model, run the "Pre-Deploy Confirmation Checkpoint" below (SHA-drift comparison and migration-destructiveness classification) **immediately before the harness merges/pushes the integration branch into `main`**, not before a separate deploy command — in this model that merge IS effectively the production deploy trigger.
+**No pause point — the checkpoint moves to the promotion merge.** Because Cloudflare deploys automatically on branch changes, the harness gates the exact `development -> production` merge. Run the Pre-Deploy Confirmation Checkpoint immediately before that approved merge because it is effectively the production deploy trigger.
 
-**Substitute boundary for out-of-band merges.** The harness's own pre-merge checkpoint only fires when the harness itself performs the merge. To guard against someone bypassing the harness and merging the integration branch into `main` directly, recommend the user enable GitHub branch protection on `main` (require a pull request, require review, disallow direct pushes). This is good practice regardless of which release trigger model is chosen, but it is the ONLY remaining safety boundary against an out-of-band production deploy in this alternative model, since Cloudflare's own auto-deploy has no approval gate of its own.
+**Substitute boundary for out-of-band merges.** Protect `production`: require a pull request and review, and disallow direct pushes. This is the remaining safety boundary against an out-of-band production deploy because Cloudflare's own auto-deploy has no human approval gate.
 
 ## Pre-Deploy Confirmation Checkpoint
 
-The `deploy` authorization for the exact `release:<production-target-id>` granted at Plan Readiness lets the landing-and-deploy loop run without pausing for a second authorization. It does not license firing the production deploy blindly. Before the parent actually runs the production deploy command, verify two things and surface them to the user. This is a confirmation/notification checkpoint at the moment of execution, not a new ledger action. Under the default dispatched model this checkpoint runs right before the production deploy command fires; under the "Auto-Deploy Release Model (Alternative Trigger)" above it runs right before the harness merges the integration branch into `main` instead — same checks, different trigger moment, per that section.
+The final user approval starts production promotion; exact `merge_pr` and `deploy` authorizations still remain independent. Before the parent runs the production deploy command or performs the auto-deploy-triggering `development -> production` merge, verify the exact SHA and migration classification below.
 
-**Deploying SHA drift.** At the moment `deploy` is authorized for the exact production release target (Plan Readiness), record the current integration head SHA into `targets[production-id].authorized_head_sha`. Before the production deploy fires, compare that recorded value against the live SHA about to be deployed. If they differ — because review-repair, a new push, or re-integration changed the head since authorization — stop and ask for a fresh, explicit confirmation naming the new SHA, and update `authorized_head_sha` to match. The old authorization covered the code the user saw when they granted it; do not silently ship a different SHA under it.
+**Deploying SHA drift.** At the final production-promotion approval checkpoint, record the current `development` head SHA into `targets[production-id].authorized_head_sha`. Before production promotion or deploy fires, compare that value against the live SHA about to be promoted. If they differ because review-repair, a new push, or re-integration changed the head, stop and ask for a fresh explicit confirmation naming the new SHA.
 
 **Migration destructiveness.** Before running any migration as part of the production deploy, classify it:
 
@@ -118,7 +112,7 @@ On failure:
 - Do not mark production PASS when its smoke test fails, even if the upload succeeded.
 - Record the last known rollback version when Cloudflare exposes one; do not invent it for a first deployment.
 - Treat any new PR push as stale development evidence and redeploy/reverify the new current head.
-- Treat any change to merged `main` as stale production evidence until that exact SHA is deployed and smoked.
+- Treat any change to `production` as stale production evidence until that exact SHA is deployed and smoked.
 
 Recheck current official Cloudflare documentation and the installed Wrangler config schema before using fast-moving configuration fields or command options:
 

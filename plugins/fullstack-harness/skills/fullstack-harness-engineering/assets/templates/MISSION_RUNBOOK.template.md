@@ -4,7 +4,7 @@ Use this template as `docs/goal/RUN.md` only after the Project Size Gate classif
 
 For compact large sequential work that intentionally has no `PLAN.md`, use the supported compact RUN-only schema described by `references/execution-state-model.md`; do not copy this PLAN-backed RUN schema v10 manifest and null its PLAN fields. Compact mode does not claim static plan or graph validation and cannot delegate writes, accept execution-time task refinement, use release targets, or use a selector. Before crossing those boundaries, create and validate a PLAN schema v5 file and a fresh RUN schema v10 file from this template.
 
-For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. Choose landing from the requested outcome: local branch, commit, or integration work stays `local_only` and does not wait for GitHub. When pull-request landing is explicitly requested, inspect the review and merge path and request every missing launch and landing action in one Plan Readiness checkpoint. Before the PR exists, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` for its review and merge targets. Record approvals under separate exact ledger entries, rerun selection after the answer, and continue through authorized review and merge without repeated prompts. Start or observe current-head CI and Codex review concurrently after the final candidate is pushed. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
+For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. In the target repository, create mission worktrees from the current `development` SHA, require one exact-head read-only review before each integration, and merge passing heads serially into persistent `development`. Ordinary PRD/PLD, UI, and feature work stays `local_only` and does not wait for GitHub. Do not begin a `development -> production` pull-request promotion until the user separately reviews the accumulated development result and gives final approval. At that late checkpoint, request the exact remaining landing actions and use `future-pr:<owner>/<repo>:base=production:head=development` until the PR exists. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
 
 RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
 
@@ -20,7 +20,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "143e2b535d8cb4672598dc50634acc63d1bf45a5596ae1fbfe6f582f0ecdbac4"
+      "digest_sha256": "f133972d3225a587bb1c47ad206171fa43a629531cce39b38d3c7562928af2d9"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -163,7 +163,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
       }
     },
     "integration": {
-      "branch": "refs/heads/harness/<stable-run-branch>",
+      "branch": "refs/heads/development",
       "retention": "persistent",
       "batch_base_sha": null,
       "integration_head_sha": null
@@ -194,8 +194,8 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "landing": {
       "mode": "local_only",
       "remote": "origin",
-      "head_branch": "refs/heads/harness/<stable-run-branch>",
-      "base_branch": "main",
+      "head_branch": "refs/heads/development",
+      "base_branch": "production",
       "pushed_head_sha": null,
       "pr_number": null,
       "pr_url": null,
@@ -213,9 +213,9 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
       "auto_merge_head_sha": null,
       "continuity": {
         "status": "planned",
-        "branch_ref": "refs/heads/harness/<stable-run-branch>",
+        "branch_ref": "refs/heads/development",
         "head_sha": null,
-        "reason": "Retain the verified local-only integration branch for a later pull request"
+        "reason": "Retain reviewed work on development until the user approves promotion to production"
       }
     },
     "targets": {
@@ -247,7 +247,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "post_merge_cleanup": {
       "status": "not_started",
       "base": {
-        "branch": "main",
+        "branch": "production",
         "head_sha": null,
         "merged_sha_reachable": null
       },
@@ -478,7 +478,7 @@ RUN schema v10 has 19 independent action entries. Keep every entry false unless 
 
 `graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. A runtime review's `fix_required` outcome traverses only its bounded repair route; a passing repair returns to the same review before a deterministic final gate. Every retry uses a new attempt ID, preserves prior evidence, and rechecks authorization.
 
-New RUN files default to `mode: "local_only"`; switch to `pull_request` only when the user explicitly requests remote landing. A RUN-v10 local-only run records no remote checks/review/merge evidence and preserves later-PR branch continuity: `landing.head_branch` equals `integration.branch`, differs from `landing.base_branch`, and `landing.continuity` reaches `preserved` at the exact integration head before closeout. Pull-request mode sets continuity to `not_required`.
+New RUN files default to `mode: "local_only"` with persistent `development` named by both `integration.branch` and `landing.head_branch`, and protected `production` named by `landing.base_branch`. A local-only run records no remote checks/review/merge evidence and preserves `development` at the exact integration head. Switch to `pull_request` only after the user gives final approval to start `development -> production`; pull-request mode sets continuity to `not_required`.
 
 When PLAN declares release targets, `run.targets` keys must exactly equal the PLAN `release.targets[].id` set. PASS requires exact source/head binding plus retained artifact, channel, promotion, and availability evidence. Every evidence object has a retained reference and lowercase SHA-256; artifact evidence also records build ID, version, and signing status. Release execution never weakens action boundaries: a native merge-triggered publication requires exact merge/landing authorization and exact deployment authorization for the same release target and head. Never infer deployment authorization from merge authorization.
 
@@ -501,9 +501,9 @@ Schemas v5 through v10 use `post_merge_cleanup` only after a pull request reache
 
 Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. When `run.integration.retention == "persistent"`, `post_merge_cleanup.local_branch.status` must be `"preserved"`, not `"deleted"` — the branch itself is never removed by cleanup, though its temporary worktree directory (a separate concern) may still be removed normally via `remove_worktrees` when one was allocated for this run. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
 
-Create and integrate on the parent-owned retained branch named by both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. This branch is the continuity point in both landing modes. In `local_only`, do not push or create remote evidence; after final local verification, record `landing.continuity.status: "preserved"` and bind its branch ref and head SHA to the exact integration head so a later authorized pull request can continue from it. In `pull_request`, set continuity to `not_required`, push this same final candidate branch, and continue through the remote landing flow. Worker branches and worktrees never become the landing branch. Converge focused checks, mission integration, bounded review-repair-review, batch checks, and exact-SHA runtime review before expensive final regression, browser E2E, screenshot, and release gates. Any repair that changes the head invalidates affected current-head evidence.
+Create mission worktrees from the current `development` head. Before each parent integration, require at least one read-only review bound to the exact worktree head; repair findings in that worktree and review the changed head again. Integrate passing worktrees serially into the parent-owned persistent `development` branch named by both `integration.branch` and `landing.head_branch`; `landing.base_branch` is protected `production`. In `local_only`, do not create remote promotion evidence. After final local verification, record `landing.continuity.status: "preserved"` at the exact development head. In `pull_request`, which begins only after final user approval, set continuity to `not_required` and promote `development -> production`. Worker branches and worktrees never become production branches.
 
-When every state mutation that remains in the landing path has matching unexpired authorization for the current PLAN revision/digest and exact targets—normally `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `trigger_remote_ci` when a workflow must be dispatched, `manage_pr_review`, and `merge_pr` for a new delivery—treat that order as one continuous parent-owned landing loop. Request the complete missing set once at Plan Readiness rather than discovering ordinary landing approvals stage by stage. For unborn PR review and merge entries, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Do not pause merely because a Draft PR was created, CI is pending, or review was requested. Poll each gate, record its result against the current PR head, repair only authorized in-scope failures, and restart CI/review after every new push. Request Codex review with the observed repository mechanism; when Automatic reviews are not proven, use `@codex review` and wait for the completed review rather than its acknowledgement. Enable squash auto-merge with an exact head-SHA match only after checks and review PASS with zero blocking findings and unresolved threads, then wait until GitHub reports the PR merged and record the merge SHA. Missing repository configuration still requires separate `configure_repository` authorization, though an observed need may be included in the same readiness checkpoint; deploy and cleanup remain outside this loop.
+Do not include production promotion in an ordinary mission run's authorization bundle. After the user separately approves starting `development -> production`, require matching unexpired authorization for every remaining exact action—normally `push`, `create_pr`, `trigger_remote_ci` when a workflow must be dispatched, `manage_pr_review`, and `merge_pr`—and then treat that order as one continuous parent-owned landing loop. For the unborn promotion PR, use `future-pr:<owner>/<repo>:base=production:head=development`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Poll CI and review concurrently, repair only authorized in-scope failures on `development`, and restart both after every new push. Enable squash auto-merge with an exact head-SHA match only after checks and review PASS with zero blocking findings and unresolved threads, then wait until GitHub reports the PR merged into `production`.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
 
@@ -532,7 +532,7 @@ Treat `wave_closed` as a one-use grant. On `closed` or `superseded`, reset match
 
 The parent may inspect state, validate manifests, and compute static conflict/parallel-eligibility analysis without implementation authorization. A launch-bound ready frontier or selected wave additionally requires canonical readiness, execution authorization, and every action needed by the launch path. Delegating even read-only analysis still requires the matching `spawn_subagents` or `create_user_owned_tasks` authorization.
 
-For automatic app-task fan-out, the selector emits one `launch_directives` entry per selected mission. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If project lookup, thread creation, worktree setup, follow-up messaging, polling, or nested-agent capability is unavailable, leave the worker unlaunched and use the sequential parent fallback.
+For automatic app-task fan-out, the selector emits one `launch_directives` entry per selected mission. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If the user requested left-sidebar tasks and project lookup, thread creation, worktree setup, follow-up messaging, or polling is unavailable, leave the worker unlaunched and report the blocked topology; never silently replace it with coordinator-owned subagents or sequential parent implementation. If that topology was not requested, a sequential parent fallback remains valid. Unavailable nested-agent capability affects only the task-local fan-out and instead requires an equivalent parent-owned read-only review before integration.
 
 For graph workers, copy the selector's complete `runtime_binding` into the allocated mission `workers[]` record or read-only verifier `review_workers[]` record. A review worker also binds node ID, attempt ID, graph revision, review path, and exact current integrated or PR-head SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null `model` and `reasoning_effort` as task creation `model` and `thinking`; omit null values so the host default remains explicit. For Claude Code, pass each node's own `model` (and non-null `reasoning_effort` as `effort`) into that node's own `agent()` call inside the Dynamic Workflow script; a single wave may mix models and reasoning efforts freely since each node's call carries its own. The destination host validates the exact pair at launch.
 
@@ -659,7 +659,7 @@ Graph RUN schemas v8 through v10 may include `workflow_runs` to bind canonical n
 
 Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. These profiles, and per-node `EnterWorktree` enforcement, are implemented only by `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (see above), not by the flat `CLAUDE_DYNAMIC_WORKFLOW.template.js`. Group Claude Graph Workflow nodes by tool profile only; model and reasoning effort travel with each node's own `agent()` call, so one wave may mix them freely. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review profiles remain read-only. Visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted and added to the profile implementation.
 
-For an enabled app-task nested policy, use `max_children` from 1 to 3 and a non-empty subset of the runtime `allowed_roles`. The app task stays the only writer. A non-trivial mission launches at least one eligible read-only lane and records the resulting child activity in WORKER_RESULT; a skip is valid only for a trivial mission, unavailable runtime/slots, or no safe independent lane. When capability is initially unknown, keep the task at a no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy` and matching `subagent_activity`.
+For an enabled app-task nested policy, use `max_children` from 1 to 3 and a non-empty subset of the runtime `allowed_roles`. The app task stays the only writer. A non-trivial mission must complete a post-edit read-only reviewer bound to its exact current head and record that reviewer in WORKER_RESULT; exploration, research, and test-analysis lanes remain optional. If the mission is trivial or the child runtime, slot, or safe reviewer lane is unavailable, record the reason and require an equivalent parent-owned read-only review before integration. When capability is initially unknown, keep the task at a no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy` and matching `subagent_activity`.
 
 Use active-wave statuses `idle`, `proposed`, `active`, `closed`, and `superseded`. Any accepted plan revision supersedes the active wave and every old-revision lease; quiesce those workers and issue new leases after revalidation rather than accepting stale results.
 
@@ -800,7 +800,7 @@ If Goal mode is used, its prompt may record expected coordination and request au
 | Scopes and typed resource inventories are complete | draft / PASS / BLOCKED | |
 | UI routes, states, breakpoints, and evidence are planned | draft / PASS / BLOCKED / n/a | |
 | Builder UX Direction owner/status and required UX validation are explicit | draft / PASS / BLOCKED / n/a | |
-| Worker, mission-integration, batch, final E2E, and release gates exist; E2E command, current-head check, evidence, environment, and smoke disposition are named | draft / PASS / BLOCKED | |
+| Worker, exact-head pre-integration review, mission-integration, batch, final E2E, and release gates exist; E2E command, current-head check, evidence, environment, and smoke disposition are named | draft / PASS / BLOCKED | |
 | Every mission's write scope is covered by a review-type node (`backend_code`/`frontend_code`/`visual`), independent of `landing.mode` | draft / PASS / BLOCKED / n/a | |
 | Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
 
@@ -833,6 +833,7 @@ Run verification in this order:
 | Layer | Intended scope | Head binding |
 |---|---|---|
 | Task / worker | focused checks selected from parent-observed changed files | worker head |
+| Worktree review | at least one independent read-only review before integration | exact current worktree head |
 | Mission integration | that mission's integration surface after serial integration | integration head |
 | Batch | true cross-mission and shared-contract checks | post-wave integration head |
 | Final / current-head | broad regression, browser E2E, UI evidence, and release gates after review repairs converge | exact accepted integration or PR head |
@@ -842,6 +843,7 @@ For any `session_exact` verifier execution, record the execution/evidence key, `
 | Layer | Considered | Selected | Executed | Reused | Not applicable | Duration / notes |
 |---|---:|---:|---:|---:|---:|---|
 | Task / worker | 0 | 0 | 0 | 0 | 0 | |
+| Worktree review | 0 | 0 | 0 | 0 | 0 | |
 | Mission integration | 0 | 0 | 0 | 0 | 0 | |
 | Batch | 0 | 0 | 0 | 0 | 0 | |
 | Final / current-head | 0 | 0 | 0 | 0 | 0 | |

@@ -94,11 +94,24 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-codex")
         orchestration = self.read("references/worktree-thread-orchestration.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        goal = self.read("assets/templates/GOAL.template.md")
         agent = self.read_sibling_agent("fullstack-harness-codex")
 
         self.assertIn("Do not stop after printing a non-empty app-task wave", skill)
         self.assertIn("consume every `launch_directives` entry", skill)
+        self.assertIn("search the current Codex tool surface", skill)
+        self.assertIn("own conversation in the left sidebar", skill)
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
+        self.assertIn("one top-level worktree task/thread per mission", orchestration)
+        self.assertIn("each sibling task runs its own independent Multi-agent set", orchestration)
+        self.assertIn("direct subagent of the coordinator is not equivalent", selector)
+        self.assertIn("one top-level left-sidebar task", goal)
+        self.assertIn("Never replace requested top-level tasks", agent)
+        self.assertIn(
+            "do not replace it with direct subagents or sequential parent execution",
+            skill,
+        )
         self.assertIn("Codex-hosted large run", agent)
 
     def test_plan_backed_runs_detect_then_select_full_frontier(self) -> None:
@@ -134,7 +147,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             worker_goal,
         )
         self.assertIn(
-            "A non-trivial mission launches at least one eligible read-only lane",
+            "A non-trivial mission must complete a post-edit read-only reviewer",
+            runbook,
+        )
+        self.assertIn(
+            "require an equivalent parent-owned read-only review before integration",
             runbook,
         )
 
@@ -176,7 +193,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("Keep all 19 schema-v10 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
-        self.assertIn("create one worktree thread per selected mission", goal)
+        self.assertIn(
+            "create one top-level left-sidebar task with its own app-managed worktree per selected mission",
+            goal,
+        )
 
     def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-github-landing")
@@ -187,7 +207,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("## Authorized Automatic Pull-Request Landing", skill)
         self.assertIn("do not stop after local verification", skill)
-        self.assertIn("do not stop after verification or PR creation", goal)
+        self.assertIn(
+            "After final user approval starts an authorized `development -> production` promotion",
+            goal,
+        )
         self.assertIn("one continuous parent-owned landing loop", runbook)
         self.assertIn("continue through that landing flow without pausing", project_rules)
         self.assertIn("With separate `create_pr` authorization, open a Draft PR", project_rules)
@@ -217,7 +240,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn('"mode": "local_only"', runbook)
         self.assertIn('New RUN files default to `mode: "local_only"`', runbook)
-        self.assertIn("switch to `pull_request` only when the user explicitly requests remote landing", runbook)
+        self.assertIn(
+            "Switch to `pull_request` only after the user gives final approval",
+            runbook,
+        )
 
     @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
     def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:
@@ -227,7 +253,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Observe current-head CI and review concurrently", repository_rules)
         self.assertIn("poll both gates concurrently", repository_rules)
 
-    def test_plan_readiness_requests_review_and_merge_once(self) -> None:
+    def test_production_promotion_waits_for_late_final_approval(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-github-landing")
         state = self.read("references/execution-state-model.md")
         goal = self.read("assets/templates/GOAL.template.md")
@@ -235,16 +261,48 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         agent = self.read("agents/openai.yaml")
 
-        self.assertIn("request every missing launch and landing action", skill)
-        self.assertIn("request every missing landing action once", state)
-        self.assertIn("one-time Plan Readiness authorization checkpoint", goal)
-        self.assertIn("request every missing launch and landing action", runbook)
-        self.assertIn("Request every missing branch, commit, integration", project_rules)
+        self.assertIn(
+            "do not include a future `development -> production` promotion",
+            skill,
+        )
+        self.assertIn("Do not put a future production promotion", state)
+        self.assertIn(
+            "do not request or infer a future production promotion",
+            goal,
+        )
+        self.assertIn(
+            "Do not include production promotion in an ordinary mission run",
+            runbook,
+        )
+        self.assertIn(
+            "Do not request or infer production promotion at Plan Readiness",
+            project_rules,
+        )
         self.assertIn("select authorized ready nodes", agent)
         for content in (skill, state, goal, runbook, project_rules):
             self.assertIn("manage_pr_review", content)
             self.assertIn("merge_pr", content)
             self.assertIn("future-pr:", content)
+
+    def test_worktree_review_and_development_production_branch_policy(self) -> None:
+        core = self.read("SKILL.md")
+        codex = self.read_sibling_skill("fullstack-harness-codex")
+        verification = self.read("references/verification-gates.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+
+        self.assertIn("## Development And Production Branch Policy", core)
+        self.assertIn("at least one read-only review round", core)
+        self.assertIn("serially integrate the mission into `development`", codex)
+        self.assertIn("Worktree pre-integration review gate", verification)
+        self.assertIn('"branch": "refs/heads/development"', runbook)
+        self.assertIn('"head_branch": "refs/heads/development"', runbook)
+        self.assertIn('"base_branch": "production"', runbook)
+        self.assertIn("one child must review the proposed diff", worker_goal)
+        self.assertIn("Never start ordinary feature, PRD/PLD, or UI work from `production`", project_rules)
+        self.assertIn('"source": "production_head"', plan)
 
     def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:
         skill = self.read("SKILL.md")

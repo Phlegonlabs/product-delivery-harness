@@ -137,7 +137,7 @@ UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # which selects the agent runtime that executes PLAN nodes, not where the product deploys.
 DEPLOYMENT_PROVIDERS = {"cloudflare", "vercel", "aws", "self_hosted", "other"}
 RELEASE_STAGES = {"development", "production"}
-RELEASE_SOURCES = {"pr_head", "integration_head", "merged_main"}
+RELEASE_SOURCES = {"pr_head", "integration_head", "production_head", "merged_main"}
 RELEASE_DATA_MODES = {"isolated_non_production", "production"}
 RELEASE_TRIGGERS = {"manual", "merge"}
 MIGRATION_CLASSIFICATIONS = {None, "not_applicable", "additive", "destructive"}

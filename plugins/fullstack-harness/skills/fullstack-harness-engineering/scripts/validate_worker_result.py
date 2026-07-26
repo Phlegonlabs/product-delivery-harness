@@ -77,6 +77,7 @@ SUBAGENT_CHILD_FIELDS = {
     "summary",
     "evidence_paths",
 }
+SUBAGENT_REVIEW_FIELDS = {"reviewed_sha", "decision"}
 ISOLATED_WORKSPACES = {"parent_managed_worktree", "app_managed_worktree"}
 
 
@@ -114,6 +115,7 @@ def _validate_subagent_activity(
     value: Any,
     *,
     policy: dict[str, Any] | None,
+    expected_head_sha: str | None,
     errors: list[dict[str, str]],
 ) -> None:
     path = "worker_result.subagent_activity"
@@ -132,9 +134,16 @@ def _validate_subagent_activity(
     child_statuses: list[str] = []
     child_roles: list[str] = []
     agent_ids: list[str] = []
+    completed_reviewer = False
     for index, child in enumerate(children):
         child_path = f"{path}.children[{index}]"
-        if not _check_exact_fields(child, SUBAGENT_CHILD_FIELDS, child_path, errors):
+        if not _check_exact_fields(
+            child,
+            SUBAGENT_CHILD_FIELDS,
+            child_path,
+            errors,
+            optional=SUBAGENT_REVIEW_FIELDS,
+        ):
             continue
         agent_id = _require_string(child.get("agent_id"), f"{child_path}.agent_id", errors)
         role = _require_string(child.get("role"), f"{child_path}.role", errors)
@@ -152,6 +161,35 @@ def _validate_subagent_activity(
             child_statuses.append(child_status)
             if child_status not in {"completed", "failed", "stopped"}:
                 _issue(errors, "invalid_value", f"{child_path}.status", "has an unsupported value")
+        if role == "reviewer":
+            if "reviewed_sha" not in child:
+                _issue(errors, "missing_field", f"{child_path}.reviewed_sha", "reviewer must bind the reviewed head")
+                reviewed_sha = None
+            else:
+                reviewed_sha = _require_sha(child.get("reviewed_sha"), f"{child_path}.reviewed_sha", errors)
+            if reviewed_sha is not None and expected_head_sha is not None and reviewed_sha != expected_head_sha:
+                _issue(errors, "stale_binding", f"{child_path}.reviewed_sha", "does not match worker_result.head_sha")
+            if "decision" not in child:
+                _issue(errors, "missing_field", f"{child_path}.decision", "reviewer must report a decision")
+                decision = None
+            else:
+                decision = _require_string(child.get("decision"), f"{child_path}.decision", errors)
+            if decision is not None and decision not in {"PASS", "fix_required"}:
+                _issue(errors, "invalid_value", f"{child_path}.decision", "must be PASS or fix_required")
+            if (
+                child_status == "completed"
+                and reviewed_sha is not None
+                and reviewed_sha == expected_head_sha
+                and decision == "PASS"
+            ):
+                completed_reviewer = True
+        elif set(child) & SUBAGENT_REVIEW_FIELDS:
+            _issue(
+                errors,
+                "invalid_value",
+                child_path,
+                "reviewed_sha and decision are allowed only for reviewer children",
+            )
     if len(agent_ids) != len(set(agent_ids)):
         _issue(errors, "duplicate_value", f"{path}.children", "agent_id values must be unique")
     enabled = isinstance(policy, dict) and policy.get("enabled") is True
@@ -176,6 +214,13 @@ def _validate_subagent_activity(
             _issue(errors, "missing_field", f"{path}.children", "completed activity requires at least one child")
         if any(item != "completed" for item in child_statuses):
             _issue(errors, "invalid_value", f"{path}.children", "completed activity requires completed children")
+        if enabled and not completed_reviewer:
+            _issue(
+                errors,
+                "missing_review",
+                f"{path}.children",
+                "enabled completed activity requires a completed post-edit reviewer",
+            )
         if skip_reason is not None:
             _issue(errors, "invalid_value", f"{path}.skip_reason", "must be null when completed")
     elif status == "partial":
@@ -689,6 +734,7 @@ def validate_worker_result_data(
         _validate_subagent_activity(
             result.get("subagent_activity"),
             policy=nested_policy if isinstance(nested_policy, dict) else None,
+            expected_head_sha=head_sha,
             errors=errors,
         )
 

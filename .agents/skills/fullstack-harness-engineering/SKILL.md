@@ -130,9 +130,29 @@ Apply this to all large plan-backed work, whether the frontier ever holds more t
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
 4. New plan-backed files use PLAN schema v5 and RUN schema v10. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN versions remain readable, but new files do not copy their weaker acceptance, source-publication, authorization, release, continuity, or evidence shapes.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order.
-6. Default every mission, even when only one is ever ready at a time, to its own `parent_managed_worktree` merged into the primary checkout's own base branch (`landing.base_branch` — commonly `main`, but any branch the primary checkout treats as its base) after its integration gate passes; the primary checkout is a merge target, never a direct implementation surface. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it. Parallel writes always require isolated workspaces and durable authorized branch/commit handoff.
+6. In the target repository, use the persistent `development` branch as the implementation and integration base. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current `development` SHA. The primary `development` checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into `development`. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
-8. Default the landing mode from the requested outcome: local implementation, branch, or commit work uses `local_only`; explicit push, PR, review, merge, or deployed delivery uses `pull_request` and loads the GitHub landing adapter. In PLAN-v5/RUN-v10 `local_only` mode, `integration.branch` and `landing.head_branch` name the same retained parent-owned branch, which differs from `landing.base_branch`; preserve it at the verified integration head for later pull-request continuity. Older readable schemas keep their recorded branch semantics.
+8. Default the landing mode from the requested outcome: ordinary implementation, PRD/PLD updates, UI changes, branch, commit, or local integration work stays `local_only` on `development`. A `development -> production` promotion uses `pull_request` and loads the GitHub landing adapter only after the user gives final approval to start that promotion. In PLAN-v5/RUN-v10, `integration.branch` and `landing.head_branch` name persistent `development`, while `landing.base_branch` names protected `production`. Older readable schemas keep their recorded branch semantics.
+
+## Development And Production Branch Policy
+
+Apply this policy to the target repository where the skill runs, not to the repository that stores the skill:
+
+```text
+current development SHA
+-> one independent mission worktree
+-> worker checks
+-> at least one exact-head read-only review
+-> repair and fresh review when needed
+-> authorized serial integration into development
+
+development
+-> explicit final user approval to start promotion
+-> current-head CI and review
+-> authorized development-to-production merge
+```
+
+Never start ordinary feature, PRD/PLD, or UI work from `production`, and never integrate a mission worktree directly into `production`. Future changes continue from the then-current `development` branch even after a production promotion. If either required branch is missing in the target repository, report the setup gap and obtain exact branch-creation authorization rather than creating it implicitly.
 
 ## Execution Authorization Gate
 
@@ -242,23 +262,24 @@ For small work, use one parent writer and the smallest relevant checks. For larg
 
 When a UI worker loads `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe, design-system, registry, route-recipe, and mockup inputs. A generic instruction to "make it distinctive" is not a valid handoff.
 
-The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and integrates passing heads serially. After each integration, run the required integration gate, update canonical RUN state, and recompute the frontier. Never accept a report merely because the runtime says it completed.
+The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into `development`, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
 
 ### 5. Verify Local-First
 
 Use a verification ladder:
 
 1. Run selected task/worker checks from parent-observed changed files.
-2. After real cross-mission integration, run the relevant batch and interaction gates.
-3. Converge local deterministic checks and exact-SHA runtime review. A repair invalidates only affected layers.
-4. After those loops close, run broad regression, browser E2E, breakpoint-by-state UI evidence, visual review, migration, and release checks that apply to the final integration head.
-5. Run `git diff --check` and review the complete final diff.
+2. Before each worktree merges, complete at least one read-only review round on its exact current head. Any repair invalidates that review.
+3. After real integration into `development`, run the mission integration gate and the relevant batch and interaction gates.
+4. Converge local deterministic checks and exact-SHA runtime review. A repair invalidates only affected layers.
+5. After those loops close, run broad regression, browser E2E, breakpoint-by-state UI evidence, visual review, migration, and release checks that apply to the final `development` head.
+6. Run `git diff --check` and review the complete final diff.
 
 A clean, cache-safe focused verifier may reuse only an exact same-session `session_exact` PASS from a repository-external cache. Do not cache integration, cross-mission, UI, migration, release, or remote gates. RUN-v10 `verifier_executions` is append-only and parent-owned: workers return candidate results, but only the parent validates and appends the normalized verifier, execution context, key document/digests, cache decision, output hashes, metrics, and retained evidence paths. Required UI artifacts live under `docs/goal/evidence/`, record lowercase SHA-256, and bind to the exact integration head.
 
 Automated current-head E2E may replace only an equivalent duplicate manual smoke. Record `not required - covered by current-head E2E`; deployment smoke remains separate when the tested environment differs.
 
-Local-only work stops after its authorized local branch/commit/integration outcome and local evidence. It does not wait for GitHub CI or GitHub review. PLAN-v5/RUN-v10 local-only work preserves a distinct retained branch at the integration head for later pull-request continuity; it never collapses the integration branch into the base branch or deletes that continuity. Remote final-head verification is owned by the GitHub landing adapter.
+Local-only work stops after its authorized worktree commits are reviewed and integrated into persistent `development`, with local evidence recorded. It does not wait for GitHub CI or GitHub review and never changes `production`. Remote final-head verification and the later `development -> production` promotion are owned by the GitHub landing adapter.
 
 ### 6. Complete
 

@@ -843,6 +843,23 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, run, copy.deepcopy(self.result))
         self.assertIn("missing_field", error_codes(errors))
 
+        explorer_only = copy.deepcopy(self.result)
+        explorer_only["subagent_activity"] = {
+            "status": "completed",
+            "skip_reason": None,
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "explorer",
+                    "task": "Trace the affected request path.",
+                    "status": "completed",
+                    "summary": "The change is isolated to the planned module.",
+                    "evidence_paths": ["src/m1/file.py"],
+                }
+            ],
+        }
+        self.assertIn("missing_review", error_codes(validate(self.plan, run, explorer_only)))
+
         result = copy.deepcopy(self.result)
         result["subagent_activity"] = {
             "status": "completed",
@@ -863,10 +880,18 @@ class ValidateWorkerResultTests(unittest.TestCase):
                     "status": "completed",
                     "summary": "No additional correctness gaps found.",
                     "evidence_paths": ["evidence/task.txt"],
+                    "reviewed_sha": result["head_sha"],
+                    "decision": "PASS",
                 },
             ],
         }
         self.assertEqual(validate(self.plan, run, result), [])
+
+        stale_review = copy.deepcopy(result)
+        stale_review["subagent_activity"]["children"][1]["reviewed_sha"] = "c" * 40
+        stale_errors = error_codes(validate(self.plan, run, stale_review))
+        self.assertIn("stale_binding", stale_errors)
+        self.assertIn("missing_review", stale_errors)
 
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

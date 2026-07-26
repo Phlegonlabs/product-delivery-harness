@@ -15,7 +15,7 @@ completion_channel: agent_result | thread_poll | report_file | user_relay
 These fields are orthogonal. Do not infer workspace isolation, completion notification, or cleanup behavior from the word "worker" or from a product name.
 
 - `subagent` is a parent-managed child. It can return an `agent_result`, but still shares the checkout unless an isolated workspace was deliberately provided.
-- `app_task` is an independent, user-owned Codex task. A generic skill cannot promise an automatic callback to the parent task; use polling, a report file, or user relay unless an App Server integration supplies events.
+- `app_task` is an independent, user-owned Codex task with its own conversation in the left sidebar. A generic skill cannot promise an automatic callback to the parent task; use polling, a report file, or user relay unless an App Server integration supplies events.
 - `parent` is the safe fallback when delegation or isolation capabilities are unavailable.
 
 If a requested combination is unsupported, downgrade to sequential parent execution and record the reason. Never silently simulate parallel isolation in a shared checkout.
@@ -40,7 +40,7 @@ generic: subagents -> sequential_parent
 
 The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to `parent` + `shared_checkout` + `agent_result`. Do not route from a product label alone; record how the capability was observed and fall back if the selected primitive is missing at launch.
 
-Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
+Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Codex task tools may be lazy-loaded, so use the current tool-discovery surface to search for project listing, top-level task creation, messaging, and thread waiting before declaring `app_threads` missing. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
 Perform this detection proactively before the first production edit in every plan-backed multi-mission run. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
 
@@ -86,7 +86,7 @@ Reserve `shared_checkout` for genuinely small direct work (see the Project Size 
 
 ### Parent-managed worktree
 
-Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. The primary checkout is a merge target, never a direct implementation surface: each mission's worktree branch merges into it only after that mission's integration gate passes.
+Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. Create each worktree from the target repository's recorded current `development` SHA. The primary `development` checkout is a merge target, never a direct implementation surface: each mission's worktree branch receives an exact-head read-only review before it may merge there.
 
 - The parent creates every worktree from the same recorded `batch_base_sha`; portable write handoff also requires `create_local_branches` and `create_local_commits`, because the parent integrates a durable committed head rather than an uncommitted patch.
 - The parent records the exact path, branch/ref, lease, ports, databases, fixtures, and external resource claims.
@@ -102,6 +102,7 @@ Use `app_managed_worktree` only when the runtime exposes it and `create_app_mana
 For user-owned Codex app tasks:
 
 - Record the returned task/thread identity and completion channel. Never invent an identity from the mission ID.
+- Use one top-level task/thread with one app-managed worktree per selected Harness mission. It appears as an independent conversation in the Codex left sidebar. Direct subagents of the coordinator do not satisfy this boundary.
 - Managed worktrees may begin detached. If durable commits or handoff are required, create an authorized branch or durable ref early; do not leave unique work reachable only from a detached checkout.
 - Do not launch app-managed write fan-out unless branch and commit creation are authorized. Otherwise use sequential parent execution; this protocol does not depend on extracting an uncommitted patch from a managed worktree.
 - Use the repository's supported ignored-file inclusion mechanism, such as `.worktreeinclude`, only for necessary local files and never to copy tracked files or secrets without permission.
@@ -129,7 +130,7 @@ Enable it only when all of these are true:
 - RUN gives the worker an enabled `nested_subagent_policy` capped at depth one and at most three children;
 - each child assignment is independent, bounded, read-only, and useful enough to offset coordination cost.
 
-Before its first production edit, a non-trivial app task with this policy evaluates four lanes: codebase exploration, documentation/API research, test/log analysis, and independent review. Run eligible exploration, research, and test-plan/contract review before writing. A child that reviews the proposed diff runs after implementation but before the mission result. The task normally spawns one to three children across those checkpoints. It may skip only when the mission is trivial, no child slot/tool is available, or no safe independent lane exists; the WORKER_RESULT must record that reason. Since this exploration, research, test-analysis, and diff-review work is bounded, read-only discovery, each child takes the fast, inexpensive model tier from `graph-orchestration.md`'s Runtime Binding point 6 — the host's fastest/cheapest model (a delegated Claude Code child set to `haiku`, not `sonnet`) with `low` or `medium` reasoning effort — unless the parent mission's own risk classification (security-sensitive, migration, difficult-correctness, or another point-2-level high-risk surface) keeps its children at the parent's own model tier to match its quality bar for that specific mission.
+Before its first production edit, a non-trivial app task with this policy evaluates four lanes: codebase exploration, documentation/API research, test/log analysis, and independent review. Run eligible exploration, research, and test-plan/contract review before writing. A child that reviews the proposed diff runs after implementation but before the mission result and must bind its decision to the exact current worktree head. Exploration, research, and test-analysis lanes may be skipped when they add no independent value, but the post-edit reviewer is mandatory for an enabled non-trivial task. If the mission is trivial or no child slot/tool or safe reviewer lane is available, the WORKER_RESULT records that reason and the parent performs an equivalent read-only review before integration. Since this exploration, research, test-analysis, and diff-review work is bounded, read-only discovery, each child takes the fast, inexpensive model tier from `graph-orchestration.md`'s Runtime Binding point 6 — the host's fastest/cheapest model (a delegated Claude Code child set to `haiku`, not `sonnet`) with `low` or `medium` reasoning effort — unless the parent mission's own risk classification (security-sensitive, migration, difficult-correctness, or another point-2-level high-risk surface) keeps its children at the parent's own model tier to match its quality bar for that specific mission.
 
 If the outer coordinator cannot observe child-tool availability until the app task exists, perform a no-production-edit capability handshake first. The task reports tool/result availability, the coordinator records `runtime_capabilities.nested_subagents`, assigns an explicit enabled or disabled worker policy, and only then releases implementation. This avoids silently treating “not yet observed” as “unavailable.”
 
@@ -197,17 +198,18 @@ Claude Code currently supports nested subagents, but this schema-v6-through-v9 r
 
 When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, a non-empty selector result is an instruction for the parent to act, not a final report. Use the current Codex project/thread tools when they are available:
 
-1. Resolve the repository's saved project once.
+1. Search the current Codex tool surface for project listing, top-level task/thread creation, follow-up messaging, and bounded thread waiting when those tools were not loaded initially. Resolve the repository's saved project once.
 2. For each selected mission in deterministic order, allocate its worker ID, lease ID, and branch/ref. Recheck `create_user_owned_tasks` and `create_app_managed_worktrees` against the explicit pre-allocation `*` grant because the app assigns their concrete identities; recheck `create_local_branches`, `create_local_commits`, and `spawn_subagents` against every already-known target.
 3. Build the initial prompt from `WORKER_GOAL.template.md`, including the frozen plan identity, fixed base, mission/task scope, verifiers, permission boundary, nested policy, and the mission's `required_skills` list. Tell the app task directly to use its authorized multi-agent policy.
-4. Create one worktree task/thread per mission from the recorded integration branch/ref. Record either the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.
+4. Create one top-level worktree task/thread per mission from the recorded integration branch/ref. Each task must have its own app-managed worktree and appear as an independent conversation in the Codex left sidebar. Record either the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID and never substitute coordinator-owned subagents.
 5. When nested capability is unobserved, keep the task in a no-production-edit handshake. Poll its capability result, update RUN, and send the explicit enabled or disabled policy before releasing implementation.
 6. Poll running threads with backoff, route necessary follow-up through the thread-message tool, and preserve terminal, blocked, interrupted, and partial results. Do not rely on the user to relay completion when programmatic polling is available.
-7. Validate every result against live Git facts and integrate serially as usual.
+7. Validate every result against live Git facts. Require the task's own post-edit read-only reviewer to PASS on the exact returned worktree head; if task-local review is unavailable, run an equivalent parent-owned review.
+8. Route findings back to the same worktree and review the changed head again. Integrate passing heads serially into `development`.
 
-For a non-trivial worker with an enabled nested policy, at least one direct child must run. The worker may use up to three read-only children across pre-edit exploration/research/test analysis and post-edit review, waits for them, and reports `subagent_activity`. A missing useful child without an allowed skip reason is a worker-result failure, not a successful single-agent downgrade.
+For a non-trivial worker with an enabled nested policy, at least one direct child must run and the final useful child lane must be a post-edit proposed-diff review. The worker may use up to three read-only children across pre-edit exploration/research/test analysis and that required review, waits for them, and reports `subagent_activity`. These children belong to that top-level task only; each sibling task runs its own independent Multi-agent set. A missing current-head review is an integration blocker, not a successful single-agent downgrade.
 
-If the app lacks any required project, thread-create, thread-read, thread-message, worktree, or nested-agent capability, leave the affected directive unlaunched, record the exact capability gap, and fall back to the sequential parent. Never claim that writing a worker record created a real task.
+If the app lacks any required project, thread-create, thread-read, thread-message, worktree, or nested-agent capability, leave the affected directive unlaunched and record the exact capability gap. Fall back to the sequential parent only when the user did not explicitly require independent left-sidebar tasks. When that outer topology was requested, stop and report the missing capability instead of substituting coordinator-owned subagents or sequential execution. Never claim that writing a worker record created a real task.
 
 ## Worker Handoff
 
@@ -250,14 +252,15 @@ Never treat a completed task/thread, a worker `PASS`, or a commit on a mission b
 
 Repository configuration, push, PR creation, PR review management, PR merge, deploy, task archival, worktree removal, and branch deletion are independent authorization actions. Passing verification does not authorize any of them.
 
-- Integrate worker results serially into one final parent branch. Worker branches and worktrees do not push or open PRs unless the plan defines a separate landing target.
+- Integrate only exact-head review-passing worker results serially into the target repository's persistent `development` branch. Worker branches and worktrees do not push or open PRs.
 - Review the final diff locally and rerun final gates before any outward-facing landing action. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
 - Local-only delivery stops after its authorized local branch, commit, integration, and final verification outcome; it does not load remote landing or wait for GitHub.
-- In pull-request mode, `integration.branch` and `landing.head_branch` must name the same final feature branch, and that branch must differ from `landing.base_branch`. Never push the base branch directly. Push only the final verified feature/integration candidate, create or ready the PR as authorized, then start or observe current-head CI and Codex review concurrently.
+- In local-only mission work, `integration.branch` and `landing.head_branch` name persistent `development`, while `landing.base_branch` names protected `production`. A pull-request promotion is always `development -> production`, starts only after explicit final user approval, and then runs current-head CI and Codex review concurrently.
 - When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in current RUN v10 (older RUN v4 through v9 retain their historical fields) and reset it after any new push or changed integration head.
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
 - Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and restart both remote gates for the new head.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.
+- After a production promotion, start later PRD/PLD, UI, and feature work from `development` again. Never use `production` as an implementation base.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
 - Delete only the exact recorded, fully integrated branch when `delete_branches` is true, unless `run.integration.retention == "persistent"`, in which case the branch is preserved rather than deleted (see `execution-state-model.md`'s Post-Merge Cleanup State).
