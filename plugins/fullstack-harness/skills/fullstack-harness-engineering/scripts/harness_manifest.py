@@ -3644,6 +3644,60 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.runtime_binding.option_source",
                             "must identify the matching PLAN option source",
                         )
+        workers_by_id = (
+            {
+                worker.get("worker_id"): worker
+                for worker in workers
+                if isinstance(worker, dict)
+            }
+            if isinstance(workers, list)
+            else {}
+        )
+        mission_state_items = (
+            mission_states.items() if isinstance(mission_states, dict) else []
+        )
+        for mission_id, state in mission_state_items:
+            if not isinstance(state, dict) or state.get("phase") not in {
+                "integrating",
+                "integrated",
+            }:
+                continue
+            mission_worker = workers_by_id.get(state.get("worker_id"), {})
+            if not mission_worker:
+                if schema_version == 10:
+                    _add(
+                        errors,
+                        f"run.mission_states.{mission_id}.worker_id",
+                        "transition to integrating requires a matching worker record",
+                    )
+                continue
+            nested_policy = (
+                mission_worker.get("nested_subagent_policy")
+                if isinstance(mission_worker, dict)
+                else None
+            )
+            if isinstance(nested_policy, dict) and nested_policy.get("enabled") is True:
+                continue
+            head_sha = state.get("head_sha")
+            has_parent_review = any(
+                isinstance(review_worker, dict)
+                and review_worker.get("node_id") in review_nodes
+                and mission_id
+                in review_nodes[review_worker["node_id"]]
+                .get("review", {})
+                .get("mission_ids", [])
+                and review_worker.get("reviewed_sha") == head_sha
+                and review_worker.get("worker_runtime") in {"parent", "subagent"}
+                and review_worker.get("phase") == "worker_passed"
+                and review_worker.get("outcome") == "pass"
+                for review_worker in review_workers
+            )
+            if not has_parent_review:
+                _add(
+                    errors,
+                    f"run.mission_states.{mission_id}.integration_gate",
+                    "transition to integrating requires a parent-owned exact-head PASS review",
+                )
 
     if not isinstance(run["attempt_log"], list):
         _add(errors, "run.attempt_log", "must be a list")

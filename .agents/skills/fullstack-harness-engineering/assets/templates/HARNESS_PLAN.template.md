@@ -1,6 +1,6 @@
 # Plan: <feature or product slice>
 
-Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`.
+Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`. Resolve the target repository's existing branch and pull-request model before filling branch fields; the template's `development` and `production` names are fallbacks, not overrides.
 
 PLAN schema v5 uses one provider-neutral release target contract. `release.provider` accepts `cloudflare | vercel | aws | self_hosted | other`, but stable target IDs and fields do not change with provider. Every deployable plan declares at least one `development` and one `production` target with exact source, artifact, signing, channel, data, trigger, migration, command, prerequisite, and smoke fields. Older PLAN schemas remain readable; use their own recorded shapes only when reading them.
 

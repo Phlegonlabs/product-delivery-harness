@@ -111,35 +111,6 @@ def _check_exact_fields(
     return expected.issubset(actual) and actual.issubset(expected | allowed_optional)
 
 
-def _has_passing_parent_review(
-    plan: dict[str, Any],
-    run: dict[str, Any],
-    *,
-    mission_id: str | None,
-    head_sha: str | None,
-) -> bool:
-    if mission_id is None or head_sha is None:
-        return False
-    review_nodes = {
-        node.get("id"): node
-        for node in plan.get("graph", {}).get("nodes", [])
-        if isinstance(node, dict)
-        and node.get("kind") == "verifier"
-        and node.get("executor") == "runtime_worker"
-        and isinstance(node.get("review"), dict)
-        and mission_id in node["review"].get("mission_ids", [])
-    }
-    return any(
-        isinstance(worker, dict)
-        and worker.get("node_id") in review_nodes
-        and worker.get("reviewed_sha") == head_sha
-        and worker.get("worker_runtime") in {"parent", "subagent"}
-        and worker.get("phase") == "worker_passed"
-        and worker.get("outcome") == "pass"
-        for worker in run.get("review_workers", [])
-    )
-
-
 def _validate_subagent_activity(
     value: Any,
     *,
@@ -766,27 +737,6 @@ def validate_worker_result_data(
             expected_head_sha=head_sha,
             errors=errors,
         )
-    requires_parent_review = (
-        isinstance(nested_policy, dict) and nested_policy.get("enabled") is False
-    ) or (
-        nested_policy is None and isinstance(run.get("review_workers"), list)
-    )
-    if (
-        requires_parent_review
-        and not _has_passing_parent_review(
-            plan,
-            run,
-            mission_id=mission_id,
-            head_sha=head_sha,
-        )
-    ):
-        _issue(
-            errors,
-            "missing_review",
-            "harness_run.review_workers",
-            "worker without an enabled nested policy requires a parent-owned exact-head PASS review",
-        )
-
     worker_id = mission_state.get("worker_id")
     binding_checks = [
         (lease_id, mission_state.get("lease_id"), "lease_id", "mission state"),

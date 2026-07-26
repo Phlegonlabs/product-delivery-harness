@@ -255,7 +255,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 在 Codex 中，首选路线分为两层：每个选中的 mission 先在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管工作树；然后由该任务运行自己的有界 Multi-agent 辅助。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
-在每个使用 skill 的目标仓库中，mission 工作树都从当前 `development` SHA 开始。每个工作树至少要完成一轮绑定当前 head 的只读审查，通过后父级才能集成回 `development`；如果有修复，就要对新 head 重新审查。`production` 只接受用户最终明确审批后才开始的 `development -> production` 升版。后续 PRD/PLD、UI 和功能修改仍从 `development` 继续。
+目标仓库自己的分支与 PR 规则优先。只有当仓库没有定义其他流程时，mission 工作树才默认从当前 `development` SHA 开始，在完成绑定当前 head 的只读审查后集成回 `development`，并在用户最终明确审批后才开始 `development -> production` 升版；如果有修复，必须对新 head 重新审查。
 
 每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被报告为“因提供方不匹配而阻塞”，而不会在这里执行。
 

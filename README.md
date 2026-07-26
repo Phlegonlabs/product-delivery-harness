@@ -257,7 +257,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 On Codex, the preferred route is two-level: each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree, then that task runs its own bounded Multi-agent helpers. Coordinator-owned subagents do not replace those top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
-In every target repository, mission worktrees start from the current `development` SHA. Each worktree must pass at least one exact-head read-only review before the parent integrates it into `development`; fixes require a fresh review. `production` changes only through a later `development -> production` promotion that starts after explicit final user approval. Later PRD/PLD, UI, and feature work continues from `development`.
+Target-repository branch and pull-request instructions take precedence. When a repository does not define another model, mission worktrees start from the current `development` SHA, pass an exact-head read-only review before integration into `development`, and reach `production` only through a later explicitly approved `development -> production` promotion. Fixes require a fresh review on the new head.
 
 Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
 

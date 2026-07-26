@@ -1457,6 +1457,62 @@ class GraphManifestTests(unittest.TestCase):
         run["mission_states"]["M1"]["head_sha"] = "b" * 40
         run["review_workers"][0]["reviewed_sha"] = "b" * 40
         self.assertEqual([], validate_run(plan, run))
+        transition = copy.deepcopy(run)
+        transition["review_workers"] = []
+        transition["mission_states"]["M1"].update(
+            {
+                "phase": "integrating",
+                "lease_id": "LEASE-M1",
+                "lease_plan_revision": plan["revision"],
+                "lease_plan_digest_sha256": plan_digest(plan),
+                "worker_id": "W-M1",
+                "base_sha": "a" * 40,
+            }
+        )
+        transition["workers"] = [
+            {
+                "worker_id": "W-M1",
+                "mission_id": "M1",
+                "lease_id": "LEASE-M1",
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": plan_digest(plan),
+                "batch_base_sha": "a" * 40,
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "subagents",
+                    "source": "host",
+                    "model": None,
+                    "reasoning_effort": None,
+                    "option_source": "provider_default",
+                },
+                "task_thread_id": None,
+                "worktree_path": "C:/repo/worktrees/M1",
+                "branch_ref": "refs/heads/codex/m1",
+                "report_path": None,
+                "phase": "worker_passed",
+                "worker_head_sha": "b" * 40,
+            }
+        ]
+        self.assertTrue(
+            any(
+                "transition to integrating requires a parent-owned exact-head PASS review"
+                in error
+                for error in validate_run(plan, transition)
+            )
+        )
+        transition["review_workers"] = copy.deepcopy(run["review_workers"])
+        transition["review_workers"][0]["phase"] = "worker_passed"
+        transition["review_workers"][0]["outcome"] = "pass"
+        self.assertFalse(
+            any(
+                "transition to integrating requires a parent-owned exact-head PASS review"
+                in error
+                for error in validate_run(plan, transition)
+            )
+        )
         run["mission_states"]["M2"]["head_sha"] = "c" * 40
         run["review_workers"][0]["reviewed_sha"] = "c" * 40
         self.assertTrue(

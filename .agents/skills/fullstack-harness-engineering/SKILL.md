@@ -130,13 +130,13 @@ Apply this to all large plan-backed work, whether the frontier ever holds more t
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
 4. New plan-backed files use PLAN schema v5 and RUN schema v10. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN versions remain readable, but new files do not copy their weaker acceptance, source-publication, authorization, release, continuity, or evidence shapes.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order.
-6. In the target repository, use the persistent `development` branch as the implementation and integration base. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current `development` SHA. The primary `development` checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into `development`. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
+6. First read the target repository's instructions and existing branch/landing model. When they define implementation, integration, or protected landing branches, preserve those exact names and topology. Otherwise use persistent `development` as the default implementation and integration base. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
-8. Default the landing mode from the requested outcome: ordinary implementation, PRD/PLD updates, UI changes, branch, commit, or local integration work stays `local_only` on `development`. A `development -> production` promotion uses `pull_request` and loads the GitHub landing adapter only after the user gives final approval to start that promotion. In PLAN-v5/RUN-v10, `integration.branch` and `landing.head_branch` name persistent `development`, while `landing.base_branch` names protected `production`. Older readable schemas keep their recorded branch semantics.
+8. Default the landing mode from the requested outcome. Under the default branch model, ordinary implementation, PRD/PLD updates, UI changes, branch, commit, or local integration work stays `local_only` on `development`; a `development -> production` promotion uses `pull_request` only after the user gives final approval. When target-repository instructions define another model, record and follow that model instead. In every case, `integration.branch`, `landing.head_branch`, and `landing.base_branch` must contain the resolved repository branches rather than assumed names. Older readable schemas keep their recorded branch semantics.
 
-## Development And Production Branch Policy
+## Default Development And Production Branch Policy
 
-Apply this policy to the target repository where the skill runs, not to the repository that stores the skill:
+Apply this policy to the target repository where the skill runs only when its own instructions do not already define the implementation, integration, and landing branches. Target-repository governance wins; never create `development` or `production` merely to replace an existing authorized flow.
 
 ```text
 current development SHA
@@ -152,7 +152,7 @@ development
 -> authorized development-to-production merge
 ```
 
-Never start ordinary feature, PRD/PLD, or UI work from `production`, and never integrate a mission worktree directly into `production`. Future changes continue from the then-current `development` branch even after a production promotion. If either required branch is missing in the target repository, report the setup gap and obtain exact branch-creation authorization rather than creating it implicitly.
+Under this default model, never start ordinary feature, PRD/PLD, or UI work from `production`, and never integrate a mission worktree directly into `production`. Future changes continue from the then-current `development` branch even after a production promotion. If the repository has adopted this model and either required branch is missing, report the setup gap and obtain exact branch-creation authorization rather than creating it implicitly.
 
 ## Execution Authorization Gate
 
@@ -262,7 +262,7 @@ For small work, use one parent writer and the smallest relevant checks. For larg
 
 When a UI worker loads `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe, design-system, registry, route-recipe, and mockup inputs. A generic instruction to "make it distinctive" is not a valid handoff.
 
-The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. An enabled task-local reviewer records its exact-head PASS in WORKER_RESULT. A disabled task-local policy, or a graph-backed direct worker with no nested policy, requires the parent to record the fallback as a terminal `review_workers[]` PASS covering that mission and worktree head before worker-result validation may pass. A review worker may bind only mission worktree or integrated SHAs declared by its own review node, plus the current integration or PR head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into `development`, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
+The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. An enabled task-local reviewer records its exact-head PASS in WORKER_RESULT. A disabled task-local policy, or a graph-backed direct worker with no nested policy, may validate first so its downstream review node becomes selectable, but the mission cannot transition to `integrating` until the parent records a terminal `review_workers[]` PASS covering that mission and worktree head. A review worker may bind only mission worktree or integrated SHAs declared by its own review node, plus the current integration or PR head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into the resolved integration branch, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
 
 ### 5. Verify Local-First
 
@@ -270,7 +270,7 @@ Use a verification ladder:
 
 1. Run selected task/worker checks from parent-observed changed files.
 2. Before each worktree merges, complete at least one read-only review round on its exact current head. Any repair invalidates that review.
-3. After real integration into `development`, run the mission integration gate and the relevant batch and interaction gates.
+3. After real integration into the resolved integration branch, run the mission integration gate and the relevant batch and interaction gates.
 4. Converge local deterministic checks and exact-SHA runtime review. A repair invalidates only affected layers.
 5. After those loops close, run broad regression, browser E2E, breakpoint-by-state UI evidence, visual review, migration, and release checks that apply to the final `development` head.
 6. Run `git diff --check` and review the complete final diff.
@@ -279,7 +279,7 @@ A clean, cache-safe focused verifier may reuse only an exact same-session `sessi
 
 Automated current-head E2E may replace only an equivalent duplicate manual smoke. Record `not required - covered by current-head E2E`; deployment smoke remains separate when the tested environment differs.
 
-Local-only work stops after its authorized worktree commits are reviewed and integrated into persistent `development`, with local evidence recorded. It does not wait for GitHub CI or GitHub review and never changes `production`. Remote final-head verification and the later `development -> production` promotion are owned by the GitHub landing adapter.
+Local-only work stops after its authorized worktree commits are reviewed and integrated into the resolved persistent integration branch, with local evidence recorded. It does not wait for GitHub CI or GitHub review and never changes the resolved protected landing branch. Remote final-head verification and any later approved promotion are owned by the GitHub landing adapter.
 
 ### 6. Complete
 

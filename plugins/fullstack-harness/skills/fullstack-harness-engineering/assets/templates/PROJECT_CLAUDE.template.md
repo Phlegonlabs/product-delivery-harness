@@ -1,5 +1,7 @@
 # Project Rules
 
+This template's `development` and `production` branch names are defaults for a new repository. If the repository already defines another branch or pull-request model, keep that existing governance and replace the default names below; never overwrite conflicting repository instructions.
+
 ## Core Development Principles
 
 ### Keep It Simple (KISS / YAGNI)

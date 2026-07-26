@@ -920,7 +920,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
         self.assertIn("stale_binding", stale_errors)
         self.assertIn("missing_review", stale_errors)
 
-    def test_disabled_nested_policy_requires_parent_review_worker(self) -> None:
+    def test_disabled_nested_policy_defers_parent_review_to_integration(self) -> None:
         plan = copy.deepcopy(self.plan)
         review_node = {
             "id": "N-M1-PREINTEGRATION-REVIEW",
@@ -961,20 +961,9 @@ class ValidateWorkerResultTests(unittest.TestCase):
             "children": [],
         }
 
-        self.assertIn("missing_review", error_codes(validate(plan, run, result)))
-
-        run["review_workers"] = [
-            {
-                "node_id": review_node["id"],
-                "reviewed_sha": HEAD_SHA,
-                "worker_runtime": "subagent",
-                "phase": "worker_passed",
-                "outcome": "pass",
-            }
-        ]
         self.assertEqual(validate(plan, run, result), [])
 
-    def test_absent_nested_policy_requires_parent_review_worker(self) -> None:
+    def test_absent_nested_policy_defers_parent_review_to_integration(self) -> None:
         plan = copy.deepcopy(self.plan)
         review_node = {
             "id": "N-M1-PREINTEGRATION-REVIEW",
@@ -1005,17 +994,6 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 plan,
             )["execution_key"]
 
-        self.assertIn("missing_review", error_codes(validate(plan, run, result)))
-
-        run["review_workers"] = [
-            {
-                "node_id": review_node["id"],
-                "reviewed_sha": HEAD_SHA,
-                "worker_runtime": "subagent",
-                "phase": "worker_passed",
-                "outcome": "pass",
-            }
-        ]
         self.assertEqual(validate(plan, run, result), [])
 
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:

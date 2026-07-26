@@ -255,7 +255,7 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 
 在 Codex 中，偏好的路線分成兩層：每個選中的 mission 先在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree；接著由該任務執行自己的有界 Multi-agent 輔助。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
 
-在每個套用 skill 的目標 repo 中，mission worktree 都從目前的 `development` SHA 開始。每個 worktree 至少要完成一輪綁定當前 head 的唯讀 review，通過後 parent 才能整合回 `development`；若有修正，就要對新 head 重新 review。`production` 只接受你最後明確審批後才開始的 `development -> production` 升版。後續 PRD／PLD、UI 與功能修改仍從 `development` 繼續。
+目標 repo 自己的 branch 與 PR 規則優先。只有在 repo 未定義其他流程時，mission worktree 才預設從目前的 `development` SHA 開始，完成綁定當前 head 的唯讀 review 後整合回 `development`，並在最後明確審批後才開始 `development -> production` 升版；若有修正，必須對新 head 重新 review。
 
 每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要另一個 host 的 provider，會被回報為因 provider 不符而受阻，而不會在這裡執行。
 

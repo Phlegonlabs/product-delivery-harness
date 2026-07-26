@@ -208,7 +208,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Authorized Automatic Pull-Request Landing", skill)
         self.assertIn("do not stop after local verification", skill)
         self.assertIn(
-            "After final user approval starts an authorized `development -> production` promotion",
+            "After final user approval starts an authorized protected-branch promotion",
             goal,
         )
         self.assertIn("one continuous parent-owned landing loop", runbook)
@@ -265,9 +265,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "do not include a future `development -> production` promotion",
             skill,
         )
-        self.assertIn("Do not put a future production promotion", state)
+        self.assertIn("Do not put a future protected-branch promotion", state)
         self.assertIn(
-            "do not request or infer a future production promotion",
+            "do not request or infer a future protected-branch promotion",
             goal,
         )
         self.assertIn(
@@ -293,14 +293,22 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
 
-        self.assertIn("## Development And Production Branch Policy", core)
+        self.assertIn("## Default Development And Production Branch Policy", core)
+        self.assertIn("Target-repository governance wins", core)
         self.assertIn("at least one read-only review round", core)
-        self.assertIn("serially integrate the mission into `development`", codex)
+        self.assertIn(
+            "resolved target-repository integration branch",
+            codex,
+        )
         self.assertIn("Worktree pre-integration review gate", verification)
         self.assertIn('"branch": "refs/heads/development"', runbook)
         self.assertIn('"head_branch": "refs/heads/development"', runbook)
         self.assertIn('"base_branch": "production"', runbook)
         self.assertIn("one child must review the proposed diff", worker_goal)
+        self.assertIn(
+            "If the repository already defines another branch or pull-request model",
+            project_rules,
+        )
         self.assertIn("Never start ordinary feature, PRD/PLD, or UI work from `production`", project_rules)
         self.assertIn('"source": "production_head"', plan)
 
