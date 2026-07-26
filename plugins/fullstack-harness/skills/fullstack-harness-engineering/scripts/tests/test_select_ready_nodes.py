@@ -26,6 +26,7 @@ from harness_manifest import (  # noqa: E402
 from select_ready_nodes import (  # noqa: E402
     GraphSelectionError,
     _preintegration_review_source_ready,
+    _required_actions,
     select_ready_nodes,
 )
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
@@ -365,6 +366,28 @@ def configure_enabled_nested_app_task(
 
 
 class SelectReadyNodesTests(unittest.TestCase):
+    def test_legacy_app_task_requires_spawn_without_reviewer_role(
+        self,
+    ) -> None:
+        node = {"kind": "mission"}
+        binding = {"driver": "app_threads"}
+        runtime = {
+            "workspace_mode": "app_managed_worktree",
+            "nested_subagents": {
+                "available": True,
+                "allowed_roles": ["explorer", "tester"],
+            },
+        }
+
+        self.assertIn(
+            "spawn_subagents",
+            _required_actions(node, binding, runtime, 8),
+        )
+        self.assertNotIn(
+            "spawn_subagents",
+            _required_actions(node, binding, runtime, 10),
+        )
+
     def test_visual_repair_mission_has_a_preintegration_review_path(
         self,
     ) -> None:
@@ -983,6 +1006,46 @@ class SelectReadyNodesTests(unittest.TestCase):
             ),
             errors,
         )
+
+    def test_historical_review_attempt_requires_recorded_sha_history(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "ready",
+                "attempts": 2,
+                "last_attempt_id": "ATT-REVIEW-NEW",
+                "last_outcome": "fix_required",
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+        historical_worker = exact_head_review_worker(
+            node_id="N-FRONTEND-REVIEW",
+            worker_id="RW-HISTORICAL",
+            attempt_id="ATT-REVIEW-OLD",
+            digest=digest,
+            plan=plan,
+            run=run,
+            outcome="fix_required",
+        )
+        historical_worker["reviewed_sha"] = "f" * 40
+        run["review_workers"] = [historical_worker]
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        run["mission_states"]["M1"]["prior_head_shas"] = ["f" * 40]
+        self.assertEqual([], validate_run(plan, run))
 
     def test_batch_pass_review_rejects_a_superseded_integration_head(
         self,

@@ -3767,15 +3767,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if is_full_sha(sha)
                 }
                 if (
-                    state.get("last_outcome") == "fix_required"
-                    and worker.get("outcome") == "fix_required"
+                    worker.get("outcome") == "fix_required"
                 ):
                     current_reviewable_shas.update(integration_prior_heads)
-                is_current_attempt = state.get("last_attempt_id") == worker["attempt_id"]
-                if (
-                    worker["reviewed_sha"] not in current_reviewable_shas
-                    and is_current_attempt
-                ):
+                if worker["reviewed_sha"] not in current_reviewable_shas:
                     _add(
                         errors,
                         f"{path}.reviewed_sha",

@@ -414,7 +414,10 @@ def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
 
 
 def _required_actions(
-    node: dict[str, Any], binding: dict[str, Any], runtime: dict[str, Any]
+    node: dict[str, Any],
+    binding: dict[str, Any],
+    runtime: dict[str, Any],
+    schema_version: int,
 ) -> list[str]:
     read_only_review = node["kind"] == "verifier"
     driver = binding["driver"]
@@ -428,7 +431,10 @@ def _required_actions(
             not read_only_review
             and isinstance(nested, dict)
             and nested.get("available") is True
-            and "reviewer" in set(nested.get("allowed_roles", []))
+            and (
+                schema_version != 10
+                or "reviewer" in set(nested.get("allowed_roles", []))
+            )
         ):
             actions.append("spawn_subagents")
     if read_only_review:
@@ -492,7 +498,12 @@ def _dispatch_reasons(
         if any(not execution_covers(run, mission_id) for mission_id in authorization_missions):
             reasons.add("execution_not_authorized")
     if authorization_missions and binding is not None:
-        for action in _required_actions(node, binding, run["runtime_capabilities"]):
+        for action in _required_actions(
+            node,
+            binding,
+            run["runtime_capabilities"],
+            run["schema_version"],
+        ):
             target = "*"
             if any(
                 not _action_authorized(run, action, mission_id, target)
@@ -536,7 +547,12 @@ def _directive(
         "runtime_binding": binding,
         "tool_profile": _tool_profile(node),
         "failure_outcome": _failure_outcome(node),
-        "required_actions": _required_actions(node, binding, run["runtime_capabilities"]),
+        "required_actions": _required_actions(
+            node,
+            binding,
+            run["runtime_capabilities"],
+            run["schema_version"],
+        ),
     }
     if node["kind"] == "verifier":
         directive["review"] = node["review"]
