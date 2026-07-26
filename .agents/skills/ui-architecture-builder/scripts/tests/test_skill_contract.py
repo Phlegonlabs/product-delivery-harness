@@ -1,5 +1,7 @@
 import json
 import re
+import shutil
+import subprocess
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -266,6 +268,47 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("a candidate awaiting selection is not a frozen input", workflow_template)
         self.assertIn("affected by the accepted delta", guide)
         self.assertNotIn("Offer `frontend-design` only for the small pieces", skill)
+
+    def test_dynamic_workflow_rejects_missing_visual_direction_pass_at_runtime(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required to execute the Dynamic Workflow template")
+
+        workflow_path = (
+            SKILL_ROOT / "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        )
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+        }
+        workflow_source = workflow_path.read_text(encoding="utf-8").replace(
+            "export const meta =", "const meta =", 1
+        )
+        script = (
+            f"const args = {json.dumps(json.dumps(workflow_args))};\n"
+            "await (async () => {\n"
+            f"{workflow_source}\n"
+            "})();"
+        )
+
+        result = subprocess.run(
+            [node, "--input-type=module", "--eval", script],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires args.visual_direction_pass status not_used, selected, or rejected",
+            result.stderr,
+        )
 
     def test_interview_uses_three_dependency_waves_and_portable_closed_choices(self) -> None:
         skill = self.read("SKILL.md")

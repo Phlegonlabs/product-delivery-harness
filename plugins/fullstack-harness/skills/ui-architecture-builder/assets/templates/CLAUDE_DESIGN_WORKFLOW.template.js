@@ -26,7 +26,7 @@ for (const field of ["icons_in_scope", "motion_in_scope"]) {
 if (workflowArgs.tool_profile !== "builder_readonly") {
   throw new Error("ui-architecture-builder-graph requires args.tool_profile builder_readonly");
 }
-const visualDirectionPass = workflowArgs.visual_direction_pass || { status: "not_used" };
+const visualDirectionPass = workflowArgs.visual_direction_pass;
 if (
   typeof visualDirectionPass !== "object"
   || visualDirectionPass === null
