@@ -65,6 +65,34 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
+    def run_dynamic_workflow(
+        self,
+        workflow_args: dict[str, object],
+        runtime_prelude: str = "",
+    ) -> subprocess.CompletedProcess[str]:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required to execute the Dynamic Workflow template")
+
+        workflow_source = self.read(
+            "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        ).replace("export const meta =", "const meta =", 1)
+        script = (
+            f"const args = {json.dumps(json.dumps(workflow_args))};\n"
+            f"{runtime_prelude}\n"
+            "const result = await (async () => {\n"
+            f"{workflow_source}\n"
+            "})();\n"
+            "console.log(JSON.stringify(result));"
+        )
+        return subprocess.run(
+            [node, "--input-type=module", "--eval", script],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=10,
+        )
+
     def test_skill_requires_product_specific_visual_thesis(self) -> None:
         skill = self.read("SKILL.md")
         guide = self.read("references/visual-decision-guide.md")
@@ -264,19 +292,21 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             contract,
         )
         self.assertIn("candidate still awaits human selection", workflow)
+        self.assertIn('visual_direction_pass.status: "not used"', workflow)
         self.assertIn("visual_direction_pass: visualDirectionPass", workflow_template)
         self.assertIn("a candidate awaiting selection is not a frozen input", workflow_template)
+        self.assertIn(
+            "Status: <not used / candidate awaiting selection / selected / rejected>",
+            design_system,
+        )
+        self.assertIn(
+            "Status: [not used / candidate awaiting selection / selected / rejected]",
+            contract,
+        )
         self.assertIn("affected by the accepted delta", guide)
         self.assertNotIn("Offer `frontend-design` only for the small pieces", skill)
 
     def test_dynamic_workflow_rejects_missing_visual_direction_pass_at_runtime(self) -> None:
-        node = shutil.which("node")
-        if node is None:
-            self.skipTest("Node.js is required to execute the Dynamic Workflow template")
-
-        workflow_path = (
-            SKILL_ROOT / "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
-        )
         workflow_args = {
             "run_id": "RUN-TEST",
             "product_name": "Test Product",
@@ -286,29 +316,39 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             "motion_in_scope": False,
             "tool_profile": "builder_readonly",
         }
-        workflow_source = workflow_path.read_text(encoding="utf-8").replace(
-            "export const meta =", "const meta =", 1
-        )
-        script = (
-            f"const args = {json.dumps(json.dumps(workflow_args))};\n"
-            "await (async () => {\n"
-            f"{workflow_source}\n"
-            "})();"
-        )
-
-        result = subprocess.run(
-            [node, "--input-type=module", "--eval", script],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=10,
-        )
+        result = self.run_dynamic_workflow(workflow_args)
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "requires args.visual_direction_pass status not_used, selected, or rejected",
+            "requires args.visual_direction_pass status not used, selected, or rejected",
             result.stderr,
         )
+
+    def test_dynamic_workflow_accepts_documented_not_used_status_at_runtime(self) -> None:
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {"status": "not used"},
+        }
+        runtime_prelude = """
+const phase = () => {};
+const parallel = async (tasks) => Promise.all(tasks.map((task) => task()));
+const agent = async (_prompt, options) => {
+  const role = options.label.replace("design:", "");
+  if (role === "synthesis") return {};
+  if (options.phase === "Analyze") return { role, status: "complete" };
+  return { role, decision: "pass" };
+};
+"""
+        result = self.run_dynamic_workflow(workflow_args, runtime_prelude)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "candidate_ready")
 
     def test_interview_uses_three_dependency_waves_and_portable_closed_choices(self) -> None:
         skill = self.read("SKILL.md")

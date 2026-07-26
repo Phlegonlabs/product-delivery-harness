@@ -36,7 +36,7 @@ Before launch, the parent must have:
 - a stable run ID and product name;
 - product archetype, audience, and source paths or source summary;
 - Builder UX Direction and its selected/provisional/assumed status for UI-bearing products;
-- the selected `Frontend Design Visual Direction Pass` record, or an explicit `not used`; the workflow never launches while a candidate still awaits human selection;
+- the selected `Frontend Design Visual Direction Pass` record, or an explicit `visual_direction_pass.status: "not used"`; the workflow never launches while a candidate still awaits human selection;
 - explicit decisions on whether iconography and motion are in scope;
 - the closed-set architecture answers from `references/design-interview-guide.md`: styling engine, animation runtime split, registry enforcement mode, and greenfield-or-phased adoption;
 - the required viewport set (390 / 768 / 1200 / 1440 px unless the user names different ones);

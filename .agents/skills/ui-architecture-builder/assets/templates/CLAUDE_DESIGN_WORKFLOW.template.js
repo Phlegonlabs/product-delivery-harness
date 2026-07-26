@@ -30,10 +30,10 @@ const visualDirectionPass = workflowArgs.visual_direction_pass;
 if (
   typeof visualDirectionPass !== "object"
   || visualDirectionPass === null
-  || !["not_used", "selected", "rejected"].includes(visualDirectionPass.status)
+  || !["not used", "selected", "rejected"].includes(visualDirectionPass.status)
 ) {
   throw new Error(
-    "ui-architecture-builder-graph requires args.visual_direction_pass status not_used, selected, or rejected; a candidate awaiting selection is not a frozen input",
+    "ui-architecture-builder-graph requires args.visual_direction_pass status not used, selected, or rejected; a candidate awaiting selection is not a frozen input",
   );
 }
 
