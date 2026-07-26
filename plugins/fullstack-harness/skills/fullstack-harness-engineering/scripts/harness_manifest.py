@@ -3670,6 +3670,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if isinstance(edge, dict)
                     and edge.get("kind") == "dependency"
                     and edge.get("to") == worker["node_id"]
+                    and len(
+                        (review_nodes.get(worker["node_id"]) or {})
+                        .get("review", {})
+                        .get("mission_ids", [])
+                    )
+                    == 1
                     and mission_node_refs.get(edge.get("from"))
                     in reviewed_mission_ids
                 }
@@ -3841,11 +3847,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 and edge.get("kind") == "dependency"
                 and edge.get("from") in mission_node_ids
                 and edge.get("to") in review_nodes
+                and len(
+                    review_nodes[edge["to"]]
+                    .get("review", {})
+                    .get("mission_ids", [])
+                )
+                == 1
                 and mission_id
                 in review_nodes[edge["to"]]
                 .get("review", {})
                 .get("mission_ids", [])
             }
+            if not preintegration_review_ids:
+                continue
             raw_graph_state = run.get("graph_state")
             raw_node_states = (
                 raw_graph_state.get("node_states")

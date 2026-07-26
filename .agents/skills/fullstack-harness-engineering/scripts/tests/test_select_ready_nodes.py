@@ -721,6 +721,18 @@ class SelectReadyNodesTests(unittest.TestCase):
             )
         )
 
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        run["authorizations"]["spawn_subagents"]["scope"][
+            "plan_digest_sha256"
+        ] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+        run["mission_states"]["M1"]["phase"] = "integrating"
+
+        self.assertEqual([], validate_run(plan, run))
+
     def test_malformed_current_mission_states_return_validation_errors(self) -> None:
         plan, run = current_preintegration_review_state()
         run["mission_states"] = None
