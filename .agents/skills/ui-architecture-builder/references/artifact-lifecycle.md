@@ -23,6 +23,23 @@ Do not publish `docs/product/ui-mockups.md` or `docs/product/page-ui-matrix.md`.
 
 Stage a run under `docs/product/.design-staging/<run-id>/`, mirroring the same relative layout (including a `mockups/` subdirectory with its `catalog.html`). Do not draft over existing final files.
 
+## Visual-Direction Candidate Lifecycle
+
+When the explicitly authorized Frontend Design Visual Direction Pass is used, write its one coherent set of one to three representative screens under:
+
+```text
+docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/
+```
+
+Keep candidate HTML and notes in that subtree only. They are non-canonical review evidence and are never part of the fixed publish set, never copied into `mockups/`, and never consumed by implementation. Record the human selection plus accepted, rejected, and deferred cues in staged `design-system.md`, then normalize the accepted cues into the package's tokens, primitive and component contracts, recipes, registry, and final mockups.
+
+Before publication, list the exact candidate disposition with the canonical publish paths:
+
+- **Archive:** move the candidate subtree to a new, non-overwriting `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>-visual-directions/` path.
+- **Retain:** leave only the candidate subtree in the run staging directory and report it as non-canonical review evidence.
+
+Archive or retain requires exact user authorization with the rest of the move set. Never delete candidate files without explicit approval. A retained `visual-directions/` subtree does not block publication because it contains no duplicate canonical package; report its exact path and do not remove its parent staging directory.
+
 ## Detect Package Enhancement Before Discovery
 
 Before asking discovery questions, inspect the fixed paths above for a complete or partial UI package for the same product. When one exists, use package enhancement mode. This is separate from implementation adoption mode: package enhancement revises these design artifacts; greenfield or phased migration describes how the product code adopts them.
@@ -54,7 +71,7 @@ After approval:
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>-design/` only when superseded artifacts exist.
 2. Move only the approved superseded files into that new archive directory. Never overwrite an archive.
 3. Move the validated staged artifacts to their final `docs/product/` paths. Move `ui-architecture.md` with `ui-registry.json`, and move `design-system.md` with `design-system.html`, in the same step.
-4. Remove only the now-empty run staging directory.
+4. Remove only the now-empty run staging directory. If the user approved retaining `visual-directions/`, leave that subtree and its parent run directory in place and report the exact path.
 5. If any move fails, preserve every recoverable copy, stop, and report the exact state. Say plainly whether the published architecture and registry are still a matching pair, since a mismatched pair makes the contract check unreliable.
 
 Never delete superseded files. Report published paths, archived paths, untouched ambiguous files, and whether any staged package is still awaiting approval.
