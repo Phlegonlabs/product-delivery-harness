@@ -3843,12 +3843,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             }:
                 continue
             mission_worker = workers_by_id.get(state.get("worker_id"), {})
-            if not mission_worker:
+            if (
+                not mission_worker
+                or mission_worker.get("mission_id") != mission_id
+            ):
                 if schema_version == 10:
                     _add(
                         errors,
                         f"run.mission_states.{mission_id}.worker_id",
-                        "transition to integrating requires a matching worker record",
+                        "transition to integrating requires a worker belonging to the same mission",
                     )
                 continue
             nested_policy = (
@@ -3937,14 +3940,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         and review_worker.get("reviewed_sha") == head_sha
                         and review_worker.get("worker_runtime")
                         in {"parent", "subagent", "app_task"}
-                        and (
-                            not nested_policy_enabled
-                            or (
-                                isinstance(nested_review_evidence, dict)
-                                and review_worker.get("worker_id")
-                                == nested_review_evidence.get("agent_id")
-                            )
-                        )
                         and review_worker.get("phase")
                         in {
                             "worker_passed",
@@ -3969,6 +3964,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         dict,
                     )
                     for review_node_id in preintegration_review_ids
+                )
+                and (
+                    not nested_policy_enabled
+                    or (
+                        isinstance(nested_review_evidence, dict)
+                        and any(
+                            review_worker.get("worker_id")
+                            == nested_review_evidence.get("agent_id")
+                            for review_worker in current_review_workers.values()
+                            if isinstance(review_worker, dict)
+                        )
+                    )
                 )
                 and sum(
                     current_review_workers[review_node_id].get("outcome")

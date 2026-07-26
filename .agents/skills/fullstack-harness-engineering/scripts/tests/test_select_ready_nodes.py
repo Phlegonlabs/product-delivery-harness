@@ -289,6 +289,81 @@ def exact_head_review_worker(
     }
 
 
+def configure_enabled_nested_app_task(
+    run: dict[str, object], *, include_evidence: bool
+) -> dict[str, object]:
+    run["runtime_capabilities"].update(
+        {
+            "worker_runtime": "app_task",
+            "workspace_mode": "app_managed_worktree",
+            "completion_channel": "thread_poll",
+            "runtime_adapter": {
+                "provider": "codex",
+                "available_drivers": [
+                    "app_threads",
+                    "subagents",
+                    "sequential_parent",
+                ],
+                "detection_source": "observed",
+            },
+            "nested_subagents": {
+                "available": True,
+                "max_depth": 1,
+                "max_children_per_worker": 3,
+                "allowed_roles": ["reviewer"],
+                "write_policy": "read_only",
+                "completion_channel": "agent_result",
+            },
+            "platform_lifecycle": {
+                "owner": "app",
+                "automatic_retention_cleanup_possible": True,
+                "durable_branch_required_before_unique_work": True,
+            },
+        }
+    )
+    worker = run["workers"][0]
+    worker.update(
+        {
+            "worker_runtime": "app_task",
+            "workspace_mode": "app_managed_worktree",
+            "completion_channel": "thread_poll",
+            "task_thread_id": "THREAD-M1",
+            "nested_subagent_policy": {
+                "enabled": True,
+                "max_children": 1,
+                "allowed_roles": ["reviewer"],
+                "write_policy": "read_only",
+                "completion_channel": "agent_result",
+            },
+        }
+    )
+    worker["runtime_binding"]["driver"] = "app_threads"
+    run["observed"]["git"]["worktrees"] = [
+        {
+            "path": "C:/repo/worktrees/M1",
+            "branch_ref": "refs/heads/codex/m1",
+            "head_sha": "b" * 40,
+            "managed_by": "app",
+            "dirty": False,
+        }
+    ]
+    run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
+        "worker:W-M1"
+    ]
+    if include_evidence:
+        worker["nested_review_evidence"] = {
+            "agent_id": "A-REVIEW-M1",
+            "role": "reviewer",
+            "task": "Review the exact proposed mission head.",
+            "status": "completed",
+            "summary": "No blocking findings.",
+            "evidence_paths": ["evidence/review-m1.json"],
+            "reviewed_sha": "b" * 40,
+            "decision": "PASS",
+        }
+    return worker
+
+
 class SelectReadyNodesTests(unittest.TestCase):
     def test_visual_repair_mission_has_a_preintegration_review_path(
         self,
@@ -968,64 +1043,9 @@ class SelectReadyNodesTests(unittest.TestCase):
         self,
     ) -> None:
         plan, run = current_preintegration_review_state()
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "runtime_adapter": {
-                    "provider": "codex",
-                    "available_drivers": [
-                        "app_threads",
-                        "subagents",
-                        "sequential_parent",
-                    ],
-                    "detection_source": "observed",
-                },
-                "nested_subagents": {
-                    "available": True,
-                    "max_depth": 1,
-                    "max_children_per_worker": 3,
-                    "allowed_roles": ["reviewer"],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-                "platform_lifecycle": {
-                    "owner": "app",
-                    "automatic_retention_cleanup_possible": True,
-                    "durable_branch_required_before_unique_work": True,
-                },
-            }
+        worker = configure_enabled_nested_app_task(
+            run, include_evidence=False
         )
-        worker = run["workers"][0]
-        worker.update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-                "task_thread_id": "THREAD-M1",
-                "nested_subagent_policy": {
-                    "enabled": True,
-                    "max_children": 1,
-                    "allowed_roles": ["reviewer"],
-                    "write_policy": "read_only",
-                    "completion_channel": "agent_result",
-                },
-            }
-        )
-        worker["runtime_binding"]["driver"] = "app_threads"
-        run["observed"]["git"]["worktrees"] = [
-            {
-                "path": "C:/repo/worktrees/M1",
-                "branch_ref": "refs/heads/codex/m1",
-                "head_sha": "b" * 40,
-                "managed_by": "app",
-                "dirty": False,
-            }
-        ]
-        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
-            "worker:W-M1"
-        ]
         run["mission_states"]["M1"]["phase"] = "integrating"
 
         errors = validate_run(plan, run)
@@ -1098,6 +1118,66 @@ class SelectReadyNodesTests(unittest.TestCase):
                 for error in null_sha_errors
             )
         )
+
+    def test_integration_rejects_a_worker_from_another_mission(self) -> None:
+        plan, run = current_preintegration_review_state()
+        run["workers"][0]["mission_id"] = "M3"
+        run["mission_states"]["M1"]["phase"] = "integrating"
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "worker_id: transition to integrating requires a worker belonging to the same mission"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_nested_review_fanout_accepts_distinct_sibling_reviewers(
+        self,
+    ) -> None:
+        plan, run, digest = fanout_preintegration_review_state()
+        configure_enabled_nested_app_task(run, include_evidence=True)
+        run["mission_states"]["M1"]["phase"] = "integrating"
+        review_specs = (
+            ("N-FRONTEND-REVIEW", "A-REVIEW-M1", "ATT-REVIEW-FIRST"),
+            (
+                "N-FRONTEND-REVIEW-SECOND",
+                "A-REVIEW-M1-SECOND",
+                "ATT-REVIEW-SECOND",
+            ),
+            (
+                "N-FRONTEND-REVIEW-THIRD",
+                "A-REVIEW-M1-THIRD",
+                "ATT-REVIEW-THIRD",
+            ),
+        )
+        run["review_workers"] = []
+        for node_id, worker_id, attempt_id in review_specs:
+            run["graph_state"]["node_states"][node_id].update(
+                {
+                    "phase": "succeeded",
+                    "attempts": 1,
+                    "last_attempt_id": attempt_id,
+                    "last_outcome": "pass",
+                    "bound_worker_id": worker_id,
+                    "blockers": [],
+                }
+            )
+            run["review_workers"].append(
+                exact_head_review_worker(
+                    node_id=node_id,
+                    worker_id=worker_id,
+                    attempt_id=attempt_id,
+                    digest=digest,
+                    plan=plan,
+                    run=run,
+                )
+            )
+
+        self.assertEqual([], validate_run(plan, run))
 
     def test_plan_backed_parent_write_is_not_dispatched_in_shared_checkout(self) -> None:
         plan = valid_graph_plan()
