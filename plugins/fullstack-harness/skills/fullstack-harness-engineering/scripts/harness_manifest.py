@@ -3555,6 +3555,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             and node.get("kind") == "verifier"
             and node.get("executor") == "runtime_worker"
         }
+        mission_node_refs = {
+            node.get("id"): node.get("ref")
+            for node in plan.get("graph", {}).get("nodes", [])
+            if isinstance(node, dict) and node.get("kind") == "mission"
+        }
         review_worker_keys = {
             "worker_id",
             "node_id",
@@ -3631,11 +3636,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if isinstance(mission_states, dict)
                     else []
                 )
-                reviewed_mission_states = [
-                    state
+                reviewed_mission_states = {
+                    mission_id: state
                     for mission_id, state in mission_state_items
                     if mission_id in reviewed_mission_ids and isinstance(state, dict)
-                ]
+                }
                 current_reviewable_shas = {
                     sha
                     for sha in (
@@ -3643,11 +3648,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         run.get("landing", {}).get("pr_head_sha"),
                         *(
                             state.get("integrated_sha")
-                            for state in reviewed_mission_states
+                            for state in reviewed_mission_states.values()
                         ),
                         *(
                             state.get("head_sha")
-                            for state in reviewed_mission_states
+                            for state in reviewed_mission_states.values()
                         ),
                     )
                     if is_full_sha(sha)
@@ -3659,10 +3664,30 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and state.get("last_outcome") == "fix_required"
                     and worker.get("outcome") == "fix_required"
                 )
+                direct_preintegration_mission_ids = {
+                    mission_node_refs.get(edge.get("from"))
+                    for edge in plan.get("graph", {}).get("edges", [])
+                    if isinstance(edge, dict)
+                    and edge.get("kind") == "dependency"
+                    and edge.get("to") == worker["node_id"]
+                    and mission_node_refs.get(edge.get("from"))
+                    in reviewed_mission_ids
+                }
+                preintegration_rereview_pending = (
+                    is_current_attempt
+                    and any(
+                        mission_id in direct_preintegration_mission_ids
+                        and mission_state.get("phase") == "worker_passed"
+                        and is_full_sha(mission_state.get("head_sha"))
+                        and mission_state.get("head_sha") != worker["reviewed_sha"]
+                        for mission_id, mission_state in reviewed_mission_states.items()
+                    )
+                )
                 if (
                     worker["reviewed_sha"] not in current_reviewable_shas
                     and is_current_attempt
                     and not correction_pending
+                    and not preintegration_rereview_pending
                 ):
                     _add(
                         errors,
@@ -3842,8 +3867,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and review_worker.get("reviewed_sha") == head_sha
                     and review_worker.get("worker_runtime")
                     in {"parent", "subagent", "app_task"}
-                    and review_worker.get("phase") == "worker_passed"
-                    and review_worker.get("outcome") == "pass"
+                    and review_worker.get("phase")
+                    in {"worker_passed", "blocked", "worker_failed", "superseded"}
+                    and review_worker.get("outcome") is not None
                     for review_worker in (
                         review_workers if isinstance(review_workers, list) else []
                     )

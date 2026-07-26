@@ -181,15 +181,15 @@ def _preintegration_review_source_ready(
     )
 
 
-def _preintegration_review_head_unchanged(
+def _preintegration_review_head_matches_current(
     node: dict[str, Any],
     plan: dict[str, Any],
     run: dict[str, Any],
     dependencies: dict[str, list[dict[str, Any]]],
-) -> bool:
+) -> bool | None:
     state = run["graph_state"]["node_states"][node["id"]]
-    if state.get("last_outcome") != "fix_required" or state.get("attempts", 0) == 0:
-        return False
+    if state.get("attempts", 0) == 0:
+        return None
     nodes_by_id = {
         graph_node["id"]: graph_node for graph_node in plan["graph"]["nodes"]
     }
@@ -203,7 +203,7 @@ def _preintegration_review_head_unchanged(
         )
     ]
     if len(ready_sources) != 1:
-        return False
+        return None
     mission_id = ready_sources[0]["ref"]
     current_head = run["mission_states"][mission_id]["head_sha"]
     prior_review = next(
@@ -216,10 +216,9 @@ def _preintegration_review_head_unchanged(
         ),
         None,
     )
-    return (
-        isinstance(prior_review, dict)
-        and prior_review.get("reviewed_sha") == current_head
-    )
+    if not isinstance(prior_review, dict):
+        return None
+    return prior_review.get("reviewed_sha") == current_head
 
 
 def _logical_reasons(
@@ -232,11 +231,25 @@ def _logical_reasons(
     reasons: set[str] = set()
     node_id = node["id"]
     state = run["graph_state"]["node_states"][node_id]
+    preintegration_head_matches = _preintegration_review_head_matches_current(
+        node,
+        plan,
+        run,
+        dependencies,
+    )
+    stale_preintegration_pass = (
+        state["phase"] == "succeeded"
+        and state.get("last_outcome") == "pass"
+        and preintegration_head_matches is False
+    )
     if run.get("plan_readiness") != "ready":
         reasons.add("plan_not_ready")
     if run.get("execution_authorized") is not True:
         reasons.add("execution_not_authorized")
-    if state["phase"] not in {"dormant", "ready"}:
+    if (
+        state["phase"] not in {"dormant", "ready"}
+        and not stale_preintegration_pass
+    ):
         reasons.add("node_phase_not_ready")
     if state["blockers"]:
         reasons.add("blocker_present")
@@ -260,7 +273,10 @@ def _logical_reasons(
         ):
             reasons.add("dependency_not_satisfied")
 
-    if _preintegration_review_head_unchanged(node, plan, run, dependencies):
+    if (
+        state.get("last_outcome") == "fix_required"
+        and preintegration_head_matches is True
+    ):
         reasons.add("review_head_unchanged")
 
     incoming_routes = routes[node_id]
