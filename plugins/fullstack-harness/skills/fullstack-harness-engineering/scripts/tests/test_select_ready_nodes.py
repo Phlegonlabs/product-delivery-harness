@@ -736,6 +736,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         ]
         self.assertEqual([], validate_run(plan, run))
 
+        run["mission_states"]["M1"]["prior_head_shas"] = ["b" * 40]
         run["mission_states"]["M1"]["head_sha"] = "c" * 40
         run["workers"][0]["worker_head_sha"] = "c" * 40
 
@@ -805,6 +806,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             original_worker["worktree_path"],
             original_worker["branch_ref"],
         )
+        run["mission_states"]["M1"]["prior_head_shas"] = ["b" * 40]
         run["mission_states"]["M1"]["head_sha"] = "c" * 40
         original_worker["worker_head_sha"] = "c" * 40
 
@@ -832,6 +834,45 @@ class SelectReadyNodesTests(unittest.TestCase):
                 item["kind"] == "mission"
                 for item in selected["dispatchable_nodes"]
             )
+        )
+
+    def test_fix_required_review_rejects_unrelated_sha_without_history(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "ready",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-UNRELATED",
+                "last_outcome": "fix_required",
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+        run["review_workers"] = [
+            exact_head_review_worker(
+                node_id="N-FRONTEND-REVIEW",
+                worker_id="RW-UNRELATED",
+                attempt_id="ATT-REVIEW-UNRELATED",
+                digest=digest,
+                plan=plan,
+                run=run,
+                outcome="fix_required",
+            )
+        ]
+        run["review_workers"][0]["reviewed_sha"] = "f" * 40
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
+                in error
+                for error in errors
+            ),
+            errors,
         )
 
     def test_multi_mission_review_cannot_replace_preintegration_review(

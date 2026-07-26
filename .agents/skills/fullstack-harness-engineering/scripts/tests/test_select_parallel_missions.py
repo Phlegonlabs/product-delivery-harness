@@ -549,7 +549,9 @@ class SelectorTests(unittest.TestCase):
         self.assertEqual("capability_handshake", policy["mode"])
         self.assertNotIn("spawn_subagents", result["launch_directives"][0]["required_actions"])
 
-    def test_app_task_wave_disables_nested_policy_without_reviewer_role(self) -> None:
+    def test_legacy_app_task_wave_retains_nested_policy_without_reviewer_role(
+        self,
+    ) -> None:
         plan = make_plan([mission("M1", priority=20, merge_rank=10)])
         run = make_run(plan)
         configure_app_task_fanout(run, ["M1"])
@@ -565,11 +567,23 @@ class SelectorTests(unittest.TestCase):
 
         result = select_parallel_missions(plan, run)
 
+        self.assertEqual([], result["selected_missions"])
+        self.assertEqual(
+            ["action_not_authorized"],
+            result["deferred_missions"][0]["reason_codes"],
+        )
+
+        run["authorizations"]["spawn_subagents"] = authorization(
+            run["run_id"], ["M1"]
+        )
+        result = select_parallel_missions(plan, run)
         policy = result["launch_directives"][0]["nested_subagent_policy"]
-        self.assertEqual("not_applicable", policy["mode"])
-        self.assertEqual(0, policy["max_children"])
-        self.assertEqual([], policy["allowed_roles"])
-        self.assertNotIn("spawn_subagents", result["launch_directives"][0]["required_actions"])
+        self.assertEqual("enabled_read_only", policy["mode"])
+        self.assertEqual(["explorer", "tester"], policy["allowed_roles"])
+        self.assertIn(
+            "spawn_subagents",
+            result["launch_directives"][0]["required_actions"],
+        )
 
     def test_static_edges_include_nonready_missions_but_unary_codes_do_not(self) -> None:
         plan = make_plan(

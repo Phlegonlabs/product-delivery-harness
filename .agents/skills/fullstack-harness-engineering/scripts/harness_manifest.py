@@ -106,6 +106,18 @@ from harness_ui_evidence import (
 )
 
 
+def _validated_sha_history(
+    errors: list[str], path: str, value: Any
+) -> set[str]:
+    items = _strings(errors, path, value)
+    valid: set[str] = set()
+    for index, item in enumerate(items):
+        _optional_sha(errors, f"{path}[{index}]", item)
+        if is_full_sha(item):
+            valid.add(item)
+    return valid
+
+
 def _validate_global_verifier_ids(errors: list[str], plan: dict[str, Any]) -> None:
     if plan.get("schema_version") != 5:
         return
@@ -3000,16 +3012,32 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, "run.observed.runtime.completion_channel_available", "must be boolean")
 
     integration = run["integration"]
+    integration_optional_keys = {"retention"}
+    integration_prior_heads: set[str] = set()
+    if schema_version == 10:
+        integration_optional_keys.add("prior_head_shas")
     if _keys(
         errors,
         "run.integration",
         integration,
         {"branch", "batch_base_sha", "integration_head_sha"},
-        {"retention"},
+        integration_optional_keys,
     ):
         _optional_string(errors, "run.integration.branch", integration["branch"])
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
+        if schema_version == 10 and "prior_head_shas" in integration:
+            integration_prior_heads = _validated_sha_history(
+                errors,
+                "run.integration.prior_head_shas",
+                integration.get("prior_head_shas"),
+            )
+        if integration.get("integration_head_sha") in integration_prior_heads:
+            _add(
+                errors,
+                "run.integration.prior_head_shas",
+                "must contain only superseded integration heads",
+            )
         retention = integration.get("retention")
         if retention is not None and retention not in {"persistent", "ephemeral"}:
             _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
@@ -3066,6 +3094,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "blockers",
         "report_path",
     }
+    mission_state_optional_keys = (
+        {"prior_head_shas"} if schema_version == 10 else set()
+    )
+    mission_prior_heads: dict[str, set[str]] = {}
     if not isinstance(mission_states, dict):
         _add(errors, "run.mission_states", "must be an object")
     else:
@@ -3073,7 +3105,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.mission_states", "keys must exactly match PLAN missions")
         for mission_id, state in mission_states.items():
             path = f"run.mission_states.{mission_id}"
-            if not _keys(errors, path, state, mission_state_keys):
+            if not _keys(
+                errors,
+                path,
+                state,
+                mission_state_keys,
+                mission_state_optional_keys,
+            ):
                 continue
             if state["phase"] not in MISSION_PHASES:
                 _add(errors, f"{path}.phase", "has an unsupported value")
@@ -3085,6 +3123,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.lease_plan_revision", "must be null or positive integer")
             for key in ("lease_plan_digest_sha256", "base_sha", "head_sha", "integrated_sha"):
                 _optional_sha(errors, f"{path}.{key}", state[key])
+            if schema_version == 10 and "prior_head_shas" in state:
+                prior_heads = _validated_sha_history(
+                    errors,
+                    f"{path}.prior_head_shas",
+                    state["prior_head_shas"],
+                )
+                mission_prior_heads[mission_id] = prior_heads
+                if state.get("head_sha") in prior_heads:
+                    _add(
+                        errors,
+                        f"{path}.prior_head_shas",
+                        "must contain only superseded mission heads",
+                    )
             if state["integration_gate"] not in GATE_VALUES:
                 _add(errors, f"{path}.integration_gate", "has an unsupported gate value")
             _strings(errors, f"{path}.blockers", state["blockers"])
@@ -3670,31 +3721,20 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             for mission_id, state in reviewed_mission_states.items()
                             if mission_id in direct_preintegration_mission_ids
                         ),
+                        *integration_prior_heads,
+                        *(
+                            sha
+                            for mission_id in direct_preintegration_mission_ids
+                            for sha in mission_prior_heads.get(mission_id, set())
+                        ),
                     )
                     if is_full_sha(sha)
                 }
                 state = run["graph_state"]["node_states"].get(worker["node_id"], {})
                 is_current_attempt = state.get("last_attempt_id") == worker["attempt_id"]
-                correction_pending = (
-                    is_current_attempt
-                    and state.get("last_outcome") == "fix_required"
-                    and worker.get("outcome") == "fix_required"
-                )
-                preintegration_rereview_pending = (
-                    is_current_attempt
-                    and any(
-                        mission_id in direct_preintegration_mission_ids
-                        and mission_state.get("phase") == "worker_passed"
-                        and is_full_sha(mission_state.get("head_sha"))
-                        and mission_state.get("head_sha") != worker["reviewed_sha"]
-                        for mission_id, mission_state in reviewed_mission_states.items()
-                    )
-                )
                 if (
                     worker["reviewed_sha"] not in current_reviewable_shas
                     and is_current_attempt
-                    and not correction_pending
-                    and not preintegration_rereview_pending
                 ):
                     _add(
                         errors,

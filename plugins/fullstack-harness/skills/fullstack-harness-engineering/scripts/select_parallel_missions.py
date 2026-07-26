@@ -64,7 +64,19 @@ class SelectionError(ValueError):
     """Raised when manifests cannot safely be used for selection."""
 
 
-def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
+def _nested_policy_enabled(runtime: dict[str, Any], schema_version: int) -> bool:
+    nested = runtime.get("nested_subagents")
+    if not isinstance(nested, dict) or nested.get("available") is not True:
+        return False
+    return (
+        schema_version != 10
+        or "reviewer" in set(nested.get("allowed_roles", []))
+    )
+
+
+def _required_actions(
+    runtime: dict[str, Any], schema_version: int
+) -> tuple[str, ...]:
     actions: list[str] = []
     runtime_driver = route_runtime_driver(runtime)
     workspace_mode = runtime.get("workspace_mode")
@@ -73,13 +85,7 @@ def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
         actions.append("spawn_subagents")
     elif runtime_driver == "app_threads":
         actions.append("create_user_owned_tasks")
-        nested = runtime.get("nested_subagents")
-        reviewer_available = (
-            isinstance(nested, dict)
-            and nested.get("available") is True
-            and "reviewer" in set(nested.get("allowed_roles", []))
-        )
-        if reviewer_available:
+        if _nested_policy_enabled(runtime, schema_version):
             actions.append("spawn_subagents")
 
     if workspace_mode == "parent_managed_worktree":
@@ -100,7 +106,7 @@ def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
 
 
 def _launch_directive(
-    mission_id: str, runtime: dict[str, Any]
+    mission_id: str, runtime: dict[str, Any], schema_version: int
 ) -> dict[str, Any]:
     worker_runtime = runtime["worker_runtime"]
     runtime_driver = route_runtime_driver(runtime)
@@ -120,16 +126,7 @@ def _launch_directive(
     }
     if runtime_driver == "app_threads":
         nested = runtime.get("nested_subagents")
-        nested_roles = (
-            set(nested.get("allowed_roles", []))
-            if isinstance(nested, dict)
-            else set()
-        )
-        if (
-            isinstance(nested, dict)
-            and nested.get("available") is True
-            and "reviewer" in nested_roles
-        ):
+        if _nested_policy_enabled(runtime, schema_version):
             nested_policy = {
                 "mode": "enabled_read_only",
                 "max_children": min(nested["max_children_per_worker"], 3),
@@ -148,7 +145,7 @@ def _launch_directive(
         "worker_runtime": worker_runtime,
         "workspace_mode": runtime["workspace_mode"],
         "completion_channel": runtime["completion_channel"],
-        "required_actions": list(_required_actions(runtime)),
+        "required_actions": list(_required_actions(runtime, schema_version)),
         "nested_subagent_policy": nested_policy,
         "worker_prompt_template": "assets/templates/WORKER_GOAL.template.md",
     }
@@ -301,7 +298,7 @@ def _mission_launch_reasons(
     if workspace_mode != "shared_checkout" and mission.get("worktree_eligible") is not True:
         reasons.add("worktree_ineligible")
 
-    for action in _required_actions(runtime):
+    for action in _required_actions(runtime, run["schema_version"]):
         if not _action_covers_mission(run, action, mission_id):
             missing_actions.append(action)
     if missing_actions:
@@ -504,7 +501,8 @@ def select_parallel_missions(
         "deferred_missions": deferred,
         "effective_worker_budget": effective_budget,
         "launch_directives": [
-            _launch_directive(mission_id, runtime) for mission_id in selected
+            _launch_directive(mission_id, runtime, run["schema_version"])
+            for mission_id in selected
         ],
         "plan_digest_sha256": plan_digest(plan),
         "plan_id": plan["plan_id"],
