@@ -3212,7 +3212,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 path,
                 worker,
                 worker_keys,
-                {"nested_subagent_policy", "runtime_binding"},
+                {
+                    "nested_subagent_policy",
+                    "nested_review_evidence",
+                    "runtime_binding",
+                },
             ):
                 continue
             for key in ("worker_id", "mission_id", "lease_id", "plan_digest_sha256", "batch_base_sha"):
@@ -3320,6 +3324,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
+            nested_review_evidence = worker.get("nested_review_evidence")
             if (
                 schema_version in {6, 7, 8, 9, 10}
                 and isinstance(runtime, dict)
@@ -3458,6 +3463,75 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.nested_subagent_policy.allowed_roles",
                             "must be empty when disabled",
                         )
+            if nested_review_evidence is not None and _keys(
+                errors,
+                f"{path}.nested_review_evidence",
+                nested_review_evidence,
+                {
+                    "agent_id",
+                    "role",
+                    "task",
+                    "status",
+                    "summary",
+                    "evidence_paths",
+                    "reviewed_sha",
+                    "decision",
+                },
+            ):
+                for key in ("agent_id", "task", "summary"):
+                    if not _nonempty_string(nested_review_evidence[key]):
+                        _add(
+                            errors,
+                            f"{path}.nested_review_evidence.{key}",
+                            "must be a non-empty string",
+                        )
+                if nested_review_evidence["role"] != "reviewer":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.role",
+                        "must equal reviewer",
+                    )
+                if nested_review_evidence["status"] != "completed":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.status",
+                        "must equal completed",
+                    )
+                _strings(
+                    errors,
+                    f"{path}.nested_review_evidence.evidence_paths",
+                    nested_review_evidence["evidence_paths"],
+                )
+                _optional_sha(
+                    errors,
+                    f"{path}.nested_review_evidence.reviewed_sha",
+                    nested_review_evidence["reviewed_sha"],
+                )
+                if nested_review_evidence["decision"] != "PASS":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.decision",
+                        "must equal PASS",
+                    )
+                if (
+                    is_full_sha(worker["worker_head_sha"])
+                    and nested_review_evidence["reviewed_sha"]
+                    != worker["worker_head_sha"]
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        "must match worker_head_sha",
+                    )
+                if not (
+                    isinstance(nested_policy, dict)
+                    and nested_policy.get("enabled") is True
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence",
+                        "is allowed only for an enabled nested-subagent policy",
+                    )
 
     if graph_run:
         review_workers = run["review_workers"]
@@ -3676,9 +3750,25 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if isinstance(mission_worker, dict)
                 else None
             )
-            if isinstance(nested_policy, dict) and nested_policy.get("enabled") is True:
-                continue
             head_sha = state.get("head_sha")
+            if isinstance(nested_policy, dict) and nested_policy.get("enabled") is True:
+                nested_review_evidence = mission_worker.get(
+                    "nested_review_evidence"
+                )
+                has_task_local_review = (
+                    isinstance(nested_review_evidence, dict)
+                    and nested_review_evidence.get("role") == "reviewer"
+                    and nested_review_evidence.get("status") == "completed"
+                    and nested_review_evidence.get("reviewed_sha") == head_sha
+                    and nested_review_evidence.get("decision") == "PASS"
+                )
+                if not has_task_local_review:
+                    _add(
+                        errors,
+                        f"run.mission_states.{mission_id}.integration_gate",
+                        "transition to integrating requires retained task-local exact-head PASS review evidence",
+                    )
+                continue
             has_parent_review = any(
                 isinstance(review_worker, dict)
                 and review_worker.get("node_id") in review_nodes
@@ -3690,7 +3780,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 and review_worker.get("worker_runtime") in {"parent", "subagent"}
                 and review_worker.get("phase") == "worker_passed"
                 and review_worker.get("outcome") == "pass"
-                for review_worker in review_workers
+                for review_worker in (
+                    review_workers if isinstance(review_workers, list) else []
+                )
             )
             if not has_parent_review:
                 _add(

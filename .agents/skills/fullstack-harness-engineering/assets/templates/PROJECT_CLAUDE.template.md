@@ -49,38 +49,38 @@ This template's `development` and `production` branch names are defaults for a n
 
 ## Development And Production Branches
 
-- Create every implementation worktree from the current `development` SHA.
+- Create every implementation worktree from the current resolved integration-branch SHA.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
-- With matching `integrate_locally` authorization, merge only reviewed worktree heads into `development`.
-- Never start ordinary feature, PRD/PLD, or UI work from `production`, and never merge a worktree directly into it.
-- Start `development -> production` only after the user reviews the accumulated development result and gives explicit final approval. Later changes continue from `development`.
+- With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
+- Never start ordinary feature, PRD/PLD, or UI work from the resolved protected landing branch, and never merge a worktree directly into it.
+- Start the resolved integration-to-landing promotion only after the user reviews the accumulated result and gives explicit final approval. Later changes continue from the resolved implementation branch.
 
 ## Pull Request Flow
 
-- Do not push directly to `production`.
+- Do not push directly to the resolved protected landing branch.
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. Common GitHub-flow examples are branch creation, local commits, local integration, repository configuration, push, PR creation, review-state mutation, merge, and cleanup. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
-- Ordinary plan-backed work stays `local_only` on `development` and does not wait for GitHub. Do not request or infer production promotion at Plan Readiness. After the user's separate final approval, request each exact remaining promotion action and bind review and merge to `future-pr:<owner>/<repo>:base=production:head=development`; after creation, verify the binding and append the exact `pr:<full-PR-URL>` target.
+- Ordinary plan-backed work stays `local_only` on the resolved integration branch and does not wait for GitHub. Do not request or infer protected-branch promotion at Plan Readiness. After the user's separate final approval, request each exact remaining promotion action and bind review and merge to `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`; after creation, verify the binding and append the exact `pr:<full-PR-URL>` target.
 - With matching `create_local_branches` authorization, work on `<branch-prefix>/<short-name>`.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
-- Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into persistent `development`.
+- Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved persistent integration branch.
 - Run `<verification-command>` and `<e2e-command>`, then review the complete diff before push.
 - Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual or deployment smoke only for a materially different environment or an uncovered visual/external-integration risk.
 - Change branch rules, required checks, repository auto-merge, or Codex review settings only with matching `configure_repository` authorization.
-- With matching `push` authorization after final promotion approval, push only the verified `development` head.
+- With matching `push` authorization after final promotion approval, push only the verified resolved head branch.
 - With separate `create_pr` authorization, open a Draft PR. Do not create a non-draft PR, mark it ready, or otherwise expose it to automatic review without matching `manage_pr_review` authorization.
 - With separate `manage_pr_review` authorization, mark the PR ready when required and request Codex review immediately; do not wait for CI first.
 - After every new push, start or observe current-head CI, including required E2E, and request current-head review again. Poll both gates concurrently.
 - After current-head CI and Codex review pass and unresolved threads reach zero, use matching `merge_pr` authorization to enable squash auto-merge with an exact head-SHA match. Never enable auto-merge before those gates pass.
-- After final promotion approval, when every remaining push, PR creation, review-management, and merge mutation is explicitly authorized for its exact `development -> production` target, continue through that landing flow without pausing between stages. Poll CI and review, reset stale evidence after every push, fix only authorized in-scope findings on `development`, and finish only after GitHub reports the PR merged into `production`.
+- After final promotion approval, when every remaining push, PR creation, review-management, and merge mutation is explicitly authorized for its exact resolved head-to-base target, continue through that landing flow without pausing between stages. Poll CI and review, reset stale evidence after every push, fix only authorized in-scope findings on the head branch, and finish only after GitHub reports the PR merged into the resolved base.
 - After a merged PR, re-fetch the base and verify the exact PR head before cleanup. Remove only an authorized clean linked worktree, switch the primary checkout to the base branch, then delete only the authorized local feature branch. Never remove the primary checkout.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal remain separate ledger actions even when several are approved in one explicit readiness statement.
 
 ## Cloudflare Release Flow
 
 - For deployable Cloudflare applications, use one codebase with isolated `development` and `production` Workers and environment-specific storage, secrets, auth configuration, payment mode, routes, and webhooks.
-- Deploy the exact reviewed `development` head to the PLAN-v5 development target only when `deploy` authorization covers its exact `release:<target-id>` and authorized head. A new integration makes that grant and its evidence stale.
+- Deploy the exact reviewed integration head to the PLAN-v5 development target only when `deploy` authorization covers its exact `release:<target-id>` and authorized head. A new integration makes that grant and its evidence stale.
 - Require development migration and deployed-environment E2E PASS before the user-approved promotion. Development uses non-production data and payment sandbox mode when payment applies.
-- Publish the exact resulting `production` head only after GitHub reports the `development -> production` PR merged and exact production-target deploy authorization is present. Keep the authorized development candidate head separate from the resulting production SHA. Production smoke must pass before release completion.
+- Publish the exact resulting protected landing head only after GitHub reports the resolved promotion PR merged and exact production-target deploy authorization is present. Keep the authorized candidate head separate from the resulting landing SHA. Production smoke must pass before release completion.
 - Use the exact-SHA dispatched Cloudflare deployment workflow. Do not make an arbitrary branch push or base-branch push an unconditional deployment path, and do not infer deploy authorization from push or merge.
 - Keep Wrangler configuration as the repository source of truth. Never store Cloudflare tokens or environment secret values in PLAN, RUN, workflow files, or committed dotenv files.
 - Before the first deploy for this product, confirm `wrangler.jsonc` exists (scaffold it per the Full-Stack Harness's `cloudflare-deployment-lifecycle.md` if missing) and confirm Cloudflare account access is verified (GitHub Environment secrets for the CD workflow, or an authenticated Wrangler session locally). Never attempt a deploy while either is unverified.

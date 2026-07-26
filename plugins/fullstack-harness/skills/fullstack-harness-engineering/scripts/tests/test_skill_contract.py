@@ -262,7 +262,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         agent = self.read("agents/openai.yaml")
 
         self.assertIn(
-            "do not include a future `development -> production` promotion",
+            "do not include a future protected-branch promotion",
+            skill,
+        )
+        self.assertIn(
+            "future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>",
             skill,
         )
         self.assertIn("Do not put a future protected-branch promotion", state)
@@ -271,11 +275,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             goal,
         )
         self.assertIn(
-            "Do not include production promotion in an ordinary mission run",
+            "Do not include protected-branch promotion in an ordinary mission run",
             runbook,
         )
         self.assertIn(
-            "Do not request or infer production promotion at Plan Readiness",
+            "Do not request or infer protected-branch promotion at Plan Readiness",
             project_rules,
         )
         self.assertIn("select authorized ready nodes", agent)
@@ -309,7 +313,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "If the repository already defines another branch or pull-request model",
             project_rules,
         )
-        self.assertIn("Never start ordinary feature, PRD/PLD, or UI work from `production`", project_rules)
+        self.assertIn(
+            "Never start ordinary feature, PRD/PLD, or UI work from the resolved protected landing branch",
+            project_rules,
+        )
         self.assertIn('"source": "production_head"', plan)
 
     def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:

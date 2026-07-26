@@ -1513,6 +1513,86 @@ class GraphManifestTests(unittest.TestCase):
                 for error in validate_run(plan, transition)
             )
         )
+        enabled_transition = copy.deepcopy(transition)
+        enabled_transition["review_workers"] = []
+        enabled_transition["workers"][0].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "task_thread_id": "THREAD-M1",
+                "nested_subagent_policy": {
+                    "enabled": True,
+                    "max_children": 1,
+                    "allowed_roles": ["reviewer"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+            }
+        )
+        enabled_transition["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "nested_subagents": {
+                    "available": True,
+                    "max_depth": 1,
+                    "max_children_per_worker": 3,
+                    "allowed_roles": ["reviewer"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+            }
+        )
+        authorize(
+            enabled_transition,
+            "spawn_subagents",
+            ["M1"],
+            "worker:W-M1",
+        )
+        self.assertTrue(
+            any(
+                "transition to integrating requires retained task-local exact-head PASS review evidence"
+                in error
+                for error in validate_run(plan, enabled_transition)
+            )
+        )
+        enabled_transition["workers"][0]["nested_review_evidence"] = {
+            "agent_id": "A-REVIEW-M1",
+            "role": "reviewer",
+            "task": "Review the exact proposed mission head.",
+            "status": "completed",
+            "summary": "No blocking findings.",
+            "evidence_paths": ["evidence/review-m1.json"],
+            "reviewed_sha": "b" * 40,
+            "decision": "PASS",
+        }
+        self.assertFalse(
+            any(
+                "transition to integrating requires retained task-local exact-head PASS review evidence"
+                in error
+                for error in validate_run(plan, enabled_transition)
+            )
+        )
+        enabled_transition["workers"][0]["nested_review_evidence"][
+            "reviewed_sha"
+        ] = "c" * 40
+        self.assertTrue(
+            any(
+                "transition to integrating requires retained task-local exact-head PASS review evidence"
+                in error
+                for error in validate_run(plan, enabled_transition)
+            )
+        )
+        malformed_reviews = copy.deepcopy(transition)
+        malformed_reviews["review_workers"] = None
+        self.assertTrue(
+            any(
+                "run.review_workers: must be a list" in error
+                for error in validate_run(plan, malformed_reviews)
+            )
+        )
         run["mission_states"]["M2"]["head_sha"] = "c" * 40
         run["review_workers"][0]["reviewed_sha"] = "c" * 40
         self.assertTrue(
