@@ -1039,6 +1039,35 @@ class SelectReadyNodesTests(unittest.TestCase):
             any("run.mission_states: must be an object" in error for error in errors)
         )
 
+    def test_malformed_review_node_state_returns_validation_errors(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["mission_states"]["M1"]["phase"] = "integrating"
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"] = []
+        run["review_workers"] = [
+            exact_head_review_worker(
+                node_id="N-FRONTEND-REVIEW",
+                worker_id="RW-MALFORMED-STATE",
+                attempt_id="ATT-MALFORMED-STATE",
+                digest=digest,
+                plan=plan,
+                run=run,
+            )
+        ]
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "run.graph_state.node_states.N-FRONTEND-REVIEW: must be an object"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_current_enabled_nested_policy_requires_retained_review_evidence(
         self,
     ) -> None:

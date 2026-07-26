@@ -3707,7 +3707,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and mission_node_refs.get(edge.get("from"))
                     in reviewed_mission_ids
                 }
-                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
+                raw_state = run["graph_state"]["node_states"].get(
+                    worker["node_id"], {}
+                )
+                state = raw_state if isinstance(raw_state, dict) else {}
                 current_reviewable_shas = {
                     sha
                     for sha in (
@@ -3918,6 +3921,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             node_states = (
                 raw_node_states if isinstance(raw_node_states, dict) else {}
             )
+            review_node_states = {
+                node_id: node_state
+                for node_id, node_state in node_states.items()
+                if isinstance(node_state, dict)
+            }
             current_review_workers = {
                 review_node_id: next(
                     (
@@ -3930,11 +3938,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         if isinstance(review_worker, dict)
                         and review_worker.get("node_id") == review_node_id
                         and review_worker.get("worker_id")
-                        == node_states.get(review_node_id, {}).get(
+                        == review_node_states.get(review_node_id, {}).get(
                             "bound_worker_id"
                         )
                         and review_worker.get("attempt_id")
-                        == node_states.get(review_node_id, {}).get(
+                        == review_node_states.get(review_node_id, {}).get(
                             "last_attempt_id"
                         )
                         and review_worker.get("reviewed_sha") == head_sha
@@ -3956,9 +3964,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             has_parent_review = (
                 bool(preintegration_review_ids)
                 and all(
-                    isinstance(node_states.get(review_node_id), dict)
-                    and node_states[review_node_id].get("phase") == "succeeded"
-                    and node_states[review_node_id].get("last_outcome") == "pass"
+                    review_node_states.get(review_node_id, {}).get("phase")
+                    == "succeeded"
+                    and review_node_states.get(review_node_id, {}).get(
+                        "last_outcome"
+                    )
+                    == "pass"
                     and isinstance(
                         current_review_workers.get(review_node_id),
                         dict,
