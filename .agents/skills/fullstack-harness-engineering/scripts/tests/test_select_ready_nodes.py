@@ -1028,6 +1028,39 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
+    def test_review_without_pass_cannot_authorize_preintegration_coverage(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        review = next(
+            node
+            for node in plan["graph"]["nodes"]
+            if node["id"] == "N-FRONTEND-REVIEW"
+        )
+        review["allowed_outcomes"] = [
+            "fix_required",
+            "blocked",
+            "contract_gap",
+        ]
+
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        run["authorizations"]["spawn_subagents"]["scope"][
+            "plan_digest_sha256"
+        ] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "no direct singleton pre-integration review node: M1" in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_malformed_current_mission_states_return_validation_errors(self) -> None:
         plan, run = current_preintegration_review_state()
         run["mission_states"] = None
@@ -1206,6 +1239,16 @@ class SelectReadyNodesTests(unittest.TestCase):
             )
 
         self.assertEqual([], validate_run(plan, run))
+
+        run["review_workers"][0]["outcome"] = "fix_required"
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_plan_backed_parent_write_is_not_dispatched_in_shared_checkout(self) -> None:
         plan = valid_graph_plan()

@@ -2333,8 +2333,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         and isinstance(plan.get("graph"), dict)
     ):
         reviewed_missions: set[str] = set()
-        graph_nodes = plan["graph"].get("nodes", [])
-        graph_edges = plan["graph"].get("edges", [])
+        raw_graph_nodes = plan["graph"].get("nodes", [])
+        raw_graph_edges = plan["graph"].get("edges", [])
+        graph_nodes = raw_graph_nodes if isinstance(raw_graph_nodes, list) else []
+        graph_edges = raw_graph_edges if isinstance(raw_graph_edges, list) else []
         mission_node_ids = {
             node["ref"]: node["id"]
             for node in graph_nodes
@@ -2356,6 +2358,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if (
                     len(mission_ids) != 1
                     or not isinstance(mission_ids[0], str)
+                    or not isinstance(node.get("allowed_outcomes"), list)
+                    or "pass" not in node["allowed_outcomes"]
                     or not any(
                         isinstance(edge, dict)
                         and edge.get("kind") == "dependency"
@@ -4012,6 +4016,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         and any(
                             review_worker.get("worker_id")
                             == nested_review_evidence.get("agent_id")
+                            and review_worker.get("outcome") == "pass"
                             for review_worker in current_review_workers.values()
                             if isinstance(review_worker, dict)
                         )
