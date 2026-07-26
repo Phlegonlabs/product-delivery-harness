@@ -211,36 +211,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           }
         },
         {
-          "id": "N-M1-REPAIR",
-          "kind": "mission",
-          "ref": "M2",
-          "executor": "runtime_worker",
-          "allowed_outcomes": [
-            "pass",
-            "retryable_failure",
-            "blocked",
-            "contract_gap"
-          ],
-          "max_attempts": 2,
-          "runtime": {
-            "preferred_provider": "claude_code",
-            "allowed_providers": [
-              "codex",
-              "claude_code"
-            ],
-            "provider_options": {
-              "codex": {
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "high"
-              },
-              "claude_code": {
-                "model": "sonnet",
-                "reasoning_effort": "high"
-              }
-            }
-          }
-        },
-        {
           "id": "N-FRONTEND-REVIEW",
           "kind": "verifier",
           "ref": "batch-cross-mission",
@@ -272,8 +242,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "review": {
             "type": "frontend_code",
             "mission_ids": [
-              "M1",
-              "M2"
+              "M1"
             ],
             "scope": [
               "src/example/**"
@@ -332,7 +301,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
             "type": "visual",
             "mission_ids": [
               "M1",
-              "M2",
               "M3"
             ],
             "scope": [
@@ -400,26 +368,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
             "pass"
           ],
           "max_traversals": null
-        },
-        {
-          "id": "E-FRONTEND-REVIEW-REPAIR",
-          "kind": "route",
-          "from": "N-FRONTEND-REVIEW",
-          "to": "N-M1-REPAIR",
-          "on_outcomes": [
-            "fix_required"
-          ],
-          "max_traversals": 2
-        },
-        {
-          "id": "E-REPAIR-FRONTEND-REREVIEW",
-          "kind": "route",
-          "from": "N-M1-REPAIR",
-          "to": "N-FRONTEND-REVIEW",
-          "on_outcomes": [
-            "pass"
-          ],
-          "max_traversals": 2
         },
         {
           "id": "E-FRONTEND-FINAL-GATE",
@@ -590,121 +538,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         ]
       },
       {
-        "id": "M2",
-        "alias": "frontend-review-repair",
-        "objective": "Apply only accepted frontend review findings, then return the changed head through the same frontend review.",
-        "priority": 90,
-        "merge_rank": 20,
-        "trace_ids": [
-          "PRD-001"
-        ],
-        "write_scope": [
-          "src/example/**"
-        ],
-        "deny_scope": [
-          "docs/goal/PLAN.md",
-          "docs/goal/RUN.md"
-        ],
-        "resource_inventory_complete": true,
-        "serialized_resources": [],
-        "runtime_resources": [
-          {
-            "key": "service:example-http",
-            "access": "exclusive"
-          }
-        ],
-        "worktree_eligible": true,
-        "required_skills": [],
-        "stop_conditions": [
-          "Stop if a finding requires a contract or scope change instead of an in-scope code repair."
-        ],
-        "worker_verifiers": [
-          {
-            "id": "frontend-repair-focused",
-            "cwd": ".",
-            "argv": [
-              "<runner>",
-              "<frontend-repair-argument>"
-            ],
-            "pass_signal": "exit 0",
-            "selection": {
-              "mode": "changed_files",
-              "scopes": [
-                "src/example/**"
-              ]
-            },
-            "cache": {
-              "mode": "session_exact",
-              "environment_keys": [
-                "CI"
-              ]
-            }
-          }
-        ],
-        "integration_verifiers": [
-          {
-            "id": "frontend-repair-integration",
-            "cwd": ".",
-            "argv": [
-              "<runner>",
-              "<frontend-repair-integration-argument>"
-            ],
-            "pass_signal": "<literal pass signal>"
-          }
-        ],
-        "tasks": [
-          {
-            "id": "M2/T01",
-            "alias": "apply-frontend-review-findings",
-            "objective": "Repair the accepted in-scope frontend findings from the immediately preceding review attempt.",
-            "acceptance_matrix": [
-              {
-                "test_id": "TEST-M2-T01-001",
-                "trace_ids": [
-                  "PRD-001"
-                ],
-                "criterion": "Every accepted blocking frontend finding is resolved and the focused repair verifier passes."
-              }
-            ],
-            "trace_ids": [
-              "PRD-001"
-            ],
-            "depends_on": [],
-            "parent_task": null,
-            "legacy_task_ids": [],
-            "replaced_by": [],
-            "split_reason": null,
-            "refinement_generation": 0,
-            "write_scope": [
-              "src/example/**"
-            ],
-            "verifiers": [
-              {
-                "id": "frontend-repair-task",
-                "cwd": ".",
-                "argv": [
-                  "<runner>",
-                  "<frontend-repair-task-argument>"
-                ],
-                "pass_signal": "exit 0",
-                "selection": {
-                  "mode": "changed_files",
-                  "scopes": [
-                    "src/example/**"
-                  ]
-                },
-                "cache": {
-                  "mode": "session_exact",
-                  "environment_keys": [
-                    "CI"
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      {
         "id": "M3",
         "alias": "visual-review-repair",
         "objective": "Apply only accepted visual review findings, regenerate affected evidence, and return the changed head through the same visual review.",
@@ -836,13 +669,13 @@ Every PLAN-v5 source binds the published input with `content_sha256`, `source_re
 
 For frontend/UI implementation, use Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model (such as `claude-fable-5` or `claude-opus-4-8`) for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
 
-For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews, bind to one exact reviewed SHA in RUN, and route `fix_required` back to the matching bounded repair path. Combine reviews only when the scope is genuinely single-surface and record why.
+For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews and bind to one exact reviewed SHA in RUN. A pre-integration review covers one mission; `fix_required` returns to that mission's original task, thread, and worktree, and `max_attempts` bounds review of each changed head. A post-integration or batch review may route `fix_required` to a bounded repair node based on the reviewed integration head. Combine reviews only when the scope is genuinely single-surface and record why.
 
 List every applicable review type in `required_reviews`. PLAN validation rejects a required type without a matching runtime-worker verifier node. Use an empty list only when the work has no frontend, backend, or visual review surface; explain that applicability decision in the human review map.
 
 Use immutable, flat task IDs such as `M1/T01`. Represent lineage only with `parent_task`; use `legacy_task_ids` only for real pre-existing identifiers. A generation-0 task may be replaced by generation-1 children, but generation-1 tasks must not split again without a mission-level replan. When accepted refinement replaces a task, set its `replaced_by`, give each child `parent_task`, `split_reason`, and `refinement_generation: 1`, then increment the plan revision and revalidate the complete graph.
 
-Task dependencies are same-mission only. In PLAN schema v5, express every cross-mission ordering requirement with `graph.edges` of kind `dependency`; do not retain a second `missions[].depends_on` source. Dependency edges must stay acyclic. Conditional `route` edges may form a correction loop only when every cyclic route has `max_traversals` and the cycle has an exit edge. A runtime review that can return `fix_required` must route to a bounded repair node, then route a successful repair back through the same review before any deterministic final gate. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
+Task dependencies are same-mission only. In PLAN schema v5, express every cross-mission ordering requirement with `graph.edges` of kind `dependency`; do not retain a second `missions[].depends_on` source. Dependency edges must stay acyclic. Conditional `route` edges may form a correction loop only when every cyclic route has `max_traversals` and the cycle has an exit edge. A pre-integration runtime review that can return `fix_required` may use direct mission dependency plus `max_attempts`: the parent sends findings to the original mission task/worktree and re-arms review only after a changed head passes its focused verifier. Post-integration review uses a bounded repair route and returns the repair through the same review before any deterministic final gate. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
 
 Each PLAN-v5 `acceptance_matrix` row is exactly `{test_id, trace_ids, criterion}`. Use a stable `TEST-*` ID, bind only traces declared by that task, and write one observable criterion. Every planned task trace must appear in at least one acceptance row; prose-only arrays from older schemas are readable but are not the current authoring contract.
 

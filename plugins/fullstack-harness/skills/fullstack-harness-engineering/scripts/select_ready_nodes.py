@@ -180,6 +180,47 @@ def _preintegration_review_source_ready(
     )
 
 
+def _preintegration_review_head_unchanged(
+    node: dict[str, Any],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    dependencies: dict[str, list[dict[str, Any]]],
+) -> bool:
+    state = run["graph_state"]["node_states"][node["id"]]
+    if state.get("last_outcome") != "fix_required" or state.get("attempts", 0) == 0:
+        return False
+    nodes_by_id = {
+        graph_node["id"]: graph_node for graph_node in plan["graph"]["nodes"]
+    }
+    ready_sources = [
+        nodes_by_id[edge["from"]]
+        for edge in dependencies[node["id"]]
+        if _preintegration_review_source_ready(
+            node,
+            nodes_by_id.get(edge["from"]),
+            run,
+        )
+    ]
+    if len(ready_sources) != 1:
+        return False
+    mission_id = ready_sources[0]["ref"]
+    current_head = run["mission_states"][mission_id]["head_sha"]
+    prior_review = next(
+        (
+            worker
+            for worker in run.get("review_workers", [])
+            if isinstance(worker, dict)
+            and worker.get("node_id") == node["id"]
+            and worker.get("attempt_id") == state.get("last_attempt_id")
+        ),
+        None,
+    )
+    return (
+        isinstance(prior_review, dict)
+        and prior_review.get("reviewed_sha") == current_head
+    )
+
+
 def _logical_reasons(
     node: dict[str, Any],
     plan: dict[str, Any],
@@ -217,6 +258,9 @@ def _logical_reasons(
             run,
         ):
             reasons.add("dependency_not_satisfied")
+
+    if _preintegration_review_head_unchanged(node, plan, run, dependencies):
+        reasons.add("review_head_unchanged")
 
     incoming_routes = routes[node_id]
     if incoming_routes:

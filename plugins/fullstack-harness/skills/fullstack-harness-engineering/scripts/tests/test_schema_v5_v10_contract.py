@@ -174,40 +174,40 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         edges = {edge["id"]: edge for edge in plan["graph"]["edges"]}
         missions = {mission["id"]: mission for mission in plan["missions"]}
 
-        for review_id, repair_id, mission_id, final_id in (
-            ("N-FRONTEND-REVIEW", "N-M1-REPAIR", "M2", "N-FINAL-GATE"),
-            ("N-VISUAL-REVIEW", "N-VISUAL-REPAIR", "M3", "N-CLOSEOUT-GATE"),
-        ):
-            repair = nodes[repair_id]
-            mission = missions[mission_id]
-            self.assertEqual("mission", repair["kind"])
-            self.assertEqual("runtime_worker", repair["executor"])
-            self.assertEqual(mission_id, repair["ref"])
-            self.assertTrue(mission["write_scope"])
-            self.assertTrue(mission["tasks"][0]["acceptance_matrix"])
-            self.assertTrue(mission["worker_verifiers"])
-            self.assertTrue(mission["integration_verifiers"])
-            review_to_repair = next(
-                edge
+        frontend = nodes["N-FRONTEND-REVIEW"]
+        self.assertEqual(["M1"], frontend["review"]["mission_ids"])
+        self.assertEqual(2, frontend["max_attempts"])
+        self.assertNotIn("N-M1-REPAIR", nodes)
+        self.assertNotIn("M2", missions)
+        self.assertFalse(
+            any(
+                edge["from"] == "N-FRONTEND-REVIEW"
+                and edge["on_outcomes"] == ["fix_required"]
                 for edge in edges.values()
-                if edge["from"] == review_id and edge["to"] == repair_id
             )
-            repair_to_review = next(
-                edge
-                for edge in edges.values()
-                if edge["from"] == repair_id and edge["to"] == review_id
-            )
-            review_to_final = next(
-                edge
-                for edge in edges.values()
-                if edge["from"] == review_id and edge["to"] == final_id
-            )
-            self.assertEqual(["fix_required"], review_to_repair["on_outcomes"])
-            self.assertEqual(["pass"], repair_to_review["on_outcomes"])
-            self.assertEqual(2, review_to_repair["max_traversals"])
-            self.assertEqual(2, repair_to_review["max_traversals"])
-            self.assertEqual(["pass"], review_to_final["on_outcomes"])
-            self.assertIn(nodes[final_id]["executor"], {"harness_parent", "local_command"})
+        )
+
+        repair = nodes["N-VISUAL-REPAIR"]
+        mission = missions["M3"]
+        self.assertEqual("mission", repair["kind"])
+        self.assertEqual("runtime_worker", repair["executor"])
+        self.assertEqual("M3", repair["ref"])
+        self.assertTrue(mission["write_scope"])
+        self.assertTrue(mission["tasks"][0]["acceptance_matrix"])
+        self.assertTrue(mission["worker_verifiers"])
+        self.assertTrue(mission["integration_verifiers"])
+        review_to_repair = edges["E-VISUAL-REVIEW-REPAIR"]
+        repair_to_review = edges["E-VISUAL-REPAIR-REREVIEW"]
+        review_to_final = edges["E-VISUAL-CLOSEOUT"]
+        self.assertEqual(["fix_required"], review_to_repair["on_outcomes"])
+        self.assertEqual(["pass"], repair_to_review["on_outcomes"])
+        self.assertEqual(2, review_to_repair["max_traversals"])
+        self.assertEqual(2, repair_to_review["max_traversals"])
+        self.assertEqual(["pass"], review_to_final["on_outcomes"])
+        self.assertIn(
+            nodes["N-CLOSEOUT-GATE"]["executor"],
+            {"harness_parent", "local_command"},
+        )
 
     def test_native_merge_trigger_requires_landing_and_deployment_authorization(self) -> None:
         landing = self.read_sibling_skill("fullstack-harness-github-landing")

@@ -376,37 +376,50 @@ def _validate_graph(
                 and edge.get("from") == node_id
                 and "fix_required" in edge.get("on_outcomes", [])
             ]
-            if not fix_routes:
-                _add(
-                    errors,
-                    f"{path}.nodes.{node_id}",
-                    "runtime review with fix_required requires an outgoing repair route",
-                )
-                continue
-            bounded_fix_routes = [
-                edge for edge in fix_routes if _is_int(edge.get("max_traversals"))
-            ]
-            if len(bounded_fix_routes) != len(fix_routes):
-                _add(
-                    errors,
-                    f"{path}.nodes.{node_id}",
-                    "fix_required repair routes require an explicit traversal bound",
-                )
-            repair_targets = {edge.get("to") for edge in bounded_fix_routes}
-            has_rereview = any(
-                edge.get("kind") == "route"
-                and edge.get("from") in repair_targets
-                and edge.get("to") == node_id
-                and "pass" in edge.get("on_outcomes", [])
-                and _is_int(edge.get("max_traversals"))
-                for edge in edges.values()
+            reviewed_missions = set(node["review"].get("mission_ids", []))
+            dependency_missions = {
+                nodes[source].get("ref")
+                for source in dependency_map[node_id]
+                if nodes[source].get("kind") == "mission"
+            }
+            same_mission_correction = (
+                len(reviewed_missions) == 1
+                and reviewed_missions == dependency_missions
+                and _is_int(node.get("max_attempts"))
+                and node["max_attempts"] >= 2
             )
-            if not has_rereview:
-                _add(
-                    errors,
-                    f"{path}.nodes.{node_id}",
-                    "repair route must have a bounded pass route back to the review",
+            if not fix_routes:
+                if not same_mission_correction:
+                    _add(
+                        errors,
+                        f"{path}.nodes.{node_id}",
+                        "runtime review with fix_required requires a bounded repair route or direct mission dependencies for same-worktree correction",
+                    )
+            else:
+                bounded_fix_routes = [
+                    edge for edge in fix_routes if _is_int(edge.get("max_traversals"))
+                ]
+                if len(bounded_fix_routes) != len(fix_routes):
+                    _add(
+                        errors,
+                        f"{path}.nodes.{node_id}",
+                        "fix_required repair routes require an explicit traversal bound",
+                    )
+                repair_targets = {edge.get("to") for edge in bounded_fix_routes}
+                has_rereview = any(
+                    edge.get("kind") == "route"
+                    and edge.get("from") in repair_targets
+                    and edge.get("to") == node_id
+                    and "pass" in edge.get("on_outcomes", [])
+                    and _is_int(edge.get("max_traversals"))
+                    for edge in edges.values()
                 )
+                if not has_rereview:
+                    _add(
+                        errors,
+                        f"{path}.nodes.{node_id}",
+                        "repair route must have a bounded pass route back to the review",
+                    )
             has_final_gate = any(
                 edge.get("kind") == "route"
                 and edge.get("from") == node_id

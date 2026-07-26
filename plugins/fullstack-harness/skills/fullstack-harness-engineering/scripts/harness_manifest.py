@@ -3652,7 +3652,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     )
                     if is_full_sha(sha)
                 }
-                if worker["reviewed_sha"] not in current_reviewable_shas:
+                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
+                is_current_attempt = state.get("last_attempt_id") == worker["attempt_id"]
+                correction_pending = (
+                    is_current_attempt
+                    and state.get("last_outcome") == "fix_required"
+                    and worker.get("outcome") == "fix_required"
+                )
+                if (
+                    worker["reviewed_sha"] not in current_reviewable_shas
+                    and is_current_attempt
+                    and not correction_pending
+                ):
                     _add(
                         errors,
                         f"{path}.reviewed_sha",
@@ -3675,7 +3686,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.report_path", "is required for report_file")
                 if worker["phase"] not in WORKER_PHASES:
                     _add(errors, f"{path}.phase", "has an unsupported value")
-                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
                 if worker["phase"] in {"worker_running", "worker_passed"} and (
                     state.get("bound_worker_id") != worker["worker_id"]
                     or state.get("last_attempt_id") != worker["attempt_id"]

@@ -65,7 +65,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
                 "run_id": run["run_id"],
                 "plan_revision": plan["revision"],
                 "plan_digest_sha256": digest,
-                "mission_ids": ["M1", "M2"],
+                "mission_ids": ["M1"],
                 "expires_when": "run_complete",
             },
         }
@@ -172,7 +172,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
             "run_id": run["run_id"],
             "plan_revision": plan["revision"],
             "plan_digest_sha256": digest,
-            "mission_ids": ["M1", "M2"],
+            "mission_ids": ["M1"],
             "targets": ["*"],
         },
         "expires_when": "run_complete",
@@ -247,7 +247,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                 "run_id": run["run_id"],
                 "plan_revision": plan["revision"],
                 "plan_digest_sha256": plan_digest(plan),
-                "mission_ids": ["M1", "M2"],
+                "mission_ids": ["M1"],
                 "targets": ["*"],
             },
             "expires_when": "run_complete",
@@ -309,7 +309,7 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-    def test_preintegration_dependency_only_activates_the_initial_review(
+    def test_preintegration_fix_returns_to_original_worktree_before_rereview(
         self,
     ) -> None:
         plan, run = current_preintegration_review_state()
@@ -353,13 +353,47 @@ class SelectReadyNodesTests(unittest.TestCase):
         ]
         self.assertEqual([], validate_run(plan, run))
 
-        selected = select_ready_nodes(plan, run)
+        unchanged = select_ready_nodes(plan, run)
         deferred = {
             item["node_id"]: item["reason_codes"]
-            for item in selected["deferred_nodes"]
+            for item in unchanged["deferred_nodes"]
+        }
+        self.assertIn("review_head_unchanged", deferred["N-FRONTEND-REVIEW"])
+
+        original_worker = run["workers"][0]
+        original_identity = (
+            original_worker["worker_id"],
+            original_worker["worktree_path"],
+            original_worker["branch_ref"],
+        )
+        run["mission_states"]["M1"]["head_sha"] = "c" * 40
+        original_worker["worker_head_sha"] = "c" * 40
+
+        selected = select_ready_nodes(plan, run)
+        directives = {
+            item["node_id"]: item for item in selected["dispatchable_nodes"]
         }
 
-        self.assertIn("route_not_activated", deferred["N-FRONTEND-REVIEW"])
+        self.assertIn("N-FRONTEND-REVIEW", directives)
+        self.assertEqual(
+            original_identity,
+            (
+                original_worker["worker_id"],
+                original_worker["worktree_path"],
+                original_worker["branch_ref"],
+            ),
+        )
+        self.assertNotIn("M2", {mission["id"] for mission in plan["missions"]})
+        self.assertNotIn(
+            "N-M1-REPAIR",
+            {node["id"] for node in plan["graph"]["nodes"]},
+        )
+        self.assertFalse(
+            any(
+                item["kind"] == "mission"
+                for item in selected["dispatchable_nodes"]
+            )
+        )
 
     def test_malformed_current_mission_states_return_validation_errors(self) -> None:
         plan, run = current_preintegration_review_state()

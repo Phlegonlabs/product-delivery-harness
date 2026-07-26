@@ -20,7 +20,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "f133972d3225a587bb1c47ad206171fa43a629531cce39b38d3c7562928af2d9"
+      "digest_sha256": "edfaaf4cb300d77f23d8f4c30fb49e25710c6819a896c7118cca2131d4f0a1eb"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -278,14 +278,6 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
           "bound_worker_id": null,
           "blockers": []
         },
-        "N-M1-REPAIR": {
-          "phase": "dormant",
-          "attempts": 0,
-          "last_attempt_id": null,
-          "last_outcome": null,
-          "bound_worker_id": null,
-          "blockers": []
-        },
         "N-FRONTEND-REVIEW": {
           "phase": "dormant",
           "attempts": 0,
@@ -333,16 +325,6 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
           "traversals": 0,
           "source_attempt_id": null
         },
-        "E-FRONTEND-REVIEW-REPAIR": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-REPAIR-FRONTEND-REREVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
         "E-FRONTEND-FINAL-GATE": {
           "status": "dormant",
           "traversals": 0,
@@ -384,19 +366,6 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
         "blockers": [],
         "report_path": null
       },
-      "M2": {
-        "phase": "queued",
-        "lease_id": null,
-        "lease_plan_revision": null,
-        "lease_plan_digest_sha256": null,
-        "worker_id": null,
-        "base_sha": null,
-        "head_sha": null,
-        "integration_gate": "planned",
-        "integrated_sha": null,
-        "blockers": [],
-        "report_path": null
-      },
       "M3": {
         "phase": "queued",
         "lease_id": null,
@@ -413,14 +382,6 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     },
     "task_states": {
       "M1/T01": {
-        "phase": "queued",
-        "attempts": 0,
-        "commit_sha": null,
-        "verifier_status": "planned",
-        "blockers": [],
-        "refinement_request": null
-      },
-      "M2/T01": {
         "phase": "queued",
         "attempts": 0,
         "commit_sha": null,
@@ -476,7 +437,7 @@ New RUN files always use RUN schema v10 (see `SKILL.md`'s Default Runtime And Wa
 
 RUN schema v10 has 19 independent action entries. Keep every entry false unless an explicit user instruction authorizes that exact action. Every authorized execution scope and action scope binds `run_id`, current `plan_revision`, current `plan_digest_sha256`, mission IDs, and the lifecycle boundary; action scopes also bind exact targets. A PLAN revision or digest change invalidates the grant. `invoke_external_runtime` uses `runtime:<provider>`. `trigger_remote_ci` requires `workflow:<identity>`. `provision_cloud_resources` requires `cloud-resource:<provider>:<environment>:<kind>:<logical-name>`. Head-bound remote actions also record `authorized_head_sha` and cannot use `*` targets.
 
-`graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. A runtime review's `fix_required` outcome traverses only its bounded repair route; a passing repair returns to the same review before a deterministic final gate. Every retry uses a new attempt ID, preserves prior evidence, and rechecks authorization.
+`graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. For pre-integration review, `fix_required` returns to the original mission task/thread and its existing worktree; after the focused verifier passes on a changed head, re-arm the same review node with a new attempt ID. Do not create a repair mission or replacement worktree for this loop. Post-integration review may traverse a bounded repair route, and a passing repair returns to the same review before a deterministic final gate. Every retry preserves prior evidence and rechecks authorization.
 
 New RUN files default to `mode: "local_only"`. Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; use the template's `development`, `development`, and `production` values only when the repository defines no other model. A local-only run records no remote checks/review/merge evidence and preserves the exact integration head. Switch to `pull_request` only after the user gives final approval to start the resolved head-to-base promotion; pull-request mode sets continuity to `not_required`.
 
@@ -669,14 +630,14 @@ Use these exact array entry shapes:
 ```json
 {
   "deferred_mission": {
-    "mission_id": "M2",
+    "mission_id": "M3",
     "reason_codes": [
       "dependency_not_integrated"
     ],
     "conflicts_with": []
   },
   "conflict_edge": {
-    "left": "M2",
+    "left": "M1",
     "right": "M3",
     "reason_codes": [
       "serialized_resource_conflict"
