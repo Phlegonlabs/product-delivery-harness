@@ -74,12 +74,12 @@ def _required_actions(runtime: dict[str, Any]) -> tuple[str, ...]:
     elif runtime_driver == "app_threads":
         actions.append("create_user_owned_tasks")
         nested = runtime.get("nested_subagents")
-        reviewer_unavailable = (
+        reviewer_available = (
             isinstance(nested, dict)
             and nested.get("available") is True
-            and "reviewer" not in set(nested.get("allowed_roles", []))
+            and "reviewer" in set(nested.get("allowed_roles", []))
         )
-        if not reviewer_unavailable:
+        if reviewer_available:
             actions.append("spawn_subagents")
 
     if workspace_mode == "parent_managed_worktree":
@@ -137,7 +137,7 @@ def _launch_directive(
                 "write_policy": "read_only",
                 "completion_channel": "agent_result",
             }
-        elif isinstance(nested, dict) and nested.get("available") is True:
+        elif isinstance(nested, dict):
             nested_policy["mode"] = "not_applicable"
         else:
             nested_policy["mode"] = "capability_handshake"

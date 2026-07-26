@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import io
 import json
@@ -178,9 +179,32 @@ class HarnessCliE2ETests(unittest.TestCase):
     def test_codex_candidates_are_git_verified_before_serial_integration(self) -> None:
         plan = valid_graph_plan()
         plan["missions"][0]["tasks"] = [plan["missions"][0]["tasks"][0]]
+        coverage_review = next(
+            node
+            for node in plan["graph"]["nodes"]
+            if node["id"] == "N-COVERAGE-REVIEW"
+        )
+        plan["graph"]["nodes"].remove(coverage_review)
+        for mission_id, scope in (
+            ("M1", ["src/a/**"]),
+            ("M2", ["src/ab/**"]),
+        ):
+            review = copy.deepcopy(coverage_review)
+            review["id"] = f"N-{mission_id}-REVIEW"
+            review["review"]["mission_ids"] = [mission_id]
+            review["review"]["scope"] = scope
+            plan["graph"]["nodes"].append(review)
         plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
         plan["graph"]["edges"] = [
-            edge for edge in plan["graph"]["edges"] if edge["to"] == "N-COVERAGE-REVIEW"
+            {
+                "id": f"E-{mission_id}-REVIEW",
+                "kind": "dependency",
+                "from": f"N-{mission_id}",
+                "to": f"N-{mission_id}-REVIEW",
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            }
+            for mission_id in ("M1", "M2")
         ]
         for node in plan["graph"]["nodes"]:
             if node["kind"] != "mission":
@@ -421,8 +445,9 @@ class HarnessCliE2ETests(unittest.TestCase):
                     prior_review["phase"] = "superseded"
                 review_attempt_id = f"ATT-REVIEW-{mission_id}"
                 review_worker_id = f"RW-{mission_id}"
+                review_node_id = f"N-{mission_id}-REVIEW"
                 run["mission_states"][mission_id]["head_sha"] = heads[mission_id]
-                run["graph_state"]["node_states"]["N-COVERAGE-REVIEW"].update(
+                run["graph_state"]["node_states"][review_node_id].update(
                     {
                         "phase": "succeeded",
                         "attempts": len(run["review_workers"]) + 1,
@@ -434,7 +459,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                 run["review_workers"].append(
                     {
                         "worker_id": review_worker_id,
-                        "node_id": "N-COVERAGE-REVIEW",
+                        "node_id": review_node_id,
                         "attempt_id": review_attempt_id,
                         "plan_revision": plan["revision"],
                         "plan_digest_sha256": digest,

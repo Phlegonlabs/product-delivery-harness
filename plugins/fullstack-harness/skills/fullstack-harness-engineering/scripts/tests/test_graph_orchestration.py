@@ -1456,7 +1456,13 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], validate_run(plan, run))
         run["mission_states"]["M1"]["head_sha"] = "b" * 40
         run["review_workers"][0]["reviewed_sha"] = "b" * 40
-        self.assertEqual([], validate_run(plan, run))
+        self.assertTrue(
+            any(
+                "must identify the direct singleton pre-integration worktree"
+                in error
+                for error in validate_run(plan, run)
+            )
+        )
         malformed_reviews = copy.deepcopy(run)
         malformed_reviews["review_workers"] = None
         self.assertTrue(
@@ -1469,7 +1475,8 @@ class GraphManifestTests(unittest.TestCase):
         run["review_workers"][0]["reviewed_sha"] = "c" * 40
         self.assertTrue(
             any(
-                "must identify a current covered-mission worktree" in error
+                "must identify the direct singleton pre-integration worktree"
+                in error
                 for error in validate_run(plan, run)
             )
         )

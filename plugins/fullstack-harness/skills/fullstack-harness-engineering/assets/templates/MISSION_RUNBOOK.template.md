@@ -569,7 +569,7 @@ Each `review_workers` entry uses this exact read-only shape:
   "plan_revision": 1,
   "plan_digest_sha256": "<sha256>",
   "graph_revision": 1,
-  "reviewed_sha": "<current covered-mission worktree, integrated, or PR-head SHA>",
+  "reviewed_sha": "<direct singleton pre-integration worktree, integrated, or PR-head SHA>",
   "review_path": "<absolute read-only path or immutable snapshot>",
   "worker_runtime": "subagent",
   "completion_channel": "agent_result",

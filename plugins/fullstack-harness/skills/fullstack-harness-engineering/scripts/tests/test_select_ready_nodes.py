@@ -312,7 +312,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "available": True,
                     "max_depth": 1,
                     "max_children_per_worker": 3,
-                    "allowed_roles": ["reviewer"],
+                    "allowed_roles": ["explorer", "tester"],
                     "write_policy": "read_only",
                     "completion_channel": "agent_result",
                 },
@@ -361,6 +361,10 @@ class SelectReadyNodesTests(unittest.TestCase):
             },
             "expires_when": "run_complete",
         }
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
         self.assertEqual([], validate_run(plan, run))
 
         selected = select_ready_nodes(plan, run)
@@ -375,6 +379,10 @@ class SelectReadyNodesTests(unittest.TestCase):
             if item["node_id"] == "N-FRONTEND-REVIEW"
         )
         self.assertEqual("create_thread", review_directive["launch_kind"])
+        self.assertEqual(
+            ["create_user_owned_tasks"],
+            review_directive["required_actions"],
+        )
 
         digest = plan_digest(plan)
         run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(

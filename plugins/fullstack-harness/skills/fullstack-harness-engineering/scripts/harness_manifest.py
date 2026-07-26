@@ -3641,29 +3641,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     for mission_id, state in mission_state_items
                     if mission_id in reviewed_mission_ids and isinstance(state, dict)
                 }
-                current_reviewable_shas = {
-                    sha
-                    for sha in (
-                        run.get("integration", {}).get("integration_head_sha"),
-                        run.get("landing", {}).get("pr_head_sha"),
-                        *(
-                            state.get("integrated_sha")
-                            for state in reviewed_mission_states.values()
-                        ),
-                        *(
-                            state.get("head_sha")
-                            for state in reviewed_mission_states.values()
-                        ),
-                    )
-                    if is_full_sha(sha)
-                }
-                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
-                is_current_attempt = state.get("last_attempt_id") == worker["attempt_id"]
-                correction_pending = (
-                    is_current_attempt
-                    and state.get("last_outcome") == "fix_required"
-                    and worker.get("outcome") == "fix_required"
-                )
                 direct_preintegration_mission_ids = {
                     mission_node_refs.get(edge.get("from"))
                     for edge in plan.get("graph", {}).get("edges", [])
@@ -3679,6 +3656,30 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and mission_node_refs.get(edge.get("from"))
                     in reviewed_mission_ids
                 }
+                current_reviewable_shas = {
+                    sha
+                    for sha in (
+                        run.get("integration", {}).get("integration_head_sha"),
+                        run.get("landing", {}).get("pr_head_sha"),
+                        *(
+                            state.get("integrated_sha")
+                            for state in reviewed_mission_states.values()
+                        ),
+                        *(
+                            state.get("head_sha")
+                            for mission_id, state in reviewed_mission_states.items()
+                            if mission_id in direct_preintegration_mission_ids
+                        ),
+                    )
+                    if is_full_sha(sha)
+                }
+                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
+                is_current_attempt = state.get("last_attempt_id") == worker["attempt_id"]
+                correction_pending = (
+                    is_current_attempt
+                    and state.get("last_outcome") == "fix_required"
+                    and worker.get("outcome") == "fix_required"
+                )
                 preintegration_rereview_pending = (
                     is_current_attempt
                     and any(
@@ -3698,7 +3699,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(
                         errors,
                         f"{path}.reviewed_sha",
-                        "must identify a current covered-mission worktree, integrated, or PR head",
+                        "must identify the direct singleton pre-integration worktree, integrated, or PR head",
                     )
                 if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
                     _add(errors, f"{path}.worker_runtime", "has an unsupported value")

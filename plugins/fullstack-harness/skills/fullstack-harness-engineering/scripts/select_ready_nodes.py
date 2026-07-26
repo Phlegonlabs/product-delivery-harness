@@ -422,7 +422,15 @@ def _required_actions(
     if driver in {"subagents", "dynamic_workflow"}:
         actions.append("spawn_subagents")
     elif driver == "app_threads":
-        actions.extend(["create_user_owned_tasks", "spawn_subagents"])
+        actions.append("create_user_owned_tasks")
+        nested = runtime.get("nested_subagents")
+        if (
+            not read_only_review
+            and isinstance(nested, dict)
+            and nested.get("available") is True
+            and "reviewer" in set(nested.get("allowed_roles", []))
+        ):
+            actions.append("spawn_subagents")
     if read_only_review:
         return actions
     workspace = runtime.get("workspace_mode")
