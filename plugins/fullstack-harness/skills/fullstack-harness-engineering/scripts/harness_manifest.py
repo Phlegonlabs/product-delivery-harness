@@ -3811,11 +3811,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if isinstance(mission_worker, dict)
                 else None
             )
+            nested_policy_enabled = (
+                isinstance(nested_policy, dict)
+                and nested_policy.get("enabled") is True
+            )
+            nested_review_evidence = mission_worker.get(
+                "nested_review_evidence"
+            )
             head_sha = state.get("head_sha")
-            if isinstance(nested_policy, dict) and nested_policy.get("enabled") is True:
-                nested_review_evidence = mission_worker.get(
-                    "nested_review_evidence"
-                )
+            if nested_policy_enabled:
                 has_task_local_review = (
                     is_full_sha(head_sha)
                     and mission_worker.get("worker_head_sha") == head_sha
@@ -3832,7 +3836,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"run.mission_states.{mission_id}.integration_gate",
                         "transition to integrating requires retained task-local exact-head PASS review evidence",
                     )
-                continue
             mission_node_ids = {
                 node.get("id")
                 for node in plan.get("graph", {}).get("nodes", [])
@@ -3889,6 +3892,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         and review_worker.get("reviewed_sha") == head_sha
                         and review_worker.get("worker_runtime")
                         in {"parent", "subagent", "app_task"}
+                        and (
+                            not nested_policy_enabled
+                            or (
+                                isinstance(nested_review_evidence, dict)
+                                and review_worker.get("worker_id")
+                                == nested_review_evidence.get("agent_id")
+                            )
+                        )
                         and review_worker.get("phase")
                         in {
                             "worker_passed",

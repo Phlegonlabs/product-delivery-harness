@@ -836,6 +836,36 @@ class SelectReadyNodesTests(unittest.TestCase):
             "decision": "PASS",
         }
 
+        planned_review_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in planned_review_errors
+            ),
+            planned_review_errors,
+        )
+
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-NESTED-REVIEW-M1",
+                "last_outcome": "pass",
+                "bound_worker_id": "A-REVIEW-M1",
+                "blockers": [],
+            }
+        )
+        run["review_workers"] = [
+            exact_head_review_worker(
+                node_id="N-FRONTEND-REVIEW",
+                worker_id="A-REVIEW-M1",
+                attempt_id="ATT-NESTED-REVIEW-M1",
+                digest=plan_digest(plan),
+                plan=plan,
+                run=run,
+            )
+        ]
+
         self.assertEqual([], validate_run(plan, run))
 
         worker["nested_review_evidence"]["reviewed_sha"] = None

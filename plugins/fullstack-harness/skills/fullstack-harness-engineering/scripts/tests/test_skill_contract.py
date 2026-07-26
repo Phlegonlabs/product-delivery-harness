@@ -296,6 +296,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        worktrees = self.read("references/worktree-thread-orchestration.md")
 
         self.assertIn("## Default Development And Production Branch Policy", core)
         self.assertIn("Target-repository governance wins", core)
@@ -318,6 +319,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             project_rules,
         )
         self.assertIn('"source": "production_head"', plan)
+        self.assertIn(
+            "recorded `batch_base_sha` on the resolved persistent integration branch",
+            worktrees,
+        )
+        self.assertNotIn("recorded current `development` SHA", worktrees)
 
     def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:
         skill = self.read("SKILL.md")
