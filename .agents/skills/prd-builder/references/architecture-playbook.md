@@ -1,6 +1,6 @@
 # Architecture Playbook
 
-Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. For products with a browser surface, record the required/selected frontend or make an evidence-backed recommendation as described in `frontend-stack-selection.md`. For products with a backend, persistent data, or auth requirement, apply the same decision-status discipline to the backend runtime, database, and auth layers as described in `references/backend-stack-selection.md`.
+Use this playbook to make architecture sections implementation-ready. The overall architecture may remain stack-neutral where requirements do not justify a named choice. For products with a browser surface, record the required/selected frontend or make an evidence-backed recommendation as described in `frontend-stack-selection.md`. For products with a backend, persistent data, or auth requirement, apply the same per-layer status and cited-authority discipline to service topology first, then backend runtime, database, and auth layers as described in `references/backend-stack-selection.md`.
 
 ## Baseline Architecture Coverage
 
@@ -10,7 +10,7 @@ Every architecture should cover:
 - Actors and external systems.
 - Frontend or client responsibilities.
 - For products with a browser frontend, frontend technology layers: deployment/runtime, rendering model, framework, UI library, build tool, routing/data approach, styling/component approach, and testing.
-- For products with a backend, persistent data, or auth requirement, backend technology layers: runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
+- For products with a backend, persistent data, or auth requirement, backend technology layers in this order: service topology (monolith versus named services and monorepo versus polyrepo), runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - Backend, service, or workflow orchestration responsibilities.
 - Data model and persistence.
 - API, event, file, or trigger contracts.
@@ -18,21 +18,41 @@ Every architecture should cover:
 - Security, privacy, secrets, and audit concerns.
 - Integrations and failure handling.
 - Deployment, environment configuration, migrations, and rollback.
+- For every deployable surface, provider-neutral release targets with stable IDs, development/production stage, source, artifact/signing, exact channel, release gate path, availability proof, rollout, and rollback or forward-fix.
 - Observability, metrics, alerting, and audit logs.
 - Scaling, reliability, idempotency, retries, and rate limits.
 
+## Provider-Neutral Release Target Pattern
+
+Use this for every deployable web, API, mobile, or desktop surface. Close an explicit inventory of expected deployable surfaces during discovery instead of leaving destinations for implementation. Give each surface a stable identity, then give each exact destination a stable target ID and a `development` or `production` stage. Each expected surface needs at least one target in each stage; reject a package that omits one. Keep `surface` separate from `provider`: the same stable surface may use different providers in development and production.
+
+For every target, record:
+
+- the stable surface identity and the stage-specific provider as separate fields;
+- source policy using the current PLAN-v5 vocabulary: `pr_head` or `integration_head` for development, and `merged_main` for production. A signed tag or another immutable source rule is not currently encodable by the engineering handoff; leave it as an explicit unresolved handoff gap rather than freezing it as a target source;
+- artifact kind and exact signing/notarization requirement;
+- exact environment, channel, store track, tester group, update feed, or direct-download destination;
+- the ordered submission, promotion, review, or manual-approval path and its decision owner;
+- the availability signal proving the intended audience can actually reach, install, or download the release and pass its smoke/acceptance check;
+- rollout controls; and
+- rollback to a prior deployed version when the platform supports it, or rollout halt/removal plus a signed forward-fix through the same distribution path when it does not.
+
+A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability. Hosted web/API availability requires the named route or API to serve the exact release and pass deployed smoke checks. Mobile and desktop availability requires the named audience to be able to install or download the approved artifact through the exact channel and pass the release smoke check.
+
+Keep native mobile and desktop targets in this provider-neutral record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table below. Preserve stable target IDs across revisions and retire rather than reuse an ID whose destination changes meaning.
+
 ## Development-to-Production Release Pattern
 
-For a deployable product, resolve the deployment platform explicitly (via the interview's platform `AskUserQuestion` step, the user, or the current repository) before writing this section — never default to one silently. Keep one repository and one codebase, then promote exact commits through two separately named environments. The table below uses Cloudflare's two-Worker model as the worked example; for another resolved platform, substitute its equivalent named per-environment unit (for example, separate Vercel project environments, separate AWS stacks or services, or separate self-hosted environment configs) while keeping the same isolation and evidence guarantees:
+For a deployable hosted web, API, or backend product, resolve the deployment platform explicitly (via the interview's platform `AskUserQuestion` step, the user, or the current repository) before writing this section — never default to one silently. Keep one repository and one codebase, then promote exact commits through two separately named environments. Use each release target's stage-specific `provider` as the source of truth; development and production may use different providers, in which case document both rather than forcing one provider across the surface. The table below uses Cloudflare's two-Worker model as the worked example; for another resolved provider, substitute its equivalent named per-environment unit (for example, a Vercel project environment, AWS stack or service, or self-hosted environment config) while keeping the same isolation and evidence guarantees:
 
 | Target | Release source | Runtime and data boundary | Required proof |
 | --- | --- | --- | --- |
-| Development | Current pull-request head after current-head CI | Development environment (Worker, for Cloudflare); isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Migration result when applicable, deployed URL/version, automated checks, and development smoke |
-| Production | Exact merged base-branch SHA after development passes | Production environment (Worker, for Cloudflare); production bindings, secrets, data, auth, and live payment credentials | Migration result when applicable, deployed URL/version, production smoke, monitoring signal, and rollback version |
+| Development | `pr_head` after current-head CI, or `integration_head` for an explicitly retained integration-branch release model | Development environment (Worker, for Cloudflare); isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Migration result when applicable, deployed URL/version, automated checks, and development smoke |
+| Production | `merged_main` after development passes | Production environment (Worker, for Cloudflare); production bindings, secrets, data, auth, and live payment credentials | Migration result when applicable, deployed URL/version, production smoke, monitoring signal, and rollback version |
 
 Do not model development as a second codebase or a long-lived development branch by default. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward-compatibility needs, secret ownership, rollback, and which evidence becomes stale after a new commit or deployment.
 
-Isolation does not mean development stays empty. When the product has content-shaped data (for example articles, images, or other catalog-style entities), seed the development environment with representative mock/sample data as part of the development migration or setup step, so development testing sees realistic content without ever reading real production records. Record the mock-data seed in the development row's Migration Order cell of the environment-contract table (see `references/output-contract.md`'s architecture.md template) or an equivalent setup step, and never source it from a live production copy unless the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process. (If this PRD is later handed off to the fullstack-harness-engineering skill, that Migration Order entry is what becomes its PLAN release-target `migration_command` field.)
+Isolation does not mean development stays empty. When the product has content-shaped data (for example articles, images, or other catalog-style entities), seed the development environment with representative mock/sample data as part of the development migration or setup step, so development testing sees realistic content without ever reading real production records. Record the mock-data seed in the development row's Migration Order cell of the environment-contract table (see `references/output-contract.md`'s architecture.md template) or an equivalent setup step, and never source it from a live production copy unless the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process. If this PRD is later handed off to the fullstack-harness-engineering skill, map each Migration Order entry to the PLAN-v5 target's `migration_classification`, `commands.migrate`, and `prerequisites` as appropriate: classification records whether the migration is `not_applicable`, `additive`, or `destructive`; `commands.migrate` records the executable migration or target-specific reset/seed command; and `prerequisites` records required ordering across targets or gates.
 
 ## Web App Pattern
 
@@ -50,7 +70,7 @@ Use for browser-based SaaS, marketplaces, dashboards, portals, and public web pr
 
 The mobile and desktop patterns below name concrete toolchains, store fees, code-signing steps, testing tracks, and OS-version deadlines. These change on the vendors' schedule, not yours. Do not copy any specific fee, tester count, testing-window rule, target-API deadline, minimum OS version, or signing/notarization step from memory into a PRD. Verify each against the official source cited in the pattern on the date the PRD is written, and record that check date and the direct link in `architecture.md`'s deployment/operations section, the same way `frontend-stack-selection.md` records a verification date in `stack-decisions.md` for web platform claims. When you cannot verify a specific number live, write the requirement without the number and mark it as needing live verification rather than asserting a stale figure.
 
-The native iOS, native Android, Flutter, React Native, and desktop targets do not use the web deployment-platform question (Cloudflare/Vercel/AWS/self-hosted). Their release path is an app store or a signed installer. A mobile or desktop product that also has a server backend still resolves that backend's own hosting separately.
+The native iOS, native Android, Flutter, React Native, and desktop targets do not use the web deployment-platform question (Cloudflare/Vercel/AWS/self-hosted). Their release path is an app store, testing track, notarized download, or signed installer/update feed. Record those exact development and production destinations as separate stable release targets; do not fit them into the hosted web environment table. A successful upload, submission, review approval, or notarization is not production availability until the intended audience can install or download the artifact and the release smoke check passes. When the channel cannot restore an already-installed version, recovery is a staged/phased-rollout halt where possible plus a corrected signed forward-fix through the same review or distribution path. A mobile or desktop product that also has a server backend still resolves that backend's own hosting separately.
 
 ## Native iOS Pattern
 
@@ -150,5 +170,7 @@ Use when the product is mainly a service consumed by other systems.
 - Specify authorization at both UI and backend layers.
 - For a browser frontend, backend, persistent data, or auth requirement, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
-- For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact PR-head-to-merged-main promotion path.
+- For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact `pr_head` or retained `integration_head` to `merged_main` promotion path.
+- Keep stable provider-neutral release target IDs above provider-specific commands. A successful publish command, upload, submission, or review is not availability without audience access and smoke evidence.
+- For native mobile and desktop channels, distinguish rollout halt/removal from rollback and require a signed forward-fix when installed clients cannot be reverted.
 - Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

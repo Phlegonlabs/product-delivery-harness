@@ -367,13 +367,13 @@ def select_parallel_missions(
 ) -> dict[str, Any]:
     """Return a pure deterministic proposal from canonical inner manifests."""
 
+    if plan.get("schema_version") in {4, 5}:
+        raise SelectionError(
+            "schema v4/v5 typed graphs must use select_ready_nodes.py"
+        )
     plan_errors = validate_plan(plan)
     if plan_errors:
         raise _validation_error("PLAN", plan_errors)
-    if plan.get("schema_version") == 4:
-        raise SelectionError(
-            "schema v4 typed graphs must use select_ready_nodes.py"
-        )
 
     run_errors = validate_run(plan, run)
     fatal_run_errors = [

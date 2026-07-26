@@ -8,11 +8,11 @@ The stable org graph defines these roles:
 
 | Role | Responsibility | Output |
 | --- | --- | --- |
-| requirements | Product scope, requirements, trace IDs, metrics, risks | PRD sections and trace coverage |
+| requirements | Product scope, functional requirements, measurable non-functional requirements, stable test obligations, metrics, risks | PRD sections with PRD/TEST trace coverage |
 | architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
 | ux-wireframe | Journeys, UX obligations, routes, states, wireframe structure | UX/UI sections and wireframe requirements |
 | frontend-platform | Browser stack and platform evidence when applicable, plus the mobile/desktop platform decision when that target is in scope | Frontend and mobile/desktop decisions with source evidence |
-| backend | Backend runtime, database, and auth technology decisions when the product has a backend, persistent data, or auth requirement | Backend and Data Technology Decision content and source evidence |
+| backend | Service topology first, then backend runtime, database, and auth technology decisions when the product has a backend, persistent data, or auth requirement | Backend and Data Technology Decision rows with per-layer status and cited source evidence |
 | synthesis | Reconcile all lanes into one package | Draft artifact bodies |
 | trace-verifier | Check requirement and ID coverage | Findings and decision |
 | consistency-verifier | Check cross-document conflicts and unsupported claims | Findings and decision |
@@ -32,8 +32,10 @@ Before launch, the parent must have:
 - the Builder UX Direction record for UI-bearing products, passed as `args.builder_ux_direction` alongside `args.ui_bearing`. UI-bearing is not the same as having a browser frontend: a native mobile or desktop app is UI-bearing with `browser_frontend: false`, and the template rejects a UI-bearing launch with no direction;
 - source paths or a complete source summary;
 - a decision on whether a browser frontend and optional implementation plan are in scope;
-- a decision on whether the product has a backend, persistent data, or auth requirement, which gates whether the `backend` role runs;
-- for a deployable product, the deployment platform resolved (via the interview's platform `AskUserQuestion` step in workflow step 6, the user, or the current repository) before a lane launches, and passed as `args.deployment_platform` — a running read-only lane cannot ask the user for this, and the template rejects a `browser_frontend` launch without it;
+- a decision on whether the product has a backend, persistent data, or auth requirement, passed as `args.has_backend`, which gates whether the `backend` role runs. Local persistence or local auth can make this true without creating a hosted surface;
+- an explicit `args.hosted_deployable` boolean that is true only when the product includes a hosted deployable web, API, or backend surface. Only then must the deployment platform decision be resolved (via the interview's platform `AskUserQuestion` step in workflow step 6, the user, or the current repository) and passed as `args.deployment_platform`; when providers differ by stage, this string records that resolved stage mapping while each target's `provider` remains authoritative. A running read-only lane cannot ask the user for this. A native local-data product may therefore run with `has_backend: true`, `hosted_deployable: false`, and no deployment platform while still receiving the backend analysis lane;
+- for a deployable product, a complete `args.deployable_surfaces` inventory of stable surface IDs plus `args.release_targets`. Keep each target's `surface` separate from its `provider`, because development and production may use different providers for the same surface. Every expected surface must have at least one development target and one production target; the template rejects a missing expected surface or a target for an undeclared surface;
+- release-target source policies limited to the current PLAN-v5 vocabulary: `pr_head` or `integration_head` for development and `merged_main` for production. Signed tags and other source rules are not currently encodable in the engineering handoff and must remain an explicit unresolved handoff gap rather than a frozen release target;
 - a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
 - a machine-enforced `builder_readonly` launch profile that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.
 
@@ -50,7 +52,7 @@ Use `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments
 1. Requirements, architecture, UX/wireframe, and conditional frontend/platform roles run independently.
 2. All successful and failed lane results are retained explicitly.
 3. Synthesis starts only after the analysis barrier.
-4. Trace, consistency, and (when public-facing content is in scope) SEO copy verifiers review the same synthesis independently.
+4. Trace, consistency, and (when public-facing content is in scope) SEO copy verifiers review the same synthesis independently. Trace verification checks that every Must functional requirement and applicable NFR maps to a required stable `TEST-*` obligation with an observable expected signal.
 5. The parent receives candidate Markdown bodies and review findings.
 
 A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle, repairs unresolved findings, runs the output checklist, and presents exact mutations for approval.

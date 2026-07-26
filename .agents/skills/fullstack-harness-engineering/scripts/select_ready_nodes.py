@@ -49,9 +49,6 @@ def _tool_profile(node: dict[str, Any]) -> str:
 def _workspace_mode_for(
     item: dict[str, Any], run: dict[str, Any]
 ) -> str:
-    node = item["node"]
-    if node.get("executor") == "harness_parent":
-        return "shared_checkout"
     return run["runtime_capabilities"]["workspace_mode"]
 
 
@@ -204,9 +201,72 @@ def _write_launch_reasons(run: dict[str, Any]) -> set[str]:
             and batch_base != observed_git.get("parent_head_sha")
         ):
             reasons.add("batch_base_stale")
-    if observed_git.get("parent_dirty") is True:
-        reasons.add("blocker_present")
+    if observed_git.get("parent_dirty") is not False:
+        reasons.add("parent_state_unreconciled")
     return reasons
+
+
+def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
+    if run.get("status") != "running":
+        return []
+    reasons: set[str] = set()
+    observed = run.get("observed")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    if not isinstance(observed_git, dict):
+        return sorted(reasons | {"parent_state_unreconciled"})
+    for field in ("parent_worktree_path", "parent_branch", "parent_head_sha"):
+        if not observed_git.get(field):
+            reasons.add("parent_state_unreconciled")
+    if observed_git.get("parent_dirty") is not False:
+        reasons.add("parent_state_unreconciled")
+
+    worktrees = observed_git.get("worktrees")
+    if not isinstance(worktrees, list):
+        return sorted(reasons | {"worktree_state_unreconciled"})
+    observed_by_path: dict[str, dict[str, Any]] = {}
+    for worktree in worktrees:
+        if not isinstance(worktree, dict) or not worktree.get("path"):
+            reasons.add("worktree_state_unreconciled")
+            continue
+        path = worktree["path"]
+        if path in observed_by_path:
+            reasons.add("worktree_state_unreconciled")
+        observed_by_path[path] = worktree
+        if worktree.get("dirty") is not False or not worktree.get("branch_ref") or not worktree.get("head_sha"):
+            reasons.add("worktree_state_unreconciled")
+
+    workers = run.get("workers")
+    if not isinstance(workers, list):
+        return sorted(reasons | {"worker_state_unreconciled"})
+    worker_paths = {
+        worker.get("worktree_path")
+        for worker in workers
+        if isinstance(worker, dict) and worker.get("worktree_path")
+    }
+    parent_path = observed_git.get("parent_worktree_path")
+    if any(path != parent_path and path not in worker_paths for path in observed_by_path):
+        reasons.add("worktree_state_unreconciled")
+
+    for worker in workers:
+        if not isinstance(worker, dict) or worker.get("phase") in {"worker_failed", "superseded"}:
+            continue
+        if worker.get("workspace_mode") not in {
+            "parent_managed_worktree",
+            "app_managed_worktree",
+        }:
+            reasons.add("worker_state_unreconciled")
+            continue
+        path = worker.get("worktree_path")
+        worktree = observed_by_path.get(path)
+        if worktree is None:
+            reasons.add("worker_state_unreconciled")
+            continue
+        if worktree.get("branch_ref") != worker.get("branch_ref"):
+            reasons.add("worker_state_unreconciled")
+        recorded_head = worker.get("worker_head_sha")
+        if recorded_head is not None and worktree.get("head_sha") != recorded_head:
+            reasons.add("worker_state_unreconciled")
+    return sorted(reasons)
 
 
 def _required_actions(
@@ -257,18 +317,19 @@ def _dispatch_reasons(
             reasons.add("runtime_capacity_unavailable")
     if node["kind"] == "mission":
         reasons.update(_write_launch_reasons(run))
+        workspace_mode = _workspace_mode_for({"node": node, "binding": binding}, run)
+        if workspace_mode == "shared_checkout":
+            reasons.add("workspace_not_isolated")
+        if node.get("executor") == "harness_parent":
+            reasons.add("workspace_not_isolated")
         plan_mission = missions.get(node["ref"], {})
         if plan_mission:
             if plan_mission.get("resource_inventory_complete") is not True:
                 reasons.add("incomplete_resource_inventory")
-            workspace_mode = _workspace_mode_for(
-                {"node": node, "binding": binding}, run
-            )
-            if workspace_mode != "shared_checkout":
-                if plan_mission.get("worktree_eligible") is not True:
-                    reasons.add("worktree_ineligible")
-                if observed_runtime.get("isolation_capacity", 0) <= 0:
-                    reasons.add("runtime_capacity_unavailable")
+            if plan_mission.get("worktree_eligible") is not True:
+                reasons.add("worktree_ineligible")
+            if observed_runtime.get("isolation_capacity", 0) <= 0:
+                reasons.add("runtime_capacity_unavailable")
     authorization_missions: list[str] = []
     if node["kind"] == "mission":
         authorization_missions = [node["ref"]]
@@ -305,16 +366,6 @@ def _directive(
         return {**base, "launch_kind": "run_lifecycle_action", "required_actions": [node["ref"]]}
     if node["kind"] == "verifier" and node["executor"] != "runtime_worker":
         return {**base, "launch_kind": "run_verifier"}
-    if node["kind"] == "mission" and node["executor"] == "harness_parent":
-        return {
-            **base,
-            "launch_kind": "run_parent",
-            "worker_runtime": "parent",
-            "workspace_mode": "shared_checkout",
-            "completion_channel": "agent_result",
-            "failure_outcome": _failure_outcome(node),
-            "required_actions": [],
-        }
     if binding is None:
         return {**base, "launch_kind": "unavailable"}
     driver = binding["driver"]
@@ -355,8 +406,11 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
     run_errors = validate_run(plan, run)
     if run_errors:
         raise _validation_error("RUN", run_errors)
-    if plan.get("schema_version") != 4 or run.get("schema_version") not in {8, 9}:
-        raise GraphSelectionError("typed graph selection requires PLAN v4 and RUN v8 or v9")
+    schema_pair = (plan.get("schema_version"), run.get("schema_version"))
+    if schema_pair not in {(4, 8), (4, 9), (5, 10)}:
+        raise GraphSelectionError(
+            "typed graph selection requires PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10"
+        )
 
     dependencies, routes = _incoming(plan)
     levels = _node_levels(plan)
@@ -373,8 +427,12 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
 
     logical_ready: list[dict[str, Any]] = []
     deferred: list[dict[str, Any]] = []
+    reconciliation_reasons = _resume_reconciliation_reasons(run)
     for node in nodes:
-        reasons = _logical_reasons(node, plan, run, dependencies, routes)
+        reasons = sorted(
+            set(_logical_reasons(node, plan, run, dependencies, routes))
+            | set(reconciliation_reasons)
+        )
         if reasons:
             deferred.append({"node_id": node["id"], "reason_codes": reasons})
         else:

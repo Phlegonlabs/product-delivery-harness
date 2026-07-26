@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Focused, stdlib-only tests for the canonical harness manifest contract."""
+"""Focused tests for the canonical harness manifest contract."""
 
 from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from PIL import Image
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -1889,7 +1892,9 @@ class RunValidationTests(unittest.TestCase):
         ]
         run = valid_closeout_run(plan)
         mark_complete(plan, run)
-        contents = b"\x89PNG\r\n\x1a\nfixture"
+        buffer = io.BytesIO()
+        Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+        contents = buffer.getvalue()
         digest = hashlib.sha256(contents).hexdigest()
         run["ui_evidence"] = [
             {
@@ -1924,7 +1929,7 @@ class RunValidationTests(unittest.TestCase):
             ).hexdigest()
             self.assertTrue(
                 any(
-                    "content does not match" in error
+                    "cannot be decoded" in error
                     for error in validate_ui_evidence_files(run, root)
                 )
             )
@@ -3012,7 +3017,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             string_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
+            "run.schema_version: must equal 2 through 10",
         )
 
         complete_string_schema = valid_run(plan)
@@ -3027,7 +3032,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             complete_string_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
+            "run.schema_version: must equal 2 through 10",
         )
 
         unsupported_schema = valid_run(plan)
@@ -3037,7 +3042,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             unsupported_schema,
-            "run.schema_version: must equal 2, 3, 4, 5, 6, 7, 8, or 9",
+            "run.schema_version: schema v10 requires a schema v5 graph PLAN",
         )
 
     def test_permission_boundary_accepts_ready_full_access_and_rejects_unknown_ready(self) -> None:

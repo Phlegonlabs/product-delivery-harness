@@ -2,14 +2,14 @@
 
 Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`.
 
-## Harness Plan Manifest
+PLAN schema v5 uses one provider-neutral release target contract. `release.provider` accepts `cloudflare | vercel | aws | self_hosted | other`, but stable target IDs and fields do not change with provider. Every deployable plan declares at least one `development` and one `production` target with exact source, artifact, signing, channel, data, trigger, migration, command, prerequisite, and smoke fields. Older PLAN schemas remain readable; use their own recorded shapes only when reading them.
 
-`release.provider` accepts `cloudflare | vercel | aws | self_hosted | other`. The two-target shape shown below (`worker_name`/`wrangler_config_path`/`wrangler_environment`, fixed `development`/`production` ids) applies only when `provider` is `cloudflare`; any other provider uses a smaller generic target contract (`id`/`deploy_command`/`migration_command`/`smoke_verifiers`/`prerequisites` only).
+## Harness Plan Manifest
 
 ```json
 {
   "harness_plan": {
-    "schema_version": 4,
+    "schema_version": 5,
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
@@ -25,8 +25,9 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
         "location": "<repo-relative path or URL>",
         "owner": "<human or team>",
         "status": "frozen",
-        "content_sha256": "<lowercase SHA-256 of the frozen content, or null>",
-        "source_revision": "<immutable upstream revision, or null>",
+        "content_sha256": null,
+        "source_revision": "<immutable published upstream revision, or null>",
+        "staged_revision": null,
         "notes": "<role or concise notes>"
       }
     ],
@@ -93,82 +94,81 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "<e2e-argument>"
         ],
         "pass_signal": "<literal pass signal>"
+      },
+      {
+        "id": "final-closeout",
+        "cwd": ".",
+        "argv": [
+          "<runner>",
+          "<final-closeout-argument>"
+        ],
+        "pass_signal": "<literal pass signal>"
       }
     ],
     "release": {
       "provider": "cloudflare",
       "targets": [
         {
-          "id": "development",
+          "id": "web-development",
+          "stage": "development",
           "source": "pr_head",
-          "worker_name": "<app-name>-development",
-          "wrangler_config_path": "<app-directory>/wrangler.jsonc",
-          "wrangler_environment": "development",
+          "artifact_kind": "cloudflare_worker_bundle",
+          "requires_signing": false,
+          "channel": "workers-development",
           "data_mode": "isolated_non_production",
-          "payment_mode": "sandbox",
-          "auth_mode": "development",
-          "prerequisites": [
-            "current_head_ci"
-          ],
-          "migration_command": null,
-          "deploy_command": {
-            "id": "deploy-development",
-            "cwd": "<app-directory>",
-            "argv": [
-              "npx",
-              "wrangler",
-              "deploy",
-              "--env",
-              "development"
-            ],
-            "pass_signal": "Wrangler reports a successful development deployment"
+          "trigger": "manual",
+          "migration_classification": "not_applicable",
+          "commands": {
+            "build": {
+              "id": "build-web-development",
+              "cwd": "<app-directory>",
+              "argv": ["<package-manager>", "run", "build"],
+              "pass_signal": "Development release artifact builds successfully"
+            },
+            "migrate": null,
+            "publish": {
+              "id": "publish-web-development",
+              "cwd": "<app-directory>",
+              "argv": ["npx", "wrangler", "deploy", "--env", "development"],
+              "pass_signal": "Provider reports a successful development publication"
+            }
           },
+          "prerequisites": ["current_head_ci"],
           "smoke_verifiers": [
             {
-              "id": "smoke-development",
+              "id": "smoke-web-development",
               "cwd": ".",
-              "argv": [
-                "<smoke-runner>",
-                "<development-smoke-argument>"
-              ],
-              "pass_signal": "Development login, sandbox payment, and primary journey pass"
+              "argv": ["<smoke-runner>", "<development-smoke-argument>"],
+              "pass_signal": "Development primary journey passes"
             }
           ]
         },
         {
-          "id": "production",
+          "id": "web-production",
+          "stage": "production",
           "source": "merged_main",
-          "worker_name": "<app-name>-production",
-          "wrangler_config_path": "<app-directory>/wrangler.jsonc",
-          "wrangler_environment": "production",
+          "artifact_kind": "cloudflare_worker_bundle",
+          "requires_signing": false,
+          "channel": "workers-production",
           "data_mode": "production",
-          "payment_mode": "live",
-          "auth_mode": "production",
-          "prerequisites": [
-            "development_pass",
-            "merged_main"
-          ],
-          "migration_command": null,
-          "deploy_command": {
-            "id": "deploy-production",
-            "cwd": "<app-directory>",
-            "argv": [
-              "npx",
-              "wrangler",
-              "deploy",
-              "--env",
-              "production"
-            ],
-            "pass_signal": "Wrangler reports a successful production deployment"
+          "trigger": "merge",
+          "migration_classification": "not_applicable",
+          "commands": {
+            "build": {
+              "id": "build-web-production",
+              "cwd": "<app-directory>",
+              "argv": ["<package-manager>", "run", "build"],
+              "pass_signal": "Production release artifact builds successfully"
+            },
+            "migrate": null,
+            "publish": null
           },
+          "prerequisites": ["development_pass", "merged_main"],
           "smoke_verifiers": [
             {
-              "id": "smoke-production",
+              "id": "smoke-web-production",
               "cwd": ".",
-              "argv": [
-                "<smoke-runner>",
-                "<production-smoke-argument>"
-              ],
+              "argv": ["<smoke-runner>", "<production-smoke-argument>"],
               "pass_signal": "Production critical routes and primary journey pass"
             }
           ]
@@ -184,6 +184,36 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "id": "N-M1",
           "kind": "mission",
           "ref": "M1",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "high"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "high"
+              }
+            }
+          }
+        },
+        {
+          "id": "N-M1-REPAIR",
+          "kind": "mission",
+          "ref": "M2",
           "executor": "runtime_worker",
           "allowed_outcomes": [
             "pass",
@@ -242,7 +272,8 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "review": {
             "type": "frontend_code",
             "mission_ids": [
-              "M1"
+              "M1",
+              "M2"
             ],
             "scope": [
               "src/example/**"
@@ -253,6 +284,20 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
               "pass or fix_required decision"
             ]
           }
+        },
+        {
+          "id": "N-FINAL-GATE",
+          "kind": "verifier",
+          "ref": "e2e-primary-journey",
+          "executor": "local_command",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": null
         },
         {
           "id": "N-VISUAL-REVIEW",
@@ -286,7 +331,9 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "review": {
             "type": "visual",
             "mission_ids": [
-              "M1"
+              "M1",
+              "M2",
+              "M3"
             ],
             "scope": [
               "src/example/**"
@@ -297,6 +344,50 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
               "visual findings and decision"
             ]
           }
+        },
+        {
+          "id": "N-VISUAL-REPAIR",
+          "kind": "mission",
+          "ref": "M3",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "high"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "high"
+              }
+            }
+          }
+        },
+        {
+          "id": "N-CLOSEOUT-GATE",
+          "kind": "verifier",
+          "ref": "final-closeout",
+          "executor": "local_command",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": null
         }
       ],
       "edges": [
@@ -311,10 +402,70 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "max_traversals": null
         },
         {
-          "id": "E-FRONTEND-VISUAL-REVIEW",
-          "kind": "dependency",
+          "id": "E-FRONTEND-REVIEW-REPAIR",
+          "kind": "route",
           "from": "N-FRONTEND-REVIEW",
+          "to": "N-M1-REPAIR",
+          "on_outcomes": [
+            "fix_required"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-REPAIR-FRONTEND-REREVIEW",
+          "kind": "route",
+          "from": "N-M1-REPAIR",
+          "to": "N-FRONTEND-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-FRONTEND-FINAL-GATE",
+          "kind": "route",
+          "from": "N-FRONTEND-REVIEW",
+          "to": "N-FINAL-GATE",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-FINAL-VISUAL-REVIEW",
+          "kind": "dependency",
+          "from": "N-FINAL-GATE",
           "to": "N-VISUAL-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-VISUAL-REVIEW-REPAIR",
+          "kind": "route",
+          "from": "N-VISUAL-REVIEW",
+          "to": "N-VISUAL-REPAIR",
+          "on_outcomes": [
+            "fix_required"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-VISUAL-REPAIR-REREVIEW",
+          "kind": "route",
+          "from": "N-VISUAL-REPAIR",
+          "to": "N-VISUAL-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-VISUAL-CLOSEOUT",
+          "kind": "route",
+          "from": "N-VISUAL-REVIEW",
+          "to": "N-CLOSEOUT-GATE",
           "on_outcomes": [
             "pass"
           ],
@@ -392,7 +543,13 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             "alias": "<short stable task label>",
             "objective": "<independently verifiable outcome>",
             "acceptance_matrix": [
-              "<scenario or assertion that stays inside this task>"
+              {
+                "test_id": "TEST-M1-T01-001",
+                "trace_ids": [
+                  "PRD-001"
+                ],
+                "criterion": "<observable scenario or assertion that stays inside this task>"
+              }
             ],
             "trace_ids": [
               "PRD-001"
@@ -431,17 +588,251 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             ]
           }
         ]
+      },
+      {
+        "id": "M2",
+        "alias": "frontend-review-repair",
+        "objective": "Apply only accepted frontend review findings, then return the changed head through the same frontend review.",
+        "priority": 90,
+        "merge_rank": 20,
+        "trace_ids": [
+          "PRD-001"
+        ],
+        "write_scope": [
+          "src/example/**"
+        ],
+        "deny_scope": [
+          "docs/goal/PLAN.md",
+          "docs/goal/RUN.md"
+        ],
+        "resource_inventory_complete": true,
+        "serialized_resources": [],
+        "runtime_resources": [
+          {
+            "key": "service:example-http",
+            "access": "exclusive"
+          }
+        ],
+        "worktree_eligible": true,
+        "required_skills": [],
+        "stop_conditions": [
+          "Stop if a finding requires a contract or scope change instead of an in-scope code repair."
+        ],
+        "worker_verifiers": [
+          {
+            "id": "frontend-repair-focused",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<frontend-repair-argument>"
+            ],
+            "pass_signal": "exit 0",
+            "selection": {
+              "mode": "changed_files",
+              "scopes": [
+                "src/example/**"
+              ]
+            },
+            "cache": {
+              "mode": "session_exact",
+              "environment_keys": [
+                "CI"
+              ]
+            }
+          }
+        ],
+        "integration_verifiers": [
+          {
+            "id": "frontend-repair-integration",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<frontend-repair-integration-argument>"
+            ],
+            "pass_signal": "<literal pass signal>"
+          }
+        ],
+        "tasks": [
+          {
+            "id": "M2/T01",
+            "alias": "apply-frontend-review-findings",
+            "objective": "Repair the accepted in-scope frontend findings from the immediately preceding review attempt.",
+            "acceptance_matrix": [
+              {
+                "test_id": "TEST-M2-T01-001",
+                "trace_ids": [
+                  "PRD-001"
+                ],
+                "criterion": "Every accepted blocking frontend finding is resolved and the focused repair verifier passes."
+              }
+            ],
+            "trace_ids": [
+              "PRD-001"
+            ],
+            "depends_on": [],
+            "parent_task": null,
+            "legacy_task_ids": [],
+            "replaced_by": [],
+            "split_reason": null,
+            "refinement_generation": 0,
+            "write_scope": [
+              "src/example/**"
+            ],
+            "verifiers": [
+              {
+                "id": "frontend-repair-task",
+                "cwd": ".",
+                "argv": [
+                  "<runner>",
+                  "<frontend-repair-task-argument>"
+                ],
+                "pass_signal": "exit 0",
+                "selection": {
+                  "mode": "changed_files",
+                  "scopes": [
+                    "src/example/**"
+                  ]
+                },
+                "cache": {
+                  "mode": "session_exact",
+                  "environment_keys": [
+                    "CI"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "M3",
+        "alias": "visual-review-repair",
+        "objective": "Apply only accepted visual review findings, regenerate affected evidence, and return the changed head through the same visual review.",
+        "priority": 80,
+        "merge_rank": 30,
+        "trace_ids": [
+          "PRD-001"
+        ],
+        "write_scope": [
+          "src/example/**",
+          "docs/goal/evidence/**"
+        ],
+        "deny_scope": [
+          "docs/goal/PLAN.md",
+          "docs/goal/RUN.md"
+        ],
+        "resource_inventory_complete": true,
+        "serialized_resources": [],
+        "runtime_resources": [
+          {
+            "key": "service:example-http",
+            "access": "exclusive"
+          }
+        ],
+        "worktree_eligible": true,
+        "required_skills": [],
+        "stop_conditions": [
+          "Stop if a visual finding requires a design-contract change instead of an in-scope implementation repair."
+        ],
+        "worker_verifiers": [
+          {
+            "id": "visual-repair-focused",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<visual-repair-argument>"
+            ],
+            "pass_signal": "exit 0",
+            "selection": {
+              "mode": "changed_files",
+              "scopes": [
+                "src/example/**",
+                "docs/goal/evidence/**"
+              ]
+            },
+            "cache": {
+              "mode": "session_exact",
+              "environment_keys": [
+                "CI"
+              ]
+            }
+          }
+        ],
+        "integration_verifiers": [
+          {
+            "id": "visual-repair-integration",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<visual-repair-integration-argument>"
+            ],
+            "pass_signal": "<literal pass signal>"
+          }
+        ],
+        "tasks": [
+          {
+            "id": "M3/T01",
+            "alias": "apply-visual-review-findings",
+            "objective": "Repair the accepted in-scope visual findings and refresh every affected screenshot artifact.",
+            "acceptance_matrix": [
+              {
+                "test_id": "TEST-M3-T01-001",
+                "trace_ids": [
+                  "PRD-001"
+                ],
+                "criterion": "Every accepted blocking visual finding is resolved and affected evidence is recaptured for the repaired head."
+              }
+            ],
+            "trace_ids": [
+              "PRD-001"
+            ],
+            "depends_on": [],
+            "parent_task": null,
+            "legacy_task_ids": [],
+            "replaced_by": [],
+            "split_reason": null,
+            "refinement_generation": 0,
+            "write_scope": [
+              "src/example/**",
+              "docs/goal/evidence/**"
+            ],
+            "verifiers": [
+              {
+                "id": "visual-repair-task",
+                "cwd": ".",
+                "argv": [
+                  "<runner>",
+                  "<visual-repair-task-argument>"
+                ],
+                "pass_signal": "exit 0",
+                "selection": {
+                  "mode": "changed_files",
+                  "scopes": [
+                    "src/example/**",
+                    "docs/goal/evidence/**"
+                  ]
+                },
+                "cache": {
+                  "mode": "session_exact",
+                  "environment_keys": [
+                    "CI"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use schema v4. The graph is the canonical source for mission dependencies and routing; existing schema-v2 and schema-v3 plans remain readable. Keep the displayed `release` object only for a deployable Cloudflare plan; remove the whole object for non-Cloudflare or non-deployable work. Schema version exposes the field but does not enable it by itself. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
+The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use PLAN schema v5. The graph is the canonical source for mission dependencies and routing. Older PLAN schemas remain readable; their recorded schema decides which fields apply. Keep the displayed `release` object only for deployable work and set its provider without changing the provider-neutral target shape; remove the whole object for non-deployable work. Schema version exposes the field but does not enable it by itself. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
 
 For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning and keep Claude Code `sonnet` with `high` reasoning as the availability fallback. Choose review effort by risk: routine deterministic `backend_code`, `frontend_code`, and visual reviews use `medium`; reserve `xhigh` for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment. This UI-bearing example applies the frontend model override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
 
-Every schema-v4 source must bind the frozen input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. Recompute the PLAN digest whenever source content or its immutable upstream revision changes.
+Every PLAN-v5 source binds the published input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. `staged_revision` records a proposed accepted delta while the published source fields remain canonical; it is not an executable publication. A ready or executable RUN requires every source to be `frozen` or `delta_accepted` and forbids product staging locations. Publish the accepted revision to the canonical source location, move its hash/revision into the published fields, clear `staged_revision`, then increment the PLAN revision and recompute the digest.
 
 For frontend/UI implementation, use Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model (such as `claude-fable-5` or `claude-opus-4-8`) for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
 
@@ -451,7 +842,9 @@ List every applicable review type in `required_reviews`. PLAN validation rejects
 
 Use immutable, flat task IDs such as `M1/T01`. Represent lineage only with `parent_task`; use `legacy_task_ids` only for real pre-existing identifiers. A generation-0 task may be replaced by generation-1 children, but generation-1 tasks must not split again without a mission-level replan. When accepted refinement replaces a task, set its `replaced_by`, give each child `parent_task`, `split_reason`, and `refinement_generation: 1`, then increment the plan revision and revalidate the complete graph.
 
-Task dependencies are same-mission only. In schema v4, express every cross-mission ordering requirement with `graph.edges` of kind `dependency`; do not retain a second `missions[].depends_on` source. Dependency edges must stay acyclic. Conditional `route` edges may form a correction loop only when every cyclic route has `max_traversals` and the cycle has an exit edge. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
+Task dependencies are same-mission only. In PLAN schema v5, express every cross-mission ordering requirement with `graph.edges` of kind `dependency`; do not retain a second `missions[].depends_on` source. Dependency edges must stay acyclic. Conditional `route` edges may form a correction loop only when every cyclic route has `max_traversals` and the cycle has an exit edge. A runtime review that can return `fix_required` must route to a bounded repair node, then route a successful repair back through the same review before any deterministic final gate. When refinement supersedes a task, no executable task may continue to depend on the superseded ID: rewrite those edges to the terminal replacement tasks that collectively satisfy the former outcome, using all replacement sinks by default, then revalidate the task DAG.
+
+Each PLAN-v5 `acceptance_matrix` row is exactly `{test_id, trace_ids, criterion}`. Use a stable `TEST-*` ID, bind only traces declared by that task, and write one observable criterion. Every planned task trace must appear in at least one acceptance row; prose-only arrays from older schemas are readable but are not the current authoring contract.
 
 The manifest owns source identity/status, requirement priority/disposition, UI route/state/breakpoint evidence needs, risks, and stop conditions. Trace priorities are `must`, `should`, or `could`; dispositions are `planned`, `deferred`, or `out_of_scope`, with a non-null rationale for the latter two. UI evidence gates are `required`, `optional`, or `n/a`; risk impact is `high`, `medium`, or `low`. Use empty arrays for truly non-applicable UI or risk surfaces; do not move any field used by validation, readiness, scheduling, launch, or integration into the human tables below. Tables may add explanatory narrative that does not alter execution semantics. Worker verifiers run in the mission workspace, mission integration verifiers run after that mission reaches the integration head, batch verifiers run after a selected wave integrates, and final gates close the whole run.
 
@@ -558,11 +951,11 @@ UX Validation Gate: required | optional | n/a
 Release target:
 ```
 
-For deployable Cloudflare applications, the canonical `release` object owns the development and production Worker names, Wrangler environments, isolated data/auth/payment modes, exact deployment commands, smoke verifiers, and promotion prerequisites. Use `migration_command: null` only when the target has no remote migration step. The development target binds to the current PR head after CI; production binds to the merged `main` SHA only after development passes.
+Stable target IDs are provider-neutral and must survive provider configuration changes. Each canonical target declares `id`, `stage`, `source`, `artifact_kind`, `requires_signing`, `channel`, `data_mode`, `trigger`, `migration_classification`, exact `commands.build`/`commands.migrate`/`commands.publish`, `prerequisites`, and `smoke_verifiers`. Include at least one development and one production target. Use `migration_classification: "not_applicable"` with `commands.migrate: null` only when no migration is needed. A manual target requires a publish command; a merge-triggered target sets it to null because the provider performs publication after the authorized merge.
 
-The development target's `source` field is `"pr_head"` by default (the dispatched-GitHub-Actions model shown in the JSON above), but may instead be `"integration_head"` when the repository uses Cloudflare's native Git auto-deploy — in which case development binds to the tracked integration-branch head rather than any PR field, and the plan must also declare `run.integration.retention: "persistent"` so that branch survives across runs. See `references/cloudflare-deployment-lifecycle.md`'s "Auto-Deploy Release Model (Alternative Trigger)" section for the full topology and when this alternative applies.
+A development target may bind to `pr_head` or a retained `integration_head`; a production target binds to `merged_main`. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
 
-These are planning expectations, not authorization. Record explicit action authorization only in the `RUN.md` ledger.
+These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10. A native merge-triggered publication requires exact merge/landing authorization for the PR and its `release:<target-id>` consequence plus exact deployment authorization for the same target and head. Never infer deployment authorization from merge authorization.
 
 ## Scope And Contract Freeze
 
@@ -639,7 +1032,7 @@ When a `ui-architecture-builder` package is the design source, each route's reci
 | Scopes use the supported grammar and resources are complete | draft / PASS / BLOCKED | <note> |
 | Worker, mission-integration, batch, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |
 | Blocking decisions and approval needs are surfaced | draft / PASS / BLOCKED | <note> |
-| Cloudflare development and production targets, isolated resources, migration order, promotion prerequisites, and smoke verifiers are complete | draft / PASS / BLOCKED / n/a | <note> |
+| Provider-neutral development and production target IDs, source/artifact/channel/signing/data/trigger/migration fields, commands, prerequisites, and smoke verifiers are complete | draft / PASS / BLOCKED / n/a | <note> |
 
 Implementation may start only after static validation passes, `RUN.md` records `plan_readiness: "ready"`, and the required actions have explicit user authorization. Readiness never grants authorization by itself.
 

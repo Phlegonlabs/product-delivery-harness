@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -38,15 +39,48 @@ def _valid_ui_artifact_path(value: Any) -> bool:
     )
 
 
-def _has_ui_image_signature(path: Path) -> bool:
-    with path.open("rb") as handle:
-        header = handle.read(12)
-    suffix = path.suffix.lower()
-    if suffix == ".png":
-        return header.startswith(b"\x89PNG\r\n\x1a\n")
-    if suffix in {".jpg", ".jpeg"}:
-        return header.startswith(b"\xff\xd8\xff")
-    return suffix == ".webp" and header[:4] == b"RIFF" and header[8:12] == b"WEBP"
+_UI_IMAGE_FORMATS = {
+    ".png": "PNG",
+    ".jpg": "JPEG",
+    ".jpeg": "JPEG",
+    ".webp": "WEBP",
+}
+Image: Any = None
+
+
+def _image_module() -> Any:
+    global Image
+    if Image is None:
+        try:
+            from PIL import Image as pillow_image
+        except ImportError as exc:
+            raise RuntimeError(
+                "UI image evidence decoding requires Pillow; install the engineering test dependencies"
+            ) from exc
+        Image = pillow_image
+    return Image
+
+
+def _ui_image_decode_error(path: Path) -> str | None:
+    expected_format = _UI_IMAGE_FORMATS[path.suffix.lower()]
+    try:
+        image_module = _image_module()
+        with image_module.open(path) as image:
+            decoded_format = image.format
+            dimensions = image.size
+            image.verify()
+        with image_module.open(path) as image:
+            image.load()
+    except Exception as exc:
+        return f"cannot be decoded as an image ({exc})"
+    if decoded_format != expected_format:
+        return (
+            f"decoded format {decoded_format or 'unknown'} does not match "
+            f"the {path.suffix.lower()} file extension"
+        )
+    if dimensions[0] <= 0 or dimensions[1] <= 0:
+        return "decoded image must have non-zero dimensions"
+    return None
 
 
 def _validate_ui_evidence(
@@ -169,18 +203,21 @@ def _validate_ui_evidence(
         )
 
 
+def _viewport_label(value: int | float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _breakpoint_matches_viewport(breakpoint: str, viewport: str) -> bool:
+    return re.search(rf"(?:^|[-_\s]){re.escape(viewport)}$", breakpoint) is not None
+
+
 def validate_ui_surface_recipe_coverage(
     plan: dict[str, Any], ui_registry: str | Path
 ) -> list[str]:
-    """Cross-check the PLAN's UI surfaces against the design package's recipes.
+    """Cross-check every in-scope PLAN UI surface against its frozen recipe."""
 
-    Required screenshot coverage is otherwise derived only from the PLAN's own
-    `ui_surfaces[].states`, so a PLAN that lists `ready` alone validates clean
-    and reaches a PASS closeout with one state of eleven. The recipes in
-    `ui-registry.json` are the frozen contract, so they decide what a route owes
-    (TEST-VIS-021). A state the route genuinely cannot have belongs in the
-    recipe as `n/a` with a reason, not omitted from the PLAN.
-    """
     errors: list[str] = []
     path = Path(ui_registry)
     try:
@@ -199,50 +236,122 @@ def validate_ui_surface_recipe_coverage(
         _add(errors, "ui_registry.recipes", "must be an object")
         return errors
 
+    has_viewports = "viewports" in registry
+    has_size_classes = "sizeClasses" in registry
+    viewports = registry.get("viewports")
+    size_classes = registry.get("sizeClasses")
+    valid_viewports = (
+        isinstance(viewports, list)
+        and bool(viewports)
+        and all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value > 0
+            for value in viewports
+        )
+        and len(set(viewports)) == len(viewports)
+    )
+    valid_size_classes = (
+        isinstance(size_classes, list)
+        and bool(size_classes)
+        and all(_nonempty_string(value) for value in size_classes)
+        and len(set(size_classes)) == len(size_classes)
+    )
+    responsive_kind: str | None = None
+    responsive_values: list[str] = []
+    if (
+        has_viewports == has_size_classes
+        or (has_viewports and not valid_viewports)
+        or (has_size_classes and not valid_size_classes)
+    ):
+        _add(
+            errors,
+            "ui_registry",
+            "must define exactly one non-empty unique responsive set: viewports or sizeClasses",
+        )
+    elif has_viewports:
+        responsive_kind = "viewports"
+        responsive_values = [_viewport_label(value) for value in viewports]
+    else:
+        responsive_kind = "sizeClasses"
+        responsive_values = list(size_classes)
+
     surfaces = plan.get("ui_surfaces")
-    by_route: dict[str, set[str]] = {}
     if isinstance(surfaces, dict):
-        surface_values: Any = surfaces.values()
+        surface_values: list[Any] = list(surfaces.values())
     elif isinstance(surfaces, list):
         surface_values = surfaces
     else:
         surface_values = []
-    for surface in surface_values:
+
+    for index, surface in enumerate(surface_values):
         if not isinstance(surface, dict):
             continue
+        surface_id = surface.get("id")
         route = surface.get("route")
-        states = surface.get("states")
         if not _nonempty_string(route):
             continue
-        covered = by_route.setdefault(route, set())
-        if isinstance(states, list):
-            covered.update(state for state in states if _nonempty_string(state))
-
-    for route, recipe in sorted(recipes.items()):
+        surface_label = surface_id if _nonempty_string(surface_id) else str(index)
+        plan_path = f"plan.ui_surfaces[{surface_label}]"
+        recipe = recipes.get(route)
+        recipe_path = f"ui_registry.recipes.{route}"
         if not isinstance(recipe, dict):
+            _add(errors, plan_path, f"route {route} has no recipe in ui-registry.json")
             continue
+
         required = recipe.get("requiredStates")
-        if not isinstance(required, list):
-            continue
-        wanted = {
-            state
-            for state in required
-            if _nonempty_string(state) and state.strip().lower() != "n/a"
-        }
-        if not wanted:
-            continue
-        if route not in by_route:
+        if not isinstance(required, list) or any(
+            not _nonempty_string(state) for state in required
+        ):
+            _add(errors, f"{recipe_path}.requiredStates", "must be a string list")
+            required_states: set[str] = set()
+        else:
+            required_states = set(required)
+        ui_id = recipe.get("uiId")
+        if ui_id is not None and not _nonempty_string(ui_id):
+            _add(errors, f"{recipe_path}.uiId", "must be a non-empty string")
+
+        states = surface.get("states")
+        covered_states = (
+            {state for state in states if _nonempty_string(state)}
+            if isinstance(states, list)
+            else set()
+        )
+        for state in sorted(required_states - covered_states):
             _add(
                 errors,
-                "plan.ui_surfaces",
-                f"has no surface for route {route} required by ui-registry.json",
+                plan_path,
+                f"surface {surface_label} route {route} omits state {state} required by its recipe",
             )
-            continue
-        for state in sorted(wanted - by_route[route]):
+
+        breakpoints = surface.get("breakpoints")
+        covered_breakpoints = (
+            [value for value in breakpoints if _nonempty_string(value)]
+            if isinstance(breakpoints, list)
+            else []
+        )
+        if responsive_kind == "viewports":
+            missing_responsive = [
+                value
+                for value in responsive_values
+                if not any(
+                    _breakpoint_matches_viewport(breakpoint, value)
+                    for breakpoint in covered_breakpoints
+                )
+            ]
+        elif responsive_kind == "sizeClasses":
+            missing_responsive = [
+                value for value in responsive_values if value not in covered_breakpoints
+            ]
+        else:
+            missing_responsive = []
+        for responsive_value in missing_responsive:
             _add(
                 errors,
-                "plan.ui_surfaces",
-                f"route {route} omits state {state} required by its recipe",
+                plan_path,
+                f"surface {surface_label} route {route} omits responsive target "
+                f"{responsive_value} required by ui-registry.json",
             )
     return errors
 
@@ -250,9 +359,11 @@ def validate_ui_surface_recipe_coverage(
 def validate_ui_evidence_files(
     run: dict[str, Any], repo_root: str | Path
 ) -> list[str]:
-    """Verify schema-v9 screenshot files and hashes without mutating the workspace."""
+    """Verify schema-v9/v10 screenshot files and hashes without mutating the workspace."""
 
-    if run.get("schema_version") != 9 or not isinstance(run.get("ui_evidence"), list):
+    if run.get("schema_version") not in {9, 10} or not isinstance(
+        run.get("ui_evidence"), list
+    ):
         return []
     errors: list[str] = []
     root = Path(repo_root).resolve()
@@ -269,8 +380,8 @@ def validate_ui_evidence_files(
             _add(errors, path, f"does not exist: {item['artifact_path']}")
         elif artifact.stat().st_size == 0:
             _add(errors, path, "must not be empty")
-        elif not _has_ui_image_signature(artifact):
-            _add(errors, path, "content does not match the image file extension")
+        elif image_error := _ui_image_decode_error(artifact):
+            _add(errors, path, image_error)
         elif _nonempty_string(item.get("artifact_sha256")):
             actual = hashlib.sha256(artifact.read_bytes()).hexdigest()
             if actual != item["artifact_sha256"]:

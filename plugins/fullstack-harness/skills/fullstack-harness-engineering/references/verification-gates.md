@@ -143,7 +143,7 @@ Manual smoke or another environment-specific check is still required when automa
 
 Before either gate below can be attempted, a blocking prerequisite gate must pass: `wrangler.jsonc` exists for the target (scaffolded per `references/cloudflare-deployment-lifecycle.md`'s Wrangler Config and Account Bootstrap when missing) and Cloudflare account access is verified (GitHub Environment secrets for the CD path, or an authenticated Wrangler session for a local deploy). Do not attempt a development or production deploy while this prerequisite gate is unmet; stop and tell the user what is missing instead.
 
-For a new PLAN schema-v4 Cloudflare release, use two deployed-environment gates rather than treating a successful upload as release completion; existing schema-v3 release plans retain the same gates:
+For a current PLAN-v5 release targeting Cloudflare, use separate provider-neutral development and production target gates rather than treating a successful upload as release completion. Older schema-v3/v4 release plans retain their historical gate shape:
 
 | Gate | Source | Required proof |
 |---|---|---|
@@ -225,7 +225,7 @@ Status: PASS | FAIL | BLOCKED | UNVALIDATED
 Notes:
 ```
 
-Every schema-v9 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. A PASS is stale as soon as the integration head changes, regardless of the RUN lifecycle state. Markdown evidence rows do not replace these canonical closeout records.
+Every current RUN-v10 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. A PASS is stale as soon as the integration head changes, regardless of the RUN lifecycle state. Markdown evidence rows do not replace these canonical closeout records.
 
 ## Worker Result Gate
 
@@ -276,10 +276,10 @@ Final PASS requires:
 - The final integration head still descends from every recorded required mission integration SHA.
 - Landing state is recorded: explicitly left local, or the pull request is merged with current-head evidence and `merge_pr` authorization covering every mission plus the exact `pr:<full-PR-URL>` target.
 - In pull-request mode, local diff review passed before push; integration head, current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer local integration or push resets this gate.
-- For PLAN-v4 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
+- For current PLAN-v5 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - `merge_status: ready` is recorded only after the current-head landing gate passes, and `merged` preserves that evidence while adding the merged PR state and merge SHA. Actual merge and deploy remain separate authorized actions.
-- A schema-v4-through-v9 auto-merge request is recorded only after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Any changed head resets the request before fresh CI and review.
+- A current PLAN-v5/RUN-v10 auto-merge request is recorded only after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Any changed head resets the request before fresh CI and review.
 - A PR closed without merge records `closed` / `closed_unmerged` with no merge SHA; it is not left in the reusable `not_ready` state.
 - In schemas v5 through v9, a completed pull-request run records `post_merge_cleanup` as complete or deferred. Complete cleanup proves the merged SHA is reachable from the refreshed base, the exact local branch still matched the merged PR head before deletion, the primary checkout is clean on the base, and any exact parent-managed linked worktree was clean and is now absent — except when `run.integration.retention == "persistent"`, in which case the branch is recorded `preserved`, not deleted, per `execution-state-model.md`'s Post-Merge Cleanup State. `not_applicable` requires no matching linked worktree in the current observation; app-managed lifecycle is deferred instead of manually removed.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

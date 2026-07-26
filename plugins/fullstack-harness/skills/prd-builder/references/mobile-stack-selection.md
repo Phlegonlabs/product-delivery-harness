@@ -9,6 +9,8 @@ Label the decision status accurately:
 - `Recommended`: the PRD's evidence-backed advice; not yet user-approved.
 - `Provisional`: the leading choice pending named evidence or a spike.
 
+Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
+
 ## First Separate the Layers
 
 Never compare `native iOS vs Flutter vs React Native vs Expo` as though they sit at the same level. The choice is a small stack of nested decisions, not one flat menu.
@@ -96,7 +98,7 @@ Follow `architecture-playbook.md`'s Native iOS Pattern and Native Android Patter
 The `Mobile/Desktop Technology Decision` section in `stack-decisions.md` must include (a sibling section template for it lives in `references/output-contract.md`):
 
 - Product evidence and hard constraints, including existing-codebase reuse potential and target platforms at launch.
-- Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`) per layer.
+- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, `Recommended`, and `Provisional` rows.
 - One recorded stack separated by cross-platform-vs-native, framework (Flutter or React Native), React Native workflow (Expo or bare) when applicable, navigation, local persistence, state, offline/sync, secure storage, push, native-module boundaries, and testing.
 - The extra target surfaces (React Native for Web, Windows/macOS, Flutter web/desktop) that are in scope, if any.
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.

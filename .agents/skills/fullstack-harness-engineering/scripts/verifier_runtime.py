@@ -40,6 +40,11 @@ CONTEXT_FIELDS = {
     "checkout_role",
     "checkout_dirty",
     "cache_safe",
+    "layer",
+    "mission_id",
+    "task_id",
+    "attempt_id",
+    "lease_id",
 }
 
 
@@ -163,9 +168,43 @@ def _validated_inputs(
         raise VerifierRuntimeError(str(exc)) from exc
     _require_string(context["trust_domain"], "context.trust_domain")
     _require_string(context["checkout_role"], "context.checkout_role")
+    layer = _require_string(context["layer"], "context.layer")
+    if layer not in {"task", "worker", "mission_integration", "batch", "final", "release"}:
+        raise VerifierRuntimeError("context.layer is unsupported")
+    for key in ("mission_id", "task_id", "attempt_id", "lease_id"):
+        value = context[key]
+        if value is not None:
+            _require_string(value, f"context.{key}")
     for key in ("checkout_dirty", "cache_safe"):
         if not isinstance(context[key], bool):
             raise VerifierRuntimeError(f"context.{key} must be boolean")
+    if context["layer"] == "task" and any(
+        context[key] is None for key in ("mission_id", "task_id", "attempt_id", "lease_id")
+    ):
+        raise VerifierRuntimeError(
+            "task verifier context requires mission_id, task_id, attempt_id, and lease_id"
+        )
+    if context["layer"] == "worker" and (
+        any(context[key] is None for key in ("mission_id", "attempt_id", "lease_id"))
+        or context["task_id"] is not None
+    ):
+        raise VerifierRuntimeError(
+            "worker verifier context requires mission_id, attempt_id, lease_id, and null task_id"
+        )
+    if context["layer"] == "mission_integration" and (
+        context["mission_id"] is None
+        or any(context[key] is not None for key in ("task_id", "attempt_id", "lease_id"))
+    ):
+        raise VerifierRuntimeError(
+            "mission_integration verifier context requires mission_id and null task/attempt/lease IDs"
+        )
+    if context["layer"] in {"batch", "final", "release"} and any(
+        context[key] is not None
+        for key in ("mission_id", "task_id", "attempt_id", "lease_id")
+    ):
+        raise VerifierRuntimeError(
+            f"{context['layer']} verifier context requires null mission/task/attempt/lease IDs"
+        )
 
     verifier_id = _require_string(verifier.get("id"), "verifier.id")
     pass_signal = _require_string(verifier.get("pass_signal"), "verifier.pass_signal")
@@ -176,7 +215,8 @@ def _validated_inputs(
         or any(not isinstance(item, str) or not item for item in argv)
     ):
         raise VerifierRuntimeError("verifier.argv must be a non-empty string array")
-    cwd = _resolve_cwd(checkout_root, verifier.get("cwd"))
+    declared_cwd = Path(_require_string(verifier.get("cwd"), "verifier.cwd")).as_posix()
+    cwd = _resolve_cwd(checkout_root, declared_cwd)
     executable = _resolve_executable(argv[0], cwd, environment)
     identity = executable_identity(executable)
 
@@ -201,7 +241,7 @@ def _validated_inputs(
 
     normalized_verifier = {
         "id": verifier_id,
-        "cwd": os.path.normcase(str(cwd)),
+        "cwd": declared_cwd,
         "argv": argv,
         "pass_signal": pass_signal,
         "cache": cache,
@@ -212,6 +252,12 @@ def _validated_inputs(
         "executable_identity": identity,
         "environment_digests": _environment_digests(environment_keys, environment),
     }
+
+
+def execution_key_from_document(key_document: dict[str, Any]) -> str:
+    """Recompute the immutable execution key from a retained parent result."""
+
+    return _sha256_bytes(_canonical_json(key_document))
 
 
 def build_execution_key(
@@ -230,6 +276,12 @@ def build_execution_key(
     )
     key_document = {
         "protocol": PROTOCOL,
+        "verifier_id": normalized_verifier["id"],
+        "layer": key_inputs["context"]["layer"],
+        "mission_id": key_inputs["context"]["mission_id"],
+        "task_id": key_inputs["context"]["task_id"],
+        "attempt_id": key_inputs["context"]["attempt_id"],
+        "lease_id": key_inputs["context"]["lease_id"],
         "run_id": key_inputs["context"]["run_id"],
         "plan_revision": key_inputs["context"]["plan_revision"],
         "plan_digest_sha256": key_inputs["context"]["plan_digest_sha256"],
@@ -241,9 +293,13 @@ def build_execution_key(
         ),
         "trust_domain": key_inputs["context"]["trust_domain"],
         "checkout_role": key_inputs["context"]["checkout_role"],
+        "checkout_dirty": key_inputs["context"]["checkout_dirty"],
+        "cache_safe": key_inputs["context"]["cache_safe"],
         "cwd": normalized_verifier["cwd"],
         "argv": normalized_verifier["argv"],
         "pass_signal": normalized_verifier["pass_signal"],
+        "cache_mode": normalized_verifier["cache"]["mode"],
+        "environment_keys": sorted(normalized_verifier["cache"]["environment_keys"]),
         "platform": {
             "system": platform.system(),
             "machine": platform.machine(),
@@ -251,7 +307,7 @@ def build_execution_key(
         "executable_identity": key_inputs["executable_identity"],
         "environment_digests": key_inputs["environment_digests"],
     }
-    return _sha256_bytes(_canonical_json(key_document)), key_document
+    return execution_key_from_document(key_document), key_document
 
 
 def _cache_path(cache_root: Path, execution_key: str) -> Path:
@@ -358,6 +414,9 @@ def run_verifier(
                     "stderr": entry["stderr"],
                     "execution_key": execution_key,
                     "evidence_key": execution_key,
+                    "verifier": normalized_verifier,
+                    "context": key_inputs["context"],
+                    "key_document": key_document,
                     "cache_status": "reused",
                     "cache_reason": cache_reason,
                     "duration_ms": 0,
@@ -420,6 +479,9 @@ def run_verifier(
         "stderr": stderr,
         "execution_key": execution_key,
         "evidence_key": execution_key,
+        "verifier": normalized_verifier,
+        "context": key_inputs["context"],
+        "key_document": key_document,
         "cache_status": cache_status,
         "cache_reason": cache_reason,
         "duration_ms": duration_ms,

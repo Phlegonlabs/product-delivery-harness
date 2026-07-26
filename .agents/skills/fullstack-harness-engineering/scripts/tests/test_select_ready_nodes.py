@@ -36,6 +36,7 @@ def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
             },
         }
     )
+    run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
     run["observed"]["runtime"].update(
         {"available_worker_slots": 0, "isolation_capacity": 0}
     )
@@ -43,7 +44,7 @@ def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
 
 
 class SelectReadyNodesTests(unittest.TestCase):
-    def test_entry_node_is_dispatchable_once_authorized(self) -> None:
+    def test_plan_backed_parent_write_is_not_dispatched_in_shared_checkout(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["executor"] = "harness_parent"
         plan["graph"]["nodes"][0]["runtime"] = None
@@ -51,11 +52,9 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         result = select_ready_nodes(plan, run)
 
-        self.assertEqual(
-            ["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]]
-        )
-        self.assertEqual("run_parent", result["dispatchable_nodes"][0]["launch_kind"])
-        self.assertEqual("parent", result["dispatchable_nodes"][0]["worker_runtime"])
+        self.assertEqual([], result["dispatchable_nodes"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("workspace_not_isolated", deferred["N-M1"])
 
     def test_dependent_node_stays_deferred_until_its_edge_fires(self) -> None:
         plan = valid_graph_plan()
@@ -69,10 +68,45 @@ class SelectReadyNodesTests(unittest.TestCase):
             "N-M2", [item["node_id"] for item in result["dispatchable_nodes"]]
         )
 
+    def test_running_resume_fails_closed_on_unknown_parent_state(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["executor"] = "harness_parent"
+        plan["graph"]["nodes"][0]["runtime"] = None
+        run = authorized_parent_run(plan)
+        run["observed"]["captured_at"] = None
+        run["observed"]["git"]["parent_dirty"] = None
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual([], result["ready_frontier"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("parent_state_unreconciled", deferred["N-M1"])
+
+    def test_running_resume_reconciles_every_linked_worktree(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["executor"] = "harness_parent"
+        plan["graph"]["nodes"][0]["runtime"] = None
+        run = authorized_parent_run(plan)
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": "C:/repo/untracked-worker",
+                "branch_ref": "refs/heads/untracked",
+                "head_sha": "b" * 40,
+                "managed_by": "parent",
+                "dirty": False,
+            }
+        ]
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual([], result["ready_frontier"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("worktree_state_unreconciled", deferred["N-M1"])
+
     def test_schema_mismatch_is_rejected_before_selection(self) -> None:
-        # Structural validate_plan/validate_run already reject a v4 PLAN paired
-        # with a non-8/9 RUN, so isolate select_ready_nodes's own schema gate
-        # (the line this test guards) by stubbing structural validation out.
+        # Structural validate_plan/validate_run already reject unsupported
+        # PLAN/RUN pairs, so isolate select_ready_nodes's own schema gate (the
+        # line this test guards) by stubbing structural validation out.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
         run["schema_version"] = 6
@@ -83,7 +117,10 @@ class SelectReadyNodesTests(unittest.TestCase):
             with self.assertRaises(GraphSelectionError) as ctx:
                 select_ready_nodes(plan, run)
 
-        self.assertIn("PLAN v4 and RUN v8 or v9", str(ctx.exception))
+        self.assertIn(
+            "PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10",
+            str(ctx.exception),
+        )
 
 
 if __name__ == "__main__":

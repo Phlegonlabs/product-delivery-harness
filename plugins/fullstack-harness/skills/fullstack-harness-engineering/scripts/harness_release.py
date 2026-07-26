@@ -17,10 +17,20 @@ from harness_core import (
     is_full_sha,
     validate_scope_claim,
 )
-from harness_schema import DEPLOYMENT_PROVIDERS
+from harness_schema import (
+    DEPLOYMENT_PROVIDERS,
+    MIGRATION_CLASSIFICATIONS,
+    RELEASE_DATA_MODES,
+    RELEASE_SOURCES,
+    RELEASE_STAGES,
+    RELEASE_TRIGGERS,
+    SHA256_RE,
+)
 
 
-def _validate_release(errors: list[str], value: Any) -> None:
+def _validate_release(
+    errors: list[str], value: Any, *, schema_version: int | None = None
+) -> None:
     path = "plan.release"
     if not _keys(errors, path, value, {"provider", "targets"}):
         return
@@ -28,10 +38,124 @@ def _validate_release(errors: list[str], value: Any) -> None:
     if provider not in DEPLOYMENT_PROVIDERS:
         _add(errors, f"{path}.provider", f"must be one of {sorted(DEPLOYMENT_PROVIDERS)}")
         return
-    if provider == "cloudflare":
+    if schema_version == 5:
+        _validate_release_targets_v5(errors, path, value["targets"])
+    elif provider == "cloudflare":
         _validate_cloudflare_release_targets(errors, path, value["targets"])
     else:
         _validate_generic_release_targets(errors, path, value["targets"])
+
+
+def _validate_release_targets_v5(
+    errors: list[str], path: str, targets_value: Any
+) -> None:
+    if not isinstance(targets_value, list) or not targets_value:
+        _add(errors, f"{path}.targets", "must be a non-empty list")
+        return
+
+    target_keys = {
+        "id",
+        "stage",
+        "source",
+        "artifact_kind",
+        "requires_signing",
+        "channel",
+        "data_mode",
+        "trigger",
+        "migration_classification",
+        "commands",
+        "prerequisites",
+        "smoke_verifiers",
+    }
+    command_keys = {"build", "migrate", "publish"}
+    seen_ids: set[str] = set()
+    seen_stages: set[str] = set()
+    for index, target in enumerate(targets_value):
+        target_path = f"{path}.targets[{index}]"
+        if not _keys(errors, target_path, target, target_keys):
+            continue
+        target_id = target["id"]
+        if not _nonempty_string(target_id):
+            _add(errors, f"{target_path}.id", "must be a non-empty stable target ID")
+        elif target_id in seen_ids:
+            _add(errors, f"{target_path}.id", "must be unique")
+        else:
+            seen_ids.add(target_id)
+        stage = target["stage"]
+        if stage not in RELEASE_STAGES:
+            _add(errors, f"{target_path}.stage", "must be development or production")
+        else:
+            seen_stages.add(stage)
+        if target["source"] is not None and target["source"] not in RELEASE_SOURCES:
+            _add(errors, f"{target_path}.source", "must be null or a supported source")
+        if target["artifact_kind"] is not None and not _nonempty_string(target["artifact_kind"]):
+            _add(errors, f"{target_path}.artifact_kind", "must be null or a non-empty string")
+        if target["requires_signing"] is not None and not isinstance(target["requires_signing"], bool):
+            _add(errors, f"{target_path}.requires_signing", "must be null or boolean")
+        if target["channel"] is not None and not _nonempty_string(target["channel"]):
+            _add(errors, f"{target_path}.channel", "must be null or a non-empty exact channel")
+        if target["data_mode"] not in RELEASE_DATA_MODES:
+            _add(errors, f"{target_path}.data_mode", "has an unsupported value")
+        if target["trigger"] is not None and target["trigger"] not in RELEASE_TRIGGERS:
+            _add(errors, f"{target_path}.trigger", "must be null, manual, or merge")
+        classification = target["migration_classification"]
+        if classification not in MIGRATION_CLASSIFICATIONS:
+            _add(
+                errors,
+                f"{target_path}.migration_classification",
+                "must be null, not_applicable, additive, or destructive",
+            )
+        commands = target["commands"]
+        if _keys(errors, f"{target_path}.commands", commands, command_keys):
+            for command_name in command_keys:
+                command = commands[command_name]
+                if command is None:
+                    if command_name == "migrate" and classification not in {
+                        None,
+                        "not_applicable",
+                    }:
+                        _add(
+                            errors,
+                            f"{target_path}.commands.migrate",
+                            "is required for additive or destructive migration classification",
+                        )
+                    continue
+                _validate_verifier(
+                    errors,
+                    f"{target_path}.commands.{command_name}",
+                    command,
+                    cache_allowed=False,
+                )
+            if target["trigger"] == "manual" and commands.get("publish") is None:
+                _add(errors, f"{target_path}.commands.publish", "must not be null for manual trigger")
+            if target["trigger"] == "merge" and commands.get("publish") is not None:
+                _add(errors, f"{target_path}.commands.publish", "must be null for merge trigger")
+        _strings(errors, f"{target_path}.prerequisites", target["prerequisites"], nonempty=True)
+        smoke = target["smoke_verifiers"]
+        if not isinstance(smoke, list) or not smoke:
+            _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
+        else:
+            for verifier_index, verifier in enumerate(smoke):
+                _validate_verifier(
+                    errors,
+                    f"{target_path}.smoke_verifiers[{verifier_index}]",
+                    verifier,
+                    cache_allowed=False,
+                )
+        if stage == "development":
+            if target["source"] is not None and target["source"] not in {"pr_head", "integration_head"}:
+                _add(errors, f"{target_path}.source", "development must use pr_head or integration_head")
+            if target["data_mode"] != "isolated_non_production":
+                _add(errors, f"{target_path}.data_mode", "development must use isolated_non_production")
+        if stage == "production":
+            if target["source"] is not None and target["source"] != "merged_main":
+                _add(errors, f"{target_path}.source", "production must use merged_main")
+            if target["data_mode"] != "production":
+                _add(errors, f"{target_path}.data_mode", "production must use production")
+
+    missing_stages = RELEASE_STAGES - seen_stages
+    if missing_stages:
+        _add(errors, f"{path}.targets", "must include at least one target for each stage")
 
 
 def _validate_generic_release_targets(errors: list[str], path: str, targets_value: Any) -> None:
@@ -496,3 +620,235 @@ def _validate_deployments(
         or production.get("status") != "PASS"
     ):
         _add(errors, path, "complete run requires development and production PASS")
+
+
+def _authorization_covers_release_head(
+    run: dict[str, Any], action: str, mission_id: str, target_id: str, head_sha: Any
+) -> bool:
+    entry = run.get("authorizations", {}).get(action)
+    if not isinstance(entry, dict) or entry.get("authorized_head_sha") != head_sha:
+        return False
+    return authorization_covers(
+        run,
+        action,
+        mission_id,
+        f"release:{target_id}",
+        preserve_completed_run_expiry=True,
+    )
+
+
+def _validate_retained_evidence(
+    errors: list[str], path: str, value: Any, extra_keys: set[str]
+) -> bool:
+    keys = {"subject", "retained_reference", "evidence_sha256"} | extra_keys
+    if not _keys(errors, path, value, keys):
+        return False
+    if not _nonempty_string(value["subject"]):
+        _add(errors, f"{path}.subject", "must identify the exact evidence subject")
+    if not _nonempty_string(value["retained_reference"]):
+        _add(errors, f"{path}.retained_reference", "must be a non-empty retained reference")
+    digest = value["evidence_sha256"]
+    if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
+        _add(errors, f"{path}.evidence_sha256", "must be a lowercase SHA-256 digest")
+    return True
+
+
+def _validate_targets(
+    errors: list[str], value: Any, run: dict[str, Any], plan: dict[str, Any]
+) -> None:
+    path = "run.targets"
+    release = plan.get("release")
+    target_list = release.get("targets") if isinstance(release, dict) else None
+    declared_targets = {
+        target["id"]: target
+        for target in (target_list or [])
+        if isinstance(target, dict) and _nonempty_string(target.get("id"))
+    }
+    if not isinstance(value, dict):
+        _add(errors, path, "must be an object keyed by PLAN release target ID")
+        return
+    if set(value) != set(declared_targets):
+        _add(errors, path, "keys must exactly equal PLAN release target IDs")
+
+    status_values = {"not_started", "pending", "PASS", "FAIL", "BLOCKED"}
+    migration_values = status_values | {"not_required"}
+    target_keys = {
+        "status",
+        "source_sha",
+        "authorized_head_sha",
+        "artifact",
+        "channel",
+        "promotion",
+        "availability",
+        "migration_status",
+        "verification_status",
+        "destructive_migration_confirmed_sha",
+    }
+    states: dict[str, dict[str, Any]] = {}
+    for target_id, target in value.items():
+        target_path = f"{path}.{target_id}"
+        if not _keys(errors, target_path, target, target_keys):
+            continue
+        states[target_id] = target
+        declared = declared_targets.get(target_id, {})
+        if target["status"] not in status_values:
+            _add(errors, f"{target_path}.status", "has an unsupported value")
+        if target["migration_status"] not in migration_values:
+            _add(errors, f"{target_path}.migration_status", "has an unsupported value")
+        if target["verification_status"] not in status_values:
+            _add(errors, f"{target_path}.verification_status", "has an unsupported value")
+        _optional_sha(errors, f"{target_path}.source_sha", target["source_sha"])
+        _optional_sha(errors, f"{target_path}.authorized_head_sha", target["authorized_head_sha"])
+        _optional_sha(
+            errors,
+            f"{target_path}.destructive_migration_confirmed_sha",
+            target["destructive_migration_confirmed_sha"],
+        )
+        if target["status"] == "not_started":
+            for key in (
+                "source_sha",
+                "authorized_head_sha",
+                "artifact",
+                "channel",
+                "promotion",
+                "availability",
+                "destructive_migration_confirmed_sha",
+            ):
+                if target[key] is not None:
+                    _add(errors, target_path, "not_started target must not record release evidence")
+                    break
+            if target["migration_status"] != "not_started" or target["verification_status"] != "not_started":
+                _add(errors, target_path, "not_started target requires not_started migration and verification")
+        elif target["authorized_head_sha"] is None:
+            _add(errors, f"{target_path}.authorized_head_sha", "is required after target execution starts")
+
+        if target["artifact"] is not None and _validate_retained_evidence(
+            errors,
+            f"{target_path}.artifact",
+            target["artifact"],
+            {"build_id", "version", "signing_status"},
+        ):
+            for key in ("build_id", "version"):
+                if not _nonempty_string(target["artifact"][key]):
+                    _add(errors, f"{target_path}.artifact.{key}", "must be a non-empty string")
+            if target["artifact"]["signing_status"] not in {"not_required", "PASS", "FAIL"}:
+                _add(errors, f"{target_path}.artifact.signing_status", "has an unsupported value")
+        if target["channel"] is not None and _validate_retained_evidence(
+            errors, f"{target_path}.channel", target["channel"], {"name"}
+        ):
+            if target["channel"]["name"] != declared.get("channel"):
+                _add(errors, f"{target_path}.channel.name", "must match PLAN release channel")
+        for evidence_key in ("promotion", "availability"):
+            evidence = target[evidence_key]
+            if evidence is not None and _validate_retained_evidence(
+                errors, f"{target_path}.{evidence_key}", evidence, {"status"}
+            ) and evidence["status"] != "PASS":
+                _add(errors, f"{target_path}.{evidence_key}.status", "must equal PASS")
+
+        classification = declared.get("migration_classification")
+        confirmed_sha = target["destructive_migration_confirmed_sha"]
+        if target["status"] != "not_started" and classification is None:
+            _add(
+                errors,
+                f"{target_path}.migration_status",
+                "target execution cannot start with unresolved migration_classification",
+            )
+        if classification == "destructive":
+            if confirmed_sha != target["authorized_head_sha"]:
+                _add(
+                    errors,
+                    f"{target_path}.destructive_migration_confirmed_sha",
+                    "must equal the current authorized target head",
+                )
+        elif confirmed_sha is not None:
+            _add(
+                errors,
+                f"{target_path}.destructive_migration_confirmed_sha",
+                "requires destructive PLAN migration classification",
+            )
+
+        source = declared.get("source")
+        landing = run.get("landing") if isinstance(run.get("landing"), dict) else {}
+        integration = run.get("integration") if isinstance(run.get("integration"), dict) else {}
+        expected_source = {
+            "pr_head": landing.get("pr_head_sha"),
+            "integration_head": integration.get("integration_head_sha"),
+            "merged_main": landing.get("merged_sha"),
+        }.get(source)
+        trigger = declared.get("trigger")
+        triggering_candidate_head = (
+            landing.get("pr_head_sha")
+            if is_full_sha(landing.get("pr_head_sha"))
+            else integration.get("integration_head_sha")
+        )
+        expected_authorized_head = (
+            triggering_candidate_head if trigger == "merge" else target["source_sha"]
+        )
+        if target["status"] != "not_started" and (
+            target["authorized_head_sha"] != expected_authorized_head
+        ):
+            binding = "triggering PR/integration candidate" if trigger == "merge" else "manual source"
+            _add(
+                errors,
+                f"{target_path}.authorized_head_sha",
+                f"must bind the exact {binding} head",
+            )
+
+        if target["status"] == "PASS":
+            if not is_full_sha(target["source_sha"]):
+                _add(errors, target_path, "PASS requires an exact source SHA")
+            for evidence_key in ("artifact", "channel", "promotion", "availability"):
+                if not isinstance(target[evidence_key], dict):
+                    _add(errors, target_path, f"PASS requires {evidence_key} evidence")
+            if target["migration_status"] not in {"PASS", "not_required"}:
+                _add(errors, target_path, "PASS requires migration PASS or not_required")
+            if target["verification_status"] != "PASS":
+                _add(errors, target_path, "PASS requires verification_status PASS")
+            artifact = target["artifact"]
+            if isinstance(artifact, dict):
+                expected_signing = "PASS" if declared.get("requires_signing") else "not_required"
+                if artifact.get("signing_status") != expected_signing:
+                    _add(errors, f"{target_path}.artifact.signing_status", f"must equal {expected_signing}")
+            actions = ("merge_pr", "deploy") if trigger == "merge" else ("deploy",)
+            mission_states = run.get("mission_states")
+            mission_ids = list(mission_states) if isinstance(mission_states, dict) else []
+            for action in actions:
+                if not mission_ids or any(
+                    not _authorization_covers_release_head(
+                        run,
+                        action,
+                        mission_id,
+                        target_id,
+                        expected_authorized_head,
+                    )
+                    for mission_id in mission_ids
+                ):
+                    _add(
+                        errors,
+                        target_path,
+                        f"PASS requires exact {action} authorization for release:{target_id} at the authorized event head",
+                    )
+
+        if target["status"] == "PASS" and target["source_sha"] != expected_source:
+            _add(errors, target_path, f"PASS must bind to the current {source} SHA")
+        if source == "integration_head" and integration.get("retention") != "persistent":
+            _add(errors, "run.integration.retention", "must be persistent for integration_head release source")
+
+    for target_id, declared in declared_targets.items():
+        if declared.get("stage") != "production":
+            continue
+        state = states.get(target_id)
+        if state is None or state.get("status") != "PASS":
+            continue
+        development_ids = [
+            item_id
+            for item_id, item in declared_targets.items()
+            if item.get("stage") == "development"
+        ]
+        if any(states.get(item_id, {}).get("status") != "PASS" for item_id in development_ids):
+            _add(errors, f"{path}.{target_id}", "production PASS requires every development target PASS")
+
+    if run.get("status") == "complete" and any(
+        states.get(target_id, {}).get("status") != "PASS" for target_id in declared_targets
+    ):
+        _add(errors, path, "complete run requires every PLAN release target PASS")

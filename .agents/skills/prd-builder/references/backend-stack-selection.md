@@ -9,16 +9,18 @@ Label the decision status accurately:
 - `Recommended`: the PRD's evidence-backed advice; not yet user-approved.
 - `Provisional`: the leading choice pending named evidence or a spike.
 
+Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
+
 ## First Separate the Layers
 
 | Layer | Question | Examples |
 | --- | --- | --- |
+| Service topology | How many independently deployable backend services does the product need, and how is code organized across them? | Single service (monolith), workspace monorepo with named services, polyrepo |
 | Backend runtime / framework | What executes business logic and serves API or backend requests? | Cloudflare Workers, Node.js (Express/Hono/Fastify), Next.js API routes or server actions, FastAPI, Django, Rails, Go |
 | Database category | What shape of persistence does the data need? | Relational, document, key-value or cache only, none |
 | Database engine | Which specific engine implements that category? | Postgres, MySQL, SQLite, Cloudflare D1, PlanetScale, MongoDB Atlas, DynamoDB, Cloudflare KV, Upstash Redis |
 | Auth strategy | Who builds and owns identity/session verification? | Build custom, managed third-party provider, platform-native provider, no auth needed |
 | Auth provider | Which specific vendor or mechanism implements that strategy? | Clerk, Auth0, WorkOS, Cloudflare Access, AWS Cognito, custom JWT/session store |
-| Service topology | How many independently deployable backend services does the product need, and how is code organized across them? | Single service (monolith), Bun/npm workspace monorepo with multiple services (microservices), polyrepo |
 | Supporting choices | How are secondary backend concerns implemented? | API style (REST/GraphQL/RPC), background jobs/queue, file/object storage, caching, rate limiting |
 
 Database category and auth strategy are separate decisions from database engine and auth provider: category and strategy are resolved via `AskUserQuestion` because each is a short, often organizationally- or compliance-driven choice; engine and provider are product-fit recommendations made within the already-resolved category or strategy, the same way frontend framework is recommended within an already-resolved deployment platform.
@@ -117,8 +119,8 @@ Verify these rules against current official documentation on the date the PRD is
 
 1. Classify data entities, access patterns, and identity/authorization needs.
 2. Eliminate options that cannot satisfy a hard constraint or whose current support is unverified.
-3. Choose the simplest coherent combination of runtime, database, and auth that covers the dominant access patterns and identity needs without unnecessary infrastructure.
-4. Name the required/selected stack for backend runtime, service topology, database engine, and auth provider, or one recommendation when no choice exists — informed by the already-resolved database category, auth strategy, and service topology decision. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
+3. Choose service topology first, then the simplest coherent combination of runtime, database, and auth that covers the dominant access patterns and identity needs without unnecessary infrastructure.
+4. Name the required/selected stack for service topology, backend runtime, database engine, and auth provider, or one recommendation when no choice exists — informed by the already-resolved database category and auth strategy. Do not hand the implementer an unranked shortlist, and do not present advice as an approved requirement.
 5. Explain at least two serious alternatives, where each would fit better, why it loses here, and what would trigger reconsideration.
 6. Verify current platform/vendor documentation and capture direct sources plus the check date.
 7. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional`, not `Selected`.
@@ -128,8 +130,8 @@ Verify these rules against current official documentation on the date the PRD is
 The `Backend and Data Technology Decision` section in `stack-decisions.md` must include:
 
 - Product evidence and hard constraints.
-- Decision status and authority (`Required`, `Selected`, `Recommended`, or `Provisional`) per layer.
-- One recorded stack separated by backend runtime/framework, service topology (monolith vs microservices, and monorepo/polyrepo structure), database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
+- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, `Recommended`, and `Provisional` rows.
+- One recorded stack separated in this order: service topology (monolith versus named services, and monorepo/polyrepo structure), backend runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
 - A data-entity-to-store mapping when more than one store is used.
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.

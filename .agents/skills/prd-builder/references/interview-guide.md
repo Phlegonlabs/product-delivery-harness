@@ -68,19 +68,24 @@ Ask only questions that are not already answered.
 8. Architecture constraints
    - Is there a required stack, hosting environment, database, auth provider, or existing system?
    - What auth strategy should this product use: build custom authentication, a managed third-party provider (e.g., Auth0, Clerk, WorkOS), a platform-native provider (e.g., Cloudflare Access, AWS Cognito), or no auth needed? (AskUserQuestion)
-   - For a deployable web product, which deployment platform should this use: Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, in call 3, unless the user's prompt or the current repository already names one) — ask this only when the resolved product surface is web, or a hybrid that includes a web surface, which is why it belongs in call 3 and never in the same batch as the product-surface question. It does not apply to a native iOS, native Android, Flutter, macOS, or Windows target, whose release path is an app store or a signed installer rather than a web host; for those, resolve distribution with the matching platform pattern in `architecture-playbook.md` instead of asking this question.
+   - For a deployable web, API, or hosted backend target, which deployment platform should this use: Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, in call 3, unless the user's prompt or the current repository already names one) Use the built-in Other option to record an explicit stage-to-provider mapping when development and production differ. Ask this only when the resolved product surface includes a hosted web/API/backend surface, which is why it belongs in call 3 and never in the same batch as the product-surface question. It does not apply to a native iOS, native Android, Flutter, macOS, or Windows target, whose release path is an app store or a signed installer rather than a web host; for those, resolve distribution with the matching platform pattern in `architecture-playbook.md` instead of asking this question.
    - For a browser frontend, is the product primarily content-led, interaction-led, or a mixture? Which routes require SEO, static generation, server rendering, authenticated personalization, or SPA behavior?
    - If the platform is Cloudflare, does the frontend need Cloudflare Workers bindings or APIs such as D1, KV, R2, Durable Objects, Queues, Workflows, or Workers AI? For another platform, note the equivalent platform-managed services it needs.
    - Which team skills, existing components, package constraints, browser targets, and build/deployment workflows should shape the frontend choice?
-   - Are there latency, scale, reliability, security, or cost constraints?
+   - Which non-functional quality attributes apply: performance, reliability, availability, security, privacy, accessibility, scalability, maintainability, operability, compliance, or another named attribute? For each applicable attribute, what surface and population does it cover, how is it measured, and what numeric or bounded target applies? Record units, traffic or tested population, measurement window, and percentile where applicable; record non-applicable categories explicitly as `N/A` with a reason.
    - Does the product need observability, audit logs, background jobs, or queueing?
-9. Delivery constraints
+9. Delivery and release targets
    - What is in scope for v1?
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
+   - What is the complete inventory of expected deployable web, API, mobile, or desktop surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
+   - For each target, which current PLAN-v5 source policy produces it: `pr_head` or `integration_head` for development, and `merged_main` for production? If the product requires a signed tag or another source rule, record that as an unresolved engineering-handoff gap instead of freezing an unsupported source choice.
+   - What artifact kind is released, what signing or notarization is required, and what exact environment, store channel, testing track, update feed, or distribution channel receives it?
+   - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.
+   - What rollout controls apply, and what is the real recovery path? For native stores and signed installers, identify when recovery means halting a staged rollout and shipping a signed forward-fix rather than claiming an instant rollback.
 10. Success and validation
    - Which metrics define launch success?
-   - Which acceptance tests must pass before release?
+   - Which observable test obligations must pass before release? Identify the functional or non-functional requirement each obligation proves, its test type, and its literal or measurable expected signal. The PRD assigns stable `TEST-*` IDs during synthesis.
    - What risks or unknowns should the team investigate first?
 
 ## Completeness Criteria
@@ -93,6 +98,7 @@ Discovery is complete enough to draft when the agent can state:
 - The core data objects and integrations.
 - The v1 scope, non-goals, and constraints.
 - The architecture assumptions and high-risk unknowns.
+- A complete expected deployable-surface inventory with stable surface IDs, plus stable development and production target IDs for every expected surface. Each target separates stable `surface` identity from stage-specific `provider`, uses a current PLAN-v5 source policy, and records artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Native targets are not forced into a web environment model.
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider.
 - The UI screens or interaction points that need wireframes.
@@ -101,6 +107,8 @@ Discovery is complete enough to draft when the agent can state:
 - The requested overall interface style, or permission to record `modern-minimal` as a provisional assumption.
 - Required style and motion intent for visually important regions, or permission to derive it.
 - The success metrics and acceptance criteria.
+- The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
+- The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
 
 If any item is missing and the user did not authorize assumptions, ask follow-up questions before drafting.
 
@@ -110,6 +118,8 @@ When `docs/product/PRD.md` (or another document clearly describing the same prod
 
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
+- Preserve existing `TEST-*` IDs for unchanged obligations. Add a new TEST ID only when the delta creates an uncovered obligation; do not renumber or replace existing tests during cleanup.
+- Preserve stable release target IDs for unchanged targets. Add a target ID only for a new release destination, and retire rather than reuse an ID when a target is removed.
 - When the new idea adds a mobile or desktop target to a product that previously had only a web target (or, conversely, adds a web target to a previously mobile/desktop-only product), always re-trigger the platform-selection question (the mobile/desktop platform `AskUserQuestion` follow-ups under "Product surface" above) for the NEW target specifically. This holds even though the existing target's already-answered platform question is carried forward unchanged, per the "do not re-ask what's already answered" rule above — the new target has no answer yet, so it must be asked.
 - If the new idea conflicts with an existing decision, surface the conflict explicitly and ask which should win instead of silently overwriting it.
 

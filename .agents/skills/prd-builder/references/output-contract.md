@@ -81,6 +81,14 @@ Use this structure:
 | --- | --- | --- | --- |
 | PRD-001 | [Requirement] | [Must / should / could] | [Observable acceptance] |
 
+## Non-Functional Requirements
+| ID | Quality attribute | Scope / requirement | Measure | Target / threshold | TEST IDs |
+| --- | --- | --- | --- | --- | --- |
+| PRD-002 | [Performance / reliability / availability / security / privacy / accessibility / scalability / maintainability / operability / compliance, or another applicable attribute] | [Surface, workflow, population, and condition covered] | [Measured signal with unit, population, window, and percentile where applicable] | [Numeric threshold or bounded outcome] | TEST-002 |
+| N/A | [Non-applicable quality category] | [Why it does not apply to this product or scope] | N/A | N/A | N/A |
+
+Record every applicable quality category as a measurable `PRD-*` requirement, or record the category as explicitly `N/A` with a reason. The `N/A` row is an applicability record, not an NFR obligation, and does not receive a requirement or TEST ID. Words such as `fast`, `secure`, `reliable`, `scalable`, or `accessible` do not pass without an observable measure and target. Include units, tested population or traffic shape, measurement window, and percentile where they affect the result.
+
 ## UX Requirements
 | ID | User / task | Requirement | Success and failure signal | Evidence status |
 | --- | --- | --- | --- | --- |
@@ -110,6 +118,13 @@ Omit this section only when the product has no browser frontend.
 
 ## Open Questions
 - [Question]
+
+## Test Obligations
+| TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
+| --- | --- | --- | --- | --- | --- |
+| TEST-001 | [Observable behavior or quality obligation] | [Unit / integration / contract / E2E / performance / security / accessibility / operational] | [Yes / No] | PRD-001 | [Literal pass signal, measured result, or threshold] |
+
+Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row may cover more than one upstream requirement only when one test genuinely verifies all of them. Preserve each `TEST-*` ID when its obligation keeps the same meaning; retire rather than reuse an ID whose meaning changes.
 
 ---
 
@@ -178,14 +193,34 @@ Technology selections and their rationale live in `stack-decisions.md`.
 ## Deployment and Operations
 [Hosting, environments, config, migrations, queues, cron, rollback.]
 
-For every deployable product, include this environment contract (Cloudflare Worker naming shown as the worked example; substitute the resolved platform's equivalent deployment unit):
+For every deployable hosted web, API, or backend target, include this environment contract (Cloudflare Worker naming shown as the worked example; substitute the resolved platform's equivalent deployment unit). Do not use this two-row hosted-environment table for native mobile or desktop store/signed-installer distribution:
 
 | Target | Exact Release Source | Deployment Unit | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Development | [Current PR head after current-head CI] | [Distinct development deployment unit, e.g. Cloudflare Worker, Vercel project environment, AWS stack] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Command/order or not applicable] | [URL, version, checks, smoke, evidence] | [Prior development version] |
-| Production | [Exact merged base-branch SHA after development PASS] | [Distinct production deployment unit] | [Production resources] | [Production] | [Live or not applicable] | [Command/order or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
+| Development | [`pr_head` after current-head CI, or `integration_head` for an explicitly retained integration branch] | [Distinct development deployment unit, e.g. Cloudflare Worker, Vercel project environment, AWS stack] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Classification, command, and ordering or not applicable] | [URL, version, checks, smoke, evidence] | [Prior development version] |
+| Production | [`merged_main` after development PASS] | [Distinct production deployment unit] | [Production resources] | [Production] | [Live or not applicable] | [Classification, command, and ordering or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
 
-State that both targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development.
+State that both hosted targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development. Write each Migration Order cell so the engineering handoff can map it to PLAN-v5 `migration_classification`, `commands.migrate`, and `prerequisites` as appropriate.
+
+## Release Targets
+Use this provider-neutral section for every deployable web, API, mobile, or desktop surface, including hosted targets already summarized in the environment table above. First record the complete expected deployable-surface inventory using stable surface IDs. Then record one block per exact destination and give it a stable target ID. Every expected surface needs at least one `development` target and one `production` target; a package that omits an expected surface is incomplete. Keep the stable `surface` identity separate from `provider`, because one surface may use different providers by stage. Keep surface and target IDs stable across revisions; retire rather than reuse an ID when its meaning changes.
+
+Expected deployable surfaces: [stable surface IDs, for example `web-app`, `public-api`, `ios-app`]
+
+### Release Target: [stable-target-id]
+- Surface: [Stable expected surface ID]
+- Provider: [Stage-specific hosting, store, or distribution provider]
+- Stage: [development / production]
+- Source policy: [`pr_head` or `integration_head` for development; `merged_main` for production. Signed tags and other source rules are unsupported by the current PLAN-v5 engineering handoff and remain an explicit unresolved handoff gap rather than a frozen target source]
+- Artifact kind: [Static bundle, container, serverless bundle, API service, IPA, AAB, signed DMG/PKG, MSIX, signed installer, or another exact artifact]
+- Signing requirement: [Not required, or exact certificate/signing/notarization requirement and owner]
+- Exact channel / track: [Named environment, URL, TestFlight group, Play track, App Store, update feed, direct-download channel, or another exact destination]
+- Submission / promotion / review / manual approval path: [Ordered gates and decision owner]
+- Availability signal: [Observable proof that the intended audience can reach, install, or download this exact release, plus the smoke/acceptance signal]
+- Rollout: [Immediate, percentage/phased/staged rollout, audience ring, or another controlled sequence]
+- Rollback / forward-fix: [Prior deployed version for instant rollback, or rollout halt/removal plus corrected signed artifact through the same review/distribution path]
+
+A successful build, upload, submission, deployment command, notarization, or store approval is not availability by itself. Hosted availability requires the deployed route or API to answer the named smoke checks. Store and signed-installer availability requires the approved artifact to be actually installable or downloadable through the named channel and to pass its release smoke check. Native recovery may require halting a phased or staged rollout and shipping a signed forward-fix; do not promise web-style rollback when the channel cannot perform it.
 
 ## Observability
 [Logs, metrics, traces, alerts, dashboards, audit events.]
@@ -209,7 +244,9 @@ Coverage matrix. Fill it last and read it only when checking that a requirement 
 
 ## `stack-decisions.md`
 
-Every decision in this file uses the same shape: status, authority, drivers, then the resolved layers. The shared `Alternatives Considered` and `Unresolved Decision Protocol` tables at the end cover all of them, so options and open decisions are compared in one place instead of repeated once per decision.
+Every decision in this file uses the same shape: drivers, then resolved layers with status and authority/evidence on every row. The shared `Alternatives Considered` and `Unresolved Decision Protocol` tables at the end cover all decisions, so options and open decisions are compared in one place instead of repeated once per decision.
+
+Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Recommended` is evidence-backed advice not yet accepted; `Provisional` is a leading choice pending named evidence. A section may mix statuses. `Authority / evidence` cites the source that justifies the row — for example a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is not another status label, and `PRD recommendation` alone is not evidence.
 
 Use this structure:
 
@@ -219,24 +256,20 @@ Use this structure:
 ## Frontend Technology Decision
 Use this section for every product with a browser frontend. Omit it only when no browser surface exists.
 
-Decision status: [Required / Selected / Recommended / Provisional]
-
-Decision authority: [User constraint, existing repository, or PRD recommendation]
-
 ### Decision Drivers
 - [Product evidence that determines the choice: content density, interactivity, SEO, rendering, auth, edge data, team capability, reuse, performance, and deployment constraints.]
 
 ### Recorded or Recommended Stack
-| Layer | Selection | Why It Fits | Constraint or Follow-up |
-| --- | --- | --- | --- |
-| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | [Reason] | [Constraint] |
-| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | [Reason] | [Constraint] |
-| Framework | [e.g. Astro, React Router, or none] | [Reason] | [Constraint] |
-| UI library | [e.g. React or none] | [Reason] | [Constraint] |
-| Build tool | [e.g. Vite, or framework-managed] | [Reason] | [Constraint] |
-| Routing and data | [Approach] | [Reason] | [Constraint] |
-| Styling and components | [Approach] | [Reason] | [Constraint] |
-| Testing | [Unit, component, end-to-end, accessibility] | [Reason] | [Constraint] |
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Framework | [e.g. Astro, React Router, or none] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| UI library | [e.g. React or none] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Build tool | [e.g. Vite, or framework-managed] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Routing and data | [Approach] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Styling and components | [Approach] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Testing | [Unit, component, end-to-end, accessibility] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 ### Rendering and Route Strategy
 | Route Group | Rendering | Data Source | Cache / Freshness | Auth Boundary | Rationale |
@@ -250,46 +283,39 @@ Decision authority: [User constraint, existing repository, or PRD recommendation
 ## Mobile/Desktop Technology Decision
 A product may add this section in a later revision after Frontend Technology Decision is already frozen, when a mobile or desktop target is added to an existing web product; freezing this section does not reopen or require revisiting the already-frozen Frontend Technology Decision. Use this section for every product with a mobile app or desktop app target (native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop) — omit it when no such target exists.
 
-Decision status: [Required / Selected / Recommended / Provisional]
-
-Decision authority: [User constraint, existing repository, or PRD recommendation]
-
 ### Decision Drivers
 - [Product evidence that determines the choice, weighed per `references/mobile-stack-selection.md`: target platforms and reach, native capability needs, offline/sync requirements, team capability, code reuse with an existing web frontend, distribution and store constraints, and performance expectations.]
 
 ### Recorded or Recommended Stack
-| Layer | Selection | Why It Fits | Constraint or Follow-up |
-| --- | --- | --- | --- |
-| Platform | [native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop] | [Reason] | [Constraint] |
-| Toolchain | [e.g. Xcode/SwiftUI, Android Studio/Jetpack Compose, Flutter/Dart, Expo/React Native, or the desktop equivalent] | [Reason] | [Constraint] |
-| Distribution mechanism | [e.g. App Store/TestFlight, Play Console tracks, EAS Submit, MSIX, notarization — as applicable] | [Reason] | [Constraint] |
-| Backend/API integration | [Approach for reaching the backend or APIs] | [Reason] | [Constraint] |
-| Push / offline sync | [Push notification and offline/sync approach, when applicable] | [Reason] | [Constraint] |
-| Testing | [Unit and UI-automation framework per platform] | [Reason] | [Constraint] |
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Platform | [native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Toolchain | [e.g. Xcode/SwiftUI, Android Studio/Jetpack Compose, Flutter/Dart, Expo/React Native, or the desktop equivalent] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Distribution mechanism | [e.g. App Store/TestFlight, Play Console tracks, EAS Submit, MSIX, notarization — as applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Backend/API integration | [Approach for reaching the backend or APIs] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Push / offline sync | [Push notification and offline/sync approach, when applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Testing | [Unit and UI-automation framework per platform] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
 ## Backend and Data Technology Decision
 Use this section for every product with a backend, persistent data, or auth requirement. Omit it only when the product provably has none of these.
 
-Decision status: [Required / Selected / Recommended / Provisional]
-
-Decision authority: [User constraint, existing repository, or PRD recommendation]
-
 ### Decision Drivers
 - [Data shape/relationships, consistency/transaction needs, query complexity, scale, identity/compliance requirements, team capability, platform-managed services, integration surface.]
 
 ### Recorded or Recommended Stack
-| Layer | Selection | Why It Fits | Constraint or Follow-up |
-| --- | --- | --- | --- |
-| Backend runtime / framework | [Selection] | [Reason] | [Constraint] |
-| Database category | [Relational / Document / Key-value or cache only / None] | [Reason] | [Constraint] |
-| Database engine | [Selection] | [Reason] | [Constraint] |
-| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | [Reason] | [Constraint] |
-| Auth provider | [Selection] | [Reason] | [Constraint] |
-| API style | [REST / GraphQL / RPC / server actions] | [Reason] | [Constraint] |
-| Background jobs / queue | [Selection or not applicable] | [Reason] | [Constraint] |
-| File / object storage | [Selection or not applicable] | [Reason] | [Constraint] |
+| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
+| --- | --- | --- | --- | --- | --- |
+| Service topology | [Monolith or named services; monorepo or polyrepo organization] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Backend runtime / framework | [Selection] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Database category | [Relational / Document / Key-value or cache only / None] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Database engine | [Selection] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Auth provider | [Selection] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| API style | [REST / GraphQL / RPC / server actions] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Background jobs / queue | [Selection or not applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| File / object storage | [Selection or not applicable] | [Required / Selected / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 ### Data Entity to Store Mapping
 | Entity | Store | Rationale |
@@ -416,7 +442,7 @@ Use this structure:
 | --- | --- | --- | --- |
 
 ## Release Plan
-[Launch, feature flags, migration, rollout, support.]
+[Launch, feature flags, migration, rollout, support. Reuse the stable release target IDs from `architecture.md`; do not rename destinations in the plan.]
 
 ## Rollback Plan
 [How to revert safely.]
@@ -434,9 +460,11 @@ These are planning hints, not a canonical Harness PLAN or RUN graph.
 | [Area] | PRD-001, ARCH-001, UI-001 | [Contract or prior outcome] | [yes / no / conditional] | [Schema, generated client, port, database, external service, or none known] | [Frontend/backend/visual/E2E/security] | [Decision or none] |
 
 ## Test Strategy
+Reuse the canonical `TEST-*` IDs from `PRD.md`'s `## Test Obligations` table. Sequence or add implementation detail to those obligations; do not create anonymous checks or replacement TEST IDs.
+
 | TEST ID | Test Type | Coverage | Upstream trace IDs | Acceptance Signal |
 | --- | --- | --- | --- | --- |
-| TEST-001 | [Unit / integration / E2E / visual / accessibility] | [Coverage] | PRD-001, ARCH-001, UI-001 | [Literal signal] |
+| TEST-001 | [Unit / integration / E2E / performance / security / visual / accessibility] | [Implementation coverage for the existing obligation] | PRD-001, ARCH-001, UI-001 | [Same pass signal, with implementation detail if needed] |
 ```
 
 ## Quality Checklist
@@ -454,20 +482,26 @@ Before archiving earlier documents or publishing the staged package, verify:
 ### Completeness
 
 - All four core artifacts are present in the run-specific staging directory and are ready to publish under `docs/product/`.
-- `PRD.md` includes goals, non-goals, personas, journeys, requirements, acceptance criteria, metrics, risks, assumptions, and open questions.
+- `PRD.md` includes goals, non-goals, personas, journeys, functional requirements, non-functional requirements, acceptance criteria, metrics, risks, assumptions, open questions, and test obligations.
+- `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
+- `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
+- Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
 - Product requirements use stable `PRD-*` IDs; architecture contracts use `ARCH-*`; screens and visible regions use `UI-*`; usability needs use `UX-*`; test obligations use `TEST-*`. Cross-document tables carry the upstream IDs they satisfy.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
 - For a browser product, `PRD.md` defines frontend delivery requirements including content/interactivity, rendering, SEO, accessibility, performance, target devices, and deployment constraints where applicable.
 - `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
-- For a deployable product, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
-- The environment contract names exact PR-head and merged-base release sources, distinct per-environment deployment-unit names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. For Cloudflare delivery specifically, that means distinct Worker names. Development never uses production customer data, sessions, or live payment mutations.
+- For every deployable web, API, mobile, or desktop surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, separate stable surface and stage-specific provider fields, a PLAN-v5-compatible source policy, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Different providers by stage are valid for the same surface.
+- Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
+- For a deployable hosted web, API, or backend target, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
+- The hosted environment contract uses PLAN-v5 release sources (`pr_head` or an explicitly retained `integration_head` for development; `merged_main` for production), distinct per-environment deployment-unit names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. Migration Order maps to `migration_classification`, `commands.migrate`, and `prerequisites` as appropriate. For Cloudflare delivery specifically, that means distinct Worker names. Development never uses production customer data, sessions, or live payment mutations. Native mobile and desktop targets remain in provider-neutral release blocks rather than this hosted table.
+- Native release recovery does not claim instant rollback when the channel cannot perform it. It records how to halt or reduce a staged/phased rollout and ship a corrected signed forward-fix through the same submission, review, or distribution path.
 - For a browser product, `stack-decisions.md` records the required/selected stack or recommends one frontend stack, separates its technology layers, maps rendering by route, and records official-source verification date and runtime constraints.
-- The frontend decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
-- For a product with a backend, persistent data, or auth requirement, `stack-decisions.md` records the required/selected backend stack or recommends one, separates backend runtime, database category, database engine, auth strategy, and auth provider as distinct layers, maps data entities to stores, and records official-source verification date and runtime/service constraints.
-- The backend/data decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice, and the database category and auth strategy trace back to the interview's `AskUserQuestion` answers rather than a silent default.
+- Every frontend layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
+- For a product with a backend, persistent data, or auth requirement, `stack-decisions.md` records the required/selected backend stack or recommends one, separates service topology first, then backend runtime, database category, database engine, auth strategy, and auth provider as distinct layers, maps data entities to stores, and records official-source verification date and runtime/service constraints. Service topology states monolith versus named services and monorepo versus polyrepo organization.
+- Every backend/data layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and the database category and auth strategy trace back to the interview's `AskUserQuestion` answers rather than a silent default.
 - For a product with a mobile app or desktop app target, `stack-decisions.md` records the required/selected stack or recommends one per `mobile-stack-selection.md`, separates platform, toolchain, distribution mechanism, backend/API integration, push/offline-sync approach, and testing as distinct layers, and records official-source verification date.
-- The mobile/desktop decision status distinguishes a user requirement or existing selection from a PRD recommendation or provisional choice.
+- Every mobile/desktop layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
@@ -483,7 +517,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
 - Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `ui-architecture-builder`.
 - UI states include loading, empty, error, permission, and success where applicable.
-- If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions.
+- If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
 - Assumptions and open questions are explicit.
 - The artifacts match the selected product archetype.
@@ -492,5 +526,5 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 - No current-package artifact will be published outside `docs/product/` unless the user explicitly requested another location.
 - The superseded-document inventory excludes `docs/product/archived/`, unrelated documents, and ambiguous candidates.
-- In enhancement mode, unaffected sections and trace IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed.
+- In enhancement mode, unaffected sections, `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*` IDs, and stable release target IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed; new TEST IDs cover only obligations that were previously uncovered, and new release target IDs cover only destinations that were previously uncovered.
 - Validation does not trigger publication by itself. Exact overwrite and archive moves are already authorized, or the staged package remains unchanged while approval is requested.

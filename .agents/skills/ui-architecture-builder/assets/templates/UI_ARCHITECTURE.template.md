@@ -7,6 +7,17 @@ Styling / theming mechanism: <utility CSS, CSS-in-JS engine, CSS modules, plain 
 Animation runtime: <style-layer only, or the named animation runtime plus route-transition mechanism>
 Registry enforcement: <advisory / blocking contract check>
 
+## Enhancement Baseline & Delta
+
+Mode: <fresh package / enhancement of same-product package>
+Baseline: <n/a for fresh package, or frozen package paths and captured revision/date>
+
+| Delta ID | Action | Target IDs / artifacts | Accepted change | Preserved dependencies | Status |
+|---|---|---|---|---|---|
+| DELTA-001 | <add / modify / remove> | <IDs and exact paths> | <bounded change> | <untouched IDs, content, artifacts, and decisions that must remain> | <accepted / applied / blocked> |
+
+For enhancement mode, this table is the complete mutation allowlist. Preserve everything outside it and validate the whole revised package. For a fresh package, record `n/a — no enhancement baseline`.
+
 ## Layer Model
 
 | Layer | Owns | Must not own | Where it lives |
@@ -130,6 +141,10 @@ Reduced-motion policy is set once, globally: <where and how>. Pages reference va
 
 Adding a primitive, variant, motion variant, product component, or recipe means updating this document, `ui-registry.json`, and `mockups/catalog.html` in the same change. An unregistered primitive is not usable.
 
+## Rendered Design System
+
+`docs/product/design/design-system.html` is the dependency-free rendered projection of `design-system.md` and `ui-registry.json`, not a second source of truth. It shows the complete reusable element catalog, and every live specimen's reproduction block uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`. `IDs` includes token IDs plus primitive/component and variant IDs as applicable. Any shown ID absent from the Markdown source or registry is a contract failure. Rebuild it when accepted enhancement delta changes a rendered input; otherwise preserve it unchanged.
+
 ## Catalog
 
 `mockups/catalog.html` shows every token, primitive variant, and component state under realistic content: short and long real copy, large numeric and currency values where the domain has them, empty and error data, every entry in the verified responsive set below, and normal versus reduced motion. Every registry entry appears there, and every catalog entry exists in the registry.
@@ -145,6 +160,7 @@ Adding a primitive, variant, motion variant, product component, or recipe means 
 | Section wraps an approved container | required, except approved full-bleed bands | <blocking / advisory> | project verify command |
 | Registered motion variants only | required | <blocking / advisory> | project verify command |
 | Registry ↔ catalog completeness | two-way | <blocking / advisory> | project verify command |
+| Design-system Markdown/registry ↔ HTML projection | every rendered specimen and ID/parameter agrees; every required reusable element category is present | <blocking / advisory> | design review + project verify command |
 | Evidence present for claims that need it | required | <blocking / advisory> | design + code review |
 
 Responsive set verified: <the set recorded in ui-registry.json — the 390 / 768 / 1200 / 1440 px web default unless a stated reason changed it, or the resolved platform's own model for a native or desktop target — iOS/macOS size classes and safe areas, Android window size classes, or the named desktop window sizes. `ui-registry.json` carries `viewports` or `sizeClasses`, exactly one of the two; name the one this package uses here: <viewports / sizeClasses, with the values>.

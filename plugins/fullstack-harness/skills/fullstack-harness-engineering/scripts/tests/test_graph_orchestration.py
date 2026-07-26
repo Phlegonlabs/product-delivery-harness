@@ -13,6 +13,8 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from harness_core import mission_dependencies  # noqa: E402
+from harness_graph import _validate_graph  # noqa: E402
 from harness_manifest import (  # noqa: E402
     AUTHORIZATION_KEYS_V8,
     plan_digest,
@@ -182,6 +184,42 @@ def authorize(
 
 
 class GraphManifestTests(unittest.TestCase):
+    def test_plan_v5_lifecycle_nodes_accept_remote_ci_and_cloud_actions(self) -> None:
+        for action in ("trigger_remote_ci", "provision_cloud_resources"):
+            with self.subTest(action=action):
+                errors: list[str] = []
+                _validate_graph(
+                    errors,
+                    {
+                        "entry_nodes": ["N-LIFECYCLE"],
+                        "nodes": [
+                            {
+                                "id": "N-LIFECYCLE",
+                                "kind": "lifecycle",
+                                "ref": action,
+                                "executor": "harness_parent",
+                                "allowed_outcomes": ["pass", "blocked"],
+                                "max_attempts": 1,
+                                "runtime": None,
+                            }
+                        ],
+                        "edges": [],
+                    },
+                    {},
+                    set(),
+                    require_bounded_review_repair=True,
+                )
+                self.assertEqual([], errors)
+
+    def test_plan_v4_and_v5_project_the_same_graph_dependencies(self) -> None:
+        plan = valid_graph_plan()
+        expected = mission_dependencies(plan)
+        self.assertTrue(any(expected.values()))
+
+        plan["schema_version"] = 5
+
+        self.assertEqual(expected, mission_dependencies(plan))
+
     def test_schema_v4_and_v8_are_valid_and_keep_mission_topology(self) -> None:
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
@@ -818,7 +856,7 @@ class GraphManifestTests(unittest.TestCase):
         errors = validate_plan(route_cycle)
         self.assertTrue(any("route cycles require an explicit traversal bound" in error for error in errors))
 
-    def test_harness_parent_mission_emits_parent_directive(self) -> None:
+    def test_harness_parent_mission_is_deferred_without_write_isolation(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["executor"] = "harness_parent"
         plan["graph"]["nodes"][0]["runtime"] = None
@@ -844,8 +882,9 @@ class GraphManifestTests(unittest.TestCase):
 
         result = select_ready_nodes(plan, run)
 
-        self.assertEqual("run_parent", result["dispatchable_nodes"][0]["launch_kind"])
-        self.assertEqual("parent", result["dispatchable_nodes"][0]["worker_runtime"])
+        self.assertEqual([], result["dispatchable_nodes"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("workspace_not_isolated", deferred["N-M1"])
 
     def test_execution_authorization_requires_review_coverage_per_write_scope(self) -> None:
         # contract-and-traceability.md requires every mission write scope to be
@@ -902,7 +941,7 @@ class GraphManifestTests(unittest.TestCase):
             [],
         )
 
-    def test_shared_checkout_caps_parent_writers_at_one(self) -> None:
+    def test_shared_checkout_defers_all_plan_backed_parent_writers(self) -> None:
         plan = valid_graph_plan()
         detach_mission_edges(plan)
         plan["max_parallel_workers"] = 2
@@ -931,10 +970,10 @@ class GraphManifestTests(unittest.TestCase):
 
         result = select_ready_nodes(plan, run)
 
-        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        self.assertEqual([], result["dispatchable_nodes"])
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
-        self.assertIn("write_conflict", deferred["N-M2"])
-        self.assertIn("workspace_not_isolated", result["conflict_edges"][0]["reason_codes"])
+        self.assertIn("workspace_not_isolated", deferred["N-M1"])
+        self.assertIn("workspace_not_isolated", deferred["N-M2"])
 
     def test_unauthorized_mission_does_not_consume_write_budget(self) -> None:
         plan = valid_graph_plan()

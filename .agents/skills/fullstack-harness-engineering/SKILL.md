@@ -67,7 +67,7 @@ Explicit adapter invocation still begins with this core. The adapters may select
 
 - Read `references/contract-and-traceability.md` for source handoff, contract freeze, trace IDs, permissions, and file placement.
 - Read `references/execution-state-model.md` before creating or changing PLAN/RUN manifests, authorization, phases, runtime capability fields, landing, deployment, or integration state.
-- Read `references/graph-orchestration.md` for PLAN schema v4, RUN schema v8 or v9, typed nodes, conditional routes, provider policy, retry, or subgraph replay.
+- Read `references/graph-orchestration.md` for PLAN schema v5, RUN schema v10, older readable schemas, typed nodes, bounded review-repair-review routes, provider policy, retry, or subgraph replay.
 - Read `references/execution-task-decomposition.md` for flat task IDs, one bounded execution-time split, or the UI build order a `ui-architecture-builder` package implies.
 - Read `references/parallel-mission-selection.md` before proposing a parallel write wave.
 - Read `references/design-input-updates.md`, `references/platform-archetypes.md`, or `references/existing-app-refinement.md` only when those inputs or product shapes apply.
@@ -106,16 +106,16 @@ worktree workers      -> temporary per-mission reports only while integration ne
 
 ## Shared Validation Tools
 
-- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, schema-v9 UI evidence, and cross-checks `integration_head_sha` against the live Git branch head.
-- `scripts/upgrade_harness_schema.py` rewrites an older PLAN/RUN in place to the current schema (PLAN v4, RUN v9), adding only each version's neutral keys — never a fabricated authorization, gate, SHA, or evidence — and validates the result before writing; `--dry-run` reports the per-step additions without touching the file.
-- `scripts/select_ready_nodes.py` selects the typed PLAN-v4/RUN-v8-or-v9 frontier and provider-neutral launch directives.
+- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head.
+- `scripts/upgrade_harness_schema.py` rewrites an older PLAN/RUN in place to the current schema (PLAN v5, RUN v10), adding only each version's neutral keys — never a fabricated authorization, gate, SHA, release decision, or evidence — and validates the result before writing; `--dry-run` reports the per-step additions without touching the file. Older PLAN schemas remain readable and older RUN schemas remain readable without an upgrade.
+- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it also continues to read supported older graph schemas.
 - `scripts/select_parallel_missions.py` supports older readable plans.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, final, release, migration, or smoke gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
 - `scripts/check_wrangler_binding_isolation.py` resolves a scaffolded `wrangler.jsonc`'s effective per-environment bindings and flags any D1, KV, R2, queue, or Durable Object resource identity shared between `development` and `production`.
 
-These shared validation and selection paths are Python-stdlib-only and deterministic. All but `upgrade_harness_schema.py` are read-only and never mutate Git, PLAN, RUN, tasks, or worktrees; `upgrade_harness_schema.py` is the one exception and only ever rewrites the exact PLAN/RUN files it was pointed at, never Git, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
+Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. All but `upgrade_harness_schema.py` are read-only and never mutate Git, PLAN, RUN, tasks, or worktrees; `upgrade_harness_schema.py` is the one exception and only ever rewrites the exact PLAN/RUN files it was pointed at, never Git, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
 
 ## Default Runtime And Wave Policy
 
@@ -124,11 +124,11 @@ Apply this to all large plan-backed work, whether the frontier ever holds more t
 1. Before the first production edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
 2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear.
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
-4. New plan-backed files use PLAN schema v4 and RUN schema v9. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution.
+4. New plan-backed files use PLAN schema v5 and RUN schema v10. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN versions remain readable, but new files do not copy their weaker acceptance, source-publication, authorization, release, continuity, or evidence shapes.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order.
 6. Default every mission, even when only one is ever ready at a time, to its own `parent_managed_worktree` merged into the primary checkout's own base branch (`landing.base_branch` — commonly `main`, but any branch the primary checkout treats as its base) after its integration gate passes; the primary checkout is a merge target, never a direct implementation surface. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it. Parallel writes always require isolated workspaces and durable authorized branch/commit handoff.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
-8. Default the landing mode from the requested outcome: local implementation, branch, or commit work uses `local_only`; explicit push, PR, review, merge, or deployed delivery uses `pull_request` and loads the GitHub landing adapter. In `local_only` mode, `integration.branch` is `landing.base_branch` itself — the primary checkout's own base branch, commonly `main` but not required to be: each mission's worktree branch merges directly into it once that mission's integration gate passes, and that same merge is the local dev-test point — there is no separate long-lived integration branch to reconcile later.
+8. Default the landing mode from the requested outcome: local implementation, branch, or commit work uses `local_only`; explicit push, PR, review, merge, or deployed delivery uses `pull_request` and loads the GitHub landing adapter. In PLAN-v5/RUN-v10 `local_only` mode, `integration.branch` and `landing.head_branch` name the same retained parent-owned branch, which differs from `landing.base_branch`; preserve it at the verified integration head for later pull-request continuity. Older readable schemas keep their recorded branch semantics.
 
 ## Execution Authorization Gate
 
@@ -157,8 +157,10 @@ integrate_locally
 configure_repository
 push
 create_pr
+trigger_remote_ci
 manage_pr_review
 merge_pr
+provision_cloud_resources
 deploy
 archive_worker_tasks
 remove_worktrees
@@ -167,8 +169,8 @@ delete_branches
 
 - One user instruction may authorize several exact actions, but its source is recorded under every covered key; never replace them with blanket permission.
 - Seven of these actions are local, reversible, and produce no externally visible or shared-state change: `invoke_external_runtime`, `spawn_subagents`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, and `integrate_locally`. One clear execution-intent instruction ("implement this", "build it", "ship it") covers all seven together: record its source under each of their ledger entries in the same authorization request or checkpoint, and do not manufacture separate confirmation pauses for them. They still each get their own ledger entry with its own recorded source — grouping them changes only that a single instruction suffices, not what gets recorded.
-- The externally-visible or hard-to-reverse actions — `push`, `create_pr`, `manage_pr_review`, `merge_pr`, `deploy`, `configure_repository`, `remove_worktrees`, and `delete_branches` — remain independent gates. Each needs its own distinct authorization moment and is never swept in by the same execution-intent statement that covers the seven local/reversible actions.
-- For large, plan-backed work, every grant is bounded by the matching RUN schema scope, mission, target, time, and lifecycle boundary. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
+- The externally-visible or hard-to-reverse actions — `push`, `create_pr`, `trigger_remote_ci`, `manage_pr_review`, `merge_pr`, `provision_cloud_resources`, `deploy`, `configure_repository`, `remove_worktrees`, and `delete_branches` — remain independent gates. Each needs its own distinct authorization moment and is never swept in by the same execution-intent statement that covers the seven local/reversible actions. `trigger_remote_ci` uses exact `workflow:<identity>` targets. `provision_cloud_resources` uses exact `cloud-resource:<provider>:<environment>:<kind>:<logical-name>` targets.
+- For large, plan-backed work, every RUN-v10 execution and action scope binds the current `run_id`, mission set, PLAN revision, PLAN digest, exact targets where applicable, time, and lifecycle boundary. A plan revision or digest change invalidates the grant rather than silently carrying it forward. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
 - `invoke_external_runtime` does not replace spawn, workspace, branch, commit, integration, landing, or deployment authorization.
 - PR creation, repository configuration, review-state mutation, merge, deploy, archival, worktree removal, and branch deletion are independent boundaries.
 - Workers never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, open PRs, merge, deploy, or clean up.
@@ -212,9 +214,13 @@ When an existing `RUN.md` is `running`, pass the Resume Reconciliation Gate (`re
 
 ### 2. Plan Large Work
 
-Freeze relevant source paths and SHA-256 digests, functional and non-functional requirements, Builder UX Direction, architecture boundaries, frontend stack, data/integration contracts, failure states, security, observability, migration/release order, acceptance criteria, and exact verification commands. Preserve stable PRD, ARCH, UI, UX, DS, and TEST trace IDs.
+Freeze relevant source paths and SHA-256 digests, functional and non-functional requirements, Builder UX Direction, architecture boundaries, frontend stack, data/integration contracts, failure states, security, observability, migration/release order, acceptance criteria, and exact verification commands. Preserve stable PRD, ARCH, UI, UX, DS, and TEST trace IDs. Every task acceptance row is structured as `{test_id, trace_ids, criterion}` so each planned trace has named verification coverage.
 
-Draw an acyclic typed graph with bounded correction routes. Separate independently writable frontend, backend, data, integration, review, UI evidence, and release work when their contracts and verifiers are distinct. Every runtime review is read-only and binds one exact reviewed SHA.
+A PLAN-v5 source may record a `staged_revision`, but that is not an executable publication. The current canonical `location`, `content_sha256`, and `source_revision` stay binding until the accepted revision is published to the canonical source location, the source becomes `frozen` or `delta_accepted`, and the PLAN revision and digest change. A ready or executing RUN never points at a product staging path.
+
+For deployable work, declare stable provider-neutral release target IDs for both `development` and `production`. Every target names its exact stage, source, artifact kind, signing requirement, channel, data mode, trigger, migration classification, build/migrate/publish commands, prerequisites, and smoke verifiers. RUN-v10 `targets` keys exactly equal those PLAN target IDs and retain PASS artifact, channel, promotion, and availability evidence with hashes, build/version identity, and signing status.
+
+Draw an acyclic typed graph with bounded correction routes. A failed review routes to a bounded repair node and then back through review; it never routes straight past the review gate. Separate independently writable frontend, backend, data, integration, review, UI evidence, and release work when their contracts and verifiers are distinct. Every runtime review is read-only and binds one exact reviewed SHA.
 
 ### 3. Pass Plan Readiness
 
@@ -238,16 +244,16 @@ Use a verification ladder:
 4. After those loops close, run broad regression, browser E2E, breakpoint-by-state UI evidence, visual review, migration, and release checks that apply to the final integration head.
 5. Run `git diff --check` and review the complete final diff.
 
-A clean, cache-safe focused verifier may reuse only an exact same-session `session_exact` PASS from a repository-external cache. Do not cache integration, cross-mission, UI, migration, release, or remote gates. Required UI artifacts live under `docs/goal/evidence/`, record lowercase SHA-256, and bind to the exact integration head.
+A clean, cache-safe focused verifier may reuse only an exact same-session `session_exact` PASS from a repository-external cache. Do not cache integration, cross-mission, UI, migration, release, or remote gates. RUN-v10 `verifier_executions` is append-only and parent-owned: workers return candidate results, but only the parent validates and appends the normalized verifier, execution context, key document/digests, cache decision, output hashes, metrics, and retained evidence paths. Required UI artifacts live under `docs/goal/evidence/`, record lowercase SHA-256, and bind to the exact integration head.
 
 Automated current-head E2E may replace only an equivalent duplicate manual smoke. Record `not required - covered by current-head E2E`; deployment smoke remains separate when the tested environment differs.
 
-Local-only work stops after its authorized local branch/commit/integration outcome and local evidence. It does not wait for GitHub CI or GitHub review. Remote final-head verification is owned by the GitHub landing adapter.
+Local-only work stops after its authorized local branch/commit/integration outcome and local evidence. It does not wait for GitHub CI or GitHub review. PLAN-v5/RUN-v10 local-only work preserves a distinct retained branch at the integration head for later pull-request continuity; it never collapses the integration branch into the base branch or deletes that continuity. Remote final-head verification is owned by the GitHub landing adapter.
 
 ### 6. Complete
 
 A local-only run completes when authorized local mutations are finished, all applicable local gates pass on the integration head, no blocker remains, and RUN records evidence, changed files, commits, residual risk, and explicit local landing state.
 
-A pull-request run completes only through the GitHub landing adapter's exact-head requirements. Deployment completes only through the declared provider lifecycle; Cloudflare development and production remain separate targets and separate `deploy` authorizations.
+A pull-request run completes only through the GitHub landing adapter's exact-head requirements. Deployment completes only through the declared provider lifecycle. Merge or landing permission never implies deployment permission. For a native merge-triggered release, execution requires exact merge/landing authorization for the PR and release consequence plus exact deployment authorization for the target; never infer deploy from merge.
 
 Finish by checking final Git status, reporting what changed and what was verified, and listing every intentionally unexecuted remote or lifecycle action. Never claim a push, PR, review, merge, deploy, archival, or cleanup action that did not happen.

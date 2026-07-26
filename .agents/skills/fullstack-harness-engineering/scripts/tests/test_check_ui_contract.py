@@ -33,6 +33,7 @@ REGISTRY = {
     },
     "reviewScaffoldClasses": ["state-label"],
     "motionVariants": ["fade"],
+    "viewports": [390],
     "recipes": {"home": {"sections": ["Hero"]}},
 }
 
@@ -91,6 +92,52 @@ class RegistryLoadingTests(unittest.TestCase):
         registry = load_registry(self.registry(data))
 
         self.assertIn("btn", registry.known_classes)
+
+    def test_registry_rejects_ambiguous_responsive_sets(self) -> None:
+        data = dict(REGISTRY, viewports=[390, 768], sizeClasses=["compact"])
+        with self.assertRaises(UiContractError):
+            load_registry(self.registry(data))
+
+    def test_registry_rejects_invalid_viewport_values(self) -> None:
+        for values in ([0, 768], [True, 768], [390, 390], [float("inf")]):
+            with self.subTest(values=values):
+                data = dict(REGISTRY, viewports=values)
+                with self.assertRaises(UiContractError):
+                    load_registry(self.registry(data))
+
+    def test_registry_requires_one_responsive_set(self) -> None:
+        data = dict(REGISTRY)
+        del data["viewports"]
+        with self.assertRaises(UiContractError):
+            load_registry(self.registry(data))
+
+    def test_registry_rejects_empty_or_duplicate_size_classes(self) -> None:
+        for values in ([], ["compact", "compact"], ["compact", " "]):
+            with self.subTest(values=values):
+                data = dict(REGISTRY, sizeClasses=values)
+                del data["viewports"]
+                with self.assertRaises(UiContractError):
+                    load_registry(self.registry(data))
+
+    def test_registry_accepts_positive_finite_numeric_viewports(self) -> None:
+        data = dict(REGISTRY, viewports=[390, 768.5])
+        load_registry(self.registry(data))
+
+    def test_registry_validates_recipe_ui_trace_binding_type(self) -> None:
+        data = dict(REGISTRY)
+        data["recipes"] = {
+            "/home": {"uiId": ["UI-001"], "requiredStates": ["ready"]}
+        }
+        with self.assertRaises(UiContractError):
+            load_registry(self.registry(data))
+
+    def test_registry_rejects_blank_recipe_evidence_values(self) -> None:
+        data = dict(REGISTRY)
+        data["recipes"] = {
+            "/home": {"uiId": " ", "requiredStates": ["ready", " "]}
+        }
+        with self.assertRaises(UiContractError):
+            load_registry(self.registry(data))
 
 
 class RuleTests(unittest.TestCase):
@@ -214,6 +261,15 @@ class MainCliTests(unittest.TestCase):
 
     def test_no_target_exits_two(self) -> None:
         self.assertEqual(self.run_cli(), 2)
+
+    def test_unsupported_only_target_exits_two(self) -> None:
+        notes = self.write("notes.md", "No analyzable UI source here.")
+        self.assertEqual(self.run_cli(str(notes)), 2)
+
+    def test_empty_directory_walk_exits_two(self) -> None:
+        empty = self.root / "empty"
+        empty.mkdir()
+        self.assertEqual(self.run_cli("--path", str(empty)), 2)
 
     def test_missing_registry_exits_two(self) -> None:
         self.assertEqual(main(["--registry", str(self.root / "gone.json"), "x.html"]), 2)

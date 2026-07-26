@@ -6,7 +6,8 @@ Always produce:
 
 - `ui-architecture.md` — the layer model, source-of-truth precedence, content contracts, primitive contracts with closed variant sets, product components, motion architecture, state matrix, guardrail specification, definition of done, and adoption sequence
 - `ui-registry.json` — the machine-readable allowlist for everything in `ui-architecture.md`
-- `design-system.md` — the token layer and visual language
+- `design-system.md` — the semantic source for the token layer and visual language
+- `docs/product/design/design-system.html` — the dependency-free rendered projection of `design-system.md` and `ui-registry.json`, showing the complete reusable element catalog with reproduction IDs and parameters
 - `page-recipes.md` — one binding recipe per route, plus the route → mockup → trace → test index
 - `visual-acceptance.md` — the visual and contract gates
 - One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links wherever the real product would navigate between them, so the set reads as a connected clickable prototype. A single-route product has nothing to link.
@@ -25,13 +26,14 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `mockups/*.html` + `catalog.html` | Anyone judging how it looks | What the product actually looks like |
-| `design-system.md` | A designer or frontend engineer | The visual language and its tokens |
+| `design-system.md` | A designer or frontend engineer | The visual language, semantics, and tokens |
+| `design-system.html` | A designer, reviewer, or implementer | What every reusable element renders like and which registered IDs/parameters reproduce it |
 | `page-recipes.md` | Whoever builds or reviews one route | What this route may and may not contain |
 | `ui-architecture.md` | An engineer adopting the system | The layer model, precedence, and definition of done |
 | `ui-registry.json` | Agents and contract checks | The machine-readable allowlist |
 | `visual-acceptance.md` | A reviewer at the gate | What must pass before this ships |
 
-Reading order is the mockups first, then `design-system.md`, then the route's recipe, then `ui-architecture.md`. Open the catalog before hunting through routes.
+Reading order is the mockups first, then `design-system.html` for the rendered reusable language, then `design-system.md` for its semantic definitions, then the route's recipe, then `ui-architecture.md`. Open the catalog before hunting through routes. When the HTML and Markdown disagree, `design-system.md` plus `ui-registry.json` wins and the HTML must be rebuilt.
 
 The same two rules `prd-builder`'s `references/output-contract.md` states in its own "How To Read This Package" apply here verbatim; that file is the wording of record:
 
@@ -47,11 +49,21 @@ Length budget. Targets, not caps — say less when the product is simple:
 
 Tables stay at seven columns or fewer, with two named exceptions that are lookup matrices rather than prose: `page-recipes.md`'s Route Index and `design-system.md`'s Motion Pattern Inventory. Anywhere else, a row needing more than seven fields becomes one block per item.
 
-Use the templates in `assets/templates/` when creating these files: `UI_ARCHITECTURE.template.md`, `UI_REGISTRY.template.json`, `DESIGN_SYSTEM.template.md`, `PAGE_RECIPES.template.md`, `VISUAL_ACCEPTANCE.template.md`, `MOCKUP_PAGE.template.html` for every route mockup (style it to the resolved platform), and `CATALOG.template.html` for the catalog.
+Use the templates in `assets/templates/` when creating these files: `UI_ARCHITECTURE.template.md`, `UI_REGISTRY.template.json`, `DESIGN_SYSTEM.template.md`, `DESIGN_SYSTEM_SHOWCASE.template.html` for `design-system.html`, `PAGE_RECIPES.template.md`, `VISUAL_ACCEPTANCE.template.md`, `MOCKUP_PAGE.template.html` for every route mockup (style it to the resolved platform), and `CATALOG.template.html` for the catalog.
 
 ## `ui-architecture.md`
 
-Follow `assets/templates/UI_ARCHITECTURE.template.md`. It carries, in this order: the binding rule and resolved platform/styling/animation/enforcement decisions, the layer model, source-of-truth precedence, content contracts, primitive contracts (layout, surface, typography, control) with closed variant sets, product components with required content order, motion architecture and registered variants, the state matrix, the registry and catalog rules, the automated guardrail specification, the definition of done, and the adoption sequence.
+Follow `assets/templates/UI_ARCHITECTURE.template.md`. It carries, in this order: the binding rule and resolved platform/styling/animation/enforcement decisions, Enhancement Baseline & Delta, the layer model, source-of-truth precedence, content contracts, primitive contracts (layout, surface, typography, control) with closed variant sets, product components with required content order, motion architecture and registered variants, the state matrix, the registry, rendered design-system, and catalog rules, the automated guardrail specification, the definition of done, and the adoption sequence.
+
+### Enhancement Baseline & Delta
+
+Record `fresh package` or `enhancement of same-product package`. For enhancement mode, name the frozen baseline paths and captured revision/date, then list every accepted mutation in this exact structure:
+
+| Delta ID | Action | Target IDs / artifacts | Accepted change | Preserved dependencies | Status |
+| --- | --- | --- | --- | --- | --- |
+| DELTA-001 | add / modify / remove | IDs and exact paths | bounded change | untouched IDs, content, artifacts, and decisions that must remain | accepted / applied / blocked |
+
+This table is the complete mutation allowlist. Preserve everything outside it, seed staging from the baseline, and validate the whole revised package. For a fresh package, record `n/a — no enhancement baseline`. This package mode is not implementation adoption mode: greenfield/phased migration remains in Adoption Sequence and describes code adoption, not package revision.
 
 Non-negotiable content:
 
@@ -94,6 +106,30 @@ When Claude Code Dynamic Workflow is used, treat its structured UI architecture 
 
 When the user requests a runnable animation demonstration, also produce `motion-showcase.html` or bounded files under `motion-demos/`. Use `assets/templates/MOTION_SHOWCASE.template.html` as the dependency-free baseline unless the project stack or requested animation requires another implementation. Record every demo path in `design-system.md` and `page-recipes.md`.
 
+## `docs/product/design/design-system.html`
+
+Generate this fixed-path artifact from `assets/templates/DESIGN_SYSTEM_SHOWCASE.template.html` after `design-system.md` and `ui-registry.json` are stable. It is a rendered projection, not a second authority: `design-system.md` owns semantic token values and visual decisions, while `ui-registry.json` owns registered closed sets. The HTML token block is only their derived rendering projection. If the three disagree, repair or regenerate the HTML rather than treating its markup as a new design decision.
+
+The dependency-free page must render the complete reusable element catalog for the product and resolved platform:
+
+- Typography hierarchy, paragraph styles, and links
+- Buttons with every registered variant, size, and applicable state, including focus, selected/pressed, loading, and disabled
+- Form controls, labels, required/optional treatment, help text, validation/error text, and disabled/read-only states
+- Cards and surfaces with their named purposes
+- Navigation patterns and states
+- Alerts, notices, badges, and status treatments
+- The selected functional icon family and representative semantic icons
+- Color, typography, spacing, radius, elevation, and motion tokens
+- Layout primitive and spacing examples
+- Registered motion examples and reduced-motion results when motion applies
+- Responsive behavior across the package's required viewport or size-class set
+
+Place a compact reproduction block beside every rendered specimen. Use the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`. `IDs` includes token IDs plus primitive/component and variant IDs as applicable. `Accessibility` covers name, role, keyboard, focus, contrast, and announcements; `Responsive` includes reduced-motion behavior where applicable. Every shown ID must exist in `design-system.md`, `ui-architecture.md`, or `ui-registry.json`, and every reusable category in scope must have a specimen. Use realistic content without inventing claims.
+
+Keep every raw color, layout value, dimension, opacity, z-index, and motion value in the template's derived token block only. Define product tokens and explicit `--projection-*` review-scaffolding tokens there, then use variables in every later declaration. The token block may repeat responsive thresholds in its media-query conditions because CSS custom properties cannot resolve there. Below the `END DERIVED TOKEN BLOCK` marker, the only raw numeric literals allowed are semantic zero where CSS grammar requires a reset and percentages intrinsic to SVG geometry; document any additional unavoidable literal beside the declaration and cover it with a focused test. Product specimens compose registered primitives; display scaffolding uses its own namespace and never pretends to be a registered product variant. The page must remain readable and useful without JavaScript, external packages, or a network connection.
+
+In enhancement mode, preserve this file unchanged when accepted delta does not affect a rendered input. When delta changes a token, primitive, variant, state, reusable element, parameter, motion rule, or responsive rule, rebuild the affected projection from the revised Markdown and registry, preserve unrelated specimens, and prove the result through TEST-VIS-025 plus the rendered design-system parity gate.
+
 ## `design-system.md`
 
 Use this structure:
@@ -107,6 +143,17 @@ Use this structure:
 ## Source Inputs
 | Source | Path / URL | Role | Notes |
 | --- | --- | --- | --- |
+
+## Rendered HTML Projection
+Artifact: `design-system.html`
+
+This Markdown file is the semantic authority for token values and visual decisions. `ui-registry.json` is the authority for registered closed sets. The HTML is their derived rendering projection and may not introduce unregistered decisions.
+
+| Projection coverage | IDs | Parameters | Status |
+| --- | --- | --- | --- |
+| Typography/paragraphs; links; button variants/states; forms and field messaging; cards/surfaces; navigation; alerts/status; icons; spacing/layout; colors/tokens; applicable motion; responsive behavior | [Token + primitive/component + variant IDs as applicable] | [Reproduction values or named parameters beside each specimen] | [complete / gaps] |
+
+Every specimen's reproduction block uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`.
 
 ## Builder UX Direction Handoff
 Decision owner: [Human product/design owner or commissioning team]
@@ -219,20 +266,32 @@ Two rules bind them:
 ## Motion System
 
 ### Motion Principles & Stack
-| Layer / purpose | Technology | Why | Dependency / version | Performance constraints | Fallback |
+| Mechanism | Technology | Owns | Dependency / version | Performance constraints | Fallback |
 | --- | --- | --- | --- | --- | --- |
+| [style-layer transition / animation runtime / route-level transition] | [CSS, WAAPI, Motion, GSAP, Rive, native, or none] | [The work this mechanism owns] | [Dependency / version or built-in] | [Constraints] | [Fallback] |
+
+Mechanism and purpose are separate decisions. Every motion pattern uses exactly one purpose: feedback, continuity, processing, or storytelling. There is no decorative or ambient exception.
+
+### Global Reduced-Motion Configuration
+| Configuration point | Location | Normal behavior | Reduced-motion behavior | Opt-out / exception rule |
+| --- | --- | --- | --- | --- |
+| Application boundary | [Single style-layer media query, runtime provider/configuration, and route-transition setting] | [Global default inherited by every registered variant] | [Final state immediately, or opacity-only; no spatial transform, parallax, autoplay, continuous ambience, or scale] | [Route-level opt-out or justified per-variant exception; name the owner and reason] |
+
+Call sites do not query reduced-motion preferences. They reference registered variants that inherit this global configuration. Any exception is recorded once in the pattern inventory with its reason.
 
 ### Motion Tokens
 | Token | Duration | Easing / spring | Distance / scale | Usage | Reduced-motion value |
 | --- | --- | --- | --- | --- | --- |
 
 ### Motion Pattern Inventory
-| Motion ID | Surface / component | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| Motion ID | Surface / component | Mechanism | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MOTION-001 | [Surface] | [style-layer transition / animation runtime / route-level transition] | [feedback / continuity / processing / storytelling] | [Trigger] | [Properties] | [Tokens] | [Rules] | [Behavior] |
 
 ### Hero Choreography
 | Step | Element | Start / relation | From → to | Purpose | Mobile behavior | Reduced-motion behavior |
 | --- | --- | --- | --- | --- | --- | --- |
+| 1 | [Eyebrow, headline, copy, CTA, media, or brand accent] | [Time or relation] | [Values] | storytelling — [rationale] | [Variant] | [Fallback] |
 
 ### Motion Demo Index
 | Demo ID | Pattern / page | Artifact path | Stack | Controls | Status |
@@ -389,7 +448,7 @@ Use this structure:
 | TEST-VIS-005 | State coverage | yes | UI-*, PRD-* | Required loading/empty/error/disabled states exist | screenshot / test |
 | TEST-VIS-006 | Accessibility basics | yes | UX-*, UI-* | Focus, computed WCAG 2.2 AA contrast ratio for every recorded text/UI color pairing, computed line-height ratio for every typography role (not just visual intent), labels, keyboard path checked | audit / screenshot |
 | TEST-VIS-007 | Icon system conformance | yes | DS-* | Icons use the approved source, tokens, semantics, labels, and documented exceptions | screenshot / code review |
-| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion uses approved purpose, tokens, choreography, responsive behavior, and reduced-motion fallbacks, and covers every in-scope non-hero pattern | live demo / code review |
+| TEST-VIS-008 | Motion system conformance | yes | DS-*, UI-* | Motion records mechanism separately from approved purpose, uses registered tokens and choreography, inherits the global reduced-motion configuration or a justified exception, and covers every in-scope non-hero pattern | live demo / code review |
 | TEST-VIS-009 | Motion performance | yes | DS-*, UI-* | Critical content is static-first; routine motion avoids layout-heavy properties and does not block interaction | performance trace / live demo |
 | TEST-VIS-010 | Taste and anti-slop review | yes | DS-* | The taste statement is visible, product-specific cues recur, and unsupported AI-UI pattern clusters are absent | screenshot / checklist |
 | TEST-VIS-011 | Rendered visual review loop | when visual artifacts or an implementation exist | UI-*, DS-* | Required breakpoint renders were critiqued; the highest-impact failure was repaired and rechecked | before/after screenshots / review notes |
@@ -406,8 +465,10 @@ Use this structure:
 | TEST-VIS-022 | Contract check | yes | DS-*, UI-* | The UI contract check passes: no raw colors or dimensions outside the token layer, no inline layout styles, sections wrap approved containers, motion uses registered variants | project UI contract check / CI run |
 | TEST-VIS-023 | Catalog completeness | yes | DS-* | `mockups/catalog.html` shows every registry entry under realistic content at every required viewport and in reduced motion; every catalog entry exists in the registry | catalog review |
 | TEST-VIS-024 | No-JavaScript path | when server-rendered content exists | UI-*, ARCH-* | Content the route must render server-side is present and readable with JavaScript disabled | screenshot with JS disabled |
+| TEST-VIS-025 | Enhancement non-regression | when enhancing an existing same-product UI package | UI-*, DS-*, preserved upstream TEST-* | Every accepted add/modify/remove delta is present; untouched baseline IDs, content, artifacts, decisions, and upstream TEST identities are preserved; the complete revised package passes validation | baseline-to-staged diff / full package validation |
+| TEST-VIS-026 | Rendered design-system parity | yes | DS-*, UI-* | `docs/product/design/design-system.html` renders every reusable element category in scope; each specimen uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`; `IDs` includes valid token, primitive/component, and variant IDs as applicable; applicable motion/reduced-motion behavior agrees with `design-system.md` and `ui-registry.json` | rendered showcase review / source-to-projection diff |
 
-Responsive set verified: 390 / 768 / 1200 / 1440 px for a web target, or the resolved platform's size classes or window sizes for a native or desktop target. States verified: the State Matrix in `ui-architecture.md`.
+Responsive set verified: [resolved platform set from `ui-registry.json`: web `viewports` (390 / 768 / 1200 / 1440 px by default), native `sizeClasses` and safe areas, or named desktop window sizes]. States verified: the State Matrix in `ui-architecture.md`.
 
 ## Page Acceptance
 | UI ID | Page / route | Source | TEST IDs | Required evidence | Status |
@@ -431,7 +492,7 @@ Before finalizing, verify:
 
 ### Completeness
 
-- `ui-architecture.md`, `ui-registry.json`, `design-system.md`, `page-recipes.md`, and `visual-acceptance.md` are present, one real `mockups/*.html` file exists per important page/route/screen, and `mockups/catalog.html` exists (`page-ui-matrix.md` and `ui-mockups.md` are not produced).
+- `ui-architecture.md`, `ui-registry.json`, `design-system.md`, `design-system.html`, `page-recipes.md`, and `visual-acceptance.md` are present, one real `mockups/*.html` file exists per important page/route/screen, and `mockups/catalog.html` exists (`page-ui-matrix.md` and `ui-mockups.md` are not produced).
 - `ui-architecture.md` states the binding rule, the layer model, source-of-truth precedence, content contracts, primitive contracts with closed variant sets, product components with a required content order, motion architecture with registered variants, the eleven-state matrix, the guardrail specification with per-check enforcement, the definition of done, and the adoption sequence.
 - Every primitive prop is a closed set with named variants and a stated purpose per variant. No primitive accepts a free numeric, color, or spacing value, and no page-specific preference overrides a contract — the precedence order settles it.
 - `ui-registry.json` parses and agrees with `ui-architecture.md` and `page-recipes.md` entry for entry. `tokenSources` names the only places raw values may appear.
@@ -440,8 +501,10 @@ Before finalizing, verify:
 - `mockups/catalog.html` covers every registry entry under realistic content across the required verification set (390 / 768 / 1200 / 1440 for a web target, the platform's size classes or window sizes otherwise) and in reduced motion, and contains nothing absent from the registry.
 - Motion splits by mechanism, every variant is registered, reduced motion is set once globally, and no page writes a duration, distance, easing, or spring value.
 - The resolved platform is stated in `design-system.md`'s Overview, and the icon family, component-code language, breakpoint/size-class vocabulary, and styling-pattern section match it rather than defaulting to web/Tailwind.
-- Upstream `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, and `TEST-*` IDs are preserved. Design decisions and components use stable `DS-*` IDs, and every page and visual gate carries the IDs it implements or verifies.
+- Upstream `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, and generic `TEST-*` IDs are preserved. Design decisions and components use stable `DS-*` IDs; new design gates mint only `TEST-VIS-*` IDs, and `visual-acceptance.md` never replaces or renumbers upstream product TEST identity. Every page and visual gate carries the IDs it implements or verifies.
 - `design-system.md` defines overview, a product-specific visual thesis, taste and anti-slop guardrails, container and border rules, content/data realism, color palette, typography, iconography, spacing, shadows/elevation, a complete motion system, border radius, opacity/transparency, common Tailwind/CSS usage, example component reference design code, layout rules, states, and accessibility rules — and points at `ui-architecture.md` for the layers built on those tokens.
+- `design-system.html` is a dependency-free rendered projection of `design-system.md` plus `ui-registry.json`, not a second authority. It renders typography hierarchy and paragraph styles, links, every button variant/state, forms with labels/help/error text, cards/surfaces, navigation, alerts/status, icons, spacing/layout, colors/tokens, applicable motion, and responsive behavior.
+- Every `design-system.html` specimen uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`. `IDs` includes valid registered token IDs plus primitive/component and variant IDs as applicable; no shown ID or decision exists only in the HTML.
 - `ui-architecture.md` assigns every component to exactly one layer (design tokens, layout, surface, typography, and control primitives, product components, pages), records what each one composes, and keeps composition one-way. A flat component list with no layout or surface layer does not pass.
 - Product components compose primitives only and carry no raw values or ad-hoc spacing and color; layout primitives carry no color or border, and every surface variant carries the named purpose the Container & Border Rules require.
 - For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
@@ -463,6 +526,7 @@ Before finalizing, verify:
 - When Dynamic Workflow was used, every required design role has an explicit result, failed agents remain blocked roles, and taste/trace verifier findings are resolved or recorded before finalization. Workflow output is a candidate and does not itself prove rendered visual conformance.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.
 - The package is validated in `docs/product/.design-staging/<run-id>/`; exact overwrites and archive moves are authorized before publication, or the staged package remains unchanged awaiting approval.
+- In package enhancement mode, staging was seeded from the frozen same-product baseline, `Enhancement Baseline & Delta` lists the complete accepted mutation set, untouched IDs/content/artifacts/decisions and upstream TEST identities remain preserved, the fresh-generation dynamic workflow was not used, the whole revised package passed validation, and TEST-VIS-025 carries baseline-to-staged non-regression evidence. `design-system.html` was preserved when its inputs were untouched or rebuilt only from accepted delta when they changed, with TEST-VIS-026 parity evidence.
 
 ## Taste & Anti-Slop Review Checklist
 

@@ -4,7 +4,7 @@ Use this reference after plan readiness passes and before any parallel write fan
 
 The Project Size Gate runs first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted plan and execute it with the sequential parent.
 
-This file defines the legacy PLAN-v2/v3 mission-DAG selector. PLAN v4 and RUN v8 or v9 use `scripts/select_ready_nodes.py`: it computes the typed graph frontier first, then applies these same scope/resource conflicts and deterministic write budget to ready mission nodes. Never run the legacy selector directly against a schema-v4 plan.
+This file defines the legacy PLAN-v2/v3 mission-DAG selector. Current PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`; supported PLAN-v4/RUN-v8-or-v9 typed graphs use it too. It computes the typed graph frontier first, then applies these same scope/resource conflicts and deterministic write budget to ready mission nodes. Never run `scripts/select_parallel_missions.py` against a typed-graph plan.
 
 For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, set the configured maximum generously high unless the user sets an explicit lower limit, and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number.
 

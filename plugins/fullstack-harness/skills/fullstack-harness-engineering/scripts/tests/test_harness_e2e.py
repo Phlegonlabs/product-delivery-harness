@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import shutil
 import subprocess
@@ -10,6 +11,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from PIL import Image
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -423,6 +426,9 @@ class HarnessCliE2ETests(unittest.TestCase):
                         observed_head_sha=heads[mission_id],
                         observed_changed_files=observed_files,
                         ancestry_confirmed=ancestry,
+                        retained_verifier_results=candidate[
+                            "retained_verifier_results"
+                        ],
                     ),
                 )
                 self.assertEqual(
@@ -455,6 +461,105 @@ class HarnessCliE2ETests(unittest.TestCase):
             self.assertEqual("PASS", run["mission_states"]["M1"]["integration_gate"])
             self.assertEqual("PASS", run["mission_states"]["M2"]["integration_gate"])
 
+    def retained_verifier_result(
+        self,
+        plan: dict[str, object],
+        run: dict[str, object],
+        verifier: dict[str, object],
+        *,
+        head_sha: str,
+        changed_files: list[str],
+        layer: str,
+        mission_id: str,
+        task_id: str | None,
+        attempt_id: str,
+        lease_id: str,
+    ) -> dict[str, object]:
+        changed_files = sorted(changed_files)
+        context = {
+            "run_id": run["run_id"],
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "batch_base_sha": run["integration"]["batch_base_sha"],
+            "head_sha": head_sha,
+            "changed_files": changed_files,
+            "trust_domain": "parent_local",
+            "checkout_role": "worker",
+            "checkout_dirty": False,
+            "cache_safe": True,
+            "layer": layer,
+            "mission_id": mission_id,
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "lease_id": lease_id,
+        }
+        key_document = {
+            "protocol": "harness-verifier-execution-v1",
+            "verifier_id": verifier["id"],
+            "layer": layer,
+            "mission_id": mission_id,
+            "task_id": task_id,
+            "attempt_id": attempt_id,
+            "lease_id": lease_id,
+            "run_id": context["run_id"],
+            "plan_revision": context["plan_revision"],
+            "plan_digest_sha256": context["plan_digest_sha256"],
+            "graph_revision": context["graph_revision"],
+            "batch_base_sha": context["batch_base_sha"],
+            "head_sha": context["head_sha"],
+            "changed_files_digest": hashlib.sha256(
+                json.dumps(
+                    changed_files,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest(),
+            "trust_domain": context["trust_domain"],
+            "checkout_role": context["checkout_role"],
+            "checkout_dirty": context["checkout_dirty"],
+            "cache_safe": context["cache_safe"],
+            "cwd": verifier["cwd"],
+            "argv": verifier["argv"],
+            "pass_signal": verifier["pass_signal"],
+            "cache_mode": "disabled",
+            "environment_keys": [],
+            "platform": {"system": "test", "machine": "test"},
+            "executable_identity": {
+                "path": "C:/python",
+                "size": 1,
+                "mtime_ns": 1,
+                "device": 1,
+                "inode": 1,
+            },
+            "environment_digests": {},
+        }
+        execution_key = hashlib.sha256(
+            json.dumps(
+                key_document,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        return {
+            "protocol": "harness-verifier-execution-v1",
+            "verifier_id": verifier["id"],
+            "status": "PASS",
+            "exit_code": 0,
+            "execution_key": execution_key,
+            "evidence_key": execution_key,
+            "verifier": {
+                "id": verifier["id"],
+                "cwd": verifier["cwd"],
+                "argv": verifier["argv"],
+                "pass_signal": verifier["pass_signal"],
+                "cache": {"mode": "disabled", "environment_keys": []},
+            },
+            "context": context,
+            "key_document": key_document,
+        }
+
     def codex_candidate(
         self,
         plan: dict[str, object],
@@ -471,8 +576,62 @@ class HarnessCliE2ETests(unittest.TestCase):
     ) -> dict[str, object]:
         mission_item = next(item for item in plan["missions"] if item["id"] == mission_id)
         task_item = mission_item["tasks"][0]
-        task_verifier_id = task_item["verifiers"][0]["id"]
-        worker_verifier_id = mission_item["worker_verifiers"][0]["id"]
+        task_verifier = task_item["verifiers"][0]
+        worker_verifier = mission_item["worker_verifiers"][0]
+        task_attempt_id = f"{attempt_id}-TASK"
+        retained_results = [
+            self.retained_verifier_result(
+                plan,
+                run,
+                task_verifier,
+                head_sha=head_sha,
+                changed_files=[changed_file],
+                layer="task",
+                mission_id=mission_id,
+                task_id=task_item["id"],
+                attempt_id=task_attempt_id,
+                lease_id=lease_id,
+            ),
+            self.retained_verifier_result(
+                plan,
+                run,
+                worker_verifier,
+                head_sha=head_sha,
+                changed_files=[changed_file],
+                layer="worker",
+                mission_id=mission_id,
+                task_id=None,
+                attempt_id=attempt_id,
+                lease_id=lease_id,
+            ),
+        ]
+        run["attempt_log"].extend(
+            [
+                {
+                    "attempt_id": task_attempt_id,
+                    "mission_id": mission_id,
+                    "task_id": task_item["id"],
+                    "lease_id": lease_id,
+                    "kind": "task_verifier",
+                    "result": "PASS",
+                    "evidence": [],
+                },
+                {
+                    "attempt_id": attempt_id,
+                    "mission_id": mission_id,
+                    "task_id": None,
+                    "lease_id": lease_id,
+                    "kind": "worker_verifier",
+                    "result": "PASS",
+                    "evidence": [],
+                },
+            ]
+        )
+        task_verifier_id = task_verifier["id"]
+        worker_verifier_id = worker_verifier["id"]
+        retained_by_id = {
+            item["verifier_id"]: item for item in retained_results
+        }
         worker_result = {
             "type": "WORKER_RESULT",
             "run_id": run["run_id"],
@@ -501,16 +660,12 @@ class HarnessCliE2ETests(unittest.TestCase):
                 {
                     "id": task_verifier_id,
                     "status": "PASS",
-                    "evidence": hashlib.sha256(
-                        f"{mission_id}-{task_verifier_id}-{head_sha}".encode()
-                    ).hexdigest(),
+                    "evidence": retained_by_id[task_verifier_id]["execution_key"],
                 },
                 {
                     "id": worker_verifier_id,
                     "status": "PASS",
-                    "evidence": hashlib.sha256(
-                        f"{mission_id}-{worker_verifier_id}-{head_sha}".encode()
-                    ).hexdigest(),
+                    "evidence": retained_by_id[worker_verifier_id]["execution_key"],
                 },
             ],
             "commits": [head_sha],
@@ -525,6 +680,7 @@ class HarnessCliE2ETests(unittest.TestCase):
             "integration_notes": "Parent must verify Git facts before integration.",
         }
         return {
+            "retained_verifier_results": retained_results,
             "node_result": {
                 "run_id": run["run_id"],
                 "node_id": node_id,
@@ -592,7 +748,9 @@ class HarnessCliE2ETests(unittest.TestCase):
                 run["observed"]["git"]["parent_head_sha"] = head_sha
 
             mark_complete(plan, run)
-            contents = b"\x89PNG\r\n\x1a\nfixture"
+            buffer = io.BytesIO()
+            Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
+            contents = buffer.getvalue()
             run["ui_evidence"] = [
                 {
                     "surface_id": "dashboard",

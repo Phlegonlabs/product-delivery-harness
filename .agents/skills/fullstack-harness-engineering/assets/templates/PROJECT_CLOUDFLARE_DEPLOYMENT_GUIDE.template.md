@@ -1,6 +1,6 @@
 # Cloudflare Deployment Setup Guide
 
-One-time operational record of how this project's Cloudflare Workers are configured. Fill in every `<placeholder>` with the real value as Day One Resource Creation happens (see the Full-Stack Harness's `references/cloudflare-deployment-lifecycle.md`). Update this file whenever the deployment topology changes — it is a setup guide for a human maintainer, not an auto-regenerated view; `RUN.md`'s `deployments` object remains the canonical machine-readable record.
+One-time operational record of how this project's Cloudflare Workers are configured. Fill in every `<placeholder>` with the real value as Day One Resource Creation happens (see the Full-Stack Harness's `references/cloudflare-deployment-lifecycle.md`). Update this file whenever the deployment topology changes. It is the human source for Cloudflare-specific Worker, environment, config, and resource identity. PLAN-v5 keeps provider-neutral release targets, while RUN-v10 `targets` keyed by those stable PLAN target IDs remain the canonical machine-readable execution record.
 
 ## Environments
 

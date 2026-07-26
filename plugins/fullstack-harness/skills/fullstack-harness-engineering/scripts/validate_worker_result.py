@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Any, Iterable
 
 from harness_manifest import (
@@ -29,6 +31,7 @@ from select_verifiers import (
     applicable_targeted_verifiers,
     canonical_changed_path,
 )
+from verifier_runtime import PROTOCOL as VERIFIER_PROTOCOL, execution_key_from_document
 
 
 SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -287,6 +290,274 @@ def _report_exception(path: str, worker: dict[str, Any]) -> bool:
     return report_path == path and report_path.rsplit("/", 1)[-1] == "REPORT.md"
 
 
+def _declared_verifiers(
+    mission: dict[str, Any] | None,
+) -> dict[str, tuple[dict[str, Any], str, str | None]]:
+    declared: dict[str, tuple[dict[str, Any], str, str | None]] = {}
+    if not isinstance(mission, dict):
+        return declared
+    for verifier in mission.get("worker_verifiers", []):
+        if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
+            declared.setdefault(verifier["id"], (verifier, "worker", None))
+    for task in mission.get("tasks", []):
+        if not isinstance(task, dict) or task.get("replaced_by"):
+            continue
+        for verifier in task.get("verifiers", []):
+            if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
+                declared.setdefault(
+                    verifier["id"], (verifier, "task", task.get("id"))
+                )
+    return declared
+
+
+def _retained_verifier_results(
+    values: list[dict[str, Any]] | None,
+    *,
+    run: dict[str, Any],
+    result: dict[str, Any],
+    mission: dict[str, Any] | None,
+    observed_head_sha: str | None,
+    observed_changed_files: list[str],
+    errors: list[dict[str, str]],
+) -> dict[str, dict[str, Any]]:
+    retained: dict[str, dict[str, Any]] = {}
+    if not isinstance(values, list):
+        _issue(
+            errors,
+            "retained_verifier_results_missing",
+            "observed.verifier_results",
+            "parent-retained verifier results are required",
+        )
+        return retained
+    declarations = _declared_verifiers(mission)
+    expected_checkout_dirty: bool | None = None
+    workers = run.get("workers", [])
+    worker_matches = [
+        worker
+        for worker in workers
+        if isinstance(worker, dict)
+        and worker.get("mission_id") == result.get("mission_id")
+        and worker.get("lease_id") == result.get("lease_id")
+    ] if isinstance(workers, list) else []
+    worker = worker_matches[0] if len(worker_matches) == 1 else None
+    observed_git = run.get("observed", {}).get("git", {})
+    if isinstance(worker, dict) and worker.get("workspace_mode") in ISOLATED_WORKSPACES:
+        observed_worktrees = (
+            observed_git.get("worktrees", []) if isinstance(observed_git, dict) else []
+        )
+        matching_worktrees = [
+            worktree
+            for worktree in observed_worktrees
+            if isinstance(worktree, dict)
+            and worktree.get("path") == worker.get("worktree_path")
+            and worktree.get("branch_ref") == worker.get("branch_ref")
+            and worktree.get("head_sha") == observed_head_sha
+        ]
+        if len(matching_worktrees) != 1:
+            _issue(
+                errors,
+                "worker_worktree_mismatch",
+                "observed.git.worktrees",
+                "exactly one parent-observed worker worktree must match path, branch, and head",
+            )
+        else:
+            dirty = matching_worktrees[0].get("dirty")
+            if not isinstance(dirty, bool):
+                _issue(
+                    errors,
+                    "worker_worktree_mismatch",
+                    "observed.git.worktrees.dirty",
+                    "must be boolean",
+                )
+            else:
+                expected_checkout_dirty = dirty
+                if dirty:
+                    _issue(
+                        errors,
+                        "dirty_worker_handoff",
+                        "observed.git.worktrees.dirty",
+                        "dirty isolated worker worktrees cannot produce accepted verifier evidence",
+                    )
+    elif isinstance(observed_git, dict) and isinstance(
+        observed_git.get("parent_dirty"), bool
+    ):
+        expected_checkout_dirty = observed_git["parent_dirty"]
+
+    expected_context = {
+        "run_id": run.get("run_id"),
+        "plan_revision": result.get("plan_revision"),
+        "plan_digest_sha256": result.get("plan_digest_sha256"),
+        "graph_revision": run.get("graph_state", {}).get("graph_revision"),
+        "batch_base_sha": worker.get("batch_base_sha") if isinstance(worker, dict) else result.get("base_sha"),
+        "head_sha": observed_head_sha,
+        "changed_files": sorted(observed_changed_files),
+        "trust_domain": "parent_local",
+        "checkout_role": "worker",
+        "checkout_dirty": expected_checkout_dirty,
+    }
+    for index, item in enumerate(values):
+        path = f"observed.verifier_results[{index}]"
+        if not isinstance(item, dict):
+            _issue(errors, "invalid_type", path, "must be an object")
+            continue
+        verifier_id = item.get("verifier_id")
+        if not isinstance(verifier_id, str) or not verifier_id:
+            _issue(errors, "retained_verifier_mismatch", f"{path}.verifier_id", "must identify the verifier")
+            continue
+        retained[verifier_id] = item
+        if item.get("protocol") != VERIFIER_PROTOCOL:
+            _issue(errors, "retained_verifier_mismatch", f"{path}.protocol", "does not match verifier runtime protocol")
+        key_document = item.get("key_document")
+        execution_key = item.get("execution_key")
+        if not isinstance(key_document, dict) or not isinstance(execution_key, str):
+            _issue(
+                errors,
+                "retained_verifier_mismatch",
+                path,
+                "must retain the execution key document and key",
+            )
+        elif execution_key_from_document(key_document) != execution_key:
+            _issue(
+                errors,
+                "retained_verifier_key_mismatch",
+                f"{path}.execution_key",
+                "does not match the retained key document",
+            )
+        elif key_document.get("protocol") != VERIFIER_PROTOCOL:
+            _issue(
+                errors,
+                "retained_verifier_mismatch",
+                f"{path}.key_document.protocol",
+                "does not match verifier runtime protocol",
+            )
+        if item.get("evidence_key") != execution_key:
+            _issue(errors, "retained_verifier_key_mismatch", f"{path}.evidence_key", "does not match execution_key")
+        status = item.get("status")
+        exit_code = item.get("exit_code")
+        if status not in {"PASS", "FAIL", "TIMEOUT", "ERROR"}:
+            _issue(errors, "retained_verifier_mismatch", f"{path}.status", "has an unsupported value")
+        elif status == "PASS" and exit_code != 0:
+            _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", "PASS requires exit code 0")
+        elif status == "FAIL" and (
+            not isinstance(exit_code, int) or isinstance(exit_code, bool) or exit_code == 0
+        ):
+            _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", "FAIL requires a nonzero integer exit code")
+        elif status in {"TIMEOUT", "ERROR"} and exit_code is not None:
+            _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", f"{status} requires null exit code")
+        declaration_binding = declarations.get(verifier_id)
+        declaration = declaration_binding[0] if declaration_binding is not None else None
+        expected_layer = declaration_binding[1] if declaration_binding is not None else None
+        expected_task_id = declaration_binding[2] if declaration_binding is not None else None
+        context = item.get("context")
+        if not isinstance(context, dict):
+            _issue(errors, "retained_verifier_mismatch", f"{path}.context", "must retain verifier context")
+        else:
+            for field, expected in expected_context.items():
+                if context.get(field) != expected:
+                    _issue(errors, "retained_verifier_context_mismatch", f"{path}.context.{field}", "does not match parent-observed validation context")
+            expected_identity = {
+                "layer": expected_layer,
+                "mission_id": result.get("mission_id"),
+                "task_id": expected_task_id,
+                "lease_id": result.get("lease_id"),
+            }
+            for field, expected in expected_identity.items():
+                if context.get(field) != expected:
+                    _issue(
+                        errors,
+                        "retained_verifier_context_mismatch",
+                        f"{path}.context.{field}",
+                        "does not match the declared verifier and worker lease",
+                    )
+            attempt_id = context.get("attempt_id")
+            if not isinstance(attempt_id, str) or not attempt_id:
+                _issue(
+                    errors,
+                    "retained_verifier_context_mismatch",
+                    f"{path}.context.attempt_id",
+                    "must bind a retained worker attempt",
+                )
+            else:
+                matching_attempts = [
+                    attempt
+                    for attempt in run.get("attempt_log", [])
+                    if isinstance(attempt, dict)
+                    and attempt.get("attempt_id") == attempt_id
+                    and attempt.get("mission_id") == result.get("mission_id")
+                    and attempt.get("task_id") == expected_task_id
+                    and attempt.get("lease_id") == result.get("lease_id")
+                ]
+                if len(matching_attempts) != 1:
+                    _issue(
+                        errors,
+                        "retained_verifier_context_mismatch",
+                        f"{path}.context.attempt_id",
+                        "must reference the exact retained mission/task/lease attempt",
+                    )
+            if isinstance(key_document, dict):
+                key_context = {
+                    field: key_document.get(field)
+                    for field in (
+                        "run_id",
+                        "plan_revision",
+                        "plan_digest_sha256",
+                        "graph_revision",
+                        "batch_base_sha",
+                        "head_sha",
+                        "trust_domain",
+                        "checkout_role",
+                        "checkout_dirty",
+                        "cache_safe",
+                        "layer",
+                        "mission_id",
+                        "task_id",
+                        "attempt_id",
+                        "lease_id",
+                    )
+                }
+                retained_context = {field: context.get(field) for field in key_context}
+                changed_digest = hashlib.sha256(
+                    json.dumps(
+                        context.get("changed_files"),
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        ensure_ascii=False,
+                    ).encode("utf-8")
+                ).hexdigest()
+                if key_context != retained_context or key_document.get("changed_files_digest") != changed_digest:
+                    _issue(errors, "retained_verifier_context_mismatch", f"{path}.key_document", "does not encode the retained verifier context")
+        normalized = item.get("verifier")
+        declared_cache = (
+            declaration.get("cache")
+            if isinstance(declaration, dict) and isinstance(declaration.get("cache"), dict)
+            else {"mode": "disabled", "environment_keys": []}
+        )
+        if declaration is None or not isinstance(normalized, dict):
+            _issue(errors, "retained_verifier_mismatch", f"{path}.verifier", "does not match a declared verifier")
+        elif (
+            normalized.get("id") != verifier_id
+            or normalized.get("cwd") != declaration.get("cwd")
+            or normalized.get("argv") != declaration.get("argv")
+            or normalized.get("pass_signal") != declaration.get("pass_signal")
+            or normalized.get("cache") != declared_cache
+            or not isinstance(key_document, dict)
+            or key_document.get("verifier_id") != verifier_id
+            or key_document.get("cwd") != normalized.get("cwd")
+            or key_document.get("argv") != normalized.get("argv")
+            or key_document.get("pass_signal") != normalized.get("pass_signal")
+            or key_document.get("cache_mode") != declared_cache.get("mode")
+            or key_document.get("environment_keys")
+            != sorted(declared_cache.get("environment_keys", []))
+        ):
+            _issue(
+                errors,
+                "retained_verifier_mismatch",
+                f"{path}.verifier",
+                "does not exactly match the declared and executed verifier",
+            )
+    return retained
+
+
 def validate_worker_result_data(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -295,6 +566,7 @@ def validate_worker_result_data(
     observed_head_sha: str | None,
     observed_changed_files: list[str] | None,
     ancestry_confirmed: bool,
+    retained_verifier_results: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
     """Return deterministic validation issues for one integration candidate."""
 
@@ -516,6 +788,19 @@ def validate_worker_result_data(
                 _issue(errors, "scope_escape", item_path, "changed path is outside mission write scope")
 
     verifier_results_raw = result.get("verifiers")
+    retained_results: dict[str, dict[str, Any]] = {}
+    if isinstance(verifier_results_raw, list) and verifier_results_raw:
+        retained_results = _retained_verifier_results(
+            retained_verifier_results,
+            run=run,
+            result=result,
+            mission=mission,
+            observed_head_sha=observed_checked,
+            observed_changed_files=[
+                path for path in observed_paths if not _report_exception(path, worker)
+            ],
+            errors=errors,
+        )
     verifier_results: dict[str, dict[str, Any]] = {}
     if not isinstance(verifier_results_raw, list):
         _issue(errors, "invalid_type", "worker_result.verifiers", "must be an array")
@@ -527,12 +812,27 @@ def validate_worker_result_data(
                 continue
             verifier_id = _require_string(verifier.get("id"), f"{item_path}.id", errors)
             verifier_status = _require_string(verifier.get("status"), f"{item_path}.status", errors)
-            _require_execution_key(verifier.get("evidence"), f"{item_path}.evidence", errors)
+            evidence_key = _require_execution_key(verifier.get("evidence"), f"{item_path}.evidence", errors)
             if verifier_id is not None:
                 if verifier_id in verifier_results:
                     _issue(errors, "duplicate_verifier", f"{item_path}.id", "verifier ID must be unique")
                 else:
                     verifier_results[verifier_id] = verifier
+                retained = retained_results.get(verifier_id)
+                if retained is None:
+                    _issue(errors, "retained_verifier_result_missing", item_path, f"parent retained no result for {verifier_id}")
+                else:
+                    if retained.get("status") != "PASS" or retained.get("exit_code") != 0:
+                        _issue(
+                            errors,
+                            "retained_verifier_not_pass",
+                            item_path,
+                            "latest exact retained execution must be PASS with exit code 0",
+                        )
+                    if verifier_status != retained.get("status"):
+                        _issue(errors, "retained_verifier_result_mismatch", f"{item_path}.status", "does not match the parent-retained result")
+                    if evidence_key != retained.get("execution_key"):
+                        _issue(errors, "retained_verifier_result_mismatch", f"{item_path}.evidence", "does not match the parent-retained execution key")
             if verifier_status is not None and verifier_status != "PASS":
                 _issue(errors, "verifier_not_pass", f"{item_path}.status", "all reported verifiers must be PASS")
 
@@ -699,6 +999,12 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Assert the parent observed base as an ancestor of the worker head",
     )
+    parser.add_argument(
+        "--verifier-result",
+        action="append",
+        default=[],
+        help="Parent-retained verifier_runtime.py JSON result; repeat for each verifier",
+    )
     return parser
 
 
@@ -710,6 +1016,10 @@ def main(argv: list[str] | None = None) -> int:
         plan = load_plan(args.plan)
         run = load_run(args.run)
         result = load_worker_result(args.result)
+        retained_verifier_results = [
+            json.loads(Path(path).read_text(encoding="utf-8"))
+            for path in args.verifier_result
+        ]
     except (ManifestError, OSError, ValueError) as exc:
         _issue(errors, "manifest_load_failed", "input", str(exc))
         print(json.dumps(_result_document("FAIL", errors), sort_keys=True, separators=(",", ":")))
@@ -728,6 +1038,7 @@ def main(argv: list[str] | None = None) -> int:
                 observed_head_sha=args.observed_head_sha,
                 observed_changed_files=args.observed_changed_file,
                 ancestry_confirmed=args.ancestry_confirmed,
+                retained_verifier_results=retained_verifier_results,
             )
         )
 

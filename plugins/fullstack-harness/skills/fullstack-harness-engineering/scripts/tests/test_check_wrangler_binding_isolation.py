@@ -56,8 +56,8 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
         self.assertEqual(
             errors,
             [
-                "d1_databases binding 'DB' shares database_id 'dev-db-id' between development and "
-                "production — these must be isolated per-environment"
+                "d1_databases development binding(s) 'DB' and production binding(s) 'DB' share "
+                "database_id 'dev-db-id' — these must be isolated per-environment"
             ],
         )
 
@@ -66,8 +66,8 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
         config["env"]["production"]["kv_namespaces"][0]["id"] = "dev-kv-id"
         errors = subject.check_binding_isolation(config)
         self.assertIn(
-            "kv_namespaces binding 'KV' shares id 'dev-kv-id' between development and production "
-            "— these must be isolated per-environment",
+            "kv_namespaces development binding(s) 'KV' and production binding(s) 'KV' share id "
+            "'dev-kv-id' — these must be isolated per-environment",
             errors,
         )
 
@@ -76,8 +76,8 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
         config["env"]["production"]["r2_buckets"][0]["bucket_name"] = "dev-bucket"
         errors = subject.check_binding_isolation(config)
         self.assertIn(
-            "r2_buckets binding 'BUCKET' shares bucket_name 'dev-bucket' between development and "
-            "production — these must be isolated per-environment",
+            "r2_buckets development binding(s) 'BUCKET' and production binding(s) 'BUCKET' share "
+            "bucket_name 'dev-bucket' — these must be isolated per-environment",
             errors,
         )
 
@@ -91,8 +91,8 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
         }
         errors = subject.check_binding_isolation(config)
         self.assertIn(
-            "queues.producers binding 'QUEUE' shares queue 'shared-queue' between development and "
-            "production — these must be isolated per-environment",
+            "queues.producers development binding(s) 'QUEUE' and production binding(s) 'QUEUE' "
+            "share queue 'shared-queue' — these must be isolated per-environment",
             errors,
         )
 
@@ -111,6 +111,41 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
             errors,
         )
 
+    def test_shared_queue_name_across_producer_consumer_roles_is_flagged(self) -> None:
+        for development_role, production_role in (
+            ("producers", "consumers"),
+            ("consumers", "producers"),
+        ):
+            with self.subTest(
+                development_role=development_role,
+                production_role=production_role,
+            ):
+                config = isolated_config()
+                development_entry = (
+                    {"binding": "QUEUE", "queue": "shared-queue"}
+                    if development_role == "producers"
+                    else {"queue": "shared-queue"}
+                )
+                production_entry = (
+                    {"binding": "QUEUE", "queue": "shared-queue"}
+                    if production_role == "producers"
+                    else {"queue": "shared-queue"}
+                )
+                config["env"]["development"]["queues"] = {
+                    development_role: [development_entry]
+                }
+                config["env"]["production"]["queues"] = {
+                    production_role: [production_entry]
+                }
+
+                errors = subject.check_binding_isolation(config)
+
+                self.assertIn(
+                    "queues resource 'shared-queue' is used by development and production across "
+                    "producer/consumer roles — queue identities must be isolated per-environment",
+                    errors,
+                )
+
     def test_shared_durable_object_script_and_class_is_flagged(self) -> None:
         config = isolated_config()
         config["env"]["development"]["durable_objects"] = {
@@ -121,10 +156,67 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
         }
         errors = subject.check_binding_isolation(config)
         self.assertIn(
-            "durable_objects binding 'DO' shares class_name 'MyClass' and script_name "
-            "'external-worker' between development and production — these must be isolated "
-            "per-environment",
+            "durable_objects development binding(s) 'DO' and production binding(s) 'DO' share "
+            "class_name 'MyClass', script_name 'external-worker', and environment None — these "
+            "must be isolated per-environment",
             errors,
+        )
+
+    def test_external_durable_object_different_environments_are_allowed(self) -> None:
+        config = isolated_config()
+        config["env"]["development"]["durable_objects"] = {
+            "bindings": [
+                {
+                    "name": "DO",
+                    "class_name": "MyClass",
+                    "script_name": "external-worker",
+                    "environment": "development",
+                }
+            ]
+        }
+        config["env"]["production"]["durable_objects"] = {
+            "bindings": [
+                {
+                    "name": "DO",
+                    "class_name": "MyClass",
+                    "script_name": "external-worker",
+                    "environment": "production",
+                }
+            ]
+        }
+
+        self.assertEqual(subject.check_binding_isolation(config), [])
+
+    def test_external_durable_object_full_identity_collision_ignores_alias(self) -> None:
+        config = isolated_config()
+        config["env"]["development"]["durable_objects"] = {
+            "bindings": [
+                {
+                    "name": "DEV_DO",
+                    "class_name": "MyClass",
+                    "script_name": "external-worker",
+                    "environment": "shared",
+                }
+            ]
+        }
+        config["env"]["production"]["durable_objects"] = {
+            "bindings": [
+                {
+                    "name": "PROD_DO",
+                    "class_name": "MyClass",
+                    "script_name": "external-worker",
+                    "environment": "shared",
+                }
+            ]
+        }
+
+        self.assertEqual(
+            subject.check_binding_isolation(config),
+            [
+                "durable_objects development binding(s) 'DEV_DO' and production binding(s) "
+                "'PROD_DO' share class_name 'MyClass', script_name 'external-worker', and "
+                "environment 'shared' — these must be isolated per-environment"
+            ],
         )
 
     def test_durable_object_without_script_name_is_not_flagged(self) -> None:
@@ -137,6 +229,47 @@ class CheckWranglerBindingIsolationTests(unittest.TestCase):
         }
         errors = subject.check_binding_isolation(config)
         self.assertEqual(errors, [])
+
+    def test_renamed_aliases_do_not_hide_resource_identity_collisions(self) -> None:
+        config = isolated_config()
+        config["env"]["production"]["d1_databases"][0].update(
+            {"binding": "PROD_DB", "database_id": "dev-db-id"}
+        )
+        config["env"]["production"]["kv_namespaces"][0].update(
+            {"binding": "PROD_KV", "id": "dev-kv-id"}
+        )
+        config["env"]["production"]["r2_buckets"][0].update(
+            {"binding": "PROD_BUCKET", "bucket_name": "dev-bucket"}
+        )
+        config["env"]["development"]["queues"] = {
+            "producers": [{"binding": "DEV_QUEUE", "queue": "shared-queue"}]
+        }
+        config["env"]["production"]["queues"] = {
+            "producers": [{"binding": "PROD_QUEUE", "queue": "shared-queue"}]
+        }
+        config["env"]["development"]["durable_objects"] = {
+            "bindings": [
+                {"name": "DEV_DO", "class_name": "MyClass", "script_name": "external-worker"}
+            ]
+        }
+        config["env"]["production"]["durable_objects"] = {
+            "bindings": [
+                {"name": "PROD_DO", "class_name": "MyClass", "script_name": "external-worker"}
+            ]
+        }
+
+        joined = "\n".join(subject.check_binding_isolation(config))
+
+        for dev_alias, prod_alias in (
+            ("DB", "PROD_DB"),
+            ("KV", "PROD_KV"),
+            ("BUCKET", "PROD_BUCKET"),
+            ("DEV_QUEUE", "PROD_QUEUE"),
+            ("DEV_DO", "PROD_DO"),
+        ):
+            with self.subTest(resource=(dev_alias, prod_alias)):
+                self.assertIn(f"'{dev_alias}'", joined)
+                self.assertIn(f"'{prod_alias}'", joined)
 
     def test_shared_vars_value_is_not_flagged(self) -> None:
         errors = subject.check_binding_isolation(isolated_config())

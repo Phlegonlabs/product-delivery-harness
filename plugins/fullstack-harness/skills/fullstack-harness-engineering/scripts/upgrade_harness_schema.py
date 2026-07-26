@@ -13,7 +13,10 @@ import argparse
 import copy
 import hashlib
 import json
+import os
+import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +33,10 @@ from harness_manifest import (
 )
 
 
-PLAN_MAX_SCHEMA = 4
-RUN_MAX_SCHEMA = 9
+PLAN_MAX_SCHEMA = 5
+RUN_MAX_SCHEMA = 10
+
+LEGACY_ACCEPTANCE_RE = re.compile(r"^(?P<test_id>TEST-[A-Z0-9_-]+):\s+(?P<criterion>\S.*)$")
 
 
 class UpgradeError(Exception):
@@ -143,9 +148,120 @@ def _upgrade_plan_v3_to_v4(plan: dict[str, Any], repo_root: Path) -> list[str]:
     return added
 
 
+def _upgrade_release_target_v4_to_v5(target: dict[str, Any]) -> dict[str, Any]:
+    target_id = target.get("id")
+    data_mode = target.get("data_mode")
+    stage = (
+        "development"
+        if data_mode == "isolated_non_production"
+        else "production"
+        if data_mode == "production"
+        else None
+    )
+    if stage is None:
+        raise UpgradeError(
+            f"cannot convert release target {target_id!r}: its stage is ambiguous"
+        )
+    return {
+        "id": target_id,
+        "stage": stage,
+        "source": target.get("source"),
+        "artifact_kind": None,
+        "requires_signing": None,
+        "channel": None,
+        "data_mode": data_mode,
+        "trigger": None,
+        "migration_classification": None,
+        "commands": {
+            "build": None,
+            "migrate": target.get("migration_command"),
+            "publish": target.get("deploy_command"),
+        },
+        "prerequisites": copy.deepcopy(target.get("prerequisites", [])),
+        "smoke_verifiers": copy.deepcopy(target.get("smoke_verifiers", [])),
+    }
+
+
+def _upgrade_plan_v4_to_v5(plan: dict[str, Any], repo_root: Path) -> list[str]:
+    del repo_root
+    for source in plan.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        status = source.get("status")
+        if status == "delta accepted":
+            source["status"] = "delta_accepted"
+        elif status != "frozen":
+            raise UpgradeError(
+                f"cannot upgrade source {source.get('id')!r}: schema v5 requires "
+                "frozen or delta_accepted published sources"
+            )
+        location = source.get("location")
+        if isinstance(location, str) and "://" not in location:
+            normalized = location.replace("\\", "/").removeprefix("./").strip("/").lower()
+            parts = normalized.split("/")
+            if any(
+                parts[index : index + 3]
+                in (["docs", "product", ".prd-staging"], ["docs", "product", ".design-staging"])
+                for index in range(max(0, len(parts) - 2))
+            ):
+                raise UpgradeError(
+                    f"cannot upgrade source {source.get('id')!r}: publish staged product input first"
+                )
+        source["staged_revision"] = None
+
+    for mission in plan.get("missions", []):
+        if not isinstance(mission, dict):
+            continue
+        for task in mission.get("tasks", []):
+            if not isinstance(task, dict):
+                continue
+            rows: list[dict[str, Any]] = []
+            seen_test_ids: set[str] = set()
+            for entry in task.get("acceptance_matrix", []):
+                match = LEGACY_ACCEPTANCE_RE.fullmatch(entry) if isinstance(entry, str) else None
+                if match is None:
+                    raise UpgradeError(
+                        f"cannot convert acceptance row for task {task.get('id')!r}: "
+                        "legacy rows must already name an exact TEST-* ID as "
+                        "'TEST-ID: criterion'. Nothing was written."
+                    )
+                test_id = match.group("test_id")
+                if test_id in seen_test_ids:
+                    raise UpgradeError(
+                        f"cannot convert acceptance rows for task {task.get('id')!r}: "
+                        f"duplicate TEST ID {test_id!r}"
+                    )
+                seen_test_ids.add(test_id)
+                rows.append(
+                    {
+                        "test_id": test_id,
+                        "trace_ids": copy.deepcopy(task.get("trace_ids", [])),
+                        "criterion": match.group("criterion"),
+                    }
+                )
+            task["acceptance_matrix"] = rows
+
+    if isinstance(plan.get("release"), dict):
+        targets = plan["release"].get("targets")
+        if not isinstance(targets, list):
+            raise UpgradeError("cannot convert release targets: targets must be a list")
+        plan["release"]["targets"] = [
+            _upgrade_release_target_v4_to_v5(target)
+            for target in targets
+            if isinstance(target, dict)
+        ]
+    plan["schema_version"] = 5
+    return [
+        "sources[].staged_revision",
+        "missions[].tasks[].acceptance_matrix structured rows",
+        "release.targets provider-neutral fields when release is present",
+    ]
+
+
 _PLAN_STEPS = {
     2: _upgrade_plan_v2_to_v3,
     3: _upgrade_plan_v3_to_v4,
+    4: _upgrade_plan_v4_to_v5,
 }
 
 
@@ -270,11 +386,11 @@ def _synthesize_graph_state(plan: dict[str, Any]) -> dict[str, Any]:
 
 
 def _plan_declares_release(plan: dict[str, Any]) -> bool:
-    return plan.get("schema_version") in {3, 4} and "release" in plan
+    return plan.get("schema_version") in {3, 4, 5} and "release" in plan
 
 
 def _is_graph_run(plan: dict[str, Any]) -> bool:
-    return plan.get("schema_version") == 4
+    return plan.get("schema_version") in {4, 5}
 
 
 def _neutral_gate_results(gates: Any) -> list[dict[str, Any]]:
@@ -357,6 +473,130 @@ def _upgrade_run_v8_to_v9(run: dict[str, Any], plan: dict[str, Any]) -> list[str
     return added
 
 
+def _neutral_target_v10() -> dict[str, Any]:
+    return {
+        "status": "not_started",
+        "source_sha": None,
+        "authorized_head_sha": None,
+        "artifact": None,
+        "channel": None,
+        "promotion": None,
+        "availability": None,
+        "migration_status": "not_started",
+        "verification_status": "not_started",
+        "destructive_migration_confirmed_sha": None,
+    }
+
+
+def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[str]:
+    authorizations = run.get("authorizations")
+    if run.get("status") == "complete":
+        raise UpgradeError("completed RUN v9 remains readable historical state and is not rewritten")
+    if run.get("execution_authorized") is True or (
+        isinstance(authorizations, dict)
+        and any(
+            isinstance(entry, dict) and entry.get("authorized") is True
+            for entry in authorizations.values()
+        )
+    ):
+        raise UpgradeError(
+            "cannot upgrade active authorization to RUN v10 without explicit plan-bound reaffirmation"
+        )
+
+    landing = run.get("landing")
+    integration = run.get("integration")
+    if isinstance(landing, dict) and landing.get("mode") == "local_only":
+        head_branch = landing.get("head_branch")
+        base_branch = landing.get("base_branch")
+        integration_branch = integration.get("branch") if isinstance(integration, dict) else None
+        normalized_head = (
+            head_branch.removeprefix("refs/heads/")
+            if isinstance(head_branch, str) and head_branch
+            else None
+        )
+        normalized_base = (
+            base_branch.removeprefix("refs/heads/")
+            if isinstance(base_branch, str) and base_branch
+            else None
+        )
+        normalized_integration = (
+            integration_branch.removeprefix("refs/heads/")
+            if isinstance(integration_branch, str) and integration_branch
+            else None
+        )
+        if (
+            normalized_head is None
+            or normalized_head == normalized_base
+            or normalized_head != normalized_integration
+        ):
+            raise UpgradeError(
+                "cannot upgrade local_only RUN v9 without an exact distinct retained branch"
+            )
+
+    if isinstance(authorizations, dict):
+        authorizations["trigger_remote_ci"] = {"authorized": False, "source": None}
+        authorizations["provision_cloud_resources"] = {
+            "authorized": False,
+            "source": None,
+        }
+    if isinstance(landing, dict):
+        landing["continuity"] = (
+            {
+                "status": "planned",
+                "branch_ref": (
+                    landing["head_branch"]
+                    if str(landing["head_branch"]).startswith("refs/heads/")
+                    else f"refs/heads/{landing['head_branch']}"
+                ),
+                "head_sha": None,
+                "reason": None,
+            }
+            if landing.get("mode") == "local_only"
+            else {
+                "status": "not_required",
+                "branch_ref": None,
+                "head_sha": None,
+                "reason": None,
+            }
+        )
+
+    run["verifier_executions"] = []
+    added = [
+        "authorizations.trigger_remote_ci",
+        "authorizations.provision_cloud_resources",
+        "landing.continuity",
+        "verifier_executions",
+    ]
+    if _plan_declares_release(plan):
+        deployments = run.get("deployments")
+        if isinstance(deployments, dict):
+            progressed = [
+                target_id
+                for target_id in ("development", "production")
+                if isinstance(deployments.get(target_id), dict)
+                and deployments[target_id].get("status") != "not_started"
+            ]
+            if progressed:
+                raise UpgradeError(
+                    "cannot convert progressed legacy deployment state to RUN v10 "
+                    "structured evidence without fabricating records: "
+                    + ", ".join(progressed)
+                )
+        release = plan.get("release", {})
+        targets = release.get("targets", []) if isinstance(release, dict) else []
+        run["targets"] = {
+            target["id"]: _neutral_target_v10()
+            for target in targets
+            if isinstance(target, dict) and isinstance(target.get("id"), str)
+        }
+        run.pop("deployments", None)
+        added.extend(["targets", "removed deployments"])
+    else:
+        run.pop("deployments", None)
+    run["schema_version"] = 10
+    return added
+
+
 _RUN_STEPS = {
     2: _upgrade_run_v2_to_v3,
     3: _upgrade_run_v3_to_v4,
@@ -365,6 +605,7 @@ _RUN_STEPS = {
     6: _upgrade_run_v6_to_v7,
     7: _upgrade_run_v7_to_v8,
     8: _upgrade_run_v8_to_v9,
+    9: _upgrade_run_v9_to_v10,
 }
 
 
@@ -402,10 +643,12 @@ def upgrade_run(run: dict[str, Any], plan: dict[str, Any]) -> list[tuple[int, in
 # --- manifest rewrite (fence-preserving) ------------------------------------
 
 
-def _rewrite_manifest(path: str, heading: str, wrapper: str, manifest: dict[str, Any]) -> None:
-    """Replace only the fenced JSON body; keep every other byte identical."""
+def _render_manifest(
+    path: Path, heading: str, wrapper: str, manifest: dict[str, Any]
+) -> bytes:
+    """Render only the fenced JSON body; keep every other byte identical."""
 
-    raw = Path(path).read_bytes().decode("utf-8")
+    raw = path.read_bytes().decode("utf-8")
     newline = "\r\n" if "\r\n" in raw else "\n"
     lines = raw.split(newline)
     positions = [index for index, line in enumerate(lines) if line.strip() == heading]
@@ -424,7 +667,65 @@ def _rewrite_manifest(path: str, heading: str, wrapper: str, manifest: dict[str,
         raise ManifestError(f"{path}: unterminated JSON fence after {heading!r}")
     body = json.dumps({wrapper: manifest}, indent=2, ensure_ascii=False)
     new_lines = lines[:start] + body.split("\n") + lines[end:]
-    Path(path).write_bytes(newline.join(new_lines).encode("utf-8"))
+    return newline.join(new_lines).encode("utf-8")
+
+
+def _stage_sibling(path: Path, content: bytes, label: str) -> Path:
+    descriptor, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.{label}.", suffix=".tmp", dir=path.parent
+    )
+    temp_path = Path(temp_name)
+    descriptor_open = True
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            descriptor_open = False
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except Exception:
+        if descriptor_open:
+            os.close(descriptor)
+        temp_path.unlink(missing_ok=True)
+        raise
+    return temp_path
+
+
+def _rewrite_manifests_atomically(
+    rewrites: list[tuple[Path, str, str, dict[str, Any]]]
+) -> None:
+    """Stage every sibling replacement before changing any canonical manifest."""
+
+    staged: list[tuple[Path, Path, Path]] = []
+    replaced: list[tuple[Path, Path]] = []
+    try:
+        for path, heading, wrapper, manifest in rewrites:
+            original = path.read_bytes()
+            rendered = _render_manifest(path, heading, wrapper, manifest)
+            replacement = _stage_sibling(path, rendered, "new")
+            try:
+                backup = _stage_sibling(path, original, "backup")
+            except Exception:
+                replacement.unlink(missing_ok=True)
+                raise
+            staged.append((path, replacement, backup))
+        for path, replacement, backup in staged:
+            os.replace(replacement, path)
+            replaced.append((path, backup))
+    except Exception as exc:
+        rollback_errors: list[str] = []
+        for path, backup in reversed(replaced):
+            try:
+                os.replace(backup, path)
+            except OSError as rollback_exc:
+                rollback_errors.append(f"{path}: {rollback_exc}")
+        detail = ""
+        if rollback_errors:
+            detail = "; rollback failed for " + "; ".join(rollback_errors)
+        raise UpgradeError(f"failed to write upgraded manifests: {exc}{detail}") from exc
+    finally:
+        for _, replacement, backup in staged:
+            replacement.unlink(missing_ok=True)
+            backup.unlink(missing_ok=True)
 
 
 # --- CLI --------------------------------------------------------------------
@@ -519,10 +820,20 @@ def main(argv: list[str] | None = None) -> int:
 
     run_changed = bool(run_report) or digest_synced
     if not args.dry_run:
+        rewrites: list[tuple[Path, str, str, dict[str, Any]]] = []
         if plan_changed:
-            _rewrite_manifest(args.plan, PLAN_HEADING, "harness_plan", upgraded_plan)
+            rewrites.append(
+                (Path(args.plan), PLAN_HEADING, "harness_plan", upgraded_plan)
+            )
         if upgraded_run is not None and run_changed:
-            _rewrite_manifest(args.run, RUN_HEADING, "harness_run", upgraded_run)
+            rewrites.append(
+                (Path(args.run), RUN_HEADING, "harness_run", upgraded_run)
+            )
+        try:
+            _rewrite_manifests_atomically(rewrites)
+        except (OSError, ManifestError, UpgradeError) as exc:
+            sys.stderr.write(f"{exc}\n")
+            return 1
 
     summary: list[str] = []
     if plan_changed:

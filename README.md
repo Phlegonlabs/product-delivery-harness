@@ -36,7 +36,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 ## Core guarantees
 
 - **Small work stays small.** One bounded change uses a direct inspect, implement, verify, and review loop.
-- **Large work is explicit.** PLAN v4 defines the typed graph; RUN v9 records authorization, attempts, evidence, and landing state.
+- **Large work is explicit.** PLAN v5 defines the typed graph and provider-neutral release targets; RUN v10 records authorization, attempts, evidence, release state, and landing state.
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
 - **Capability is not permission.** A runtime may be able to push, merge, deploy, or clean up, but each action still needs exact authorization.
 - **Evidence follows the SHA.** A new push invalidates earlier CI, review, deployment, and UI evidence for the old head.
@@ -47,7 +47,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | Skill | Use it for | Main output |
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md` |
-| `ui-architecture-builder` | The UI architecture a page may be built from: layers, tokens, primitive contracts with closed variant sets, product components, motion rules, per-route recipes, real per-page HTML mockups, and visual acceptance | `ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, one HTML file per route under `mockups/` plus `mockups/catalog.html`, `visual-acceptance.md` |
+| `ui-architecture-builder` | The UI architecture a page may be built from: layers, tokens, primitive contracts with closed variant sets, product components, motion rules, per-route recipes, real per-page HTML mockups, and visual acceptance | `docs/product/design/ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, mandatory `design-system.html`, one HTML file per route under `mockups/` plus `mockups/catalog.html`, and `visual-acceptance.md` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Codex app tasks, app-managed worktrees, and nested read-only helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -110,12 +110,14 @@ Shared scripts, schemas, references, and templates remain under `fullstack-harne
 
 For remote delivery, the final local candidate is pushed once. GitHub Actions and Codex review start or are observed as sibling gates for that same PR head and are polled concurrently. A new push invalidates both, and merge still requires both to pass on the same SHA.
 
+Codex Cloud review is available only when the repository is connected to Codex Cloud and code review is enabled. Automatic review may start when a PR opens; otherwise request it with `@codex review`. If review capability is missing, record the review gate as unavailable, never passed.
+
 ## Graph engineering and Dynamic Workflows
 
 The skills use two graph layers:
 
 - The **org graph** is the stable role contract: product, architecture, UX, design-system, mission-worker, reviewer, approval, integration, and lifecycle responsibilities.
-- The **work graph** is the temporary task graph for one run. PRD and design workflows use bounded analysis graphs only when the host can enforce a `builder_readonly` tool profile; otherwise they fall back to the sequential parent. Engineering uses the canonical PLAN v4 graph and RUN v9 state.
+- The **work graph** is the temporary task graph for one run. PRD and design workflows use bounded analysis graphs only when the host can enforce a `builder_readonly` tool profile; otherwise they fall back to the sequential parent. Engineering uses the canonical PLAN v5 graph and RUN v10 state.
 
 Interviews and approvals stay outside running workflows because Claude Code Dynamic Workflows cannot ask for mid-run user input. The parent freezes inputs first, runs a bounded workflow, then owns staged writes, conflict resolution, approval, and publication.
 

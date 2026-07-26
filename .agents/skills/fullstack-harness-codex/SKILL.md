@@ -31,7 +31,7 @@ Do not cap the configured write-worker maximum at a small fixed number; set it g
 
 ## Codex Provider Defaults
 
-Preserve an explicit user or PLAN choice. Otherwise, for new PLAN-v4 runtime-worker nodes:
+Preserve an explicit user or PLAN choice. Otherwise, for new PLAN-v5 runtime-worker nodes:
 
 - for general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning;
 - frontend/UI implementation uses Codex `gpt-5.6-sol` with `high` reasoning;
@@ -76,9 +76,9 @@ When child capability is unknown, launch a no-production-edit handshake, poll it
 
 ## Provider Boundary
 
-This adapter is host-native only. A PLAN node is selectable here only when its `allowed_providers` includes `codex` and, when the node declares a `preferred_provider`, the current host still satisfies it. There is no mechanism in this adapter to invoke Claude Code, and no fallback that lets a `claude_code`-only node execute under Codex.
+This adapter is host-native only. A PLAN node is selectable here when its `allowed_providers` includes `codex`. `preferred_provider` is advisory ordering among allowed hosts; it never blocks the current Codex host when `codex` is allowed. There is no mechanism in this adapter to invoke Claude Code, and no fallback that lets a `claude_code`-only node execute under Codex.
 
-When the ready frontier includes a node whose required or preferred provider is `claude_code` and does not also allow `codex`, do not attempt to launch it and do not probe for a Claude Code CLI, binary, or plugin as a substitute route. Record that node as blocked on provider mismatch, leave it out of the accepted wave, and report it so a Claude-Code-hosted run can pick it up. This is expected steady state for a mixed-provider PLAN running under a single-host session, not an error to work around.
+When the ready frontier includes a node whose `allowed_providers` does not include `codex`, do not attempt to launch it and do not probe for a Claude Code CLI, binary, or plugin as a substitute route. Record that node as blocked on provider mismatch, leave it out of the accepted wave, and report it so a run hosted by an allowed provider can pick it up. This is expected steady state for a mixed-provider PLAN running under a single-host session, not an error to work around.
 
 ## Failure And Fallback
 

@@ -2,25 +2,25 @@
 
 Use this template as `docs/goal/RUN.md` only after the Project Size Gate classifies the work as large or the user explicitly requests managed planning. Small direct work does not instantiate this file. Keep mutable authorization, observed runtime facts, mission/task phases, wave selection, worker state, verification, blockers, and closeout here. Keep static plan definitions in `PLAN.md`; version support does not enable Cloudflare release state by itself.
 
-For compact large sequential work that intentionally has no `PLAN.md`, use schema v7, set the three `plan` values to `null`, remove the complete `deployments` and `graph_state` objects, and leave waves/workers empty. Default to `worker_runtime: "subagent"`, `workspace_mode: "parent_managed_worktree"`, `max_parallel_workers: 1`: the parent still processes one mission at a time, but each one gets its own worktree and merges into the primary checkout's own base branch (`landing.base_branch` — commonly `main`, but any branch the primary checkout treats as its base) only after its integration gate passes, so the primary checkout is never a direct implementation target. Fall back to `worker_runtime: "parent"`, `workspace_mode: "shared_checkout"` only when worktree creation itself is unavailable or unauthorized. That compact mode does not claim static plan or graph validation and cannot delegate writes, accept execution-time task refinement, or use a selector. Create and validate a schema-v4 `PLAN.md`, promote the RUN to schema v9, then fill the plan ID/revision/digest and graph state before crossing any of those boundaries.
+For compact large sequential work that intentionally has no `PLAN.md`, use the supported compact RUN-only schema described by `references/execution-state-model.md`; do not copy this PLAN-backed RUN schema v10 manifest and null its PLAN fields. Compact mode does not claim static plan or graph validation and cannot delegate writes, accept execution-time task refinement, use release targets, or use a selector. Before crossing those boundaries, create and validate a PLAN schema v5 file and a fresh RUN schema v10 file from this template.
 
 For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. Choose landing from the requested outcome: local branch, commit, or integration work stays `local_only` and does not wait for GitHub. When pull-request landing is explicitly requested, inspect the review and merge path and request every missing launch and landing action in one Plan Readiness checkpoint. Before the PR exists, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` for its review and merge targets. Record approvals under separate exact ledger entries, rerun selection after the answer, and continue through authorized review and merge without repeated prompts. Start or observe current-head CI and Codex review concurrently after the final candidate is pushed. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
 
+RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
+
+Older RUN schemas remain readable. Their `deployments` objects retain their original meaning; do not copy that older provider-shaped state into a new RUN schema v10 file.
+
 ## Harness Run State
-
-`deployments.provider` accepts `cloudflare | vercel | aws | self_hosted | other` and must match the PLAN's `release.provider`. The `development`/`production` fields below (including `worker_name`/`url`/`version_id`) apply to any provider, but a `PASS` status only requires a non-empty `worker_name`/`url`/`version_id` when `provider` is `cloudflare`; other providers only require `source_sha` and retained `evidence`.
-
-`deployments.production.authorized_head_sha` records the integration head SHA that was current when `deploy:production` was authorized; it is `null` while production is `not_started` but is required once production leaves `not_started`, so the deploy-time SHA-drift comparison has a recorded baseline — see `references/cloudflare-deployment-lifecycle.md`'s Pre-Deploy Confirmation Checkpoint.
 
 ```json
 {
   "harness_run": {
-    "schema_version": 9,
+    "schema_version": 10,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": null
+      "digest_sha256": "143e2b535d8cb4672598dc50634acc63d1bf45a5596ae1fbfe6f582f0ecdbac4"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -69,6 +69,10 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
         "authorized": false,
         "source": null
       },
+      "trigger_remote_ci": {
+        "authorized": false,
+        "source": null
+      },
       "configure_repository": {
         "authorized": false,
         "source": null
@@ -78,6 +82,10 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
         "source": null
       },
       "merge_pr": {
+        "authorized": false,
+        "source": null
+      },
+      "provision_cloud_resources": {
         "authorized": false,
         "source": null
       },
@@ -155,7 +163,8 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       }
     },
     "integration": {
-      "branch": null,
+      "branch": "refs/heads/harness/<stable-run-branch>",
+      "retention": "persistent",
       "batch_base_sha": null,
       "integration_head_sha": null
     },
@@ -173,13 +182,19 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
         "status": "planned",
         "head_sha": null,
         "evidence": []
+      },
+      {
+        "id": "final-closeout",
+        "status": "planned",
+        "head_sha": null,
+        "evidence": []
       }
     ],
     "ui_evidence": [],
     "landing": {
       "mode": "local_only",
       "remote": "origin",
-      "head_branch": null,
+      "head_branch": "refs/heads/harness/<stable-run-branch>",
       "base_branch": "main",
       "pushed_head_sha": null,
       "pr_number": null,
@@ -195,32 +210,38 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       "merge_status": "not_ready",
       "merged_sha": null,
       "auto_merge_requested": false,
-      "auto_merge_head_sha": null
+      "auto_merge_head_sha": null,
+      "continuity": {
+        "status": "planned",
+        "branch_ref": "refs/heads/harness/<stable-run-branch>",
+        "head_sha": null,
+        "reason": "Retain the verified local-only integration branch for a later pull request"
+      }
     },
-    "deployments": {
-      "provider": "cloudflare",
-      "development": {
-        "status": "not_started",
-        "source_sha": null,
-        "worker_name": null,
-        "url": null,
-        "version_id": null,
-        "migration_status": "not_started",
-        "verification_status": "not_started",
-        "rollback_version": null,
-        "evidence": []
-      },
-      "production": {
+    "targets": {
+      "web-development": {
         "status": "not_started",
         "source_sha": null,
         "authorized_head_sha": null,
-        "worker_name": null,
-        "url": null,
-        "version_id": null,
+        "artifact": null,
+        "channel": null,
+        "promotion": null,
+        "availability": null,
         "migration_status": "not_started",
         "verification_status": "not_started",
-        "rollback_version": null,
-        "evidence": []
+        "destructive_migration_confirmed_sha": null
+      },
+      "web-production": {
+        "status": "not_started",
+        "source_sha": null,
+        "authorized_head_sha": null,
+        "artifact": null,
+        "channel": null,
+        "promotion": null,
+        "availability": null,
+        "migration_status": "not_started",
+        "verification_status": "not_started",
+        "destructive_migration_confirmed_sha": null
       }
     },
     "post_merge_cleanup": {
@@ -256,12 +277,127 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
           "last_outcome": null,
           "bound_worker_id": null,
           "blockers": []
+        },
+        "N-M1-REPAIR": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-FRONTEND-REVIEW": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-FINAL-GATE": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-VISUAL-REVIEW": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-VISUAL-REPAIR": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-CLOSEOUT-GATE": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
         }
       },
-      "edge_states": {}
+      "edge_states": {
+        "E-M1-FRONTEND-REVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-FRONTEND-REVIEW-REPAIR": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-REPAIR-FRONTEND-REREVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-FRONTEND-FINAL-GATE": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-FINAL-VISUAL-REVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-REVIEW-REPAIR": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-REPAIR-REREVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-CLOSEOUT": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        }
+      }
     },
     "mission_states": {
       "M1": {
+        "phase": "queued",
+        "lease_id": null,
+        "lease_plan_revision": null,
+        "lease_plan_digest_sha256": null,
+        "worker_id": null,
+        "base_sha": null,
+        "head_sha": null,
+        "integration_gate": "planned",
+        "integrated_sha": null,
+        "blockers": [],
+        "report_path": null
+      },
+      "M2": {
+        "phase": "queued",
+        "lease_id": null,
+        "lease_plan_revision": null,
+        "lease_plan_digest_sha256": null,
+        "worker_id": null,
+        "base_sha": null,
+        "head_sha": null,
+        "integration_gate": "planned",
+        "integrated_sha": null,
+        "blockers": [],
+        "report_path": null
+      },
+      "M3": {
         "phase": "queued",
         "lease_id": null,
         "lease_plan_revision": null,
@@ -283,6 +419,22 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
         "verifier_status": "planned",
         "blockers": [],
         "refinement_request": null
+      },
+      "M2/T01": {
+        "phase": "queued",
+        "attempts": 0,
+        "commit_sha": null,
+        "verifier_status": "planned",
+        "blockers": [],
+        "refinement_request": null
+      },
+      "M3/T01": {
+        "phase": "queued",
+        "attempts": 0,
+        "commit_sha": null,
+        "verifier_status": "planned",
+        "blockers": [],
+        "refinement_request": null
       }
     },
     "active_wave": {
@@ -298,6 +450,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
     "workers": [],
     "review_workers": [],
     "workflow_runs": [],
+    "verifier_executions": [],
     "attempt_log": []
   }
 }
@@ -307,36 +460,35 @@ The exact fenced JSON block above is the canonical run state. Scripts read this 
 
 ### RUN Schema Version History
 
-New RUN files always use v9 (see `SKILL.md`'s Default Runtime And Wave Policy). Older schemas below exist only so a parent can keep reading a RUN.md written before this history table existed; nothing here changes what a new file must contain.
+New RUN files always use RUN schema v10 (see `SKILL.md`'s Default Runtime And Wave Policy). Older RUN schemas remain readable; their own recorded `schema_version` decides which fields apply.
 
 | Schema | Added | Still readable |
 |---|---|---|
-| v2 | Baseline: 13-action ledger, no landing/deployment/graph state | yes |
-| v3 | 16-action ledger (`configure_repository`, `manage_pr_review`, `merge_pr`), `landing` object | yes |
-| v4 | `auto_merge_requested` / `auto_merge_head_sha` on `landing` | yes |
+| v2 | Baseline 13-action ledger | yes |
+| v3 | Repository/review/merge actions and `landing` | yes |
+| v4 | SHA-bound auto-merge state | yes |
 | v5 | `post_merge_cleanup` | yes |
-| v6 | `runtime_adapter`, `future-pr:` authorization targets | yes |
-| v7 | Cloudflare `deployments` (required only when PLAN declares `release`) | yes |
-| v8 | `graph_state` for PLAN-v4 typed nodes/edges, 17-action ledger (+`invoke_external_runtime`) | yes |
-| v9 (current default) | `batch_gate_results`, `final_gate_results`, `ui_evidence`; `workflow_runs` when also paired with a PLAN-v4 graph run | current |
+| v6 | `runtime_adapter` and `future-pr:` targets | yes |
+| v7 | Legacy provider-shaped `deployments` | yes |
+| v8 | PLAN-v4 graph state and `invoke_external_runtime` | yes |
+| v9 | Batch/final/UI evidence and workflow runs | yes |
+| v10 (current default) | PLAN-v5 binding, provider-neutral `targets`, two new action gates, local branch continuity, and append-only `verifier_executions` | current |
 
-The rest of this document states rules as the current v9 shape. Where a rule differs for an older, still-readable file, that file's own recorded `schema_version` decides which fields apply — do not backfill v9-only fields into an older valid file just because this history table lists them.
+RUN schema v10 has 19 independent action entries. Keep every entry false unless an explicit user instruction authorizes that exact action. Every authorized execution scope and action scope binds `run_id`, current `plan_revision`, current `plan_digest_sha256`, mission IDs, and the lifecycle boundary; action scopes also bind exact targets. A PLAN revision or digest change invalidates the grant. `invoke_external_runtime` uses `runtime:<provider>`. `trigger_remote_ci` requires `workflow:<identity>`. `provision_cloud_resources` requires `cloud-resource:<provider>:<environment>:<kind>:<logical-name>`. Head-bound remote actions also record `authorized_head_sha` and cannot use `*` targets.
 
-The schema-v9 action ledger has 17 independent entries. Keep every entry false unless an explicit user instruction authorizes that exact action; put a concise evidence reference in its `source`. `invoke_external_runtime` is separate from `spawn_subagents` and uses an exact `runtime:<provider>` target because it can cross a data, cost, and permission boundary. When `execution_authorized` is true, `execution_authorization_source` must identify the explicit user source and `execution_authorization_scope` must be `{ "run_id": ..., "mission_ids": [...], "expires_when": ... }` matching the current operation. `execution_authorized` is an overall implementation gate, not a substitute for action-specific authorization. At Plan Readiness, one prompt may request all missing execution, launch, branch, commit, integration, push, PR creation, review-management, and merge actions for exact targets, but every action remains a separate ledger entry. Use the schema-v6-through-v9 `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` target for review and merge only until that PR is created. Repository configuration may join that checkpoint only for an observed exact setup change. Deploy, archive, worktree removal, and branch deletion remain outside the landing bundle.
+`graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. A runtime review's `fix_required` outcome traverses only its bounded repair route; a passing repair returns to the same review before a deterministic final gate. Every retry uses a new attempt ID, preserves prior evidence, and rechecks authorization.
 
-`graph_state` is the canonical routing record for PLAN-v4 nodes and edges. Initialize one state for every declared node and edge. A mission node reaches `succeeded` with outcome `pass` only when its matching mission state is `integrated` with an integration `PASS`; keep mission state for lease/Git/integration details and graph state for attempt/outcome/routing details. Every retry uses a new `last_attempt_id`, increments `attempts`, preserves the prior attempt evidence in `attempt_log`, and rechecks authorization. Edge `traversals` never exceeds the PLAN bound. Run `select_ready_nodes.py` after every terminal node result, integration, graph revision, or changed external state.
+New RUN files default to `mode: "local_only"`; switch to `pull_request` only when the user explicitly requests remote landing. A RUN-v10 local-only run records no remote checks/review/merge evidence and preserves later-PR branch continuity: `landing.head_branch` equals `integration.branch`, differs from `landing.base_branch`, and `landing.continuity` reaches `preserved` at the exact integration head before closeout. Pull-request mode sets continuity to `not_required`.
 
-`landing` is required in schemas v3 through v9. Schemas v4 through v9 include the auto-merge fields shown above; v3 remains readable without them. Schemas v5 through v9 include `post_merge_cleanup`. Schemas v7 through v9 support Cloudflare `deployments` state, but the field is required only when the matching PLAN declares `release` and must be omitted otherwise. Valid older RUN schemas remain readable. New RUN files default to `mode: "local_only"`; switch to `pull_request` only when the user explicitly requests remote landing. Local-only mode cannot record a pushed head or created PR. A created PR records its current remote head in both `pushed_head_sha` and `pr_head_sha`. `checks_status: "PASS"` and `review_status: "PASS"` are valid only when their recorded head SHA and `integration.integration_head_sha` match that current PR head. Any new push or local integration makes the old landing result stale; reset the affected status, push the current integration head, request review again, and do not set `merge_status: "ready"` until the PR head equals the integration head, current-head checks and review pass, and blocking findings and unresolved threads are zero. Preserve those same gates when recording `merge_status: "merged"`, then also record `pr_state: "merged"` and `merged_sha`.
+When PLAN declares release targets, `run.targets` keys must exactly equal the PLAN `release.targets[].id` set. PASS requires exact source/head binding plus retained artifact, channel, promotion, and availability evidence. Every evidence object has a retained reference and lowercase SHA-256; artifact evidence also records build ID, version, and signing status. Release execution never weakens action boundaries: a native merge-triggered publication requires exact merge/landing authorization and exact deployment authorization for the same release target and head. Never infer deployment authorization from merge authorization.
 
-When schema v7 through v9 carries `deployments`, deploy the current PR head to the development Worker only after current-head CI passes. Record its exact SHA, Worker, URL, Cloudflare version ID, migration result, deployed-environment verification, and evidence. Production may reach `PASS` only after development is `PASS`, the PR is merged, and the production source SHA equals `landing.merged_sha`. A complete Cloudflare run requires both targets to pass. Before either mutation, the `deploy` ledger must cover every run mission and the exact `environment:development` or `environment:production` target. One explicit readiness statement may authorize both targets, but deployment stays a separate ledger action from push, merge, and repository configuration.
+See `references/execution-state-model.md`'s closeout condition table for the full `status: complete` requirement. Every applicable condition must hold, with retained RUN-v10 verifier, batch, final, UI, and release evidence bound to the current head.
 
-See `references/execution-state-model.md`'s closeout condition table for the full `status: complete` requirement. Every applicable condition there must hold, with non-empty evidence for each schema-v9 batch, final gate, and required UI screenshot bound to the current integration head.
-
-Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. At request time this requires `merge_status: "ready"`, current-head CI and Codex review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and unexpired `merge_pr` authorization whose mission scope covers the run and whose target is `pr:<full-PR-URL>` (or an explicitly run-wide `*`). If that entry began with `future-pr:`, retain it and verify that the exact PR has the same repository, base, and head before appending the exact target. Use `gh pr merge --auto --squash --match-head-commit <sha>` or an equivalent exact-head operation. After the PR reaches `merge_status: "merged"`, preserve the matching authorization evidence even when its `run_complete` boundary expires during final closeout. Any new push, changed integration head, canceled request, or closed-unmerged PR resets the fields to `false` and `null`.
+Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. This requires `merge_status: "ready"`, current-head CI and review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and unexpired `merge_pr` authorization bound to the current PLAN revision/digest, exact PR, and exact `authorized_head_sha`; head-bound actions never use `*`. If the merge triggers any native provider publication, the merge scope also names every `release:<target-id>` consequence and a separate `deploy` authorization names the same target and authorized head. The deploy grant is checked independently; it is never inferred from the merge grant. If the merge entry began with `future-pr:`, retain it, verify repository/base/head, and append the exact PR target. Use an exact-head merge operation. Any new push, PLAN change, changed integration head, canceled request, or closed-unmerged PR invalidates the request and its head-bound grants.
 
 A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
 
-Schemas v5 through v9 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, every precondition below must hold:
+Schemas v5 through v10 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, every precondition below must hold:
 
 | Precondition | Requirement |
 |---|---|
@@ -349,9 +501,9 @@ Schemas v5 through v9 use `post_merge_cleanup` only after a pull request reaches
 
 Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. When `run.integration.retention == "persistent"`, `post_merge_cleanup.local_branch.status` must be `"preserved"`, not `"deleted"` — the branch itself is never removed by cleanup, though its temporary worktree directory (a separate concern) may still be removed normally via `remove_worktrees` when one was allocated for this run. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
 
-Create the final integration branch and PR from the parent checkout. When `run.integration.retention` is declared `"persistent"` (used for example by the Cloudflare Auto-Deploy Release Model, which needs a Cloudflare Worker to continuously watch one unchanging branch): on the very first run that adopts this retention, no such branch exists yet, so create it once — branch off `landing.base_branch` and push it — before treating it as this run's `integration.branch`. Every run after that first one finds the branch already there: the parent does not create a brand-new branch each run; instead it resolves the existing named branch's current remote/local head as `batch_base_sha` and reuses that same branch as this run's `integration.branch`, so the branch survives across runs instead of being a one-off per-run branch. In pull-request mode, record that same branch in both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. In `local_only` mode there is no separate long-lived integration branch: `integration.branch` is `landing.base_branch` itself — the primary checkout's own base branch, commonly local `main` but not required to be — and each mission's worktree branch merges directly into it once that mission's integration gate passes — that merge is the local dev-test point, run its integration verifiers against the updated base branch immediately after. Worker branches and worker worktrees do not push or open their own PRs unless the plan explicitly defines a separate landing target. Converge focused checks, mission integration, batch checks, and exact-SHA runtime code-review repairs before the expensive final broad regression, browser E2E, screenshot, and visual-review matrix. Any repair that changes the head invalidates affected current-head evidence. The normal landing order is final local verification and read-only diff review, push final branch, create Draft PR, pass CI, mark Ready, obtain GitHub review, resolve blocking threads, then enable SHA-bound auto-merge only with separate `merge_pr` authorization. Never push the base branch directly in pull-request mode.
+Create and integrate on the parent-owned retained branch named by both `integration.branch` and `landing.head_branch`; it must differ from `landing.base_branch`. This branch is the continuity point in both landing modes. In `local_only`, do not push or create remote evidence; after final local verification, record `landing.continuity.status: "preserved"` and bind its branch ref and head SHA to the exact integration head so a later authorized pull request can continue from it. In `pull_request`, set continuity to `not_required`, push this same final candidate branch, and continue through the remote landing flow. Worker branches and worktrees never become the landing branch. Converge focused checks, mission integration, bounded review-repair-review, batch checks, and exact-SHA runtime review before expensive final regression, browser E2E, screenshot, and release gates. Any repair that changes the head invalidates affected current-head evidence.
 
-When every state mutation that remains in the landing path has matching unexpired authorization for the run and exact targets—normally `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `manage_pr_review`, and `merge_pr` for a new delivery—treat that order as one continuous parent-owned landing loop. Request the complete missing set once at Plan Readiness rather than discovering ordinary landing approvals stage by stage. For unborn PR review and merge entries, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Do not pause merely because a Draft PR was created, CI is pending, or review was requested. Poll each gate, record its result against the current PR head, repair only authorized in-scope failures, and restart CI/review after every new push. Request Codex review with the observed repository mechanism; when Automatic reviews are not proven, use `@codex review` and wait for the completed review rather than its acknowledgement. Enable squash auto-merge with an exact head-SHA match only after checks and review PASS with zero blocking findings and unresolved threads, then wait until GitHub reports the PR merged and record the merge SHA. Missing repository configuration still requires separate `configure_repository` authorization, though an observed need may be included in the same readiness checkpoint; deploy and cleanup remain outside this loop.
+When every state mutation that remains in the landing path has matching unexpired authorization for the current PLAN revision/digest and exact targets—normally `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `create_pr`, `trigger_remote_ci` when a workflow must be dispatched, `manage_pr_review`, and `merge_pr` for a new delivery—treat that order as one continuous parent-owned landing loop. Request the complete missing set once at Plan Readiness rather than discovering ordinary landing approvals stage by stage. For unborn PR review and merge entries, use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Do not pause merely because a Draft PR was created, CI is pending, or review was requested. Poll each gate, record its result against the current PR head, repair only authorized in-scope failures, and restart CI/review after every new push. Request Codex review with the observed repository mechanism; when Automatic reviews are not proven, use `@codex review` and wait for the completed review rather than its acknowledgement. Enable squash auto-merge with an exact head-SHA match only after checks and review PASS with zero blocking findings and unresolved threads, then wait until GitHub reports the PR merged and record the merge SHA. Missing repository configuration still requires separate `configure_repository` authorization, though an observed need may be included in the same readiness checkpoint; deploy and cleanup remain outside this loop.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
 
@@ -361,6 +513,8 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
   "source": "<explicit user statement reference>",
   "scope": {
     "run_id": "RUN-<stable-id>",
+    "plan_revision": 1,
+    "plan_digest_sha256": "<lowercase SHA-256 of the current semantic PLAN>",
     "mission_ids": [
       "M1"
     ],
@@ -372,7 +526,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-When an action is authorized, scope is required and must cover the current run, mission, and target; use `"*"` only when the user's approval is explicitly run-wide. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, `environment:<name>`, or `runtime:<provider>` as appropriate. Schemas v6 through v9 additionally permit `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr`; it must resolve to and retain the matching exact PR target before either mutation. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`; the coordinator evaluates that boundary against current RUN state. Treat an expired or nonmatching entry as unauthorized.
+When an action is authorized, scope is required and must cover the current run, current PLAN revision/digest, mission, and target. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, `repository:<identity>`, `environment:<name>`, `release:<target-id>`, `runtime:<provider>`, `workflow:<identity>`, or `cloud-resource:<provider>:<environment>:<kind>:<logical-name>` as appropriate. `manage_pr_review` and `merge_pr` may use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` until the exact PR exists, then retain it and add the exact PR target. Head-bound `push`, `create_pr`, `manage_pr_review`, `merge_pr`, and `deploy` entries also require `authorized_head_sha` and exact targets, never `*`. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`. Treat a changed PLAN revision/digest, changed authorized head, expired boundary, or nonmatching target as unauthorized.
 
 Treat `wave_closed` as a one-use grant. On `closed` or `superseded`, reset matching action entries to unauthorized and clear an overall wave-scoped execution grant before replacing `active_wave`; never carry that source into the next wave.
 
@@ -388,7 +542,7 @@ Use these exact coordination enums:
 - `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
 - `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
 
-Schemas v6 through v9 require `runtime_capabilities.runtime_adapter`. The parent detects actual host capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available host driver in `available_drivers`. Always include `sequential_parent`. Capability detection is not authorization.
+Schemas v6 through v10 require `runtime_capabilities.runtime_adapter`. The parent detects actual host capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available host driver in `available_drivers`. Always include `sequential_parent`. Capability detection is not authorization.
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
 
@@ -473,7 +627,7 @@ Each `review_workers` entry uses this exact read-only shape:
 
 The matching successful node result puts exactly `reviewed_sha`, `findings`, and `evidence_summary` inside `worker_result`. The reviewed SHA must match the active review worker.
 
-Graph RUN schemas v8 and v9 may include `workflow_runs` to bind canonical node attempts to actual outer Claude Code Workflow executions. Invoke the Claude Code `Workflow` tool with the canonical PLAN, RUN, and immutable wave request; the parent revalidates current state, authorization, worker bindings, and checkout HEAD before launch. Add an entry only when the runtime returns a real non-empty workflow run ID; never invent one. Running entries bind every node ID to its active attempt ID and must match the current plan, graph, runtime policy, and batch base. One entry may cover node IDs with different resolved models and reasoning efforts; each node's own `model`/`reasoning_effort` still lives on its `workers[]`/`review_workers[]` `runtime_binding`, not on the `workflow_runs` entry. Completed historical entries remain as evidence after later graph revisions and do not require their superseded nodes to remain in the current PLAN.
+Graph RUN schemas v8 through v10 may include `workflow_runs` to bind canonical node attempts to actual outer Claude Code Workflow executions. Invoke the Claude Code `Workflow` tool with the canonical PLAN, RUN, and immutable wave request; the parent revalidates current state, authorization, worker bindings, and checkout HEAD before launch. Add an entry only when the runtime returns a real non-empty workflow run ID; never invent one. Running entries bind every node ID to its active attempt ID and must match the current plan, graph, runtime policy, and batch base. One entry may cover node IDs with different resolved models and reasoning efforts; each node's own `model`/`reasoning_effort` still lives on its `workers[]`/`review_workers[]` `runtime_binding`, not on the `workflow_runs` entry. Completed historical entries remain as evidence after later graph revisions and do not require their superseded nodes to remain in the current PLAN.
 
 ```json
 {
@@ -538,6 +692,88 @@ Use these exact array entry shapes:
 ```
 
 `managed_by` is `parent` or `app`. Sort selected/deferred IDs and conflict-edge endpoints deterministically before recording a parent-confirmed wave.
+
+## Retained Verifier Executions
+
+RUN-v10 `verifier_executions` is append-only and parent-owned. A worker may return candidate command results, but it never appends or edits canonical RUN state. The parent resolves the PLAN verifier, validates its mission/task/attempt/lease association, normalizes the verifier and context, verifies the key document and hashes, then appends one immutable entry. Never replace a failed execution with a later pass; retain both under unique `execution_id` values. A retained failed record never satisfies PASS: only a separate current-head passing execution may satisfy the verifier.
+
+```json
+{
+  "execution_id": "VX-001",
+  "verifier_id": "task-focused",
+  "layer": "task",
+  "mission_id": "M1",
+  "task_id": "M1/T01",
+  "attempt_id": "ATT-M1-T01-1",
+  "lease_id": "<retained lease id>",
+  "protocol": "harness-verifier-execution-v1",
+  "execution_key": "<lowercase SHA-256 of key_document>",
+  "evidence_key": "<retained evidence identity>",
+  "key_document": {
+    "run_id": "RUN-<stable-id>",
+    "plan_revision": 1,
+    "plan_digest_sha256": "<current PLAN digest>",
+    "verifier_id": "task-focused",
+    "head_sha": "<exact verified head>"
+  },
+  "verifier": {
+    "id": "task-focused",
+    "cwd": ".",
+    "argv": ["<runner>", "<task-argument>"],
+    "pass_signal": "exit 0"
+  },
+  "context": {
+    "run_id": "RUN-<stable-id>",
+    "plan_revision": 1,
+    "plan_digest_sha256": "<current PLAN digest>",
+    "head_sha": "<exact verified head>"
+  },
+  "status": "PASS",
+  "exit_code": 0,
+  "cache_status": "bypassed",
+  "cache_reason": "Verifier is not eligible for reuse",
+  "duration_ms": 0,
+  "metrics": {"executed": 1, "reused": 0},
+  "stdout_sha256": "<lowercase SHA-256>",
+  "stderr_sha256": "<lowercase SHA-256>",
+  "evidence_paths": []
+}
+```
+
+## Release Target Evidence
+
+A target may move to `PASS` only with artifact, channel, promotion, and availability objects. Each object records the exact subject, retained reference, and lowercase `evidence_sha256`. Artifact evidence also records `build_id`, `version`, and `signing_status`; channel evidence names the exact PLAN channel. For example:
+
+```json
+{
+  "artifact": {
+    "subject": "web-production artifact",
+    "retained_reference": "<artifact URL or immutable repository path>",
+    "evidence_sha256": "<lowercase SHA-256>",
+    "build_id": "<provider-neutral build ID>",
+    "version": "<artifact version>",
+    "signing_status": "not_required"
+  },
+  "channel": {
+    "subject": "web-production channel",
+    "retained_reference": "<channel observation>",
+    "evidence_sha256": "<lowercase SHA-256>",
+    "name": "workers-production"
+  },
+  "promotion": {
+    "subject": "web-production promotion",
+    "retained_reference": "<promotion evidence>",
+    "evidence_sha256": "<lowercase SHA-256>",
+    "status": "PASS"
+  },
+  "availability": {
+    "subject": "web-production availability",
+    "retained_reference": "<smoke or availability evidence>",
+    "evidence_sha256": "<lowercase SHA-256>",
+    "status": "PASS"
+  }
+}
+```
 
 ## Goal And Checkpoint
 

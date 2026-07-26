@@ -25,6 +25,7 @@ Record every required action separately:
 configure_repository
 push
 create_pr
+trigger_remote_ci
 manage_pr_review
 merge_pr
 ```
@@ -41,7 +42,7 @@ Remote CI is a final-head release gate, not a per-mission development loop:
 2. Commit the verified integration head under exact local authorization.
 3. Push only that final candidate head. Do not push intermediate worker heads merely to obtain CI.
 4. Create the PR only when authorized, using `gh pr create --body-file` rendered from `../fullstack-harness-engineering/assets/templates/PULL_REQUEST.template.md` (fill in the verification command and landing checklist) as the body base. If review management is authorized and the repository requires a ready PR for review, mark it ready and request Codex review immediately after creation — when the repository does not have Automatic reviews enabled, this means commenting `@codex review` on the PR (`gh pr comment --body "@codex review"`); do not wait for CI first.
-5. Start or observe GitHub Actions and Codex review for the same PR head, then poll both concurrently. They are sibling remote gates, not a serial `CI -> review` chain.
+5. Observe automatically started GitHub Actions and Codex review for the same PR head, then poll both concurrently. Observation is read-only. Dispatching, rerunning, or otherwise causing a remote workflow execution requires separate `trigger_remote_ci` authorization with an exact `workflow:<identity>` target. CI and review are sibling remote gates, not a serial `CI -> review` chain.
 
 The normal remote critical path is:
 
@@ -78,13 +79,15 @@ Enable squash auto-merge only after:
 - blocking findings and unresolved threads are zero;
 - `merge_pr` covers every required mission and the exact PR target.
 
-Use an exact-head guard. A new push resets the merge request and both remote gates. Wait until GitHub reports the PR merged before declaring landing complete, and record the merged SHA separately from a squash-merged PR head.
+Use an exact-head guard. The authorized candidate head is the exact PR head the user approved for merge and any merge-triggered publication consequence. A new push resets the merge request and both remote gates. Wait until GitHub reports the PR merged before declaring landing complete, then record the resulting merged source SHA separately; a squash merge normally makes it differ from the authorized candidate head.
 
 If repository auto-merge, required checks, or review configuration needs a change, do not mutate settings without exact `configure_repository` authorization. Direct push or merge to the base branch is never a substitute for the PR flow.
 
 ## Deployment And Cleanup Boundaries
 
-Deployment is not part of GitHub landing authorization. For Cloudflare, development and production are separate exact-SHA targets with separate `deploy` authorization; read the core lifecycle reference only when deployment is requested. Cleanup, task archival, worktree removal, and branch deletion remain separate post-merge actions and are never inferred from a successful merge. When the target release uses the Cloudflare Auto-Deploy Release Model (`run.integration.retention: "persistent"`, development `source: "integration_head"` — see the core lifecycle reference), merging the integration branch into `main` through this adapter's landing loop is the de facto production-deploy trigger, since Cloudflare's own Git integration auto-deploys on that push; run the core's Pre-Deploy Confirmation Checkpoint (SHA-drift and migration-destructiveness checks) immediately before that merge in this case, not as a separate later step.
+Deployment is not part of GitHub landing authorization. Release target IDs are provider-neutral and exact-SHA-bound; read the core provider lifecycle only when deployment is requested. Cleanup, task archival, worktree removal, and branch deletion remain separate post-merge actions and are never inferred from a successful merge.
+
+A native merge-triggered Cloudflare release crosses two independent boundaries at the same operation. It requires exact merge/landing authorization bound to the current PLAN revision/digest, exact PR/head, and every `release:<target-id>` consequence. It also requires exact deployment authorization bound to the same PLAN revision/digest, head, missions, and `release:<target-id>` target. Never infer deployment authorization from merge authorization, and never infer merge authorization from deployment authorization. If either grant is absent, stale, or targets a different head, do not merge. Run the core Pre-Deploy Confirmation Checkpoint immediately before the merge because that merge is the provider's publication trigger.
 
 ## Completion
 

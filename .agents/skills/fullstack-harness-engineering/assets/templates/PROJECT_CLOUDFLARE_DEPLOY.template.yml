@@ -58,7 +58,8 @@ jobs:
 
       # Add the repo-specific runtime setup and deterministic build steps here.
 
-      # Remove this step only when PLAN records migration_command: null.
+      # Include this step only when the PLAN-v5 target classifies a migration and commands.migrate is non-null.
+      # A null migration_classification is unresolved and blocks dispatch.
       - name: Apply target migrations
         run: <migration-command>
 

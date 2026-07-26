@@ -92,8 +92,23 @@ class ValidateNodeResultTests(unittest.TestCase):
             errors = validate_node_result(plan, run, result)
 
         self.assertIn(
-            "node result validation requires PLAN v4 and RUN v8 or v9", errors
+            "node result validation requires PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10",
+            errors,
         )
+
+    def test_plan_v5_run_v10_pair_uses_graph_node_result_validation(self) -> None:
+        plan = valid_graph_plan()
+        plan["schema_version"] = 5
+        run = valid_graph_run(plan)
+        run["schema_version"] = 10
+        result = running_result(plan, run)
+
+        with patch("validate_node_result.validate_plan", return_value=[]), patch(
+            "validate_node_result.validate_run", return_value=[]
+        ):
+            errors = validate_node_result(plan, run, result)
+
+        self.assertEqual([], errors)
 
     def test_contract_gap_outcome_requires_a_refinement_request(self) -> None:
         plan = valid_graph_plan()

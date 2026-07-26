@@ -44,7 +44,7 @@ Detect the host that is executing the Harness. Current-session Codex project/thr
 
 Perform this detection proactively before the first production edit in every plan-backed multi-mission run. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
 
-A PLAN node's required or preferred provider must match the host adapter that is actually running the harness. There is no cross-host fallback and no mechanism to invoke the other runtime from this one: a ready node whose provider does not match the current host is not executable here. Report it as blocked on provider mismatch and leave it for a run hosted by the matching adapter.
+A PLAN node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host. There is no cross-host fallback and no mechanism to invoke the other runtime from this one: a ready node whose allowed providers do not include the current host is not executable here. Report it as blocked on provider mismatch and leave it for a run hosted by an allowed adapter.
 
 ## Default Plan-Backed Wave
 
@@ -254,7 +254,7 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Review the final diff locally and rerun final gates before any outward-facing landing action. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
 - Local-only delivery stops after its authorized local branch, commit, integration, and final verification outcome; it does not load remote landing or wait for GitHub.
 - In pull-request mode, `integration.branch` and `landing.head_branch` must name the same final feature branch, and that branch must differ from `landing.base_branch`. Never push the base branch directly. Push only the final verified feature/integration candidate, create or ready the PR as authorized, then start or observe current-head CI and Codex review concurrently.
-- When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in schema v4 through v9 and reset it after any new push or changed integration head.
+- When the repository allows auto-merge and `merge_pr` covers the exact PR, wait for current-head CI and Codex review PASS plus zero blocking findings and unresolved threads, then enable squash auto-merge with an exact head-SHA match. Record the request in current RUN v10 (older RUN v4 through v9 retain their historical fields) and reset it after any new push or changed integration head.
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
 - Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and restart both remote gates for the new head.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.

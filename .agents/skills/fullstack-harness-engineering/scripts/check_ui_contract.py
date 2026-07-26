@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 from pathlib import Path
 
@@ -30,6 +31,7 @@ RULES = (
     "call-site-motion",
     "section-without-container",
 )
+ANALYZABLE_SUFFIXES = {".html", ".css", ".tsx", ".jsx", ".ts", ".js", ".astro", ".vue"}
 
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\b")
 # color-mix is excluded on purpose: it derives a color from its arguments, and a
@@ -85,6 +87,7 @@ class Registry:
         if not isinstance(recipes, dict):
             raise UiContractError(f"{source}: 'recipes' must be an object")
         self.recipes = recipes
+        self._validate_evidence_contract(data)
         self.scaffold_classes = set(self._string_list(data, "reviewScaffoldClasses"))
         self.container_classes = self._container_classes()
         self.known_classes = self._known_classes() | self.scaffold_classes
@@ -97,6 +100,68 @@ class Registry:
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             raise UiContractError(f"'{key}' must be a list of strings")
         return value
+
+    def _validate_evidence_contract(self, data: dict) -> None:
+        has_viewports = "viewports" in data
+        has_size_classes = "sizeClasses" in data
+        viewports = data.get("viewports")
+        size_classes = data.get("sizeClasses")
+        valid_viewports = (
+            isinstance(viewports, list)
+            and bool(viewports)
+            and all(
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(value)
+                and value > 0
+                for value in viewports
+            )
+            and len(set(viewports)) == len(viewports)
+        )
+        valid_sizes = (
+            isinstance(size_classes, list)
+            and bool(size_classes)
+            and all(
+                isinstance(value, str) and bool(value.strip())
+                for value in size_classes
+            )
+            and len(set(size_classes)) == len(size_classes)
+        )
+        if (
+            has_viewports == has_size_classes
+            or (has_viewports and not valid_viewports)
+            or (has_size_classes and not valid_sizes)
+        ):
+            raise UiContractError(
+                f"{self.source}: define exactly one non-empty unique responsive set: "
+                "viewports or sizeClasses"
+            )
+        for route, recipe in self.recipes.items():
+            if (
+                not isinstance(route, str)
+                or not route.strip()
+                or not isinstance(recipe, dict)
+            ):
+                raise UiContractError(f"{self.source}: every recipe must map a route to an object")
+            for key in ("requiredStates",):
+                value = recipe.get(key)
+                if value is not None and (
+                    not isinstance(value, list)
+                    or any(
+                        not isinstance(item, str) or not item.strip()
+                        for item in value
+                    )
+                ):
+                    raise UiContractError(
+                        f"{self.source}: recipe {route!r} {key} must be a string list"
+                    )
+            ui_id = recipe.get("uiId")
+            if ui_id is not None and (
+                not isinstance(ui_id, str) or not ui_id.strip()
+            ):
+                raise UiContractError(
+                    f"{self.source}: recipe {route!r} uiId must be a non-empty string"
+                )
 
     @staticmethod
     def _slug(name: str) -> str:
@@ -342,6 +407,9 @@ def check_paths(
     token_sources: list[str],
     primitive_sources: list[str] | None = None,
 ) -> tuple[list[str], bool]:
+    files = [file for file in files if file.suffix.lower() in ANALYZABLE_SUFFIXES]
+    if not files:
+        raise UiContractError("no analyzable UI source files were provided")
     declared = {Path(item).as_posix() for item in registry.token_sources}
     declared.update(Path(item).as_posix() for item in token_sources)
     primitives = {Path(item).as_posix() for item in registry.primitive_sources}

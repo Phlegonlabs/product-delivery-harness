@@ -122,10 +122,11 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             }
         ]
         registry = {
+            "viewports": [390],
             "recipes": {
                 "/home": {"requiredStates": ["ready", "loading", "empty", "n/a"]},
                 "/settings": {"requiredStates": ["ready"]},
-            }
+            },
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -153,9 +154,106 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         joined = " ".join(payload["errors"])
         self.assertIn("omits state loading", joined)
         self.assertIn("omits state empty", joined)
-        self.assertIn("no surface for route /settings", joined)
-        # `n/a` in a recipe is a documented exemption, not a required state.
-        self.assertNotIn("omits state n/a", joined)
+        self.assertIn("omits state n/a", joined)
+        self.assertNotIn("/settings", joined)
+
+    def test_registry_cross_check_enforces_responsive_values_per_surface(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "home",
+                "trace_ids": ["REQ-001"],
+                "route": "/home",
+                "breakpoints": ["390"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+            }
+        ]
+        registry = {
+            "viewports": [390, 768],
+            "recipes": {
+                "/home": {
+                    "uiId": "UI-001",
+                    "requiredStates": ["ready", "error"],
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            registry_path = root / "ui-registry.json"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS_DIR / "validate_harness_plan.py"),
+                    "--plan",
+                    str(plan_path),
+                    "--ui-registry",
+                    str(registry_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        joined = " ".join(json.loads(result.stdout)["errors"])
+        self.assertIn("surface home route /home omits state error", joined)
+        self.assertIn("surface home route /home omits responsive target 768", joined)
+        self.assertNotIn("UI-001", joined)
+
+    def test_registry_cross_check_rejects_malformed_evidence_contract(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "home",
+                "trace_ids": ["REQ-001"],
+                "route": "/home",
+                "breakpoints": ["390"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+            }
+        ]
+        registry = {
+            "viewports": [0],
+            "recipes": {
+                "/home": {
+                    "uiId": [],
+                    "requiredStates": ["ready", " "],
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            registry_path = root / "ui-registry.json"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS_DIR / "validate_harness_plan.py"),
+                    "--plan",
+                    str(plan_path),
+                    "--ui-registry",
+                    str(registry_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        joined = " ".join(json.loads(result.stdout)["errors"])
+        self.assertIn("exactly one non-empty unique responsive set", joined)
+        self.assertIn("requiredStates: must be a string list", joined)
+        self.assertIn("uiId: must be a non-empty string", joined)
 
     def test_registry_cross_check_is_skipped_without_the_flag(self) -> None:
         plan = valid_plan()
