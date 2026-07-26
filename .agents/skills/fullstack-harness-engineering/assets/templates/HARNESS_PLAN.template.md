@@ -344,6 +344,50 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           }
         },
         {
+          "id": "N-VISUAL-REPAIR-CODE-REVIEW",
+          "kind": "verifier",
+          "ref": "batch-cross-mission",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "fix_required",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "medium"
+              }
+            }
+          },
+          "review": {
+            "type": "frontend_code",
+            "mission_ids": [
+              "M3"
+            ],
+            "scope": [
+              "src/example/**"
+            ],
+            "required_evidence": [
+              "reviewed_sha",
+              "path-and-line findings",
+              "pass or fix_required decision"
+            ]
+          }
+        },
+        {
           "id": "N-CLOSEOUT-GATE",
           "kind": "verifier",
           "ref": "final-closeout",
@@ -400,9 +444,19 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "max_traversals": 2
         },
         {
+          "id": "E-VISUAL-REPAIR-CODE-REVIEW",
+          "kind": "dependency",
+          "from": "N-VISUAL-REPAIR",
+          "to": "N-VISUAL-REPAIR-CODE-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
           "id": "E-VISUAL-REPAIR-REREVIEW",
           "kind": "route",
-          "from": "N-VISUAL-REPAIR",
+          "from": "N-VISUAL-REPAIR-CODE-REVIEW",
           "to": "N-VISUAL-REVIEW",
           "on_outcomes": [
             "pass"

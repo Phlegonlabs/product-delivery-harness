@@ -203,8 +203,22 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertTrue(mission["worker_verifiers"])
         self.assertTrue(mission["integration_verifiers"])
         review_to_repair = edges["E-VISUAL-REVIEW-REPAIR"]
+        repair_review = nodes["N-VISUAL-REPAIR-CODE-REVIEW"]
+        repair_to_code_review = edges["E-VISUAL-REPAIR-CODE-REVIEW"]
         repair_to_review = edges["E-VISUAL-REPAIR-REREVIEW"]
         review_to_final = edges["E-VISUAL-CLOSEOUT"]
+        self.assertEqual(["M3"], repair_review["review"]["mission_ids"])
+        self.assertEqual("frontend_code", repair_review["review"]["type"])
+        self.assertEqual("N-VISUAL-REPAIR", repair_to_code_review["from"])
+        self.assertEqual(
+            "N-VISUAL-REPAIR-CODE-REVIEW",
+            repair_to_code_review["to"],
+        )
+        self.assertEqual("dependency", repair_to_code_review["kind"])
+        self.assertEqual(
+            "N-VISUAL-REPAIR-CODE-REVIEW",
+            repair_to_review["from"],
+        )
         self.assertEqual(["fix_required"], review_to_repair["on_outcomes"])
         self.assertEqual(["pass"], repair_to_review["on_outcomes"])
         self.assertEqual(2, review_to_repair["max_traversals"])

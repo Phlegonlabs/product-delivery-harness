@@ -290,6 +290,125 @@ def exact_head_review_worker(
 
 
 class SelectReadyNodesTests(unittest.TestCase):
+    def test_visual_repair_mission_has_a_preintegration_review_path(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        template_run = load_run(
+            SCRIPTS_DIR.parent / "assets/templates/MISSION_RUNBOOK.template.md"
+        )
+        active_state = copy.deepcopy(run["mission_states"]["M1"])
+        active_node_state = copy.deepcopy(
+            run["graph_state"]["node_states"]["N-M1"]
+        )
+        worker = run["workers"][0]
+
+        run["mission_states"]["M1"] = copy.deepcopy(
+            template_run["mission_states"]["M1"]
+        )
+        run["mission_states"]["M3"] = active_state
+        run["mission_states"]["M3"].update(
+            {
+                "lease_id": "LEASE-M3",
+                "worker_id": "W-M3",
+            }
+        )
+        run["graph_state"]["node_states"]["N-M1"] = copy.deepcopy(
+            template_run["graph_state"]["node_states"]["N-M1"]
+        )
+        run["graph_state"]["node_states"]["N-VISUAL-REPAIR"] = (
+            active_node_state
+        )
+        run["graph_state"]["node_states"]["N-VISUAL-REPAIR"].update(
+            {
+                "last_attempt_id": "ATT-M3",
+                "bound_worker_id": "W-M3",
+            }
+        )
+        worker.update(
+            {
+                "worker_id": "W-M3",
+                "mission_id": "M3",
+                "lease_id": "LEASE-M3",
+                "worktree_path": "C:/repo/worktrees/M3",
+                "branch_ref": "refs/heads/codex/m3",
+            }
+        )
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": "C:/repo/worktrees/M3",
+                "branch_ref": "refs/heads/codex/m3",
+                "head_sha": "b" * 40,
+                "managed_by": "parent",
+                "dirty": False,
+            }
+        ]
+        run["execution_authorization_scope"]["mission_ids"] = ["M3"]
+        run["authorizations"]["spawn_subagents"]["scope"]["mission_ids"] = [
+            "M3"
+        ]
+        self.assertEqual([], validate_run(plan, run))
+
+        selected = select_ready_nodes(plan, run)
+        self.assertIn(
+            "N-VISUAL-REPAIR-CODE-REVIEW",
+            [item["node_id"] for item in selected["dispatchable_nodes"]],
+        )
+
+        run["mission_states"]["M3"]["phase"] = "integrating"
+        blocked_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in blocked_errors
+            ),
+            blocked_errors,
+        )
+
+        review_node_id = "N-VISUAL-REPAIR-CODE-REVIEW"
+        review_worker_id = "RW-M3"
+        review_attempt_id = "ATT-REVIEW-M3"
+        run["graph_state"]["node_states"][review_node_id].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": review_attempt_id,
+                "last_outcome": "pass",
+                "bound_worker_id": review_worker_id,
+                "blockers": [],
+            }
+        )
+        run["review_workers"] = [
+            exact_head_review_worker(
+                node_id=review_node_id,
+                worker_id=review_worker_id,
+                attempt_id=review_attempt_id,
+                digest=plan_digest(plan),
+                plan=plan,
+                run=run,
+            )
+        ]
+
+        self.assertEqual([], validate_run(plan, run))
+
+        run["mission_states"]["M3"].update(
+            {
+                "phase": "integrated",
+                "integration_gate": "PASS",
+                "integrated_sha": "c" * 40,
+            }
+        )
+        run["graph_state"]["node_states"]["N-VISUAL-REPAIR"].update(
+            {
+                "phase": "succeeded",
+                "last_outcome": "pass",
+            }
+        )
+        run["integration"]["integration_head_sha"] = "c" * 40
+        run["observed"]["git"]["parent_head_sha"] = "c" * 40
+
+        self.assertEqual([], validate_run(plan, run))
+
     def test_current_review_dispatches_before_integration_and_gates_transition(
         self,
     ) -> None:

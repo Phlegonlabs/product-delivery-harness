@@ -911,6 +911,24 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 f"RUN v{schema_version} must retain its worker-result contract",
             )
 
+        legacy_reviewer = copy.deepcopy(explorer_only)
+        legacy_reviewer["subagent_activity"]["children"][0]["role"] = "reviewer"
+        legacy_reviewer["subagent_activity"]["children"][0][
+            "task"
+        ] = "Review the proposed behavior and tests."
+        for schema_version in range(2, 10):
+            legacy_run = copy.deepcopy(run)
+            legacy_run["schema_version"] = schema_version
+            self.assertNotIn(
+                "missing_field",
+                error_codes(validate(self.plan, legacy_run, legacy_reviewer)),
+                f"RUN v{schema_version} reviewer children keep their legacy shape",
+            )
+        self.assertIn(
+            "missing_field",
+            error_codes(validate(self.plan, run, legacy_reviewer)),
+        )
+
         result = copy.deepcopy(self.result)
         result["subagent_activity"] = {
             "status": "completed",

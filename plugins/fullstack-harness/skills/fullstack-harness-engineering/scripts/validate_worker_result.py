@@ -163,27 +163,28 @@ def _validate_subagent_activity(
             if child_status not in {"completed", "failed", "stopped"}:
                 _issue(errors, "invalid_value", f"{child_path}.status", "has an unsupported value")
         if role == "reviewer":
-            if "reviewed_sha" not in child:
-                _issue(errors, "missing_field", f"{child_path}.reviewed_sha", "reviewer must bind the reviewed head")
-                reviewed_sha = None
-            else:
-                reviewed_sha = _require_sha(child.get("reviewed_sha"), f"{child_path}.reviewed_sha", errors)
-            if reviewed_sha is not None and expected_head_sha is not None and reviewed_sha != expected_head_sha:
-                _issue(errors, "stale_binding", f"{child_path}.reviewed_sha", "does not match worker_result.head_sha")
-            if "decision" not in child:
-                _issue(errors, "missing_field", f"{child_path}.decision", "reviewer must report a decision")
-                decision = None
-            else:
-                decision = _require_string(child.get("decision"), f"{child_path}.decision", errors)
-            if decision is not None and decision not in {"PASS", "fix_required"}:
-                _issue(errors, "invalid_value", f"{child_path}.decision", "must be PASS or fix_required")
-            if (
-                child_status == "completed"
-                and reviewed_sha is not None
-                and reviewed_sha == expected_head_sha
-                and decision == "PASS"
-            ):
-                completed_reviewer = True
+            if require_reviewer:
+                if "reviewed_sha" not in child:
+                    _issue(errors, "missing_field", f"{child_path}.reviewed_sha", "reviewer must bind the reviewed head")
+                    reviewed_sha = None
+                else:
+                    reviewed_sha = _require_sha(child.get("reviewed_sha"), f"{child_path}.reviewed_sha", errors)
+                if reviewed_sha is not None and expected_head_sha is not None and reviewed_sha != expected_head_sha:
+                    _issue(errors, "stale_binding", f"{child_path}.reviewed_sha", "does not match worker_result.head_sha")
+                if "decision" not in child:
+                    _issue(errors, "missing_field", f"{child_path}.decision", "reviewer must report a decision")
+                    decision = None
+                else:
+                    decision = _require_string(child.get("decision"), f"{child_path}.decision", errors)
+                if decision is not None and decision not in {"PASS", "fix_required"}:
+                    _issue(errors, "invalid_value", f"{child_path}.decision", "must be PASS or fix_required")
+                if (
+                    child_status == "completed"
+                    and reviewed_sha is not None
+                    and reviewed_sha == expected_head_sha
+                    and decision == "PASS"
+                ):
+                    completed_reviewer = True
         elif set(child) & SUBAGENT_REVIEW_FIELDS:
             _issue(
                 errors,

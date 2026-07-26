@@ -20,7 +20,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "b3d2e84059f28ec9a041e02ea380d20d3041813fdaf2963d30bddad2edb95a2f"
+      "digest_sha256": "2d7a1a48cff2dcfbe3b1cca23bcd9d47cc29d7b9ff768bf1bd4309246b26fa4e"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -310,6 +310,14 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
           "bound_worker_id": null,
           "blockers": []
         },
+        "N-VISUAL-REPAIR-CODE-REVIEW": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
         "N-CLOSEOUT-GATE": {
           "phase": "dormant",
           "attempts": 0,
@@ -336,6 +344,11 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
           "source_attempt_id": null
         },
         "E-VISUAL-REVIEW-REPAIR": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-REPAIR-CODE-REVIEW": {
           "status": "dormant",
           "traversals": 0,
           "source_attempt_id": null
@@ -437,7 +450,7 @@ New RUN files always use RUN schema v10 (see `SKILL.md`'s Default Runtime And Wa
 
 RUN schema v10 has 19 independent action entries. Keep every entry false unless an explicit user instruction authorizes that exact action. Every authorized execution scope and action scope binds `run_id`, current `plan_revision`, current `plan_digest_sha256`, mission IDs, and the lifecycle boundary; action scopes also bind exact targets. A PLAN revision or digest change invalidates the grant. `invoke_external_runtime` uses `runtime:<provider>`. `trigger_remote_ci` requires `workflow:<identity>`. `provision_cloud_resources` requires `cloud-resource:<provider>:<environment>:<kind>:<logical-name>`. Head-bound remote actions also record `authorized_head_sha` and cannot use `*` targets.
 
-`graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. For pre-integration review, `fix_required` returns to the original mission task/thread and its existing worktree; after the focused verifier passes on a changed head, re-arm the same review node with a new attempt ID. Do not create a repair mission or replacement worktree for this loop. Post-integration review may traverse a bounded repair route, and a passing repair returns to the same review before a deterministic final gate. Every retry preserves prior evidence and rechecks authorization.
+`graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. For pre-integration review, `fix_required` returns to the original mission task/thread and its existing worktree; after the focused verifier passes on a changed head, re-arm the same review node with a new attempt ID. Do not create a repair mission or replacement worktree for this loop. Post-integration review may traverse a bounded repair route. That repair mission receives its own direct singleton exact-head review before integration, then returns to the post-integration review before a deterministic final gate. Every retry preserves prior evidence and rechecks authorization.
 
 New RUN files default to `mode: "local_only"`. Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; use the template's `development`, `development`, and `production` values only when the repository defines no other model. A local-only run records no remote checks/review/merge evidence and preserves the exact integration head. Switch to `pull_request` only after the user gives final approval to start the resolved head-to-base promotion; pull-request mode sets continuity to `not_required`.
 
