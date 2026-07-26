@@ -224,6 +224,7 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         page_recipes = self.read("assets/templates/PAGE_RECIPES.template.md")
         acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
 
@@ -238,7 +239,31 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("docs/product/.design-staging/<run-id>/", lifecycle)
         self.assertIn("Passing validation does not authorize overwrite, move, or archive", lifecycle)
         self.assertIn("ask one explicit yes/no publication question", skill)
-        self.assertIn("execute the approved publish and archive moves in the same run", skill)
+        self.assertIn("execute the canonical publish moves in the same run", skill)
+        self.assertIn("Candidate evidence:", design_system)
+        self.assertIn("exact final archive or retained path", design_system)
+        self.assertIn("Candidate evidence:", contract)
+        self.assertIn("exact final archive or retained path", contract)
+        self.assertNotIn(
+            "screen names and docs/product/.design-staging",
+            design_system,
+        )
+        candidate_move = lifecycle.index("3. Apply the approved candidate disposition:")
+        provenance_rewrite = lifecycle.index(
+            "4. Rewrite staged `design-system.md`'s `Candidate evidence`",
+            candidate_move,
+        )
+        revalidate = lifecycle.index(
+            "revalidate the canonical staged package",
+            provenance_rewrite,
+        )
+        publish = lifecycle.index(
+            "5. Move the revalidated staged artifacts",
+            revalidate,
+        )
+        self.assertLess(candidate_move, provenance_rewrite)
+        self.assertLess(provenance_rewrite, revalidate)
+        self.assertLess(revalidate, publish)
 
     def test_enhancement_mode_freezes_baseline_and_checks_non_regression(self) -> None:
         skill = self.read("SKILL.md")
@@ -283,6 +308,32 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
         self.assertIn("one to three representative candidate screens", skill)
         self.assertIn("never invoke it independently per route", skill)
         self.assertIn("one coherent set of one to three representative candidate screens", guide)
+        for content in (skill, guide):
+            self.assertIn("use exactly that set", content)
+            self.assertIn("do not add, remove, or substitute IDs", content)
+            self.assertIn(
+                "obtain explicit user authorization for the exact revised `UI-*` screen-ID set",
+                content,
+            )
+        contract_draft = skill.index(
+            "Draft and validate only the representative screens' `Content Contracts`"
+        )
+        visual_pass = skill.index(
+            "After the source inputs, structural wireframe contracts, and those content contracts are frozen"
+        )
+        continue_package = skill.index(
+            "Continue the staged package initialized in step 9"
+        )
+        self.assertLess(contract_draft, visual_pass)
+        self.assertLess(visual_pass, continue_package)
+        self.assertIn(
+            "does not freeze tokens, primitives, components, motion variants, recipes, the registry, or final mockups",
+            skill,
+        )
+        self.assertLess(
+            architecture.index("**Content contracts first.**"),
+            architecture.index("**Optional Frontend Design Visual Direction Pass.**"),
+        )
         self.assertIn(
             "docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/",
             lifecycle,
