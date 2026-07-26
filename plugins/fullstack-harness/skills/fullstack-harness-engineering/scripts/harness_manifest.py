@@ -3787,7 +3787,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 .get("review", {})
                 .get("mission_ids", [])
                 and review_worker.get("reviewed_sha") == head_sha
-                and review_worker.get("worker_runtime") in {"parent", "subagent"}
+                and review_worker.get("worker_runtime")
+                in {"parent", "subagent", "app_task"}
                 and review_worker.get("phase") == "worker_passed"
                 and review_worker.get("outcome") == "pass"
                 for review_worker in (

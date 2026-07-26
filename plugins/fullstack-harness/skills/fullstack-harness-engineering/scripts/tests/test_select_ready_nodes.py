@@ -185,6 +185,73 @@ class SelectReadyNodesTests(unittest.TestCase):
         self,
     ) -> None:
         plan, run = current_preintegration_review_state()
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": [
+                        "app_threads",
+                        "subagents",
+                        "sequential_parent",
+                    ],
+                    "detection_source": "observed",
+                },
+                "nested_subagents": {
+                    "available": True,
+                    "max_depth": 1,
+                    "max_children_per_worker": 3,
+                    "allowed_roles": ["reviewer"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+                "platform_lifecycle": {
+                    "owner": "app",
+                    "automatic_retention_cleanup_possible": True,
+                    "durable_branch_required_before_unique_work": True,
+                },
+            }
+        )
+        mission_worker = run["workers"][0]
+        mission_worker.update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "task_thread_id": "THREAD-M1",
+                "nested_subagent_policy": {
+                    "enabled": False,
+                    "max_children": 0,
+                    "allowed_roles": [],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+            }
+        )
+        mission_worker["runtime_binding"]["driver"] = "app_threads"
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": "C:/repo/worktrees/M1",
+                "branch_ref": "refs/heads/codex/m1",
+                "head_sha": "b" * 40,
+                "managed_by": "app",
+                "dirty": False,
+            }
+        ]
+        run["authorizations"]["create_user_owned_tasks"] = {
+            "authorized": True,
+            "source": "user authorized review task",
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": plan_digest(plan),
+                "mission_ids": ["M1", "M2"],
+                "targets": ["*"],
+            },
+            "expires_when": "run_complete",
+        }
         self.assertEqual([], validate_run(plan, run))
 
         selected = select_ready_nodes(plan, run)
@@ -193,6 +260,12 @@ class SelectReadyNodesTests(unittest.TestCase):
             "N-FRONTEND-REVIEW",
             [item["node_id"] for item in selected["dispatchable_nodes"]],
         )
+        review_directive = next(
+            item
+            for item in selected["dispatchable_nodes"]
+            if item["node_id"] == "N-FRONTEND-REVIEW"
+        )
+        self.assertEqual("create_thread", review_directive["launch_kind"])
 
         digest = plan_digest(plan)
         run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
@@ -215,17 +288,17 @@ class SelectReadyNodesTests(unittest.TestCase):
                 "graph_revision": run["graph_state"]["graph_revision"],
                 "reviewed_sha": "b" * 40,
                 "review_path": "C:/repo/worktrees/M1",
-                "worker_runtime": "subagent",
-                "completion_channel": "agent_result",
+                "worker_runtime": "app_task",
+                "completion_channel": "thread_poll",
                 "runtime_binding": {
                     "provider": "codex",
-                    "driver": "subagents",
+                    "driver": "app_threads",
                     "source": "host",
                     "model": "gpt-5.6-sol",
                     "reasoning_effort": "medium",
                     "option_source": "plan_provider_options",
                 },
-                "task_thread_id": None,
+                "task_thread_id": "THREAD-REVIEW-M1",
                 "report_path": None,
                 "phase": "worker_passed",
                 "outcome": "pass",
