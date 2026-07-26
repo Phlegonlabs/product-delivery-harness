@@ -188,50 +188,58 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
 def fanout_preintegration_review_state(
 ) -> tuple[dict[str, object], dict[str, object], str]:
     plan, run = current_preintegration_review_state()
+    run["runtime_capabilities"]["max_parallel_workers"] = 3
+    run["observed"]["runtime"].update(
+        {"available_worker_slots": 3, "isolation_capacity": 3}
+    )
     review_node = next(
         node
         for node in plan["graph"]["nodes"]
         if node["id"] == "N-FRONTEND-REVIEW"
     )
-    second_review_node = copy.deepcopy(review_node)
-    second_review_node["id"] = "N-FRONTEND-REVIEW-SECOND"
-    plan["graph"]["nodes"].append(second_review_node)
-
     dependency_edge = next(
         edge
         for edge in plan["graph"]["edges"]
         if edge["id"] == "E-M1-FRONTEND-REVIEW"
     )
-    second_dependency_edge = copy.deepcopy(dependency_edge)
-    second_dependency_edge["id"] = "E-M1-FRONTEND-REVIEW-SECOND"
-    second_dependency_edge["to"] = "N-FRONTEND-REVIEW-SECOND"
-    plan["graph"]["edges"].append(second_dependency_edge)
-
     pass_route = next(
         edge
         for edge in plan["graph"]["edges"]
         if edge["id"] == "E-FRONTEND-FINAL-GATE"
     )
-    second_pass_route = copy.deepcopy(pass_route)
-    second_pass_route["id"] = "E-FRONTEND-REVIEW-SECOND-FINAL-GATE"
-    second_pass_route["from"] = "N-FRONTEND-REVIEW-SECOND"
-    plan["graph"]["edges"].append(second_pass_route)
+    for suffix in ("SECOND", "THIRD"):
+        review_node_id = f"N-FRONTEND-REVIEW-{suffix}"
+        additional_review_node = copy.deepcopy(review_node)
+        additional_review_node["id"] = review_node_id
+        plan["graph"]["nodes"].append(additional_review_node)
 
-    run["graph_state"]["node_states"]["N-FRONTEND-REVIEW-SECOND"] = (
-        copy.deepcopy(
+        additional_dependency_edge = copy.deepcopy(dependency_edge)
+        additional_dependency_edge["id"] = (
+            f"E-M1-FRONTEND-REVIEW-{suffix}"
+        )
+        additional_dependency_edge["to"] = review_node_id
+        plan["graph"]["edges"].append(additional_dependency_edge)
+
+        additional_pass_route = copy.deepcopy(pass_route)
+        additional_pass_route["id"] = (
+            f"E-FRONTEND-REVIEW-{suffix}-FINAL-GATE"
+        )
+        additional_pass_route["from"] = review_node_id
+        plan["graph"]["edges"].append(additional_pass_route)
+
+        run["graph_state"]["node_states"][review_node_id] = copy.deepcopy(
             run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]
         )
-    )
-    run["graph_state"]["edge_states"][
-        "E-M1-FRONTEND-REVIEW-SECOND"
-    ] = copy.deepcopy(
-        run["graph_state"]["edge_states"]["E-M1-FRONTEND-REVIEW"]
-    )
-    run["graph_state"]["edge_states"][
-        "E-FRONTEND-REVIEW-SECOND-FINAL-GATE"
-    ] = copy.deepcopy(
-        run["graph_state"]["edge_states"]["E-FRONTEND-FINAL-GATE"]
-    )
+        run["graph_state"]["edge_states"][
+            additional_dependency_edge["id"]
+        ] = copy.deepcopy(
+            run["graph_state"]["edge_states"]["E-M1-FRONTEND-REVIEW"]
+        )
+        run["graph_state"]["edge_states"][
+            additional_pass_route["id"]
+        ] = copy.deepcopy(
+            run["graph_state"]["edge_states"]["E-FRONTEND-FINAL-GATE"]
+        )
 
     digest = plan_digest(plan)
     run["plan"]["digest_sha256"] = digest
@@ -410,6 +418,40 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
+    def test_reconciled_node_cannot_override_only_fix_required_review(
+        self,
+    ) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-ONLY",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-ONLY",
+                "blockers": [],
+            }
+        )
+        run["review_workers"] = [
+            exact_head_review_worker(
+                node_id="N-FRONTEND-REVIEW",
+                worker_id="RW-ONLY",
+                attempt_id="ATT-REVIEW-ONLY",
+                digest=digest,
+                plan=plan,
+                run=run,
+                outcome="fix_required",
+            )
+        ]
+        run["mission_states"]["M1"]["phase"] = "integrating"
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("strict majority" in error for error in errors),
+            errors,
+        )
+
     def test_integration_waits_for_every_planned_preintegration_review(
         self,
     ) -> None:
@@ -471,6 +513,29 @@ class SelectReadyNodesTests(unittest.TestCase):
                 outcome="fix_required",
             )
         )
+        third_state = run["graph_state"]["node_states"][
+            "N-FRONTEND-REVIEW-THIRD"
+        ]
+        third_state.update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-THIRD",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-THIRD",
+                "blockers": [],
+            }
+        )
+        run["review_workers"].append(
+            exact_head_review_worker(
+                node_id="N-FRONTEND-REVIEW-THIRD",
+                worker_id="RW-THIRD",
+                attempt_id="ATT-REVIEW-THIRD",
+                digest=digest,
+                plan=plan,
+                run=run,
+            )
+        )
 
         self.assertEqual([], validate_run(plan, run))
 
@@ -502,6 +567,19 @@ class SelectReadyNodesTests(unittest.TestCase):
                 "blockers": [],
             }
         )
+        third_state = run["graph_state"]["node_states"][
+            "N-FRONTEND-REVIEW-THIRD"
+        ]
+        third_state.update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-THIRD",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-THIRD",
+                "blockers": [],
+            }
+        )
         run["review_workers"] = [
             exact_head_review_worker(
                 node_id="N-FRONTEND-REVIEW",
@@ -520,6 +598,14 @@ class SelectReadyNodesTests(unittest.TestCase):
                 run=run,
                 outcome="fix_required",
             ),
+            exact_head_review_worker(
+                node_id="N-FRONTEND-REVIEW-THIRD",
+                worker_id="RW-THIRD",
+                attempt_id="ATT-REVIEW-THIRD",
+                digest=digest,
+                plan=plan,
+                run=run,
+            ),
         ]
         self.assertEqual([], validate_run(plan, run))
 
@@ -533,6 +619,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         }
         self.assertIn("N-FRONTEND-REVIEW", dispatchable_ids)
         self.assertIn("N-FRONTEND-REVIEW-SECOND", dispatchable_ids)
+        self.assertIn("N-FRONTEND-REVIEW-THIRD", dispatchable_ids)
 
     def test_preintegration_fix_returns_to_original_worktree_before_rereview(
         self,

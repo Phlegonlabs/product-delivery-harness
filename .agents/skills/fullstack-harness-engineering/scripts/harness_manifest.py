@@ -3855,32 +3855,66 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             node_states = (
                 raw_node_states if isinstance(raw_node_states, dict) else {}
             )
-            has_parent_review = bool(preintegration_review_ids) and all(
-                isinstance(node_states.get(review_node_id), dict)
-                and node_states[review_node_id].get("phase") == "succeeded"
-                and node_states[review_node_id].get("last_outcome") == "pass"
-                and any(
-                    isinstance(review_worker, dict)
-                    and review_worker.get("node_id") == review_node_id
-                    and review_worker.get("attempt_id")
-                    == node_states[review_node_id].get("last_attempt_id")
-                    and review_worker.get("reviewed_sha") == head_sha
-                    and review_worker.get("worker_runtime")
-                    in {"parent", "subagent", "app_task"}
-                    and review_worker.get("phase")
-                    in {"worker_passed", "blocked", "worker_failed", "superseded"}
-                    and review_worker.get("outcome") is not None
-                    for review_worker in (
-                        review_workers if isinstance(review_workers, list) else []
-                    )
+            current_review_workers = {
+                review_node_id: next(
+                    (
+                        review_worker
+                        for review_worker in (
+                            review_workers
+                            if isinstance(review_workers, list)
+                            else []
+                        )
+                        if isinstance(review_worker, dict)
+                        and review_worker.get("node_id") == review_node_id
+                        and review_worker.get("worker_id")
+                        == node_states.get(review_node_id, {}).get(
+                            "bound_worker_id"
+                        )
+                        and review_worker.get("attempt_id")
+                        == node_states.get(review_node_id, {}).get(
+                            "last_attempt_id"
+                        )
+                        and review_worker.get("reviewed_sha") == head_sha
+                        and review_worker.get("worker_runtime")
+                        in {"parent", "subagent", "app_task"}
+                        and review_worker.get("phase")
+                        in {
+                            "worker_passed",
+                            "blocked",
+                            "worker_failed",
+                            "superseded",
+                        }
+                        and review_worker.get("outcome") is not None
+                    ),
+                    None,
                 )
                 for review_node_id in preintegration_review_ids
+            }
+            has_parent_review = (
+                bool(preintegration_review_ids)
+                and all(
+                    isinstance(node_states.get(review_node_id), dict)
+                    and node_states[review_node_id].get("phase") == "succeeded"
+                    and node_states[review_node_id].get("last_outcome") == "pass"
+                    and isinstance(
+                        current_review_workers.get(review_node_id),
+                        dict,
+                    )
+                    for review_node_id in preintegration_review_ids
+                )
+                and sum(
+                    current_review_workers[review_node_id].get("outcome")
+                    == "pass"
+                    for review_node_id in preintegration_review_ids
+                )
+                * 2
+                > len(preintegration_review_ids)
             )
             if not has_parent_review:
                 _add(
                     errors,
                     f"run.mission_states.{mission_id}.integration_gate",
-                    "transition to integrating requires every planned pre-integration review node to retain a current-head PASS",
+                    "transition to integrating requires every planned pre-integration review node to retain a current-head reconciled PASS and a strict majority of exact-head reviewer PASS outcomes",
                 )
 
     if not isinstance(run["attempt_log"], list):
