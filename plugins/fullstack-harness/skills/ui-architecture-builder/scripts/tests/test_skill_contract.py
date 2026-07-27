@@ -637,6 +637,52 @@ const agent = async (_prompt, options) => {
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "candidate_ready")
 
+    def test_dynamic_workflow_rejects_selected_path_outside_manifest(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/approved.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/unapproved.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "B", "html_paths": ["b.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires selected_html_path to equal the selected root or an approved selected_html_files path",
+            result.stderr,
+        )
+
     def test_dynamic_workflow_rejects_stale_selected_manifest_digest(self) -> None:
         selected_html_files = [
             {

@@ -184,6 +184,14 @@ if (visualDirectionPass.status === "approved") {
       "ui-architecture-builder-graph requires unique selected_html_files html_path values",
     );
   }
+  if (
+    selectedHtmlPath !== selectedRoot
+    && !selectedFilePaths.has(selectedHtmlPath)
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires selected_html_path to equal the selected root or an approved selected_html_files path",
+    );
+  }
   const canonicalSelectedManifest = visualDirectionPass.selected_html_files.map(
     ({ ui_id, html_path, sha256 }) => ({ ui_id, html_path, sha256 }),
   );
