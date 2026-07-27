@@ -2561,15 +2561,40 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if isinstance(raw_integration, dict)
             else None
         )
+        # A boolean is not enough: an enabled push scoped to an unrelated branch
+        # or bound to a stale head must not satisfy the integration_push gate.
+        landing_branch = run["landing"].get("head_branch")
+        push_target = (
+            f"branch:{landing_branch}" if _nonempty_string(landing_branch) else "*"
+        )
         raw_push = run.get("authorizations")
         push_entry = raw_push.get("push") if isinstance(raw_push, dict) else None
+        push_head = (
+            push_entry.get("authorized_head_sha") if isinstance(push_entry, dict) else None
+        )
+        raw_mission_states = run.get("mission_states")
+        push_mission_ids = (
+            list(raw_mission_states) if isinstance(raw_mission_states, dict) else []
+        )
+        push_scope_ok = (
+            _nonempty_string(landing_branch)
+            and bool(push_mission_ids)
+            and all(
+                authorization_covers(run, "push", mission_id, push_target)
+                for mission_id in push_mission_ids
+            )
+            and (
+                push_head is None
+                or not is_full_sha(landing_integration_head)
+                or push_head == landing_integration_head
+            )
+        )
         _validate_landing(
             errors,
             run["landing"],
             schema_version,
             integration_head_sha=landing_integration_head,
-            push_authorized=isinstance(push_entry, dict)
-            and push_entry.get("authorized") is True,
+            push_authorized=push_scope_ok,
         )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         landing = run["landing"]
@@ -2666,7 +2691,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.landing.continuity",
                     "authorized non-PR execution requires a planned or preserved later-PR branch",
                 )
-        if landing.get("mode") == "local_only" and run.get("status") == "complete":
+        if landing.get("mode") in {"local_only", "integration_push"} and run.get("status") == "complete":
             integration = run.get("integration")
             integration_head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
             if (

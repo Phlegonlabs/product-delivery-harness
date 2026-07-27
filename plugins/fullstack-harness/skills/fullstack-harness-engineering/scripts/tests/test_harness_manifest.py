@@ -1232,8 +1232,8 @@ class RunValidationTests(unittest.TestCase):
             "source": "user asked for the development push",
             "scope": {
                 "run_id": run["run_id"],
-                "mission_ids": ["M1"],
-                "targets": ["branch:refs/heads/development"],
+                "mission_ids": list(run["mission_states"]),
+                "targets": [f"branch:{landing['head_branch']}"],
             },
             "expires_when": "run_complete",
         }
@@ -1258,8 +1258,8 @@ class RunValidationTests(unittest.TestCase):
             "source": "user asked for the development push",
             "scope": {
                 "run_id": run["run_id"],
-                "mission_ids": ["M1"],
-                "targets": ["branch:refs/heads/development"],
+                "mission_ids": list(run["mission_states"]),
+                "targets": [f"branch:{landing['head_branch']}"],
             },
             "expires_when": "run_complete",
         }
