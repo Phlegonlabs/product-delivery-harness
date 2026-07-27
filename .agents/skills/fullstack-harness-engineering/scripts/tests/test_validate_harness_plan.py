@@ -123,16 +123,13 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         ]
         registry = {
             "viewports": [390],
-            "recipes": {
-                "/home": {"requiredStates": ["ready", "loading", "empty", "n/a"]},
-                "/settings": {"requiredStates": ["ready"]},
-            },
+            "stateMatrix": ["ready", "loading", "empty", "n/a"],
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             plan_path = root / "PLAN.md"
             plan_path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
-            registry_path = root / "ui-registry.json"
+            registry_path = root / "design-system.json"
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
 
             result = subprocess.run(
@@ -141,7 +138,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                     str(SCRIPTS_DIR / "validate_harness_plan.py"),
                     "--plan",
                     str(plan_path),
-                    "--ui-registry",
+                    "--design-system",
                     str(registry_path),
                 ],
                 capture_output=True,
@@ -171,12 +168,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         ]
         registry = {
             "viewports": [390, 768],
-            "recipes": {
-                "/home": {
-                    "uiId": "UI-001",
-                    "requiredStates": ["ready", "error"],
-                }
-            },
+            "stateMatrix": ["ready", "error"],
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -185,7 +177,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
                 encoding="utf-8",
             )
-            registry_path = root / "ui-registry.json"
+            registry_path = root / "design-system.json"
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
             result = subprocess.run(
                 [
@@ -193,7 +185,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                     str(SCRIPTS_DIR / "validate_harness_plan.py"),
                     "--plan",
                     str(plan_path),
-                    "--ui-registry",
+                    "--design-system",
                     str(registry_path),
                 ],
                 capture_output=True,
@@ -220,12 +212,8 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         ]
         registry = {
             "viewports": [0],
-            "recipes": {
-                "/home": {
-                    "uiId": [],
-                    "requiredStates": ["ready", " "],
-                }
-            },
+            "stateMatrix": ["ready", " "],
+            "$note": "both halves malformed; stateMatrix is reported first",
         }
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -234,7 +222,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
                 encoding="utf-8",
             )
-            registry_path = root / "ui-registry.json"
+            registry_path = root / "design-system.json"
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
             result = subprocess.run(
                 [
@@ -242,7 +230,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                     str(SCRIPTS_DIR / "validate_harness_plan.py"),
                     "--plan",
                     str(plan_path),
-                    "--ui-registry",
+                    "--design-system",
                     str(registry_path),
                 ],
                 capture_output=True,
@@ -251,9 +239,9 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             )
 
         joined = " ".join(json.loads(result.stdout)["errors"])
-        self.assertIn("exactly one non-empty unique responsive set", joined)
-        self.assertIn("requiredStates: must be a string list", joined)
-        self.assertIn("uiId: must be a non-empty string", joined)
+        # A malformed stateMatrix stops the cross-check before the responsive
+        # set is read, so only the first defect is reported per run.
+        self.assertIn("stateMatrix: must be a non-empty string list", joined)
 
     def test_registry_cross_check_is_skipped_without_the_flag(self) -> None:
         plan = valid_plan()

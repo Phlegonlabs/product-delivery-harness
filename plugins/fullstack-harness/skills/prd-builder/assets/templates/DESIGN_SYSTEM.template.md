@@ -4,7 +4,15 @@
 
 <Product archetype, audience, visual intent, density, tone, constraints, and source priority.>
 
-<Resolved platform (web, native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop). The platform sets the vocabulary for the sections below: icon family, component-code language, breakpoint vs. size-class model, and the styling-pattern section. Do not default to web/Tailwind for a native or desktop target — see references/output-contract.md "Platform-Conditional Vocabulary".>
+<Resolved platform (web, native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop). The platform sets the vocabulary for the sections below: icon family, component-code language, breakpoint vs. size-class model, and the styling-pattern section. Do not default to web/Tailwind for a native or desktop target — see `references/design-system-guide.md`'s Product Archetype Rules.>
+
+## Machine-Readable Companion
+
+Artifact: `docs/product/design-system.json`
+
+This Markdown file is the semantic authority: it carries the reasoning, the ratios, the guardrails, and the decisions. `design-system.json` is the machine-readable half — token names, primitive classes, closed variant sets, the responsive verification set, and the source paths where raw values may appear. Implementation and `fullstack-harness-engineering`'s `scripts/check_ui_contract.py` both read the JSON.
+
+The two publish together. If a token, primitive, variant, or state changes here, change it in the JSON in the same move set. Neither file may carry a token or variant the other does not.
 
 ## Source Inputs
 
@@ -13,18 +21,6 @@
 | PRD | <path> | product source | <notes> |
 | Wireframes | <path> | structure source | <notes> |
 | Brand / reference | <path or URL> | visual source | <notes> |
-
-## Rendered HTML Projection
-
-Artifact: `docs/product/design/design-system.html`
-
-This Markdown file is the semantic authority for token values and visual decisions. `ui-registry.json` is the authority for registered closed sets. `design-system.html` is a dependency-free rendered projection generated from both; its token block copies their resolved values for rendering and must not introduce tokens, primitives, variants, states, or parameters.
-
-| Projection coverage | IDs | Parameters | Status |
-|---|---|---|---|
-| Typography hierarchy and paragraph styles; links; buttons and all variants/states; form controls; labels/help/error text; cards/surfaces; navigation; alerts/status; icons; spacing/layout; colors/tokens; applicable motion; responsive behavior | <token + primitive/component + variant IDs as applicable> | <implementation-relevant values or named parameters beside each rendered specimen> | <complete / gaps> |
-
-Every rendered specimen's reproduction block uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`.
 
 ## Builder UX Direction Handoff
 
@@ -40,48 +36,15 @@ Decision owner: <human product/design owner or commissioning team>
 
 Builder approval proves direction conformance only, not usability. Keep unsupported preferences provisional or assumed until separate user evidence exists.
 
-## Frontend Design Preference & HTML Exploration
+## Visual Direction
 
-Status: <not used / preference discovery / candidates awaiting comparison / selected HTML awaiting approval / approved / rejected>
+Status: <derived from product inputs / derived from brand sources / explored with frontend-design / n/a>
 
-### Visual Preference Brief
+Decision owner: <human product/design owner; never an agent>
+Basis: <brand assets, reference product, explored HTML path, or explicit assumption>
+Approval: <explicit approval record, or `assumed — <reason>`>
 
-Decision owner: <human product/design owner>
-Ask User evidence: <question/answer record or n/a>
-Purpose: <what the interface must help people do>
-Tone: <product-specific direction, not a fixed style label>
-Constraints: <brand, platform, content, accessibility, and performance limits>
-Differentiation: <what should make this product recognizable>
-
-### Candidate Direction Comparison
-
-| Direction ID | Same representative screens / UI IDs | HTML paths | Material differentiators | Human decision |
-|---|---|---|---|---|
-| <direction ID or n/a> | <the same one or two screen names and exact authorized UI-* IDs> | <complete dependency-free HTML paths> | <material visual axes plus a structural fingerprint; changing only color does not count> | <selected / rejected / cues requested for mix> |
-
-Hallmark status: <loaded / unavailable with reason>
-Hallmark candidate audits: <exact `hallmark-audit.md` paths and dispositions, or n/a; reports are read-only review evidence>
-
-### Approved Selected HTML
-
-Selected path: <exact `visual-directions/selected/` path or n/a>
-Selection method: <direct selection / mixed and consolidated / n/a>
-Approval owner: <human product/design owner; never an agent or delegated selector>
-Approval evidence: <explicit approval record or n/a>
-Selected HTML manifest: <ordered `{ ui_id, html_path, sha256 }` entries, one per representative screen, or n/a>
-Approval manifest SHA-256: <lowercase 64-character digest shown in the approval evidence, or n/a>
-Parent byte verification: <`selected_files_verification` status, verified file count, matching manifest SHA-256, and evidence that the parent read and hashed every selected file immediately before launch, or n/a>
-Selected Hallmark audit: <exact `visual-directions/selected/hallmark-audit.md` path and disposition, or unavailable / n/a>
-
-### Token Extraction Trace
-
-| Selected HTML evidence | Extracted tokens | Extracted primitives / components | Recipes / registry / final mockups |
-|---|---|---|---|
-| <element, selector, screenshot, or measured repeated value> | <token IDs and actual values> | <DS IDs and closed variants> | <recipe IDs, registry entries, and canonical mockups> |
-
-Exploration evidence: <Archive / Retain / n/a> — <exact final archive or retained `visual-directions/` path; `pending publication approval` is allowed only in staging>
-
-Candidate and selected HTML, selected-file manifests, and Hallmark reports are non-canonical exploration evidence. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially and structurally different directions for the same one or two screens. Tokens are extracted only after the human explicitly approves the selected HTML's exact manifest digest, the parent re-reads and hashes every selected file, and the Dynamic Workflow recomputes the canonical manifest digest. Any byte, canonical path, order, or UI-ID mapping change invalidates approval. When exploration is `not used` or `rejected`, derive from recorded product inputs and explicit visual assumptions and do not claim approved-HTML extraction. The published package records the final exploration evidence path, and implementation consumes only the extracted package.
+When `frontend-design` is loaded and the user explicitly asked for it, use it to explore a direction before the tokens below are fixed. Record which direction was chosen and why. Exploration artifacts are evidence, not contract — only this file and `design-system.json` bind implementation. When no exploration happened, derive the system from recorded product inputs and explicit visual assumptions, and do not claim approved-direction extraction.
 
 ## Product-Specific Visual Thesis
 
@@ -123,7 +86,7 @@ Taste statement: <one sentence naming the intended visual character and the conc
 
 Harmony method: <complementary / analogous / monochromatic / triadic / brand-anchored, and why it fits the product-specific visual thesis>
 
-| Token | Value / Direction | Tailwind / CSS reference | Usage | Contrast ratio (if text/UI pairing) |
+| Token | Value / Direction | CSS reference | Usage | Contrast ratio (if text/UI pairing) |
 |---|---|---|---|---|
 | Background | <value> | <class or CSS var> | <usage> | <n/a> |
 | Surface | <value> | <class or CSS var> | <usage> | <n/a> |
@@ -131,6 +94,8 @@ Harmony method: <complementary / analogous / monochromatic / triadic / brand-anc
 | Accent | <value> | <class or CSS var> | <usage> | <e.g. 4.8:1 on Background> |
 | Border | <value> | <class or CSS var> | <usage> | <n/a> |
 | Success / warning / danger | <value> | <class or CSS var> | <usage> | <ratio on their usual background, plus the non-color cue used to keep them colorblind-safe> |
+
+Ratios computed with `scripts/check_color_contrast.py`, not estimated.
 
 ## Typography
 
@@ -144,6 +109,8 @@ Pairing rationale: <why these families/roles work together, and the type-scale r
 | Section heading | <font> | <size> | <weight> | <line height> | <e.g. 1.2 (heading floor 1.1)> | <usage> |
 | Body | <font> | <size> | <weight> | <line height> | <e.g. 1.5 (WCAG 1.4.12 minimum)> | <usage> |
 | Caption / metadata | <font> | <size> | <weight> | <line height> | <e.g. 1.5 (WCAG 1.4.12 minimum)> | <usage> |
+
+Ratios computed with `scripts/check_type_scale.py`, not estimated.
 
 ## Iconography System
 
@@ -169,29 +136,6 @@ Pairing rationale: <why these families/roles work together, and the type-scale r
 
 <Primary package/import path or asset source, version policy, tree-shaking or subsetting, RTL handling, brand-icon source, custom-icon construction rules, and approved secondary-library exceptions.>
 
-### Example Icon Usage Code
-
-```tsx
-// Example structure only. Replace with the selected library and project primitives.
-import { ExampleIcon } from "<approved-icon-package>";
-
-export function IconActions() {
-  return (
-    <>
-      <button>
-        <ExampleIcon aria-hidden="true" className="<icon-token>" />
-        Visible action
-      </button>
-      <button aria-label="Descriptive action">
-        <ExampleIcon aria-hidden="true" className="<icon-token>" />
-      </button>
-    </>
-  );
-}
-```
-
-<Define tooltip behavior for the icon-only control and adapt accessibility details to the target stack.>
-
 ## Spacing System
 
 | Token | Value | Usage |
@@ -201,14 +145,27 @@ export function IconActions() {
 | Section gap | <value> | <usage> |
 | Grid gap | <value> | <usage> |
 
-## Component Architecture
+## Primitive Inventory
 
-This document owns the token layer. The layers built on it — layout, surface, typography, and control primitives, product components, and their closed variant sets — live in `ui-architecture.md`, and their machine-readable allowlist lives in `ui-registry.json`.
+Four layers, in order: layout, surface, typography, control. Layer N uses only layers below N. Every variant list below is a closed set — a page picks from it and may not extend it. The machine-readable form of this table is `design-system.json`'s `primitives` object; the two must agree.
 
-Two rules bind this document to those:
+| DS ID | Primitive | Layer | Class | Closed variant sets | Composes | Notes |
+|---|---|---|---|---|---|---|
+| DS-LAY-001 | <Container> | layout | <class> | <sizes: shell, content, narrow, dialog> | n/a | <notes> |
+| DS-SUR-001 | <Surface> | surface | <class> | <variants: plain, raised, inset> | <layout> | <notes> |
+| DS-TYP-001 | <Text> | typography | <class> | <roles: display, heading, body, caption> | n/a | <notes> |
+| DS-CTL-001 | <Button> | control | <btn> | <variants; sizes> | <typography> | <min target, accessible name> |
 
-- Every raw color, dimension, and motion value in the product appears in the token sections here and nowhere else.
-- Nothing outside this document may invent a value. A page or component that needs one gets a new token here plus a new variant in `ui-architecture.md` and `ui-registry.json`.
+### Product Components
+
+| DS ID | Component | Composes | Required content order | States | Notes |
+|---|---|---|---|---|---|
+| DS-COMP-001 | <DomainComponentName> | <DS-LAY-001, DS-SUR-001, DS-CTL-001> | <field, field, field> | <ready, loading, empty, error> | <notes> |
+
+### The Two Binding Rules
+
+- Every raw color, dimension, and motion value in the product appears in this document's token sections and in the JSON's declared `tokenSources`, and nowhere else.
+- Nothing outside this document may invent a value or a control. A page that needs one gets a new token here plus a new entry in `design-system.json` — it does not style its own.
 
 ## Shadows & Elevation
 
@@ -234,7 +191,7 @@ Mechanism and purpose are separate decisions. Every pattern below uses exactly o
 |---|---|---|---|---|
 | Application boundary | <single style-layer media query, runtime provider/configuration, and route-transition setting> | <global default inherited by every registered variant> | <final state immediately, or opacity-only; no spatial transform, parallax, autoplay, continuous ambience, or scale> | <route-level opt-out or justified per-variant exception; name the owner and reason> |
 
-Call sites do not query reduced-motion preferences. They reference registered variants that inherit this global configuration. Any exception is recorded once in the pattern inventory with its reason.
+Call sites do not query reduced-motion preferences. They reference registered variants that inherit this global configuration.
 
 ### Motion Tokens
 
@@ -246,23 +203,7 @@ Call sites do not query reduced-motion preferences. They reference registered va
 
 | Motion ID | Surface / component | Mechanism | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
 |---|---|---|---|---|---|---|---|---|
-| MOTION-001 | <surface> | <style-layer transition / animation runtime / route-level transition> | <feedback / continuity / processing / storytelling> | <load, viewport, interaction, state, or scroll> | <opacity/transform/etc.> | <tokens> | <rules> | <behavior> |
-
-### Hero Choreography
-
-| Step | Element | Start / relation | From → to | Purpose | Mobile behavior | Reduced-motion behavior |
-|---|---|---|---|---|---|---|
-| 1 | <eyebrow, headline, copy, CTA, media, or brand accent> | <time or relation> | <values> | storytelling — <rationale> | <variant> | <fallback> |
-
-### Motion Demo Index
-
-| Demo ID | Pattern / page | Artifact path | Stack | Controls | Status |
-|---|---|---|---|---|---|
-| DEMO-001 | <hero or pattern> | <motion-showcase.html or path> | <stack> | play / pause / restart / reduced motion | <draft or approved> |
-
-### Example Motion Implementation Code
-
-<Provide static-first, stack-appropriate implementation code with reduced-motion handling and cleanup/cancellation where required.>
+| MOTION-001 | <surface> | <mechanism> | <feedback / continuity / processing / storytelling> | <load, viewport, interaction, state, or scroll> | <opacity/transform/etc.> | <tokens> | <rules> | <behavior> |
 
 ## Border Radius
 
@@ -282,9 +223,29 @@ Call sites do not query reduced-motion preferences. They reference registered va
 
 ## Layout Rules
 
-<Grid, max widths, navigation layout, responsive breakpoints, and region rules.>
+<Grid, max widths, navigation layout, and region rules.>
 
-## Common Tailwind CSS Usage In Project
+Responsive verification set: <the exact `viewports` or `sizeClasses` list published in `design-system.json`. Web targets use pixel viewports; native and desktop targets use that platform's own size-class or window-size model.>
+
+## State Matrix
+
+Every screen covers these states, or marks the inapplicable ones `n/a` with a reason. Shipping the ready state alone does not close a task.
+
+| State | Applies to | Behavior | Notes |
+|---|---|---|---|
+| ready | <scope> | <behavior> | <notes> |
+| loading | <scope> | <behavior> | <notes> |
+| empty | <scope> | <behavior> | <notes> |
+| error | <scope> | <behavior> | <notes> |
+| disabled | <scope> | <behavior> | <notes> |
+| permission denied | <scope> | <behavior> | <notes> |
+| stale | <scope> | <behavior> | <notes> |
+| expired | <scope> | <behavior> | <notes> |
+| long content | <scope> | <behavior> | <notes> |
+| reduced motion | <scope> | <behavior> | <notes> |
+| mobile reflow | <scope> | <behavior> | <notes> |
+
+## Styling Pattern Usage
 
 <Web target. For a native or desktop target, rename this to the platform's styling model (SwiftUI view modifiers, Compose Modifier chains and MaterialTheme tokens, Flutter ThemeData/widget styles, or WinUI resources) and list the reusable style patterns implementers apply.>
 
@@ -296,7 +257,7 @@ Call sites do not query reduced-motion preferences. They reference registered va
 | Form control | <classes> | <usage> | <notes> |
 | Responsive grid | <classes> | <usage> | <notes> |
 
-## Example Component Reference Design Code
+## Example Component Reference Code
 
 ```tsx
 // Example only. Adapt to the target project stack.

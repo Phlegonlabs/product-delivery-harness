@@ -4,9 +4,9 @@ Use this reference when the user provides a new or updated PRD, wireframe, desig
 
 ## Core Rule
 
-Treat design and product inputs as versioned contract sources, not informal inspiration. When the design source is a `ui-architecture-builder` package, `ui-architecture.md`, `ui-registry.json`, and `page-recipes.md` are binding alongside `design-system.md`, and implementation works from the registry plus the route's recipe — see `SKILL.md`'s UI Implementation Contract.
+Treat design and product inputs as versioned contract sources, not informal inspiration. `design-system.md` and `design-system.json` are binding together, and implementation works from that pair plus the route's screen entry in `wireframes.md` — see `SKILL.md`'s UI Implementation Contract.
 
-A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply its new visual direction, token, variant, component, motion pattern, or structure directly. Return it to `ui-architecture-builder`, normalize and freeze the accepted change, then resume against the revised package.
+A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply its new visual direction, token, variant, component, motion pattern, or structure directly. Return it to `prd-builder`, normalize and freeze the accepted change, then resume against the revised design system.
 
 ```text
 1. Identify source type and version.
@@ -26,8 +26,7 @@ Updated Builder UX Direction: changed experience priority, guidance/control, den
 Updated wireframe: screen structure, navigation, page regions, component hierarchy, state coverage
 Updated design system: tokens, typography, spacing, radius, color, component variants, interaction states
 Updated UI architecture: layer model, source-of-truth precedence, content contracts, primitive contracts, product components, motion architecture, state matrix, guardrails, definition of done, adoption sequence
-Updated UI registry: added/removed primitives, changed closed variant sets, motion variants, product components, page recipes
-Updated page recipe: section order, container, density, allowed surfaces, forbidden patterns, required states, route → mockup → trace → test index
+Updated design system: added/removed tokens or primitives, changed closed variant sets, motion variants, product components, state matrix, responsive set
 Page UI reference: screenshot, Figma frame, mockup, handoff spec, per-page layout target
 Existing app baseline: current route behavior, screenshots, traces, metrics, source implementation
 ```
@@ -48,14 +47,14 @@ Rules:
 - Superseded requirements must be recorded; do not silently drop existing behavior.
 - Page UI references must map to routes/screens and responsive breakpoints.
 - Design-system deltas must map to affected components and variants.
-- A registry delta must name every route whose recipe uses the changed entry, and a recipe delta must name the primitives, components, and motion variants the new recipe needs. A delta that removes a registry entry must state what replaces it at each call site; an entry that disappears from `ui-registry.json` while a route still uses it is a break, not a cleanup.
-- `ui-registry.json` and `page-recipes.md` are binding sources, so a registry or recipe delta is a contract change and must be frozen before implementation like any other. A code-side "we already built it this way" is not an accepted delta.
+- A design-system delta must name every route that uses the changed entry. A delta that removes an entry must state what replaces it at each call site; an entry that disappears from `design-system.json` while a route still uses it is a break, not a cleanup.
+- `design-system.md` and `design-system.json` are binding sources, so a design-system delta is a contract change and must be frozen before implementation like any other. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
 - Builder UX Direction deltas must preserve their human owner and selected/provisional/assumed status, map to affected `UX-*`, `UI-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page UI Matrix
 
-Use this when the user provides different UI references for different pages. When the design source is a `ui-architecture-builder` package, `page-recipes.md` already carries this mapping — read it there instead of rebuilding the table.
+Use this when the user provides different UI references for different pages. When the product has wireframes, their screen entries already carry this mapping — read it there instead of rebuilding the table.
 
 ```text
 | Page / route | UI source | Breakpoints | States | Components | Data source | Acceptance evidence |
@@ -78,7 +77,7 @@ States to consider:
 - plan/entitlement blocked
 - responsive overflow
 
-When the design source is a `ui-architecture-builder` package, the state matrix in `ui-architecture.md` is the authority for this list, and each route's recipe says which of those states that route must support. Mark an inapplicable state `n/a` explicitly rather than omitting it.
+When the product has a design system, `design-system.json`'s `stateMatrix` is the authority for this list. Mark an inapplicable state `<state>:n/a` explicitly rather than omitting it.
 
 ## New Build Flow
 
@@ -88,9 +87,9 @@ For a new build with provided PRD, wireframe, design system, and page UI referen
 M1 source intake and conflict resolution
 M2 contract freeze and traceability
 M3 foundation/data/API if needed
-M4 tokens, primitives, ui-registry.json, mockups/catalog.html, and the UI contract check
+M4 tokens, primitives, and the UI contract check
 M5 product components
-M6 route implementation from ui-registry.json + each route's recipe
+M6 route implementation from design-system.json + each route's wireframe screen
 M7 E2E and visual evidence
 ```
 
@@ -120,8 +119,8 @@ Stop and ask when:
 - Builder UX Direction conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
 - Updated design system conflicts with page UI mockups.
 - Page UI reference omits required states or breakpoints.
-- An in-scope route has no recipe, or a recipe needs a primitive, variant, component, or motion variant that `ui-registry.json` does not list. Ask for the missing recipe or registry entry instead of improvising the route or passing a raw value at the call site.
-- The updated input can only be implemented by leaving the registry or a recipe — for example a spacing value no token carries, or a control the primitives do not cover. The fix is a delta on the primitive, token, or recipe, decided once by the design source, not a page-local exception.
+- An in-scope route has no wireframe screen, or a route needs a token, primitive, variant, component, or motion variant that `design-system.json` does not list. Ask for the missing screen or design-system entry instead of improvising the route or passing a raw value at the call site.
+- The updated input can only be implemented by leaving the design system — for example a spacing value no token carries, or a control the primitives do not cover. The fix is a delta on the token or primitive, decided once by the design source, not a page-local exception.
 - A conformance-mode `frontend-design` pass proposes a value, variant, component, motion pattern, or page structure the frozen package does not contain. Record it as a delta and stop the implementation mission; do not treat the skill output as implicit design approval.
 - Updated input would remove existing app behavior without explicit acceptance.
 - The source version is unclear and multiple variants exist.
@@ -136,7 +135,7 @@ Design-input verification should include:
 - State coverage: required states and breakpoints are checked.
 - Behavior conformance: PRD workflow and data/API behavior still pass.
 - Design-system conformance: tokens/components/variants follow the updated system.
-- Contract conformance: the implementation uses only entries `ui-registry.json` lists, follows each touched route's recipe, and contains no raw visual value, page-local control, inline layout style, or unregistered motion. Run the project's UI contract check — this skill's `scripts/check_ui_contract.py` covers the source-scanning subset, against the product's real source rather than the package's mockups — plus the visual check across the responsive verification set the package's `ui-registry.json` carries — its `viewports` for a web target or its `sizeClasses` for a native or desktop target — in normal and reduced motion. A drift from the registry or a recipe is a contract violation, not a stylistic difference; a passing functional test does not cover it. See `SKILL.md`'s UI Implementation Contract for what each implementation mission owes.
+- Contract conformance: the implementation uses only entries `design-system.json` lists, follows each touched route's wireframe screen, and contains no raw visual value, page-local control, inline layout style, or unregistered motion. Run the project's UI contract check — this skill's `scripts/check_ui_contract.py` covers the source-scanning subset, against the product's real source — plus the visual check across the responsive verification set `design-system.json` carries, its `viewports` for a web target or its `sizeClasses` for a native or desktop target, in normal and reduced motion. A drift from the design system is a contract violation, not a stylistic difference; a passing functional test does not cover it. See `SKILL.md`'s UI Implementation Contract for what each implementation mission owes.
 - Builder direction conformance: selected choices are reflected and provisional/assumed choices remain explicit; this proves direction conformance, not usability.
 - Usability evidence: when required, representative users or an approved equivalent complete the named task against the specified prototype or implementation; agent preference, screenshots, and automated E2E do not substitute for that evidence.
 - Regression: preserved routes, permissions, data behavior, content, analytics, and E2E journeys still pass.

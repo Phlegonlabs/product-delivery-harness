@@ -25,6 +25,8 @@ from harness_manifest import (  # noqa: E402
 )
 from select_ready_nodes import (  # noqa: E402
     GraphSelectionError,
+    _incoming,
+    _logical_reasons,
     _preintegration_review_source_ready,
     _required_actions,
     select_ready_nodes,
@@ -1092,6 +1094,216 @@ class SelectReadyNodesTests(unittest.TestCase):
             any(
                 "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
                 in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_batch_review_pass_bound_to_an_integrated_sha_goes_stale_on_a_new_head(
+        self,
+    ) -> None:
+        """A batch review may not keep a PASS alive via a mission's integrated_sha.
+
+        integrated_sha is a permanent historical value. Before this was scoped to
+        direct singleton pre-integration reviews, a batch review that passed on the
+        head right after M1 landed stayed valid forever, so a later repair could
+        land and the run would close out carrying a review of an older head.
+        """
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        node_id = "N-VISUAL-REVIEW"
+        attempt_id = "ATT-VISUAL-REVIEW-BATCH"
+        nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
+        # Two missions makes this a batch review, not a direct singleton one.
+        nodes[node_id]["review"]["mission_ids"] = ["M1", "M3"]
+        run["graph_state"]["node_states"][node_id].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": attempt_id,
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-VISUAL-BATCH",
+                "blockers": [],
+            }
+        )
+        integrated_sha = "c" * 40
+        run["mission_states"]["M1"]["integrated_sha"] = integrated_sha
+        run["integration"]["integration_head_sha"] = integrated_sha
+        review_worker = exact_head_review_worker(
+            node_id=node_id,
+            worker_id="RW-VISUAL-BATCH",
+            attempt_id=attempt_id,
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        review_worker["reviewed_sha"] = integrated_sha
+        review_worker["review_path"] = "C:/repo"
+        run["review_workers"] = [review_worker]
+
+        # While the integration head still equals that SHA the PASS is current.
+        self.assertEqual([], validate_run(plan, run))
+
+        # A repair lands: the head moves on, so the batch PASS is now stale.
+        run["integration"]["prior_head_shas"] = [integrated_sha]
+        run["integration"]["integration_head_sha"] = "f" * 40
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "reviewed_sha: must identify the direct singleton pre-integration "
+                "worktree, integrated, or PR head" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_complete_run_cannot_supersede_a_review_that_found_a_defect(self) -> None:
+        """Superseding a fix_required review must not be an escape from the loop."""
+        plan, run = current_preintegration_review_state()
+        node_id = "N-VISUAL-REVIEW"
+        run["graph_state"]["node_states"][node_id].update(
+            {
+                "phase": "superseded",
+                "attempts": 1,
+                "last_outcome": "fix_required",
+                "blockers": [],
+            }
+        )
+        run["status"] = "complete"
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "cannot supersede a review node that returned fix_required" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_post_integration_review_rearms_after_its_repair_routes_back(self) -> None:
+        """The fix_required correction loop must actually close.
+
+        N-VISUAL-REVIEW returns fix_required and parks in `failed`. Its bounded
+        repair route runs N-VISUAL-REPAIR, whose code review passes and routes
+        back. The review then has to become selectable again on the new head —
+        otherwise the frontier empties with no blocker and the run stalls.
+        """
+        plan, run = current_preintegration_review_state()
+        node_states = run["graph_state"]["node_states"]
+        edge_states = run["graph_state"]["edge_states"]
+
+        # The visual review already ran and asked for a repair.
+        node_states["N-VISUAL-REVIEW"].update(
+            {
+                "phase": "failed",
+                "attempts": 1,
+                "last_attempt_id": "ATT-VISUAL-1",
+                "last_outcome": "fix_required",
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+
+        # Before the repair's review passes, the node must stay parked.
+        parked = _logical_reasons(
+            next(n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW"),
+            plan,
+            run,
+            *_incoming(plan),
+        )
+        self.assertIn("node_phase_not_ready", parked)
+
+        # The repair lands and its code review passes, traversing the return route.
+        node_states["N-VISUAL-REPAIR-CODE-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REPAIR-REVIEW-1",
+                "last_outcome": "pass",
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+        edge_states["E-VISUAL-REPAIR-REREVIEW"].update(
+            {"status": "traversed", "traversals": 1, "source_attempt_id": "ATT-REPAIR-REVIEW-1"}
+        )
+
+        rearmed = _logical_reasons(
+            next(n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW"),
+            plan,
+            run,
+            *_incoming(plan),
+        )
+        self.assertNotIn("node_phase_not_ready", rearmed)
+        self.assertNotIn("route_not_activated", rearmed)
+
+    def test_a_rearmed_review_still_stops_when_its_attempt_budget_is_spent(self) -> None:
+        plan, run = current_preintegration_review_state()
+        node_states = run["graph_state"]["node_states"]
+        edge_states = run["graph_state"]["edge_states"]
+        node_states["N-VISUAL-REVIEW"].update(
+            {
+                "phase": "failed",
+                "attempts": 2,
+                "last_attempt_id": "ATT-VISUAL-2",
+                "last_outcome": "fix_required",
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+        node_states["N-VISUAL-REPAIR-CODE-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REPAIR-REVIEW-1",
+                "last_outcome": "pass",
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+        edge_states["E-VISUAL-REPAIR-REREVIEW"].update(
+            {"status": "traversed", "traversals": 1, "source_attempt_id": "ATT-REPAIR-REVIEW-1"}
+        )
+
+        reasons = _logical_reasons(
+            next(n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW"),
+            plan,
+            run,
+            *_incoming(plan),
+        )
+        self.assertIn("attempts_exhausted", reasons)
+        self.assertIn("node_phase_not_ready", reasons)
+
+    def test_traversed_edge_requires_an_outcome_the_edge_declares(self) -> None:
+        """A pass-only edge may not be traversed from a fix_required attempt.
+
+        This is the mechanism behind "it never routes straight past the review
+        gate": without it, a run can record the closeout route as traversed from
+        the very attempt that asked for a repair.
+        """
+        plan, run = current_preintegration_review_state()
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"].update(
+            {
+                "phase": "failed",
+                "attempts": 1,
+                "last_attempt_id": "ATT-VISUAL-1",
+                "last_outcome": "fix_required",
+                "blockers": [],
+            }
+        )
+        # E-VISUAL-CLOSEOUT declares on_outcomes ["pass"].
+        run["graph_state"]["edge_states"]["E-VISUAL-CLOSEOUT"].update(
+            {"status": "traversed", "traversals": 1, "source_attempt_id": "ATT-VISUAL-1"}
+        )
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "traversed edge requires a source outcome the edge declares" in error
                 for error in errors
             ),
             errors,

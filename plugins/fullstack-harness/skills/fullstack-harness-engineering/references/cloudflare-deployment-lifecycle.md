@@ -74,13 +74,15 @@ Cloudflare's own mechanism has no approval or review gate: pushing to a Worker's
 
 **Release-target `source` value.** The development release target uses `integration_head`, binding PASS to the live-Git-cross-checked `development` head in `run.integration.integration_head_sha`. Production uses `production_head`, which binds to `landing.merged_sha` after the approved `development -> production` promotion.
 
-**No pause point — the checkpoint moves to the promotion merge.** Because Cloudflare deploys automatically on branch changes, the harness gates the exact `development -> production` merge. Run the Pre-Deploy Confirmation Checkpoint immediately before that approved merge because it is effectively the production deploy trigger.
+**No pause point on the development side — that is the intent.** Pushing `development` builds the development Worker immediately, and under the default branch model that push is part of the ordinary execution instruction rather than a separate confirmation (see `SKILL.md`'s Execution Authorization Gate). Record it honestly: the run uses `landing.mode: integration_push`, `landing.pushed_head_sha` carries the pushed integration head, and the development release target's `deploy` entry is recorded with its exact `release:<development-target-id>` target under the same execution-intent source. Do not pretend an auto-deploying push was not a deploy.
 
-**Substitute boundary for out-of-band merges.** Protect `production`: require a pull request and review, and disallow direct pushes. This is the remaining safety boundary against an out-of-band production deploy because Cloudflare's own auto-deploy has no human approval gate.
+**The checkpoint moves to the promotion merge, and that merge is the human's.** Run the Pre-Deploy Confirmation Checkpoint immediately before the approved `development -> production` merge because it is effectively the production deploy trigger — then hand the merge-ready PR over. The harness does not perform that merge and does not enable auto-merge for it.
+
+**Substitute boundary for out-of-band merges.** Protect `production`: require a pull request and review, and disallow direct pushes. This is the remaining safety boundary against an out-of-band production deploy because Cloudflare's own auto-deploy has no human approval gate. Combined with the human-owned merge above, the only path to a production build is a person pressing merge on a PR that already converged on its exact head.
 
 ## Pre-Deploy Confirmation Checkpoint
 
-The final user approval starts production promotion; exact `merge_pr` and `deploy` authorizations still remain independent. Before the parent runs the production deploy command or performs the auto-deploy-triggering `development -> production` merge, verify the exact SHA and migration classification below.
+The final user approval starts production promotion; exact `merge_pr` and production `deploy` authorizations still remain independent, and neither is covered by the execution-intent instruction that covers the development loop. Before the parent runs the production deploy command or performs the auto-deploy-triggering `development -> production` merge, verify the exact SHA and migration classification below.
 
 **Deploying SHA drift.** At the final production-promotion approval checkpoint, record the current `development` head SHA into `targets[production-id].authorized_head_sha`. Before production promotion or deploy fires, compare that value against the live SHA about to be promoted. If they differ because review-repair, a new push, or re-integration changed the head, stop and ask for a fresh explicit confirmation naming the new SHA.
 

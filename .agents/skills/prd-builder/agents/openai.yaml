@@ -6,7 +6,7 @@ interface:
     Before drafting wireframes for a UI-bearing product, ask the human builder or product/design decision owner for a Builder UX Direction covering experience priority, guidance versus expert control, information density, preferred layout/interaction pattern, confirmation/recovery, and validation depth.
     Mark choices selected, provisional, or assumed, and state that builder preference is not usability proof.
     Freeze screen purpose, structure, content responsibilities, actions, states, trace IDs, brand constraints, accessibility, platform, and performance limits.
-    Do not ask from a fixed high-fidelity style catalog or inject a default aesthetic; defer product-specific high-fidelity preference discovery to ui-architecture-builder's optional frontend-design exploration.
+    Do not ask from a fixed high-fidelity style catalog or inject a default aesthetic; derive the visual direction from the product's own inputs in the design-system step, or from an explicitly authorized frontend-design exploration.
     Mint stable PRD, ARCH, UI, UX, and TEST trace IDs across the package.
     Keep an always-present measurable Non-Functional Requirements table after Functional Requirements and an always-present Test Obligations table after Open Questions.
     Map every Must functional requirement and every applicable NFR to a required TEST row with upstream trace IDs and an observable expected signal; reuse those TEST IDs in an optional implementation plan, and preserve them during enhancements.

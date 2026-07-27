@@ -102,7 +102,7 @@ from harness_ui_evidence import (
     _validate_ui_evidence,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
-    validate_ui_surface_recipe_coverage,
+    validate_ui_surface_design_coverage,
 )
 
 
@@ -775,7 +775,14 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     return sorted(set(errors))
 
 
-def _validate_landing(errors: list[str], value: Any, schema_version: int) -> None:
+def _validate_landing(
+    errors: list[str],
+    value: Any,
+    schema_version: int,
+    *,
+    integration_head_sha: Any = None,
+    push_authorized: bool = True,
+) -> None:
     path = "run.landing"
     keys = {
         "mode",
@@ -803,8 +810,8 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
     if not _keys(errors, path, value, keys):
         return
 
-    if value["mode"] not in {"local_only", "pull_request"}:
-        _add(errors, f"{path}.mode", "must be local_only or pull_request")
+    if value["mode"] not in {"local_only", "integration_push", "pull_request"}:
+        _add(errors, f"{path}.mode", "must be local_only, integration_push, or pull_request")
     for key in ("remote", "head_branch", "base_branch", "pr_url"):
         _optional_string(errors, f"{path}.{key}", value[key])
     for key in (
@@ -867,10 +874,29 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
         if any(value[key] is not None for key in ("pr_number", "pr_url", "pr_head_sha")):
             _add(errors, path, "not_created PR must not record number, URL, or PR head")
 
-    if value["mode"] == "local_only" and value["pr_state"] != "not_created":
-        _add(errors, path, "local_only mode cannot record a created PR")
+    if value["mode"] in {"local_only", "integration_push"} and value["pr_state"] != "not_created":
+        _add(errors, path, f"{value['mode']} mode cannot record a created PR")
     if value["mode"] == "local_only" and value["pushed_head_sha"] is not None:
         _add(errors, path, "local_only mode cannot record a pushed head")
+    # integration_push is the ordinary path: the integration branch is pushed so
+    # its watching deployment target can build, and no PR exists yet. The pushed
+    # head must be the current integration head, or a later local integration
+    # would leave the run claiming a head the remote never received.
+    if value["mode"] == "integration_push":
+        if value["pushed_head_sha"] is None:
+            _add(errors, path, "integration_push mode requires the pushed integration head")
+        elif is_full_sha(integration_head_sha) and value["pushed_head_sha"] != integration_head_sha:
+            _add(
+                errors,
+                f"{path}.pushed_head_sha",
+                "must equal integration.integration_head_sha",
+            )
+        if not push_authorized:
+            _add(
+                errors,
+                path,
+                "integration_push mode requires an authorized push covering the integration branch",
+            )
     if schema_version == 10:
         continuity = value["continuity"]
         if continuity is not None and _keys(
@@ -895,8 +921,8 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
                 _add(errors, f"{path}.continuity.reason", "is required when continuity is blocked")
             if value["mode"] == "pull_request" and continuity["status"] != "not_required":
                 _add(errors, f"{path}.continuity.status", "pull_request mode requires not_required")
-            if value["mode"] == "local_only" and continuity["status"] == "not_required":
-                _add(errors, f"{path}.continuity.status", "local_only mode requires a later-PR continuity path")
+            if value["mode"] in {"local_only", "integration_push"} and continuity["status"] == "not_required":
+                _add(errors, f"{path}.continuity.status", f"{value['mode']} mode requires a later-PR continuity path")
     if value["checks_status"] == "PASS" and (
         value["pr_state"] not in created_states
         or value["checks_head_sha"] is None
@@ -1183,10 +1209,15 @@ def _validate_post_merge_cleanup(
 
     mission_states = run.get("mission_states")
     if not isinstance(mission_states, dict) or not mission_states or any(
-        not isinstance(state, dict) or state.get("phase") != "integrated"
+        not isinstance(state, dict)
+        or state.get("phase") not in {"integrated", "superseded"}
         for state in mission_states.values()
     ):
-        _add(errors, path, "cleanup requires every run mission to be integrated")
+        _add(
+            errors,
+            path,
+            "cleanup requires every run mission to be integrated or superseded",
+        )
         mission_ids: list[str] = []
     else:
         mission_ids = list(mission_states)
@@ -2524,7 +2555,47 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.authorized_head_sha", "must be omitted when unauthorized")
 
     if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
-        _validate_landing(errors, run["landing"], schema_version)
+        raw_integration = run.get("integration")
+        landing_integration_head = (
+            raw_integration.get("integration_head_sha")
+            if isinstance(raw_integration, dict)
+            else None
+        )
+        # A boolean is not enough: an enabled push scoped to an unrelated branch
+        # or bound to a stale head must not satisfy the integration_push gate.
+        landing_branch = run["landing"].get("head_branch")
+        push_target = (
+            f"branch:{landing_branch}" if _nonempty_string(landing_branch) else "*"
+        )
+        raw_push = run.get("authorizations")
+        push_entry = raw_push.get("push") if isinstance(raw_push, dict) else None
+        push_head = (
+            push_entry.get("authorized_head_sha") if isinstance(push_entry, dict) else None
+        )
+        raw_mission_states = run.get("mission_states")
+        push_mission_ids = (
+            list(raw_mission_states) if isinstance(raw_mission_states, dict) else []
+        )
+        push_scope_ok = (
+            _nonempty_string(landing_branch)
+            and bool(push_mission_ids)
+            and all(
+                authorization_covers(run, "push", mission_id, push_target)
+                for mission_id in push_mission_ids
+            )
+            and (
+                push_head is None
+                or not is_full_sha(landing_integration_head)
+                or push_head == landing_integration_head
+            )
+        )
+        _validate_landing(
+            errors,
+            run["landing"],
+            schema_version,
+            integration_head_sha=landing_integration_head,
+            push_authorized=push_scope_ok,
+        )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         landing = run["landing"]
         continuity = landing.get("continuity")
@@ -2588,7 +2659,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.landing.continuity",
                     "not_required continuity must not record branch, head, or reason",
                 )
-        if landing.get("mode") == "local_only" and (
+        if landing.get("mode") in {"local_only", "integration_push"} and (
             landing.get("checks_status") != "not_started"
             or landing.get("review_status") != "not_requested"
             or landing.get("merge_status") != "not_ready"
@@ -2605,15 +2676,22 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 )
             )
         ):
-            _add(errors, "run.landing", "local_only mode cannot record remote landing evidence")
-        if landing.get("mode") == "local_only" and run.get("execution_authorized") is True:
+            _add(
+                errors,
+                "run.landing",
+                f"{landing.get('mode')} mode cannot record PR, CI, review, or merge evidence",
+            )
+        if (
+            landing.get("mode") in {"local_only", "integration_push"}
+            and run.get("execution_authorized") is True
+        ):
             if not isinstance(continuity, dict) or continuity.get("status") not in {"planned", "preserved"}:
                 _add(
                     errors,
                     "run.landing.continuity",
-                    "authorized local_only execution requires a planned or preserved later-PR branch",
+                    "authorized non-PR execution requires a planned or preserved later-PR branch",
                 )
-        if landing.get("mode") == "local_only" and run.get("status") == "complete":
+        if landing.get("mode") in {"local_only", "integration_push"} and run.get("status") == "complete":
             integration = run.get("integration")
             integration_head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
             if (
@@ -2886,26 +2964,29 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             },
         ):
             permission_path = "run.runtime_capabilities.permission_boundary"
-            if permission["selected_mode"] not in PERMISSION_SELECTED_MODES:
-                _add(errors, f"{permission_path}.selected_mode", "has an unsupported value")
             profile_name = permission["profile_name"]
             if permission["selected_mode"] == "named_profile":
                 if not _nonempty_string(profile_name):
                     _add(errors, f"{permission_path}.profile_name", "is required for named_profile")
             elif profile_name is not None:
                 _add(errors, f"{permission_path}.profile_name", "must be null unless selected_mode is named_profile")
-            if permission["approval_policy"] not in PERMISSION_APPROVAL_POLICIES:
-                _add(errors, f"{permission_path}.approval_policy", "has an unsupported value")
-            if permission["filesystem_scope"] not in PERMISSION_FILESYSTEM_SCOPES:
-                _add(errors, f"{permission_path}.filesystem_scope", "has an unsupported value")
-            if permission["network_scope"] not in PERMISSION_NETWORK_SCOPES:
-                _add(errors, f"{permission_path}.network_scope", "has an unsupported value")
-            if permission["local_binding"] not in PERMISSION_LOCAL_BINDINGS:
-                _add(errors, f"{permission_path}.local_binding", "has an unsupported value")
-            if permission["worker_inheritance"] not in PERMISSION_INHERITANCE:
-                _add(errors, f"{permission_path}.worker_inheritance", "has an unsupported value")
-            if permission["status"] not in PERMISSION_STATUSES:
-                _add(errors, f"{permission_path}.status", "has an unsupported value")
+            # Name the legal values: these enums are not listed in the authoring
+            # template, so a bare "unsupported value" leaves the author guessing.
+            for field, allowed in (
+                ("selected_mode", PERMISSION_SELECTED_MODES),
+                ("approval_policy", PERMISSION_APPROVAL_POLICIES),
+                ("filesystem_scope", PERMISSION_FILESYSTEM_SCOPES),
+                ("network_scope", PERMISSION_NETWORK_SCOPES),
+                ("local_binding", PERMISSION_LOCAL_BINDINGS),
+                ("worker_inheritance", PERMISSION_INHERITANCE),
+                ("status", PERMISSION_STATUSES),
+            ):
+                if permission[field] not in allowed:
+                    _add(
+                        errors,
+                        f"{permission_path}.{field}",
+                        f"has an unsupported value; expected one of {sorted(allowed)}",
+                    )
             if permission["status"] == "ready" and "unknown" in {
                 permission["selected_mode"],
                 permission["approval_policy"],
@@ -3749,9 +3830,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     for sha in (
                         run.get("integration", {}).get("integration_head_sha"),
                         run.get("landing", {}).get("pr_head_sha"),
+                        # integrated_sha is a permanent historical value, so it
+                        # never goes stale on its own. Only a direct singleton
+                        # pre-integration review may bind to it; a batch or
+                        # post-integration review must bind to the current
+                        # integration or PR head, or a repair that lands after
+                        # it would leave its PASS silently covering an older head.
                         *(
                             state.get("integrated_sha")
-                            for state in reviewed_mission_states.values()
+                            for mission_id, state in reviewed_mission_states.items()
+                            if mission_id in direct_preintegration_mission_ids
                         ),
                         *(
                             state.get("head_sha")
@@ -4034,10 +4122,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             path = f"run.attempt_log[{index}]"
             if not _keys(errors, path, attempt, attempt_keys):
                 continue
-            for key in ("attempt_id", "mission_id", "kind", "result"):
+            for key in ("attempt_id", "kind", "result"):
                 if not _nonempty_string(attempt[key]):
                     _add(errors, f"{path}.{key}", "must be a non-empty string")
-            if attempt["mission_id"] not in mission_ids:
+            # A final-gate or closeout-gate attempt belongs to no mission, so
+            # mission_id is nullable here rather than laundered through an
+            # arbitrary mission.
+            _optional_string(errors, f"{path}.mission_id", attempt["mission_id"])
+            if attempt["mission_id"] is not None and attempt["mission_id"] not in mission_ids:
                 _add(errors, f"{path}.mission_id", "is unknown")
             for key in ("task_id", "lease_id"):
                 _optional_string(errors, f"{path}.{key}", attempt[key])
@@ -4198,6 +4290,38 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     errors,
                     "run.graph_state.node_states",
                     "complete graph run requires every succeeded node to have pass outcome",
+                )
+            # Superseding a review that returned fix_required would otherwise be
+            # the easy way out of a correction loop: the defect the review found
+            # is discarded and the run closes clean.
+            raw_plan_graph = plan.get("graph")
+            closeout_graph_nodes = (
+                raw_plan_graph.get("nodes", [])
+                if isinstance(raw_plan_graph, dict)
+                else []
+            )
+            verifier_node_ids = {
+                node["id"]
+                for node in (
+                    closeout_graph_nodes
+                    if isinstance(closeout_graph_nodes, list)
+                    else []
+                )
+                if isinstance(node, dict)
+                and node.get("kind") == "verifier"
+                and isinstance(node.get("id"), str)
+            }
+            if isinstance(node_states, dict) and any(
+                isinstance(state, dict)
+                and state.get("phase") == "superseded"
+                and state.get("last_outcome") == "fix_required"
+                and node_id in verifier_node_ids
+                for node_id, state in node_states.items()
+            ):
+                _add(
+                    errors,
+                    "run.graph_state.node_states",
+                    "complete graph run cannot supersede a review node that returned fix_required",
                 )
             if not isinstance(edge_states, dict) or any(
                 not isinstance(state, dict)

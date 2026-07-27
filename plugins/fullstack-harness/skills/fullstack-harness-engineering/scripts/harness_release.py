@@ -856,7 +856,31 @@ def _validate_targets(
         if any(states.get(item_id, {}).get("status") != "PASS" for item_id in development_ids):
             _add(errors, f"{path}.{target_id}", "production PASS requires every development target PASS")
 
+    # Declaring release targets in PLAN describes where the product deploys; it
+    # does not oblige every run to deploy all of them. Under the default branch
+    # model an ordinary run pushes `development` and finishes there: its
+    # development target lands, while production deliberately stays not_started
+    # until a later human-owned promotion. Only a run that actually landed
+    # through a PR owes every declared target; otherwise a run owes the
+    # development-stage targets it started and nothing beyond them.
+    landing_mode = (
+        run.get("landing", {}).get("mode") if isinstance(run.get("landing"), dict) else None
+    )
+
+    def _status(target_id: str) -> Any:
+        state = states.get(target_id)
+        return state.get("status") if isinstance(state, dict) else None
+
+    if landing_mode == "pull_request":
+        owed = set(declared_targets)
+    else:
+        owed = {
+            target_id
+            for target_id, declared in declared_targets.items()
+            if declared.get("stage") == "development"
+            and _status(target_id) not in {None, "not_started"}
+        }
     if run.get("status") == "complete" and any(
-        states.get(target_id, {}).get("status") != "PASS" for target_id in declared_targets
+        _status(target_id) != "PASS" for target_id in owed
     ):
         _add(errors, path, "complete run requires every PLAN release target PASS")

@@ -30,7 +30,7 @@ Deny: <mission deny_scope>, parent-owned PLAN.md and RUN.md, frozen contracts, a
 
 Load exactly the skills named in "Skills to load" above — no more, no fewer — before the Launch Checklist below, then verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
 
-When "Skills to load" includes `frontend-design` for a UI implementation mission, use it only in frontend-design conformance mode. Read the frozen wireframe, design system, `ui-registry.json`, route recipe, and mockup named by the parent before coding. Do not choose a new aesthetic direction or invent a token, primitive, variant, component, motion pattern, or page structure. Return a missing entry as a design-input delta and stop; do not add it locally.
+When "Skills to load" includes `frontend-design` for a UI implementation mission, use it only in frontend-design conformance mode. Read the frozen wireframe screen, `design-system.md`, and `design-system.json` named by the parent before coding. Do not choose a new aesthetic direction or invent a token, primitive, variant, component, motion pattern, or page structure. Return a missing entry as a design-input delta and stop; do not add it locally.
 
 For each ready task: make the smallest coherent change, use the local diff for provisional `selection.mode: "changed_files"` matching, run every applicable declared verifier, and return literal evidence. Execute every declared verifier through `scripts/verifier_runtime.py`'s `run_verifier()` — passing `cache_root=None`, or omitting it, whenever the parent supplied no cache root — so its returned `execution_key` is available to report as `evidence`; this applies unconditionally, not only when caching applies. Never run a verifier command through a separate direct shell invocation whose result carries no `execution_key`; a worker result reporting free-form text or a command transcript as `evidence` is rejected. Omitted selection metadata means always run. A targeted verifier may be absent only when no changed path matches its declared scope; the parent recomputes applicability from parent-observed changed files and may require a fresh check. If the parent supplied a repository-external verifier cache root, reuse is allowed only through `verifier_runtime.py` for an opted-in deterministic local `exit 0` command with exact immutable inputs; never claim a cache hit from memory or prose. Create a commit only when create_local_commits is explicitly authorized. Every isolated successful handoff needs durable task commits, each attributed to exactly one task, with the final commit equal to the reported head. Do not create another app task, mission worker, branch, worktree, or harness lease. Direct read-only subagents are the sole exception and only when the supplied nested policy is enabled and `spawn_subagents` covers this worker. Do not switch branches, pull, rebase, merge, integrate, push, open a PR, deploy, remove a worktree, delete a branch, or archive a task; those remain parent/user-owned actions unless separately and explicitly assigned.
 
@@ -116,6 +116,57 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
 }
 ```
 
+## Verifier Execution Context
+
+`run_verifier()` takes a `context` object with all of these keys. Two are fixed constants and are the usual thing to get wrong: `trust_domain` is always `"parent_local"` and `checkout_role` is always `"worker"` — they describe the domain the parent will validate the evidence in, not the process running the command. A wrong guess still runs green here and is rejected much later as `retained_verifier_context_mismatch`.
+
+```json
+{
+  "run_id": "RUN-<stable-id>",
+  "plan_revision": 1,
+  "plan_digest_sha256": "<lowercase SHA-256 of the current semantic PLAN>",
+  "graph_revision": 1,
+  "batch_base_sha": "<full SHA the worktree was created from>",
+  "head_sha": "<full SHA of the worker head>",
+  "changed_files": ["<repo-relative path>", "..."],
+  "trust_domain": "parent_local",
+  "checkout_role": "worker",
+  "checkout_dirty": false,
+  "cache_safe": true,
+  "layer": "task",
+  "mission_id": "M1",
+  "task_id": "M1/T01",
+  "attempt_id": "<attempt id for this execution>",
+  "lease_id": "<the lease supplied at launch>"
+}
+```
+
+For a worker-level verifier use `"layer": "worker"` and `"task_id": null`; everything else is identical. `graph_revision` is `null` for a non-graph run.
+
+## Node Result Manifest
+
+A graph-backed run returns this alongside WORKER_RESULT. The key set is exact — extra or missing keys are rejected outright.
+
+```json
+{
+  "run_id": "RUN-<stable-id>",
+  "node_id": "N-M1",
+  "attempt_id": "<attempt id>",
+  "plan_id": "PLAN-<stable-id>",
+  "plan_revision": 1,
+  "plan_digest_sha256": "<lowercase SHA-256 of the current semantic PLAN>",
+  "graph_revision": 1,
+  "batch_base_sha": "<full SHA the attempt was based on>",
+  "status": "succeeded",
+  "outcome": "pass",
+  "worker_result": { "<the WORKER_RESULT object below>": "..." },
+  "refinement_request": null,
+  "evidence_paths": []
+}
+```
+
+`status` and `outcome` are paired: `succeeded` takes `pass` or `fix_required`, `failed` takes `retryable_failure`, and `blocked` takes `blocked` or `contract_gap`.
+
 ## Worker Result Manifest
 
 ```json
@@ -142,7 +193,7 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
         "verifier_ids": [
           "task-focused"
         ],
-        "commits": [],
+        "commits": ["<full SHA of this task's commit>"],
         "evidence_paths": []
       }
     ],
@@ -153,7 +204,7 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
         "evidence": "<execution_key from verifier_runtime.py's run_verifier() output>"
       }
     ],
-    "commits": [],
+    "commits": ["<every task commit, in order; the last equals head_sha>"],
     "evidence_paths": [],
     "subagent_activity": {
       "status": "not_applicable",

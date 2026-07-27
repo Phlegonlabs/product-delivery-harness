@@ -22,47 +22,72 @@ class CrossSkillPipelineTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILLS_ROOT / relative_path).read_text(encoding="utf-8")
 
-    def test_prd_design_and_harness_share_trace_and_lifecycle_contracts(self) -> None:
+    def test_prd_and_harness_share_trace_and_lifecycle_contracts(self) -> None:
         prd = self.read("prd-builder/references/output-contract.md")
         prd_lifecycle = self.read("prd-builder/references/artifact-lifecycle.md")
-        design = self.read("ui-architecture-builder/references/output-contract.md")
-        design_lifecycle = self.read(
-            "ui-architecture-builder/references/artifact-lifecycle.md"
-        )
         harness = self.read(
             "fullstack-harness-engineering/references/contract-and-traceability.md"
         )
 
         for trace in ("PRD-001", "ARCH-001", "UI-001", "UX-001", "TEST-001"):
             self.assertIn(trace, prd)
-        for trace_prefix in ("`PRD-*`", "`ARCH-*`", "`UI-*`", "`UX-*`", "`TEST-*`", "`DS-*`"):
-            self.assertIn(trace_prefix, design)
+        # The design system now lives in prd-builder, so its DS families are
+        # contracted there and must resolve for the harness's DS-* trace rule.
+        for ds_family in ("`DS-*`", "`DS-LAY-*`", "`DS-SUR-*`", "`DS-TYP-*`", "`DS-CTL-*`", "`DS-COMP-*`"):
+            self.assertIn(ds_family, prd)
+        self.assertIn("`DS-*` ID names an entry that exists in `design-system.json`", harness)
         self.assertIn("content_sha256", harness)
         self.assertIn("immutable `source_revision`", harness)
         self.assertIn("Passing validation does not authorize", prd_lifecycle)
-        self.assertIn("Passing validation does not authorize", design_lifecycle)
 
-    def test_builder_workflows_preserve_trace_contracts_for_the_harness(self) -> None:
-        prd_workflow = self.read(
-            "prd-builder/assets/templates/CLAUDE_PRD_WORKFLOW.template.js"
-        )
-        design_workflow = self.read(
-            "ui-architecture-builder/assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
-        )
-        plan = self.read(
-            "fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md"
+    def test_design_system_pair_publishes_and_freezes_together(self) -> None:
+        prd = self.read("prd-builder/references/output-contract.md")
+        prd_lifecycle = self.read("prd-builder/references/artifact-lifecycle.md")
+        harness = self.read(
+            "fullstack-harness-engineering/references/contract-and-traceability.md"
         )
 
-        for trace in ("PRD", "ARCH", "UI", "UX", "TEST"):
-            self.assertIn(trace, prd_workflow)
-            self.assertIn(trace, design_workflow)
-        self.assertIn("DS IDs", design_workflow)
-        self.assertIn('"trace_ids"', plan)
-        self.assertIn('"required_reviews"', plan)
+        # Both sides must name both files, or a run can freeze half a contract.
+        for source in (prd, prd_lifecycle, harness):
+            self.assertIn("design-system.md", source)
+            self.assertIn("design-system.json", source)
+        self.assertIn("publish together", prd_lifecycle)
+        self.assertIn("Freeze both with a `content_sha256`", harness)
+        self.assertIn("is `partial`, never `frozen`", harness)
+
+    def test_harness_reads_the_responsive_set_from_the_design_system(self) -> None:
+        prd = self.read("prd-builder/references/output-contract.md")
+        harness_skill = self.read("fullstack-harness-engineering/SKILL.md")
+        harness = self.read(
+            "fullstack-harness-engineering/references/contract-and-traceability.md"
+        )
+
+        # Exactly-one-of is the rule on both sides; a default set in the harness
+        # is what this pins against.
+        self.assertIn("exactly one", prd)
+        self.assertIn("do not carry a default set in this skill", harness_skill)
+        self.assertIn("The harness does not carry its own default set", harness)
+
+    def test_the_retired_middle_skill_is_gone_from_every_contract(self) -> None:
+        for relative_path in (
+            "prd-builder/SKILL.md",
+            "prd-builder/references/output-contract.md",
+            "prd-builder/references/artifact-lifecycle.md",
+            "fullstack-harness-engineering/SKILL.md",
+            "fullstack-harness-engineering/references/contract-and-traceability.md",
+            "fullstack-harness-engineering/references/design-input-updates.md",
+            "fullstack-harness-engineering/references/verification-gates.md",
+            "fullstack-harness-engineering/references/execution-task-decomposition.md",
+            "fullstack-harness-engineering/references/platform-archetypes.md",
+            "fullstack-harness-engineering/assets/templates/HARNESS_PLAN.template.md",
+            "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md",
+        ):
+            source = self.read(relative_path)
+            for retired in ("ui-architecture-builder", "ui-registry.json", "page-recipes.md"):
+                self.assertNotIn(retired, source, f"{relative_path} still references {retired}")
 
     def test_wireframe_visual_direction_and_harness_conformance_boundary(self) -> None:
         wireframes = self.read("prd-builder/references/wireframe-guide.md")
-        design = self.read("ui-architecture-builder/references/output-contract.md")
         harness = self.read("fullstack-harness-engineering/SKILL.md")
         worker_goal = self.read(
             "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md"
@@ -73,14 +98,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "low-fidelity wireframes remain canonical for structure and flow",
             wireframes,
         )
-        self.assertIn("Frontend Design Preference & HTML Exploration", design)
-        self.assertIn(
-            "Implementation consumes the extracted package",
-            design,
-        )
         self.assertIn("The normal UI handoff is", harness)
-        self.assertIn("exactly two or three materially different HTML directions", harness)
-        self.assertIn("explicit human approval of consolidated selected HTML", harness)
         self.assertIn("frontend-design conformance mode", harness)
         self.assertIn("missing contract entry returns as a design-input delta", harness)
         self.assertIn("frontend-design conformance mode", worker_goal)

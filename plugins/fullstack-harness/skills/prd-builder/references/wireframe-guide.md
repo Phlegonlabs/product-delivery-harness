@@ -28,7 +28,7 @@ Builder preference controls direction, not usability claims. When preference con
 
 ## Optional Frontend Design Preference & HTML Exploration Handoff
 
-Use this handoff only after the staged PRD package passes its quality checklist and the user explicitly authorizes a downstream `frontend-design` pass. Approval to run `ui-architecture-builder` does not imply approval for this additional skill.
+Use this handoff only after the wireframes pass their quality checklist and the user explicitly authorizes a `frontend-design` pass. No other approval in this run implies approval for that skill.
 
 The downstream design parent selects the same one or two representative screens for every direction and passes:
 

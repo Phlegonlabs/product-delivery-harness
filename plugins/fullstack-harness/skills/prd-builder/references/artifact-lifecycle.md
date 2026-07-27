@@ -29,7 +29,10 @@ In the Approval Gate, label this path explicitly as "existing unrelated content 
   - `docs/product/architecture.md`
   - `docs/product/stack-decisions.md`
   - `docs/product/wireframes.md`
+  - `docs/product/design-system.md` for a UI-bearing product
+  - `docs/product/design-system.json` for a UI-bearing product
   - `docs/product/implementation-plan.md` when requested
+- `design-system.md` and `design-system.json` publish together, in the same approved move set. The JSON is the allowlist `fullstack-harness-engineering`'s contract check reads, so publishing one without the other leaves that check pointing at a stale allowlist and passing code that no longer conforms. If only one of the two is validated, stage both and wait rather than publishing the half that is ready.
 - Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`.
 - Never use `docs/product/archived/` as an input or output location for the current package.
 
@@ -44,7 +47,9 @@ Before drafting, identify the documents that the new package will supersede. Can
 Exclude:
 
 - Everything already under `docs/product/archived/`.
-- Research, meeting notes, source material, design-system documents, test evidence, and unrelated product documents — unless the unrelated document occupies one of this run's exact final publish paths, per "Handle an Unrelated Document at a Fixed Publish Path" above, in which case it must still be inventoried and archived.
+- Research, meeting notes, source material, test evidence, and unrelated product documents — unless the unrelated document occupies one of this run's exact final publish paths, per "Handle an Unrelated Document at a Fixed Publish Path" above, in which case it must still be inventoried and archived.
+
+  `design-system.md` and `design-system.json` are this package's own artifacts and are **not** excluded: a superseded pair is archived together with the rest of the package. Never archive one without the other, and never archive a design system while keeping the `wireframes.md` that references its `DS-*` IDs.
 - Any ambiguous candidate. Leave it in place and mention it to the user instead of guessing.
 
 Record the candidate paths before creating staged artifacts. Do not archive or overwrite them yet.

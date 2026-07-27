@@ -266,7 +266,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("without preventing non-UI CLIs from starting", skill)
         self.assertIn("PLAN v5", readme)
         self.assertIn("RUN v10", readme)
-        self.assertIn("mandatory `design-system.html`", readme)
+        self.assertIn("`design-system.md`, `design-system.json`", readme)
 
 
 if __name__ == "__main__":

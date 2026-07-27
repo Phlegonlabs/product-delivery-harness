@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""Check source files against a UI architecture registry.
+"""Check source files against a product's design system.
 
-Implements the source-scanning subset of the guardrails in
-references/ui-architecture-guide.md: raw values may only appear in the token
-sources, pages may not carry inline layout styles or their own control and
-surface styling, class names must exist in the registry, and motion values
-must come from registered variants instead of call-site numbers. Sections must
-wrap an approved container.
+Reads `design-system.json`, the machine-readable half of the design system
+`prd-builder` publishes, and enforces the source-scannable part of its two
+binding rules: nothing outside the declared token sources may invent a raw
+color, dimension, or motion value, and no page may style its own controls or
+surfaces or inline its own layout.
 
 Rules that need a running browser (viewport overflow, focus visibility) or a
-build graph (hydration cost) are not checked here; they stay in
-visual-acceptance.md as rendered-evidence gates. This tool only reports; it
-never edits a file.
+build graph (hydration cost) are not checked here; they stay as
+rendered-evidence gates in references/verification-gates.md. This tool only
+reports; it never edits a file.
 """
 
 from __future__ import annotations
@@ -27,11 +26,10 @@ RULES = (
     "raw-dimension",
     "inline-layout-style",
     "page-local-control-style",
-    "unregistered-class",
     "call-site-motion",
-    "section-without-container",
 )
 ANALYZABLE_SUFFIXES = {".html", ".css", ".tsx", ".jsx", ".ts", ".js", ".astro", ".vue"}
+PRIMITIVE_LAYERS = {"layout", "surface", "typography", "control"}
 
 HEX_COLOR = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\b")
 # color-mix is excluded on purpose: it derives a color from its arguments, and a
@@ -46,6 +44,11 @@ DIMENSION_DECLARATION = re.compile(
     r"(?<![\w-])\d*\.?\d+(?:px|rem|em)\b"
 )
 INLINE_STYLE = re.compile(r"""style\s*=\s*(?P<quote>["'])(?P<body>.*?)(?P=quote)""", re.S)
+# JSX/Vue write the same thing as an object literal, and .tsx/.jsx/.vue are
+# in this checker's own extension list, so the quoted-attribute form alone
+# misses inline layout in every React-family codebase.
+JSX_INLINE_STYLE = re.compile(r"style\s*=\s*\{\{(?P<body>.*?)\}\}", re.S)
+CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 INLINE_LAYOUT_PROPERTY = re.compile(
     r"\b(?:display|position|gap|row-gap|column-gap|margin|margin-\w+|padding"
     r"|padding-\w+|grid|grid-\w+|flex|flex-\w+|width|height)\s*:"
@@ -60,21 +63,19 @@ MOTION_VALUE = re.compile(
     r"|animation-duration|animation-delay|duration|delay|stiffness|damping)\b"
     r"\s*[:=]\s*[^;,)}\n]*?(?<![\w-])\d*\.?\d+\s*(?:m?s\b|[,;}\n)]|$)"
 )
-CLASS_ATTRIBUTE = re.compile(r"""class(?:Name)?\s*=\s*(?P<quote>["'])(?P<body>[^"']*)(?P=quote)""")
 CSS_VAR_REFERENCE = re.compile(r"var\(--")
-SECTION_TAG = re.compile(r"<section\b[^>]*>", re.I)
 
 
 class UiContractError(ValueError):
-    """Raised for an unreadable file or a malformed registry."""
+    """Raised for an unreadable file or a malformed design system."""
 
 
-class Registry:
+class DesignSystem:
     """The allowlist a page may build from."""
 
     def __init__(self, data: dict, source: Path) -> None:
         if not isinstance(data, dict):
-            raise UiContractError(f"{source}: registry must be a JSON object")
+            raise UiContractError(f"{source}: design system must be a JSON object")
         self.source = source
         self.token_sources = self._string_list(data, "tokenSources")
         self.primitive_sources = self._string_list(data, "primitiveSources")
@@ -83,14 +84,8 @@ class Registry:
         if not isinstance(primitives, dict):
             raise UiContractError(f"{source}: 'primitives' must be an object")
         self.primitives = primitives
-        recipes = data.get("recipes", {})
-        if not isinstance(recipes, dict):
-            raise UiContractError(f"{source}: 'recipes' must be an object")
-        self.recipes = recipes
-        self._validate_evidence_contract(data)
-        self.scaffold_classes = set(self._string_list(data, "reviewScaffoldClasses"))
-        self.container_classes = self._container_classes()
-        self.known_classes = self._known_classes() | self.scaffold_classes
+        self._validate_primitives()
+        self._validate_responsive_set(data)
 
     @staticmethod
     def _string_list(data: dict, key: str) -> list[str]:
@@ -101,7 +96,27 @@ class Registry:
             raise UiContractError(f"'{key}' must be a list of strings")
         return value
 
-    def _validate_evidence_contract(self, data: dict) -> None:
+    def _validate_primitives(self) -> None:
+        for name, spec in self.primitives.items():
+            if not isinstance(spec, dict):
+                raise UiContractError(
+                    f"{self.source}: primitive {name!r} must map to an object"
+                )
+            layer = spec.get("layer")
+            if layer not in PRIMITIVE_LAYERS:
+                raise UiContractError(
+                    f"{self.source}: primitive {name!r} needs a layer of "
+                    f"{', '.join(sorted(PRIMITIVE_LAYERS))}"
+                )
+            declared = spec.get("class")
+            if declared is not None and (
+                not isinstance(declared, str) or not declared.strip()
+            ):
+                raise UiContractError(
+                    f"{self.source}: primitive {name!r} has a non-string 'class'"
+                )
+
+    def _validate_responsive_set(self, data: dict) -> None:
         has_viewports = "viewports" in data
         has_size_classes = "sizeClasses" in data
         viewports = data.get("viewports")
@@ -136,100 +151,18 @@ class Registry:
                 f"{self.source}: define exactly one non-empty unique responsive set: "
                 "viewports or sizeClasses"
             )
-        for route, recipe in self.recipes.items():
-            if (
-                not isinstance(route, str)
-                or not route.strip()
-                or not isinstance(recipe, dict)
-            ):
-                raise UiContractError(f"{self.source}: every recipe must map a route to an object")
-            for key in ("requiredStates",):
-                value = recipe.get(key)
-                if value is not None and (
-                    not isinstance(value, list)
-                    or any(
-                        not isinstance(item, str) or not item.strip()
-                        for item in value
-                    )
-                ):
-                    raise UiContractError(
-                        f"{self.source}: recipe {route!r} {key} must be a string list"
-                    )
-            ui_id = recipe.get("uiId")
-            if ui_id is not None and (
-                not isinstance(ui_id, str) or not ui_id.strip()
-            ):
-                raise UiContractError(
-                    f"{self.source}: recipe {route!r} uiId must be a non-empty string"
-                )
-
-    @staticmethod
-    def _slug(name: str) -> str:
-        without_brackets = name.strip().strip("<>")
-        kebab = re.sub(r"(?<!^)(?=[A-Z])", "-", without_brackets)
-        return kebab.lower().replace(" ", "-")
-
-    def _base_class(self, name: str, spec: dict) -> str:
-        declared = spec.get("class")
-        if declared is not None:
-            if not isinstance(declared, str) or not declared.strip():
-                raise UiContractError(
-                    f"{self.source}: primitive {name!r} has a non-string 'class'"
-                )
-            return declared.strip()
-        return self._slug(name)
-
-    def _variant_axes(self, spec: dict) -> list[tuple[str, list[str]]]:
-        axes: list[tuple[str, list[str]]] = []
-        for key, value in spec.items():
-            if key in ("layer", "class", "rawStylesAllowed", "minTargetPx", "requiresAccessibleName"):
-                continue
-            if isinstance(value, list):
-                axes.append((key, [str(item) for item in value]))
-        return axes
-
-    def _container_classes(self) -> set[str]:
-        classes: set[str] = set()
-        for name, spec in self.primitives.items():
-            if not isinstance(spec, dict) or spec.get("layer") != "layout":
-                continue
-            if "sizes" not in spec:
-                continue
-            classes.add(self._base_class(name, spec))
-        return classes
-
-    def _known_classes(self) -> set[str]:
-        classes: set[str] = set()
-        for name, spec in self.primitives.items():
-            if not isinstance(spec, dict):
-                raise UiContractError(
-                    f"{self.source}: primitive {name!r} must map to an object"
-                )
-            base = self._base_class(name, spec)
-            classes.add(base)
-            for axis, values in self._variant_axes(spec):
-                for value in values:
-                    slug = self._slug(value)
-                    if axis == "gaps":
-                        # The gap scale is shared across layout primitives, so it
-                        # is one utility class rather than a per-primitive modifier.
-                        classes.add(f"gap-{slug}")
-                        continue
-                    classes.add(f"{base}--{slug}")
-                    classes.add(f"{base}-{slug}")
-        return classes
 
 
-def load_registry(path: Path) -> Registry:
+def load_design_system(path: Path) -> DesignSystem:
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise UiContractError(f"cannot read registry {path}: {exc}") from exc
+        raise UiContractError(f"cannot read design system {path}: {exc}") from exc
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise UiContractError(f"{path}: registry is not valid JSON ({exc})") from exc
-    return Registry(data, path)
+        raise UiContractError(f"{path}: design system is not valid JSON ({exc})") from exc
+    return DesignSystem(data, path)
 
 
 class Finding:
@@ -255,7 +188,7 @@ TOKEN_BLOCK_START = re.compile(
 def token_regions(text: str) -> list[tuple[int, int]]:
     """Spans where raw values are allowed even in a page file.
 
-    A dependency-free mockup inlines its own tokens, so the token block is the
+    A self-contained file may inline its own tokens, so the token block is the
     one place a raw value may appear. The global reduced-motion override counts
     too: it is the single place the reduced-motion policy is set.
     """
@@ -283,8 +216,8 @@ def media_prelude_regions(text: str) -> list[tuple[int, int]]:
     """Breakpoint values in an @media prelude.
 
     CSS cannot read a custom property in a media query, so a breakpoint has to
-    be written as a literal. The viewport set is fixed by the registry, and the
-    viewport gate checks it, so these literals are not drift.
+    be written as a literal. The responsive set is fixed by the design system,
+    and the viewport gate checks it, so these literals are not drift.
     """
     return [(match.start(), match.end()) for match in MEDIA_PRELUDE.finditer(text)]
 
@@ -296,7 +229,7 @@ def _strip_comments(text: str) -> str:
 
 def check_file(
     path: Path,
-    registry: Registry,
+    design_system: DesignSystem,
     is_token_source: bool,
     defines_primitives: bool = False,
 ) -> list[Finding]:
@@ -344,39 +277,16 @@ def check_file(
                 Finding(path, _line_of(text, match.start()), "call-site-motion", match.group(0))
             )
 
-    for match in INLINE_STYLE.finditer(text):
-        if INLINE_LAYOUT_PROPERTY.search(match.group("body")):
-            findings.append(
-                Finding(
-                    path,
-                    _line_of(text, match.start()),
-                    "inline-layout-style",
-                    match.group(0),
-                )
-            )
-
-    for match in CLASS_ATTRIBUTE.finditer(text):
-        for name in match.group("body").split():
-            if name not in registry.known_classes:
-                findings.append(
-                    Finding(path, _line_of(text, match.start()), "unregistered-class", name)
-                )
-
-    for match in SECTION_TAG.finditer(text):
-        names = set()
-        attribute = CLASS_ATTRIBUTE.search(match.group(0))
-        if attribute:
-            names = set(attribute.group("body").split())
-        if not names & registry.container_classes:
-            after = text[match.end() : match.end() + 400]
-            nested = CLASS_ATTRIBUTE.search(after)
-            nested_names = set(nested.group("body").split()) if nested else set()
-            if not nested_names & registry.container_classes:
+    for pattern in (INLINE_STYLE, JSX_INLINE_STYLE):
+        for match in pattern.finditer(text):
+            # camelCase -> kebab-case so `flexDirection` reads as `flex-direction`.
+            body = CAMEL_BOUNDARY.sub("-", match.group("body")).lower()
+            if INLINE_LAYOUT_PROPERTY.search(body):
                 findings.append(
                     Finding(
                         path,
                         _line_of(text, match.start()),
-                        "section-without-container",
+                        "inline-layout-style",
                         match.group(0),
                     )
                 )
@@ -402,7 +312,7 @@ def collect_files(paths: list[str], walk: list[str]) -> list[Path]:
 
 
 def check_paths(
-    registry: Registry,
+    design_system: DesignSystem,
     files: list[Path],
     token_sources: list[str],
     primitive_sources: list[str] | None = None,
@@ -410,9 +320,9 @@ def check_paths(
     files = [file for file in files if file.suffix.lower() in ANALYZABLE_SUFFIXES]
     if not files:
         raise UiContractError("no analyzable UI source files were provided")
-    declared = {Path(item).as_posix() for item in registry.token_sources}
+    declared = {Path(item).as_posix() for item in design_system.token_sources}
     declared.update(Path(item).as_posix() for item in token_sources)
-    primitives = {Path(item).as_posix() for item in registry.primitive_sources}
+    primitives = {Path(item).as_posix() for item in design_system.primitive_sources}
     primitives.update(Path(item).as_posix() for item in (primitive_sources or []))
     lines: list[str] = []
     findings: list[Finding] = []
@@ -420,7 +330,7 @@ def check_paths(
         posix = file.as_posix()
         is_token_source = any(posix.endswith(source) for source in declared if source)
         defines_primitives = any(posix.endswith(source) for source in primitives if source)
-        file_findings = check_file(file, registry, is_token_source, defines_primitives)
+        file_findings = check_file(file, design_system, is_token_source, defines_primitives)
         findings.extend(file_findings)
         if is_token_source:
             role = "token source"
@@ -433,7 +343,7 @@ def check_paths(
     lines.extend(str(finding) for finding in findings)
     lines.append(
         f"{len(findings)} violation(s) across {len(files)} file(s) "
-        f"against {registry.source}"
+        f"against {design_system.source}"
     )
     return lines, not findings
 
@@ -443,8 +353,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--registry",
         required=True,
-        metavar="UI_REGISTRY.JSON",
-        help="Path to ui-registry.json, the allowlist every checked file must obey.",
+        metavar="DESIGN_SYSTEM.JSON",
+        help="Path to the product's design-system.json, the allowlist every "
+        "checked file must obey.",
     )
     parser.add_argument(
         "files",
@@ -466,8 +377,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         dest="token_sources",
         metavar="PATH",
-        help="Extra token-source path, added to the registry's tokenSources. Raw "
-        "color, dimension, and motion values are allowed only in these files.",
+        help="Extra token-source path, added to the design system's tokenSources. "
+        "Raw color, dimension, and motion values are allowed only in these files.",
     )
     parser.add_argument(
         "--primitive-source",
@@ -475,10 +386,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         dest="primitive_sources",
         metavar="PATH",
-        help="Path that defines primitives, added to the registry's "
+        help="Path that defines primitives, added to the design system's "
         "primitiveSources. Defining a control or surface selector is that file's "
-        "job, so page-local-control-style is not reported for it. A "
-        "dependency-free mockup is both a token source and a primitive source.",
+        "job, so page-local-control-style is not reported for it.",
     )
     parser.add_argument(
         "--rule",
@@ -486,7 +396,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         dest="rules",
         choices=RULES,
-        help="Report only these rules. Repeatable. Default: every rule.",
+        help="Report only these rules. Repeatable. Default: every rule. A "
+        "filtered run reports only the selected rules, so its exit code does not "
+        "mean the file is contract-clean.",
     )
     return parser
 
@@ -498,10 +410,10 @@ def main(argv: list[str] | None = None) -> int:
         print("give at least one FILE or --path DIR")
         return 2
     try:
-        registry = load_registry(Path(args.registry))
+        design_system = load_design_system(Path(args.registry))
         files = collect_files(args.files, args.walk)
         lines, all_pass = check_paths(
-            registry, files, args.token_sources, args.primitive_sources
+            design_system, files, args.token_sources, args.primitive_sources
         )
     except UiContractError as exc:
         print(str(exc))

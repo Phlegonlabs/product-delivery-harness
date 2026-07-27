@@ -55,7 +55,6 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
 
     def test_both_runtime_manifests_have_all_skills(self) -> None:
         for skill in (
-            "ui-architecture-builder",
             "fullstack-harness-claude-code",
             "fullstack-harness-codex",
             "fullstack-harness-engineering",

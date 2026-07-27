@@ -499,7 +499,12 @@ class ValidateWorkerResultTests(unittest.TestCase):
         result = make_result(plan)
         result["task_results"][0]["verifier_ids"] = []
         result["verifiers"] = []
-        self.assertEqual(validate(plan, run, result), [])
+        # Every declared verifier's scopes miss the observed change, so the
+        # mission would hand back `worker_passed` having run nothing. That is a
+        # gap in the plan's verifier coverage, not a clean run.
+        self.assertEqual(
+            error_codes(validate(plan, run, result)), {"no_applicable_verifier"}
+        )
 
         applicable = copy.deepcopy(plan)
         applicable_selection = {
@@ -648,6 +653,25 @@ class ValidateWorkerResultTests(unittest.TestCase):
 
         self.assertIn("dirty_worker_handoff", error_codes(errors))
         self.assertIn("retained_verifier_context_mismatch", error_codes(errors))
+
+    def test_empty_verifiers_still_run_the_dirty_worktree_gate(self) -> None:
+        """`verifiers: []` must not skip the retained-evidence gates.
+
+        The dirty-worktree gate, the worktree identity match, and the
+        parent-retained-evidence requirement all live in one helper that used to
+        be skipped entirely when the worker reported no verifiers — so a handoff
+        from a dirty worktree with nothing executed validated clean.
+        """
+        run = copy.deepcopy(self.run)
+        run["observed"]["git"]["worktrees"][0]["dirty"] = True
+        result = copy.deepcopy(self.result)
+        result["verifiers"] = []
+        for task_result in result["task_results"]:
+            task_result["verifier_ids"] = []
+
+        codes = error_codes(validate(self.plan, run, result))
+
+        self.assertIn("dirty_worker_handoff", codes)
 
     def test_fabricated_hash_is_rejected_without_a_matching_retained_result(self) -> None:
         result = copy.deepcopy(self.result)

@@ -663,3 +663,26 @@ def _validate_graph_state(
                 or not _nonempty_string(state["source_attempt_id"])
             ):
                 _add(errors, state_path, "traversed edge requires traversal count and source attempt")
+            # An edge declares which source outcomes may traverse it. Without
+            # this check a `pass`-only edge can be recorded as traversed from a
+            # fix_required attempt, which is how a run routes straight past the
+            # review gate that just rejected it.
+            source_state = (
+                node_states.get(graph_edges[edge_id].get("from"))
+                if isinstance(node_states, dict)
+                else None
+            )
+            declared_outcomes = graph_edges[edge_id].get("on_outcomes")
+            if (
+                state["status"] == "traversed"
+                and isinstance(source_state, dict)
+                and isinstance(declared_outcomes, list)
+                and _nonempty_string(state["source_attempt_id"])
+                and source_state.get("last_attempt_id") == state["source_attempt_id"]
+                and source_state.get("last_outcome") not in declared_outcomes
+            ):
+                _add(
+                    errors,
+                    f"{state_path}.source_attempt_id",
+                    "traversed edge requires a source outcome the edge declares",
+                )
