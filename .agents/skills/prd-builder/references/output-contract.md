@@ -9,7 +9,7 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 
 This package stays in the product/spec layer. Do not add design-system, visual-token, primitive- or component-contract, UI-registry, page-recipe, high-fidelity UI mockup, or page-level visual acceptance artifacts to this output contract. `ui-architecture-builder` owns them and publishes `ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, `mockups/*.html` plus `mockups/catalog.html`, and `visual-acceptance.md` alongside this package.
 
-`wireframes.md` is the canonical source for product scope and screen structure. When the user explicitly authorizes the optional `frontend-design` visual-direction handoff in `wireframe-guide.md`, its prototype or render remains non-canonical design-stage evidence outside this package. It cannot change scope or silently replace a wireframe; structural findings return to the PRD owner for a bounded wireframe revision and another quality-check pass.
+`wireframes.md` is the canonical source for product scope and screen structure. When the user explicitly authorizes the optional `frontend-design` Preference & HTML Exploration handoff in `wireframe-guide.md`, its two or three candidate directions and approved selected HTML remain non-canonical design-stage evidence outside this package. They cannot change scope or silently replace a wireframe; structural findings return to the PRD owner for a bounded wireframe revision and another quality-check pass.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -357,10 +357,10 @@ Use this structure:
 - Fidelity: Low
 - Builder UX direction source: [PRD.md#builder-ux-direction-decision]
 - Decision status: [selected / provisional / assumed, with unresolved items]
-- Product style intent: [User-selected direction, or provisional modern-minimal assumption]
+- Product visual inputs: [Known brand references, hard limits, and product-specific visual goals; high-fidelity preference discovery deferred]
 - Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
 - Canonical structure: [This `wireframes.md`; downstream visual candidates cannot change scope, screen structure, actions, states, region responsibilities, or trace IDs]
-- Optional visual-direction handoff: [not requested / explicitly authorized for representative UI IDs; owner and selected IDs]
+- Optional preference & HTML exploration handoff: [not requested / explicitly authorized for the same one or two representative UI IDs; owner and selected IDs]
 - High-fidelity decisions deferred: [Tokens, typefaces, palette, primitive contracts and their variant sets, page recipes, detailed art direction, and other `ui-architecture-builder` decisions]
 
 ## Navigation Model
@@ -509,9 +509,9 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
-- `wireframes.md` identifies itself as the canonical structural source and records whether the optional downstream `frontend-design` visual-direction handoff is not requested or explicitly authorized for named representative `UI-*` IDs.
-- No `frontend-design` prototype, render, high-fidelity HTML, or other visual candidate is stored in the staged or published PRD package. A candidate never adds scope or silently changes the canonical wireframes; any structural finding returns to the PRD owner for a bounded wireframe revision and another checklist pass.
-- `wireframes.md` records the user-selected interface style, or an explicit provisional `modern-minimal` assumption when the user authorized assumptions. A `modern` direction is translated into concrete hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences.
+- `wireframes.md` identifies itself as the canonical structural source and records whether the optional downstream `frontend-design` Preference & HTML Exploration handoff is not requested or explicitly authorized for the same one or two representative `UI-*` IDs.
+- No `frontend-design` candidate or selected HTML is stored in the staged or published PRD package. Candidate directions never add scope or silently change the canonical wireframes; any structural finding returns to the PRD owner for a bounded wireframe revision and another checklist pass.
+- `wireframes.md` records brand references, visual hard limits, and product-specific visual goals while explicitly deferring high-fidelity preference discovery. It does not freeze a style catalog, tokens, or a `modern-minimal` default.
 - `wireframes.md` cites the Builder UX Direction Decision and preserves whether each controlling choice is selected, provisional, or assumed.
 - Every important screen names a layout pattern and density justified by its primary task and content shape.
 - Every important screen states a one-sentence main purpose, names its primary emphasis and secondary/quiet content, and ties its layout pattern to that purpose with a stated reason. A main purpose that could describe any screen in the product (for example "helps the user get things done") does not pass; it must be specific to this screen's job.

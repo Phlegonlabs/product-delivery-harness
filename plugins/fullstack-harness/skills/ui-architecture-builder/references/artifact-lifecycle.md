@@ -23,24 +23,32 @@ Do not publish `docs/product/ui-mockups.md` or `docs/product/page-ui-matrix.md`.
 
 Stage a run under `docs/product/.design-staging/<run-id>/`, mirroring the same relative layout (including a `mockups/` subdirectory with its `catalog.html`). Do not draft over existing final files.
 
-## Visual-Direction Candidate Lifecycle
+## Visual-Exploration Lifecycle
 
-When the explicitly authorized Frontend Design Visual Direction Pass is used, write its one coherent set of one to three representative screens under:
+When the explicitly authorized Frontend Design Preference & HTML Exploration is used, write exactly two or three direction directories for the same one or two representative screens under:
 
 ```text
 docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/
 ```
 
-Keep candidate HTML and notes in that subtree only. They are non-canonical review evidence and are never part of the fixed publish set, never copied into `mockups/`, and never consumed by implementation. Record the human selection plus accepted, rejected, and deferred cues in staged `design-system.md`, then normalize the accepted cues into the package's tokens, primitive and component contracts, recipes, registry, and final mockups.
+Each direction contains complete dependency-free HTML for every authorized representative screen plus concise notes identifying its material differences. Candidate-local values are allowed because tokens, primitives, recipes, and the registry have not been extracted yet.
+
+After the human compares the candidates:
+
+- A direct selection is copied or regenerated as consolidated HTML under `visual-directions/selected/`.
+- A mixed selection is synthesized by one additional `frontend-design` execution under `visual-directions/selected/`; do not merge cues directly into tokens.
+- The human explicitly approves the exact selected HTML. Agent selection or delegated direction choice does not unlock extraction.
+
+Keep candidate and selected HTML in this subtree only. They are non-canonical review evidence and are never part of the fixed publish set, never copied directly into `mockups/`, and never consumed by implementation. The approved selected HTML is the visual source from which tokens, primitive and component contracts, recipes, registry, and final mockups are extracted. Record the dynamic Visual Preference Brief, every direction path, comparison decision, selected-HTML approval, and extraction trace in staged `design-system.md`.
 
 Before publication, list the exact candidate disposition with the canonical publish paths:
 
-- **Archive:** move the candidate subtree to a new, non-overwriting `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>-visual-directions/` path.
-- **Retain:** leave only the candidate subtree in the run staging directory and report it as non-canonical review evidence.
+- **Archive:** move the complete `visual-directions/` subtree, including `selected/`, to a new, non-overwriting `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>-visual-directions/` path.
+- **Retain:** leave the complete `visual-directions/` subtree in the run staging directory and report it as non-canonical review evidence.
 
-Archive or retain requires exact user authorization with the rest of the move set. Never delete candidate files without explicit approval. A retained `visual-directions/` subtree does not block publication because it contains no duplicate canonical package; report its exact path and do not remove its parent staging directory.
+Archive or retain requires exact user authorization with the rest of the move set. Never delete candidate or selected HTML without explicit approval. A retained `visual-directions/` subtree does not block publication because it contains no duplicate canonical package; report its exact path and do not remove its parent staging directory.
 
-Before canonical publication, apply the approved candidate disposition and rewrite staged `design-system.md`'s `Candidate evidence` to the actual final archive or retained path. `pending publication approval` is valid only in staging. Rebuild `design-system.html` when it projects that record, then revalidate the canonical staged package after the provenance rewrite. A published `design-system.md` must never point to an Archive source under `.design-staging/`.
+Before canonical publication, apply the approved exploration-evidence disposition and rewrite staged `design-system.md`'s `Exploration evidence` to the actual final archive or retained path. `pending publication approval` is valid only in staging. Rebuild `design-system.html` when it projects that record, then revalidate the canonical staged package after the provenance rewrite. A published `design-system.md` must never point to an Archive source under `.design-staging/`.
 
 ## Detect Package Enhancement Before Discovery
 
@@ -72,8 +80,8 @@ After approval:
 
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>-design/` only when superseded artifacts exist.
 2. Move only the approved superseded files into that new archive directory. Never overwrite an archive.
-3. Apply the approved candidate disposition: for **Archive**, create the approved non-overwriting candidate archive path and move the candidate subtree there; for **Retain**, leave the candidate subtree in its exact run-staging path.
-4. Rewrite staged `design-system.md`'s `Candidate evidence` to the actual final path and disposition, rebuild `design-system.html` when applicable, and revalidate the canonical staged package. If this revalidation fails, leave the existing published package untouched and report the already-authorized candidate move.
+3. Apply the approved exploration-evidence disposition: for **Archive**, create the approved non-overwriting archive path and move the complete `visual-directions/` subtree there; for **Retain**, leave the subtree in its exact run-staging path.
+4. Rewrite staged `design-system.md`'s `Exploration evidence` to the actual final path and disposition, rebuild `design-system.html` when applicable, and revalidate the canonical staged package. If this revalidation fails, leave the existing published package untouched and report the already-authorized evidence move.
 5. Move the revalidated staged artifacts to their final `docs/product/` paths. Move `ui-architecture.md` with `ui-registry.json`, and move `design-system.md` with `design-system.html`, in the same step.
 6. Remove only the now-empty run staging directory. If the user approved retaining `visual-directions/`, leave that subtree and its parent run directory in place and report the exact path.
 7. If any move fails, preserve every recoverable copy, stop, and report the exact state. Say plainly whether the published architecture and registry are still a matching pair, since a mismatched pair makes the contract check unreliable.

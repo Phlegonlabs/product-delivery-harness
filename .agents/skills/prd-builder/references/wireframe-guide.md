@@ -12,12 +12,12 @@ Record the resulting `Builder UX Direction Decision` in `PRD.md` and carry it in
 
 Builder preference controls direction, not usability claims. When preference conflicts with observed user needs, accessibility, or task evidence, preserve the conflict as a hypothesis and name the prototype or user test needed to resolve it. Never label a wireframe user-validated merely because the builder approved it.
 
-## Direction And Configuration
+## Structural Direction And Configuration
 
-- Ask what overall visual character the user wants before drafting interface wireframes unless the prompt already answers it. Capture the answer as downstream design intent, not as permission to turn the wireframe into a high-fidelity mockup.
-- Keep the wireframe itself simple for every style direction: grayscale in visual tools, clear hierarchy, consistent alignment, restrained containers, and only enough detail to explain content, behavior, and flow.
-- If the user authorizes assumptions and gives no style direction, record `modern-minimal` as provisional. Interpret it structurally as clear hierarchy, balanced whitespace, familiar interaction patterns, restrained grouping, and no decorative UI. Do not present it as an approved design system.
-- Do not accept `modern` as a complete layout decision. Translate it into concrete choices about information density, spacing, typography role, imagery, container use, and interaction tone. Record unresolved choices as handoff questions.
+- Freeze product and structural constraints before visual exploration: screen purpose, content responsibilities, actions, states, trace IDs, brand rules, accessibility, platform, and performance limits.
+- Keep the wireframe simple: grayscale in visual tools, clear hierarchy, consistent alignment, restrained containers, and only enough detail to explain content, behavior, and flow.
+- Do not ask the user to choose a high-fidelity style catalog or record `modern-minimal` as the default. High-fidelity visual preference discovery happens later through `frontend-design` and a product-specific Ask User call.
+- Translate vague product direction into structural consequences such as information density, hierarchy, region order, imagery responsibility, container use, and interaction behavior. Defer typeface, palette, spacing scale, radius, surface styling, and motion choreography.
 - Choose the layout pattern from the screen's primary task and content shape:
   - Landing or narrative page: ordered story, one first-viewport value proposition, one primary action, and secondary detail deferred.
   - App workspace or CRUD screen: stable navigation, task context, primary work area, and actions near the object they affect.
@@ -26,18 +26,22 @@ Builder preference controls direction, not usability claims. When preference con
   - Search, catalog, or comparison screen: query and filters, result summary, scannable results, then detail or comparison.
 - State the selected layout pattern and density for each important screen. Change the pattern only when the user task or content shape changes.
 
-## Optional Frontend Design Visual Direction Handoff
+## Optional Frontend Design Preference & HTML Exploration Handoff
 
 Use this handoff only after the staged PRD package passes its quality checklist and the user explicitly authorizes a downstream `frontend-design` pass. Approval to run `ui-architecture-builder` does not imply approval for this additional skill.
 
-The downstream design parent selects a small representative set, usually one to three screens, and passes:
+The downstream design parent selects the same one or two representative screens for every direction and passes:
 
 - the selected `UI-*` screen and region IDs;
 - each screen's purpose, layout pattern, density, exact copy or display contracts, actions, states, and responsive constraints;
-- the Builder UX Direction Decision and recorded product style intent;
+- the Builder UX Direction Decision, known brand constraints, and product-specific visual goals;
 - an instruction that scope, routes, content responsibilities, interaction behavior, and trace IDs are frozen.
 
-The resulting working prototype or rendered image is non-canonical design-stage evidence. Keep it outside the staged and published PRD package. It may explore typography, color, composition, texture, imagery, and motion, but it must not add product scope or silently change the canonical wireframes.
+The downstream parent first reads the product sources through `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria, then uses the host's Ask User tool to present product-specific preference choices. It must not reuse a fixed style catalog. The answers form a non-binding Visual Preference Brief, not a token specification.
+
+Invoke `frontend-design` separately for exactly two or three materially different directions. Each execution receives the same hard limits and representative screens and produces complete dependency-free HTML. Make every direction reviewable, then ask the human owner to select, reject, or mix them. A mix requires one consolidated selected HTML pass. Tokens, primitives, components, recipes, and the registry are extracted only after the human explicitly approves that selected HTML.
+
+Candidate and selected HTML are non-canonical design-stage evidence. Keep them outside the staged and published PRD package. They may explore typography, color, composition, texture, imagery, and motion, but they must not add product scope or silently change the canonical wireframes.
 
 If the visual pass exposes a structural problem, return a concise finding tied to the affected `UI-*` IDs. The parent or human product/design owner decides whether to make one bounded wireframe revision, preserves unaffected scope and IDs, and reruns the PRD quality checklist. Only then may the visual pass continue from the revised wireframe.
 

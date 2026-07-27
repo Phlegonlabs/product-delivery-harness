@@ -8,13 +8,15 @@ Ask one organized interview message. Skip questions already answered by the user
 
 Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Use the host's structured closed-choice facility when it is available. When it is not, present the same options as numbered closed choices and include `Other`; do not select a default, remove choices, or convert the decision into an open-ended question. Everything else stays free text because it is product-specific.
 
-Resolve closed choices in at most three dependency waves, with at most four questions in each wave:
+Resolve closed product and technical choices in at most three dependency waves, with at most four questions in each wave:
 
-1. **Target and platform-independent decisions.** Resolve the design target first, plus platform-independent choices such as registry enforcement, implementation adoption mode, experience priority, or visual direction as space allows.
+1. **Target and platform-independent decisions.** Resolve the design target first, plus platform-independent choices such as registry enforcement, implementation adoption mode, experience priority, or validation depth as space allows.
 2. **Conditional platform resolution.** Run this wave only when the target is mobile, desktop, or hybrid and the upstream package did not resolve the platform. Resolve native/cross-platform and platform family before continuing.
 3. **Platform-specific and remaining decisions.** Ask styling/theming mechanism and animation runtime only now, using options valid for the resolved platform, then fill remaining slots with still-unanswered validation, motion, or icon choices.
 
 Never ask styling, theming, or runtime questions while the design target or required platform is unresolved. Skip questions already answered by the prompt or supplied files. If more unresolved closed decisions remain after the bounded waves, leave them as explicit open questions; do not silently default them.
+
+Visual Preference Discovery is separate from those closed technical waves. When `frontend-design` is loaded and the user authorizes the exploration, first read the product sources and the skill's Purpose, Tone, Constraints, and Differentiation criteria. Derive one compact Ask User call of project-specific questions and choices from that evidence. Do not reuse a fixed style catalog across products. Each question offers two to four grounded choices plus the tool's built-in `Other`; a follow-up call is allowed only when the first answer exposes one material unresolved preference.
 
 When a same-product UI package already exists, freeze it before this interview and switch to package enhancement mode. Ask only about the requested add/modify/remove delta or conflicts it creates. Do not reopen untouched baseline decisions. Package enhancement is separate from implementation adoption mode: enhancement revises the design package; greenfield or phased migration controls how code adopts it.
 
@@ -38,10 +40,37 @@ When a same-product UI package already exists, freeze it before this interview a
 ### Visual Direction
 
 - Are there existing brand guidelines, logo files, screenshots, Figma frames, websites, or reference products to follow? When the answer names a live reference website rather than a supplied file, see `SKILL.md`'s workflow step 8 for capturing it with a browser tool before extracting brand cues from it.
-- Should the design feel dense and operational, editorial and content-led, commercial and conversion-led, premium and minimal, playful, technical, or another direction? (AskUserQuestion, using dense and operational / editorial and content-led / commercial and conversion-led / premium and minimal as the four options and the tool's built-in Other for playful, technical, or another direction) Skip this question when the PRD or `wireframes.md` already records a `selected` interface-style / visual direction; carry that value forward silently instead. Only ask when it is `provisional` or `assumed` (for example a provisional `modern-minimal` baseline), missing, or the design interview's own free-text discovery surfaces a genuine conflict with it.
 - Which visual or content details should make the product recognizable even without its logo?
 - Are there visual directions or generic AI-UI patterns to avoid?
 - Are there existing brand colors, a required palette, or a dark-mode requirement to preserve, or should the palette be recommended? When a recommendation is wanted, choose it with `visual-decision-guide.md`'s Color Palette Decision guidance, and offer `frontend-design` (per `SKILL.md`'s Optional External Skill Assist) for an expert color-pairing pass only after an explicit yes, when the user wants a more distinctive combination than that guidance alone would produce.
+
+### Dynamic Visual Preference Discovery
+
+Use `frontend-design` to analyze the product before composing the Ask User choices. The choices must be specific to this audience, domain, content, brand evidence, and representative screens. Ask only unresolved dimensions, choosing up to four that will materially separate candidate directions:
+
+- What should receive the strongest visual emphasis, and what should stay quiet?
+- What should someone remember after seeing the interface once?
+- Which product-specific composition or interaction approaches are credible here, and how far from familiar conventions may the candidates go?
+- Which supplied references, physical-world cues, brand materials, or existing product surfaces should influence the work?
+- Which patterns, moods, or competitor similarities must the directions avoid?
+- What information-density, imagery, surface, and motion tradeoffs matter for this product?
+
+Do not ask the user to choose token values, font sizes, spacing steps, radius values, primitive variants, or registry structure. Do not hardcode reusable labels such as editorial, premium minimal, playful, technical, or operational as the product's options. A context-specific choice may use one of those words only when the source analysis makes it meaningful and pairs it with concrete product consequences.
+
+Record the answers in a non-binding Visual Preference Brief:
+
+```text
+Purpose and audience:
+Strongest emphasis:
+Memorable differentiator:
+Reference and brand cues:
+Avoid:
+Density / composition tolerance:
+Imagery / surface / motion appetite:
+Evidence status: selected / provisional / assumed
+```
+
+The brief guides two or three distinct HTML directions. It does not freeze the palette, typography, spacing, components, tokens, primitives, recipes, or registry.
 
 ### Scope And Pages
 
@@ -77,12 +106,13 @@ When a same-product UI package already exists, freeze it before this interview a
 
 ## Readiness Criteria
 
-The UI architecture package is ready to draft when these are known or explicitly assumed:
+The hard-limit and exploration inputs are ready when these are known or explicitly assumed:
 
 - Product archetype and target audience
 - Human Builder UX Direction owner plus concrete selected, provisional, or assumed choices for experience priority, guidance/control, density, interaction/layout, confirmation/recovery, and validation depth
 - Key pages/routes
-- Visual direction or allowed assumptions
+- A project-specific Visual Preference Brief, or an explicit record that Frontend Design Preference & HTML Exploration was not used or was rejected
+- One or two exact representative `UI-*` screen IDs for the candidate HTML directions when exploration is used
 - Brand/context cues and anti-patterns, or permission to derive them
 - Icon source constraints and representative icon needs, or permission to research and recommend them
 - Motion scope, trigger, delivery format, and reduced-motion behavior, or an explicit `n/a`. Scope includes non-hero surfaces in play — modal/sheet, list add/remove/reorder, toast, skeleton/loading, form validation, drag-and-drop, chart/data-viz, scroll-triggered reveal, empty state — each addressed or explicitly marked `n/a`
@@ -95,4 +125,4 @@ The UI architecture package is ready to draft when these are known or explicitly
 - Adoption mode: greenfield, or a phased migration with its first routes named
 - Any conflict between builder preference and user evidence, product requirements, platform conventions, or accessibility
 
-If the user authorizes assumptions, draft with explicit assumptions and open questions rather than continuing the interview.
+Tokens, primitives, components, recipes, and the registry are not ready to draft until two or three candidate HTML directions have been compared, a consolidated selected HTML direction exists, and the human owner has explicitly approved it. If exploration is not used, draft with explicit assumptions and do not claim approved-HTML extraction.

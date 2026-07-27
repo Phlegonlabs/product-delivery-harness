@@ -2,11 +2,11 @@
 
 This guide defines the architecture the package specifies, and how to derive it from real product inputs. `references/output-contract.md` holds the exact artifact structure; this file holds the model and the decision method.
 
-The point of the architecture is a single rule:
+The point of the published architecture is a single rule:
 
 > A page cannot be freely designed. A page may only use approved content contracts, page recipes, product components, and primitives.
 
-That rule is what keeps a human's page and an agent's page consistent, and what keeps the design system, the code, and the mockups from drifting apart.
+That rule starts after visual exploration. Before it applies, `frontend-design` produces two or three direction-local HTML candidates for the same representative screens, the human selects or mixes them, and the human explicitly approves consolidated selected HTML. Tokens, primitives, components, recipes, and the registry are then extracted from that approved source. Candidate HTML is not required to obey a registry that has not been derived yet.
 
 ## Layer Model
 
@@ -15,6 +15,12 @@ Product rules
   ├── Content contracts
   └── Route and state contracts
         ▼
+Visual Preference Brief
+        |
+Two or three candidate HTML directions
+        |
+Human-approved selected HTML
+        |
 Design tokens
   ├── Visual tokens
   ├── Layout tokens
@@ -46,6 +52,7 @@ When two sources disagree, the higher one wins:
 ```text
 Product rules
 > Content contract
+> Human-approved selected HTML
 > Page recipe
 > Product component
 > Primitive contract
@@ -53,9 +60,9 @@ Product rules
 > Page-specific preference
 ```
 
-Page-specific preference is last on purpose. "This page looks better with a bit more space" is not a reason to leave the contract; it is a reason to change the token or the primitive, or to add a variant.
+Page-specific preference is last after the architecture freeze. "This page looks better with a bit more space" is not a reason to leave the published contract; it is a reason to change the token or primitive, or to add a variant. Before that freeze, candidate HTML may explore direction-local values, and the approved selected HTML outranks the extracted visual layers when checking whether extraction changed the chosen design.
 
-`frontend-design` candidate screens do not enter this precedence list. They are non-canonical exploration. Only human-accepted visual decisions gain authority, and only after the parent normalizes them into the package's tokens, primitive and component contracts, recipes, registry, and final mockups.
+Rejected candidate HTML does not enter this precedence list. The approved selected HTML does: it is non-canonical exploration evidence retained as the visual source from which the canonical package is extracted. Implementation consumes the canonical package, while reviewers use the approved selected HTML to catch extraction drift.
 
 ## Layer Responsibilities
 
@@ -64,7 +71,8 @@ Page-specific preference is last on purpose. "This page looks better with a bit 
 | Product rules | What the product must always show, never hide, and never claim | Visual values |
 | Content contracts | Required fields, length limits, formats, CTA counts, empty/long-content handling, what may never be truncated away | Layout, color |
 | Route and state contracts | Which routes exist, which states each must support, what SSR/no-JS must still render | Component internals |
-| Design tokens | Every raw visual, layout, and motion value in the product | Markup, component structure |
+| Approved selected HTML | The human-approved visual composition and actual values from which the system is extracted | Product scope or hard-limit changes |
+| Design tokens | Every repeated raw visual, layout, and motion value extracted from the approved selected HTML | Markup, component structure |
 | Layout primitives | Space, flow, alignment, max width, responsive rearrangement | Color, background, border, elevation, domain content |
 | Surface primitives | Background, border, divider, radius, elevation, and the padding of the surface itself | Spacing between its own children (it wraps a layout primitive), domain content |
 | Typography primitives | Type role, size, weight, line height, truncation and wrapping behavior | Layout, color decisions outside the role's token |
@@ -78,23 +86,25 @@ Page-specific preference is last on purpose. "This page looks better with a bit 
 
 Work from the real screens and product rules, not from a component-library catalog.
 
-1. **Content contracts first.** For each recurring product object, list required fields, max lengths, date and number formats, image ratios, CTA count, empty handling, long-content handling, mobile truncation, and the fields that may never be dropped for layout reasons. Sources, limits, dates, and commercial disclosure belong in the never-drop set whenever the product makes a claim a reader could act on.
-2. **Optional Frontend Design Visual Direction Pass.** After the structural wireframes, route/state contracts, exact wording, and content contracts are frozen, an explicitly authorized `frontend-design` call may render one coherent set of one to three representative candidate screens. Run it once for the direction, not once per route. Candidates may explore hierarchy, typography, palette, spatial composition, imagery, and motion while preserving the frozen product structure. A human selects the direction, or explicitly delegates selection. Normalize only accepted decisions into the canonical layers below; candidate markup and candidate-only values never become a source implementation can consume.
-3. **Tokens.** Fix the visual, layout, and motion token sets. Every accepted visual-direction value a page could otherwise invent must exist here as a named token.
-4. **Layout primitives.** List the spacing and flow patterns that repeat across screens — the page shell and its widths, the section rhythm, vertical stacks, horizontal wrapping groups, grids. Name them, and give each a closed set of variants (sizes, gaps, densities) instead of a free numeric prop.
-5. **Surface primitives.** Take the surviving treatments from `visual-decision-guide.md`'s Container & Border Decision Rules and turn each into a named surface variant with its purpose. A treatment that failed those rules does not become a variant.
-6. **Typography and control primitives.** List the type roles and the interactive atoms the screens actually use, with their variants, sizes, and states. Controls own focus and accessible naming; record the minimum hit target per platform.
-7. **Product components.** Only now, name the domain compositions, in the domain's own words, and bind each to its content contract. A composition that appears on one screen only stays inside that page.
-8. **Motion patterns.** Split motion by mechanism (see below), then register every variant. A page may reference a registered variant; it may not write a duration, distance, spring, or easing value.
-9. **Page recipes.** For each route, fix the section order, container, density, allowed surfaces, required components, and forbidden patterns.
-10. **Registry.** Emit the machine-readable allowlist of everything above.
-11. **Verification.** Define the contract checks, the viewport set, and the state set that prove conformance.
+1. **Content contracts first.** Freeze routes, flow, required regions, exact wording or display contracts, never-drop fields, platform, required states, accessibility, and product scope. Do not define tokens or visual primitives.
+2. **Dynamic Visual Preference Discovery.** Read the product sources and `frontend-design`, derive product-specific choices from Purpose, Tone, Constraints, and Differentiation, and ask them with the host's Ask User tool. Record a non-binding Visual Preference Brief. Never use a fixed style catalog or ask the user to choose token values.
+3. **Representative screens.** Obtain authorization for the same one or two `UI-*` screens that best expose hierarchy, content density, controls, imagery, and motion. Every candidate direction implements this exact set.
+4. **Two or three candidate HTML directions.** Invoke `frontend-design` separately for each direction. Every execution receives the same hard limits and preference brief, commits to one clear direction, and produces complete dependency-free HTML for every representative screen. Candidate-local CSS values and composition are allowed. A later candidate must differ from the earlier ones across at least three relevant visual axes; changing only color does not count.
+5. **Human comparison and selected HTML.** Render or otherwise make every candidate directly reviewable. Use Ask User so the human can select, reject, or mix cues. A mix requires one consolidated `visual-directions/selected/` HTML pass. The human must explicitly approve that selected HTML. Agent or delegated selection does not unlock the next step.
+6. **Token extraction.** Inventory repeated actual values in the approved selected HTML and name the semantic visual, layout, and motion tokens. Do not retrofit the selected HTML to a preselected scale or palette. Record selected-HTML source evidence for every token group.
+7. **Layout primitives.** Extract the spacing and flow patterns that repeat in the approved selected HTML — page shell and widths, section rhythm, stacks, clusters, and grids — then give each a closed set of variants.
+8. **Surface primitives.** Extract surviving background, border, divider, radius, elevation, and surface-padding treatments. Apply the Container & Border Decision Rules; if a required repair materially changes the approved direction, update selected HTML and obtain fresh approval before extraction continues.
+9. **Typography and control primitives.** Extract type roles and interactive atoms from the approved selected HTML, then define their variants, sizes, states, focus, accessible naming, and platform hit targets.
+10. **Product components.** Name recurring domain compositions and bind each to its content contract. A composition that appears once stays inside that page.
+11. **Motion patterns.** Split approved motion by mechanism, then register every repeated variant. A published page may reference registered variants only.
+12. **Page recipes and registry.** Derive each representative recipe from the approved selected HTML, extend recipes to remaining routes without inventing a new direction, and emit the machine-readable allowlist.
+13. **Verification.** Prove that canonical mockups and the extracted system reproduce the approved selected HTML, then define the contract checks, viewport set, and state set that prevent later drift.
 
 Check the direction at the end: a layout primitive that sets color, a surface that spaces its own children, a product component holding a raw hex value, or a page defining its own button means a layer boundary leaked.
 
 ## Closed Variant Sets
 
-Every primitive prop is a closed set, never a free value.
+After selected-HTML approval and extraction, every primitive prop is a closed set, never a free value. Candidate HTML is exempt because it exists to discover the set.
 
 ```text
 Good:  gap="4"        size="md"       variant="raised"      density="compact"
@@ -176,7 +186,7 @@ Cover: every token, every primitive variant, every component state, short and lo
 
 ## Automated Guardrails
 
-The architecture is only real if a check fails when it is violated. Specify these as project checks:
+The architecture is only real if a check fails when it is violated after the freeze. Specify these as project checks:
 
 - No raw color values outside the token layer
 - No unapproved dimension values (arbitrary spacing, radius, font size) outside the token layer
@@ -192,7 +202,7 @@ Visual and behavioral verification runs across the fixed viewport set and the st
 
 This package specifies these checks. Running them is implementation work owned by `fullstack-harness-engineering`, which ships `scripts/check_ui_contract.py` for the source-scanning subset and wires it into the project's verify command, CI, and visual-regression tooling.
 
-The checks run against the product's real source, not against this package's own mockups. A dependency-free mockup inlines its tokens and its primitive definitions in one file on purpose, so "pages only consume primitives" cannot be judged there. What the mockup must do instead is compose registry-named classes in recipe order and carry no inline layout styling — reviewable by reading it.
+The checks run against the product's real source, not against exploration candidates or this package's own mockups. Candidate HTML may contain direction-local values. Final dependency-free mockups inline extracted tokens and primitive definitions in one file on purpose, so "pages only consume primitives" cannot be judged there. What a final mockup must do instead is compose registry-named classes in recipe order, carry no inline layout styling, and visually reproduce the approved selected HTML.
 
 ## Definition Of Done
 

@@ -98,21 +98,27 @@ Use the PRD's Builder UX Direction Decision before composing pages or choosing t
 
 Translate preference into consequences for task hierarchy, guidance versus expert control, density, layout, feedback, confirmation, recovery, content, and motion. Builder approval proves that the design follows the intended direction. It does not prove usability for representative users or show that they can understand and complete the task.
 
-## Frontend Design Visual Direction Pass
+## Frontend Design Preference & HTML Exploration
 
-Use this optional pass to establish one coherent high-quality visual direction before tokens, primitives, components, recipes, the registry, and final mockups are frozen. It produces one coherent set of one to three representative candidate screens, not a separate design exercise for every route.
+Use this optional flow to discover the visual system through real HTML before freezing tokens, primitives, components, recipes, the registry, and final mockups. It produces exactly two or three materially different directions for the same one or two representative screens, followed by one human-approved selected HTML direction.
 
-Run it only when `frontend-design` is loaded and the user explicitly requested or authorized it. The pass has these boundaries:
+Candidate and selected HTML are non-canonical exploration evidence. Implementation consumes only the extracted architecture package.
 
-1. Freeze the structural contract first: routes, flow, required regions, exact wording, content contracts, platform conventions, required states, accessibility constraints, and product scope.
-2. Read `wireframes.md`'s Optional visual-direction handoff entry before choosing candidates. If it explicitly authorizes one to three representative `UI-*` screen IDs, use exactly that set; do not add, remove, or substitute IDs for broader workflow coverage. If exact IDs are absent, the entry is not requested, more than three screens are named, or a different set is needed, obtain explicit user authorization for the exact revised `UI-*` screen-ID set before invoking `frontend-design`, then record that set and its decision owner. One coherent set is enough; do not invoke `frontend-design` independently for every route, because separate calls can create separate design systems.
-3. Give the single call the same frozen inputs, visual thesis, Builder UX Direction, brand evidence, anti-slop rules, and platform constraints. It may explore hierarchy, typography, color, spatial composition, imagery, surface treatment, and motion. It may not add or remove routes, features, regions, steps, claims, required content, or states.
-4. Write the candidate set only to `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`. Candidate HTML and notes are non-canonical review material, not package mockups, registry input, or production code.
-5. Have the named human owner select, reject, or request one coherent revision of the direction. An agent may select only when that choice was explicitly delegated. If a candidate exposes a structural conflict, record it for the upstream product owner; do not let the visual pass silently rewrite the frozen wireframe.
-6. Record accepted, rejected, and deferred cues in `design-system.md`'s `Frontend Design Visual Direction Pass` section. Translate every accepted cue into named tokens, closed variants, product components, recipes, registry entries, and final package mockups as applicable. Candidate-only values do not survive.
-7. Validate the normalized package through the ordinary parity, taste, accessibility, state, responsive, and rendered-review gates. The candidate itself cannot satisfy a final visual gate.
+Run it only when `frontend-design` is loaded and the user explicitly requested or authorized it. The flow has these boundaries:
 
-In package enhancement mode, the frozen package and accepted delta remain authoritative. Limit the pass to representative screens affected by the accepted delta, preserve every untouched decision and ID, and normalize only that accepted delta. Do not use the pass to restart the product's visual direction.
+1. **Freeze hard limits only.** Freeze routes, flow, required regions, exact wording or display contracts, never-drop content, platform conventions, required states, accessibility, product scope, confirmed brand assets, and real technical constraints. Do not define final tokens, primitives, variants, recipes, registry entries, or signature visual decisions.
+2. **Ask dynamic preference questions.** Read the product sources and `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria. Derive project-specific Ask User questions and two to four grounded choices per question, plus `Other`. Ask what should dominate, what should be memorable, which product or brand cues apply, what to avoid, and how much density, compositional, imagery, surface, or motion variation the user wants. Never use a universal style menu and never ask the user to choose token values.
+3. **Freeze a non-binding preference brief.** Record the answers as intent for exploration, not a design system. A preference such as "quiet trust" or "fast comparison" must include the concrete product consequence that made it a relevant choice.
+4. **Use the same representative screens.** Read `wireframes.md`'s visual-exploration handoff. Use exactly one or two authorized `UI-*` screen IDs for every direction. If the entry is absent, names more than two screens, or a different set is needed, obtain exact user authorization for the revised set.
+5. **Generate two or three independent HTML directions.** Invoke `frontend-design` separately for each direction, because the skill commits to one bold direction per execution. Give every execution the same hard limits, preference brief, representative screens, product content, and platform constraints. Require complete dependency-free HTML for every screen. Direction-local CSS custom properties, raw values, composition, and component treatments are allowed; the canonical registry does not exist yet.
+6. **Enforce material difference.** Each later direction must differ from the earlier directions across at least three relevant axes: typography, spatial composition, density, color proportion, surface logic, imagery, control treatment, or motion. A palette swap, radius swap, or light/dark restyle of the same composition is not another direction.
+7. **Compare with the human.** Render the same screens and viewports for every direction when a browser tool is available; otherwise present the exact directly openable HTML paths and make no rendered-comparison claim. Use Ask User to let the named human owner select one, reject all, or choose a base direction plus explicit cues to mix.
+8. **Consolidate mixes before extraction.** When the user mixes cues, invoke `frontend-design` once more to create consolidated HTML under `visual-directions/selected/`. Do not merge cues directly into tokens.
+9. **Require explicit selected-HTML approval.** Show the consolidated or selected HTML to the human and ask for explicit approval. Agent choice, including explicitly delegated direction selection, cannot satisfy this extraction gate.
+10. **Extract the system after approval.** Inventory actual repeated values and patterns in the approved selected HTML, then derive semantic tokens, closed primitive variants, product components, motion variants, recipes, registry entries, and final package mockups. Record source-to-token and source-to-primitive traceability. Candidate-only values from rejected directions do not survive.
+11. **Reapprove material repairs.** Validate accessibility, platform fit, content, performance, states, responsiveness, taste, and anti-slop rules. If a required repair materially changes the approved direction, update selected HTML and obtain fresh human approval before continuing extraction.
+
+In package enhancement mode, the frozen package and accepted delta remain authoritative. Limit preference questions, representative screens, candidate directions, and selected HTML to the accepted delta, preserve every untouched decision and ID, and extract only the approved delta. Do not use exploration to restart the product's visual direction.
 
 ## Taste & Anti-Slop Guardrails
 
@@ -213,9 +219,9 @@ Repair generic results in this order:
 
 Decide the component layers before listing components, or the design system becomes a flat catalog and every page reinvents its own spacing and surfaces. `references/ui-architecture-guide.md` owns the layer model, the closed-variant rule, the precedence order, and the derivation method in full; read it first. What follows is only the visual-judgment part of that derivation.
 
-Derive them from the real screens:
+Derive them from the human-approved selected HTML, then check them against the real screen set:
 
-1. Read the mockup or wireframe set and list the spacing and flow patterns that repeat — the page shell, the section rhythm, vertical stacks, horizontal groups of controls, the grid. Those are the layout primitives. Name them; do not leave them as prose in Layout Rules.
+1. Read the approved selected HTML and list the spacing and flow patterns that repeat — the page shell, the section rhythm, vertical stacks, horizontal groups of controls, the grid. Those are the layout primitives. Name them; do not leave them as prose in Layout Rules.
 2. Take the Container & Border Decision Rules output and turn each surviving treatment into a named surface primitive with its purpose — the surface levels, the divider, and any rail or frame that passed rule 4 or 6. A treatment that failed those rules does not become a primitive.
 3. List the interactive atoms the screens actually use and their states. Those are the control primitives, and they own focus and accessible naming.
 4. Only then name product components, using the domain's own words for the compositions that recur across screens. A composition that appears once stays inside its page.
@@ -255,7 +261,7 @@ If only the ready state exists, derive other states from the design system and m
 
 Use mockups to define high-fidelity layout and visual hierarchy, not product scope.
 
-Final `mockups/*.html` are canonical package projections composed from the accepted design system, registry, and page recipes. Files under `visual-directions/` are only candidates and must never be linked or copied in as if they were route mockups.
+Final `mockups/*.html` are canonical package projections composed from the extracted design system, registry, and page recipes. Files under `visual-directions/` are exploration evidence and must never be linked or copied in as if they were route mockups. The approved `visual-directions/selected/` HTML remains the visual extraction source used to review whether the canonical projection drifted.
 
 Build each important page as a real static HTML file under `mockups/` (see `references/output-contract.md` for the deliverable contract), styled to the resolved platform's own conventions for a native or desktop target rather than defaulting to web styling. It uses the design-system tokens, preserves exact wording, represents each state as a visible labeled section, and expresses responsive/size-class behavior with real CSS media queries. Treat it as a reference/prototype artifact, not production code — HTML is a visual demonstration medium here, not the target's rendering engine.
 
@@ -283,6 +289,7 @@ If generating actual bitmap mockups or visual alternatives is requested and imag
 - Product requirements beat visual preference.
 - User evidence and accessibility requirements beat unsupported builder preference. Record the conflict and the validation decision rather than silently changing either source.
 - A selected Builder UX Direction controls visual and interaction direction when higher-priority evidence does not conflict; provisional and assumed choices remain visibly unresolved.
+- Human-approved selected HTML controls visual composition and actual-value extraction. If the extracted system or final mockups materially differ, repair the extraction or obtain fresh human approval.
 - Design system beats one-off mockup styling unless the user accepts an exception.
 - Page UI mockups beat low-fidelity wireframes for visual hierarchy and layout detail.
 - Low-fidelity wireframes remain authoritative for flow, required regions, supplied exact wording, and bounded display contracts.

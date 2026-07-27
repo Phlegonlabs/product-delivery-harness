@@ -30,11 +30,68 @@ const visualDirectionPass = workflowArgs.visual_direction_pass;
 if (
   typeof visualDirectionPass !== "object"
   || visualDirectionPass === null
-  || !["not used", "selected", "rejected"].includes(visualDirectionPass.status)
+  || !["not used", "approved", "rejected"].includes(visualDirectionPass.status)
 ) {
   throw new Error(
-    "ui-architecture-builder-graph requires args.visual_direction_pass status not used, selected, or rejected; a candidate awaiting selection is not a frozen input",
+    "ui-architecture-builder-graph requires args.visual_direction_pass status not used, approved, or rejected; preference discovery, candidate comparison, and selected HTML awaiting approval are not frozen inputs",
   );
+}
+if (visualDirectionPass.status === "approved") {
+  const requiredApprovalFields = ["selected_html_path", "approval_owner", "approval_evidence"];
+  for (const field of requiredApprovalFields) {
+    if (typeof visualDirectionPass[field] !== "string" || !visualDirectionPass[field].trim()) {
+      throw new Error(
+        `ui-architecture-builder-graph requires non-empty args.visual_direction_pass.${field} when status is approved`,
+      );
+    }
+  }
+  if (
+    !Array.isArray(visualDirectionPass.representative_ui_ids)
+    || visualDirectionPass.representative_ui_ids.length < 1
+    || visualDirectionPass.representative_ui_ids.length > 2
+    || visualDirectionPass.representative_ui_ids.some(
+      (uiId) => typeof uiId !== "string" || !uiId.trim(),
+    )
+    || new Set(visualDirectionPass.representative_ui_ids).size
+      !== visualDirectionPass.representative_ui_ids.length
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires one or two unique non-empty representative_ui_ids when visual_direction_pass status is approved",
+    );
+  }
+  if (
+    !Array.isArray(visualDirectionPass.candidate_directions)
+    || visualDirectionPass.candidate_directions.length < 2
+    || visualDirectionPass.candidate_directions.length > 3
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires two or three candidate_directions when visual_direction_pass status is approved",
+    );
+  }
+  const candidateIds = new Set();
+  for (const candidate of visualDirectionPass.candidate_directions) {
+    if (
+      typeof candidate !== "object"
+      || candidate === null
+      || typeof candidate.direction_id !== "string"
+      || !candidate.direction_id.trim()
+      || !Array.isArray(candidate.html_paths)
+      || candidate.html_paths.length !== visualDirectionPass.representative_ui_ids.length
+      || candidate.html_paths.some(
+        (htmlPath) => typeof htmlPath !== "string" || !htmlPath.trim(),
+      )
+    ) {
+      throw new Error(
+        "ui-architecture-builder-graph requires every candidate_direction to have a non-empty direction_id and one non-empty html_path per representative UI ID",
+      );
+    }
+    candidateIds.add(candidate.direction_id);
+  }
+  if (candidateIds.size !== visualDirectionPass.candidate_directions.length) {
+    throw new Error(
+      "ui-architecture-builder-graph requires unique candidate_direction direction_id values",
+    );
+  }
 }
 
 const stringArray = { type: "array", items: { type: "string" } };
