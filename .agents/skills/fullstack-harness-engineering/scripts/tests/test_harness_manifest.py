@@ -1853,7 +1853,7 @@ class RunValidationTests(unittest.TestCase):
                 "trace_ids": ["REQ-001"],
                 "route": "/dashboard",
                 "breakpoints": ["desktop"],
-                "states": ["loaded", "expired:n/a"],
+                "states": ["loaded", "expired:n/a - session never expires"],
                 "evidence_gate": "required",
             }
         ]
@@ -1869,6 +1869,26 @@ class RunValidationTests(unittest.TestCase):
         self.assertFalse(
             any("expired:n/a" in error for error in errors),
             errors,
+        )
+
+    def test_bare_na_marker_is_also_exempt_at_closeout(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded", "expired:n/a"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        self.assertFalse(
+            any("expired" in error for error in validate_run(plan, run)),
+            validate_run(plan, run),
         )
 
     def test_complete_run_requires_full_ui_screenshot_matrix(self) -> None:

@@ -198,6 +198,22 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             goal,
         )
 
+    def test_run_template_matches_the_integration_push_default(self) -> None:
+        """The template has to describe the landing model SKILL.md now defaults to.
+
+        A RUN authored from a template that still says ordinary work stays
+        local_only would silently follow the old flow and never record the
+        development push.
+        """
+        skill = self.read("SKILL.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertIn("uses `integration_push`", skill)
+        self.assertIn("integration_push", runbook)
+        self.assertIn("landing.pushed_head_sha", runbook)
+        self.assertNotIn("Ordinary PRD/PLD, UI, and feature work stays `local_only`", runbook)
+        self.assertNotIn('New RUN files default to `mode: "local_only"`.', runbook)
+
     def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-github-landing")
         goal = self.read("assets/templates/GOAL.template.md")
@@ -241,13 +257,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("CI and review are independent sibling gates", state)
         self.assertIn("Poll both gates concurrently", project_rules)
 
-    def test_runbook_defaults_to_local_only_landing(self) -> None:
+    def test_runbook_starts_local_only_and_names_all_three_modes(self) -> None:
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
+        # A fresh RUN has pushed nothing yet, so it still starts local_only.
         self.assertIn('"mode": "local_only"', runbook)
-        self.assertIn('New RUN files default to `mode: "local_only"`', runbook)
+        self.assertIn('New RUN files start at `mode: "local_only"`', runbook)
+        for mode in ("`local_only`", "`integration_push`", "`pull_request`"):
+            self.assertIn(mode, runbook)
         self.assertIn(
-            "Switch to `pull_request` only after the user gives final approval",
+            "only after the user gives final approval to start the resolved head-to-base promotion",
             runbook,
         )
 

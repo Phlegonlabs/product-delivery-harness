@@ -25,6 +25,22 @@ from harness_schema import (
 )
 
 
+def _state_marker(state: str) -> tuple[str, bool]:
+    """Split a declared state into its name and whether it is marked n/a.
+
+    A surface declares a state it genuinely cannot have as `<state>:n/a`, with an
+    optional reason after the marker (`offline:n/a - always online`). Design
+    coverage and the closeout screenshot matrix must agree on this, or the only
+    honest way to declare an impossible state becomes the one that blocks
+    closeout.
+    """
+
+    name, separator, marker = state.partition(":")
+    if not separator:
+        return state.strip(), False
+    return name.strip(), marker.strip().lower().startswith("n/a")
+
+
 def _valid_ui_artifact_path(value: Any) -> bool:
     if not _nonempty_string(value) or "\\" in value or value.startswith("/"):
         return False
@@ -196,7 +212,7 @@ def _validate_ui_evidence(
             for breakpoint in breakpoints
             if _nonempty_string(breakpoint)
             for state in states
-            if _nonempty_string(state) and not state.strip().endswith(":n/a")
+            if _nonempty_string(state) and not _state_marker(state)[1]
         )
     for key in sorted(required - passed):
         _add(
@@ -315,7 +331,7 @@ def validate_ui_surface_design_coverage(
         if isinstance(states, list):
             for state in states:
                 if _nonempty_string(state):
-                    covered_states.add(state.split(":", 1)[0].strip())
+                    covered_states.add(_state_marker(state)[0])
         for state in sorted(required_states - covered_states):
             _add(
                 errors,
