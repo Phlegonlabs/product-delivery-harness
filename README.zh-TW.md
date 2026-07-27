@@ -49,7 +49,7 @@
 | `prd-builder` | 產品探索、需求、架構、前端技術選型，以及低保真線框圖 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md` |
 | `ui-architecture-builder` | 頁面只能照著組出來的那套 UI 架構：分層、設計 token、帶封閉變體集的基礎元件契約、產品元件、動效規則、逐路由的頁面配方、逐頁的真實 HTML 樣稿，以及視覺驗收 | `ui-architecture.md`、`ui-registry.json`、`page-recipes.md`、`design-system.md`、`mockups/` 底下每個路由一個 HTML 檔再加上 `mockups/catalog.html`、`visual-acceptance.md` |
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手、`RUN.md`，或 `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Codex app 任務、由 app 管理的 worktree，以及巢狀的唯讀輔助器 | 執行環境啟動指令與 worker 結果 |
+| `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及各任務自己的唯讀 Multi-agent 輔助 | 執行環境啟動指令與 worker 結果 |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow 與由 parent 管理的 worktree | 執行環境啟動指令與 worker 結果 |
 | `fullstack-harness-github-landing` | 最終 head 推送、PR、並行 CI/審查，以及對齊 head 的合併 | 遠端落地的佐證 |
 
@@ -137,8 +137,8 @@ Claude 的各波依模型、推理強度與工具設定檔區隔：
 
 - 可部署產品會在計畫中記錄 provider、目標環境、指令、migration、前置條件與部署後檢查。
 - Cloudflare 專案使用同一份 codebase，但 `development` 與 `production` Worker 完全分離；D1、KV、R2、queue、Durable Object、密鑰、認證、付款模式、route 與 webhook 也分環境設定。
-- 預設的 Cloudflare 模型使用綁定精確 SHA 的 GitHub Actions dispatch。開發環境綁定當前 PR head；正式環境綁定已合併的 base branch SHA。
-- 選用的 Cloudflare Workers Builds 模型可以把持久的整合分支自動部署到開發環境，再把 base branch 自動部署到正式環境。只有明確選用時才啟用，也不會與 dispatch 模型混用。
+- 預設的 Cloudflare 模型使用綁定精確 SHA 的 GitHub Actions dispatch。開發環境綁定已 review 的 `development` head；正式環境綁定經使用者審批升版後產生的 `production` head。
+- 選用的 Cloudflare Workers Builds 模型可以把持久的 `development` 與受保護的 `production` 分支自動部署到對應 Worker。只有明確選用時才啟用，也不會與 dispatch 模型混用。
 - Day-one bootstrap 只建立已確認需要的環境資源與 Worker shell。真正部署功能程式碼仍需要目標環境專屬授權。
 - `docs/deployment.md` 保存給維護者閱讀的拓樸與設定；RUN 仍是機器可讀的執行紀錄。
 - 行動裝置與桌面交付同樣分離 development／beta 與 production 的憑證、後端、商店軌道與發佈佐證，不會硬套 Cloudflare 格式。
@@ -252,6 +252,10 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 | --- | --- | --- |
 | Codex app（`fullstack-harness-codex`） | 在隔離、由 app 管理的 worktree 中執行 app 任務 | 直接使用 subagent，再退到單一循序的 parent |
 | Claude Code（`fullstack-harness-claude-code`） | 使用對齊 base、由 parent 管理的 `.claude/worktrees/` worktree 執行 Dynamic Workflow | 直接使用 subagent，再退到單一循序的 parent |
+
+在 Codex 中，偏好的路線分成兩層：每個選中的 mission 先在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree；接著由該任務執行自己的有界 Multi-agent 輔助。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
+
+目標 repo 自己的 branch 與 PR 規則優先。只有在 repo 未定義其他流程時，mission worktree 才預設從目前的 `development` SHA 開始，完成綁定當前 head 的唯讀 review 後整合回 `development`，並在最後明確審批後才開始 `development -> production` 升版；若有修正，必須對新 head 重新 review。
 
 每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要另一個 host 的 provider，會被回報為因 provider 不符而受阻，而不會在這裡執行。
 

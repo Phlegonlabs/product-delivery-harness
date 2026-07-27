@@ -49,7 +49,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md` |
 | `ui-architecture-builder` | The UI architecture a page may be built from: layers, tokens, primitive contracts with closed variant sets, product components, motion rules, per-route recipes, real per-page HTML mockups, and visual acceptance | `docs/product/design/ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, mandatory `design-system.html`, one HTML file per route under `mockups/` plus `mockups/catalog.html`, and `visual-acceptance.md` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Codex app tasks, app-managed worktrees, and nested read-only helpers | Runtime launch directives and worker results |
+| `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
 | `fullstack-harness-github-landing` | Final-head push, PR, concurrent CI/review, and exact-head merge | Remote landing evidence |
 
@@ -139,8 +139,8 @@ The delivery graph treats deployment as a first-class, separately authorized lif
 
 - A deployable product records its provider, targets, commands, migrations, prerequisites, and deployed-environment checks in the plan.
 - Cloudflare projects use one codebase with isolated `development` and `production` Workers and separate D1, KV, R2, queue, Durable Object, secret, auth, payment, route, and webhook configuration.
-- The default Cloudflare model uses an exact-SHA GitHub Actions dispatch. Development binds to the current PR head; production binds to the merged base-branch SHA.
-- An optional Cloudflare Workers Builds model can auto-deploy a persistent integration branch to development and the base branch to production. It is used only when explicitly selected and never mixed with the dispatched model.
+- The default Cloudflare model uses exact-SHA GitHub Actions dispatch. Development binds to the reviewed `development` head; production binds to the resulting `production` head after user-approved promotion.
+- An optional Cloudflare Workers Builds model can auto-deploy the persistent `development` and protected `production` branches to their matching Workers. It is used only when explicitly selected and never mixed with the dispatched model.
 - Day-one bootstrap creates only the confirmed environment resources and Worker shells. Real feature deployment still needs target-specific authorization.
 - `docs/deployment.md` records the human-facing topology and setup; RUN remains the machine-readable execution record.
 - Mobile and desktop deliveries use the same separation of development/beta and production credentials, backends, store tracks, and release evidence without forcing a Cloudflare-shaped contract.
@@ -254,6 +254,10 @@ The Harness records the actual runtime capability instead of assuming one from a
 | --- | --- | --- |
 | Codex app (`fullstack-harness-codex`) | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
 | Claude Code (`fullstack-harness-claude-code`) | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
+
+On Codex, the preferred route is two-level: each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree, then that task runs its own bounded Multi-agent helpers. Coordinator-owned subagents do not replace those top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
+
+Target-repository branch and pull-request instructions take precedence. When a repository does not define another model, mission worktrees start from the current `development` SHA, pass an exact-head read-only review before integration into `development`, and reach `production` only through a later explicitly approved `development -> production` promotion. Fixes require a fresh review on the new head.
 
 Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
 

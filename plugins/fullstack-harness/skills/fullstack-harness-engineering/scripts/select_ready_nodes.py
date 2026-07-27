@@ -127,6 +127,100 @@ def _incoming(plan: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], di
     return dependencies, routes
 
 
+def _preintegration_review_source_ready(
+    node: dict[str, Any],
+    source_node: dict[str, Any] | None,
+    run: dict[str, Any],
+) -> bool:
+    review = node.get("review")
+    if (
+        run.get("schema_version") != 10
+        or node.get("kind") != "verifier"
+        or node.get("executor") != "runtime_worker"
+        or not isinstance(review, dict)
+        or len(review.get("mission_ids", [])) != 1
+        or not isinstance(source_node, dict)
+        or source_node.get("kind") != "mission"
+        or source_node.get("ref") not in review.get("mission_ids", [])
+    ):
+        return False
+    mission_state = run.get("mission_states", {}).get(source_node["ref"])
+    if (
+        not isinstance(mission_state, dict)
+        or mission_state.get("phase") != "worker_passed"
+        or not isinstance(mission_state.get("head_sha"), str)
+    ):
+        return False
+    source_state = (
+        run.get("graph_state", {})
+        .get("node_states", {})
+        .get(source_node["id"])
+    )
+    if not isinstance(source_state, dict) or source_state.get("phase") != "running":
+        return False
+    matching_worker = next(
+        (
+            worker
+            for worker in run.get("workers", [])
+            if isinstance(worker, dict)
+            and worker.get("worker_id") == mission_state.get("worker_id")
+            and worker.get("mission_id") == source_node["ref"]
+        ),
+        None,
+    )
+    if (
+        not isinstance(matching_worker, dict)
+        or matching_worker.get("phase") != "worker_passed"
+        or matching_worker.get("worker_head_sha") != mission_state.get("head_sha")
+    ):
+        return False
+    nested_policy = matching_worker.get("nested_subagent_policy")
+    return not (
+        isinstance(nested_policy, dict)
+        and nested_policy.get("enabled") is True
+    )
+
+
+def _preintegration_review_head_matches_current(
+    node: dict[str, Any],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    dependencies: dict[str, list[dict[str, Any]]],
+) -> bool | None:
+    state = run["graph_state"]["node_states"][node["id"]]
+    if state.get("attempts", 0) == 0:
+        return None
+    nodes_by_id = {
+        graph_node["id"]: graph_node for graph_node in plan["graph"]["nodes"]
+    }
+    ready_sources = [
+        nodes_by_id[edge["from"]]
+        for edge in dependencies[node["id"]]
+        if _preintegration_review_source_ready(
+            node,
+            nodes_by_id.get(edge["from"]),
+            run,
+        )
+    ]
+    if len(ready_sources) != 1:
+        return None
+    mission_id = ready_sources[0]["ref"]
+    current_head = run["mission_states"][mission_id]["head_sha"]
+    prior_review = next(
+        (
+            worker
+            for worker in run.get("review_workers", [])
+            if isinstance(worker, dict)
+            and worker.get("node_id") == node["id"]
+            and worker.get("attempt_id") == state.get("last_attempt_id")
+        ),
+        None,
+    )
+    if not isinstance(prior_review, dict):
+        return None
+    return prior_review.get("reviewed_sha") == current_head
+
+
 def _logical_reasons(
     node: dict[str, Any],
     plan: dict[str, Any],
@@ -137,11 +231,25 @@ def _logical_reasons(
     reasons: set[str] = set()
     node_id = node["id"]
     state = run["graph_state"]["node_states"][node_id]
+    preintegration_head_matches = _preintegration_review_head_matches_current(
+        node,
+        plan,
+        run,
+        dependencies,
+    )
+    stale_preintegration_pass = (
+        state["phase"] == "succeeded"
+        and state.get("last_outcome") == "pass"
+        and preintegration_head_matches is False
+    )
     if run.get("plan_readiness") != "ready":
         reasons.add("plan_not_ready")
     if run.get("execution_authorized") is not True:
         reasons.add("execution_not_authorized")
-    if state["phase"] not in {"dormant", "ready"}:
+    if (
+        state["phase"] not in {"dormant", "ready"}
+        and not stale_preintegration_pass
+    ):
         reasons.add("node_phase_not_ready")
     if state["blockers"]:
         reasons.add("blocker_present")
@@ -149,10 +257,27 @@ def _logical_reasons(
         reasons.add("attempts_exhausted")
 
     node_states = run["graph_state"]["node_states"]
+    nodes_by_id = {
+        graph_node["id"]: graph_node
+        for graph_node in plan["graph"]["nodes"]
+    }
     for edge in dependencies[node_id]:
         source = node_states[edge["from"]]
-        if source["phase"] != "succeeded" or source["last_outcome"] != "pass":
+        if (
+            source["phase"] != "succeeded"
+            or source["last_outcome"] != "pass"
+        ) and not _preintegration_review_source_ready(
+            node,
+            nodes_by_id.get(edge["from"]),
+            run,
+        ):
             reasons.add("dependency_not_satisfied")
+
+    if (
+        state.get("last_outcome") == "fix_required"
+        and preintegration_head_matches is True
+    ):
+        reasons.add("review_head_unchanged")
 
     incoming_routes = routes[node_id]
     if incoming_routes:
@@ -168,6 +293,25 @@ def _logical_reasons(
                 and (bound is None or edge_state["traversals"] < bound)
             ):
                 matched = True
+            elif (
+                "pass" in edge["on_outcomes"]
+                and _preintegration_review_source_ready(
+                    node,
+                    nodes_by_id.get(edge["from"]),
+                    run,
+                )
+                and (bound is None or edge_state["traversals"] < bound)
+            ):
+                matched = True
+        if not matched and state["attempts"] == 0 and any(
+            _preintegration_review_source_ready(
+                node,
+                nodes_by_id.get(edge["from"]),
+                run,
+            )
+            for edge in dependencies[node_id]
+        ):
+            matched = True
         if not matched:
             reasons.add("route_not_activated")
 
@@ -270,7 +414,10 @@ def _resume_reconciliation_reasons(run: dict[str, Any]) -> list[str]:
 
 
 def _required_actions(
-    node: dict[str, Any], binding: dict[str, Any], runtime: dict[str, Any]
+    node: dict[str, Any],
+    binding: dict[str, Any],
+    runtime: dict[str, Any],
+    schema_version: int,
 ) -> list[str]:
     read_only_review = node["kind"] == "verifier"
     driver = binding["driver"]
@@ -278,7 +425,22 @@ def _required_actions(
     if driver in {"subagents", "dynamic_workflow"}:
         actions.append("spawn_subagents")
     elif driver == "app_threads":
-        actions.extend(["create_user_owned_tasks", "spawn_subagents"])
+        actions.append("create_user_owned_tasks")
+        nested = runtime.get("nested_subagents")
+        if not read_only_review:
+            nested_spawn_required = (
+                isinstance(nested, dict)
+                and nested.get("available") is True
+                and (
+                    schema_version != 10
+                    or "reviewer" in set(nested.get("allowed_roles", []))
+                )
+            ) or (
+                schema_version == 10
+                and not isinstance(nested, dict)
+            )
+            if nested_spawn_required:
+                actions.append("spawn_subagents")
     if read_only_review:
         return actions
     workspace = runtime.get("workspace_mode")
@@ -340,7 +502,12 @@ def _dispatch_reasons(
         if any(not execution_covers(run, mission_id) for mission_id in authorization_missions):
             reasons.add("execution_not_authorized")
     if authorization_missions and binding is not None:
-        for action in _required_actions(node, binding, run["runtime_capabilities"]):
+        for action in _required_actions(
+            node,
+            binding,
+            run["runtime_capabilities"],
+            run["schema_version"],
+        ):
             target = "*"
             if any(
                 not _action_authorized(run, action, mission_id, target)
@@ -384,7 +551,12 @@ def _directive(
         "runtime_binding": binding,
         "tool_profile": _tool_profile(node),
         "failure_outcome": _failure_outcome(node),
-        "required_actions": _required_actions(node, binding, run["runtime_capabilities"]),
+        "required_actions": _required_actions(
+            node,
+            binding,
+            run["runtime_capabilities"],
+            run["schema_version"],
+        ),
     }
     if node["kind"] == "verifier":
         directive["review"] = node["review"]

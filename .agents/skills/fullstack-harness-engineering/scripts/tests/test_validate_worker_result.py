@@ -793,6 +793,19 @@ class ValidateWorkerResultTests(unittest.TestCase):
 
     def test_enabled_nested_policy_requires_and_validates_activity(self) -> None:
         run = copy.deepcopy(self.run)
+        run["schema_version"] = 10
+        run["execution_authorization_scope"].update(
+            {
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+            }
+        )
+        run["authorizations"]["create_local_commits"]["scope"].update(
+            {
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+            }
+        )
         worker = run["workers"][0]
         run["runtime_capabilities"].update(
             {
@@ -834,6 +847,8 @@ class ValidateWorkerResultTests(unittest.TestCase):
             "source": "test user authorization",
             "scope": {
                 "run_id": "RUN_TEST",
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
                 "mission_ids": ["M1"],
                 "targets": ["worker:W1"],
             },
@@ -842,6 +857,77 @@ class ValidateWorkerResultTests(unittest.TestCase):
 
         errors = validate(self.plan, run, copy.deepcopy(self.result))
         self.assertIn("missing_field", error_codes(errors))
+
+        unavailable = copy.deepcopy(self.result)
+        unavailable["subagent_activity"] = {
+            "status": "unavailable",
+            "skip_reason": "the child runtime stopped before review",
+            "children": [],
+        }
+        self.assertIn("missing_review", error_codes(validate(self.plan, run, unavailable)))
+
+        partial = copy.deepcopy(self.result)
+        partial["subagent_activity"] = {
+            "status": "partial",
+            "skip_reason": "the reviewer failed before returning a decision",
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "reviewer",
+                    "task": "Review the proposed behavior and tests.",
+                    "status": "failed",
+                    "summary": "The reviewer stopped before producing a decision.",
+                    "evidence_paths": [],
+                    "reviewed_sha": partial["head_sha"],
+                    "decision": "fix_required",
+                }
+            ],
+        }
+        self.assertIn("missing_review", error_codes(validate(self.plan, run, partial)))
+
+        explorer_only = copy.deepcopy(self.result)
+        explorer_only["subagent_activity"] = {
+            "status": "completed",
+            "skip_reason": None,
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "explorer",
+                    "task": "Trace the affected request path.",
+                    "status": "completed",
+                    "summary": "The change is isolated to the planned module.",
+                    "evidence_paths": ["src/m1/file.py"],
+                }
+            ],
+        }
+        self.assertIn("missing_review", error_codes(validate(self.plan, run, explorer_only)))
+
+        for schema_version in range(2, 10):
+            legacy_run = copy.deepcopy(run)
+            legacy_run["schema_version"] = schema_version
+            self.assertNotIn(
+                "missing_review",
+                error_codes(validate(self.plan, legacy_run, explorer_only)),
+                f"RUN v{schema_version} must retain its worker-result contract",
+            )
+
+        legacy_reviewer = copy.deepcopy(explorer_only)
+        legacy_reviewer["subagent_activity"]["children"][0]["role"] = "reviewer"
+        legacy_reviewer["subagent_activity"]["children"][0][
+            "task"
+        ] = "Review the proposed behavior and tests."
+        for schema_version in range(2, 10):
+            legacy_run = copy.deepcopy(run)
+            legacy_run["schema_version"] = schema_version
+            self.assertNotIn(
+                "missing_field",
+                error_codes(validate(self.plan, legacy_run, legacy_reviewer)),
+                f"RUN v{schema_version} reviewer children keep their legacy shape",
+            )
+        self.assertIn(
+            "missing_field",
+            error_codes(validate(self.plan, run, legacy_reviewer)),
+        )
 
         result = copy.deepcopy(self.result)
         result["subagent_activity"] = {
@@ -863,10 +949,94 @@ class ValidateWorkerResultTests(unittest.TestCase):
                     "status": "completed",
                     "summary": "No additional correctness gaps found.",
                     "evidence_paths": ["evidence/task.txt"],
+                    "reviewed_sha": result["head_sha"],
+                    "decision": "PASS",
                 },
             ],
         }
         self.assertEqual(validate(self.plan, run, result), [])
+
+        stale_review = copy.deepcopy(result)
+        stale_review["subagent_activity"]["children"][1]["reviewed_sha"] = "c" * 40
+        stale_errors = error_codes(validate(self.plan, run, stale_review))
+        self.assertIn("stale_binding", stale_errors)
+        self.assertIn("missing_review", stale_errors)
+
+    def test_disabled_nested_policy_defers_parent_review_to_integration(self) -> None:
+        plan = copy.deepcopy(self.plan)
+        review_node = {
+            "id": "N-M1-PREINTEGRATION-REVIEW",
+            "kind": "verifier",
+            "executor": "runtime_worker",
+            "review": {
+                "type": "backend_code",
+                "mission_ids": ["M1"],
+                "scope": ["src/m1/**"],
+                "required_evidence": ["reviewed_sha", "decision"],
+            },
+        }
+        plan["graph"] = {"nodes": [review_node], "edges": []}
+        run = copy.deepcopy(self.run)
+        result = copy.deepcopy(self.result)
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["mission_states"]["M1"]["head_sha"] = HEAD_SHA
+        run["active_wave"]["plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+        run["workers"][0]["nested_subagent_policy"] = {
+            "enabled": False,
+            "max_children": 0,
+            "allowed_roles": [],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        }
+        result["plan_digest_sha256"] = digest
+        for verifier_result in result["verifiers"]:
+            verifier_result["evidence"] = retained_verifier_result(
+                verifier_result["id"],
+                plan,
+            )["execution_key"]
+        result["subagent_activity"] = {
+            "status": "not_applicable",
+            "skip_reason": "the capability handshake disabled nested subagents",
+            "children": [],
+        }
+
+        self.assertEqual(validate(plan, run, result), [])
+
+    def test_absent_nested_policy_defers_parent_review_to_integration(self) -> None:
+        plan = copy.deepcopy(self.plan)
+        review_node = {
+            "id": "N-M1-PREINTEGRATION-REVIEW",
+            "kind": "verifier",
+            "executor": "runtime_worker",
+            "review": {
+                "type": "backend_code",
+                "mission_ids": ["M1"],
+                "scope": ["src/m1/**"],
+                "required_evidence": ["reviewed_sha", "decision"],
+            },
+        }
+        plan["graph"] = {"nodes": [review_node], "edges": []}
+        run = copy.deepcopy(self.run)
+        result = copy.deepcopy(self.result)
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["mission_states"]["M1"]["head_sha"] = HEAD_SHA
+        run["active_wave"]["plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+        run["workers"][0].pop("nested_subagent_policy", None)
+        run["review_workers"] = []
+        result["plan_digest_sha256"] = digest
+        for verifier_result in result["verifiers"]:
+            verifier_result["evidence"] = retained_verifier_result(
+                verifier_result["id"],
+                plan,
+            )["execution_key"]
+
+        self.assertEqual(validate(plan, run, result), [])
 
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

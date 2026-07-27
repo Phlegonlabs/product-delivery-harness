@@ -1,6 +1,6 @@
 # UI Architecture: <product name>
 
-Binding rule: a page cannot be freely designed. A page may only use approved content contracts, page recipes, product components, and primitives. Adding a value means adding a token or a variant here and in `ui-registry.json`, never a one-off at the call site.
+Binding rule after selected-HTML approval and extraction: a page cannot be freely designed. A page may only use approved content contracts, page recipes, product components, and primitives. Adding a value means adding a token or a variant here and in `ui-registry.json`, never a one-off at the call site.
 
 Resolved platform: <web, native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop>
 Styling / theming mechanism: <utility CSS, CSS-in-JS engine, CSS modules, plain CSS, or the platform's theme system>
@@ -18,6 +18,16 @@ Baseline: <n/a for fresh package, or frozen package paths and captured revision/
 
 For enhancement mode, this table is the complete mutation allowlist. Preserve everything outside it and validate the whole revised package. For a fresh package, record `n/a — no enhancement baseline`.
 
+## Approved Visual Source & Extraction Gate
+
+Visual Preference Brief: <path or summary of product-specific Ask User answers>
+Candidate set: <exactly two or three direction paths covering the same one or two UI IDs, or n/a>
+Selected HTML: <exact `visual-directions/selected/` path or n/a>
+Human approval: <owner and explicit approval evidence, or n/a>
+Extraction evidence: <design-system.md Token Extraction Trace section>
+
+Candidate HTML may use direction-local values before this gate. Tokens, primitives, components, recipes, the registry, and final mockups become binding only after the human approves the selected HTML and the package extracts them from that source.
+
 ## Layer Model
 
 | Layer | Owns | Must not own | Where it lives |
@@ -25,7 +35,8 @@ For enhancement mode, this table is the complete mutation allowlist. Preserve ev
 | Product rules | What the product must always show, never hide, never claim | Visual values | PRD-*, this document |
 | Content contracts | Required fields, limits, formats, empty and long-content handling | Layout, color | this document |
 | Route and state contracts | Routes, required states, what must render without JavaScript (or `n/a` plus a reason when the route has no server-rendered web surface) | Component internals | `page-recipes.md` |
-| Design tokens | Every raw visual, layout, and motion value | Markup, structure | `design-system.md` |
+| Approved selected HTML | Human-approved visual composition and actual values used for extraction | Product scope, route behavior, content requirements | `visual-directions/selected/` evidence |
+| Design tokens | Every repeated raw visual, layout, and motion value extracted from approved selected HTML | Markup, structure | `design-system.md` |
 | Layout primitives | Space, flow, alignment, max width, responsive rearrangement | Color, background, border, elevation, domain content | this document |
 | Surface primitives | Background, border, divider, radius, elevation, own padding | Spacing between its own children, domain content | this document |
 | Typography primitives | Type role, size, weight, line height, truncation | Layout, color outside the role's token | this document |
@@ -42,6 +53,7 @@ Composition runs one way: a layer may compose only the layers above it. Nothing 
 ```text
 Product rules
 > Content contract
+> Human-approved selected HTML
 > Page recipe
 > Product component
 > Primitive contract

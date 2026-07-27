@@ -65,20 +65,20 @@ human           -> explicit approval or contract decision
 
 The node is the workflow identity. A thread, Claude session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
 
-A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current integrated or PR-head SHA. It never receives a mission lease, write scope, branch, or commit authority.
+A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree, integrated, or PR-head SHA. It never receives a mission lease, write scope, branch, or commit authority.
 
 For full-stack UI delivery, use this default shape:
 
 ```text
 contract freeze
-  -> frontend mission -> frontend_code review --fix_required--> frontend repair
-  -> backend mission  -> backend_code review  --fix_required--> backend repair
+  -> frontend mission -> frontend_code review --fix_required--> same frontend task/worktree
+  -> backend mission  -> backend_code review  --fix_required--> same backend task/worktree
   -> integration / preview
   -> visual review --fix_required--> frontend or integration repair
   -> final deterministic gates
 ```
 
-Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. Every correction loop is bounded and has a blocked or human-owned exit. This shape names one frontend mission and one visual review for readability; scope each pair to one page (or a small, genuinely tightly-coupled group of pages) per `contract-and-traceability.md`'s mission-granularity corollary, and repeat the shape per page/group rather than letting one frontend mission span the whole UI matrix with a single visual review fired once at the end.
+Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. A pre-integration `fix_required` result is parent-side correction handling: send the findings to the original mission task/thread, keep its existing worktree and branch, require its focused verifier on a changed head, then re-arm the same review node. Do not model that correction as a new mission or create a new worktree from an integration branch that lacks the reviewed head. Bound retries with the review node's `max_attempts`, with a blocked or human-owned exit. Post-integration and batch reviews may use bounded repair-route nodes because their worktrees start from the reviewed integration head. This shape names one frontend mission and one visual review for readability; scope each pair to one page (or a small, genuinely tightly-coupled group of pages) per `contract-and-traceability.md`'s mission-granularity corollary, and repeat the shape per page/group rather than letting one frontend mission span the whole UI matrix with a single visual review fired once at the end.
 
 PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type, so the planner cannot mark a review required only in prose. Use an empty list only when none of the three review surfaces applies, and record that rationale in the human plan view.
 
@@ -90,12 +90,12 @@ Express it with the existing typed graph mechanism; no new PLAN or RUN schema fi
 
 - same `review.type` (`frontend_code`, `backend_code`, or `visual`);
 - same reviewed `mission_ids` and repository `scope`;
-- the same incoming `dependency` edges, so every reviewer binds to the SAME exact integrated or PR-head SHA;
+- the same incoming `dependency` edges, so every reviewer binds to the SAME exact covered-mission worktree, integrated, or PR-head SHA;
 - each its own node ID, its own attempt, and no shared state with the others — an independent read-only review, never a mission, and never granted write scope, a lease, or commit authority.
 
 These still count as normal `runtime_worker` review nodes for `required_reviews` validation (each is a matching verifier for its type) and for the shared runtime budget. Give the reviewers different `reasoning_effort` or providers if you want diversity of judgment; keep any delegated Claude Code model at `sonnet` per the Runtime Binding rules.
 
-Reconciliation is a PARENT-SIDE convention, not a graph feature. The N reviewer results are independent node outcomes; the parent combines them into ONE proceed/block decision and drives the surface's existing `fix_required` route edge from that combined decision (the repair loop, its bound, and its blocked/human-owned exit are unchanged). Name the rule in the human plan view so the reconciliation is auditable. Each reviewer's own `outcome` and `findings` are recorded on its `run.review_workers` entry, separate from `node_states[node_id].last_outcome` (the parent's single reconciled verdict used for routing and dependency readiness) — so a dissenting reviewer's finding stays on the record and auditable even after reconciliation folds it into a passing surface. Two patterns:
+Reconciliation is a PARENT-SIDE convention, not a graph feature. The N reviewer results are independent node outcomes; the parent combines them into ONE proceed/block decision. For a single-mission pre-integration review, a combined `fix_required` decision goes back to the original mission task/worktree. After the mission produces a changed head, re-arm every planned sibling review node for that surface, including siblings that passed the stale head. Before integration, every planned single-mission review node directly reached from that mission must retain a current-head PASS or reconciled PASS; one historical PASS cannot bypass another reviewer that is dormant or still requires a fix. The retained exact-head reviewer outcomes must also contain a strict PASS majority, so a reconciled node state alone cannot override an all-blocking or tied result. A review that covers multiple missions is a post-integration batch review and cannot replace the required single-mission worktree review. A PLAN without that eligible review remains blocked from integrating the mission. For post-integration review, the combined decision may drive the surface's bounded repair route. Name the rule in the human plan view so the reconciliation is auditable. Each reviewer's own `outcome` and `findings` are recorded on its `run.review_workers` entry, separate from `node_states[node_id].last_outcome` (the parent's single reconciled verdict used for routing and dependency readiness) — so a dissenting reviewer's finding stays on the record and auditable even after reconciliation folds it into a passing surface. Two patterns:
 
 - **Any-blocks (unanimous pass required).** Treat the surface as `fix_required`/blocked if ANY reviewer returns `fix_required`. Use it for safety-critical surfaces — security-sensitive code, destructive migrations — where a single true finding matters more than reviewer agreement and a false block is cheaper than a missed defect. Every reviewer's blocking finding must be addressed before the surface proceeds.
 - **Majority-pass.** Proceed when a majority of reviewers pass; route to `fix_required` only when a majority ask for it. Use it for more subjective or taste-driven judgment (typically `visual`) where one dissenting reviewer should not block indefinitely. Record the dissent, but do not let a lone minority verdict hold the surface. Use an odd N so majority is unambiguous.
@@ -125,8 +125,8 @@ Run `scripts/select_ready_nodes.py` for current PLAN v5 and RUN v10, and for sup
 
 - plan readiness and execution authorization are current;
 - its phase is `dormant` or `ready` and its attempt budget remains;
-- all dependency sources succeeded with `pass`;
-- at least one incoming route matches when route edges exist;
+- all dependency sources succeeded with `pass`, except that a current RUN-v10 runtime review may consume a covered mission's validated `worker_passed` exact head before the parent integrates it;
+- at least one incoming route matches when route edges exist, except that the same pre-integration dependency activates the review's initial attempt while a matching repair route activates later attempts;
 - no node blocker remains;
 - mission nodes still have a queued or ready mission state.
 

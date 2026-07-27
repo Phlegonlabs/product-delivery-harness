@@ -150,7 +150,7 @@ async function agent(_prompt, options) {
             skill,
         )
 
-    def test_wireframes_remain_canonical_across_optional_visual_direction_pass(self) -> None:
+    def test_wireframes_remain_canonical_across_optional_html_exploration(self) -> None:
         skill = self.read("SKILL.md")
         guide = self.read("references/wireframe-guide.md")
         contract = self.read("references/output-contract.md")
@@ -160,13 +160,13 @@ async function agent(_prompt, options) {
             self.assertIn("non-canonical", content)
             self.assertIn("explicitly authoriz", content)
             self.assertIn("bounded wireframe revision", content)
-        self.assertIn("## Optional Frontend Design Visual Direction Handoff", guide)
+        self.assertIn("## Optional Frontend Design Preference & HTML Exploration Handoff", guide)
         self.assertIn("low-fidelity wireframes remain canonical for structure and flow", guide)
-        self.assertIn("usually one to three screens", guide)
+        self.assertIn("same one or two representative screens", guide)
         self.assertIn("selected `UI-*` screen and region IDs", guide)
-        self.assertIn("Keep it outside the staged and published PRD package", guide)
+        self.assertIn("Keep them outside the staged and published PRD package", guide)
         self.assertIn(
-            "No `frontend-design` prototype, render, high-fidelity HTML",
+            "No `frontend-design` candidate or selected HTML",
             contract,
         )
 
@@ -242,9 +242,10 @@ async function agent(_prompt, options) {
             "or a hybrid? (AskUserQuestion)",
             "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion",
             "recurring usability benchmarking? (AskUserQuestion)",
-            "or an existing brand reference. (AskUserQuestion",
         ):
             self.assertIn(marked_bullet, interview)
+        self.assertNotIn("existing brand reference. (AskUserQuestion", interview)
+        self.assertIn("Do not ask the user to choose from a fixed catalog", interview)
         self.assertIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
         self.assertIn(
             "goal, users/roles, workflows, data/integrations, business rules, delivery constraints, success metrics, confirmation/recovery",
@@ -392,23 +393,24 @@ async function agent(_prompt, options) {
         self.assertIn("specific style direction or animation", interview)
         self.assertIn("Required style and motion intent", interview)
 
-    def test_wireframes_ask_for_style_and_define_a_simple_fallback(self) -> None:
+    def test_wireframes_defer_dynamic_visual_preference_discovery(self) -> None:
         skill = self.read("SKILL.md")
         agent = self.read("agents/openai.yaml")
         interview = self.read("references/interview-guide.md")
         guide = self.read("references/wireframe-guide.md")
         contract = self.read("references/output-contract.md")
 
-        self.assertIn("ask what overall style the user wants", skill)
-        self.assertIn("What overall visual character", interview)
-        self.assertIn("If the answer is only `modern`", interview)
-        self.assertIn("## Direction And Configuration", guide)
-        self.assertIn("record `modern-minimal` as provisional", guide)
-        self.assertIn("Do not accept `modern` as a complete layout decision", guide)
+        self.assertIn("Do not run a fixed high-fidelity visual-style questionnaire here", skill)
+        self.assertIn("Do not ask the user to choose from a fixed catalog", interview)
+        self.assertIn("Purpose, Tone, Constraints, and Differentiation", interview)
+        self.assertIn("## Structural Direction And Configuration", guide)
+        self.assertIn("Do not ask the user to choose a high-fidelity style catalog", guide)
+        self.assertIn("product-specific Ask User call", guide)
         self.assertIn("Dashboard or monitoring screen", guide)
         self.assertIn("## Wireframe Direction", contract)
         self.assertIn("Layout pattern:", contract)
-        self.assertIn("modern-minimal assumption", agent)
+        self.assertIn("high-fidelity preference discovery", contract)
+        self.assertNotIn("modern-minimal assumption", agent)
 
     def test_builder_ux_direction_precedes_wireframes_without_claiming_validation(self) -> None:
         skill = self.read("SKILL.md")

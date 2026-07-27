@@ -40,17 +40,41 @@ Decision owner: <human product/design owner or commissioning team>
 
 Builder approval proves direction conformance only, not usability. Keep unsupported preferences provisional or assumed until separate user evidence exists.
 
-## Frontend Design Visual Direction Pass
+## Frontend Design Preference & HTML Exploration
 
-Status: <not used / candidate awaiting selection / selected / rejected>
+Status: <not used / preference discovery / candidates awaiting comparison / selected HTML awaiting approval / approved / rejected>
 
-| Direction ID | Representative screens / UI IDs | Decision owner | Accepted cues | Rejected / deferred cues | Normalized package targets |
-|---|---|---|---|---|---|
-| <direction ID or n/a> | <one to three screen names and exact authorized UI-* IDs> | <human owner or explicit delegated selector> | <hierarchy, typography, color, composition, imagery, surface, or motion decisions> | <candidate choices that must not enter the package> | <DS IDs, token sections, primitive/component IDs, recipes, registry entries, and final mockups> |
+### Visual Preference Brief
 
-Candidate evidence: <Archive / Retain / n/a> — <exact final archive or retained path; `pending publication approval` is allowed only in staging>
+Decision owner: <human product/design owner>
+Ask User evidence: <question/answer record or n/a>
+Purpose: <what the interface must help people do>
+Tone: <product-specific direction, not a fixed style label>
+Constraints: <brand, platform, content, accessibility, and performance limits>
+Differentiation: <what should make this product recognizable>
 
-Candidate files are non-canonical. Record `n/a — pass not requested or not authorized` when unused. A published `design-system.md` records the actual final candidate evidence path, never an Archive source path under `.design-staging/`. When selected, every accepted cue is expressed through the package's named decisions and closed sets; no final artifact or implementation depends on candidate markup or candidate-only values. Candidate screens are normalized into the frozen UI architecture package before implementation.
+### Candidate Direction Comparison
+
+| Direction ID | Same representative screens / UI IDs | HTML paths | Material differentiators | Human decision |
+|---|---|---|---|---|
+| <direction ID or n/a> | <the same one or two screen names and exact authorized UI-* IDs> | <complete dependency-free HTML paths> | <at least three axes: typography, composition, density, color proportion, surfaces, imagery, controls, or motion> | <selected / rejected / cues requested for mix> |
+
+### Approved Selected HTML
+
+Selected path: <exact `visual-directions/selected/` path or n/a>
+Selection method: <direct selection / mixed and consolidated / n/a>
+Approval owner: <human product/design owner; never an agent or delegated selector>
+Approval evidence: <explicit approval record or n/a>
+
+### Token Extraction Trace
+
+| Selected HTML evidence | Extracted tokens | Extracted primitives / components | Recipes / registry / final mockups |
+|---|---|---|---|
+| <element, selector, screenshot, or measured repeated value> | <token IDs and actual values> | <DS IDs and closed variants> | <recipe IDs, registry entries, and canonical mockups> |
+
+Exploration evidence: <Archive / Retain / n/a> — <exact final archive or retained `visual-directions/` path; `pending publication approval` is allowed only in staging>
+
+Candidate and selected HTML are non-canonical exploration evidence. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially different directions for the same one or two screens. Tokens are extracted only after the human explicitly approves the selected HTML. The published package records the final exploration evidence path, and implementation consumes only the extracted package.
 
 ## Product-Specific Visual Thesis
 

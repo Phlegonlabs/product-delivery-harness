@@ -14,7 +14,11 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_manifest import AUTHORIZATION_KEYS, plan_digest, validate_plan, validate_run
-from select_parallel_missions import SelectionError, select_parallel_missions
+from select_parallel_missions import (
+    SelectionError,
+    _required_actions,
+    select_parallel_missions,
+)
 
 
 SHA = "a" * 40
@@ -509,19 +513,96 @@ class SelectorTests(unittest.TestCase):
             result["deferred_missions"][0]["reason_codes"],
         )
 
-    def test_app_task_wave_uses_no_edit_handshake_when_capability_is_unobserved(self) -> None:
+    def test_app_task_wave_uses_parent_review_when_nested_capability_is_unavailable(
+        self,
+    ) -> None:
         plan = make_plan([mission("M1", priority=20, merge_rank=10)])
         run = make_run(plan)
         configure_app_task_fanout(run, ["M1"])
         run["runtime_capabilities"]["nested_subagents"]["available"] = False
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        policy = result["launch_directives"][0]["nested_subagent_policy"]
+        self.assertEqual("not_applicable", policy["mode"])
+        self.assertEqual(0, policy["max_children"])
+        self.assertEqual([], policy["allowed_roles"])
+        self.assertNotIn("spawn_subagents", result["launch_directives"][0]["required_actions"])
+
+    def test_app_task_wave_uses_handshake_when_nested_capability_is_unobserved(
+        self,
+    ) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1"])
+        del run["runtime_capabilities"]["nested_subagents"]
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
         self.assert_valid(plan, run)
 
         result = select_parallel_missions(plan, run)
 
         policy = result["launch_directives"][0]["nested_subagent_policy"]
         self.assertEqual("capability_handshake", policy["mode"])
-        self.assertEqual(0, policy["max_children"])
-        self.assertEqual([], policy["allowed_roles"])
+        self.assertNotIn("spawn_subagents", result["launch_directives"][0]["required_actions"])
+
+    def test_current_app_task_handshake_requires_spawn_authorization(
+        self,
+    ) -> None:
+        runtime = {
+            "worker_runtime": "app_task",
+            "workspace_mode": "app_managed_worktree",
+            "runtime_adapter": {
+                "provider": "codex",
+                "available_drivers": ["app_threads"],
+                "detection_source": "observed",
+            },
+        }
+
+        self.assertIn("spawn_subagents", _required_actions(runtime, 10))
+
+    def test_legacy_app_task_wave_retains_nested_policy_without_reviewer_role(
+        self,
+    ) -> None:
+        plan = make_plan([mission("M1", priority=20, merge_rank=10)])
+        run = make_run(plan)
+        configure_app_task_fanout(run, ["M1"])
+        run["runtime_capabilities"]["nested_subagents"]["allowed_roles"] = [
+            "explorer",
+            "tester",
+        ]
+        run["authorizations"]["spawn_subagents"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assert_valid(plan, run)
+
+        result = select_parallel_missions(plan, run)
+
+        self.assertEqual([], result["selected_missions"])
+        self.assertEqual(
+            ["action_not_authorized"],
+            result["deferred_missions"][0]["reason_codes"],
+        )
+
+        run["authorizations"]["spawn_subagents"] = authorization(
+            run["run_id"], ["M1"]
+        )
+        result = select_parallel_missions(plan, run)
+        policy = result["launch_directives"][0]["nested_subagent_policy"]
+        self.assertEqual("enabled_read_only", policy["mode"])
+        self.assertEqual(["explorer", "tester"], policy["allowed_roles"])
+        self.assertIn(
+            "spawn_subagents",
+            result["launch_directives"][0]["required_actions"],
+        )
 
     def test_static_edges_include_nonready_missions_but_unary_codes_do_not(self) -> None:
         plan = make_plan(

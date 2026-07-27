@@ -19,6 +19,8 @@ Before the first production edit or worker launch, inspect the current Codex ses
 - direct child-agent tools prove `subagents`;
 - the current permission mode, worktree isolation, Git metadata reachability, slots, completion channel, temp/cache/network needs, and model options define usable capacity.
 
+Codex app task tools may be discoverable but not loaded into the initial tool list. Before recording `app_threads` as unavailable, search the current Codex tool surface for project listing, top-level task/thread creation, follow-up messaging, and bounded thread waiting. A direct subagent is not a substitute for a user-owned top-level Codex task: the task has its own conversation in the left sidebar and its own app-managed worktree.
+
 Record observations under `runtime_adapter` independently from authorization. Choose the strongest observed and authorized route:
 
 ```text
@@ -44,16 +46,17 @@ Pass non-null PLAN-selected values to task creation as `model` and `thinking`. N
 
 ## Launch Selected Codex App Tasks
 
-Use this route only with exact authorization for `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits` across the selected run, missions, and targets. Integration remains separate.
+Use this route only with exact authorization for `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits` across the selected run, missions, and targets. Integration remains separate. When the user requests independent Codex tasks or worktrees, preserve that outer topology: create one top-level Codex task per selected mission/worktree before any task-local Multi-agent work. Never collapse those missions into direct subagents of the coordinator.
 
 Do not stop after printing a non-empty app-task wave. After validating PLAN/RUN, selecting the ready frontier, and recording the accepted wave, consume every `launch_directives` entry:
 
 1. Resolve the current Codex project once.
 2. Allocate the worker and lease identity, then recheck pre-allocation `*` grants only for app-assigned task/worktree identities; recheck every already-known branch, commit, mission, and worker target exactly.
 3. Build the initial prompt from `../fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md`, including plan digest, immutable base, scope, tasks, resources, verifiers, permission boundary, and nested policy.
-4. Create one app-managed worktree task per selected mission from the recorded integration branch/ref. Record the returned thread ID or queued client-thread ID; never invent it from a mission name.
+4. Create one top-level app-managed worktree task per selected mission from the recorded current integration branch/ref resolved from target-repository instructions; use `development` only when the repository does not define another model. Each task is an independent conversation visible in the Codex left sidebar. Record the returned thread ID or queued client-thread ID; never invent it from a mission name and never replace this step with coordinator-owned subagents.
 5. Poll with bounded backoff: start at 15 seconds, double the interval after each unchanged poll up to a 5-minute ceiling, and treat a thread as stalled after 30 minutes with no observed status change — record `blocked: no_progress_timeout` and stop polling that thread instead of polling indefinitely. This poll-timeout budget is independent from a mission's `max_attempts` retry count and from the worker-level three-consecutive-no-progress-iteration guardrail (`GOAL.template.md`). Send necessary follow-up through the thread message surface, and preserve terminal, blocked, interrupted, and partial results.
-6. Observe the actual Git common directory, path, branch/ref, base, head, changed files, and commit ancestry. Validate before serial parent integration.
+6. Observe the actual Git common directory, path, branch/ref, base, head, changed files, and commit ancestry. Require one task-local read-only reviewer to review the proposed diff after implementation and bind its result to the final worktree head. If the task could not run that reviewer, the parent must run an equivalent read-only review before integration.
+7. Send pre-integration blocking findings back to the original task/thread. Repair them inside that task's existing worktree and branch, run its focused verifier on a changed head, then re-arm the same review node and review the new head again. Do not create a repair mission or replacement worktree for this loop. Only then may the parent serially integrate the mission into the resolved target-repository integration branch.
 
 App-managed worktrees may start detached. When durable handoff is required, create the authorized branch/ref early. The task is the sole writer in its worktree. Never assume a managed worktree also isolates ports, databases, queues, caches, secrets, or third-party sandboxes.
 
@@ -70,9 +73,9 @@ A `verifier`/review node (`backend_code`, `frontend_code`, or `visual` review) n
 
 A mission is `non-trivial` when its task list spans more than one file or module boundary, or changes business logic rather than pure configuration, copy, or a mechanical rename/move; a single mechanical edit confined to one file is `trivial` and may report an allowed triviality reason instead of launching a child.
 
-Every non-trivial app-task mission gets a depth-one policy capped at three direct read-only children when current capability and `spawn_subagents` authorization are both proven. Eligible lanes are codebase exploration, documentation/API research, test/log analysis, and post-edit proposed-diff review.
+Every non-trivial app-task mission gets a depth-one policy capped at three direct read-only children when current capability and `spawn_subagents` authorization are both proven. Eligible pre-edit lanes are codebase exploration, documentation/API research, and test/log analysis. After implementation, one direct child must perform the final proposed-diff review on the current worktree head. This is the inner layer: each left-sidebar task coordinates its own children after the outer task-per-worktree wave exists.
 
-When child capability is unknown, launch a no-production-edit handshake, poll it, record the result, and send an enabled or disabled policy before implementation. With an enabled policy, at least one useful child must run unless the result records an allowed triviality/capability reason. Children never write, run mutating generators or shared-state services, spawn further agents, edit PLAN/RUN, create Git objects, integrate, land, deploy, or clean up. The app task reconciles their evidence and reports `subagent_activity`.
+When child capability is unknown, launch a no-production-edit handshake, poll it, record the result, and send an enabled or disabled policy before implementation. Enable it only when the allowed roles include `reviewer`. With an enabled policy, the post-edit reviewer is mandatory for a non-trivial mission; `partial` or `unavailable` activity without a completed exact-head PASS reviewer cannot return `worker_passed`. Children never write, run mutating generators or shared-state services, spawn further agents, edit PLAN/RUN, create Git objects, integrate, land, deploy, or clean up. The app task reconciles their evidence and reports the reviewer's exact head, decision, findings, and `subagent_activity`. After validating that result, the parent copies the completed reviewer child into the worker's canonical `nested_review_evidence`; the mission cannot transition to integration without that retained exact-head PASS record. If the handshake proves the child runtime or reviewer role unavailable, assign a disabled policy before implementation. A trivial or disabled-policy mission, and a graph-backed direct worker with no nested policy, still needs an equivalent parent-owned read-only review recorded as a terminal exact-head `review_workers[]` PASS before the mission may transition to integration.
 
 ## Provider Boundary
 
@@ -82,4 +85,4 @@ When the ready frontier includes a node whose `allowed_providers` does not inclu
 
 ## Failure And Fallback
 
-Use the recorded fallback driver or fewer workers only when capability, isolation, permission, dependency, conflict, or resource evidence requires it. Record the reason. Preserve failed or cancelled task/worktree evidence; never reset or remove it automatically. If no isolated route remains, use one sequential parent writer and continue from canonical PLAN/RUN state.
+Use the recorded fallback driver or fewer workers only when capability, isolation, permission, dependency, conflict, or resource evidence requires it. Record the reason. Preserve failed or cancelled task/worktree evidence; never reset or remove it automatically. If no isolated route remains, use one sequential parent writer and continue from canonical PLAN/RUN state. An explicit request for independent left-sidebar Codex tasks is different: do not replace it with direct subagents or sequential parent execution. Report the missing task/thread capability and stop at that boundary.

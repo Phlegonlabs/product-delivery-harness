@@ -49,7 +49,7 @@
 | `prd-builder` | 产品探索、需求、架构、前端技术栈决策，以及低保真线框图 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md` |
 | `ui-architecture-builder` | 页面只能这样搭出来的那套 UI 架构：分层、设计令牌、带封闭变体集的基础组件契约、业务组件、动效规则、逐路由的页面配方、真实的逐页 HTML 原型，以及视觉验收 | `ui-architecture.md`、`ui-registry.json`、`page-recipes.md`、`design-system.md`、`mockups/` 目录下每个路由一个 HTML 文件外加 `mockups/catalog.html`、`visual-acceptance.md` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Codex 应用任务、应用托管的工作树，以及嵌套的只读辅助 | 运行时启动指令和工作节点结果 |
+| `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及各任务自己的只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-github-landing` | 终态提交推送、PR、并发的 CI/审查，以及精确到提交点的合并 | 远程落地证据 |
 
@@ -137,8 +137,8 @@ Claude 的批次波（wave）按模型、推理强度和工具画像区分开：
 
 - 可部署产品会在计划中记录提供方、目标环境、命令、迁移、前置条件和部署后检查。
 - Cloudflare 项目使用同一份代码库，但 `development` 与 `production` Worker 完全分离；D1、KV、R2、queue、Durable Object、密钥、认证、支付模式、路由和 webhook 也按环境设置。
-- 默认 Cloudflare 模型使用绑定精确 SHA 的 GitHub Actions 调度。开发环境绑定当前 PR head；生产环境绑定已合并的基准分支 SHA。
-- 可选的 Cloudflare Workers Builds 模型可以把持久集成分支自动部署到开发环境，再把基准分支自动部署到生产环境。只有明确选择时才启用，也不会与调度模型混用。
+- 默认 Cloudflare 模型使用绑定精确 SHA 的 GitHub Actions 调度。开发环境绑定已审查的 `development` head；生产环境绑定用户审批升版后产生的 `production` head。
+- 可选的 Cloudflare Workers Builds 模型可以把持久的 `development` 和受保护的 `production` 分支自动部署到对应 Worker。只有明确选择时才启用，也不会与调度模型混用。
 - 第一天引导只创建已确认需要的环境资源和 Worker 外壳。真正部署功能代码仍需要目标环境专属授权。
 - `docs/deployment.md` 保存供维护者阅读的拓扑与设置；RUN 仍是机器可读的执行记录。
 - 移动端和桌面端交付同样分离 development/beta 与 production 的凭据、后端、商店轨道和发布证据，不会强套 Cloudflare 格式。
@@ -252,6 +252,10 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 | --- | --- | --- |
 | Codex 应用（`fullstack-harness-codex`） | 在隔离的、应用托管的工作树中运行应用任务 | 直接子代理，然后退到单一顺序父级 |
 | Claude Code（`fullstack-harness-claude-code`） | 采用精确基点、父级托管的 `.claude/worktrees/` 工作树的动态工作流 | 直接子代理，然后退到单一顺序父级 |
+
+在 Codex 中，首选路线分为两层：每个选中的 mission 先在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管工作树；然后由该任务运行自己的有界 Multi-agent 辅助。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
+
+目标仓库自己的分支与 PR 规则优先。只有当仓库没有定义其他流程时，mission 工作树才默认从当前 `development` SHA 开始，在完成绑定当前 head 的只读审查后集成回 `development`，并在用户最终明确审批后才开始 `development -> production` 升版；如果有修复，必须对新 head 重新审查。
 
 每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被报告为“因提供方不匹配而阻塞”，而不会在这里执行。
 

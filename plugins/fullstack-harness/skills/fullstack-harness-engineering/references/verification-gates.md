@@ -10,12 +10,13 @@ Use the smallest reliable proof first:
 1. Reproduce or define the observable target.
 2. Identify the smallest deterministic check.
 3. Run affected task and worker checks from parent-observed changed files.
-4. Run the mission integration surface after serial integration.
-5. Run only real cross-mission checks at the batch gate.
-6. Converge runtime code review and repairs on an exact head.
-7. Run broad regression, browser E2E, and visual/UI checks on the final current head.
-8. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
-9. If deterministic checks are impossible, use structured review and name residual risk.
+4. Complete at least one read-only review on each exact worktree head before integration.
+5. Run the mission integration surface after serial integration into `development`.
+6. Run only real cross-mission checks at the batch gate.
+7. Converge runtime code review and repairs on an exact head.
+8. Run broad regression, browser E2E, and visual/UI checks on the final current head.
+9. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
+10. If deterministic checks are impossible, use structured review and name residual risk.
 ```
 
 ## Gate Levels
@@ -34,9 +35,17 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
+Worktree pre-integration review gate:
+
+- Runs after worker checks and before the parent merges that mission head.
+- Binds at least one independent read-only review to the exact current worktree head and records the reviewer, decision, findings, and evidence.
+- In a Codex app task, the task's own Multi-agent reviewer performs this round when its enabled policy permits `reviewer`. If that policy is disabled, or a graph-backed direct worker has no nested policy, the parent runs an equivalent read-only review and records a terminal `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head.
+- Requires zero unresolved blocking findings. Any repair changes the head, invalidates the prior review, and requires a fresh round.
+- Is the only gate that may transition a mission from `worker_passed` to `integrating`.
+
 Mission integration gate:
 
-- Runs after merged work lands on the parent/integration branch.
+- Runs after reviewed work lands on the target repository's `development` branch.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 
@@ -147,8 +156,8 @@ For a current PLAN-v5 release targeting Cloudflare, use separate provider-neutra
 
 | Gate | Source | Required proof |
 |---|---|---|
-| Development deployment | exact current PR head after current-head CI | development Worker/version/URL, migration PASS or not required, sandbox payment and development auth/data checks when applicable, deployed-environment E2E PASS, retained evidence |
-| Production deployment | exact merged `main` SHA after development and merge PASS | production Worker/version/URL, migration PASS or not required, live configuration boundary, critical-route and primary-journey smoke PASS, retained evidence, rollback version when available |
+| Development deployment | exact reviewed `development` head | development Worker/version/URL, migration PASS or not required, sandbox payment and development auth/data checks when applicable, deployed-environment E2E PASS, retained evidence |
+| Production deployment | exact `production` head after final user-approved promotion and merge PASS | production Worker/version/URL, migration PASS or not required, live configuration boundary, critical-route and primary-journey smoke PASS, retained evidence, rollback version when available |
 
 Any new PR push invalidates the earlier development deployment PASS. Any new merged-base change invalidates production evidence that was not deployed from that exact SHA. Production cannot pass from the PR-head SHA after a squash merge; bind it to `landing.merged_sha` and retain the development PR-head evidence separately.
 

@@ -1,6 +1,6 @@
 interface:
   display_name: "Full-Stack Harness Core"
   short_description: "Plan, authorize, verify, and integrate delivery work"
-  default_prompt: "Use $fullstack-harness-engineering to classify the project as small or large. Keep small work direct. For large work, freeze the necessary inputs, create compact PLAN/RUN state, select authorized ready nodes, verify parent-observed results, and integrate passing work. Load only the active host adapter—$fullstack-harness-codex or $fullstack-harness-claude-code—when runtime orchestration is needed. Load $fullstack-harness-github-landing only for an explicitly requested remote outcome."
+  default_prompt: "Use $fullstack-harness-engineering to classify the project as small or large. Keep small work direct. For large work, preserve the target repository's branch and landing rules, select authorized ready nodes, create each mission worktree from the resolved integration branch, require an exact-head read-only review, and integrate passing work only back into that branch. Use development and production only as defaults when the repository defines no other model, and begin any protected-branch promotion only after final user approval. Load only the active host adapter—$fullstack-harness-codex or $fullstack-harness-claude-code—when runtime orchestration is needed."
 policy:
   allow_implicit_invocation: true

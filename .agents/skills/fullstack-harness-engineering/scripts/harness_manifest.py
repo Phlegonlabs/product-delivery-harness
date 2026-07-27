@@ -106,6 +106,18 @@ from harness_ui_evidence import (
 )
 
 
+def _validated_sha_history(
+    errors: list[str], path: str, value: Any
+) -> set[str]:
+    items = _strings(errors, path, value)
+    valid: set[str] = set()
+    for index, item in enumerate(items):
+        _optional_sha(errors, f"{path}[{index}]", item)
+        if is_full_sha(item):
+            valid.add(item)
+    return valid
+
+
 def _validate_global_verifier_ids(errors: list[str], plan: dict[str, Any]) -> None:
     if plan.get("schema_version") != 5:
         return
@@ -2321,7 +2333,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         and isinstance(plan.get("graph"), dict)
     ):
         reviewed_missions: set[str] = set()
-        for node in plan["graph"].get("nodes", []):
+        raw_graph_nodes = plan["graph"].get("nodes", [])
+        raw_graph_edges = plan["graph"].get("edges", [])
+        graph_nodes = raw_graph_nodes if isinstance(raw_graph_nodes, list) else []
+        graph_edges = raw_graph_edges if isinstance(raw_graph_edges, list) else []
+        mission_node_ids = {
+            node["ref"]: node["id"]
+            for node in graph_nodes
+            if isinstance(node, dict)
+            and node.get("kind") == "mission"
+            and isinstance(node.get("id"), str)
+            and isinstance(node.get("ref"), str)
+        }
+        for node in graph_nodes:
             if not isinstance(node, dict):
                 continue
             if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
@@ -2329,7 +2353,23 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review = node.get("review")
             if not isinstance(review, dict):
                 continue
-            for mission_id in review.get("mission_ids") or []:
+            mission_ids = review.get("mission_ids") or []
+            if schema_version == 10:
+                if (
+                    len(mission_ids) != 1
+                    or not isinstance(mission_ids[0], str)
+                    or not isinstance(node.get("allowed_outcomes"), list)
+                    or "pass" not in node["allowed_outcomes"]
+                    or not any(
+                        isinstance(edge, dict)
+                        and edge.get("kind") == "dependency"
+                        and edge.get("from") == mission_node_ids.get(mission_ids[0])
+                        and edge.get("to") == node.get("id")
+                        for edge in graph_edges
+                    )
+                ):
+                    continue
+            for mission_id in mission_ids:
                 if isinstance(mission_id, str):
                     reviewed_missions.add(mission_id)
         unreviewed = sorted(
@@ -2341,11 +2381,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             and mission["id"] not in reviewed_missions
         )
         if unreviewed:
+            review_requirement = (
+                "no direct singleton pre-integration review node"
+                if schema_version == 10
+                else "no review node"
+            )
             _add(
                 errors,
                 "run.execution_authorized",
                 "cannot authorize execution while these missions have a write scope "
-                "and no review node: " + ", ".join(unreviewed),
+                f"and {review_requirement}: " + ", ".join(unreviewed),
             )
     if run["execution_authorized"]:
         if not _nonempty_string(run["execution_authorization_source"]):
@@ -3000,16 +3045,32 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, "run.observed.runtime.completion_channel_available", "must be boolean")
 
     integration = run["integration"]
+    integration_optional_keys = {"retention"}
+    integration_prior_heads: set[str] = set()
+    if schema_version == 10:
+        integration_optional_keys.add("prior_head_shas")
     if _keys(
         errors,
         "run.integration",
         integration,
         {"branch", "batch_base_sha", "integration_head_sha"},
-        {"retention"},
+        integration_optional_keys,
     ):
         _optional_string(errors, "run.integration.branch", integration["branch"])
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
+        if schema_version == 10 and "prior_head_shas" in integration:
+            integration_prior_heads = _validated_sha_history(
+                errors,
+                "run.integration.prior_head_shas",
+                integration.get("prior_head_shas"),
+            )
+        if integration.get("integration_head_sha") in integration_prior_heads:
+            _add(
+                errors,
+                "run.integration.prior_head_shas",
+                "must contain only superseded integration heads",
+            )
         retention = integration.get("retention")
         if retention is not None and retention not in {"persistent", "ephemeral"}:
             _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
@@ -3066,6 +3127,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "blockers",
         "report_path",
     }
+    mission_state_optional_keys = (
+        {"prior_head_shas"} if schema_version == 10 else set()
+    )
+    mission_prior_heads: dict[str, set[str]] = {}
     if not isinstance(mission_states, dict):
         _add(errors, "run.mission_states", "must be an object")
     else:
@@ -3073,7 +3138,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.mission_states", "keys must exactly match PLAN missions")
         for mission_id, state in mission_states.items():
             path = f"run.mission_states.{mission_id}"
-            if not _keys(errors, path, state, mission_state_keys):
+            if not _keys(
+                errors,
+                path,
+                state,
+                mission_state_keys,
+                mission_state_optional_keys,
+            ):
                 continue
             if state["phase"] not in MISSION_PHASES:
                 _add(errors, f"{path}.phase", "has an unsupported value")
@@ -3085,6 +3156,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.lease_plan_revision", "must be null or positive integer")
             for key in ("lease_plan_digest_sha256", "base_sha", "head_sha", "integrated_sha"):
                 _optional_sha(errors, f"{path}.{key}", state[key])
+            if schema_version == 10 and "prior_head_shas" in state:
+                prior_heads = _validated_sha_history(
+                    errors,
+                    f"{path}.prior_head_shas",
+                    state["prior_head_shas"],
+                )
+                mission_prior_heads[mission_id] = prior_heads
+                if state.get("head_sha") in prior_heads:
+                    _add(
+                        errors,
+                        f"{path}.prior_head_shas",
+                        "must contain only superseded mission heads",
+                    )
             if state["integration_gate"] not in GATE_VALUES:
                 _add(errors, f"{path}.integration_gate", "has an unsupported gate value")
             _strings(errors, f"{path}.blockers", state["blockers"])
@@ -3212,7 +3296,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 path,
                 worker,
                 worker_keys,
-                {"nested_subagent_policy", "runtime_binding"},
+                {
+                    "nested_subagent_policy",
+                    "nested_review_evidence",
+                    "runtime_binding",
+                },
             ):
                 continue
             for key in ("worker_id", "mission_id", "lease_id", "plan_digest_sha256", "batch_base_sha"):
@@ -3320,6 +3408,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
+            nested_review_evidence = worker.get("nested_review_evidence")
             if (
                 schema_version in {6, 7, 8, 9, 10}
                 and isinstance(runtime, dict)
@@ -3428,6 +3517,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.nested_subagent_policy.allowed_roles",
                             "must be a subset of runtime allowed_roles",
                         )
+                    if (
+                        schema_version == 10
+                        and "reviewer" not in policy_roles
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must include reviewer when enabled",
+                        )
                     if not authorization_covers(
                         run,
                         "spawn_subagents",
@@ -3452,6 +3550,85 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.nested_subagent_policy.allowed_roles",
                             "must be empty when disabled",
                         )
+            if nested_review_evidence is not None and _keys(
+                errors,
+                f"{path}.nested_review_evidence",
+                nested_review_evidence,
+                {
+                    "agent_id",
+                    "role",
+                    "task",
+                    "status",
+                    "summary",
+                    "evidence_paths",
+                    "reviewed_sha",
+                    "decision",
+                },
+            ):
+                for key in ("agent_id", "task", "summary"):
+                    if not _nonempty_string(nested_review_evidence[key]):
+                        _add(
+                            errors,
+                            f"{path}.nested_review_evidence.{key}",
+                            "must be a non-empty string",
+                        )
+                if nested_review_evidence["role"] != "reviewer":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.role",
+                        "must equal reviewer",
+                    )
+                if nested_review_evidence["status"] != "completed":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.status",
+                        "must equal completed",
+                    )
+                _strings(
+                    errors,
+                    f"{path}.nested_review_evidence.evidence_paths",
+                    nested_review_evidence["evidence_paths"],
+                )
+                if (
+                    schema_version == 10
+                    and not is_full_sha(nested_review_evidence["reviewed_sha"])
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        "must be a full lowercase Git SHA",
+                    )
+                else:
+                    _optional_sha(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        nested_review_evidence["reviewed_sha"],
+                    )
+                if nested_review_evidence["decision"] != "PASS":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.decision",
+                        "must equal PASS",
+                    )
+                if (
+                    is_full_sha(worker["worker_head_sha"])
+                    and nested_review_evidence["reviewed_sha"]
+                    != worker["worker_head_sha"]
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        "must match worker_head_sha",
+                    )
+                if not (
+                    isinstance(nested_policy, dict)
+                    and nested_policy.get("enabled") is True
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence",
+                        "is allowed only for an enabled nested-subagent policy",
+                    )
 
     if graph_run:
         review_workers = run["review_workers"]
@@ -3461,6 +3638,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if isinstance(node, dict)
             and node.get("kind") == "verifier"
             and node.get("executor") == "runtime_worker"
+        }
+        mission_node_refs = {
+            node.get("id"): node.get("ref")
+            for node in plan.get("graph", {}).get("nodes", [])
+            if isinstance(node, dict) and node.get("kind") == "mission"
         }
         review_worker_keys = {
             "worker_id",
@@ -3528,6 +3710,40 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if worker["graph_revision"] != run["graph_state"]["graph_revision"]:
                     _add(errors, f"{path}.graph_revision", "must match the current graph revision")
                 _optional_sha(errors, f"{path}.reviewed_sha", worker["reviewed_sha"])
+                reviewed_mission_ids = (
+                    set(node.get("review", {}).get("mission_ids", []))
+                    if isinstance(node, dict) and isinstance(node.get("review"), dict)
+                    else set()
+                )
+                mission_state_items = (
+                    mission_states.items()
+                    if isinstance(mission_states, dict)
+                    else []
+                )
+                reviewed_mission_states = {
+                    mission_id: state
+                    for mission_id, state in mission_state_items
+                    if mission_id in reviewed_mission_ids and isinstance(state, dict)
+                }
+                direct_preintegration_mission_ids = {
+                    mission_node_refs.get(edge.get("from"))
+                    for edge in plan.get("graph", {}).get("edges", [])
+                    if isinstance(edge, dict)
+                    and edge.get("kind") == "dependency"
+                    and edge.get("to") == worker["node_id"]
+                    and len(
+                        (review_nodes.get(worker["node_id"]) or {})
+                        .get("review", {})
+                        .get("mission_ids", [])
+                    )
+                    == 1
+                    and mission_node_refs.get(edge.get("from"))
+                    in reviewed_mission_ids
+                }
+                raw_state = run["graph_state"]["node_states"].get(
+                    worker["node_id"], {}
+                )
+                state = raw_state if isinstance(raw_state, dict) else {}
                 current_reviewable_shas = {
                     sha
                     for sha in (
@@ -3535,14 +3751,31 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         run.get("landing", {}).get("pr_head_sha"),
                         *(
                             state.get("integrated_sha")
-                            for state in run.get("mission_states", {}).values()
-                            if isinstance(state, dict)
+                            for state in reviewed_mission_states.values()
+                        ),
+                        *(
+                            state.get("head_sha")
+                            for mission_id, state in reviewed_mission_states.items()
+                            if mission_id in direct_preintegration_mission_ids
+                        ),
+                        *(
+                            sha
+                            for mission_id in direct_preintegration_mission_ids
+                            for sha in mission_prior_heads.get(mission_id, set())
                         ),
                     )
                     if is_full_sha(sha)
                 }
+                if (
+                    worker.get("outcome") == "fix_required"
+                ):
+                    current_reviewable_shas.update(integration_prior_heads)
                 if worker["reviewed_sha"] not in current_reviewable_shas:
-                    _add(errors, f"{path}.reviewed_sha", "must identify a current integrated or PR head")
+                    _add(
+                        errors,
+                        f"{path}.reviewed_sha",
+                        "must identify the direct singleton pre-integration worktree, integrated, or PR head",
+                    )
                 if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
                     _add(errors, f"{path}.worker_runtime", "has an unsupported value")
                 if worker["completion_channel"] not in {
@@ -3560,7 +3793,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.report_path", "is required for report_file")
                 if worker["phase"] not in WORKER_PHASES:
                     _add(errors, f"{path}.phase", "has an unsupported value")
-                state = run["graph_state"]["node_states"].get(worker["node_id"], {})
                 if worker["phase"] in {"worker_running", "worker_passed"} and (
                     state.get("bound_worker_id") != worker["worker_id"]
                     or state.get("last_attempt_id") != worker["attempt_id"]
@@ -3621,6 +3853,178 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.runtime_binding.option_source",
                             "must identify the matching PLAN option source",
                         )
+        workers_by_id = (
+            {
+                worker.get("worker_id"): worker
+                for worker in workers
+                if isinstance(worker, dict)
+            }
+            if isinstance(workers, list)
+            else {}
+        )
+        mission_state_items = (
+            mission_states.items()
+            if schema_version == 10 and isinstance(mission_states, dict)
+            else []
+        )
+        for mission_id, state in mission_state_items:
+            if not isinstance(state, dict) or state.get("phase") not in {
+                "integrating",
+                "integrated",
+            }:
+                continue
+            mission_worker = workers_by_id.get(state.get("worker_id"), {})
+            if (
+                not mission_worker
+                or mission_worker.get("mission_id") != mission_id
+            ):
+                if schema_version == 10:
+                    _add(
+                        errors,
+                        f"run.mission_states.{mission_id}.worker_id",
+                        "transition to integrating requires a worker belonging to the same mission",
+                    )
+                continue
+            nested_policy = (
+                mission_worker.get("nested_subagent_policy")
+                if isinstance(mission_worker, dict)
+                else None
+            )
+            nested_policy_enabled = (
+                isinstance(nested_policy, dict)
+                and nested_policy.get("enabled") is True
+            )
+            nested_review_evidence = mission_worker.get(
+                "nested_review_evidence"
+            )
+            head_sha = state.get("head_sha")
+            if nested_policy_enabled:
+                has_task_local_review = (
+                    is_full_sha(head_sha)
+                    and mission_worker.get("worker_head_sha") == head_sha
+                    and isinstance(nested_review_evidence, dict)
+                    and nested_review_evidence.get("role") == "reviewer"
+                    and nested_review_evidence.get("status") == "completed"
+                    and is_full_sha(nested_review_evidence.get("reviewed_sha"))
+                    and nested_review_evidence.get("reviewed_sha") == head_sha
+                    and nested_review_evidence.get("decision") == "PASS"
+                )
+                if not has_task_local_review:
+                    _add(
+                        errors,
+                        f"run.mission_states.{mission_id}.integration_gate",
+                        "transition to integrating requires retained task-local exact-head PASS review evidence",
+                    )
+            mission_node_ids = {
+                node.get("id")
+                for node in plan.get("graph", {}).get("nodes", [])
+                if isinstance(node, dict)
+                and node.get("kind") == "mission"
+                and node.get("ref") == mission_id
+            }
+            preintegration_review_ids = {
+                edge.get("to")
+                for edge in plan.get("graph", {}).get("edges", [])
+                if isinstance(edge, dict)
+                and edge.get("kind") == "dependency"
+                and edge.get("from") in mission_node_ids
+                and edge.get("to") in review_nodes
+                and len(
+                    review_nodes[edge["to"]]
+                    .get("review", {})
+                    .get("mission_ids", [])
+                )
+                == 1
+                and mission_id
+                in review_nodes[edge["to"]]
+                .get("review", {})
+                .get("mission_ids", [])
+            }
+            raw_graph_state = run.get("graph_state")
+            raw_node_states = (
+                raw_graph_state.get("node_states")
+                if isinstance(raw_graph_state, dict)
+                else None
+            )
+            node_states = (
+                raw_node_states if isinstance(raw_node_states, dict) else {}
+            )
+            review_node_states = {
+                node_id: node_state
+                for node_id, node_state in node_states.items()
+                if isinstance(node_state, dict)
+            }
+            current_review_workers = {
+                review_node_id: next(
+                    (
+                        review_worker
+                        for review_worker in (
+                            review_workers
+                            if isinstance(review_workers, list)
+                            else []
+                        )
+                        if isinstance(review_worker, dict)
+                        and review_worker.get("node_id") == review_node_id
+                        and review_worker.get("worker_id")
+                        == review_node_states.get(review_node_id, {}).get(
+                            "bound_worker_id"
+                        )
+                        and review_worker.get("attempt_id")
+                        == review_node_states.get(review_node_id, {}).get(
+                            "last_attempt_id"
+                        )
+                        and review_worker.get("reviewed_sha") == head_sha
+                        and review_worker.get("worker_runtime")
+                        in {"parent", "subagent", "app_task"}
+                        and review_worker.get("phase") == "worker_passed"
+                        and review_worker.get("outcome") is not None
+                    ),
+                    None,
+                )
+                for review_node_id in preintegration_review_ids
+            }
+            has_parent_review = (
+                bool(preintegration_review_ids)
+                and all(
+                    review_node_states.get(review_node_id, {}).get("phase")
+                    == "succeeded"
+                    and review_node_states.get(review_node_id, {}).get(
+                        "last_outcome"
+                    )
+                    == "pass"
+                    and isinstance(
+                        current_review_workers.get(review_node_id),
+                        dict,
+                    )
+                    for review_node_id in preintegration_review_ids
+                )
+                and (
+                    not nested_policy_enabled
+                    or (
+                        isinstance(nested_review_evidence, dict)
+                        and any(
+                            review_worker.get("worker_id")
+                            == nested_review_evidence.get("agent_id")
+                            and review_worker.get("outcome") == "pass"
+                            for review_worker in current_review_workers.values()
+                            if isinstance(review_worker, dict)
+                        )
+                    )
+                )
+                and sum(
+                    current_review_workers[review_node_id].get("outcome")
+                    == "pass"
+                    for review_node_id in preintegration_review_ids
+                )
+                * 2
+                > len(preintegration_review_ids)
+            )
+            if not has_parent_review:
+                _add(
+                    errors,
+                    f"run.mission_states.{mission_id}.integration_gate",
+                    "transition to integrating requires every planned pre-integration review node to retain a current-head reconciled PASS and a strict majority of exact-head reviewer PASS outcomes",
+                )
 
     if not isinstance(run["attempt_log"], list):
         _add(errors, "run.attempt_log", "must be a list")

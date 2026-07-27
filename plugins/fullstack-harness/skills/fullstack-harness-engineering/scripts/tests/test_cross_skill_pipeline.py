@@ -68,17 +68,19 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md"
         )
 
-        self.assertIn("Visual Direction Handoff", wireframes)
+        self.assertIn("Preference & HTML Exploration Handoff", wireframes)
         self.assertIn(
             "low-fidelity wireframes remain canonical for structure and flow",
             wireframes,
         )
-        self.assertIn("Frontend Design Visual Direction Pass", design)
+        self.assertIn("Frontend Design Preference & HTML Exploration", design)
         self.assertIn(
-            "normalized into the frozen UI architecture package before implementation",
+            "Implementation consumes the extracted package",
             design,
         )
         self.assertIn("The normal UI handoff is", harness)
+        self.assertIn("exactly two or three materially different HTML directions", harness)
+        self.assertIn("explicit human approval of consolidated selected HTML", harness)
         self.assertIn("frontend-design conformance mode", harness)
         self.assertIn("missing contract entry returns as a design-input delta", harness)
         self.assertIn("frontend-design conformance mode", worker_goal)

@@ -6,7 +6,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them
 
 The closed-set questions fit three `AskUserQuestion` calls of at most four questions each, in this order:
 
-1. The decisions that depend on no other answer: product archetype, validation depth, and overall visual style direction.
+1. The decisions that depend on no other answer: product archetype and validation depth.
 2. For a UI-bearing product, the four closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, and preferred layout/interaction pattern.
 3. The decisions that depend on call 1's archetype answer: deployment platform, the mobile or desktop platform follow-up, database category, and auth strategy.
 
@@ -58,8 +58,7 @@ Ask only questions that are not already answered.
    - What validation depth does the builder expect: documented assumptions, internal prototype review, testing with likely users, or recurring usability benchmarking? (AskUserQuestion)
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
-   - What overall visual character should the finished interface convey? Ask the user to choose or describe a direction instead of assuming one. Offer compact examples only when useful: modern minimal, editorial, utilitarian and dense, warm and human, bold and expressive, or an existing brand reference. (AskUserQuestion, using modern minimal / editorial / utilitarian and dense / warm and human as the four options and the tool's built-in Other for bold and expressive or a brand reference)
-   - If the answer is only `modern`, which concrete cues should define it: sparse or dense information, generous or compact spacing, quiet or expressive typography, restrained or vivid color, product imagery, and formal or friendly interaction tone?
+   - Do not ask the user to choose from a fixed catalog of high-fidelity visual styles in this PRD interview. Record known brand references, constraints, and product-specific visual goals. When the optional downstream exploration is authorized, `ui-architecture-builder` uses `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria to derive the visual preference choices dynamically.
    - Are there known design references or brand constraints?
    - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
    - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action?
@@ -104,7 +103,7 @@ Discovery is complete enough to draft when the agent can state:
 - The UI screens or interaction points that need wireframes.
 - A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
 - Approved or draft exact wording and bounded display responsibilities for wireframed regions, or permission to derive them.
-- The requested overall interface style, or permission to record `modern-minimal` as a provisional assumption.
+- Known brand references, visual hard limits, and product-specific visual goals, with high-fidelity preference discovery explicitly deferred to the optional downstream `frontend-design` exploration.
 - Required style and motion intent for visually important regions, or permission to derive it.
 - The success metrics and acceptance criteria.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.

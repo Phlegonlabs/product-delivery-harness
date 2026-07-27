@@ -13,9 +13,9 @@ Always produce:
 - One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links wherever the real product would navigate between them, so the set reads as a connected clickable prototype. A single-route product has nothing to link.
 - `mockups/catalog.html` — the component catalog showing every registry entry under realistic content
 
-An explicitly authorized Frontend Design Visual Direction Pass may also create one non-canonical set of one to three representative candidate screens under `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`. These candidates are working review evidence, not package deliverables. They are never published as `mockups/`, never added to `ui-registry.json`, and never consumed by implementation. Only their human-accepted decisions enter the package.
+An explicitly authorized Frontend Design Preference & HTML Exploration may also create exactly two or three non-canonical HTML directions for the same one or two representative screens under `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`, followed by consolidated HTML under `visual-directions/selected/`. These files are working review and extraction evidence, not package deliverables. Candidate HTML may use direction-local values before the registry exists. It is never published as `mockups/`, added to `ui-registry.json`, or consumed by implementation. The human-approved selected HTML becomes the visual source from which the package extracts tokens, primitives, components, recipes, registry entries, and final mockups.
 
-The binding rule the whole package exists to enforce: a page cannot be freely designed; a page may only use approved content contracts, page recipes, product components, and primitives. Read `references/ui-architecture-guide.md` before producing any of these files.
+After selected-HTML approval and extraction, the binding rule the whole package exists to enforce is: a page cannot be freely designed; a page may only use approved content contracts, page recipes, product components, and primitives. Read `references/ui-architecture-guide.md` before producing any of these files.
 
 Do not produce `page-ui-matrix.md` or `ui-mockups.md`. The route → breakpoint/size-class → state → component mapping is shown directly in the HTML; the recipe and the machine-checkable route → trace → test mapping live in `page-recipes.md`.
 
@@ -104,7 +104,7 @@ Everywhere below that says "every required viewport" or "required breakpoints" �
 
 State the resolved platform in `design-system.md`'s Overview, then keep every icon, component-code, and breakpoint/size-class section consistent with it. Keep the web guidance available for a web target rather than removing it; it just stops being the default for every target.
 
-When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. Any selected Frontend Design Visual Direction Pass record is a frozen input to every workflow role; roles may normalize it but may not independently reopen or replace it. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
+When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. The approved selected HTML and its approval record are frozen inputs to every workflow role; roles may extract and normalize the system from that source but may not independently reopen or replace the direction. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
 
 When the user requests a runnable animation demonstration, also produce `motion-showcase.html` or bounded files under `motion-demos/`. Use `assets/templates/MOTION_SHOWCASE.template.html` as the dependency-free baseline unless the project stack or requested animation requires another implementation. Record every demo path in `design-system.md` and `page-recipes.md`.
 
@@ -170,19 +170,41 @@ Decision owner: [Human product/design owner or commissioning team]
 
 Builder approval proves direction conformance only. It does not prove usability; keep unsupported preferences provisional or assumed until separate user evidence exists.
 
-## Frontend Design Visual Direction Pass
+## Frontend Design Preference & HTML Exploration
 
-Status: [not used / candidate awaiting selection / selected / rejected]
+Status: [not used / preference discovery / candidates awaiting comparison / selected HTML awaiting approval / approved / rejected]
 
-| Direction ID | Representative screens / UI IDs | Decision owner | Accepted cues | Rejected / deferred cues | Normalized package targets |
-| --- | --- | --- | --- | --- | --- |
-| [direction ID or n/a] | [one to three screen names and exact authorized UI-* IDs] | [human owner or explicit delegated selector] | [hierarchy, typography, color, composition, imagery, surface, or motion decisions] | [candidate choices that must not enter the package] | [DS IDs, token sections, primitive/component IDs, recipes, registry entries, and final mockups] |
+### Visual Preference Brief
 
-Candidate evidence: [Archive / Retain / n/a] — [exact final archive or retained path; `pending publication approval` is allowed only in staging]
+Decision owner: [Human product/design owner]
+Ask User evidence: [Question/answer record or n/a]
+Purpose: [What the interface must help people do]
+Tone: [Product-specific direction, not a fixed style label]
+Constraints: [Brand, platform, content, accessibility, and performance limits]
+Differentiation: [What should make this product recognizable]
 
-Candidate files are non-canonical. Record `n/a — pass not requested or not authorized` when unused. When selected, every accepted cue must be expressed through the package's named decisions and closed sets; no final artifact or implementation may depend on candidate markup or candidate-only values. Candidate screens are normalized into the frozen UI architecture package before implementation.
+### Candidate Direction Comparison
 
-A published `design-system.md` records the actual final candidate evidence path, never an Archive source path under `.design-staging/`.
+| Direction ID | Same representative screens / UI IDs | HTML paths | Material differentiators | Human decision |
+| --- | --- | --- | --- | --- |
+| [direction ID or n/a] | [the same one or two screen names and exact authorized UI-* IDs] | [complete dependency-free HTML paths] | [at least three axes: typography, composition, density, color proportion, surfaces, imagery, controls, or motion] | [selected / rejected / cues requested for mix] |
+
+### Approved Selected HTML
+
+Selected path: [exact `visual-directions/selected/` path or n/a]
+Selection method: [direct selection / mixed and consolidated / n/a]
+Approval owner: [human product/design owner; never an agent or delegated selector]
+Approval evidence: [explicit approval record or n/a]
+
+### Token Extraction Trace
+
+| Selected HTML evidence | Extracted tokens | Extracted primitives / components | Recipes / registry / final mockups |
+| --- | --- | --- | --- |
+| [element, selector, screenshot, or measured repeated value] | [token IDs and actual values] | [DS IDs and closed variants] | [recipe IDs, registry entries, and canonical mockups] |
+
+Exploration evidence: [Archive / Retain / n/a] — [exact final archive or retained `visual-directions/` path; `pending publication approval` is allowed only in staging]
+
+Candidate and selected files are non-canonical. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially different candidate directions for the same one or two representative screens. Do not draft canonical tokens before the human explicitly approves the selected HTML. A published `design-system.md` records the actual final exploration evidence path, never an Archive source path under `.design-staging/`. Implementation consumes the extracted package, while reviewers retain the approved selected HTML to detect extraction drift.
 
 ## Product-Specific Visual Thesis
 | DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |
@@ -483,6 +505,8 @@ Use this structure:
 | TEST-VIS-024 | No-JavaScript path | when server-rendered content exists | UI-*, ARCH-* | Content the route must render server-side is present and readable with JavaScript disabled | screenshot with JS disabled |
 | TEST-VIS-025 | Enhancement non-regression | when enhancing an existing same-product UI package | UI-*, DS-*, preserved upstream TEST-* | Every accepted add/modify/remove delta is present; untouched baseline IDs, content, artifacts, decisions, and upstream TEST identities are preserved; the complete revised package passes validation | baseline-to-staged diff / full package validation |
 | TEST-VIS-026 | Rendered design-system parity | yes | DS-*, UI-* | `docs/product/design/design-system.html` renders every reusable element category in scope; each specimen uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`; `IDs` includes valid token, primitive/component, and variant IDs as applicable; applicable motion/reduced-motion behavior agrees with `design-system.md` and `ui-registry.json` | rendered showcase review / source-to-projection diff |
+| TEST-VIS-027 | HTML direction comparison and approval | when Frontend Design Preference & HTML Exploration is used | UI-*, DS-* | Exactly two or three materially different, complete HTML directions represent the same one or two authorized screens; the human comparison, consolidated selected path, and explicit selected-HTML approval are recorded | candidate renders / Ask User record / approval evidence |
+| TEST-VIS-028 | Approved-HTML extraction fidelity | when selected HTML is approved | UI-*, DS-* | Tokens, primitives, components, recipes, registry entries, and final mockups trace to and reproduce the approved selected HTML; rejected candidate-only values do not survive | extraction trace / source-to-projection diff / screenshot review |
 
 Responsive set verified: [resolved platform set from `ui-registry.json`: web `viewports` (390 / 768 / 1200 / 1440 px by default), native `sizeClasses` and safe areas, or named desktop window sizes]. States verified: the State Matrix in `ui-architecture.md`.
 
@@ -525,8 +549,8 @@ Before finalizing, verify:
 - Product components compose primitives only and carry no raw values or ad-hoc spacing and color; layout primitives carry no color or border, and every surface variant carries the named purpose the Container & Border Rules require.
 - For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
 - Builder direction conformance is not presented as usability validation; unsupported preferences remain explicit hypotheses.
-- `design-system.md` includes the `Frontend Design Visual Direction Pass` section. When unused it says why; when used it records the one coherent representative set, human decision owner, accepted/rejected cues, and the canonical DS IDs, tokens, primitives/components, recipes, registry entries, and final mockups that normalize the selection.
-- `visual-directions/` candidates remain non-canonical and outside the fixed publish set. No implementation or final mockup depends on candidate markup or candidate-only values, and package enhancement limits the pass to the accepted delta without reopening untouched decisions.
+- `design-system.md` includes the `Frontend Design Preference & HTML Exploration` section. When unused it says why. When used it records the product-specific Ask User evidence and Visual Preference Brief, exactly two or three complete HTML directions for the same one or two representative screens, the human comparison, consolidated selected path, explicit human approval, and the extraction trace into tokens, primitives/components, recipes, registry entries, and final mockups.
+- `visual-directions/` candidates and selected HTML remain non-canonical and outside the fixed publish set. Candidate-local values are allowed before extraction. Implementation consumes only the extracted package, final mockups reproduce the approved selected HTML, rejected candidate-only values do not survive, and package enhancement limits exploration to the accepted delta without reopening untouched decisions.
 - The visual thesis includes three to five concrete brand or context cues, at least two recurring signature decisions, and avoided defaults tied to product evidence or explicit assumptions.
 - The taste statement names a concrete visual character and the compositional choices that create it; it does not stop at generic adjectives.
 - The container and border table defaults ordinary regions to open layouts, chooses one primary grouping cue per nesting level, and gives every visible frame or elevation a named purpose.

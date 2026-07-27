@@ -376,38 +376,86 @@ def _validate_graph(
                 and edge.get("from") == node_id
                 and "fix_required" in edge.get("on_outcomes", [])
             ]
-            if not fix_routes:
-                _add(
-                    errors,
-                    f"{path}.nodes.{node_id}",
-                    "runtime review with fix_required requires an outgoing repair route",
-                )
-                continue
-            bounded_fix_routes = [
-                edge for edge in fix_routes if _is_int(edge.get("max_traversals"))
-            ]
-            if len(bounded_fix_routes) != len(fix_routes):
-                _add(
-                    errors,
-                    f"{path}.nodes.{node_id}",
-                    "fix_required repair routes require an explicit traversal bound",
-                )
-            repair_targets = {edge.get("to") for edge in bounded_fix_routes}
-            has_rereview = any(
-                edge.get("kind") == "route"
-                and edge.get("from") in repair_targets
-                and edge.get("to") == node_id
-                and "pass" in edge.get("on_outcomes", [])
-                and _is_int(edge.get("max_traversals"))
-                for edge in edges.values()
+            reviewed_missions = set(node["review"].get("mission_ids", []))
+            dependency_missions = {
+                nodes[source].get("ref")
+                for source in dependency_map[node_id]
+                if nodes[source].get("kind") == "mission"
+            }
+            same_mission_correction = (
+                len(reviewed_missions) == 1
+                and reviewed_missions == dependency_missions
+                and _is_int(node.get("max_attempts"))
+                and node["max_attempts"] >= 2
             )
-            if not has_rereview:
-                _add(
-                    errors,
-                    f"{path}.nodes.{node_id}",
-                    "repair route must have a bounded pass route back to the review",
+            if not fix_routes:
+                if not same_mission_correction:
+                    _add(
+                        errors,
+                        f"{path}.nodes.{node_id}",
+                        "runtime review with fix_required requires a bounded repair route or direct mission dependencies for same-worktree correction",
+                    )
+            else:
+                bounded_fix_routes = [
+                    edge for edge in fix_routes if _is_int(edge.get("max_traversals"))
+                ]
+                if len(bounded_fix_routes) != len(fix_routes):
+                    _add(
+                        errors,
+                        f"{path}.nodes.{node_id}",
+                        "fix_required repair routes require an explicit traversal bound",
+                    )
+                repair_targets = {edge.get("to") for edge in bounded_fix_routes}
+                direct_rereview = any(
+                    edge.get("kind") == "route"
+                    and edge.get("from") in repair_targets
+                    and edge.get("to") == node_id
+                    and "pass" in edge.get("on_outcomes", [])
+                    and _is_int(edge.get("max_traversals"))
+                    for edge in edges.values()
                 )
-            has_final_gate = any(
+                reviewed_rereview = any(
+                    dependency.get("kind") == "dependency"
+                    and dependency.get("from") in repair_targets
+                    and len(repair_targets) == 1
+                    and isinstance(nodes.get(dependency.get("to")), dict)
+                    and nodes[dependency["to"]].get("kind") == "verifier"
+                    and isinstance(nodes[dependency["to"]].get("review"), dict)
+                    and len(
+                        nodes[dependency["to"]]["review"].get(
+                            "mission_ids", []
+                        )
+                    )
+                    == 1
+                    and set(
+                        nodes[dependency["to"]]["review"].get(
+                            "mission_ids", []
+                        )
+                    )
+                    == {
+                        nodes[repair_target].get("ref")
+                        for repair_target in repair_targets
+                        if isinstance(nodes.get(repair_target), dict)
+                        and nodes[repair_target].get("kind") == "mission"
+                    }
+                    and any(
+                        edge.get("kind") == "route"
+                        and edge.get("from") == dependency.get("to")
+                        and edge.get("to") == node_id
+                        and "pass" in edge.get("on_outcomes", [])
+                        and _is_int(edge.get("max_traversals"))
+                        for edge in edges.values()
+                    )
+                    for dependency in edges.values()
+                )
+                has_rereview = direct_rereview or reviewed_rereview
+                if not has_rereview:
+                    _add(
+                        errors,
+                        f"{path}.nodes.{node_id}",
+                        "repair route must have a bounded pass route back to the review",
+                    )
+            direct_final_gate = any(
                 edge.get("kind") == "route"
                 and edge.get("from") == node_id
                 and "pass" in edge.get("on_outcomes", [])
@@ -416,6 +464,27 @@ def _validate_graph(
                 and nodes[edge["to"]].get("executor") in {"harness_parent", "local_command"}
                 for edge in edges.values()
             )
+            review_then_final_gate = any(
+                edge.get("kind") == "route"
+                and edge.get("from") == node_id
+                and "pass" in edge.get("on_outcomes", [])
+                and _is_int(edge.get("max_traversals"))
+                and isinstance(nodes.get(edge.get("to")), dict)
+                and nodes[edge["to"]].get("kind") == "verifier"
+                and nodes[edge["to"]].get("executor") == "runtime_worker"
+                and any(
+                    next_edge.get("kind") == "route"
+                    and next_edge.get("from") == edge.get("to")
+                    and "pass" in next_edge.get("on_outcomes", [])
+                    and isinstance(nodes.get(next_edge.get("to")), dict)
+                    and nodes[next_edge["to"]].get("kind") == "verifier"
+                    and nodes[next_edge["to"]].get("executor")
+                    in {"harness_parent", "local_command"}
+                    for next_edge in edges.values()
+                )
+                for edge in edges.values()
+            )
+            has_final_gate = direct_final_gate or review_then_final_gate
             if not has_final_gate:
                 _add(
                     errors,
@@ -489,7 +558,10 @@ def _validate_graph_state(
         for edge in graph.get("edges", [])
         if isinstance(edge, dict) and isinstance(edge.get("id"), str)
     }
-    mission_states = run.get("mission_states", {})
+    raw_mission_states = run.get("mission_states")
+    mission_states = (
+        raw_mission_states if isinstance(raw_mission_states, dict) else {}
+    )
 
     node_states = value["node_states"]
     node_state_keys = {

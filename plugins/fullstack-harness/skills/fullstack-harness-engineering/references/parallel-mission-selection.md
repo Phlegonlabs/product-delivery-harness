@@ -220,14 +220,14 @@ When the proposal is empty only because launch actions are unauthorized, request
 
 For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
 
-1. Resolve the current Codex project once through the available project-listing surface.
+1. Search the current Codex tool surface when project/thread tools were not loaded initially, then resolve the current Codex project once through the available project-listing surface.
 2. Allocate a worker/lease and exact durable branch target. For task/worktree identities assigned only by creation, recheck the explicit pre-allocation `*` grant; recheck every already-known target exactly.
-3. Create one app-managed worktree thread for the mission. Use the complete `WORKER_GOAL.template.md` handoff as the initial prompt and start from the recorded integration branch/ref that points at `batch_base_sha`.
+3. Create one top-level app-managed worktree thread for the mission. It is a separate conversation in the Codex left sidebar; a direct subagent of the coordinator is not equivalent. Use the complete `WORKER_GOAL.template.md` handoff as the initial prompt and start from the recorded integration branch/ref that points at `batch_base_sha`.
 4. Record the returned thread ID or queued client-thread ID in the RUN worker record, bind later actions to that concrete identity, and move the mission to `worker_running` only when the task/workspace is observable.
-5. If the directive says `capability_handshake`, prohibit production edits until the thread reports direct child-tool/result availability. Update RUN and send the enabled or disabled nested policy through the thread-message surface.
+5. If the directive says `capability_handshake`, prohibit production edits until the thread reports direct child-tool/result availability. Update RUN and send the enabled or disabled nested policy through the thread-message surface. Enable the policy only when its allowed roles include `reviewer`; an observed child runtime without that role produces a disabled/not-applicable policy and routes exact-head review to the parent.
 6. Poll through the available read-thread/status surface with backoff. Treat the terminal task output as a worker result candidate and validate it normally.
 
-If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure and use sequential parent execution.
+If project/thread creation, worktree isolation, follow-up messaging, or polling is unavailable, do not mark the directive launched. Record the capability failure. Use sequential parent execution only when the user did not explicitly require independent left-sidebar tasks; otherwise stop at the missing-capability boundary.
 
 For app-managed worktrees, record that they may begin detached and are governed by platform retention. `platform_lifecycle` is an object with `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`. Create a durable authorized branch/ref early when unique work must survive task/worktree lifecycle. `remove_worktrees: false` prevents the harness from removing one; it cannot disable platform-managed retention.
 
@@ -248,13 +248,14 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 
 1. Confirm worker base/head ancestry and head stability.
 2. Recompute actual changed paths and reject scope escape or parent-owned files.
-3. Integrate only when `integrate_locally` is authorized.
-4. Run the affected mission's integration verifiers after its integration.
-5. Mark it `integrated` only after the gate passes and record `integrated_sha`.
-6. Stop the batch on worker failure, integration failure, unexpected conflict, stale base, or contract gap.
-7. Run cross-mission/batch verification after all selected missions integrate.
-8. Refresh RUN observations and recompute the next ready frontier and conflict graph.
-9. Repeat steps 1-8 with the recomputed frontier — each integration merges directly into the primary checkout's own base branch (`landing.base_branch` — commonly `main`, but any branch the primary checkout treats as its base) and is itself the local dev-test point for that mission — until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the Final/current-head gate; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
+3. Require at least one read-only review PASS bound to the exact current worktree head. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`. Repair findings in that worktree and review the changed head again.
+4. Integrate into the resolved persistent integration branch only when `integrate_locally` is authorized.
+5. Run the affected mission's integration verifiers after its integration.
+6. Mark it `integrated` only after the gate passes and record `integrated_sha`.
+7. Stop the batch on worker failure, review failure, integration failure, unexpected conflict, stale base, or contract gap.
+8. Run cross-mission/batch verification after all selected missions integrate.
+9. Refresh RUN observations and recompute the next ready frontier and conflict graph.
+10. Repeat steps 1-9 with the recomputed frontier until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the final/current-head gate on the resolved integration branch; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
 
 Never reuse the prior wave's independence result. Each merge changes the integration head and may change dependencies, generated artifacts, or resource availability. Push, PR, deploy, task archival, worktree removal, and branch deletion remain separate authorization-gated actions.
 
