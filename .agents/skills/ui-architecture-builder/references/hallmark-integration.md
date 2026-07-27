@@ -59,10 +59,11 @@ Approval binds to bytes, not only to a path.
 3. Canonically serialize the ordered `{ ui_id, html_path, sha256 }` list and record its SHA-256 as `approval_manifest_sha256`.
 4. Show that manifest digest with the selected HTML when asking the human for approval.
 5. Store the human approval evidence beside the same digest.
+6. Immediately before Dynamic Workflow launch, the parent reads every selected file, recomputes its SHA-256, rebuilds the ordered manifest from those verified values, and records `selected_files_verification` with `status: "passed"`, `verified_by: "parent"`, the manifest digest, verified file count, and concrete evidence.
 
 Any selected-file content change, path change, file addition/removal, or manifest reordering invalidates the approval. Recompute the manifest, rerun the selected Hallmark audit, and ask for fresh approval before extraction.
 
-The Dynamic Workflow receives the canonical selected directory, the per-screen file manifest, and `approval_manifest_sha256`. It validates their shape before launching. The parent still owns real file existence and digest verification.
+The Dynamic Workflow receives the canonical selected directory, the per-screen file manifest, `approval_manifest_sha256`, and the parent byte-verification record. It canonically serializes the ordered `{ ui_id, html_path, sha256 }` entries, recomputes their SHA-256, requires it to equal both the approved digest and the parent verification record, and rejects a stale or shape-only digest before launching. The parent owns real file existence and byte hashing; the workflow owns independent manifest recomputation.
 
 ## Final Projection Review
 

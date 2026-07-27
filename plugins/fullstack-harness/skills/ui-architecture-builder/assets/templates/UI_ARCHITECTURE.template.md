@@ -24,11 +24,11 @@ Visual Preference Brief: <path or summary of product-specific Ask User answers>
 Candidate set: <exactly two or three direction paths covering the same one or two UI IDs, or n/a>
 Selected HTML: <exact `visual-directions/selected/` path or n/a>
 Human approval: <owner and explicit approval evidence, or n/a>
-Selected-file manifest: <ordered UI ID, canonical HTML path, and SHA-256 entries plus approval-manifest SHA-256, or n/a>
+Selected-file manifest: <ordered UI ID, canonical HTML path, and SHA-256 entries plus approval-manifest SHA-256 and manifest-bound parent byte-verification evidence, or n/a>
 Hallmark review: <loaded with candidate/selected/final report paths and dispositions, or unavailable / n/a>
 Extraction evidence: <design-system.md Token Extraction Trace section>
 
-Candidate HTML may use direction-local values before this gate. In the preferred exploration path, tokens, primitives, components, recipes, the registry, and final mockups are extracted only after the human approves the selected HTML's exact manifest digest. When exploration is `not used` or `rejected`, derive the package from recorded product inputs and explicit visual assumptions and say so here; do not claim selected-HTML extraction. In both paths, the validated package becomes binding only after approval and publication.
+Candidate HTML may use direction-local values before this gate. In the preferred exploration path, tokens, primitives, components, recipes, the registry, and final mockups are extracted only after the human approves the selected HTML's exact manifest digest, the parent re-reads and hashes every selected file, and the Dynamic Workflow recomputes the canonical manifest digest. When exploration is `not used` or `rejected`, derive the package from recorded product inputs and explicit visual assumptions and say so here; do not claim selected-HTML extraction. In both paths, the validated package becomes binding only after approval and publication.
 
 ## Layer Model
 

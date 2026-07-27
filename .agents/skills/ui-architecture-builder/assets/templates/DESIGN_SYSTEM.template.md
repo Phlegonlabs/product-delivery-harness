@@ -70,6 +70,7 @@ Approval owner: <human product/design owner; never an agent or delegated selecto
 Approval evidence: <explicit approval record or n/a>
 Selected HTML manifest: <ordered `{ ui_id, html_path, sha256 }` entries, one per representative screen, or n/a>
 Approval manifest SHA-256: <lowercase 64-character digest shown in the approval evidence, or n/a>
+Parent byte verification: <`selected_files_verification` status, verified file count, matching manifest SHA-256, and evidence that the parent read and hashed every selected file immediately before launch, or n/a>
 Selected Hallmark audit: <exact `visual-directions/selected/hallmark-audit.md` path and disposition, or unavailable / n/a>
 
 ### Token Extraction Trace
@@ -80,7 +81,7 @@ Selected Hallmark audit: <exact `visual-directions/selected/hallmark-audit.md` p
 
 Exploration evidence: <Archive / Retain / n/a> — <exact final archive or retained `visual-directions/` path; `pending publication approval` is allowed only in staging>
 
-Candidate and selected HTML, selected-file manifests, and Hallmark reports are non-canonical exploration evidence. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially and structurally different directions for the same one or two screens. Tokens are extracted only after the human explicitly approves the selected HTML's exact manifest digest. Any byte, canonical path, order, or UI-ID mapping change invalidates approval. When exploration is `not used` or `rejected`, derive from recorded product inputs and explicit visual assumptions and do not claim approved-HTML extraction. The published package records the final exploration evidence path, and implementation consumes only the extracted package.
+Candidate and selected HTML, selected-file manifests, and Hallmark reports are non-canonical exploration evidence. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially and structurally different directions for the same one or two screens. Tokens are extracted only after the human explicitly approves the selected HTML's exact manifest digest, the parent re-reads and hashes every selected file, and the Dynamic Workflow recomputes the canonical manifest digest. Any byte, canonical path, order, or UI-ID mapping change invalidates approval. When exploration is `not used` or `rejected`, derive from recorded product inputs and explicit visual assumptions and do not claim approved-HTML extraction. The published package records the final exploration evidence path, and implementation consumes only the extracted package.
 
 ## Product-Specific Visual Thesis
 

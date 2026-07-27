@@ -10,6 +10,25 @@ export const meta = {
 
 const workflowArgs = typeof args === "string" ? JSON.parse(args) : args;
 
+const sha256Hex = async (value) => {
+  if (
+    typeof TextEncoder !== "function"
+    || !globalThis.crypto
+    || !globalThis.crypto.subtle
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires Web Crypto SHA-256 support",
+    );
+  }
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
 for (const field of ["run_id", "product_name", "product_archetype"]) {
   if (!workflowArgs || typeof workflowArgs[field] !== "string" || !workflowArgs[field].trim()) {
     throw new Error(`ui-architecture-builder-graph requires non-empty args.${field}`);
@@ -76,13 +95,6 @@ if (visualDirectionPass.status === "approved") {
   if (!sha256Pattern.test(visualDirectionPass.approval_manifest_sha256)) {
     throw new Error(
       "ui-architecture-builder-graph requires lowercase SHA-256 args.visual_direction_pass.approval_manifest_sha256 when status is approved",
-    );
-  }
-  if (!visualDirectionPass.approval_evidence.includes(
-    visualDirectionPass.approval_manifest_sha256,
-  )) {
-    throw new Error(
-      "ui-architecture-builder-graph requires args.visual_direction_pass.approval_evidence to include approval_manifest_sha256",
     );
   }
   if (
@@ -170,6 +182,38 @@ if (visualDirectionPass.status === "approved") {
   if (selectedFilePaths.size !== visualDirectionPass.selected_html_files.length) {
     throw new Error(
       "ui-architecture-builder-graph requires unique selected_html_files html_path values",
+    );
+  }
+  const canonicalSelectedManifest = visualDirectionPass.selected_html_files.map(
+    ({ ui_id, html_path, sha256 }) => ({ ui_id, html_path, sha256 }),
+  );
+  const computedManifestSha256 = await sha256Hex(
+    JSON.stringify(canonicalSelectedManifest),
+  );
+  if (visualDirectionPass.approval_manifest_sha256 !== computedManifestSha256) {
+    throw new Error(
+      "ui-architecture-builder-graph requires approval_manifest_sha256 to match the canonical selected_html_files manifest",
+    );
+  }
+  if (!visualDirectionPass.approval_evidence.includes(computedManifestSha256)) {
+    throw new Error(
+      "ui-architecture-builder-graph requires args.visual_direction_pass.approval_evidence to include the computed approval_manifest_sha256",
+    );
+  }
+  const selectedFilesVerification = visualDirectionPass.selected_files_verification;
+  if (
+    typeof selectedFilesVerification !== "object"
+    || selectedFilesVerification === null
+    || selectedFilesVerification.status !== "passed"
+    || selectedFilesVerification.verified_by !== "parent"
+    || selectedFilesVerification.manifest_sha256 !== computedManifestSha256
+    || selectedFilesVerification.verified_file_count
+      !== canonicalSelectedManifest.length
+    || typeof selectedFilesVerification.evidence !== "string"
+    || !selectedFilesVerification.evidence.trim()
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires parent byte verification for every selected HTML file, bound to the computed manifest SHA-256",
     );
   }
 }
