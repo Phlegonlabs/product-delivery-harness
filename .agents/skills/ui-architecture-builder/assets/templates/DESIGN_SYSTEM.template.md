@@ -57,7 +57,10 @@ Differentiation: <what should make this product recognizable>
 
 | Direction ID | Same representative screens / UI IDs | HTML paths | Material differentiators | Human decision |
 |---|---|---|---|---|
-| <direction ID or n/a> | <the same one or two screen names and exact authorized UI-* IDs> | <complete dependency-free HTML paths> | <at least three axes: typography, composition, density, color proportion, surfaces, imagery, controls, or motion> | <selected / rejected / cues requested for mix> |
+| <direction ID or n/a> | <the same one or two screen names and exact authorized UI-* IDs> | <complete dependency-free HTML paths> | <material visual axes plus a structural fingerprint; changing only color does not count> | <selected / rejected / cues requested for mix> |
+
+Hallmark status: <loaded / unavailable with reason>
+Hallmark candidate audits: <exact `hallmark-audit.md` paths and dispositions, or n/a; reports are read-only review evidence>
 
 ### Approved Selected HTML
 
@@ -65,6 +68,10 @@ Selected path: <exact `visual-directions/selected/` path or n/a>
 Selection method: <direct selection / mixed and consolidated / n/a>
 Approval owner: <human product/design owner; never an agent or delegated selector>
 Approval evidence: <explicit approval record or n/a>
+Selected HTML manifest: <ordered `{ ui_id, html_path, sha256 }` entries, one per representative screen, or n/a>
+Approval manifest SHA-256: <lowercase 64-character digest shown in the approval evidence, or n/a>
+Parent byte verification: <`selected_files_verification` status, verified file count, matching manifest SHA-256, and evidence that the parent read and hashed every selected file immediately before launch, or n/a>
+Selected Hallmark audit: <exact `visual-directions/selected/hallmark-audit.md` path and disposition, or unavailable / n/a>
 
 ### Token Extraction Trace
 
@@ -74,7 +81,7 @@ Approval evidence: <explicit approval record or n/a>
 
 Exploration evidence: <Archive / Retain / n/a> — <exact final archive or retained `visual-directions/` path; `pending publication approval` is allowed only in staging>
 
-Candidate and selected HTML are non-canonical exploration evidence. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially different directions for the same one or two screens. Tokens are extracted only after the human explicitly approves the selected HTML. The published package records the final exploration evidence path, and implementation consumes only the extracted package.
+Candidate and selected HTML, selected-file manifests, and Hallmark reports are non-canonical exploration evidence. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially and structurally different directions for the same one or two screens. Tokens are extracted only after the human explicitly approves the selected HTML's exact manifest digest, the parent re-reads and hashes every selected file, and the Dynamic Workflow recomputes the canonical manifest digest. Any byte, canonical path, order, or UI-ID mapping change invalidates approval. When exploration is `not used` or `rejected`, derive from recorded product inputs and explicit visual assumptions and do not claim approved-HTML extraction. The published package records the final exploration evidence path, and implementation consumes only the extracted package.
 
 ## Product-Specific Visual Thesis
 

@@ -31,15 +31,20 @@ When the explicitly authorized Frontend Design Preference & HTML Exploration is 
 docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/
 ```
 
-Each direction contains complete dependency-free HTML for every authorized representative screen plus concise notes identifying its material differences. Candidate-local values are allowed because tokens, primitives, recipes, and the registry have not been extracted yet.
+Each direction contains complete dependency-free HTML for every authorized representative screen plus concise notes identifying its material visual differences and structural fingerprint. Candidate-local values are allowed because tokens, primitives, recipes, and the registry have not been extracted yet. When Hallmark is loaded, keep its read-only findings in `hallmark-audit.md` inside that direction directory. The report is review evidence, not authority, and Hallmark must not write project-root tokens, design documents, logs, or candidate edits during exploration.
 
 After the human compares the candidates:
 
 - A direct selection is copied or regenerated as consolidated HTML under `visual-directions/selected/`.
 - A mixed selection is synthesized by one additional `frontend-design` execution under `visual-directions/selected/`; do not merge cues directly into tokens.
-- The human explicitly approves the exact selected HTML. Agent selection or delegated direction choice does not unlock extraction.
+- When Hallmark is loaded, audit the consolidated selected HTML and retain `visual-directions/selected/hallmark-audit.md`. Critical or major structural-template findings return to `frontend-design` for repair; Hallmark does not edit the files.
+- Create an ordered selected-file manifest with one `{ ui_id, html_path, sha256 }` entry per representative screen and an `approval_manifest_sha256` over the manifest. Every path stays under `visual-directions/selected/`.
+- Show the manifest digest with the selected render. The human explicitly approves those exact selected HTML bytes. Agent selection or delegated direction choice does not unlock extraction.
+- Immediately before Dynamic Workflow launch, the parent reads every selected file, recomputes its byte SHA-256 and the ordered manifest SHA-256, and records manifest-bound `selected_files_verification`. The workflow independently recomputes the manifest digest and rejects stale approval or verification evidence.
 
-Keep candidate and selected HTML in this subtree only. They are non-canonical review evidence and are never part of the fixed publish set, never copied directly into `mockups/`, and never consumed by implementation. The approved selected HTML is the visual source from which tokens, primitive and component contracts, recipes, registry, and final mockups are extracted. Record the dynamic Visual Preference Brief, every direction path, comparison decision, selected-HTML approval, and extraction trace in staged `design-system.md`.
+Any change to a selected file's bytes, canonical path, manifest entry order, or representative-screen mapping invalidates approval. Recompute the per-file and manifest digests, rerun the selected audit when Hallmark is loaded, and obtain fresh human approval before extraction.
+
+Keep candidate and selected HTML, Hallmark audit reports, and the selected manifest in this subtree only. They are non-canonical review evidence and are never part of the fixed publish set, never copied directly into `mockups/`, and never consumed by implementation. The approved selected HTML is the visual source from which tokens, primitive and component contracts, recipes, registry, and final mockups are extracted. Record the dynamic Visual Preference Brief, every direction path, structural fingerprint, Hallmark availability and audit disposition, comparison decision, selected manifest and digest, selected-HTML approval, and extraction trace in staged `design-system.md`.
 
 Before publication, list the exact candidate disposition with the canonical publish paths:
 

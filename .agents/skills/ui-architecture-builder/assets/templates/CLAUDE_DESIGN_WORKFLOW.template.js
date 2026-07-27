@@ -10,6 +10,25 @@ export const meta = {
 
 const workflowArgs = typeof args === "string" ? JSON.parse(args) : args;
 
+const sha256Hex = async (value) => {
+  if (
+    typeof TextEncoder !== "function"
+    || !globalThis.crypto
+    || !globalThis.crypto.subtle
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires Web Crypto SHA-256 support",
+    );
+  }
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+};
+
 for (const field of ["run_id", "product_name", "product_archetype"]) {
   if (!workflowArgs || typeof workflowArgs[field] !== "string" || !workflowArgs[field].trim()) {
     throw new Error(`ui-architecture-builder-graph requires non-empty args.${field}`);
@@ -36,14 +55,49 @@ if (
     "ui-architecture-builder-graph requires args.visual_direction_pass status not used, approved, or rejected; preference discovery, candidate comparison, and selected HTML awaiting approval are not frozen inputs",
   );
 }
+let approvedCandidateDirectories = [];
+let approvedSelectedRoot = null;
 if (visualDirectionPass.status === "approved") {
-  const requiredApprovalFields = ["selected_html_path", "approval_owner", "approval_evidence"];
+  const sha256Pattern = /^[a-f0-9]{64}$/;
+  const requiredApprovalFields = [
+    "selected_html_path",
+    "approval_manifest_sha256",
+    "approval_owner",
+    "approval_evidence",
+  ];
   for (const field of requiredApprovalFields) {
     if (typeof visualDirectionPass[field] !== "string" || !visualDirectionPass[field].trim()) {
       throw new Error(
         `ui-architecture-builder-graph requires non-empty args.visual_direction_pass.${field} when status is approved`,
       );
     }
+  }
+  const selectedHtmlPath = visualDirectionPass.selected_html_path;
+  const selectedPathSegments = selectedHtmlPath.split("/");
+  const selectedMarker = "visual-directions/selected";
+  const selectedMarkerIndex = selectedHtmlPath.indexOf(selectedMarker);
+  if (
+    selectedHtmlPath !== selectedHtmlPath.trim()
+    || selectedHtmlPath.includes("\\")
+    || selectedPathSegments.includes(".")
+    || selectedPathSegments.includes("..")
+    || selectedMarkerIndex < 0
+    || (
+      selectedMarkerIndex > 0
+      && selectedHtmlPath[selectedMarkerIndex - 1] !== "/"
+    )
+    || !["/", undefined].includes(
+      selectedHtmlPath[selectedMarkerIndex + selectedMarker.length],
+    )
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires canonical args.visual_direction_pass.selected_html_path under visual-directions/selected",
+    );
+  }
+  if (!sha256Pattern.test(visualDirectionPass.approval_manifest_sha256)) {
+    throw new Error(
+      "ui-architecture-builder-graph requires lowercase SHA-256 args.visual_direction_pass.approval_manifest_sha256 when status is approved",
+    );
   }
   if (
     !Array.isArray(visualDirectionPass.representative_ui_ids)
@@ -69,29 +123,222 @@ if (visualDirectionPass.status === "approved") {
     );
   }
   const candidateIds = new Set();
+  const candidateDirectories = [];
   for (const candidate of visualDirectionPass.candidate_directions) {
     if (
       typeof candidate !== "object"
       || candidate === null
       || typeof candidate.direction_id !== "string"
       || !candidate.direction_id.trim()
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(candidate.direction_id)
       || !Array.isArray(candidate.html_paths)
       || candidate.html_paths.length !== visualDirectionPass.representative_ui_ids.length
       || candidate.html_paths.some(
-        (htmlPath) => typeof htmlPath !== "string" || !htmlPath.trim(),
+        (htmlPath) => (
+          typeof htmlPath !== "string"
+          || htmlPath !== htmlPath.trim()
+          || htmlPath.includes("\\")
+          || htmlPath.split("/").some(
+            (segment) => !segment || [".", ".."].includes(segment),
+          )
+          || !htmlPath.toLowerCase().endsWith(".html")
+        ),
       )
     ) {
       throw new Error(
-        "ui-architecture-builder-graph requires every candidate_direction to have a non-empty direction_id and one non-empty html_path per representative UI ID",
+        "ui-architecture-builder-graph requires every candidate_direction to have a canonical direction_id and one canonical HTML path per representative UI ID",
+      );
+    }
+    if (new Set(candidate.html_paths).size !== candidate.html_paths.length) {
+      throw new Error(
+        "ui-architecture-builder-graph requires unique candidate HTML paths for every representative UI ID",
+      );
+    }
+    const htmlDirectories = candidate.html_paths.map(
+      (htmlPath) => htmlPath.slice(0, htmlPath.lastIndexOf("/")),
+    );
+    const expectedDirectorySuffix = `visual-directions/${candidate.direction_id}`;
+    if (
+      htmlDirectories.some(
+        (directory) => (
+          !directory
+          || directory !== htmlDirectories[0]
+          || (
+            directory !== expectedDirectorySuffix
+            && !directory.endsWith(`/${expectedDirectorySuffix}`)
+          )
+        ),
+      )
+    ) {
+      throw new Error(
+        "ui-architecture-builder-graph requires each candidate direction's HTML files under one matching visual-directions/<direction_id> directory",
       );
     }
     candidateIds.add(candidate.direction_id);
+    candidateDirectories.push(htmlDirectories[0]);
   }
-  if (candidateIds.size !== visualDirectionPass.candidate_directions.length) {
+  if (
+    candidateIds.size !== visualDirectionPass.candidate_directions.length
+    || new Set(candidateDirectories).size
+      !== visualDirectionPass.candidate_directions.length
+  ) {
     throw new Error(
-      "ui-architecture-builder-graph requires unique candidate_direction direction_id values",
+      "ui-architecture-builder-graph requires unique candidate direction IDs and directories",
     );
   }
+  approvedCandidateDirectories = candidateDirectories;
+  if (
+    !Array.isArray(visualDirectionPass.selected_html_files)
+    || visualDirectionPass.selected_html_files.length
+      !== visualDirectionPass.representative_ui_ids.length
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires one selected_html_files entry per representative UI ID",
+    );
+  }
+  const selectedRoot = selectedHtmlPath.slice(
+    0,
+    selectedMarkerIndex + selectedMarker.length,
+  );
+  approvedSelectedRoot = selectedRoot;
+  const selectedFilePaths = new Set();
+  for (let index = 0; index < visualDirectionPass.selected_html_files.length; index += 1) {
+    const selectedFile = visualDirectionPass.selected_html_files[index];
+    if (
+      typeof selectedFile !== "object"
+      || selectedFile === null
+      || selectedFile.ui_id !== visualDirectionPass.representative_ui_ids[index]
+      || typeof selectedFile.html_path !== "string"
+      || selectedFile.html_path !== selectedFile.html_path.trim()
+      || selectedFile.html_path.includes("\\")
+      || selectedFile.html_path.split("/").some((segment) => [".", ".."].includes(segment))
+      || !selectedFile.html_path.startsWith(`${selectedRoot}/`)
+      || !selectedFile.html_path.toLowerCase().endsWith(".html")
+      || typeof selectedFile.sha256 !== "string"
+      || !sha256Pattern.test(selectedFile.sha256)
+    ) {
+      throw new Error(
+        "ui-architecture-builder-graph requires ordered selected_html_files with matching ui_id, canonical selected HTML path, and lowercase SHA-256",
+      );
+    }
+    selectedFilePaths.add(selectedFile.html_path);
+  }
+  if (selectedFilePaths.size !== visualDirectionPass.selected_html_files.length) {
+    throw new Error(
+      "ui-architecture-builder-graph requires unique selected_html_files html_path values",
+    );
+  }
+  if (!selectedFilePaths.has(selectedHtmlPath)) {
+    throw new Error(
+      "ui-architecture-builder-graph requires selected_html_path to equal an approved selected_html_files path",
+    );
+  }
+  const canonicalSelectedManifest = visualDirectionPass.selected_html_files.map(
+    ({ ui_id, html_path, sha256 }) => ({ ui_id, html_path, sha256 }),
+  );
+  const computedManifestSha256 = await sha256Hex(
+    JSON.stringify(canonicalSelectedManifest),
+  );
+  if (visualDirectionPass.approval_manifest_sha256 !== computedManifestSha256) {
+    throw new Error(
+      "ui-architecture-builder-graph requires approval_manifest_sha256 to match the canonical selected_html_files manifest",
+    );
+  }
+  if (!visualDirectionPass.approval_evidence.includes(computedManifestSha256)) {
+    throw new Error(
+      "ui-architecture-builder-graph requires args.visual_direction_pass.approval_evidence to include the computed approval_manifest_sha256",
+    );
+  }
+  const selectedFilesVerification = visualDirectionPass.selected_files_verification;
+  if (
+    typeof selectedFilesVerification !== "object"
+    || selectedFilesVerification === null
+    || selectedFilesVerification.status !== "passed"
+    || selectedFilesVerification.verified_by !== "parent"
+    || selectedFilesVerification.manifest_sha256 !== computedManifestSha256
+    || selectedFilesVerification.verified_file_count
+      !== canonicalSelectedManifest.length
+    || typeof selectedFilesVerification.evidence !== "string"
+    || !selectedFilesVerification.evidence.trim()
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires parent byte verification for every selected HTML file, bound to the computed manifest SHA-256",
+    );
+  }
+}
+
+const hallmarkReview = workflowArgs.hallmark_review;
+if (
+  typeof hallmarkReview !== "object"
+  || hallmarkReview === null
+  || !["loaded", "unavailable"].includes(hallmarkReview.availability)
+) {
+  throw new Error(
+    "ui-architecture-builder-graph requires args.hallmark_review.availability loaded or unavailable",
+  );
+}
+if (hallmarkReview.availability === "unavailable") {
+  if (typeof hallmarkReview.reason !== "string" || !hallmarkReview.reason.trim()) {
+    throw new Error(
+      "ui-architecture-builder-graph requires a non-empty Hallmark unavailability reason",
+    );
+  }
+} else if (visualDirectionPass.status === "approved") {
+  const candidateReports = hallmarkReview.candidate_reports;
+  if (
+    !Array.isArray(candidateReports)
+    || candidateReports.length !== visualDirectionPass.candidate_directions.length
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires one retained Hallmark candidate report per approved candidate direction",
+    );
+  }
+  for (let index = 0; index < candidateReports.length; index += 1) {
+    const report = candidateReports[index];
+    const expectedReportPath =
+      `${approvedCandidateDirectories[index]}/hallmark-audit.md`;
+    if (
+      typeof report !== "object"
+      || report === null
+      || report.direction_id
+        !== visualDirectionPass.candidate_directions[index].direction_id
+      || typeof report.report_path !== "string"
+      || report.report_path !== expectedReportPath
+      || !["passed", "repaired"].includes(report.disposition)
+      || report.verified_by !== "parent"
+      || typeof report.evidence !== "string"
+      || !report.evidence.trim()
+    ) {
+      throw new Error(
+        "ui-architecture-builder-graph requires ordered parent-verified Hallmark candidate report paths and passed or repaired dispositions",
+      );
+    }
+  }
+  const selectedReport = hallmarkReview.selected_report;
+  if (
+    typeof selectedReport !== "object"
+    || selectedReport === null
+    || typeof selectedReport.report_path !== "string"
+    || selectedReport.report_path
+      !== `${approvedSelectedRoot}/hallmark-audit.md`
+    || !["passed", "repaired"].includes(selectedReport.disposition)
+    || selectedReport.verified_by !== "parent"
+    || selectedReport.manifest_sha256
+      !== visualDirectionPass.approval_manifest_sha256
+    || typeof selectedReport.evidence !== "string"
+    || !selectedReport.evidence.trim()
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires a parent-verified Hallmark selected report bound to the approved manifest SHA-256",
+    );
+  }
+} else if (
+  typeof hallmarkReview.evidence !== "string"
+  || !hallmarkReview.evidence.trim()
+) {
+  throw new Error(
+    "ui-architecture-builder-graph requires Hallmark evidence explaining a loaded review without approved selected HTML",
+  );
 }
 
 const stringArray = { type: "array", items: { type: "string" } };
@@ -170,6 +417,7 @@ const sourceContext = JSON.stringify({
   source_summary: workflowArgs.source_summary || "",
   builder_ux_direction: workflowArgs.builder_ux_direction || null,
   visual_direction_pass: visualDirectionPass,
+  hallmark_review: hallmarkReview,
   brand_constraints: workflowArgs.brand_constraints || [],
   icons_in_scope: workflowArgs.icons_in_scope,
   motion_in_scope: workflowArgs.motion_in_scope,
@@ -256,7 +504,7 @@ if (!designPackage) {
 const reviewers = [
   {
     key: "taste-verifier",
-    task: "Check that the taste statement is concrete, signature decisions recur, unsupported AI-UI patterns are absent, content is realistic, and every border/elevation/media/motion choice has a purpose.",
+    task: "Check that the taste statement is concrete, signature decisions recur, unsupported AI-UI patterns are absent, content is realistic, and every border/elevation/media/motion choice has a purpose. When the frozen visual-direction record includes Hallmark audit reports, verify that every critical or major finding is repaired or explicitly blocked; treat those reports as read-only review evidence, never as product authority.",
   },
   {
     key: "trace-verifier",

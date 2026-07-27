@@ -6,7 +6,7 @@ The point of the published architecture is a single rule:
 
 > A page cannot be freely designed. A page may only use approved content contracts, page recipes, product components, and primitives.
 
-That rule starts after visual exploration. Before it applies, `frontend-design` produces two or three direction-local HTML candidates for the same representative screens, the human selects or mixes them, and the human explicitly approves consolidated selected HTML. Tokens, primitives, components, recipes, and the registry are then extracted from that approved source. Candidate HTML is not required to obey a registry that has not been derived yet.
+That rule starts after the validated package is approved and published. In the preferred exploration path, `frontend-design` produces two or three direction-local HTML candidates for the same representative screens, Hallmark audits their structural difference and anti-slop quality without editing them, the human selects or mixes them, and the human explicitly approves consolidated selected HTML bound to an immutable digest manifest. Tokens, primitives, components, recipes, and the registry are then extracted from that approved source. Candidate HTML is not required to obey a registry that has not been derived yet. When exploration is explicitly `not used` or `rejected`, the validated and published package becomes binding from its recorded product inputs and explicit visual assumptions; it must not claim approved-HTML extraction.
 
 ## Layer Model
 
@@ -19,7 +19,9 @@ Visual Preference Brief
         |
 Two or three candidate HTML directions
         |
-Human-approved selected HTML
+Hallmark candidate audits (read-only evidence)
+        |
+Human-approved selected HTML + digest manifest
         |
 Design tokens
   ├── Visual tokens
@@ -52,7 +54,8 @@ When two sources disagree, the higher one wins:
 ```text
 Product rules
 > Content contract
-> Human-approved selected HTML
+> Human-approved selected HTML and digest manifest, when approved
+> Explicit visual assumptions, when exploration is not used or rejected
 > Page recipe
 > Product component
 > Primitive contract
@@ -62,7 +65,7 @@ Product rules
 
 Page-specific preference is last after the architecture freeze. "This page looks better with a bit more space" is not a reason to leave the published contract; it is a reason to change the token or primitive, or to add a variant. Before that freeze, candidate HTML may explore direction-local values, and the approved selected HTML outranks the extracted visual layers when checking whether extraction changed the chosen design.
 
-Rejected candidate HTML does not enter this precedence list. The approved selected HTML does: it is non-canonical exploration evidence retained as the visual source from which the canonical package is extracted. Implementation consumes the canonical package, while reviewers use the approved selected HTML to catch extraction drift.
+Rejected candidate HTML does not enter this precedence list. The approved selected HTML does: it is non-canonical exploration evidence retained as the visual source from which the canonical package is extracted. Its per-screen SHA-256 values and manifest SHA-256 bind the approval to exact bytes. Implementation consumes the canonical package, while reviewers use the approved selected HTML to catch extraction drift. Hallmark reports are review evidence, not a source of product authority, and never outrank the human decision.
 
 ## Layer Responsibilities
 
@@ -71,8 +74,9 @@ Rejected candidate HTML does not enter this precedence list. The approved select
 | Product rules | What the product must always show, never hide, and never claim | Visual values |
 | Content contracts | Required fields, length limits, formats, CTA counts, empty/long-content handling, what may never be truncated away | Layout, color |
 | Route and state contracts | Which routes exist, which states each must support, what SSR/no-JS must still render | Component internals |
-| Approved selected HTML | The human-approved visual composition and actual values from which the system is extracted | Product scope or hard-limit changes |
-| Design tokens | Every repeated raw visual, layout, and motion value extracted from the approved selected HTML | Markup, component structure |
+| Visual derivation source | Approved selected HTML bound to its digest manifest, or explicit visual assumptions when exploration is not used or rejected | Product scope or hard-limit changes |
+| Hallmark review evidence | Named structural and anti-slop findings for candidate, selected, and final projections | Editing files, selecting a direction, or changing product authority |
+| Design tokens | Every repeated raw visual, layout, and motion value extracted from the visual derivation source | Markup, component structure |
 | Layout primitives | Space, flow, alignment, max width, responsive rearrangement | Color, background, border, elevation, domain content |
 | Surface primitives | Background, border, divider, radius, elevation, and the padding of the surface itself | Spacing between its own children (it wraps a layout primitive), domain content |
 | Typography primitives | Type role, size, weight, line height, truncation and wrapping behavior | Layout, color decisions outside the role's token |
@@ -89,16 +93,18 @@ Work from the real screens and product rules, not from a component-library catal
 1. **Content contracts first.** Freeze routes, flow, required regions, exact wording or display contracts, never-drop fields, platform, required states, accessibility, and product scope. Do not define tokens or visual primitives.
 2. **Dynamic Visual Preference Discovery.** Read the product sources and `frontend-design`, derive product-specific choices from Purpose, Tone, Constraints, and Differentiation, and ask them with the host's Ask User tool. Record a non-binding Visual Preference Brief. Never use a fixed style catalog or ask the user to choose token values.
 3. **Representative screens.** Obtain authorization for the same one or two `UI-*` screens that best expose hierarchy, content density, controls, imagery, and motion. Every candidate direction implements this exact set.
-4. **Two or three candidate HTML directions.** Invoke `frontend-design` separately for each direction. Every execution receives the same hard limits and preference brief, commits to one clear direction, and produces complete dependency-free HTML for every representative screen. Candidate-local CSS values and composition are allowed. A later candidate must differ from the earlier ones across at least three relevant visual axes; changing only color does not count.
-5. **Human comparison and selected HTML.** Render or otherwise make every candidate directly reviewable. Use Ask User so the human can select, reject, or mix cues. A mix requires one consolidated `visual-directions/selected/` HTML pass. The human must explicitly approve that selected HTML. Agent or delegated selection does not unlock the next step.
-6. **Token extraction.** Inventory repeated actual values in the approved selected HTML and name the semantic visual, layout, and motion tokens. Do not retrofit the selected HTML to a preselected scale or palette. Record selected-HTML source evidence for every token group.
-7. **Layout primitives.** Extract the spacing and flow patterns that repeat in the approved selected HTML — page shell and widths, section rhythm, stacks, clusters, and grids — then give each a closed set of variants.
-8. **Surface primitives.** Extract surviving background, border, divider, radius, elevation, and surface-padding treatments. Apply the Container & Border Decision Rules; if a required repair materially changes the approved direction, update selected HTML and obtain fresh approval before extraction continues.
-9. **Typography and control primitives.** Extract type roles and interactive atoms from the approved selected HTML, then define their variants, sizes, states, focus, accessible naming, and platform hit targets.
-10. **Product components.** Name recurring domain compositions and bind each to its content contract. A composition that appears once stays inside that page.
-11. **Motion patterns.** Split approved motion by mechanism, then register every repeated variant. A published page may reference registered variants only.
-12. **Page recipes and registry.** Derive each representative recipe from the approved selected HTML, extend recipes to remaining routes without inventing a new direction, and emit the machine-readable allowlist.
-13. **Verification.** Prove that canonical mockups and the extracted system reproduce the approved selected HTML, then define the contract checks, viewport set, and state set that prevent later drift.
+4. **Two or three candidate HTML directions.** Invoke `frontend-design` separately for each direction. Every execution receives the same hard limits and preference brief, commits to one clear direction, and produces complete dependency-free HTML for every representative screen. Candidate-local CSS values and composition are allowed. A later candidate must differ from the earlier ones across both material visual axes and its structural fingerprint; changing only color does not count.
+5. **Read-only Hallmark candidate audit.** When Hallmark is loaded, audit every candidate against the same product inputs and scope. Save named findings with exact paths, severity, and one-line repairs beside each candidate as `hallmark-audit.md`. Critical or major structural-template findings return to `frontend-design` for repair. Hallmark never edits a candidate or chooses the winner. When Hallmark is unavailable, record that status and use the existing taste verifier without claiming a Hallmark pass.
+6. **Human comparison and selected HTML.** Render or otherwise make every candidate directly reviewable. Show the structural fingerprints and concise audit summaries, then use Ask User so the human can select, reject, or mix cues. A mix requires one consolidated `visual-directions/selected/` HTML pass. The human must explicitly approve that selected HTML. Agent or delegated selection does not unlock the next step.
+7. **Immutable approval binding.** Store selected files only under `visual-directions/selected/`. Record an ordered manifest containing each representative `ui_id`, canonical HTML path, and lowercase SHA-256, then hash that manifest. Put the manifest SHA-256 in the human approval evidence. Immediately before Dynamic Workflow launch, the parent re-reads and hashes every selected file and records manifest-bound verification; the workflow independently recomputes the canonical manifest SHA-256. Any byte, path, or order change invalidates approval and requires a fresh audit and human approval.
+8. **Token extraction.** Inventory repeated actual values in the approved selected HTML and name the semantic visual, layout, and motion tokens. Do not retrofit the selected HTML to a preselected scale or palette. Record selected-HTML source evidence for every token group. When exploration is not used or rejected, derive the package from explicit assumptions and label that path instead of claiming selected-HTML extraction.
+9. **Layout primitives.** Extract the spacing and flow patterns that repeat in the approved selected HTML — page shell and widths, section rhythm, stacks, clusters, and grids — then give each a closed set of variants.
+10. **Surface primitives.** Extract surviving background, border, divider, radius, elevation, and surface-padding treatments. Apply the Container & Border Decision Rules; if a required repair materially changes the approved direction, update selected HTML, recompute the manifest, and obtain fresh approval before extraction continues.
+11. **Typography and control primitives.** Extract type roles and interactive atoms from the approved selected HTML, then define their variants, sizes, states, focus, accessible naming, and platform hit targets.
+12. **Product components.** Name recurring domain compositions and bind each to its content contract. A composition that appears once stays inside that page.
+13. **Motion patterns.** Split approved motion by mechanism, then register every repeated variant. A published page may reference registered variants only.
+14. **Page recipes and registry.** Derive each representative recipe from the approved selected HTML, extend recipes to remaining routes without inventing a new direction, and emit the machine-readable allowlist.
+15. **Verification.** Prove that canonical mockups and the extracted system reproduce the approved selected HTML. When Hallmark is loaded, audit the final mockups and design-system projection for extraction drift and new anti-slop findings. Then define the contract checks, viewport set, and state set that prevent later drift.
 
 Check the direction at the end: a layout primitive that sets color, a surface that spaces its own children, a product component holding a raw hex value, or a page defining its own button means a layer boundary leaked.
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import shutil
@@ -64,6 +65,11 @@ class SpecimenContractParser(HTMLParser):
 class UiArchitectureSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    @staticmethod
+    def selected_manifest_digest(files: list[dict[str, str]]) -> str:
+        canonical = json.dumps(files, separators=(",", ":"), ensure_ascii=True)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def run_dynamic_workflow(
         self,
@@ -333,7 +339,10 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             lifecycle,
         )
         self.assertIn("Implementation consumes the extracted package", contract)
-        self.assertIn("selected-HTML consolidation, or approval is still pending", workflow)
+        self.assertIn(
+            "selected-HTML consolidation, byte verification, digest binding, or approval is still pending",
+            workflow,
+        )
         self.assertIn('visual_direction_pass.status: "not used"', workflow)
         self.assertIn("visual_direction_pass: visualDirectionPass", workflow_template)
         self.assertIn("status not used, approved, or rejected", workflow_template)
@@ -345,10 +354,61 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             "Status: [not used / preference discovery / candidates awaiting comparison / selected HTML awaiting approval / approved / rejected]",
             contract,
         )
-        self.assertIn("Limit preference questions, representative screens, candidate directions, and selected HTML to the accepted delta", guide)
+        self.assertIn(
+            "Limit preference questions, representative screens, candidate directions, Hallmark audits, and selected HTML to the accepted delta",
+            guide,
+        )
         self.assertIn("TEST-VIS-027 | HTML direction comparison and approval", contract)
         self.assertIn("TEST-VIS-028 | Approved-HTML extraction fidelity", contract)
         self.assertNotIn("Offer `frontend-design` only for the small pieces", skill)
+
+    def test_hallmark_is_a_read_only_auditor_in_the_html_first_flow(self) -> None:
+        skill = self.read("SKILL.md")
+        integration = self.read("references/hallmark-integration.md")
+        architecture = self.read("references/ui-architecture-guide.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        architecture_template = self.read(
+            "assets/templates/UI_ARCHITECTURE.template.md"
+        )
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+        workflow_template = self.read(
+            "assets/templates/CLAUDE_DESIGN_WORKFLOW.template.js"
+        )
+
+        self.assertIn("references/hallmark-integration.md", skill)
+        self.assertIn("`frontend-design` remains the candidate generator", integration)
+        self.assertIn("Hallmark is a read-only auditor", integration)
+        for content in (integration, architecture, lifecycle, contract, design_system):
+            self.assertIn("structural fingerprint", content)
+            self.assertIn("hallmark-audit.md", content)
+        self.assertIn("never claim a Hallmark pass", integration)
+        self.assertIn("selected_files_verification", integration)
+        self.assertIn("hallmark_review.availability", integration)
+        self.assertIn("computedManifestSha256", workflow_template)
+        self.assertIn("hallmark_review: hallmarkReview", workflow_template)
+        self.assertIn(
+            "requires parent byte verification for every selected HTML file",
+            workflow_template,
+        )
+        self.assertIn(
+            "Binding rule after package approval and publication",
+            architecture_template,
+        )
+        self.assertIn(
+            "When exploration is `not used` or `rejected`",
+            architecture_template,
+        )
+        for content in (contract, acceptance):
+            self.assertIn(
+                "TEST-VIS-029 | Hallmark structural and anti-slop review",
+                content,
+            )
+            self.assertIn(
+                "TEST-VIS-030 | Selected-HTML immutable approval binding",
+                content,
+            )
 
     def test_dynamic_workflow_rejects_missing_visual_direction_pass_at_runtime(self) -> None:
         workflow_args = {
@@ -378,6 +438,10 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             "motion_in_scope": False,
             "tool_profile": "builder_readonly",
             "visual_direction_pass": {"status": "not used"},
+            "hallmark_review": {
+                "availability": "unavailable",
+                "reason": "Hallmark was not loaded for this run.",
+            },
         }
         runtime_prelude = """
 const phase = () => {};
@@ -414,6 +478,7 @@ const agent = async (_prompt, options) => {
         )
 
     def test_dynamic_workflow_rejects_approved_status_without_candidate_html(self) -> None:
+        digest = "a" * 64
         workflow_args = {
             "run_id": "RUN-TEST",
             "product_name": "Test Product",
@@ -426,11 +491,19 @@ const agent = async (_prompt, options) => {
                 "status": "approved",
                 "selected_html_path": "visual-directions/selected/index.html",
                 "approval_owner": "Human owner",
-                "approval_evidence": "Approved in Ask User response",
+                "approval_manifest_sha256": digest,
+                "approval_evidence": f"Approved in Ask User response: {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
                     {"direction_id": "B", "html_paths": []},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/selected/index.html",
+                        "sha256": "b" * 64,
+                    }
                 ],
             },
         }
@@ -438,7 +511,446 @@ const agent = async (_prompt, options) => {
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "one non-empty html_path per representative UI ID",
+            "one canonical HTML path per representative UI ID",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_duplicate_two_screen_candidate_paths(
+        self,
+    ) -> None:
+        digest = "a" * 64
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/overview.html",
+                "approval_owner": "Human owner",
+                "approval_manifest_sha256": digest,
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001", "UI-002"],
+                "candidate_directions": [
+                    {
+                        "direction_id": "A",
+                        "html_paths": [
+                            "visual-directions/A/overview.html",
+                            "visual-directions/A/overview.html",
+                        ],
+                    },
+                    {
+                        "direction_id": "B",
+                        "html_paths": [
+                            "visual-directions/B/overview.html",
+                            "visual-directions/B/detail.html",
+                        ],
+                    },
+                ],
+                "selected_html_files": [],
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires unique candidate HTML paths for every representative UI ID",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_noncanonical_selected_html_path(self) -> None:
+        digest = "a" * 64
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/other/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/other/index.html",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires canonical args.visual_direction_pass.selected_html_path",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_invalid_selected_html_digest(self) -> None:
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": "NOT-A-SHA",
+                "approval_owner": "Human owner",
+                "approval_evidence": "Approved digest NOT-A-SHA",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/selected/index.html",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires lowercase SHA-256 args.visual_direction_pass.approval_manifest_sha256",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_accepts_digest_bound_selected_html(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/index.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+            "hallmark_review": {
+                "availability": "loaded",
+                "candidate_reports": [
+                    {
+                        "direction_id": "A",
+                        "report_path": "visual-directions/A/hallmark-audit.md",
+                        "disposition": "passed",
+                        "verified_by": "parent",
+                        "evidence": "No critical or major findings.",
+                    },
+                    {
+                        "direction_id": "B",
+                        "report_path": "visual-directions/B/hallmark-audit.md",
+                        "disposition": "repaired",
+                        "verified_by": "parent",
+                        "evidence": "Major findings were repaired and re-audited.",
+                    },
+                ],
+                "selected_report": {
+                    "report_path": "visual-directions/selected/hallmark-audit.md",
+                    "disposition": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "evidence": "Selected HTML passed the retained Hallmark audit.",
+                },
+            },
+        }
+        runtime_prelude = """
+const phase = () => {};
+const parallel = async (tasks) => Promise.all(tasks.map((task) => task()));
+const agent = async (_prompt, options) => {
+  const role = options.label.replace("design:", "");
+  if (role === "synthesis") return {};
+  if (options.phase === "Analyze") return { role, status: "complete" };
+  return { role, decision: "pass" };
+};
+"""
+        result = self.run_dynamic_workflow(workflow_args, runtime_prelude)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "candidate_ready")
+
+        wrong_candidate_report = json.loads(json.dumps(workflow_args))
+        wrong_candidate_report["hallmark_review"]["candidate_reports"][1][
+            "report_path"
+        ] = "visual-directions/A/hallmark-audit.md"
+        result = self.run_dynamic_workflow(wrong_candidate_report)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires ordered parent-verified Hallmark candidate report paths",
+            result.stderr,
+        )
+
+        wrong_selected_report = json.loads(json.dumps(workflow_args))
+        wrong_selected_report["hallmark_review"]["selected_report"][
+            "report_path"
+        ] = "visual-directions/A/hallmark-audit.md"
+        result = self.run_dynamic_workflow(wrong_selected_report)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires a parent-verified Hallmark selected report",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_selected_path_outside_manifest(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/approved.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/unapproved.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires selected_html_path to equal an approved selected_html_files path",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_selected_root_path(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/approved.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires selected_html_path to equal an approved selected_html_files path",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_loaded_hallmark_without_reports(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/index.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+            "hallmark_review": {"availability": "loaded"},
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires one retained Hallmark candidate report per approved candidate direction",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_stale_selected_manifest_digest(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/index.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        stale_digest = "a" * 64
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": stale_digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {stale_digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires approval_manifest_sha256 to match the canonical selected_html_files manifest",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_requires_parent_selected_file_verification(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/index.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires parent byte verification for every selected HTML file",
             result.stderr,
         )
 
