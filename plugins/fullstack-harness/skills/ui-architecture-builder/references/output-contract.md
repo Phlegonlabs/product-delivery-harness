@@ -13,9 +13,9 @@ Always produce:
 - One real, dependency-free static HTML file per important page/route/screen under `mockups/` (for example `mockups/dashboard.html`) — the primary mockup deliverable for every platform, styled to that platform's own visual conventions (see Platform-Conditional Vocabulary below) rather than defaulting to web styling for a native or desktop target. Link mockup pages to each other with plain relative `<a href>` links wherever the real product would navigate between them, so the set reads as a connected clickable prototype. A single-route product has nothing to link.
 - `mockups/catalog.html` — the component catalog showing every registry entry under realistic content
 
-An explicitly authorized Frontend Design Preference & HTML Exploration may also create exactly two or three non-canonical HTML directions for the same one or two representative screens under `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`, followed by consolidated HTML under `visual-directions/selected/`. These files are working review and extraction evidence, not package deliverables. Candidate HTML may use direction-local values before the registry exists. It is never published as `mockups/`, added to `ui-registry.json`, or consumed by implementation. The human-approved selected HTML becomes the visual source from which the package extracts tokens, primitives, components, recipes, registry entries, and final mockups.
+An explicitly authorized Frontend Design Preference & HTML Exploration may also create exactly two or three non-canonical HTML directions for the same one or two representative screens under `docs/product/.design-staging/<run-id>/visual-directions/<direction-id>/`, followed by consolidated HTML under `visual-directions/selected/`. These files are working review and extraction evidence, not package deliverables. Candidate HTML may use direction-local values before the registry exists. It is never published as `mockups/`, added to `ui-registry.json`, or consumed by implementation. When Hallmark is loaded, its read-only `hallmark-audit.md` reports stay beside candidate and selected HTML and do not edit or outrank those sources. The human-approved selected HTML, bound to per-screen SHA-256 values and an approval-manifest SHA-256, becomes the visual source from which the package extracts tokens, primitives, components, recipes, registry entries, and final mockups.
 
-After selected-HTML approval and extraction, the binding rule the whole package exists to enforce is: a page cannot be freely designed; a page may only use approved content contracts, page recipes, product components, and primitives. Read `references/ui-architecture-guide.md` before producing any of these files.
+After the validated package is approved and published, the binding rule the whole package exists to enforce is: a page cannot be freely designed; a page may only use approved content contracts, page recipes, product components, and primitives. In the preferred exploration path the package is extracted from digest-bound approved HTML. When exploration is explicitly `not used` or `rejected`, the package is derived from recorded product inputs and explicit visual assumptions and must not claim approved-HTML extraction. Read `references/ui-architecture-guide.md` before producing any of these files.
 
 Do not produce `page-ui-matrix.md` or `ui-mockups.md`. The route → breakpoint/size-class → state → component mapping is shown directly in the HTML; the recipe and the machine-checkable route → trace → test mapping live in `page-recipes.md`.
 
@@ -74,6 +74,7 @@ Non-negotiable content:
 - Every product component names its content contract and its required content order, and states that the order is not reorderable.
 - The state matrix covers all eleven states; each is `yes` or `n/a` with a reason.
 - The guardrail table states enforcement (`blocking` or `advisory`) per check, the verified responsive set for the resolved platform (390 / 768 / 1200 / 1440 for a web target, the platform's own size classes or window sizes otherwise — see Responsive Verification Set below), and who owns wiring the check.
+- The visual derivation source is explicit: either digest-bound human-approved selected HTML, or recorded product inputs and explicit visual assumptions when exploration is `not used` or `rejected`. Hallmark reports remain read-only review evidence in either case.
 
 ## `ui-registry.json`
 
@@ -104,7 +105,7 @@ Everywhere below that says "every required viewport" or "required breakpoints" �
 
 State the resolved platform in `design-system.md`'s Overview, then keep every icon, component-code, and breakpoint/size-class section consistent with it. Keep the web guidance available for a web target rather than removing it; it just stops being the default for every target.
 
-When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. The approved selected HTML and its approval record are frozen inputs to every workflow role; roles may extract and normalize the system from that source but may not independently reopen or replace the direction. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
+When Claude Code Dynamic Workflow is used, treat its structured UI architecture package as a candidate source. The digest-bound approved selected HTML and its approval record are frozen inputs to every workflow role when exploration is approved; when it is `not used` or `rejected`, the frozen inputs are the recorded product sources and explicit visual assumptions. Roles may extract and normalize the system from the applicable source but may not independently reopen or replace the direction. Hallmark reports remain read-only review evidence. The parent must resolve blocked roles and verifier findings, write the staged files, run the checks below, and preserve the existing publish approval gate.
 
 When the user requests a runnable animation demonstration, also produce `motion-showcase.html` or bounded files under `motion-demos/`. Use `assets/templates/MOTION_SHOWCASE.template.html` as the dependency-free baseline unless the project stack or requested animation requires another implementation. Record every demo path in `design-system.md` and `page-recipes.md`.
 
@@ -187,7 +188,10 @@ Differentiation: [What should make this product recognizable]
 
 | Direction ID | Same representative screens / UI IDs | HTML paths | Material differentiators | Human decision |
 | --- | --- | --- | --- | --- |
-| [direction ID or n/a] | [the same one or two screen names and exact authorized UI-* IDs] | [complete dependency-free HTML paths] | [at least three axes: typography, composition, density, color proportion, surfaces, imagery, controls, or motion] | [selected / rejected / cues requested for mix] |
+| [direction ID or n/a] | [the same one or two screen names and exact authorized UI-* IDs] | [complete dependency-free HTML paths] | [material visual axes plus a structural fingerprint; changing only color does not count] | [selected / rejected / cues requested for mix] |
+
+Hallmark status: [loaded / unavailable / not requested]
+Hallmark candidate audits: [exact `hallmark-audit.md` paths and dispositions, or n/a; reports are read-only review evidence]
 
 ### Approved Selected HTML
 
@@ -195,6 +199,9 @@ Selected path: [exact `visual-directions/selected/` path or n/a]
 Selection method: [direct selection / mixed and consolidated / n/a]
 Approval owner: [human product/design owner; never an agent or delegated selector]
 Approval evidence: [explicit approval record or n/a]
+Selected HTML manifest: [ordered `{ ui_id, html_path, sha256 }` entries, one per representative screen, or n/a]
+Approval manifest SHA-256: [lowercase 64-character digest shown in the approval evidence, or n/a]
+Selected Hallmark audit: [exact `visual-directions/selected/hallmark-audit.md` path and disposition, or unavailable / n/a]
 
 ### Token Extraction Trace
 
@@ -204,7 +211,7 @@ Approval evidence: [explicit approval record or n/a]
 
 Exploration evidence: [Archive / Retain / n/a] — [exact final archive or retained `visual-directions/` path; `pending publication approval` is allowed only in staging]
 
-Candidate and selected files are non-canonical. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially different candidate directions for the same one or two representative screens. Do not draft canonical tokens before the human explicitly approves the selected HTML. A published `design-system.md` records the actual final exploration evidence path, never an Archive source path under `.design-staging/`. Implementation consumes the extracted package, while reviewers retain the approved selected HTML to detect extraction drift.
+Candidate and selected files are non-canonical. Record `n/a — exploration not requested or not authorized` when unused. When used, include exactly two or three materially and structurally different candidate directions for the same one or two representative screens. Do not draft canonical tokens before the human explicitly approves the selected HTML and its manifest digest. Any change to selected bytes, canonical paths, entry order, or UI-ID mapping invalidates that approval. A published `design-system.md` records the actual final exploration evidence path, never an Archive source path under `.design-staging/`. Implementation consumes the extracted package, while reviewers retain the approved selected HTML and its Hallmark review evidence to detect extraction drift. If Hallmark is unavailable, preserve the existing taste review but never claim a Hallmark pass.
 
 ## Product-Specific Visual Thesis
 | DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |
@@ -507,6 +514,8 @@ Use this structure:
 | TEST-VIS-026 | Rendered design-system parity | yes | DS-*, UI-* | `docs/product/design/design-system.html` renders every reusable element category in scope; each specimen uses the exact fields `IDs`, `Parameters`, `States`, `Responsive`, `Accessibility`, `Use`, and `Do not use`; `IDs` includes valid token, primitive/component, and variant IDs as applicable; applicable motion/reduced-motion behavior agrees with `design-system.md` and `ui-registry.json` | rendered showcase review / source-to-projection diff |
 | TEST-VIS-027 | HTML direction comparison and approval | when Frontend Design Preference & HTML Exploration is used | UI-*, DS-* | Exactly two or three materially different, complete HTML directions represent the same one or two authorized screens; the human comparison, consolidated selected path, and explicit selected-HTML approval are recorded | candidate renders / Ask User record / approval evidence |
 | TEST-VIS-028 | Approved-HTML extraction fidelity | when selected HTML is approved | UI-*, DS-* | Tokens, primitives, components, recipes, registry entries, and final mockups trace to and reproduce the approved selected HTML; rejected candidate-only values do not survive | extraction trace / source-to-projection diff / screenshot review |
+| TEST-VIS-029 | Hallmark structural and anti-slop review | when Hallmark is loaded | UI-*, DS-* | Every candidate and the selected HTML has a read-only named-finding report; critical and major structural-template findings are repaired or explicitly block approval; final projections introduce no unresolved extraction-drift finding | Hallmark reports / repair trace / final projection review |
+| TEST-VIS-030 | Selected-HTML immutable approval binding | when selected HTML is approved | UI-*, DS-* | Every representative UI ID maps to one canonical file under `visual-directions/selected/` with a lowercase SHA-256; the ordered manifest SHA-256 appears in the human approval evidence; any byte, path, order, or mapping change forces fresh audit and approval | selected-file manifest / digest recomputation / approval record |
 
 Responsive set verified: [resolved platform set from `ui-registry.json`: web `viewports` (390 / 768 / 1200 / 1440 px by default), native `sizeClasses` and safe areas, or named desktop window sizes]. States verified: the State Matrix in `ui-architecture.md`.
 
@@ -549,8 +558,8 @@ Before finalizing, verify:
 - Product components compose primitives only and carry no raw values or ad-hoc spacing and color; layout primitives carry no color or border, and every surface variant carries the named purpose the Container & Border Rules require.
 - For a UI-bearing product, `design-system.md` identifies the human Builder UX Direction owner, maps every selected/provisional/assumed direction to a concrete system expression, and names the evidence or validation need.
 - Builder direction conformance is not presented as usability validation; unsupported preferences remain explicit hypotheses.
-- `design-system.md` includes the `Frontend Design Preference & HTML Exploration` section. When unused it says why. When used it records the product-specific Ask User evidence and Visual Preference Brief, exactly two or three complete HTML directions for the same one or two representative screens, the human comparison, consolidated selected path, explicit human approval, and the extraction trace into tokens, primitives/components, recipes, registry entries, and final mockups.
-- `visual-directions/` candidates and selected HTML remain non-canonical and outside the fixed publish set. Candidate-local values are allowed before extraction. Implementation consumes only the extracted package, final mockups reproduce the approved selected HTML, rejected candidate-only values do not survive, and package enhancement limits exploration to the accepted delta without reopening untouched decisions.
+- `design-system.md` includes the `Frontend Design Preference & HTML Exploration` section. When unused it says why. When used it records the product-specific Ask User evidence and Visual Preference Brief, exactly two or three complete and structurally distinct HTML directions for the same one or two representative screens, Hallmark availability and audit dispositions, the human comparison, consolidated selected path, ordered selected-file manifest and approval-manifest SHA-256, explicit human approval of that digest, and the extraction trace into tokens, primitives/components, recipes, registry entries, and final mockups.
+- `visual-directions/` candidates, selected HTML, selected-file manifest, and Hallmark audit reports remain non-canonical and outside the fixed publish set. Candidate-local values are allowed before extraction. Implementation consumes only the extracted package, final mockups reproduce the digest-bound approved selected HTML, rejected candidate-only values do not survive, and package enhancement limits exploration to the accepted delta without reopening untouched decisions. When exploration is `not used` or `rejected`, the validated published package binds from recorded inputs and explicit assumptions without claiming approved-HTML extraction.
 - The visual thesis includes three to five concrete brand or context cues, at least two recurring signature decisions, and avoided defaults tied to product evidence or explicit assumptions.
 - The taste statement names a concrete visual character and the compositional choices that create it; it does not stop at generic adjectives.
 - The container and border table defaults ordinary regions to open layouts, chooses one primary grouping cue per nesting level, and gives every visible frame or elevation a named purpose.
@@ -563,7 +572,7 @@ Before finalizing, verify:
 - Every mockup preserves product-source exact wording or a bounded display contract for every visible region; generic mockup placeholders do not pass validation.
 - Every mockup resolves each required style label, states the container and border treatment, and does not default regions to framed panels, nested cards, or colored accent rails without a named purpose.
 - When a landing page is in scope, `design-system.md` and `page-recipes.md` define the first-viewport message and action, one job per section, content to defer, and per-region image/media/motion status.
-- `visual-acceptance.md` defines implementation-verifiable visual gates, including taste, unsupported AI-UI pattern clusters, and container and border purpose.
+- `visual-acceptance.md` defines implementation-verifiable visual gates, including taste, unsupported AI-UI pattern clusters, container and border purpose, Hallmark review when loaded, and immutable selected-HTML approval binding.
 - Missing brand assets, mockups, states, or breakpoints are explicit assumptions or open questions.
 - When Dynamic Workflow was used, every required design role has an explicit result, failed agents remain blocked roles, and taste/trace verifier findings are resolved or recorded before finalization. Workflow output is a candidate and does not itself prove rendered visual conformance.
 - The package does not create product scope, backend architecture, harness mission maps, or E2E evidence registers.

@@ -333,7 +333,10 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             lifecycle,
         )
         self.assertIn("Implementation consumes the extracted package", contract)
-        self.assertIn("selected-HTML consolidation, or approval is still pending", workflow)
+        self.assertIn(
+            "selected-HTML consolidation, digest binding, or approval is still pending",
+            workflow,
+        )
         self.assertIn('visual_direction_pass.status: "not used"', workflow)
         self.assertIn("visual_direction_pass: visualDirectionPass", workflow_template)
         self.assertIn("status not used, approved, or rejected", workflow_template)
@@ -345,10 +348,50 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             "Status: [not used / preference discovery / candidates awaiting comparison / selected HTML awaiting approval / approved / rejected]",
             contract,
         )
-        self.assertIn("Limit preference questions, representative screens, candidate directions, and selected HTML to the accepted delta", guide)
+        self.assertIn(
+            "Limit preference questions, representative screens, candidate directions, Hallmark audits, and selected HTML to the accepted delta",
+            guide,
+        )
         self.assertIn("TEST-VIS-027 | HTML direction comparison and approval", contract)
         self.assertIn("TEST-VIS-028 | Approved-HTML extraction fidelity", contract)
         self.assertNotIn("Offer `frontend-design` only for the small pieces", skill)
+
+    def test_hallmark_is_a_read_only_auditor_in_the_html_first_flow(self) -> None:
+        skill = self.read("SKILL.md")
+        integration = self.read("references/hallmark-integration.md")
+        architecture = self.read("references/ui-architecture-guide.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        contract = self.read("references/output-contract.md")
+        design_system = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        architecture_template = self.read(
+            "assets/templates/UI_ARCHITECTURE.template.md"
+        )
+        acceptance = self.read("assets/templates/VISUAL_ACCEPTANCE.template.md")
+
+        self.assertIn("references/hallmark-integration.md", skill)
+        self.assertIn("`frontend-design` remains the candidate generator", integration)
+        self.assertIn("Hallmark is a read-only auditor", integration)
+        for content in (integration, architecture, lifecycle, contract, design_system):
+            self.assertIn("structural fingerprint", content)
+            self.assertIn("hallmark-audit.md", content)
+        self.assertIn("never claim a Hallmark pass", integration)
+        self.assertIn(
+            "Binding rule after package approval and publication",
+            architecture_template,
+        )
+        self.assertIn(
+            "When exploration is `not used` or `rejected`",
+            architecture_template,
+        )
+        for content in (contract, acceptance):
+            self.assertIn(
+                "TEST-VIS-029 | Hallmark structural and anti-slop review",
+                content,
+            )
+            self.assertIn(
+                "TEST-VIS-030 | Selected-HTML immutable approval binding",
+                content,
+            )
 
     def test_dynamic_workflow_rejects_missing_visual_direction_pass_at_runtime(self) -> None:
         workflow_args = {
@@ -414,6 +457,7 @@ const agent = async (_prompt, options) => {
         )
 
     def test_dynamic_workflow_rejects_approved_status_without_candidate_html(self) -> None:
+        digest = "a" * 64
         workflow_args = {
             "run_id": "RUN-TEST",
             "product_name": "Test Product",
@@ -426,11 +470,19 @@ const agent = async (_prompt, options) => {
                 "status": "approved",
                 "selected_html_path": "visual-directions/selected/index.html",
                 "approval_owner": "Human owner",
-                "approval_evidence": "Approved in Ask User response",
+                "approval_manifest_sha256": digest,
+                "approval_evidence": f"Approved in Ask User response: {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
                     {"direction_id": "A", "html_paths": ["a.html"]},
                     {"direction_id": "B", "html_paths": []},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/selected/index.html",
+                        "sha256": "b" * 64,
+                    }
                 ],
             },
         }
@@ -441,6 +493,126 @@ const agent = async (_prompt, options) => {
             "one non-empty html_path per representative UI ID",
             result.stderr,
         )
+
+    def test_dynamic_workflow_rejects_noncanonical_selected_html_path(self) -> None:
+        digest = "a" * 64
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/other/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "B", "html_paths": ["b.html"]},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/other/index.html",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires canonical args.visual_direction_pass.selected_html_path",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_invalid_selected_html_digest(self) -> None:
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": "NOT-A-SHA",
+                "approval_owner": "Human owner",
+                "approval_evidence": "Approved digest NOT-A-SHA",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "B", "html_paths": ["b.html"]},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/selected/index.html",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires lowercase SHA-256 args.visual_direction_pass.approval_manifest_sha256",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_accepts_digest_bound_selected_html(self) -> None:
+        digest = "a" * 64
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "B", "html_paths": ["b.html"]},
+                ],
+                "selected_html_files": [
+                    {
+                        "ui_id": "UI-001",
+                        "html_path": "visual-directions/selected/index.html",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            },
+        }
+        runtime_prelude = """
+const phase = () => {};
+const parallel = async (tasks) => Promise.all(tasks.map((task) => task()));
+const agent = async (_prompt, options) => {
+  const role = options.label.replace("design:", "");
+  if (role === "synthesis") return {};
+  if (options.phase === "Analyze") return { role, status: "complete" };
+  return { role, decision: "pass" };
+};
+"""
+        result = self.run_dynamic_workflow(workflow_args, runtime_prelude)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["status"], "candidate_ready")
 
     def test_interview_uses_three_dependency_waves_and_portable_closed_choices(self) -> None:
         skill = self.read("SKILL.md")

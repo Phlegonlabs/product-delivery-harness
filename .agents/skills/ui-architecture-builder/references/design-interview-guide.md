@@ -16,7 +16,7 @@ Resolve closed product and technical choices in at most three dependency waves, 
 
 Never ask styling, theming, or runtime questions while the design target or required platform is unresolved. Skip questions already answered by the prompt or supplied files. If more unresolved closed decisions remain after the bounded waves, leave them as explicit open questions; do not silently default them.
 
-Visual Preference Discovery is separate from those closed technical waves. When `frontend-design` is loaded and the user authorizes the exploration, first read the product sources and the skill's Purpose, Tone, Constraints, and Differentiation criteria. Derive one compact Ask User call of project-specific questions and choices from that evidence. Do not reuse a fixed style catalog across products. Each question offers two to four grounded choices plus the tool's built-in `Other`; a follow-up call is allowed only when the first answer exposes one material unresolved preference.
+Visual Preference Discovery is separate from those closed technical waves. When `frontend-design` is loaded and the user authorizes the exploration, first read the product sources and the skill's Purpose, Tone, Constraints, and Differentiation criteria. Derive one compact Ask User call of project-specific questions and choices from that evidence. Do not reuse a fixed style catalog across products, including Hallmark's named theme catalog. Each question offers two to four grounded choices plus the tool's built-in `Other`; a follow-up call is allowed only when the first answer exposes one material unresolved preference. When the separate `hallmark` skill is loaded, use its audience, single-job/use-case, extreme-tone, structural-variety, honest-copy, and anti-slop criteria to sharpen those product-specific questions without adding a second generic Hallmark questionnaire. Record Hallmark as the later read-only candidate auditor, not as the preference decision owner.
 
 When a same-product UI package already exists, freeze it before this interview and switch to package enhancement mode. Ask only about the requested add/modify/remove delta or conflicts it creates. Do not reopen untouched baseline decisions. Package enhancement is separate from implementation adoption mode: enhancement revises the design package; greenfield or phased migration controls how code adopts it.
 
@@ -46,7 +46,7 @@ When a same-product UI package already exists, freeze it before this interview a
 
 ### Dynamic Visual Preference Discovery
 
-Use `frontend-design` to analyze the product before composing the Ask User choices. The choices must be specific to this audience, domain, content, brand evidence, and representative screens. Ask only unresolved dimensions, choosing up to four that will materially separate candidate directions:
+Use `frontend-design` to analyze the product before composing the Ask User choices. When Hallmark is loaded, also use the criteria routed by `references/hallmark-integration.md`; do not expose its theme catalog as a menu. The choices must be specific to this audience, domain, content, brand evidence, and representative screens. Ask only unresolved dimensions, choosing up to four that will materially separate candidate directions:
 
 - What should receive the strongest visual emphasis, and what should stay quiet?
 - What should someone remember after seeing the interface once?
@@ -112,6 +112,7 @@ The hard-limit and exploration inputs are ready when these are known or explicit
 - Human Builder UX Direction owner plus concrete selected, provisional, or assumed choices for experience priority, guidance/control, density, interaction/layout, confirmation/recovery, and validation depth
 - Key pages/routes
 - A project-specific Visual Preference Brief, or an explicit record that Frontend Design Preference & HTML Exploration was not used or was rejected
+- Hallmark availability and audit plan when exploration is used: `loaded`, `unavailable`, or explicitly waived; Hallmark never replaces the human direction owner
 - One or two exact representative `UI-*` screen IDs for the candidate HTML directions when exploration is used
 - Brand/context cues and anti-patterns, or permission to derive them
 - Icon source constraints and representative icon needs, or permission to research and recommend them
@@ -125,4 +126,4 @@ The hard-limit and exploration inputs are ready when these are known or explicit
 - Adoption mode: greenfield, or a phased migration with its first routes named
 - Any conflict between builder preference and user evidence, product requirements, platform conventions, or accessibility
 
-Tokens, primitives, components, recipes, and the registry are not ready to draft until two or three candidate HTML directions have been compared, a consolidated selected HTML direction exists, and the human owner has explicitly approved it. If exploration is not used, draft with explicit assumptions and do not claim approved-HTML extraction.
+Tokens, primitives, components, recipes, and the registry are not ready to draft until two or three candidate HTML directions have been compared, a consolidated selected HTML direction exists, its ordered per-screen path/SHA-256 manifest and `approval_manifest_sha256` have been recorded, and the human owner has explicitly approved those exact bytes. When Hallmark is loaded, its selected-HTML audit must also be recorded; unresolved findings require repair or an exact human waiver. If exploration is not used, draft with explicit assumptions and do not claim approved-HTML extraction.
