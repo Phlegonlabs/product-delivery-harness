@@ -515,6 +515,52 @@ const agent = async (_prompt, options) => {
             result.stderr,
         )
 
+    def test_dynamic_workflow_rejects_duplicate_two_screen_candidate_paths(
+        self,
+    ) -> None:
+        digest = "a" * 64
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/overview.html",
+                "approval_owner": "Human owner",
+                "approval_manifest_sha256": digest,
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001", "UI-002"],
+                "candidate_directions": [
+                    {
+                        "direction_id": "A",
+                        "html_paths": [
+                            "visual-directions/A/overview.html",
+                            "visual-directions/A/overview.html",
+                        ],
+                    },
+                    {
+                        "direction_id": "B",
+                        "html_paths": [
+                            "visual-directions/B/overview.html",
+                            "visual-directions/B/detail.html",
+                        ],
+                    },
+                ],
+                "selected_html_files": [],
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires unique candidate HTML paths for every representative UI ID",
+            result.stderr,
+        )
+
     def test_dynamic_workflow_rejects_noncanonical_selected_html_path(self) -> None:
         digest = "a" * 64
         workflow_args = {

@@ -149,6 +149,11 @@ if (visualDirectionPass.status === "approved") {
         "ui-architecture-builder-graph requires every candidate_direction to have a canonical direction_id and one canonical HTML path per representative UI ID",
       );
     }
+    if (new Set(candidate.html_paths).size !== candidate.html_paths.length) {
+      throw new Error(
+        "ui-architecture-builder-graph requires unique candidate HTML paths for every representative UI ID",
+      );
+    }
     const htmlDirectories = candidate.html_paths.map(
       (htmlPath) => htmlPath.slice(0, htmlPath.lastIndexOf("/")),
     );
