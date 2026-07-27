@@ -184,12 +184,9 @@ if (visualDirectionPass.status === "approved") {
       "ui-architecture-builder-graph requires unique selected_html_files html_path values",
     );
   }
-  if (
-    selectedHtmlPath !== selectedRoot
-    && !selectedFilePaths.has(selectedHtmlPath)
-  ) {
+  if (!selectedFilePaths.has(selectedHtmlPath)) {
     throw new Error(
-      "ui-architecture-builder-graph requires selected_html_path to equal the selected root or an approved selected_html_files path",
+      "ui-architecture-builder-graph requires selected_html_path to equal an approved selected_html_files path",
     );
   }
   const canonicalSelectedManifest = visualDirectionPass.selected_html_files.map(
@@ -224,6 +221,83 @@ if (visualDirectionPass.status === "approved") {
       "ui-architecture-builder-graph requires parent byte verification for every selected HTML file, bound to the computed manifest SHA-256",
     );
   }
+}
+
+const hallmarkReview = workflowArgs.hallmark_review;
+if (
+  typeof hallmarkReview !== "object"
+  || hallmarkReview === null
+  || !["loaded", "unavailable"].includes(hallmarkReview.availability)
+) {
+  throw new Error(
+    "ui-architecture-builder-graph requires args.hallmark_review.availability loaded or unavailable",
+  );
+}
+if (hallmarkReview.availability === "unavailable") {
+  if (typeof hallmarkReview.reason !== "string" || !hallmarkReview.reason.trim()) {
+    throw new Error(
+      "ui-architecture-builder-graph requires a non-empty Hallmark unavailability reason",
+    );
+  }
+} else if (visualDirectionPass.status === "approved") {
+  const candidateReports = hallmarkReview.candidate_reports;
+  if (
+    !Array.isArray(candidateReports)
+    || candidateReports.length !== visualDirectionPass.candidate_directions.length
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires one retained Hallmark candidate report per approved candidate direction",
+    );
+  }
+  for (let index = 0; index < candidateReports.length; index += 1) {
+    const report = candidateReports[index];
+    if (
+      typeof report !== "object"
+      || report === null
+      || report.direction_id
+        !== visualDirectionPass.candidate_directions[index].direction_id
+      || typeof report.report_path !== "string"
+      || !report.report_path.trim()
+      || report.report_path.includes("\\")
+      || report.report_path.split("/").some((segment) => [".", ".."].includes(segment))
+      || !report.report_path.endsWith("/hallmark-audit.md")
+      || !["passed", "repaired"].includes(report.disposition)
+      || report.verified_by !== "parent"
+      || typeof report.evidence !== "string"
+      || !report.evidence.trim()
+    ) {
+      throw new Error(
+        "ui-architecture-builder-graph requires ordered parent-verified Hallmark candidate report paths and passed or repaired dispositions",
+      );
+    }
+  }
+  const selectedReport = hallmarkReview.selected_report;
+  if (
+    typeof selectedReport !== "object"
+    || selectedReport === null
+    || typeof selectedReport.report_path !== "string"
+    || !selectedReport.report_path.trim()
+    || selectedReport.report_path.includes("\\")
+    || selectedReport.report_path.split("/").some((segment) => [".", ".."].includes(segment))
+    || !selectedReport.report_path.endsWith("/hallmark-audit.md")
+    || !["passed", "repaired"].includes(selectedReport.disposition)
+    || selectedReport.verified_by !== "parent"
+    || selectedReport.manifest_sha256
+      !== visualDirectionPass.approval_manifest_sha256
+    || typeof selectedReport.evidence !== "string"
+    || !selectedReport.evidence.trim()
+  ) {
+    throw new Error(
+      "ui-architecture-builder-graph requires a parent-verified Hallmark selected report bound to the approved manifest SHA-256",
+    );
+  }
+} else if (
+  typeof hallmarkReview.evidence !== "string"
+  || !hallmarkReview.evidence.trim()
+) {
+  throw new Error(
+    "ui-architecture-builder-graph requires Hallmark evidence explaining a loaded review without approved selected HTML",
+  );
 }
 
 const stringArray = { type: "array", items: { type: "string" } };
@@ -302,6 +376,7 @@ const sourceContext = JSON.stringify({
   source_summary: workflowArgs.source_summary || "",
   builder_ux_direction: workflowArgs.builder_ux_direction || null,
   visual_direction_pass: visualDirectionPass,
+  hallmark_review: hallmarkReview,
   brand_constraints: workflowArgs.brand_constraints || [],
   icons_in_scope: workflowArgs.icons_in_scope,
   motion_in_scope: workflowArgs.motion_in_scope,

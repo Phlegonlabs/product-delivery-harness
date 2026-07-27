@@ -385,7 +385,9 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             self.assertIn("hallmark-audit.md", content)
         self.assertIn("never claim a Hallmark pass", integration)
         self.assertIn("selected_files_verification", integration)
+        self.assertIn("hallmark_review.availability", integration)
         self.assertIn("computedManifestSha256", workflow_template)
+        self.assertIn("hallmark_review: hallmarkReview", workflow_template)
         self.assertIn(
             "requires parent byte verification for every selected HTML file",
             workflow_template,
@@ -436,6 +438,10 @@ class UiArchitectureSkillContractTests(unittest.TestCase):
             "motion_in_scope": False,
             "tool_profile": "builder_readonly",
             "visual_direction_pass": {"status": "not used"},
+            "hallmark_review": {
+                "availability": "unavailable",
+                "reason": "Hallmark was not loaded for this run.",
+            },
         }
         runtime_prelude = """
 const phase = () => {};
@@ -621,6 +627,32 @@ const agent = async (_prompt, options) => {
                     "evidence": "Parent read each selected file and recomputed SHA-256.",
                 },
             },
+            "hallmark_review": {
+                "availability": "loaded",
+                "candidate_reports": [
+                    {
+                        "direction_id": "A",
+                        "report_path": "visual-directions/A/hallmark-audit.md",
+                        "disposition": "passed",
+                        "verified_by": "parent",
+                        "evidence": "No critical or major findings.",
+                    },
+                    {
+                        "direction_id": "B",
+                        "report_path": "visual-directions/B/hallmark-audit.md",
+                        "disposition": "repaired",
+                        "verified_by": "parent",
+                        "evidence": "Major findings were repaired and re-audited.",
+                    },
+                ],
+                "selected_report": {
+                    "report_path": "visual-directions/selected/hallmark-audit.md",
+                    "disposition": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "evidence": "Selected HTML passed the retained Hallmark audit.",
+                },
+            },
         }
         runtime_prelude = """
 const phase = () => {};
@@ -679,7 +711,100 @@ const agent = async (_prompt, options) => {
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "requires selected_html_path to equal the selected root or an approved selected_html_files path",
+            "requires selected_html_path to equal an approved selected_html_files path",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_selected_root_path(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/approved.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "B", "html_paths": ["b.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires selected_html_path to equal an approved selected_html_files path",
+            result.stderr,
+        )
+
+    def test_dynamic_workflow_rejects_loaded_hallmark_without_reports(self) -> None:
+        selected_html_files = [
+            {
+                "ui_id": "UI-001",
+                "html_path": "visual-directions/selected/index.html",
+                "sha256": "b" * 64,
+            }
+        ]
+        digest = self.selected_manifest_digest(selected_html_files)
+        workflow_args = {
+            "run_id": "RUN-TEST",
+            "product_name": "Test Product",
+            "product_archetype": "web_app",
+            "source_paths": [],
+            "icons_in_scope": False,
+            "motion_in_scope": False,
+            "tool_profile": "builder_readonly",
+            "visual_direction_pass": {
+                "status": "approved",
+                "selected_html_path": "visual-directions/selected/index.html",
+                "approval_manifest_sha256": digest,
+                "approval_owner": "Human owner",
+                "approval_evidence": f"Approved digest {digest}",
+                "representative_ui_ids": ["UI-001"],
+                "candidate_directions": [
+                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "B", "html_paths": ["b.html"]},
+                ],
+                "selected_html_files": selected_html_files,
+                "selected_files_verification": {
+                    "status": "passed",
+                    "verified_by": "parent",
+                    "manifest_sha256": digest,
+                    "verified_file_count": 1,
+                    "evidence": "Parent read each selected file and recomputed SHA-256.",
+                },
+            },
+            "hallmark_review": {"availability": "loaded"},
+        }
+        result = self.run_dynamic_workflow(workflow_args)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires one retained Hallmark candidate report per approved candidate direction",
             result.stderr,
         )
 

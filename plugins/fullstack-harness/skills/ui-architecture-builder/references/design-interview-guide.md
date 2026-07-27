@@ -112,7 +112,7 @@ The hard-limit and exploration inputs are ready when these are known or explicit
 - Human Builder UX Direction owner plus concrete selected, provisional, or assumed choices for experience priority, guidance/control, density, interaction/layout, confirmation/recovery, and validation depth
 - Key pages/routes
 - A project-specific Visual Preference Brief, or an explicit record that Frontend Design Preference & HTML Exploration was not used or was rejected
-- Hallmark availability and audit plan when exploration is used: `loaded`, `unavailable`, or explicitly waived; Hallmark never replaces the human direction owner
+- Hallmark availability and audit plan when exploration is used: `loaded` or `unavailable` with a reason; an exact minor-finding waiver belongs in retained audit evidence and never replaces the human direction owner
 - One or two exact representative `UI-*` screen IDs for the candidate HTML directions when exploration is used
 - Brand/context cues and anti-patterns, or permission to derive them
 - Icon source constraints and representative icon needs, or permission to research and recommend them

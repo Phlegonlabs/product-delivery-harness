@@ -59,7 +59,7 @@ Differentiation: <what should make this product recognizable>
 |---|---|---|---|---|
 | <direction ID or n/a> | <the same one or two screen names and exact authorized UI-* IDs> | <complete dependency-free HTML paths> | <material visual axes plus a structural fingerprint; changing only color does not count> | <selected / rejected / cues requested for mix> |
 
-Hallmark status: <loaded / unavailable / not requested>
+Hallmark status: <loaded / unavailable with reason>
 Hallmark candidate audits: <exact `hallmark-audit.md` paths and dispositions, or n/a; reports are read-only review evidence>
 
 ### Approved Selected HTML
