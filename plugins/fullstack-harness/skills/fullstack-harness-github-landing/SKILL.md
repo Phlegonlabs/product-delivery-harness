@@ -56,10 +56,10 @@ The normal remote critical path is:
 final local PASS -> push final head -> create/ready PR
                                       |-> current-head CI
                                       `-> current-head Codex review
-both PASS on the same SHA -> exact-head merge
+both PASS on the same SHA -> hand the verified PR to the human
 ```
 
-This reduces waiting without weakening the gate: merge still requires both results. Repository-required checks may run automatically after push; the parent should begin the review lane as soon as its independent authorization and PR state allow.
+This reduces waiting without weakening the gate: the handover still requires both results. Repository-required checks may run automatically after push; the parent should begin the review lane as soon as its independent authorization and PR state allow.
 
 ## Current-Head Convergence Loop
 
@@ -73,20 +73,21 @@ When CI or review finds an authorized in-scope defect, repair it locally, rerun 
 
 Do not repeatedly run the complete GitHub pipeline for unchanged local work. Do not create empty commits to retrigger it. Use GitHub-native rerun only when a current-head job is transient and rerun is permitted by the repository.
 
-## Authorized Automatic Pull-Request Landing
+## Pull-Request Handover
 
-After final user approval starts the resolved head-to-base promotion and every remaining action is authorized, do not stop after local verification, push, PR creation, CI start, or review request. The parent owns one continuous landing loop through current-head convergence.
+Under the default branch model the merge toward the protected base is the human's. After final user approval starts the resolved head-to-base promotion, the parent runs one continuous loop up to — and stopping at — a merge-ready PR: push the final candidate, create the PR, mark it ready, request review, and converge CI and review on the current head. It does not merge and does not enable auto-merge.
 
-Enable squash auto-merge only after:
+Report the PR as ready to merge only when:
 
 - the PR head still equals the verified integration head;
 - the PR head and base branches exactly match the resolved, authorized target-repository branches;
 - required current-head CI, including required E2E, is PASS;
 - current-head Codex review is PASS;
-- blocking findings and unresolved threads are zero;
-- `merge_pr` covers every required mission and the exact PR target.
+- blocking findings and unresolved threads are zero.
 
-Use an exact-head guard. The authorized candidate head is the exact PR head the user approved for merge and any merge-triggered publication consequence. A new push resets the merge request and both remote gates. Wait until GitHub reports the PR merged before declaring landing complete, then record the resulting merged source SHA separately; a squash merge normally makes it differ from the authorized candidate head.
+Then stop and hand it over, naming the exact head SHA that is merge-ready. A new push resets both remote gates and the handover has to be re-established on the new head.
+
+Perform the merge yourself only when the user separately and explicitly asks for it on a named PR — approval to prepare the promotion never carries it. In that case `merge_pr` must cover every required mission and the exact PR target, use `gh pr merge --match-head-commit <SHA>` as an exact-head guard, wait until GitHub reports the PR merged, and record the resulting merged source SHA separately; a squash merge normally makes it differ from the authorized candidate head.
 
 If repository auto-merge, required checks, or review configuration needs a change, do not mutate settings without exact `configure_repository` authorization. Direct push or merge to the base branch is never a substitute for the PR flow.
 

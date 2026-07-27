@@ -91,7 +91,33 @@ For plan-backed work, it records task scope, dependencies, worker ownership, ver
   <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness workflow from intake through verified local or GitHub landing" width="100%">
 </p>
 
-<p align="center"><sub>Illustrated control flow. The canonical behavior lives in the installed skills and current PLAN/RUN schemas.</sub></p>
+<p align="center"><sub>Illustrated control flow, kept for orientation. It predates the current schemas and shows PLAN v4 / RUN v9; author PLAN v5 / RUN v10. It also omits the exact-head review that is required before every integration, and no wave is capped at a fixed number. The flow below is the current one.</sub></p>
+
+```mermaid
+flowchart TB
+  Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
+  Size -->|small| Direct["Direct parent work<br/>no PLAN/RUN, no scheduler"]
+  Size -->|large| Plan["PLAN v5 + RUN v10<br/>frozen contracts, authorization ledger"]
+  Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
+  Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
+  Frontier --> Host["One host adapter: codex or claude_code<br/>no cross-host fallback"]
+  Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
+  Work --> Review["Exact-head read-only review<br/>required before integration"]
+  Review -->|pass| Integrate["Serial integration into the resolved branch"]
+  Review -->|fix_required| Work
+  Integrate --> Gates["Integration, batch, E2E and UI evidence gates"]
+  Gates -->|fix_required| Repair["Bounded repair route"]
+  Repair --> Rereview["Re-review on the new head"]
+  Rereview --> Gates
+  Gates -->|pass| Local["Local verification complete"]
+  Direct --> Local
+  Local --> Remote{"remote outcome requested?"}
+  Remote -->|no| Done["Stop with verified local evidence"]
+  Remote -->|yes| Landing["Push final candidate, PR,<br/>current-head CI and review in parallel"]
+  Landing --> Merge["Exact-head merge"]
+  Merge --> Deploy["Deploy: separate authorization, never implied by merge"]
+```
+
 
 ## Lightweight runtime and landing adapters
 

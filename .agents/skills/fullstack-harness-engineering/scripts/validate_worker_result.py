@@ -837,7 +837,11 @@ def validate_worker_result_data(
 
     verifier_results_raw = result.get("verifiers")
     retained_results: dict[str, dict[str, Any]] = {}
-    if isinstance(verifier_results_raw, list) and verifier_results_raw:
+    # An empty list must still go through here: the dirty-worktree gate, the
+    # worktree identity match, and the parent-retained-evidence requirement all
+    # live inside _retained_verifier_results, so skipping it for `verifiers: []`
+    # accepted a handoff from a dirty worktree with nothing executed at all.
+    if isinstance(verifier_results_raw, list):
         retained_results = _retained_verifier_results(
             retained_verifier_results,
             run=run,
@@ -967,6 +971,22 @@ def validate_worker_result_data(
                     "harness_plan.missions",
                     str(exc),
                 )
+        # A mission whose verifier selection scopes all miss the observed change
+        # narrows to zero required verifiers. Accepting that hands back a
+        # `worker_passed` mission nothing ever checked, so it is a planning gap
+        # rather than a clean run.
+        if (
+            observed_paths
+            and not required_worker_verifiers
+            and not any(required_task_verifiers.values())
+        ):
+            _issue(
+                errors,
+                "no_applicable_verifier",
+                "harness_plan.missions",
+                "mission changed files but no declared verifier selects them; "
+                "widen a verifier's selection scopes to cover the write scope",
+            )
         for verifier_id in sorted(required_worker_verifiers):
             verifier = verifier_results.get(verifier_id)
             if verifier is None or verifier.get("status") != "PASS":

@@ -108,6 +108,8 @@ Pick any-blocks when a missed issue is dangerous and a needless repair loop is c
 
 `route` means the target activates only for named source outcomes such as `pass`, `fix_required`, `retryable_failure`, `blocked`, or `contract_gap`.
 
+One exception to the plain reading above: a review node's `pass` edge to a deterministic (`local_command` or `harness_parent`) gate must be a `route`, not a `dependency`, even though the gate does consume a completed prerequisite. Validation requires it — `dependency` there fails with "review pass requires an outgoing route to a deterministic final gate".
+
 A route cycle is valid only when:
 
 - every route edge inside the cycle has `max_traversals`;
@@ -158,7 +160,7 @@ After choosing a provider, the selector binds that provider's PLAN options. If n
 
 Codex app threads and Claude Dynamic Workflow remain execution adapters. They do not change graph readiness, authorization, result validation, or integration rules. A destination rejecting a model/effort pair is a launch failure to record and replan; it is not permission to silently substitute another model.
 
-Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group Claude waves by tool profile only; model and reasoning effort do not require separate waves since each node's `agent()` call already carries its own. Every profile uses an exact allowlist. Mission profiles require `EnterWorktree` and the bounded write tools. Review profiles require `EnterWorktree` to bind reads to the validated `review_path`, but omit `Edit`, `Write`, `NotebookEdit`, and `Bash`; visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted for the Claude Code host.
+Derive a Claude tool profile from existing node semantics instead of adding another PLAN field: missions use `mission_write`, frontend/backend reviews use `code_review_readonly`, and visual reviews use `visual_review_readonly`. Group Claude waves by tool profile only; model and reasoning effort do not require separate waves since each node's `agent()` call already carries its own. A profile is a label carried on the node, not a tool allowlist: the workflow script validates that the wave's node kinds match the profile and writes the corresponding instructions into each agent's prompt, and the child inherits the parent's tools. Mission prompts instruct the agent to enter its worktree before any repository action; review prompts instruct it to read only and not to edit, commit, or run mutating tools. Read-only-ness here is enforced by the mission contract, the structured result, and scope/Git validation on the way back — not by removing tools from the child. Do not claim permission-level delegation prevention. Visual review consumes retained screenshots or other existing evidence until a read-only browser tool is explicitly vetted for the Claude Code host.
 
 Launch a graph wave that includes any review node, or that must enforce these tool profiles and per-node `EnterWorktree` at the runtime layer, with `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (`scriptPath`, `tool_profile`, and typed `nodes[]` as structured `args`) — see `assets/templates/MISSION_RUNBOOK.template.md`. The flat `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` has no `node_kind`, `tool_profile`, or `EnterWorktree` handling and covers only single-role, all-mission waves.
 

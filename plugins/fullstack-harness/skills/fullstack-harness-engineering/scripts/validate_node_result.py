@@ -50,8 +50,22 @@ def validate_node_result(
     schema_pair = (plan.get("schema_version"), run.get("schema_version"))
     if schema_pair not in {(4, 8), (4, 9), (5, 10)}:
         return ["node result validation requires PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10"]
-    if not isinstance(result, dict) or set(result) != RESULT_KEYS:
+    if not isinstance(result, dict):
         return ["node_result must contain the exact typed graph result fields"]
+    if set(result) != RESULT_KEYS:
+        # Name the difference: this key set is not written down anywhere an
+        # author would look, so a bare "exact fields" message is a dead end.
+        missing = sorted(RESULT_KEYS - set(result))
+        unknown = sorted(set(result) - RESULT_KEYS)
+        detail = []
+        if missing:
+            detail.append(f"missing {missing}")
+        if unknown:
+            detail.append(f"unknown {unknown}")
+        return [
+            "node_result must contain the exact typed graph result fields: "
+            + "; ".join(detail)
+        ]
     node_map = {node["id"]: node for node in plan["graph"]["nodes"]}
     node_id = result["node_id"]
     if not isinstance(node_id, str) or not node_id:
@@ -90,10 +104,16 @@ def validate_node_result(
         not isinstance(item, str) or not item for item in result["evidence_paths"]
     ):
         errors.append("node_result.evidence_paths: must be a list of non-empty strings")
-    if node["kind"] == "mission" and status == "succeeded" and not isinstance(
-        result["worker_result"], dict
-    ):
-        errors.append("node_result.worker_result: succeeded mission requires a worker result")
+    if node["kind"] == "mission" and status == "succeeded":
+        worker_result = result["worker_result"]
+        if not isinstance(worker_result, dict):
+            errors.append("node_result.worker_result: succeeded mission requires a worker result")
+        elif not worker_result:
+            errors.append("node_result.worker_result: succeeded mission requires a non-empty worker result")
+        # Note: the "a mission node may become succeeded/pass only when its
+        # mission is integrated" rule is about the RUN node state, not this
+        # returned document. A worker reports pass before integration by design;
+        # validate_run enforces the state transition afterwards.
     if (
         node["kind"] == "verifier"
         and node["executor"] == "runtime_worker"

@@ -856,7 +856,26 @@ def _validate_targets(
         if any(states.get(item_id, {}).get("status") != "PASS" for item_id in development_ids):
             _add(errors, f"{path}.{target_id}", "production PASS requires every development target PASS")
 
-    if run.get("status") == "complete" and any(
-        states.get(target_id, {}).get("status") != "PASS" for target_id in declared_targets
+    # Declaring release targets in PLAN describes where the product deploys; it
+    # does not oblige every run to deploy. A local-only run completes on its own
+    # local gates (SKILL.md's Complete section), and deploy stays a separate
+    # authorization that merge never implies. Requiring every target PASS
+    # unconditionally made those two rules unsatisfiable together: a deployable
+    # product could either never close a local run or had to delete its release
+    # contract. Once a run has actually started releasing, every declared target
+    # must still finish.
+    landing_mode = run.get("landing", {}).get("mode") if isinstance(run.get("landing"), dict) else None
+    started_releasing = any(
+        isinstance(states.get(target_id), dict)
+        and states[target_id].get("status") not in {None, "not_started"}
+        for target_id in declared_targets
+    )
+    if (
+        run.get("status") == "complete"
+        and (landing_mode == "pull_request" or started_releasing)
+        and any(
+            states.get(target_id, {}).get("status") != "PASS"
+            for target_id in declared_targets
+        )
     ):
         _add(errors, path, "complete run requires every PLAN release target PASS")

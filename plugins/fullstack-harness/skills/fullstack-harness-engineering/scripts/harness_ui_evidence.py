@@ -188,12 +188,15 @@ def _validate_ui_evidence(
             or not isinstance(states, list)
         ):
             continue
+        # A state a surface genuinely cannot have is declared as `<state>:n/a`.
+        # It still counts as considered for design coverage, but there is no
+        # screenshot to capture for it, so it is not required evidence here.
         required.update(
             (surface["id"], route, breakpoint, state)
             for breakpoint in breakpoints
             if _nonempty_string(breakpoint)
             for state in states
-            if _nonempty_string(state)
+            if _nonempty_string(state) and not state.strip().endswith(":n/a")
         )
     for key in sorted(required - passed):
         _add(

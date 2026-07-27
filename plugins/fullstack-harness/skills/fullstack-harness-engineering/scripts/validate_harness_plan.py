@@ -42,6 +42,20 @@ def main(argv: list[str] | None = None) -> int:
         errors = validate_plan(plan)
         if args.design_system:
             errors.extend(validate_ui_surface_design_coverage(plan, args.design_system))
+        elif any(
+            isinstance(source, dict)
+            and str(source.get("location", "")).endswith("design-system.json")
+            for source in (plan.get("sources") or [])
+            if isinstance(plan.get("sources"), list)
+        ):
+            # A PLAN that freezes design-system.json as a contract source has
+            # already committed to its stateMatrix and responsive set. Leaving
+            # the cross-check opt-in let such a PLAN declare `ready` alone and
+            # close out with one state of eleven.
+            errors.append(
+                "plan.sources: a frozen design-system.json contract source requires "
+                "--design-system so state and responsive coverage are cross-checked"
+            )
         run_errors: list[str] = []
         if args.run:
             run = load_run(args.run)

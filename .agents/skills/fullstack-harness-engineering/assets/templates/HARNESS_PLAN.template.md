@@ -13,7 +13,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
-    "max_parallel_workers": 3,
+    "max_parallel_workers": 8,
     "required_reviews": [
       "frontend_code",
       "visual"
@@ -900,7 +900,7 @@ Include only when UI evidence is required or optional.
 |---|---|---|---|---|
 | <route> | <wireframes.md screen entry> | <copied from design-system.json: viewports or sizeClasses> | ready/loading/empty/error/... | <screenshot/trace/test> |
 
-When the product has a design system, `design-system.json`'s `stateMatrix` is the state checklist for every surface and its `viewports` or `sizeClasses` is the required responsive set — copy them, do not restate a default here. A state a surface genuinely cannot have is listed as `<state>:n/a`, not omitted, so `validate_harness_plan.py --design-system` can tell a deliberate exclusion from an oversight. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
+When the product has a design system, `design-system.json`'s `stateMatrix` is the state checklist for every surface and its `viewports` or `sizeClasses` is the required responsive set — take them from there, do not restate a default here. `viewports` is a numeric pixel-width array, while a PLAN `breakpoints` entry is a label that ends in one of those widths (`mobile-390` covers `390`); `sizeClasses` is a string array matched verbatim. Putting the labels into `design-system.json` fails the responsive-set check, which reports the design system rather than the type mismatch. A state a surface genuinely cannot have is listed as `<state>:n/a`, not omitted, so `validate_harness_plan.py --design-system` can tell a deliberate exclusion from an oversight. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
 
 ## Plan Readiness Gate
 

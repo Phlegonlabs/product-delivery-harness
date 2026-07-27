@@ -221,6 +221,59 @@ def _preintegration_review_head_matches_current(
     return prior_review.get("reviewed_sha") == current_head
 
 
+def _incoming_route_matched(
+    node: dict[str, Any],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    dependencies: dict[str, list[dict[str, Any]]],
+    routes: dict[str, list[dict[str, Any]]],
+    node_states: dict[str, Any],
+    nodes_by_id: dict[str, Any],
+) -> bool | None:
+    """Whether an incoming route has activated this node.
+
+    Returns None when the node has no incoming routes at all, so callers can
+    tell "not route-gated" apart from "route-gated and not yet activated".
+    """
+
+    node_id = node["id"]
+    incoming_routes = routes[node_id]
+    if not incoming_routes:
+        return None
+    state = run["graph_state"]["node_states"][node_id]
+    edge_states = run["graph_state"]["edge_states"]
+    for edge in incoming_routes:
+        source = node_states[edge["from"]]
+        edge_state = edge_states[edge["id"]]
+        bound = edge["max_traversals"]
+        if (
+            source["last_outcome"] in edge["on_outcomes"]
+            and source["phase"] in {"succeeded", "failed", "blocked"}
+            and (bound is None or edge_state["traversals"] < bound)
+        ):
+            return True
+        if (
+            "pass" in edge["on_outcomes"]
+            and _preintegration_review_source_ready(
+                node,
+                nodes_by_id.get(edge["from"]),
+                run,
+            )
+            and (bound is None or edge_state["traversals"] < bound)
+        ):
+            return True
+    if state["attempts"] == 0 and any(
+        _preintegration_review_source_ready(
+            node,
+            nodes_by_id.get(edge["from"]),
+            run,
+        )
+        for edge in dependencies[node_id]
+    ):
+        return True
+    return False
+
+
 def _logical_reasons(
     node: dict[str, Any],
     plan: dict[str, Any],
@@ -242,6 +295,26 @@ def _logical_reasons(
         and state.get("last_outcome") == "pass"
         and preintegration_head_matches is False
     )
+    node_states = run["graph_state"]["node_states"]
+    nodes_by_id = {
+        graph_node["id"]: graph_node
+        for graph_node in plan["graph"]["nodes"]
+    }
+    route_matched = _incoming_route_matched(
+        node, plan, run, dependencies, routes, node_states, nodes_by_id
+    )
+    # A post-integration review that returned fix_required parks in `failed`.
+    # Once its bounded repair route completes and routes back, the review has to
+    # run again on the new head, so it re-arms here the same way a stale
+    # pre-integration pass does. Without this the loop drawn in the flow diagram
+    # has no path back to `ready` and the frontier silently empties.
+    repair_return_rearm = (
+        node["kind"] == "verifier"
+        and state["phase"] == "failed"
+        and state.get("last_outcome") == "fix_required"
+        and route_matched is True
+        and state["attempts"] < node["max_attempts"]
+    )
     if run.get("plan_readiness") != "ready":
         reasons.add("plan_not_ready")
     if run.get("execution_authorized") is not True:
@@ -249,6 +322,7 @@ def _logical_reasons(
     if (
         state["phase"] not in {"dormant", "ready"}
         and not stale_preintegration_pass
+        and not repair_return_rearm
     ):
         reasons.add("node_phase_not_ready")
     if state["blockers"]:
@@ -256,11 +330,6 @@ def _logical_reasons(
     if state["attempts"] >= node["max_attempts"]:
         reasons.add("attempts_exhausted")
 
-    node_states = run["graph_state"]["node_states"]
-    nodes_by_id = {
-        graph_node["id"]: graph_node
-        for graph_node in plan["graph"]["nodes"]
-    }
     for edge in dependencies[node_id]:
         source = node_states[edge["from"]]
         if (
@@ -279,41 +348,8 @@ def _logical_reasons(
     ):
         reasons.add("review_head_unchanged")
 
-    incoming_routes = routes[node_id]
-    if incoming_routes:
-        edge_states = run["graph_state"]["edge_states"]
-        matched = False
-        for edge in incoming_routes:
-            source = node_states[edge["from"]]
-            edge_state = edge_states[edge["id"]]
-            bound = edge["max_traversals"]
-            if (
-                source["last_outcome"] in edge["on_outcomes"]
-                and source["phase"] in {"succeeded", "failed", "blocked"}
-                and (bound is None or edge_state["traversals"] < bound)
-            ):
-                matched = True
-            elif (
-                "pass" in edge["on_outcomes"]
-                and _preintegration_review_source_ready(
-                    node,
-                    nodes_by_id.get(edge["from"]),
-                    run,
-                )
-                and (bound is None or edge_state["traversals"] < bound)
-            ):
-                matched = True
-        if not matched and state["attempts"] == 0 and any(
-            _preintegration_review_source_ready(
-                node,
-                nodes_by_id.get(edge["from"]),
-                run,
-            )
-            for edge in dependencies[node_id]
-        ):
-            matched = True
-        if not matched:
-            reasons.add("route_not_activated")
+    if route_matched is False:
+        reasons.add("route_not_activated")
 
     if node["kind"] == "mission":
         mission_state = run["mission_states"][node["ref"]]

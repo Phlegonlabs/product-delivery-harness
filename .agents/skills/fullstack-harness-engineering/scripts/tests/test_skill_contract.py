@@ -205,8 +205,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         agent = self.read("agents/openai.yaml")
 
-        self.assertIn("## Authorized Automatic Pull-Request Landing", skill)
-        self.assertIn("do not stop after local verification", skill)
+        self.assertIn("## Pull-Request Handover", skill)
+        self.assertIn("stopping at — a merge-ready PR", skill)
         self.assertIn(
             "After final user approval starts an authorized protected-branch promotion",
             goal,
@@ -215,6 +215,12 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("continue through that landing flow without pausing", project_rules)
         self.assertIn("With separate `create_pr` authorization, open a Draft PR", project_rules)
         self.assertIn("without matching `manage_pr_review` authorization", project_rules)
+        # The merge toward the protected base is the human's; the harness may
+        # prepare the PR and must stop there.
+        self.assertIn("It does not merge and does not enable auto-merge", skill)
+        self.assertIn("merge-ready PR", goal)
+        self.assertIn("Do not merge and do not enable auto-merge", runbook)
+        self.assertIn("The merge toward the protected base is the human's", project_rules)
         for content in (skill, goal, runbook, project_rules):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())

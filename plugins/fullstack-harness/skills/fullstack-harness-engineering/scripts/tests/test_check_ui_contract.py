@@ -214,6 +214,20 @@ class RuleTests(unittest.TestCase):
             self.rules('<section class="container" style="display:grid;gap:2px">x</section>'),
         )
 
+    def test_jsx_object_inline_layout_style_is_reported(self) -> None:
+        """React-family code writes inline layout as an object literal.
+
+        .tsx/.jsx/.vue are in this checker's own extension list, so matching only
+        the quoted-attribute form made the rule invisible to the codebases the
+        design system mostly targets.
+        """
+        page = '<div style={{ display: "grid", flexDirection: "column" }}>x</div>'
+        self.assertIn("inline-layout-style", self.rules(page, name="Card.tsx"))
+
+    def test_jsx_object_without_layout_properties_is_allowed(self) -> None:
+        page = '<div style={{ color: "red" }}>x</div>'
+        self.assertNotIn("inline-layout-style", self.rules(page, name="Card.tsx"))
+
     def test_inline_non_layout_style_is_allowed(self) -> None:
         self.assertNotIn(
             "inline-layout-style",

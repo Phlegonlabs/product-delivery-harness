@@ -1215,6 +1215,40 @@ class RunValidationTests(unittest.TestCase):
         # Worker/url/version_id stay None: a generic provider's PASS does not require them.
         self.assertEqual(validate_run(plan, run), [])
 
+    def test_integration_push_records_the_pushed_head_without_a_pr(self) -> None:
+        """The ordinary development loop pushes its integration branch.
+
+        `local_only` cannot record a pushed head, so before `integration_push`
+        existed there was no honest way to record "everyone pushes development,
+        nobody opens a PR" — which is the default branch model.
+        """
+        plan = valid_plan()
+        run = valid_run(plan)
+        landing = run["landing"]
+        landing["mode"] = "integration_push"
+        landing["pushed_head_sha"] = run["integration"]["integration_head_sha"]
+
+        self.assertEqual([], validate_run(plan, run))
+
+        # A pushed head is required in this mode: it is what the watching
+        # deployment builds from.
+        landing["pushed_head_sha"] = None
+        self.assert_run_error_contains(
+            plan, run, "integration_push mode requires the pushed integration head"
+        )
+
+    def test_integration_push_cannot_record_a_pr_or_remote_gates(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        landing = run["landing"]
+        landing["mode"] = "integration_push"
+        landing["pushed_head_sha"] = run["integration"]["integration_head_sha"]
+        landing["pr_state"] = "open"
+
+        self.assert_run_error_contains(
+            plan, run, "integration_push mode cannot record a created PR"
+        )
+
     def test_local_only_cannot_authorize_execution_for_a_release_plan(self) -> None:
         # A release PLAN's production target requires a merged PR; local_only can
         # never record one, so the run could never reach complete. Catch it at
@@ -1804,6 +1838,38 @@ class RunValidationTests(unittest.TestCase):
 
         self.assertTrue(validate_plan(plan))
         self.assertIsInstance(validate_run(plan, run), list)
+
+    def test_na_states_need_no_screenshot_at_closeout(self) -> None:
+        """`<state>:n/a` is the documented way to declare an impossible state.
+
+        The design-coverage check strips the suffix, so the closeout matrix has
+        to as well — otherwise the only honest way to declare a state a surface
+        cannot have is also the one that blocks closeout.
+        """
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded", "expired:n/a"],
+                "evidence_gate": "required",
+            }
+        ]
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any("missing dashboard|/dashboard|desktop|loaded" in error for error in errors),
+            errors,
+        )
+        self.assertFalse(
+            any("expired:n/a" in error for error in errors),
+            errors,
+        )
 
     def test_complete_run_requires_full_ui_screenshot_matrix(self) -> None:
         plan = valid_plan()

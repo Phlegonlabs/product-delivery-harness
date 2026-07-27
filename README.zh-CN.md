@@ -91,7 +91,33 @@ Harness 是围绕明确的边界构建的：
   <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness 从需求输入到本地验证或 GitHub 落地的流程" width="100%">
 </p>
 
-<p align="center"><sub>流程示意图。规范行为以已安装的技能和当前 PLAN/RUN schema 为准。</sub></p>
+<p align="center"><sub>流程示意图，保留作为概览。这张图早于当前的 schema，上面写的是 PLAN v4／RUN v9，实际请用 PLAN v5／RUN v10；图中也漏了每次集成前都必须通过的 exact-head review，而且 wave 没有固定上限。下方才是当前的流程。</sub></p>
+
+```mermaid
+flowchart TB
+  Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
+  Size -->|small| Direct["Direct parent work<br/>no PLAN/RUN, no scheduler"]
+  Size -->|large| Plan["PLAN v5 + RUN v10<br/>frozen contracts, authorization ledger"]
+  Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
+  Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
+  Frontier --> Host["One host adapter: codex or claude_code<br/>no cross-host fallback"]
+  Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
+  Work --> Review["Exact-head read-only review<br/>required before integration"]
+  Review -->|pass| Integrate["Serial integration into the resolved branch"]
+  Review -->|fix_required| Work
+  Integrate --> Gates["Integration, batch, E2E and UI evidence gates"]
+  Gates -->|fix_required| Repair["Bounded repair route"]
+  Repair --> Rereview["Re-review on the new head"]
+  Rereview --> Gates
+  Gates -->|pass| Local["Local verification complete"]
+  Direct --> Local
+  Local --> Remote{"remote outcome requested?"}
+  Remote -->|no| Done["Stop with verified local evidence"]
+  Remote -->|yes| Landing["Push final candidate, PR,<br/>current-head CI and review in parallel"]
+  Landing --> Merge["Exact-head merge"]
+  Merge --> Deploy["Deploy: separate authorization, never implied by merge"]
+```
+
 
 ## 轻量的运行时与落地适配器
 

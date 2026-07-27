@@ -44,6 +44,11 @@ DIMENSION_DECLARATION = re.compile(
     r"(?<![\w-])\d*\.?\d+(?:px|rem|em)\b"
 )
 INLINE_STYLE = re.compile(r"""style\s*=\s*(?P<quote>["'])(?P<body>.*?)(?P=quote)""", re.S)
+# JSX/Vue write the same thing as an object literal, and .tsx/.jsx/.vue are
+# in this checker's own extension list, so the quoted-attribute form alone
+# misses inline layout in every React-family codebase.
+JSX_INLINE_STYLE = re.compile(r"style\s*=\s*\{\{(?P<body>.*?)\}\}", re.S)
+CAMEL_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 INLINE_LAYOUT_PROPERTY = re.compile(
     r"\b(?:display|position|gap|row-gap|column-gap|margin|margin-\w+|padding"
     r"|padding-\w+|grid|grid-\w+|flex|flex-\w+|width|height)\s*:"
@@ -272,16 +277,19 @@ def check_file(
                 Finding(path, _line_of(text, match.start()), "call-site-motion", match.group(0))
             )
 
-    for match in INLINE_STYLE.finditer(text):
-        if INLINE_LAYOUT_PROPERTY.search(match.group("body")):
-            findings.append(
-                Finding(
-                    path,
-                    _line_of(text, match.start()),
-                    "inline-layout-style",
-                    match.group(0),
+    for pattern in (INLINE_STYLE, JSX_INLINE_STYLE):
+        for match in pattern.finditer(text):
+            # camelCase -> kebab-case so `flexDirection` reads as `flex-direction`.
+            body = CAMEL_BOUNDARY.sub("-", match.group("body")).lower()
+            if INLINE_LAYOUT_PROPERTY.search(body):
+                findings.append(
+                    Finding(
+                        path,
+                        _line_of(text, match.start()),
+                        "inline-layout-style",
+                        match.group(0),
+                    )
                 )
-            )
 
     return findings
 

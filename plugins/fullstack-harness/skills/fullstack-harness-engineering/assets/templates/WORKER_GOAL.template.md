@@ -116,6 +116,57 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
 }
 ```
 
+## Verifier Execution Context
+
+`run_verifier()` takes a `context` object with all of these keys. Two are fixed constants and are the usual thing to get wrong: `trust_domain` is always `"parent_local"` and `checkout_role` is always `"worker"` — they describe the domain the parent will validate the evidence in, not the process running the command. A wrong guess still runs green here and is rejected much later as `retained_verifier_context_mismatch`.
+
+```json
+{
+  "run_id": "RUN-<stable-id>",
+  "plan_revision": 1,
+  "plan_digest_sha256": "<lowercase SHA-256 of the current semantic PLAN>",
+  "graph_revision": 1,
+  "batch_base_sha": "<full SHA the worktree was created from>",
+  "head_sha": "<full SHA of the worker head>",
+  "changed_files": ["<repo-relative path>", "..."],
+  "trust_domain": "parent_local",
+  "checkout_role": "worker",
+  "checkout_dirty": false,
+  "cache_safe": true,
+  "layer": "task",
+  "mission_id": "M1",
+  "task_id": "M1/T01",
+  "attempt_id": "<attempt id for this execution>",
+  "lease_id": "<the lease supplied at launch>"
+}
+```
+
+For a worker-level verifier use `"layer": "worker"` and `"task_id": null`; everything else is identical. `graph_revision` is `null` for a non-graph run.
+
+## Node Result Manifest
+
+A graph-backed run returns this alongside WORKER_RESULT. The key set is exact — extra or missing keys are rejected outright.
+
+```json
+{
+  "run_id": "RUN-<stable-id>",
+  "node_id": "N-M1",
+  "attempt_id": "<attempt id>",
+  "plan_id": "PLAN-<stable-id>",
+  "plan_revision": 1,
+  "plan_digest_sha256": "<lowercase SHA-256 of the current semantic PLAN>",
+  "graph_revision": 1,
+  "batch_base_sha": "<full SHA the attempt was based on>",
+  "status": "succeeded",
+  "outcome": "pass",
+  "worker_result": { "<the WORKER_RESULT object below>": "..." },
+  "refinement_request": null,
+  "evidence_paths": []
+}
+```
+
+`status` and `outcome` are paired: `succeeded` takes `pass` or `fix_required`, `failed` takes `retryable_failure`, and `blocked` takes `blocked` or `contract_gap`.
+
 ## Worker Result Manifest
 
 ```json
@@ -142,7 +193,7 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
         "verifier_ids": [
           "task-focused"
         ],
-        "commits": [],
+        "commits": ["<full SHA of this task's commit>"],
         "evidence_paths": []
       }
     ],
@@ -153,7 +204,7 @@ Return this payload and stop. The parent decides whether to reject it, accept a 
         "evidence": "<execution_key from verifier_runtime.py's run_verifier() output>"
       }
     ],
-    "commits": [],
+    "commits": ["<every task commit, in order; the last equals head_sha>"],
     "evidence_paths": [],
     "subagent_activity": {
       "status": "not_applicable",

@@ -4,6 +4,10 @@ Use this template as `docs/goal/RUN.md` only after the Project Size Gate classif
 
 For compact large sequential work that intentionally has no `PLAN.md`, use the supported compact RUN-only schema described by `references/execution-state-model.md`; do not copy this PLAN-backed RUN schema v10 manifest and null its PLAN fields. Compact mode does not claim static plan or graph validation and cannot delegate writes, accept execution-time task refinement, use release targets, or use a selector. Before crossing those boundaries, create and validate a PLAN schema v5 file and a fresh RUN schema v10 file from this template.
 
+**Before the first selection, fill in what this template ships as `null`.** `observed.captured_at`, the four `observed.git` fields, and `integration.batch_base_sha` must come from a live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require them — a RUN that leaves them null still reports `PASS` — but `select_ready_nodes.py` will return an empty frontier with every node deferred `parent_state_unreconciled` or `batch_base_missing`. A green validator and an empty frontier is what an unfilled snapshot looks like, not a planning error.
+
+Set `max_parallel_workers`, `available_worker_slots`, and `isolation_capacity` from what you actually observed. The values shipped here are a starting point, not a limit to copy: leaving them at `1` serializes a genuinely parallel frontier and the deferral reads only as `over_budget`.
+
 For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. Resolve the target repository's branch and landing model from its instructions before filling this template. Preserve those branches when defined; otherwise use the template's `development` integration and separately approved `development -> production` promotion defaults. Create mission worktrees from the resolved current integration SHA, require one exact-head read-only review before each integration, and merge passing heads serially into the resolved integration branch. Ordinary PRD/PLD, UI, and feature work stays `local_only` and does not wait for GitHub. Do not begin a pull-request promotion until the user separately reviews the accumulated integration result and gives final approval. At that late checkpoint, request the exact remaining landing actions and bind them to the resolved head and base branches. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
 
 RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
@@ -20,7 +24,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "2d7a1a48cff2dcfbe3b1cca23bcd9d47cc29d7b9ff768bf1bd4309246b26fa4e"
+      "digest_sha256": "cc61584541f82247d84363916505afcf9e72a6d79c13e03595b4305c526b53fd"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -110,7 +114,7 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
       "worker_runtime": "parent",
       "workspace_mode": "shared_checkout",
       "completion_channel": "agent_result",
-      "max_parallel_workers": 1,
+      "max_parallel_workers": 8,
       "runtime_adapter": {
         "provider": "generic",
         "available_drivers": [
@@ -157,8 +161,8 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
         "worktrees": []
       },
       "runtime": {
-        "available_worker_slots": 1,
-        "isolation_capacity": 1,
+        "available_worker_slots": 8,
+        "isolation_capacity": 8,
         "completion_channel_available": true
       }
     },
@@ -480,7 +484,7 @@ Manual worktree removal additionally requires a different exact clean linked pat
 
 Create mission worktrees from the current resolved integration head. Before each parent integration, require at least one read-only review bound to the exact worktree head; repair findings in that worktree and review the changed head again. Integrate passing worktrees serially into the parent-owned persistent branch named by `integration.branch` and `landing.head_branch`; `landing.base_branch` names the protected landing branch. In `local_only`, do not create remote promotion evidence. After final local verification, record `landing.continuity.status: "preserved"` at the exact integration head. In `pull_request`, which begins only after final user approval, set continuity to `not_required` and promote the resolved head to the resolved base. Worker branches and worktrees never become protected landing branches.
 
-Do not include protected-branch promotion in an ordinary mission run's authorization bundle. After the user separately approves the resolved head-to-base promotion, require matching unexpired authorization for every remaining exact action—normally `push`, `create_pr`, `trigger_remote_ci` when a workflow must be dispatched, `manage_pr_review`, and `merge_pr`—and then treat that order as one continuous parent-owned landing loop. For the unborn promotion PR, use `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Poll CI and review concurrently, repair only authorized in-scope failures on the resolved head branch, and restart both after every new push. Enable squash auto-merge with an exact head-SHA match only after checks and review PASS with zero blocking findings and unresolved threads, then wait until GitHub reports the PR merged into the resolved base.
+Do not include protected-branch promotion in an ordinary mission run's authorization bundle. After the user separately approves the resolved head-to-base promotion, require matching unexpired authorization for every remaining exact action—normally `push`, `create_pr`, `trigger_remote_ci` when a workflow must be dispatched, `manage_pr_review`, and `merge_pr`—and then treat that order as one continuous parent-owned landing loop that stops at a merge-ready PR. For the unborn promotion PR, use `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Poll CI and review concurrently, repair only authorized in-scope failures on the resolved head branch, and restart both after every new push. Do not merge and do not enable auto-merge: report the PR as merge-ready once checks and review PASS with zero blocking findings and unresolved threads, and hand it over. `merge_pr` is recorded only when the user separately asks for the merge on that exact PR.
 
 An authorized action may add `scope` and `expires_when` beside `authorized`/`source`:
 
@@ -499,6 +503,18 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
       "<exact branch, worktree, task, environment, or * when explicitly run-wide>"
     ]
   },
+  "expires_when": "run_complete"
+}
+```
+
+`execution_authorization_scope` at the top of the RUN is a different shape from the per-action `scope` above, and copying the action shape is the usual mistake. It carries `expires_when` **inside** the object and takes **no** `targets` key:
+
+```json
+"execution_authorization_scope": {
+  "run_id": "RUN-<stable-id>",
+  "plan_revision": 1,
+  "plan_digest_sha256": "<lowercase SHA-256 of the current semantic PLAN>",
+  "mission_ids": ["M1"],
   "expires_when": "run_complete"
 }
 ```
@@ -523,7 +539,7 @@ Schemas v6 through v10 require `runtime_capabilities.runtime_adapter`. The paren
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
 
-`CLAUDE_DYNAMIC_WORKFLOW.template.js` only launches flat mission workers: it has no `node_kind`, no `tool_profile` validation, and no `EnterWorktree` call per node. A wave that mixes mission and review graph nodes, enforces a `tool_profile` (`mission_write`, `code_review_readonly`, `visual_review_readonly`), or requires each node to call `EnterWorktree` before its own reads/writes must instead use `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js`, passing `tool_profile` and the typed `nodes[]` array (each with `node_kind: "mission"` or `"review"`) as structured `args`. Use the flat script only for single-role, all-mission waves with no read-only review nodes.
+`CLAUDE_DYNAMIC_WORKFLOW.template.js` only launches flat mission workers: it has no `node_kind`, no `tool_profile` validation, and no `EnterWorktree` call per node. A wave that mixes mission and review graph nodes, records a `tool_profile` (`mission_write`, `code_review_readonly`, `visual_review_readonly`), or needs each node instructed to call `EnterWorktree` before its own reads/writes must instead use `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js`, passing `tool_profile` and the typed `nodes[]` array (each with `node_kind: "mission"` or `"review"`) as structured `args`. Use the flat script only for single-role, all-mission waves with no read-only review nodes.
 
 A graph node's `allowed_providers` must include the current host's provider before the parent may bind it to a worker at all. There is no cross-host route: a Codex-hosted parent never binds a node to Claude Code, and a Claude-Code-hosted parent never binds a node to Codex. A ready node whose allowed/preferred providers exclude the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
 
@@ -573,7 +589,9 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
 
 Leave model and effort null unless the user explicitly selected them in the PLAN provider options. During allocation, `worktree_path` and `branch_ref` may be null. Fill them only after the runtime returns and the parent independently verifies them. `worker_head_sha` stays null until the parent verifies the reported commit.
 
-Worker phases are `leased`, `worker_running`, `worker_passed`, `blocked`, `worker_failed`, and `superseded`. An `attempt_log` entry records `attempt_id`, `mission_id`, nullable `task_id` and `lease_id`, `kind`, `result`, and an `evidence` array. Keep observations such as timestamps inside RUN for audit only; selection output remains timestamp-free.
+Omit `nested_subagent_policy` entirely when the routed driver is `dynamic_workflow`; it applies only to `app_task` workers, and leaving it in the shape above is rejected as "must be omitted for flat dynamic-workflow orchestration".
+
+Worker phases are `leased`, `worker_running`, `worker_passed`, `blocked`, `worker_failed`, and `superseded`. An `attempt_log` entry records `attempt_id`, nullable `mission_id`, `task_id` and `lease_id`, `kind`, `result`, and an `evidence` array. A final-gate or closeout-gate attempt belongs to no mission, so its `mission_id` is null rather than attributed to an arbitrary one. Keep observations such as timestamps inside RUN for audit only; selection output remains timestamp-free.
 
 Each `review_workers` entry uses this exact read-only shape:
 
@@ -599,7 +617,9 @@ Each `review_workers` entry uses this exact read-only shape:
   },
   "task_thread_id": null,
   "report_path": null,
-  "phase": "worker_running"
+  "phase": "worker_running",
+  "outcome": "pass",
+  "findings": []
 }
 ```
 
@@ -637,7 +657,7 @@ Graph RUN schemas v8 through v10 may include `workflow_runs` to bind canonical n
 }
 ```
 
-Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. These profiles, and per-node `EnterWorktree` enforcement, are implemented only by `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (see above), not by the flat `CLAUDE_DYNAMIC_WORKFLOW.template.js`. Group Claude Graph Workflow nodes by tool profile only; model and reasoning effort travel with each node's own `agent()` call, so one wave may mix them freely. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review profiles remain read-only. Visual review consumes retained screenshots or other existing evidence until a new read-only browser tool is explicitly vetted and added to the profile implementation.
+Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. These profiles are carried only by `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (see above), not by the flat `CLAUDE_DYNAMIC_WORKFLOW.template.js`. A profile selects which node kinds the wave admits and which instructions go into each prompt; it is not a tool allowlist, and neither script applies one. Group Claude Graph Workflow nodes by tool profile only; model and reasoning effort travel with each node's own `agent()` call, so one wave may mix them freely. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review prompts instruct read-only behavior; that is prompt text plus result validation, not a permission boundary. Visual review consumes retained screenshots or other existing evidence until a read-only browser tool is explicitly vetted.
 
 For an enabled RUN-v10 app-task nested policy, use `max_children` from 1 to 3, require `reviewer`, and use a non-empty subset of the runtime `allowed_roles`. Legacy RUN-v8/v9 app-task policies retain their declared roles and matching spawn authorization even when `reviewer` is absent. The app task stays the only writer. A non-trivial mission must complete a post-edit read-only reviewer bound to its exact current head and record that reviewer in WORKER_RESULT; exploration, research, and test-analysis lanes remain optional. An enabled worker cannot pass with `partial` or `unavailable` activity unless it still contains a completed exact-head PASS reviewer. After validating WORKER_RESULT, copy that completed reviewer child into the worker's `nested_review_evidence`; retain its agent ID, role, task, status, summary, evidence paths, reviewed SHA, and PASS decision. RUN validation requires that canonical record to match the mission and worker head before `integrating`. Before RUN-v10 execution authorization, every writable mission must have a direct dependency to a runtime review node whose `mission_ids` contains only that mission and whose `allowed_outcomes` includes `pass`; a multi-mission batch review cannot replace it. When several direct pre-integration review nodes cover the same mission, they use distinct review-worker IDs; at least one current `worker_passed` PASS record must match the retained task-local reviewer agent. When capability is initially unknown, require `spawn_subagents` authorization before the no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. If that handshake proves the child runtime or reviewer lane unavailable, assign a disabled policy before implementation and record the reason. A disabled-policy worker result, or a graph-backed direct worker with no nested policy, may first validate and make its downstream review node selectable. Before the mission transitions to `integrating`, run the equivalent parent-owned read-only review and retain a `worker_passed` `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head. Every retained current or historical review attempt must bind its `reviewed_sha` to a current eligible head or an explicit mission `prior_head_shas` entry; a retained `fix_required` batch review may instead bind to an explicit integration `prior_head_shas` entry. A review node may use worktree or integrated SHAs only from its declared `mission_ids`; current integration and PR heads remain valid batch review targets. Trivial disabled-policy missions use the same parent-review path. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy`, while enabled worker passes also retain `nested_review_evidence`.
 
@@ -677,6 +697,8 @@ Use these exact array entry shapes:
 
 RUN-v10 `verifier_executions` is append-only and parent-owned. A worker may return candidate command results, but it never appends or edits canonical RUN state. The parent resolves the PLAN verifier, validates its mission/task/attempt/lease association, normalizes the verifier and context, verifies the key document and hashes, then appends one immutable entry. Never replace a failed execution with a later pass; retain both under unique `execution_id` values. A retained failed record never satisfies PASS: only a separate current-head passing execution may satisfy the verifier.
 
+Never hand-author a `verifier_executions` entry. Copy `run_verifier()`'s returned `verifier`, `context`, and `key_document` unchanged: `key_document` carries 26 keys and `context` 16, and `execution_key` is a SHA-256 over the canonical encoding of the whole `key_document`, so any edit invalidates it. The block below is abridged to show the shape, not a fillable form.
+
 ```json
 {
   "execution_id": "VX-001",
@@ -690,6 +712,7 @@ RUN-v10 `verifier_executions` is append-only and parent-owned. A worker may retu
   "execution_key": "<lowercase SHA-256 of key_document>",
   "evidence_key": "<retained evidence identity>",
   "key_document": {
+    "<abridged - 26 keys>": "copy run_verifier()'s returned key_document verbatim",
     "run_id": "RUN-<stable-id>",
     "plan_revision": 1,
     "plan_digest_sha256": "<current PLAN digest>",
