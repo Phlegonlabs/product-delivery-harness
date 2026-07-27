@@ -50,7 +50,7 @@ Run the same audit on `visual-directions/selected/` after a direct selection or 
 
 If Hallmark is unavailable, record `Hallmark status: unavailable` and use this skill's existing taste and anti-slop review. Never fabricate a Hallmark report and never claim a Hallmark pass.
 
-For a Dynamic Workflow launch, always supply `hallmark_review.availability` as `loaded` or `unavailable`. An unavailable record includes a reason. A loaded approved record includes one ordered parent-verified candidate `hallmark-audit.md` path per direction and one parent-verified selected report whose manifest SHA-256 matches the approved selected manifest. Every retained report has a `passed` or `repaired` disposition and concrete evidence. Missing metadata blocks launch.
+For a Dynamic Workflow launch, always supply `hallmark_review.availability` as `loaded` or `unavailable`. An unavailable record includes a reason. A loaded approved record includes one ordered parent-verified candidate `hallmark-audit.md` at the exact directory shared by that direction's canonical HTML files and the exact `visual-directions/selected/hallmark-audit.md` report, whose manifest SHA-256 matches the approved selected manifest. Candidate report paths are unique by direction. Every retained report has a `passed` or `repaired` disposition and concrete evidence. Missing or mismatched metadata blocks launch.
 
 ## Immutable Approval Binding
 

@@ -495,7 +495,7 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved in Ask User response: {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
                     {"direction_id": "B", "html_paths": []},
                 ],
                 "selected_html_files": [
@@ -511,7 +511,7 @@ const agent = async (_prompt, options) => {
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
-            "one non-empty html_path per representative UI ID",
+            "one canonical HTML path per representative UI ID",
             result.stderr,
         )
 
@@ -533,8 +533,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": [
                     {
@@ -570,8 +570,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": "Approved digest NOT-A-SHA",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": [
                     {
@@ -615,8 +615,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": selected_html_files,
                 "selected_files_verification": {
@@ -669,6 +669,28 @@ const agent = async (_prompt, options) => {
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["status"], "candidate_ready")
 
+        wrong_candidate_report = json.loads(json.dumps(workflow_args))
+        wrong_candidate_report["hallmark_review"]["candidate_reports"][1][
+            "report_path"
+        ] = "visual-directions/A/hallmark-audit.md"
+        result = self.run_dynamic_workflow(wrong_candidate_report)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires ordered parent-verified Hallmark candidate report paths",
+            result.stderr,
+        )
+
+        wrong_selected_report = json.loads(json.dumps(workflow_args))
+        wrong_selected_report["hallmark_review"]["selected_report"][
+            "report_path"
+        ] = "visual-directions/A/hallmark-audit.md"
+        result = self.run_dynamic_workflow(wrong_selected_report)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "requires a parent-verified Hallmark selected report",
+            result.stderr,
+        )
+
     def test_dynamic_workflow_rejects_selected_path_outside_manifest(self) -> None:
         selected_html_files = [
             {
@@ -694,8 +716,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": selected_html_files,
                 "selected_files_verification": {
@@ -740,8 +762,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": selected_html_files,
                 "selected_files_verification": {
@@ -786,8 +808,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": selected_html_files,
                 "selected_files_verification": {
@@ -833,8 +855,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {stale_digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": selected_html_files,
             },
@@ -872,8 +894,8 @@ const agent = async (_prompt, options) => {
                 "approval_evidence": f"Approved digest {digest}",
                 "representative_ui_ids": ["UI-001"],
                 "candidate_directions": [
-                    {"direction_id": "A", "html_paths": ["a.html"]},
-                    {"direction_id": "B", "html_paths": ["b.html"]},
+                    {"direction_id": "A", "html_paths": ["visual-directions/A/index.html"]},
+                    {"direction_id": "B", "html_paths": ["visual-directions/B/index.html"]},
                 ],
                 "selected_html_files": selected_html_files,
             },
