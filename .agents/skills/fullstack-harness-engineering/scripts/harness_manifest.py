@@ -775,7 +775,14 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     return sorted(set(errors))
 
 
-def _validate_landing(errors: list[str], value: Any, schema_version: int) -> None:
+def _validate_landing(
+    errors: list[str],
+    value: Any,
+    schema_version: int,
+    *,
+    integration_head_sha: Any = None,
+    push_authorized: bool = True,
+) -> None:
     path = "run.landing"
     keys = {
         "mode",
@@ -872,9 +879,24 @@ def _validate_landing(errors: list[str], value: Any, schema_version: int) -> Non
     if value["mode"] == "local_only" and value["pushed_head_sha"] is not None:
         _add(errors, path, "local_only mode cannot record a pushed head")
     # integration_push is the ordinary path: the integration branch is pushed so
-    # its watching deployment target can build, and no PR exists yet.
-    if value["mode"] == "integration_push" and value["pushed_head_sha"] is None:
-        _add(errors, path, "integration_push mode requires the pushed integration head")
+    # its watching deployment target can build, and no PR exists yet. The pushed
+    # head must be the current integration head, or a later local integration
+    # would leave the run claiming a head the remote never received.
+    if value["mode"] == "integration_push":
+        if value["pushed_head_sha"] is None:
+            _add(errors, path, "integration_push mode requires the pushed integration head")
+        elif is_full_sha(integration_head_sha) and value["pushed_head_sha"] != integration_head_sha:
+            _add(
+                errors,
+                f"{path}.pushed_head_sha",
+                "must equal integration.integration_head_sha",
+            )
+        if not push_authorized:
+            _add(
+                errors,
+                path,
+                "integration_push mode requires an authorized push covering the integration branch",
+            )
     if schema_version == 10:
         continuity = value["continuity"]
         if continuity is not None and _keys(
@@ -2533,7 +2555,22 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.authorized_head_sha", "must be omitted when unauthorized")
 
     if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
-        _validate_landing(errors, run["landing"], schema_version)
+        raw_integration = run.get("integration")
+        landing_integration_head = (
+            raw_integration.get("integration_head_sha")
+            if isinstance(raw_integration, dict)
+            else None
+        )
+        raw_push = run.get("authorizations")
+        push_entry = raw_push.get("push") if isinstance(raw_push, dict) else None
+        _validate_landing(
+            errors,
+            run["landing"],
+            schema_version,
+            integration_head_sha=landing_integration_head,
+            push_authorized=isinstance(push_entry, dict)
+            and push_entry.get("authorized") is True,
+        )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         landing = run["landing"]
         continuity = landing.get("continuity")

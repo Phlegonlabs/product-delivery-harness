@@ -1227,8 +1227,42 @@ class RunValidationTests(unittest.TestCase):
         landing = run["landing"]
         landing["mode"] = "integration_push"
         landing["pushed_head_sha"] = run["integration"]["integration_head_sha"]
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user asked for the development push",
+            "scope": {
+                "run_id": run["run_id"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/development"],
+            },
+            "expires_when": "run_complete",
+        }
 
         self.assertEqual([], validate_run(plan, run))
+
+        # The pushed head must be the current integration head, or a later local
+        # integration leaves the run claiming a head the remote never received.
+        landing["pushed_head_sha"] = "9" * 40
+        self.assert_run_error_contains(
+            plan, run, "must equal integration.integration_head_sha"
+        )
+        landing["pushed_head_sha"] = run["integration"]["integration_head_sha"]
+
+        # And the push has to actually be authorized.
+        run["authorizations"]["push"] = {"authorized": False, "source": None}
+        self.assert_run_error_contains(
+            plan, run, "requires an authorized push covering the integration branch"
+        )
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user asked for the development push",
+            "scope": {
+                "run_id": run["run_id"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/development"],
+            },
+            "expires_when": "run_complete",
+        }
 
         # A pushed head is required in this mode: it is what the watching
         # deployment builds from.
