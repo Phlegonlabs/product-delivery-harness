@@ -133,20 +133,20 @@ async function agent(_prompt, options) {
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
         self.assertIn("when the product has a browser surface", agent)
 
-    def test_completed_prd_offers_opt_in_design_package_handoff(self) -> None:
+    def test_completed_prd_offers_opt_in_harness_handoff(self) -> None:
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "ask whether the user wants to run the `ui-architecture-builder` skill next",
+            "ask whether the user wants to run `fullstack-harness-engineering` next",
             skill,
         )
-        self.assertIn("Do not invoke the design skill without an explicit yes", skill)
+        self.assertIn("Do not invoke another skill without an explicit yes", skill)
         self.assertIn(
             "do not offer the handoff while the PRD workflow is incomplete",
             skill,
         )
         self.assertIn(
-            "approval to run `ui-architecture-builder` alone does not authorize it",
+            "record that gap before offering the Harness",
             skill,
         )
 

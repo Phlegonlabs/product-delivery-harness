@@ -27,7 +27,6 @@
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
 | 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策和线框图 |
-| PRD 或现有产品方向 | `ui-architecture-builder` | UI 架构、机器可读的组件清单、逐路由的页面配方、真实页面原型和视觉验收条件 |
 | 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 已验证、需要送上 GitHub 的本地候选版本 | `fullstack-harness-github-landing` | 绑定当前 head 的推送、PR、CI/审查收敛和精确合并 |
 
@@ -36,7 +35,7 @@
 ## 核心保证
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
-- **大型工作明确记录。** PLAN v4 定义 typed graph；RUN v9 记录授权、尝试、证据和落地状态。
+- **大型工作明确记录。** PLAN v5 定义 typed graph；RUN v10 记录授权、尝试、证据和落地状态。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **有能力不等于有权限。** 即使运行时能够推送、合并、部署或清理，每个动作仍需要精确授权。
 - **证据跟随 SHA。** 新的推送会让旧 head 的 CI、审查、部署和 UI 证据失效。
@@ -47,7 +46,6 @@
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
 | `prd-builder` | 产品探索、需求、架构、前端技术栈决策，以及低保真线框图 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md` |
-| `ui-architecture-builder` | 页面只能这样搭出来的那套 UI 架构：分层、设计令牌、带封闭变体集的基础组件契约、业务组件、动效规则、逐路由的页面配方、真实的逐页 HTML 原型，以及视觉验收 | `ui-architecture.md`、`ui-registry.json`、`page-recipes.md`、`design-system.md`、`mockups/` 目录下每个路由一个 HTML 文件外加 `mockups/catalog.html`、`visual-acceptance.md` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及各任务自己的只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
@@ -67,9 +65,7 @@
 ```mermaid
 flowchart LR
   Idea["产品想法或变更请求"] --> PRD["prd-builder\n产品与技术定义"]
-  PRD --> Design["ui-architecture-builder\nUI 架构、组件清单与页面配方"]
   PRD --> Harness["fullstack-harness-engineering\n共享交付核心"]
-  Design --> Harness
   Harness --> Runtime["单一宿主适配器\nCodex 或 Claude Code"]
   Harness --> Landing["可选的 GitHub 落地适配器"]
   Runtime --> Evidence["本地测试与 UI 证据"]
@@ -115,7 +111,7 @@ Harness 是围绕明确的边界构建的：
 这些技能使用两层图：
 
 - **组织图（org graph）** 是稳定的角色契约：产品、架构、UX、设计系统、任务工作节点、审查者、审批、集成和生命周期职责。
-- **工作图（work graph）** 是单次运行的临时任务图。只有当宿主能够强制执行 `builder_readonly` 工具画像时，PRD 和设计工作流才会使用有界的分析图；否则它们退回到顺序执行的父级。工程部分使用规范的 PLAN v4 图和 RUN v9 状态。
+- **工作图（work graph）** 是单次运行的临时任务图。只有当宿主能够强制执行 `builder_readonly` 工具画像时，PRD 和设计工作流才会使用有界的分析图；否则它们退回到顺序执行的父级。工程部分使用规范的 PLAN v5 图和 RUN v10 状态。
 
 访谈和审批保持在运行中的工作流之外，因为 Claude Code 的动态工作流无法在运行途中征询用户输入。父级先冻结输入，运行一个有界的工作流，再自行负责分阶段写入、冲突解决、审批和发布。
 
@@ -227,7 +223,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, an
 ```
 
 ```text
-Use $ui-architecture-builder to create the UI architecture, registry, page recipes, and mockups from docs/product/PRD.md and docs/product/wireframes.md.
+Use $prd-builder to add the design system to docs/product/ from the existing PRD.md and wireframes.md.
 ```
 
 ```text
@@ -282,7 +278,6 @@ scripts/update-private-skills.ps1 更新已安装的市场和插件
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
-python -m unittest discover -s .agents/skills/ui-architecture-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 git diff --check
 ```

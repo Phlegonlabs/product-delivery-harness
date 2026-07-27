@@ -161,14 +161,14 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
         self.assertTrue(any("non-zero dimensions" in error for error in errors), errors)
 
 
-class UiSurfaceRecipeCoverageTests(unittest.TestCase):
+class UiSurfaceDesignCoverageTests(unittest.TestCase):
     def validate(
         self, surfaces: list[dict[str, object]], registry: dict[str, object]
     ) -> list[str]:
         with tempfile.TemporaryDirectory() as directory:
-            registry_path = Path(directory) / "ui-registry.json"
+            registry_path = Path(directory) / "design-system.json"
             registry_path.write_text(json.dumps(registry), encoding="utf-8")
-            return subject.validate_ui_surface_recipe_coverage(
+            return subject.validate_ui_surface_design_coverage(
                 {"ui_surfaces": surfaces}, registry_path
             )
 
@@ -192,7 +192,7 @@ class UiSurfaceRecipeCoverageTests(unittest.TestCase):
     def test_web_viewports_match_exact_or_delimited_numeric_suffixes(self) -> None:
         registry = {
             "viewports": [390, 768.5],
-            "recipes": {"/home": {"requiredStates": ["ready"]}},
+            "stateMatrix": ["ready"],
         }
         surfaces = [
             self.surface("home", breakpoints=["mobile-390", "tablet_768.5"])
@@ -206,7 +206,7 @@ class UiSurfaceRecipeCoverageTests(unittest.TestCase):
     def test_native_size_classes_require_exact_membership(self) -> None:
         registry = {
             "sizeClasses": ["compact", "regular"],
-            "recipes": {"/home": {"requiredStates": ["ready"]}},
+            "stateMatrix": ["ready"],
         }
         self.assertEqual(
             self.validate(
@@ -223,20 +223,20 @@ class UiSurfaceRecipeCoverageTests(unittest.TestCase):
 
     def test_responsive_registry_requires_exactly_one_nonempty_unique_set(self) -> None:
         invalid_registries = (
-            {"recipes": {"/home": {"requiredStates": ["ready"]}}},
+            {"stateMatrix": ["ready"]},
             {
                 "viewports": [390],
                 "sizeClasses": ["compact"],
-                "recipes": {"/home": {"requiredStates": ["ready"]}},
+                "stateMatrix": ["ready"],
             },
-            {"viewports": [], "recipes": {"/home": {"requiredStates": ["ready"]}}},
+            {"viewports": [], "stateMatrix": ["ready"]},
             {
                 "viewports": [390, 390],
-                "recipes": {"/home": {"requiredStates": ["ready"]}},
+                "stateMatrix": ["ready"],
             },
             {
                 "sizeClasses": ["compact", "compact"],
-                "recipes": {"/home": {"requiredStates": ["ready"]}},
+                "stateMatrix": ["ready"],
             },
         )
         for registry in invalid_registries:
@@ -247,24 +247,30 @@ class UiSurfaceRecipeCoverageTests(unittest.TestCase):
                     errors,
                 )
 
-    def test_plan_surfaces_define_scope_and_require_a_recipe(self) -> None:
-        registry = {
-            "viewports": [390],
-            "recipes": {
-                "/unrelated": {"requiredStates": ["ready", "error"]}
-            },
-        }
-        errors = self.validate(
-            [self.surface("home", route="/home")],
+    def test_state_matrix_must_be_a_nonempty_string_list(self) -> None:
+        for bad in ({}, {"stateMatrix": []}, {"stateMatrix": ["ready", " "]}, {"stateMatrix": "ready"}):
+            with self.subTest(registry=bad):
+                registry = dict(bad, viewports=[390])
+                errors = self.validate([self.surface("home")], registry)
+                self.assertTrue(
+                    any("stateMatrix" in error for error in errors), errors
+                )
+
+    def test_an_explicit_na_marker_covers_an_inapplicable_state(self) -> None:
+        registry = {"viewports": [390], "stateMatrix": ["ready", "offline"]}
+        covered = self.validate(
+            [self.surface("home", states=["ready", "offline:n/a — always online"])],
             registry,
         )
-        self.assertTrue(any("route /home has no recipe" in error for error in errors), errors)
-        self.assertFalse(any("/unrelated" in error for error in errors), errors)
+        self.assertEqual(covered, [])
+
+        omitted = self.validate([self.surface("home", states=["ready"])], registry)
+        self.assertTrue(any("omits state offline" in error for error in omitted), omitted)
 
     def test_same_route_surfaces_cannot_union_states_or_breakpoints(self) -> None:
         registry = {
             "viewports": [390, 768],
-            "recipes": {"/home": {"requiredStates": ["ready", "error"]}},
+            "stateMatrix": ["ready", "error"],
         }
         surfaces = [
             self.surface("compact", breakpoints=["390"], states=["ready"]),

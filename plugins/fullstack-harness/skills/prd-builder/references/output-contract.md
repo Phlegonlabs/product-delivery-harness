@@ -7,7 +7,9 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/stack-decisions.md`
 - `docs/product/wireframes.md`
 
-This package stays in the product/spec layer. Do not add design-system, visual-token, primitive- or component-contract, UI-registry, page-recipe, high-fidelity UI mockup, or page-level visual acceptance artifacts to this output contract. `ui-architecture-builder` owns them and publishes `ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, `mockups/*.html` plus `mockups/catalog.html`, and `visual-acceptance.md` alongside this package.
+This package covers the product spec and the design system. For a UI-bearing product it also publishes `design-system.md` and `design-system.json`, contracted below.
+
+It stays out of the page layer. Do not add per-route recipes, per-route high-fidelity HTML mockups, a component catalog page, or page-level visual acceptance specs. The design system is defined once at the system level; implementation composes each route from `wireframes.md` plus the design system, and a route that needs something the system lacks comes back as a design-system change rather than a page-local exception.
 
 `wireframes.md` is the canonical source for product scope and screen structure. When the user explicitly authorizes the optional `frontend-design` Preference & HTML Exploration handoff in `wireframe-guide.md`, its two or three candidate directions and approved selected HTML remain non-canonical design-stage evidence outside this package. They cannot change scope or silently replace a wireframe; structural findings return to the PRD owner for a bounded wireframe revision and another quality-check pass.
 
@@ -145,7 +147,7 @@ Decision owner: [Human product/design owner or commissioning team]
 | Confirmation and recovery | [Confirm / undo / retry / escalation expectations] | [Reason] | [selected / provisional / assumed] | [Method or none] |
 
 Validation depth: [lightweight direction-conformance review only / moderate (conformance plus targeted checks) / deep (formal usability or user-evidence validation)] — [selected / provisional / assumed], decided by [decision owner]
-This is the single recorded home for the interview's validation-depth answer, so downstream skills (ui-architecture-builder) can read it here instead of re-asking.
+This is the single recorded home for the interview's validation-depth answer, so the design-system step and downstream skills can read it here instead of re-asking.
 
 Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
 ```
@@ -361,7 +363,7 @@ Use this structure:
 - Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
 - Canonical structure: [This `wireframes.md`; downstream visual candidates cannot change scope, screen structure, actions, states, region responsibilities, or trace IDs]
 - Optional preference & HTML exploration handoff: [not requested / explicitly authorized for the same one or two representative UI IDs; owner and selected IDs]
-- High-fidelity decisions deferred: [Tokens, typefaces, palette, primitive contracts and their variant sets, page recipes, detailed art direction, and other `ui-architecture-builder` decisions]
+- Visual layer: [Tokens, typefaces, palette, primitive contracts and their closed variant sets, and detailed art direction live in `design-system.md` and `design-system.json`, drafted after this file from the screens below]
 
 ## Navigation Model
 [Primary navigation, tabs, routes, or channels.]
@@ -420,6 +422,44 @@ UI ID: UI-001
 
 Trace IDs: PRD-001, UX-001, ARCH-001
 ````
+
+## `design-system.md` and `design-system.json`
+
+Publish both for a UI-bearing product; skip both for a product with no UI surface and record that decision. Follow `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json`, and read `references/design-system-guide.md` before drafting either.
+
+Draft them after `wireframes.md`: the primitive inventory is derived from the screens the wireframes actually contain, not invented ahead of them.
+
+`design-system.md` is the semantic authority — the reasoning, the ratios, the guardrails, the decisions. It carries the sections in the template, in that order.
+
+`design-system.json` is the machine-readable half, and the only file downstream tooling parses. Required keys:
+
+| Key | Required | Contract |
+|---|---|---|
+| `schema` | yes | Literal `design-system/1`. |
+| `product`, `platform` | yes | Non-empty strings. `platform` matches the resolved platform in `architecture.md`. |
+| `tokenSources` | yes | Non-empty list of paths. The only files where a raw color, dimension, or motion value may appear. Matched as path suffixes, so give enough of the path to be unambiguous — `theme/vars.css`, not `vars.css`. |
+| `primitiveSources` | yes | List of paths whose job is defining control and surface selectors. May be empty when the product has no such file yet. Same suffix-matching rule. |
+| `viewports` **or** `sizeClasses` | exactly one | `viewports` is a non-empty list of unique positive numbers, for a web target only. `sizeClasses` is a non-empty list of unique non-empty strings, for a native or desktop target. Shipping both, neither, or an empty set is an error. |
+| `tokens` | yes | Object of token groups (`color`, `space`, `radius`, `fontSize`, `lineHeight`, `shadow`, `duration`, `easing`). Every value referenced anywhere in the product appears here. |
+| `primitives` | yes | Object keyed by primitive name. Each value has a `layer` of `layout`, `surface`, `typography`, or `control`, an optional `class` when the base class differs from the kebab-cased name, and one list per variant axis. Every variant list is a closed set. |
+| `productComponents` | no | Object keyed by component name, each with `dsId`, `composes`, and `states`. |
+| `motionVariants` | no | List of named motion variants a call site may reference. |
+| `stateMatrix` | yes | The states every screen must cover or explicitly mark `n/a`. |
+
+The two files must agree: neither may carry a token, primitive, variant, or state the other does not.
+
+### Design System Trace IDs
+
+| Family | Covers |
+|---|---|
+| `DS-*` | A signature visual decision in the Product-Specific Visual Thesis |
+| `DS-LAY-*` | A layout primitive |
+| `DS-SUR-*` | A surface primitive |
+| `DS-TYP-*` | A typography primitive |
+| `DS-CTL-*` | A control primitive |
+| `DS-COMP-*` | A product component |
+
+Preserve these across revisions and never reuse a retired ID for a different meaning, exactly like `PRD-*` and `UI-*`.
 
 ## Optional `implementation-plan.md`
 
@@ -521,8 +561,15 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every visually important wireframe region names its style direction and purpose. Every animated region labels motion as required, optional, or none and states what it communicates.
 - ASCII boxes represent real grouping, interaction, state, or hierarchy. Repeated bordered panels with colored side rails or accent stripes are not implied without a named semantic or approved brand role.
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
-- Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `ui-architecture-builder`.
+- Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `design-system.md`.
 - UI states include loading, empty, error, permission, and success where applicable.
+- For a UI-bearing product, `design-system.md` and `design-system.json` are both present and agree: no token, primitive, variant, or state appears in one and not the other.
+- `design-system.json` ships exactly one of `viewports` or `sizeClasses`, non-empty and unique, matching the resolved platform. A native or desktop target does not ship web pixel breakpoints.
+- `design-system.json` parses as JSON, declares `schema: "design-system/1"`, and its `tokenSources` are specific enough that no unrelated file shares the same path tail.
+- Every color pairing in `design-system.md` records a computed contrast ratio from `scripts/check_color_contrast.py`, and every type role records a computed line-height ratio from `scripts/check_type_scale.py`. Estimated or omitted ratios do not pass.
+- The design system names a taste statement, at least two signature decisions, and the generic defaults this product avoids. A system with no stated avoided defaults has not run the Anti-Generic Review.
+- Every primitive's variant lists are closed sets, and each primitive sits in exactly one of the four layers with no upward dependency.
+- `design-system.md`'s primitive inventory covers every control and surface the wireframes' screens actually use. A screen region with no primitive that can express it is an open question, not a silent gap.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
 - Assumptions and open questions are explicit.

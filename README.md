@@ -26,8 +26,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
-| A product idea | `prd-builder` | Requirements, architecture, stack decisions, and wireframes |
-| A PRD or an existing product direction | `ui-architecture-builder` | A UI architecture, a machine-readable registry, per-route page recipes, real page mockups, and visual acceptance criteria |
+| A product idea | `prd-builder` | Requirements, architecture, stack decisions, wireframes, and the design system |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A verified local candidate that must reach GitHub | `fullstack-harness-github-landing` | Current-head push, PR, CI/review convergence, and exact-head merge |
 
@@ -46,8 +45,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, and low-fidelity wireframes | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md` |
-| `ui-architecture-builder` | The UI architecture a page may be built from: layers, tokens, primitive contracts with closed variant sets, product components, motion rules, per-route recipes, real per-page HTML mockups, and visual acceptance | `docs/product/design/ui-architecture.md`, `ui-registry.json`, `page-recipes.md`, `design-system.md`, mandatory `design-system.html`, one HTML file per route under `mockups/` plus `mockups/catalog.html`, and `visual-acceptance.md` |
+| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, low-fidelity wireframes, and the design system: tokens, primitive contracts with closed variant sets, product components, motion rules, and the state matrix | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md`, `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -67,16 +65,14 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
-  PRD --> Design["ui-architecture-builder\nUI architecture, registry, and page recipes"]
   PRD --> Harness["fullstack-harness-engineering\nShared delivery core"]
-  Design --> Harness
   Harness --> Runtime["One host adapter\nCodex or Claude Code"]
   Harness --> Landing["Optional GitHub landing adapter"]
   Runtime --> Evidence["Local tests and UI evidence"]
   Evidence --> Landing
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app, or use the design skill when a PRD already exists. The skills keep their responsibilities separate: the PRD skill does not invent a design system, and the design skill does not write a delivery plan.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines what to build and what it looks like, and the Harness builds it without redesigning it.
 
 ## Delivery model
 
@@ -229,7 +225,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, an
 ```
 
 ```text
-Use $ui-architecture-builder to create the UI architecture, registry, page recipes, and mockups from docs/product/PRD.md and docs/product/wireframes.md.
+Use $prd-builder to add the design system to docs/product/ from the existing PRD.md and wireframes.md.
 ```
 
 ```text
@@ -284,7 +280,6 @@ Edit only the canonical sources in `.agents/skills/`, then sync and verify the g
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
-python -m unittest discover -s .agents/skills/ui-architecture-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 git diff --check
 ```
@@ -302,4 +297,4 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
-- **0.2.0** — Worktree-per-mission default; PLAN-v4 typed graph with multi-reviewer fan-out; Cloudflare dispatched-deploy and Auto-Deploy (native Git auto-deploy) release models; persistent integration branches; universal per-page HTML mockups replacing the retired page UI matrix; mobile/desktop platform support including a dedicated mobile stack-selection guide (native iOS/Android, Flutter, React Native/Expo); environment-secret scaffolding via `.env.example`; a Haiku cost tier for bounded/mechanical delegated work.
+- **0.2.0** — Worktree-per-mission default; PLAN-v4 typed graph with multi-reviewer fan-out; Cloudflare dispatched-deploy and Auto-Deploy (native Git auto-deploy) release models; persistent integration branches; mobile/desktop platform support including a dedicated mobile stack-selection guide (native iOS/Android, Flutter, React Native/Expo); environment-secret scaffolding via `.env.example`; a Haiku cost tier for bounded/mechanical delegated work.

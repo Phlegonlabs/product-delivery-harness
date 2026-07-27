@@ -741,7 +741,7 @@ Plan focused checks at task/worker level, the mission's integration surface at i
 
 Scope entries must be POSIX, repository-relative exact paths or subtrees ending in `/**`. Reject absolute paths, `..`, backslashes, negation, and other wildcard syntax. Use `runtime_resources: []` when no runtime resource applies; never use a string such as `"none"`. Allowed access values are `exclusive` and `shared_read`. Treat an incomplete or unsupported resource inventory as unsafe for parallel write execution.
 
-`required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`, `ui-architecture-builder`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
+`required_skills` names every installed skill (by its `name:` frontmatter, e.g. `frontend-design`) that mission's worker must load before implementing, beyond this harness core itself. Use `[]` when the mission needs no additional skill. Record the planner's explicit choice here; do not have a worker infer a skill from its `write_scope` glob pattern. Every launch path (`WORKER_GOAL.template.md`, a Codex app-task prompt, or a Claude Dynamic Workflow agent prompt) must carry this list verbatim so a spawned worker actually learns to load it — see `references/worktree-thread-orchestration.md`'s Worker Handoff.
 
 For UI implementation, `[]` remains the default. Add `frontend-design` only when the user explicitly selected it for a new or high-impact visual surface. Then state `frontend-design conformance mode` in the mission objective or stop conditions: the worker follows the frozen wireframe, design system, registry, route recipe, and mockup; it does not invent a direction, token, primitive, variant, component, motion pattern, or structure. A missing entry returns as a design-input delta and blocks the mission until the package and PLAN digest are revised.
 
@@ -821,11 +821,8 @@ On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Stack decisions (frontend, backend/data, mobile/desktop) | <path> | <hash or revision> | required / selected / recommended / provisional / missing / n/a | <resolved layers; a still-provisional layer is a stop condition> |
 | Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
-| Design system (tokens, visual language) | <path or URL> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
-| UI architecture | <path> | <hash or revision> | draft / frozen / missing / n/a | <layers, precedence, state matrix, definition of done> |
-| UI registry | <path> | <hash or revision> | draft / frozen / missing / n/a | <primitives, closed variant sets, motion variants, components, recipes> |
-| Page recipes | <path> | <hash or revision> | draft / frozen / missing / n/a | <routes covered, route → mockup → trace → test index> |
-| Page mockups + catalog | <mockups/ path> | <hash or revision> | draft / frozen / missing / n/a | <one HTML file per route, plus catalog.html> |
+| Design system | <design-system.md path> | <hash or revision> | draft / frozen / missing / n/a | <tokens, primitive layers, components, state matrix, guardrails> |
+| Design system (machine) | <design-system.json path> | <hash or revision> | draft / frozen / missing / n/a | <the allowlist check_ui_contract.py reads; freezes with the Markdown> |
 | Existing app baseline | <path or URL> | <hash or revision> | captured / missing / n/a | <notes> |
 
 ## Delivery Context
@@ -867,7 +864,7 @@ These are planning expectations, not authorization. Record explicit action autho
 | Identity / permissions | <path/section> | frozen / draft / missing / n/a | <decision> |
 | Builder UX Direction | <path/section> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, controlling decisions, validation need> |
 | UI flow and states | <path/section> | frozen / draft / missing / n/a | <decision> |
-| UI architecture, registry, and page recipes | <path/section> | frozen / draft / missing / n/a | <decision; a route with no recipe is a blocker> |
+| Design system pair | <path/section> | frozen / draft / missing / n/a | <decision; one file without the other is `partial`, and a route with no wireframe screen is a blocker> |
 | Verification | PLAN manifest | ready / partial | <decision> |
 
 ## Traceability View
@@ -901,9 +898,9 @@ Include only when UI evidence is required or optional.
 
 | Route / screen | Source | Breakpoints | Required states | Evidence |
 |---|---|---|---|---|
-| <route> | <mockups/*.html + page-recipes.md row> | <copied from ui-registry.json: viewports or sizeClasses> | ready/loading/empty/error/... | <screenshot/trace/test> |
+| <route> | <wireframes.md screen entry> | <copied from design-system.json: viewports or sizeClasses> | ready/loading/empty/error/... | <screenshot/trace/test> |
 
-When a `ui-architecture-builder` package is the design source, each route's recipe in `page-recipes.md` decides that surface's required states and `ui-architecture.md`'s state matrix is the full checklist behind them; the required responsive set is the registry's `viewports` or its `sizeClasses`, whichever the package carries — copy it, do not restate a default here. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
+When the product has a design system, `design-system.json`'s `stateMatrix` is the state checklist for every surface and its `viewports` or `sizeClasses` is the required responsive set — copy them, do not restate a default here. A state a surface genuinely cannot have is listed as `<state>:n/a`, not omitted, so `validate_harness_plan.py --design-system` can tell a deliberate exclusion from an oversight. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
 
 ## Plan Readiness Gate
 
@@ -916,7 +913,7 @@ When a `ui-architecture-builder` package is the design source, each route's reci
 | Frontend/backend/data integration points are defined | draft / PASS / BLOCKED | <note> |
 | Shared foundations and migrations are ordered | draft / PASS / BLOCKED | <note> |
 | UI routes, breakpoints, states, and evidence are planned | draft / PASS / BLOCKED / n/a | <note> |
-| Every in-scope route has a recipe, every `DS-*` trace resolves to a `ui-registry.json` entry, and the UI contract check is a planned verifier | draft / PASS / BLOCKED / n/a | <note> |
+| Every in-scope route has a `wireframes.md` screen entry, every `DS-*` trace resolves to a `design-system.json` entry, and the UI contract check is a planned verifier | draft / PASS / BLOCKED / n/a | <note> |
 | Builder UX Direction owner, decision statuses, conflicts, and UX validation depth are explicit | draft / PASS / BLOCKED / n/a | <note> |
 | Scopes use the supported grammar and resources are complete | draft / PASS / BLOCKED | <note> |
 | Worker, mission-integration, batch, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |

@@ -34,9 +34,14 @@ class PackagedSkillSmokeTests(unittest.TestCase):
                 "# Full-Stack Harness: GitHub Landing Adapter",
             ),
             (
-                "ui-architecture-builder",
+                "prd-builder",
                 "assets/templates/DESIGN_SYSTEM.template.md",
                 "# Design System:",
+            ),
+            (
+                "prd-builder",
+                "assets/templates/DESIGN_SYSTEM.template.json",
+                "\"schema\": \"design-system/1\"",
             ),
             (
                 "prd-builder",

@@ -213,28 +213,40 @@ def _breakpoint_matches_viewport(breakpoint: str, viewport: str) -> bool:
     return re.search(rf"(?:^|[-_\s]){re.escape(viewport)}$", breakpoint) is not None
 
 
-def validate_ui_surface_recipe_coverage(
-    plan: dict[str, Any], ui_registry: str | Path
+def validate_ui_surface_design_coverage(
+    plan: dict[str, Any], design_system: str | Path
 ) -> list[str]:
-    """Cross-check every in-scope PLAN UI surface against its frozen recipe."""
+    """Cross-check every in-scope PLAN UI surface against the frozen design system.
+
+    Two obligations are machine-checkable here: a surface covers every state in
+    the design system's `stateMatrix`, and it covers every entry in the
+    responsive verification set. A state a surface genuinely cannot have is
+    covered by listing it as `<state>:n/a`, so an unconsidered state and a
+    deliberate exclusion never look the same.
+    """
 
     errors: list[str] = []
-    path = Path(ui_registry)
+    path = Path(design_system)
     try:
         registry = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
-        _add(errors, "ui_registry", f"cannot be read ({exc})")
+        _add(errors, "design_system", f"cannot be read ({exc})")
         return errors
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        _add(errors, "ui_registry", f"is not valid JSON ({exc})")
+        _add(errors, "design_system", f"is not valid JSON ({exc})")
         return errors
     if not isinstance(registry, dict):
-        _add(errors, "ui_registry", "must be a JSON object")
+        _add(errors, "design_system", "must be a JSON object")
         return errors
-    recipes = registry.get("recipes")
-    if not isinstance(recipes, dict):
-        _add(errors, "ui_registry.recipes", "must be an object")
+    state_matrix = registry.get("stateMatrix")
+    if (
+        not isinstance(state_matrix, list)
+        or not state_matrix
+        or any(not _nonempty_string(state) for state in state_matrix)
+    ):
+        _add(errors, "design_system.stateMatrix", "must be a non-empty string list")
         return errors
+    required_states = {state.strip() for state in state_matrix}
 
     has_viewports = "viewports" in registry
     has_size_classes = "sizeClasses" in registry
@@ -267,7 +279,7 @@ def validate_ui_surface_recipe_coverage(
     ):
         _add(
             errors,
-            "ui_registry",
+            "design_system",
             "must define exactly one non-empty unique responsive set: viewports or sizeClasses",
         )
     elif has_viewports:
@@ -294,35 +306,20 @@ def validate_ui_surface_recipe_coverage(
             continue
         surface_label = surface_id if _nonempty_string(surface_id) else str(index)
         plan_path = f"plan.ui_surfaces[{surface_label}]"
-        recipe = recipes.get(route)
-        recipe_path = f"ui_registry.recipes.{route}"
-        if not isinstance(recipe, dict):
-            _add(errors, plan_path, f"route {route} has no recipe in ui-registry.json")
-            continue
-
-        required = recipe.get("requiredStates")
-        if not isinstance(required, list) or any(
-            not _nonempty_string(state) for state in required
-        ):
-            _add(errors, f"{recipe_path}.requiredStates", "must be a string list")
-            required_states: set[str] = set()
-        else:
-            required_states = set(required)
-        ui_id = recipe.get("uiId")
-        if ui_id is not None and not _nonempty_string(ui_id):
-            _add(errors, f"{recipe_path}.uiId", "must be a non-empty string")
 
         states = surface.get("states")
-        covered_states = (
-            {state for state in states if _nonempty_string(state)}
-            if isinstance(states, list)
-            else set()
-        )
+        covered_states: set[str] = set()
+        if isinstance(states, list):
+            for state in states:
+                if _nonempty_string(state):
+                    covered_states.add(state.split(":", 1)[0].strip())
         for state in sorted(required_states - covered_states):
             _add(
                 errors,
                 plan_path,
-                f"surface {surface_label} route {route} omits state {state} required by its recipe",
+                f"surface {surface_label} route {route} omits state {state} required "
+                f"by the design system's stateMatrix; list it as {state}:n/a when the "
+                f"surface cannot have it",
             )
 
         breakpoints = surface.get("breakpoints")
@@ -351,7 +348,7 @@ def validate_ui_surface_recipe_coverage(
                 errors,
                 plan_path,
                 f"surface {surface_label} route {route} omits responsive target "
-                f"{responsive_value} required by ui-registry.json",
+                f"{responsive_value} required by design-system.json",
             )
     return errors
 

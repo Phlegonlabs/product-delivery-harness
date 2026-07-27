@@ -1,8 +1,12 @@
-# Visual Decision Guide
+# Design System Guide
 
-Use this guide when turning product inputs into design-system and mockup decisions.
+Use this guide when turning product inputs into the design system this skill publishes as `docs/product/design-system.md` and `docs/product/design-system.json`.
+
+The design system is the product's visual contract. It owns tokens, primitives, and components. Implementation reads it and may not invent a value or a control that is not in it.
 
 ## Product Archetype Rules
+
+Pick the archetype from the product itself, not from the platform. `architecture.md`'s `Product Archetype` records a platform (web app, mobile app, desktop app, internal tool, automation, API, hybrid); only `internal tool` is also a design target. Resolve the design target separately.
 
 SaaS apps, dashboards, and internal tools:
 
@@ -56,9 +60,15 @@ Desktop apps (macOS, Windows, or cross-platform):
 - Use desktop interaction patterns that do not apply to touch-first mobile or web: real hover states, right-click context menus, full keyboard shortcut maps, drag-and-drop, resizable split panes, and tooltips. Use SF Symbols on macOS and a desktop-appropriate icon family (for example Fluent UI System Icons) on Windows.
 - Design for offline-first behavior, local file handling, and OS integration (tray/menu bar, notifications, file associations) where the product needs them.
 
+## Responsive Verification Set
+
+`design-system.json` carries `viewports` for a web target or `sizeClasses` for a native or desktop target — exactly one of the two, never both, never neither. Pixel breakpoints do not apply to a native or desktop target: use that platform's own model (iOS/macOS size classes and safe areas, Android window size classes, or the named desktop window sizes).
+
+This set is the single source for the responsive checks downstream. `fullstack-harness-engineering` reads it from the JSON and carries no default of its own.
+
 ## Product-Specific Visual Thesis
 
-Establish this thesis before choosing tokens or composing pages:
+Establish this thesis before choosing tokens:
 
 1. Extract three to five concrete cues from the product, audience, domain, content, brand sources, or physical context. Avoid stopping at mood adjectives such as "clean" or "modern."
 2. Select at least two signature decisions across typography, layout rhythm, color proportion, imagery, iconography, shape, interaction, or motion. State where each decision recurs in the system.
@@ -73,24 +83,24 @@ Resolve the palette with the same decision discipline as the rest of the visual 
 
 1. Start from a real constraint: existing brand colors, a required palette, or the product-specific visual thesis's chosen mood and signature decisions. Do not default to a generic blue/purple SaaS gradient when nothing constrains it.
 2. Name the harmony method actually used (complementary, analogous, monochromatic, triadic, or a brand-anchored palette) and why it fits this product, not just that it "looks good."
-3. Compute and record the actual contrast ratio for every text-on-background, text-on-surface, and text-on-accent pairing the tokens produce, against WCAG 2.2 AA (4.5:1 for normal text, 3:1 for large text and UI component boundaries). Use `scripts/check_color_contrast.py --pair "<foreground>,<background>,<normal|large|ui>"` (repeatable) to compute each ratio rather than eyeballing it. A stated ratio, not "looks readable," is what `visual-acceptance.md`'s contrast gate checks. Adjust the token value when a pairing fails, rather than accepting a color that reads well only in isolation.
+3. Compute and record the actual contrast ratio for every text-on-background, text-on-surface, and text-on-accent pairing the tokens produce, against WCAG 2.2 AA (4.5:1 for normal text, 3:1 for large text and UI component boundaries). Use `scripts/check_color_contrast.py --pair "<foreground>,<background>,<normal|large|ui>"` (repeatable) to compute each ratio rather than eyeballing it. Adjust the token value when a pairing fails, rather than accepting a color that reads well only in isolation.
 4. When dark mode is in scope, define each dark-mode token as its own decision (surface luminance, adjusted accent/semantic saturation, adjusted contrast pairings) — do not assume a naive inversion of the light tokens keeps the same contrast ratios or brand feel.
 5. Keep the semantic colors (success/warning/danger and any chart/status colors) distinguishable for common color-vision deficiencies: pair hue with a shape, icon, or label so meaning never depends on color alone, and avoid a red/green-only distinction with no other cue.
 6. When the user wants a more distinctive or expert-tuned combination than this guidance alone produces, offer `frontend-design` (per `SKILL.md`'s Optional External Skill Assist) for a color-pairing suggestion pass — only after an explicit yes, and only as input to the decision above, not a replacement for recording the harmony method and contrast ratios here.
 
 ## Typography Decision
 
-Resolve font pairing and the type scale with the same decision discipline as the color palette, not as an arbitrary font pick:
+Resolve font pairing and the type scale with the same decision discipline as the color palette:
 
-1. Start from a real constraint: existing brand fonts, platform convention (native iOS/Android/desktop system fonts), or the product-specific visual thesis's chosen tone. Do not default to the Inter/Poppins/Manrope/Geist stack without a stated reason (see the Anti-Generic Review's Typography and iconography rule).
+1. Start from a real constraint: existing brand fonts, platform convention (native iOS/Android/desktop system fonts), or the product-specific visual thesis's chosen tone. Do not default to the Inter/Poppins/Manrope/Geist stack without a stated reason.
 2. Name why the chosen families or font roles work together as a pairing (contrast in role, weight, or character that serves a purpose) rather than only that it "looks good."
-3. Compute and record the actual line-height ratio for every role in the type scale. Use `scripts/check_type_scale.py --step "<role>,<font-size>,<line-height>[,text|heading]"` (repeatable) rather than eyeballing it: body/paragraph text needs at least 1.5x its font size per WCAG 2.2 Success Criterion 1.4.12, while a heading/display role only needs to clear a lower readability floor (1.1x) since that SC targets blocks of text, not isolated headings. Adjust the token when a role's ratio fails, rather than accepting a line-height that only looks fine in the mockup.
+3. Compute and record the actual line-height ratio for every role in the type scale. Use `scripts/check_type_scale.py --step "<role>,<font-size>,<line-height>[,text|heading]"` (repeatable) rather than eyeballing it: body/paragraph text needs at least 1.5x its font size per WCAG 2.2 Success Criterion 1.4.12, while a heading/display role only needs to clear a lower readability floor (1.1x) since that SC targets blocks of text, not isolated headings. Adjust the token when a role's ratio fails.
 4. Keep the type scale itself deliberate: state the step ratio or rationale between roles (for example a 1.25 or 1.333 modular scale) so sizes read as a system, not a set of independent guesses.
-5. When the user wants a more distinctive or expert-tuned pairing than this guidance alone produces, offer `frontend-design` (per `SKILL.md`'s Optional External Skill Assist) for a font-pairing suggestion pass — only after an explicit yes, and only as input to the decision above, not a replacement for recording the pairing rationale and line-height ratios here.
+5. When the user wants a more distinctive or expert-tuned pairing than this guidance alone produces, offer `frontend-design` for a font-pairing suggestion pass — only after an explicit yes, and only as input to the decision above.
 
 ## Builder UX Direction Handoff
 
-Use the PRD's Builder UX Direction Decision before composing pages or choosing tokens. Preserve the named human owner and the status of every choice:
+Use the PRD's Builder UX Direction Decision before choosing tokens. Preserve the named human owner and the status of every choice:
 
 - `selected`: carry it into the design system unless it conflicts with a product requirement, user evidence, platform convention, or accessibility requirement.
 - `provisional`: implement it as a reviewable direction and keep the validation need visible.
@@ -98,28 +108,28 @@ Use the PRD's Builder UX Direction Decision before composing pages or choosing t
 
 Translate preference into consequences for task hierarchy, guidance versus expert control, density, layout, feedback, confirmation, recovery, content, and motion. Builder approval proves that the design follows the intended direction. It does not prove usability for representative users or show that they can understand and complete the task.
 
-## Frontend Design Preference & HTML Exploration
+## Primitive Layers
 
-Use this optional flow to discover the visual system through real HTML before freezing tokens, primitives, components, recipes, the registry, and final mockups. It produces exactly two or three materially different directions for the same one or two representative screens, followed by one human-approved selected HTML direction.
+Decide the layers before listing components, or the design system becomes a flat catalog and every page reinvents its own spacing and surfaces.
 
-Candidate and selected HTML are non-canonical exploration evidence. Implementation consumes only the extracted architecture package.
+Four layers, in order. Layer N uses only layers below N.
 
-Run it only when `frontend-design` is loaded and the user explicitly requested or authorized it. The flow has these boundaries:
+1. **Layout** — the page shell, section rhythm, vertical stacks, horizontal control groups, the grid. Owns spacing and flow. Sets no color.
+2. **Surface** — surface levels, dividers, and any frame or rail that passed the Container & Border Decision Rules. Owns framing and elevation. Does not space its own children.
+3. **Typography** — text roles and truncation behavior.
+4. **Control** — the interactive atoms and their states. Owns focus and accessible naming.
 
-1. **Freeze hard limits only.** Freeze routes, flow, required regions, exact wording or display contracts, never-drop content, platform conventions, required states, accessibility, product scope, confirmed brand assets, and real technical constraints. Do not define final tokens, primitives, variants, recipes, registry entries, or signature visual decisions.
-2. **Ask dynamic preference questions.** Read the product sources and `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria. Derive project-specific Ask User questions and two to four grounded choices per question, plus `Other`. Ask what should dominate, what should be memorable, which product or brand cues apply, what to avoid, and how much density, compositional, imagery, surface, or motion variation the user wants. Never use a universal style menu and never ask the user to choose token values.
-3. **Freeze a non-binding preference brief.** Record the answers as intent for exploration, not a design system. A preference such as "quiet trust" or "fast comparison" must include the concrete product consequence that made it a relevant choice.
-4. **Use the same representative screens.** Read `wireframes.md`'s visual-exploration handoff. Use exactly one or two authorized `UI-*` screen IDs for every direction. If the entry is absent, names more than two screens, or a different set is needed, obtain exact user authorization for the revised set.
-5. **Generate two or three independent HTML directions.** Invoke `frontend-design` separately for each direction, because the skill commits to one bold direction per execution. Give every execution the same hard limits, preference brief, representative screens, product content, and platform constraints. Require complete dependency-free HTML for every screen. Direction-local CSS custom properties, raw values, composition, and component treatments are allowed; the canonical registry does not exist yet. A direction-local token block keeps that candidate internally coherent but is not the package token layer.
-6. **Enforce material and structural difference.** Each later direction must differ from the earlier directions across at least three relevant axes: typography, spatial composition, density, color proportion, surface logic, imagery, control treatment, or motion. For page scope, also record a structural fingerprint and reject candidates that reuse the same hero/feature/CTA/footer skeleton, heading placement, and interaction rhythm. A palette swap, radius swap, font swap, or light/dark restyle of the same composition is not another direction. For component scope, skip page macrostructure and compare the applicable eight interactive states instead.
-7. **Run Hallmark audits when available.** Follow `references/hallmark-integration.md`. Run read-only `hallmark audit` on every candidate, save the report beside its HTML, and route critical or major repairs back through that candidate's `frontend-design` execution. Hallmark may identify structure, honest-copy, token-discipline, responsive, state, typography, motion, and re-drawn-chrome problems, but it may not mutate the candidate, add product scope, or select a direction. Record `unavailable` rather than fabricating a pass when the skill is not loaded.
-8. **Compare with the human.** Render the same screens and viewports for every direction when a browser tool is available; otherwise present the exact directly openable HTML paths and make no rendered-comparison claim. Show each direction's structural fingerprint and Hallmark audit summary when available. Use Ask User to let the named human owner select one, reject all, or choose a base direction plus explicit cues to mix. Audit scores and findings inform the comparison but never choose for the human.
-9. **Consolidate mixes before extraction.** When the user mixes cues, invoke `frontend-design` once more to create consolidated HTML under `visual-directions/selected/`. Do not merge cues directly into tokens. Run the selected Hallmark audit when available.
-10. **Bind explicit approval to exact bytes.** For every selected representative screen, record its `UI-*` ID, canonical path under `visual-directions/selected/`, and lowercase SHA-256 digest. Hash the canonically ordered manifest as `approval_manifest_sha256`, show that digest with the selected HTML, and ask for explicit human approval. Agent choice, delegated direction selection, path-only approval, or approval of an earlier digest cannot satisfy this extraction gate.
-11. **Extract the system after approval.** The parent reads each selected file and verifies its byte SHA-256 against the approved manifest immediately before extraction or Dynamic Workflow launch. Recompute the canonical manifest SHA-256 inside the workflow and require manifest-bound parent verification evidence. Then inventory actual repeated values and patterns in those verified bytes and derive semantic tokens, closed primitive variants, product components, motion variants, recipes, registry entries, and final package mockups. Record source-to-token and source-to-primitive traceability. Candidate-only values from rejected directions do not survive.
-12. **Reapprove material repairs.** Validate accessibility, platform fit, content, performance, states, responsiveness, taste, and anti-slop rules. If a required repair materially changes the approved direction or any selected file's bytes, update selected HTML, recompute the immutable manifest, rerun the selected Hallmark audit when available, and obtain fresh human approval before continuing extraction.
+Above the four layers sit **product components**: the compositions that recur across screens, named in the domain's own words. A composition that appears once stays inside its page.
 
-In package enhancement mode, the frozen package and accepted delta remain authoritative. Limit preference questions, representative screens, candidate directions, Hallmark audits, and selected HTML to the accepted delta, preserve every untouched decision and ID, and extract only the approved delta. Do not use exploration to restart the product's visual direction.
+Derive the layers from the real screen set:
+
+1. List the spacing and flow patterns that repeat. Those are the layout primitives. Name them; do not leave them as prose in Layout Rules.
+2. Turn each surviving Container & Border treatment into a named surface primitive with its purpose. A treatment that failed those rules does not become a primitive.
+3. List the interactive atoms the screens actually use and their states.
+4. Only then name product components.
+5. Check the direction: a layout primitive that sets color, a surface primitive that spaces its own children, or a product component with a raw hex value means the layer boundary leaked.
+
+Every primitive's variants are a **closed set**. A page picks from the set; it does not extend it. Keep the layer count as-is — splitting layout into more layers, or merging surfaces into product components, loses the property that makes this useful: one place to change spacing, one place to change framing.
 
 ## Taste & Anti-Slop Guardrails
 
@@ -132,7 +142,6 @@ Every design system must define:
 - Two or more signature decisions that recur without turning every section into the same component
 - The unsupported pattern clusters that would make the product look interchangeable
 - A container and border policy that defaults content regions to open layouts and records the purpose of every visible frame
-- An evidence-appropriate review path: render, critique, repair, and recheck required breakpoints when visual artifacts or an implementation exist; otherwise run a text-only conformance review and mark render evidence unavailable
 
 ### Container & Border Decision Rules
 
@@ -159,7 +168,7 @@ Research basis checked on 2026-07-21 (refreshed from 2026-07-17):
 
 ## Anti-Generic Review
 
-Review the system and every important mockup for unsupported clusters of common AI-generated UI patterns. Named patterns below are sourced from independent 2026 audits of AI-generated interfaces; treat the side-rail/accent-border pattern as a near-automatic failure per the Container & Border rule above, and treat every other pattern as a risk to weigh in combination, not a universal ban.
+Review the system for unsupported clusters of common AI-generated UI patterns. Treat the side-rail/accent-border pattern as a near-automatic failure per the Container & Border rule above, and treat every other pattern as a risk to weigh in combination, not a universal ban.
 
 **Layout and composition:**
 - A badge or small pill directly above an oversized centered headline, generic benefit copy, two CTA buttons, and a floating dashboard mockup used as a default hero formula
@@ -177,7 +186,7 @@ Review the system and every important mockup for unsupported clusters of common 
 - Corner radii pushed past a functional rounding into "blob" shapes (roughly 24px+ on standard-sized cards) with no stated rationale
 - Default-dark-mode surfaces paired with colored glow box-shadows and medium-grey body text, kept because it looks "premium" rather than for a stated brand or contrast reason
 - Gradient text applied to headlines, which reduces legibility and scannability without a stated purpose
-- The same faint 1px border applied to every button, input, image, avatar, and plain content block by default, independent of the control/data/state purpose Container & Border Decision Rules requires
+- The same faint 1px border applied to every button, input, image, avatar, and plain content block by default
 - Excessive pills, glows, icon chips, or soft shadows stacked with a hairline border on the same element without a semantic or brand role
 
 **Typography and iconography:**
@@ -185,13 +194,13 @@ Review the system and every important mockup for unsupported clusters of common 
 - Thin, interchangeable line icons that could illustrate any product, or emoji used as navigation/UI icons in place of a real, evidence-based icon system
 
 **Motion:**
-- Default bounce or elastic spring easing applied to ordinary dialogs, buttons, or menus with no product reason (see `references/motion-system-guide.md` for the intent-driven alternative)
+- Default bounce or elastic spring easing applied to ordinary dialogs, buttons, or menus with no product reason
 
 **Fabrication:**
 - Decorative images, video, or animation added to fill space without helping comprehension, trust, orientation, feedback, or action
 - Fabricated metrics, testimonials, customer logos, activity, or polished sample data presented as if factual
 
-Do not fail a design because one familiar pattern appears. Fail or revise it when several unsupported defaults cluster together, when the layout could belong to any product, or when decoration replaces information hierarchy. When Hallmark is loaded, preserve its named audit findings and severity instead of paraphrasing them into an untraceable generic taste note; this package's own rules still decide whether a finding conflicts with product, platform, accessibility, or approved selected-HTML evidence.
+Do not fail a design because one familiar pattern appears. Fail or revise it when several unsupported defaults cluster together, when the layout could belong to any product, or when decoration replaces information hierarchy.
 
 ### Copy and Wording Anti-Slop Rules
 
@@ -204,31 +213,16 @@ Generic AI-generated copy is as recognizable as generic AI-generated layout. Fla
 - Generic openers such as "In today's fast-paced world..." or "In the ever-evolving landscape of..."
 - Clickbait title templates such as "The Ultimate Guide to X" or "Everything You Need to Know About X" applied to product copy or section headings
 
-Prefer concrete, product-specific claims with a real number, named capability, or verifiable source over any of the above. This rule applies in addition to, not instead of, the exact-wording and bounded-display-contract requirements elsewhere in this package.
+Prefer concrete, product-specific claims with a real number, named capability, or verifiable source over any of the above.
 
 Repair generic results in this order:
 
 1. Restore task and content hierarchy.
-2. Replace invented or vague content with representative domain content or explicit placeholders; replace marketing-buzzword and manufactured-contrast copy with concrete, product-specific wording per the Copy and Wording Anti-Slop Rules above.
-3. Remove unnecessary containers and decorative treatments.
-   Remove repeated borders and accent rails before inventing a new decorative replacement; side-rail/accent-border removal comes first, not last, given how strongly it reads as AI-generated.
+2. Replace invented or vague content with representative domain content or explicit placeholders; replace marketing-buzzword and manufactured-contrast copy with concrete, product-specific wording.
+3. Remove unnecessary containers and decorative treatments. Remove repeated borders and accent rails before inventing a new decorative replacement; side-rail/accent-border removal comes first, not last, given how strongly it reads as AI-generated.
 4. Apply the product's signature typography, layout, color, imagery, or interaction decisions.
 5. Recheck responsive behavior, accessibility, and platform conventions.
-6. When visual artifacts or an implementation exist, render again, compare against the taste statement and acceptance gates, and repeat until the package passes or the remaining constraint is explicit. For a spec-only package, repeat the same critique over the Markdown sources, record render evidence as unavailable, and do not claim visual fidelity or implementation verification.
-
-## Component Architecture Decision
-
-Decide the component layers before listing components, or the design system becomes a flat catalog and every page reinvents its own spacing and surfaces. `references/ui-architecture-guide.md` owns the layer model, the closed-variant rule, the precedence order, and the derivation method in full; read it first. What follows is only the visual-judgment part of that derivation.
-
-Derive them from the human-approved selected HTML, then check them against the real screen set:
-
-1. Read the approved selected HTML and list the spacing and flow patterns that repeat — the page shell, the section rhythm, vertical stacks, horizontal groups of controls, the grid. Those are the layout primitives. Name them; do not leave them as prose in Layout Rules.
-2. Take the Container & Border Decision Rules output and turn each surviving treatment into a named surface primitive with its purpose — the surface levels, the divider, and any rail or frame that passed rule 4 or 6. A treatment that failed those rules does not become a primitive.
-3. List the interactive atoms the screens actually use and their states. Those are the control primitives, and they own focus and accessible naming.
-4. Only then name product components, using the domain's own words for the compositions that recur across screens. A composition that appears once stays inside its page.
-5. Check the direction: layer N uses only layers below N. A layout primitive that sets color, a surface primitive that spaces its own children, or a product component with a raw hex value means the layer boundary leaked.
-
-Keep the layer count as-is. Splitting layout into more layers, or merging surfaces into product components, loses the property that makes this useful: one place to change spacing, one place to change framing.
+6. When a rendered view or implementation exists, render again, compare against the taste statement, and repeat until it passes or the remaining constraint is explicit. For a spec-only package, repeat the same critique over the Markdown sources, record render evidence as unavailable, and do not claim visual fidelity.
 
 ## Design System Coverage
 
@@ -239,60 +233,25 @@ Define only rules that implementation can apply:
 - Typography: font family category, scale, weight, line height, heading/body/caption usage, and how font roles work together
 - Iconography: primary library, market evidence, size and weight tokens, semantic inventory, state variants, brand-icon separation, implementation source, and accessibility behavior
 - Spacing system: base unit, section rhythm, component padding, grid gaps
-- Component architecture: the layer table, plus one inventory row per layout primitive, surface primitive, control primitive (buttons, inputs, selects), and product component (tables, cards, dialogs, nav, tabs, alerts, charts, content blocks as relevant) with what it composes
+- Primitive inventory: one row per layout, surface, typography, and control primitive with its closed variant sets, plus one row per product component with what it composes
 - Shadows and elevation: component hierarchy, overlays, panels, and depth rules
-- Motion system: purpose, technology and delivery choice, duration/easing/distance tokens, triggers, choreography, interruption, responsive behavior, reduced-motion fallback, and performance limits
+- Motion system: purpose, technology choice, duration/easing/distance tokens, triggers, interruption, responsive behavior, reduced-motion fallback, and performance limits
 - Border radius: token values and component usage rules
 - Opacity and transparency: disabled states, overlays, glass/subtle surfaces, and contrast risks
-- Layout: grid, max widths, sidebars, headers, responsive breakpoints
-- Common Tailwind CSS usage in project: recurring utility patterns, component class patterns, and CSS variable mappings when relevant
-- Example component reference design code: a small implementation-oriented component example that demonstrates the style guide
+- Layout: grid, max widths, sidebars, headers, and the responsive verification set
+- Styling-pattern usage: recurring utility patterns, component class patterns, and CSS variable mappings when relevant
+- Example component reference code: a small implementation-oriented example that demonstrates the system
 - Product-specific visual thesis: concrete cues, recurring signature decisions, avoided defaults, and content realism rules
-- Landing-page simplicity and media plan when relevant: first-viewport message and action, one job per section, content to defer, and per-region image/media/motion labels
+- Landing-page simplicity and media plan when relevant
+- State matrix: the states every screen must cover
 - Interaction rules: focus, hover, active, loading, disabled, selected, expanded, and validation feedback
 - Accessibility: contrast intent, focus visibility, keyboard path, reduced motion
-
-## Page Coverage Rules
-
-Every important page, route, or screen must still map to its UI source, states, components, data source, and acceptance evidence, for every platform. The route/screen → breakpoint-or-size-class → state → component mapping is shown directly in the real `mockups/*.html` file (responsive CSS or size-class media queries, plus per-state sections). Do not maintain `page-ui-matrix.md` for any platform. Keep the machine-checkable route → upstream trace IDs → DS IDs → HTML file → acceptance TEST IDs mapping in the `page-recipes.md` index, so `fullstack-harness-engineering`'s trace-ID system still has a route-to-trace source.
-
-If only the ready state exists, derive other states from the design system and mark that decision.
-
-## Mockup Rules
-
-Use mockups to define high-fidelity layout and visual hierarchy, not product scope.
-
-Final `mockups/*.html` are canonical package projections composed from the extracted design system, registry, and page recipes. Files under `visual-directions/` are exploration evidence and must never be linked or copied in as if they were route mockups. The approved `visual-directions/selected/` HTML remains the visual extraction source used to review whether the canonical projection drifted.
-
-Build each important page as a real static HTML file under `mockups/` (see `references/output-contract.md` for the deliverable contract), styled to the resolved platform's own conventions for a native or desktop target rather than defaulting to web styling. It uses the design-system tokens, preserves exact wording, represents each state as a visible labeled section, and expresses responsive/size-class behavior with real CSS media queries. Treat it as a reference/prototype artifact, not production code — HTML is a visual demonstration medium here, not the target's rendering engine.
-
-For each page mockup, specify:
-
-- Viewport and breakpoint
-- Primary content hierarchy
-- For landing pages, the single job of each region, required content, and content intentionally deferred or excluded
-- The style direction and visual job of each important region, including whether it should remain open, use a real container, change background, split layout, or apply another hierarchy treatment
-- Layout regions
-- Component composition
-- Approved or draft exact wording, or a bounded display contract that states what the region shows, the intended takeaway or action, the source, and relevant constraints
-- State-specific changes
-- Responsive behavior
-- Asset requirements
-- Per-region image/media status (`required`, `optional`, or `none`), purpose, source or creation need, responsive treatment, and fallback
-- Product-specific signature decisions and generic patterns intentionally avoided
-- Motion purpose, trigger, sequence, responsive variant, reduced-motion fallback, and runnable demo path when applicable
-- Visual acceptance criteria
-
-If generating actual bitmap mockups or visual alternatives is requested and image tools are available, use the generated files as visual sources and record their paths in `page-recipes.md`.
 
 ## Conflict Rules
 
 - Product requirements beat visual preference.
 - User evidence and accessibility requirements beat unsupported builder preference. Record the conflict and the validation decision rather than silently changing either source.
 - A selected Builder UX Direction controls visual and interaction direction when higher-priority evidence does not conflict; provisional and assumed choices remain visibly unresolved.
-- Human-approved selected HTML controls visual composition and actual-value extraction. If the extracted system or final mockups materially differ, repair the extraction or obtain fresh human approval.
-- Design system beats one-off mockup styling unless the user accepts an exception.
-- Page UI mockups beat low-fidelity wireframes for visual hierarchy and layout detail.
-- Low-fidelity wireframes remain authoritative for flow, required regions, supplied exact wording, and bounded display contracts.
-- Wireframe style, media, and motion labels define required intent; the design system owns the final visual and choreography choices.
+- The design system beats one-off page styling unless the user accepts an exception.
+- Low-fidelity wireframes remain authoritative for flow, required regions, supplied exact wording, and bounded display contracts. The design system owns the final visual and choreography choices.
 - Missing brand direction should become explicit assumptions, not hidden generic styling.

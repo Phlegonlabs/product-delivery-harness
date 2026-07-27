@@ -58,7 +58,7 @@ Ask only questions that are not already answered.
    - What validation depth does the builder expect: documented assumptions, internal prototype review, testing with likely users, or recurring usability benchmarking? (AskUserQuestion)
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
-   - Do not ask the user to choose from a fixed catalog of high-fidelity visual styles in this PRD interview. Record known brand references, constraints, and product-specific visual goals. When the optional downstream exploration is authorized, `ui-architecture-builder` uses `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria to derive the visual preference choices dynamically.
+   - Do not ask the user to choose from a fixed catalog of high-fidelity visual styles in this interview. Record known brand references, constraints, and product-specific visual goals. The design-system step derives the visual direction from those inputs per `references/design-system-guide.md`; when an exploration is explicitly authorized, `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria derive the preference choices dynamically instead of a fixed menu.
    - Are there known design references or brand constraints?
    - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
    - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action?
