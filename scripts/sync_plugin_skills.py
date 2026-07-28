@@ -28,6 +28,22 @@ def is_link(path: Path) -> bool:
     return path.is_symlink() or (is_junction is not None and is_junction())
 
 
+def is_bundled(relative_path: Path) -> bool:
+    """Whether a canonical skill file belongs in the distributed bundle.
+
+    Bytecode never ships. Neither do the test suites: they run against the
+    canonical skills in `.agents/`, and mirroring them doubled the bundle for
+    nothing. The one exception is the packaged smoke test, which exists to be
+    run against the bundle's own layout.
+    """
+    parts = relative_path.parts
+    if "__pycache__" in parts or relative_path.suffix == ".pyc":
+        return False
+    if "tests" in parts:
+        return relative_path.name in {"__init__.py", "test_packaged_smoke.py"}
+    return True
+
+
 def included_files(root: Path) -> dict[Path, Path]:
     files: dict[Path, Path] = {}
     for path in root.rglob("*"):
@@ -35,9 +51,10 @@ def included_files(root: Path) -> dict[Path, Path]:
             continue
         if not path.is_file():
             continue
-        if "__pycache__" in path.parts or path.suffix == ".pyc":
+        relative_path = path.relative_to(root)
+        if not is_bundled(relative_path):
             continue
-        files[path.relative_to(root)] = path
+        files[relative_path] = path
     return files
 
 
@@ -199,11 +216,10 @@ def sync() -> None:
             if destination.resolve().parent != managed_root:
                 raise SystemExit(f"Refusing to remove path outside {DESTINATION_ROOT}.")
             shutil.rmtree(destination)
-        shutil.copytree(
-            source,
-            destination,
-            ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"),
-        )
+        for relative_path, path in included_files(source).items():
+            target = destination / relative_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
 
     problems = differences()
     if problems:

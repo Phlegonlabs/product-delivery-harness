@@ -315,6 +315,48 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 [], list(destination_root.rglob("*.pyc")) + list(destination_root.rglob("__pycache__"))
             )
 
+    def test_sync_ships_only_the_packaged_smoke_test(self) -> None:
+        """Test suites run against `.agents/`, so mirroring them doubles the
+        bundle for nothing. The packaged smoke test is the exception: it exists
+        to run against the bundle's own layout, and CI discovers it there."""
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_tests = source_root / "sample" / "scripts" / "tests"
+            source_tests.mkdir(parents=True)
+            (source_root / "sample" / "SKILL.md").write_text("current\n", encoding="utf-8")
+            (source_tests / "__init__.py").write_text("", encoding="utf-8")
+            (source_tests / "test_packaged_smoke.py").write_text("# keep\n", encoding="utf-8")
+            (source_tests / "test_harness_manifest.py").write_text("# drop\n", encoding="utf-8")
+            (source_tests / "conftest.py").write_text("# drop\n", encoding="utf-8")
+            destination_root.mkdir(parents=True)
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+            module.sync()
+
+            bundled_tests = destination_root / "sample" / "scripts" / "tests"
+            self.assertEqual(
+                ["__init__.py", "test_packaged_smoke.py"],
+                sorted(path.name for path in bundled_tests.iterdir()),
+            )
+            # sync and --check must agree, or a synced bundle reports as stale.
+            self.assertEqual([], module.differences())
+
     def test_check_rejects_symlinked_bundle_entries(self) -> None:
         spec = importlib.util.spec_from_file_location(
             "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"

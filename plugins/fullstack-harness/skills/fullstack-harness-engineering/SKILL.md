@@ -105,7 +105,7 @@ worktree workers      -> temporary per-mission reports only while integration ne
 - A compact `RUN.md` without `PLAN.md` is sequential (one mission at a time, no leases or deterministic wave claim); its workspace default still follows the Default Runtime And Wave Policy below, not `shared_checkout`.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
-- On first bootstrap of a new target repository, seed a missing root `AGENTS.md` from `assets/templates/PROJECT_AGENTS.template.md` and a missing root `CLAUDE.md` from `assets/templates/PROJECT_CLAUDE.template.md`. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
+- On first bootstrap of a new target repository, seed a missing root `AGENTS.md` and a missing root `CLAUDE.md` from the same `assets/templates/PROJECT_AGENTS.template.md`. The rules are runtime-neutral, so one template keeps both files from drifting apart. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
 - On that same first bootstrap, also seed a missing CI workflow from `assets/templates/PROJECT_CI.template.yml`, and, only for Cloudflare delivery, its separate CD companion `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` (see `references/cloudflare-deployment-lifecycle.md`). Skip either file that already exists; never overwrite established CI configuration.
 
 ## Shared Validation Tools

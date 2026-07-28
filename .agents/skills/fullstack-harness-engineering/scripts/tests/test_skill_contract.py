@@ -293,7 +293,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         core = self.read("SKILL.md")
         landing = self.read_sibling_skill("fullstack-harness-github-landing")
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
 
         self.assertIn(
             "`merge_pr` and `deploy` are outside the bundle entirely under this model",
@@ -311,7 +310,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not enable auto-merge there", core)
         self.assertIn("Which side of this section applies is decided by the PR's base branch", landing)
         self.assertIn("It does not merge and does not enable auto-merge there", landing)
-        for content in (project_rules, project_claude):
+        for content in (project_rules,):
             self.assertIn("the next step depends on the PR's base", content)
             self.assertIn("resolved integration branch", content)
         self.assertIn("The merge toward the protected base is the human's", project_rules)
@@ -733,7 +732,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
         verification = self.read("references/verification-gates.md")
         deploy_workflow = self.read("assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml")
-        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
 
         self.assertIn("## Wrangler Config and Account Bootstrap", lifecycle)
@@ -756,7 +754,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             deploy_workflow,
         )
 
-        for content in (project_claude, project_agents):
+        for content in (project_agents,):
             self.assertIn(
                 "confirm Cloudflare account access is verified",
                 content,
@@ -895,10 +893,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_bootstrap_seeds_agents_and_claude_governance_templates(self) -> None:
         skill = self.read("SKILL.md")
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
-        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
 
         self.assertIn("PROJECT_AGENTS.template.md", skill)
-        self.assertIn("PROJECT_CLAUDE.template.md", skill)
+        self.assertNotIn("PROJECT_CLAUDE.template.md", skill)
         self.assertIn("seed a missing root `AGENTS.md`", skill)
         self.assertIn("a missing root `CLAUDE.md`", skill)
         self.assertIn("Skip either file that already exists", skill)
@@ -906,7 +903,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "never overwrite an established root `AGENTS.md` or `CLAUDE.md`", skill
         )
         self.assertIn("## Core Development Principles", project_agents)
-        self.assertIn("## Core Development Principles", project_claude)
 
 
 if __name__ == "__main__":
