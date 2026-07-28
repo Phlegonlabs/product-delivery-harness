@@ -797,18 +797,26 @@ async function agent(_prompt, options) {
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
     def test_product_component_content_order_is_documented(self) -> None:
+        skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         guide = self.read("references/design-system-guide.md")
         template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
 
         self.assertIn('"requiredContentOrder"', template_json)
+        self.assertIn('"composes": ["Container", "Surface", "Button"]', template_json)
         for content in (contract, guide, template_md):
             self.assertIn("requiredContentOrder", content)
             self.assertIn("never-drop field", content)
             self.assertIn("Content contract conformance", content)
         self.assertIn("`dsId`, `requiredContentOrder`, `composes`, and `states`", contract)
         self.assertIn("### Product Component Content Contracts", guide)
+        for unsupported_family in ("DS-LAY-*", "DS-SUR-*", "DS-TYP-*", "DS-CTL-*"):
+            with self.subTest(unsupported_family=unsupported_family):
+                self.assertNotIn(unsupported_family, skill)
+                self.assertNotIn(unsupported_family, contract)
+        for content in (skill, contract):
+            self.assertIn("DS-COMP-*", content)
 
     def test_prescribed_design_system_commands_satisfy_the_real_cli_contract(self) -> None:
         command_prefix = "scripts/check_design_system_pair.py"
@@ -826,7 +834,11 @@ async function agent(_prompt, options) {
             "stateMatrix": ["ready"],
         }
 
-        for relative_path in ("SKILL.md", "assets/templates/DESIGN_SYSTEM.template.md"):
+        for relative_path in (
+            "SKILL.md",
+            "assets/templates/DESIGN_SYSTEM.template.md",
+            "references/output-contract.md",
+        ):
             content = self.read(relative_path)
             code_spans = content.split("`")[1::2]
             commands = [
@@ -878,6 +890,8 @@ async function agent(_prompt, options) {
 
                     self.assertIn("--write", parsed_commands[0])
                     self.assertNotIn("--write", parsed_commands[1])
+                    self.assertNotIn("--require-filled", parsed_commands[0])
+                    self.assertIn("--require-filled", parsed_commands[1])
 
     def test_design_system_skip_needs_no_ui_surface_or_explicit_override(self) -> None:
         skill = self.read("SKILL.md")

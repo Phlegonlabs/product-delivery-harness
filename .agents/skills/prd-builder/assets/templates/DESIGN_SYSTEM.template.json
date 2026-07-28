@@ -97,7 +97,7 @@
     "<DomainComponentName>": {
       "dsId": "DS-COMP-001",
       "requiredContentOrder": ["<field>", "<field>", "<field>"],
-      "composes": ["<DS-LAY-001>", "<DS-SUR-001>", "<DS-CTL-001>"],
+      "composes": ["Container", "Surface", "Button"],
       "states": ["ready", "loading", "empty", "error"]
     }
   },

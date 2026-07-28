@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -28,7 +29,7 @@ def registry(**overrides: object) -> dict:
             "space": {"4": "16px"},
         },
         "primitives": {
-            "Stack": {"dsId": "DS-LAY-001", "layer": "layout", "gap": ["2", "4"]},
+            "Stack": {"layer": "layout", "gap": ["2", "4"]},
         },
         "productComponents": {
             "OrderCard": {
@@ -185,15 +186,28 @@ The prior inventory used OrderCard.
 
 
 class CheckDesignSystemPairTests(unittest.TestCase):
-    def run_pair(self, markdown: str, data: dict) -> tuple[int, list[str]]:
+    def run_pair(
+        self,
+        markdown: str,
+        data: dict,
+        *,
+        require_filled: bool = False,
+    ) -> tuple[int, list[str]]:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             md = root / "design-system.md"
             js = root / "design-system.json"
             md.write_text(markdown, encoding="utf-8")
             js.write_text(json.dumps(data), encoding="utf-8")
-            problems = checker.compare(markdown, data)
-            code = checker.main(["--markdown", str(md), "--registry", str(js)])
+            problems = checker.compare(
+                markdown,
+                data,
+                require_filled=require_filled,
+            )
+            argv = ["--markdown", str(md), "--registry", str(js)]
+            if require_filled:
+                argv.append("--require-filled")
+            code = checker.main(argv)
         return code, problems
 
     def test_matching_pair_passes(self) -> None:
@@ -203,7 +217,7 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         self.assertEqual(0, code)
 
     def test_real_templates_match_and_product_drift_fails(self) -> None:
-        markdown = (
+        template = (
             SKILL_ROOT / "assets/templates/DESIGN_SYSTEM.template.md"
         ).read_text(encoding="utf-8")
         data = json.loads(
@@ -211,8 +225,11 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                 SKILL_ROOT / "assets/templates/DESIGN_SYSTEM.template.json"
             ).read_text(encoding="utf-8")
         )
+        self.assertNotIn(checker.BEGIN_MARKER, template)
 
+        markdown = checker.replace_generated_contract(template, data)
         self.assertEqual([], checker.compare(markdown, data))
+        self.assertEqual(markdown, checker.replace_generated_contract(markdown, data))
 
         drifted = dict(data)
         drifted["product"] = "Different Product"
@@ -366,7 +383,24 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                     problems,
                 )
 
-    def test_placeholder_names_in_the_template_are_ignored(self) -> None:
+    def test_unknown_component_composition_fails_validation(self) -> None:
+        data = registry()
+        data["productComponents"]["OrderCard"]["composes"] = ["MissingPrimitive"]
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+
+        code, problems = self.run_pair(markdown, data)
+
+        self.assertEqual(1, code)
+        self.assertTrue(
+            any(
+                "composes names 'MissingPrimitive'" in problem
+                and "not a key in primitives" in problem
+                for problem in problems
+            ),
+            problems,
+        )
+
+    def test_placeholders_are_allowed_by_default_and_rejected_when_required_filled(self) -> None:
         data = registry()
         data["productComponents"] = {
             "<DomainComponentName>": {
@@ -383,6 +417,22 @@ class CheckDesignSystemPairTests(unittest.TestCase):
 
         self.assertEqual(0, code)
         self.assertEqual([], problems)
+
+        code, problems = self.run_pair(markdown, data, require_filled=True)
+
+        self.assertEqual(1, code)
+        for path in (
+            "design-system.json.productComponents.<DomainComponentName>",
+            "design-system.json.productComponents.<DomainComponentName>.requiredContentOrder[0]",
+            "design-system.json.productComponents.<DomainComponentName>.composes[0]",
+            "design-system.json.productComponents.<DomainComponentName>.states[0]",
+            "design-system.json.motionVariants[0]",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(
+                    any(path in problem for problem in problems),
+                    problems,
+                )
 
     def test_write_mode_generates_the_contract_from_json(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -410,6 +460,63 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             self.assertIn('"product": "Jolvex"', rendered)
             self.assertIn('"requiredContentOrder"', rendered)
             self.assertEqual([], checker.compare(rendered, data))
+
+    def test_write_preserves_newlines_and_second_write_is_a_byte_for_byte_noop(self) -> None:
+        for newline in (b"\n", b"\r\n"):
+            with self.subTest(newline=newline):
+                with tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    md = root / "design-system.md"
+                    js = root / "design-system.json"
+                    md.write_bytes(
+                        newline.join(
+                            (
+                                b"# Design System",
+                                b"",
+                                b"Human rationale.",
+                                b"",
+                            )
+                        )
+                    )
+                    js.write_text(json.dumps(registry()), encoding="utf-8")
+                    argv = [
+                        "--markdown",
+                        str(md),
+                        "--registry",
+                        str(js),
+                        "--write",
+                    ]
+
+                    self.assertEqual(0, checker.main(argv))
+                    first_bytes = md.read_bytes()
+                    self.assertTrue(
+                        first_bytes.startswith(
+                            newline.join(
+                                (
+                                    b"# Design System",
+                                    b"",
+                                    b"Human rationale.",
+                                    b"",
+                                )
+                            )
+                        )
+                    )
+                    first_hash = hashlib.sha256(first_bytes).hexdigest()
+                    first_mtime = md.stat().st_mtime_ns
+                    if newline == b"\r\n":
+                        self.assertNotIn(b"\n", first_bytes.replace(b"\r\n", b""))
+                    else:
+                        self.assertNotIn(b"\r\n", first_bytes)
+
+                    self.assertEqual(0, checker.main(argv))
+
+                    second_bytes = md.read_bytes()
+                    self.assertEqual(first_bytes, second_bytes)
+                    self.assertEqual(
+                        first_hash,
+                        hashlib.sha256(second_bytes).hexdigest(),
+                    )
+                    self.assertEqual(first_mtime, md.stat().st_mtime_ns)
 
     def test_write_rejects_duplicate_begin_marker_without_changing_markdown(self) -> None:
         generated = checker.generated_contract_block(registry())

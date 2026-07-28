@@ -234,28 +234,6 @@ Repair generic results in this order:
 5. Recheck responsive behavior, accessibility, and platform conventions.
 6. When a rendered view or implementation exists, render again, compare against the taste statement, and repeat until it passes or the remaining constraint is explicit. For a spec-only package, repeat the same critique over the Markdown sources, record render evidence as unavailable, and do not claim visual fidelity.
 
-## Design System Coverage
-
-Define only rules that implementation can apply:
-
-- Overview: product archetype, audience, visual intent, density, tone, constraints, and source priority
-- Color palette: background, surface, text, border, accent, semantic states, charts if needed
-- Typography: font family category, scale, weight, line height, heading/body/caption usage, and how font roles work together
-- Iconography: primary library, market evidence, size and weight tokens, semantic inventory, state variants, brand-icon separation, implementation source, and accessibility behavior
-- Spacing system: base unit, section rhythm, component padding, grid gaps
-- Primitive inventory: one row per layout, surface, typography, and control primitive with its closed variant sets, plus one row per product component with what it composes and its required content order
-- Shadows and elevation: component hierarchy, overlays, panels, and depth rules
-- Motion system: purpose, technology choice, duration/easing/distance tokens, triggers, interruption, responsive behavior, reduced-motion fallback, and performance limits
-- Border radius: token values and component usage rules
-- Opacity and transparency: disabled states, overlays, glass/subtle surfaces, and contrast risks
-- Layout: grid, max widths, sidebars, headers, and the responsive verification set
-- Styling-pattern usage: recurring utility patterns, component class patterns, and CSS variable mappings when relevant
-- Example component reference code: a small implementation-oriented example that demonstrates the system
-- Product-specific visual thesis: concrete cues, recurring signature decisions, avoided defaults, and content realism rules
-- Landing-page simplicity and media plan when relevant
-- State matrix: the states every screen must cover
-- Interaction rules: focus, hover, active, loading, disabled, selected, expanded, and validation feedback
-- Accessibility: contrast intent, focus visibility, keyboard path, reduced motion
 
 ## Conflict Rules
 

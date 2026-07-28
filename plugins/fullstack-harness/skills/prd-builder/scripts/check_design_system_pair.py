@@ -41,6 +41,12 @@ GENERATED_BLOCK_RE = re.compile(
     rf"{re.escape(BEGIN_MARKER)}\s*```json\s*(.*?)\s*```\s*{re.escape(END_MARKER)}",
     re.DOTALL,
 )
+PLACEHOLDER_RE = re.compile(r"^<.*>$", re.DOTALL)
+
+
+def is_placeholder(value: str) -> bool:
+    """True for a `<...>`-shaped template slot nobody has filled in yet."""
+    return bool(PLACEHOLDER_RE.match(value.strip()))
 
 
 def contract_inventory(registry: dict[str, Any]) -> dict[str, Any]:
@@ -48,14 +54,24 @@ def contract_inventory(registry: dict[str, Any]) -> dict[str, Any]:
     return {key: registry[key] for key in CONTRACT_FIELDS if key in registry}
 
 
-def generated_contract_block(registry: dict[str, Any]) -> str:
+def generated_contract_block(
+    registry: dict[str, Any],
+    *,
+    newline: str = "\n",
+) -> str:
     payload = json.dumps(
         contract_inventory(registry),
         ensure_ascii=False,
         indent=2,
         sort_keys=True,
     )
-    return f"{BEGIN_MARKER}\n```json\n{payload}\n```\n{END_MARKER}"
+    block = f"{BEGIN_MARKER}\n```json\n{payload}\n```\n{END_MARKER}"
+    return block.replace("\n", newline)
+
+
+def _newline_sequence(text: str) -> str:
+    match = re.search(r"\r\n|\r|\n", text)
+    return match.group(0) if match is not None else "\n"
 
 
 def _generated_contract_match(
@@ -94,11 +110,27 @@ def _generated_contract_match(
 
 def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> str:
     """Replace the generated block, or append it when the document predates it."""
-    block = generated_contract_block(registry)
+    newline = _newline_sequence(markdown_text)
+    block = generated_contract_block(registry, newline=newline)
     match = _generated_contract_match(markdown_text, allow_absent=True)
     if match is not None:
         return markdown_text[: match.start()] + block + markdown_text[match.end() :]
-    return markdown_text.rstrip() + "\n\n## Generated Machine Contract\n\n" + block + "\n"
+    if not markdown_text:
+        prefix = ""
+    elif markdown_text.endswith(f"{newline}{newline}"):
+        prefix = markdown_text
+    elif markdown_text.endswith(("\r", "\n")):
+        prefix = markdown_text + newline
+    else:
+        prefix = markdown_text + newline + newline
+    return (
+        prefix
+        + "## Generated Machine Contract"
+        + newline
+        + newline
+        + block
+        + newline
+    )
 
 
 def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) -> None:
@@ -214,6 +246,33 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
                     spec.get(field),
                     nonempty=True,
                 )
+            composes = spec.get("composes")
+            if isinstance(composes, list) and isinstance(primitives, dict):
+                for entry in composes:
+                    if not isinstance(entry, str) or is_placeholder(entry):
+                        continue
+                    if entry.strip() not in primitives:
+                        problems.append(
+                            f"design-system.json {path}.composes names '{entry}', "
+                            "which is not a key in primitives"
+                        )
+    return problems
+
+
+def unfilled_placeholders(value: Any, path: str = "design-system.json") -> list[str]:
+    """Report every `<...>` key or string value still left from the template."""
+    problems: list[str] = []
+    if isinstance(value, dict):
+        for key in sorted(value):
+            child = f"{path}.{key}"
+            if is_placeholder(key):
+                problems.append(f"{child} is an unfilled template placeholder")
+            problems.extend(unfilled_placeholders(value[key], child))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            problems.extend(unfilled_placeholders(item, f"{path}[{index}]"))
+    elif isinstance(value, str) and is_placeholder(value):
+        problems.append(f"{path} is an unfilled template placeholder")
     return problems
 
 
@@ -255,8 +314,15 @@ def _diff(expected: Any, actual: Any, path: str, problems: list[str]) -> None:
         )
 
 
-def compare(markdown_text: str, registry: dict[str, Any]) -> list[str]:
+def compare(
+    markdown_text: str,
+    registry: dict[str, Any],
+    *,
+    require_filled: bool = False,
+) -> list[str]:
     problems = validate_registry(registry)
+    if require_filled:
+        problems.extend(unfilled_placeholders(registry))
     generated, parse_problems = _extract_generated_contract(markdown_text)
     problems.extend(parse_problems)
     if generated is not None:
@@ -278,6 +344,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="replace or append the generated Markdown contract block before checking",
     )
+    parser.add_argument(
+        "--require-filled",
+        action="store_true",
+        help="reject template placeholder keys and string values",
+    )
     args = parser.parse_args(argv)
 
     for path in (args.markdown, args.registry):
@@ -294,16 +365,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{args.registry} must contain a JSON object", file=sys.stderr)
         return 2
 
-    markdown_text = args.markdown.read_text(encoding="utf-8")
+    markdown_text = args.markdown.read_bytes().decode("utf-8")
     if args.write:
         try:
-            markdown_text = replace_generated_contract(markdown_text, registry)
+            updated_markdown = replace_generated_contract(markdown_text, registry)
         except ValueError as error:
             print(error, file=sys.stderr)
             return 2
-        args.markdown.write_text(markdown_text, encoding="utf-8")
+        if updated_markdown != markdown_text:
+            args.markdown.write_bytes(updated_markdown.encode("utf-8"))
+        markdown_text = updated_markdown
 
-    problems = compare(markdown_text, registry)
+    problems = compare(
+        markdown_text,
+        registry,
+        require_filled=args.require_filled,
+    )
     for problem in problems:
         print(f"FAIL {problem}")
     if problems:

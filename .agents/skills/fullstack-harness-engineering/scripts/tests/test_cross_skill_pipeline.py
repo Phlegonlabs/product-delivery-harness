@@ -31,9 +31,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
         for trace in ("PRD-001", "ARCH-001", "UI-001", "UX-001", "TEST-001"):
             self.assertIn(trace, prd)
-        # The design system now lives in prd-builder, so its DS families are
-        # contracted there and must resolve for the harness's DS-* trace rule.
-        for ds_family in ("`DS-*`", "`DS-LAY-*`", "`DS-SUR-*`", "`DS-TYP-*`", "`DS-CTL-*`", "`DS-COMP-*`"):
+        # The design system now lives in prd-builder, so its supported DS
+        # families are contracted there for the harness's DS-* trace rule.
+        for ds_family in ("`DS-*`", "`DS-COMP-*`"):
             self.assertIn(ds_family, prd)
         self.assertIn("`DS-*` ID names an entry that exists in `design-system.json`", harness)
         self.assertIn("content_sha256", harness)

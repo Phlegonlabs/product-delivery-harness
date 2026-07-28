@@ -526,10 +526,6 @@ The two files must agree: neither may carry a token, primitive, variant, or stat
 | Family | Covers |
 |---|---|
 | `DS-*` | A signature visual decision in the Product-Specific Visual Thesis |
-| `DS-LAY-*` | A layout primitive |
-| `DS-SUR-*` | A surface primitive |
-| `DS-TYP-*` | A typography primitive |
-| `DS-CTL-*` | A control primitive |
 | `DS-COMP-*` | A product component |
 
 Preserve these across revisions and never reuse a retired ID for a different meaning, exactly like `PRD-*` and `UI-*`.
@@ -600,15 +596,11 @@ Before archiving earlier documents or publishing the staged package, verify:
 ### Completeness
 
 - `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. `wireframes.md` is present for a UI-bearing product; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
-- `PRD.md` includes goals, non-goals, personas, journeys, functional requirements, non-functional requirements, acceptance criteria, metrics, risks, assumptions, open questions, and test obligations.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
-- Product requirements use stable `PRD-*` IDs; architecture contracts use `ARCH-*`; screens and visible regions use `UI-*`; usability needs use `UX-*`; test obligations use `TEST-*`. Cross-document tables carry the upstream IDs they satisfy.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
-- For a browser product, `PRD.md` defines frontend delivery requirements including content/interactivity, rendering, SEO, accessibility, performance, target devices, and deployment constraints where applicable.
-- `architecture.md` is implementation-ready and covers components, data model, APIs, integrations, auth, security, deployment, observability, scaling, and failure handling.
 - For every deployable web, API, mobile, or desktop surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, separate stable surface and stage-specific provider fields, a PLAN-v5-compatible source policy, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Different providers by stage are valid for the same surface.
 - Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
 - For a deployable hosted web, API, or backend target, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
@@ -638,8 +630,7 @@ Every `wireframes.md` and design-system check below applies only to a UI-bearing
 - ASCII boxes represent real grouping, interaction, state, or hierarchy. Repeated bordered panels with colored side rails or accent stripes are not implied without a named semantic or approved brand role.
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
 - Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `design-system.md`.
-- UI states include loading, empty, error, permission, and success where applicable.
-- For a UI-bearing product, `design-system.md` and `design-system.json` are both present. JSON is the sole structured authority; Markdown contains exactly one generated machine-contract block plus human rationale. They are absent only when the user explicitly overrode the requirement and `PRD.md`'s `## Assumptions` records the requester, the reason, and the visual contract implementation uses instead. Refresh the block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`, then run the same command without `--write` and resolve every reported mismatch before publishing.
+- For a UI-bearing product, `design-system.md` and `design-system.json` are both present. JSON is the sole structured authority; Markdown contains exactly one generated machine-contract block plus human rationale. They are absent only when the user explicitly overrode the requirement and `PRD.md`'s `## Assumptions` records the requester, the reason, and the visual contract implementation uses instead. Refresh the block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled` and resolve every reported mismatch or placeholder before publishing.
 - Every product component in `design-system.json` carries non-empty `requiredContentOrder`, `composes`, and `states` arrays. The generated Markdown contract preserves their exact values and order.
 - `design-system.json` ships exactly one of `viewports` or `sizeClasses`, non-empty and unique, matching the resolved platform. A native or desktop target does not ship web pixel breakpoints.
 - `design-system.json` parses as JSON, declares `schema: "design-system/1"`, and its `tokenSources` are specific enough that no unrelated file shares the same path tail.
@@ -653,8 +644,6 @@ Every `wireframes.md` and design-system check below applies only to a UI-bearing
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
-- Assumptions and open questions are explicit.
-- The artifacts match the selected product archetype.
 
 ### Publication
 
