@@ -4,11 +4,11 @@ Use this reference when a deployable app targets native iOS, native Android, Flu
 
 The one difference to internalize first: **there is no instant redeploy or instant rollback here.** A Cloudflare Worker promotes a new version in seconds and can roll back to a prior version id just as fast. Every platform below ships a signed artifact through a store or an update channel, most involve review or notarization latency, and "rollback" means shipping another build or halting/adjusting a staged rollout — not flipping to a previous version instantly. State this to the user plainly whenever they expect web-style rollback.
 
-The default release shape mirrors the two-target web model — a "development" promotion target for testers and a "production" target for the public — but the concrete targets are platform-specific:
+Every native release plan declares a `production` target for the public channel. Add a `development` promotion target only when the repository actually uses a separate beta, testing, or preview channel:
 
 ```text
-verified build -> development target (beta channel / testing track) -> tester/QA verification
-approved build -> production target (store / notarized channel)     -> production availability + smoke
+verified build -> optional development target (beta/testing) -> tester/QA verification
+approved build -> required production target (public channel) -> availability + smoke
 ```
 
 `development` and `production` here are promotion stages. Current PLAN-v5 uses the same provider-neutral target shape for every platform; it has no provider discriminator or provider-specific fallback object. Put platform identity in prerequisites and retained evidence, and keep target fields limited to the exact PLAN-v5 contract.
@@ -25,7 +25,7 @@ If the gate cannot be confirmed, stop — do not attempt the build/submission �
 
 ## Required Verification Before Distribution
 
-A successful build or a successful store upload is not the PASS signal. Before promoting to the development target, run the toolchain's tests and a release-config build (see `references/platform-archetypes.md`, "Required verification per toolchain"): `xcodebuild test` for iOS/macOS, `./gradlew test` plus `./gradlew connectedAndroidTest` for Android, `flutter test` plus `flutter test integration_test/` for Flutter, `dotnet test` for Windows. Retain the build identifier (build number / versionCode / package version), the signed artifact reference, the source SHA, and the tester/QA evidence. Only promote to production after the development target's testers or QA sign off.
+A successful build or a successful store upload is not the PASS signal. Before any distribution, run the toolchain's tests and a release-config build (see `references/platform-archetypes.md`, "Required verification per toolchain"): `xcodebuild test` for iOS/macOS, `./gradlew test` plus `./gradlew connectedAndroidTest` for Android, `flutter test` plus `flutter test integration_test/` for Flutter, `dotnet test` for Windows. Retain the build identifier (build number / versionCode / package version), the signed artifact reference, and the source SHA. When the repository declares the optional development target, also retain its tester/QA evidence and require that signoff before production promotion.
 
 ## iOS (and Flutter's iOS path)
 
@@ -55,12 +55,12 @@ A successful build or a successful store upload is not the PASS signal. Before p
 
 ## Release Isolation
 
-Keep development and production builds isolated the same way the Cloudflare model keeps environments isolated. Development/beta builds should use non-production backends, sandbox in-app purchase, test push credentials, and debug entitlements; production builds use live backends, production purchase, production push, and release entitlements. Do not let a TestFlight/internal-track build point at production data or live payments by default. Bundle/application identifiers, push certificates, and backend endpoints stay per-stage.
+When the repository declares both stages, keep development and production builds isolated the same way the Cloudflare model keeps environments isolated. Development/beta builds should use non-production backends, sandbox in-app purchase, test push credentials, and debug entitlements; production builds use live backends, production purchase, production push, and release entitlements. Do not let a TestFlight/internal-track build point at production data or live payments by default. Bundle/application identifiers, push certificates, and backend endpoints stay per-stage.
 
 ## Verification and Failure Rules
 
 - Retain the build identifier, signed-artifact reference, source SHA, test evidence, and tester/QA or store-review status. A successful upload alone is not a development or production PASS.
-- Stop promotion to production when development-target tests, the release-config build, or tester/QA verification fails.
+- Stop promotion to production when the release-config build fails, or when a declared development target's tests or tester/QA verification fail.
 - Do not mark production PASS on upload success alone — production PASS requires the build actually available through the store/channel and its smoke/acceptance check passing.
 - Because there is no instant rollback, treat a broken production release as forward-fix work: halt the rollout/phased release where possible and prepare a corrected signed build. Do not claim a rollback the platform cannot perform.
 

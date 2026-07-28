@@ -1,3 +1,4 @@
+import copy
 import sys
 import unittest
 from pathlib import Path
@@ -133,6 +134,68 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertNotIn("web-development", targets)
         self.assertEqual("production_head", targets["web-production"]["source"])
         self.assertIn("Stable target IDs are provider-neutral", plan_text)
+
+    def test_plan_release_requires_production_and_makes_development_optional(
+        self,
+    ) -> None:
+        plan_text = self.read("assets/templates/HARNESS_PLAN.template.md")
+        plan = self.canonical_manifest(
+            "assets/templates/HARNESS_PLAN.template.md", "harness_plan"
+        )
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual(
+            {"production"},
+            {target["stage"] for target in plan["release"]["targets"]},
+        )
+        self.assertIn("at least one `production` target", plan_text)
+        self.assertIn(
+            "A `development` target is optional and appears only when the "
+            "repository actually keeps a separate preview, staging, beta, or "
+            "testing environment or channel",
+            plan_text,
+        )
+        self.assertNotIn(
+            "at least one `development` and one `production` target",
+            plan_text,
+        )
+        self.assertNotIn(
+            "Include at least one development and one production target",
+            plan_text,
+        )
+        native_lifecycle = self.read(
+            "references/mobile-desktop-deployment-lifecycle.md"
+        )
+        self.assertIn(
+            "Every native release plan declares a `production` target",
+            native_lifecycle,
+        )
+        self.assertIn(
+            "Add a `development` promotion target only when the repository "
+            "actually uses a separate beta, testing, or preview channel",
+            native_lifecycle,
+        )
+        self.assertNotIn("two-target web model", native_lifecycle)
+
+        development_only = copy.deepcopy(plan)
+        development = development_only["release"]["targets"][0]
+        development.update(
+            {
+                "id": "web-development",
+                "stage": "development",
+                "source": "integration_head",
+                "data_mode": "isolated_non_production",
+            }
+        )
+        errors = validate_plan(development_only)
+        self.assertTrue(
+            any(
+                "plan.release.targets: must include at least one production target"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_run_v10_binds_plan_targets_authorization_and_evidence(self) -> None:
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")

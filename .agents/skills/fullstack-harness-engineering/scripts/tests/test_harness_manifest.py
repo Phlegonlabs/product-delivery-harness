@@ -1361,6 +1361,7 @@ class RunValidationTests(unittest.TestCase):
             run["targets"]["web-production"]
         )
         run["integration"]["branch"] = "refs/heads/development"
+        run["integration"]["retention"] = "persistent"
         run["plan"]["digest_sha256"] = plan_digest(plan)
 
         pr_head = SHA_A
@@ -1615,6 +1616,21 @@ class RunValidationTests(unittest.TestCase):
             run,
             "run.integration.retention: must be null, persistent, or ephemeral",
         )
+
+    def test_run_template_defaults_to_ephemeral_per_run_branch(self) -> None:
+        root = SCRIPTS_DIR.parent
+        plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+        run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertEqual("refs/heads/codex/<short-name>", run["integration"]["branch"])
+        self.assertEqual("ephemeral", run["integration"]["retention"])
+        self.assertEqual([], validate_run(plan, run))
+
+        run["integration"]["branch"] = "refs/heads/development"
+        run["integration"]["retention"] = "persistent"
+        run["landing"]["head_branch"] = "refs/heads/development"
+        run["landing"]["continuity"]["branch_ref"] = "refs/heads/development"
+        self.assertEqual([], validate_run(plan, run))
 
     def test_schema_v7_integration_head_development_binds_to_integration_branch(
         self,
