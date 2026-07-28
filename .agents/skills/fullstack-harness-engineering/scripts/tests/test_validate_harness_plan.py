@@ -19,7 +19,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
-from test_select_parallel_missions import manifest_markdown  # noqa: E402
+from manifest_fixtures import manifest_markdown  # noqa: E402
 
 
 HOME_SURFACE = {

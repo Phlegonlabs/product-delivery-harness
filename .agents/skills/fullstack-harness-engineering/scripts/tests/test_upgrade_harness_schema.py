@@ -32,8 +32,8 @@ from harness_manifest import (  # noqa: E402
     validate_run,
 )
 from harness_schema import ACTION_TARGET_CONTRACT  # noqa: E402
+from manifest_fixtures import manifest_markdown  # noqa: E402
 from test_harness_manifest import cloudflare_release, valid_plan, valid_run  # noqa: E402
-from test_select_parallel_missions import manifest_markdown  # noqa: E402
 
 import upgrade_harness_schema as upgrade  # noqa: E402
 
@@ -309,6 +309,24 @@ class PlanUpgradeTests(UpgradeHelpers, unittest.TestCase):
         upgraded = load_plan(plan_path)
         self.assertEqual(5, upgraded["schema_version"])
         self.assertEqual([], validate_plan(upgraded))
+
+    def test_plan_only_upgrade_refuses_an_existing_paired_old_run(self) -> None:
+        root = self._seed_repo()
+        plan = upgradeable_plan()
+        run = downgrade_run_to_v2(valid_run(plan))
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        plan_path = self._write_plan(root, plan)
+        run_path = self._write_run(root, run)
+        plan_before = plan_path.read_bytes()
+        run_before = run_path.read_bytes()
+
+        result = self._run_cli("--plan", str(plan_path), "--repo-root", str(root))
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("refusing PLAN-only upgrade", result.stderr)
+        self.assertIn(f"Pass --run {run_path}", result.stderr)
+        self.assertEqual(plan_before, plan_path.read_bytes())
+        self.assertEqual(run_before, run_path.read_bytes())
 
     def test_plan_v4_graph_projects_dependencies_without_fabrication(self) -> None:
         root = self._seed_repo()

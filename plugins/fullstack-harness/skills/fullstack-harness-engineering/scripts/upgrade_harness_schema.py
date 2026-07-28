@@ -767,6 +767,18 @@ def main(argv: list[str] | None = None) -> int:
 
     plan_from = plan["schema_version"]
     run_from = run["schema_version"] if run is not None else None
+    implicit_run_path = Path(args.plan).with_name("RUN.md")
+    if (
+        args.run is None
+        and plan_from < PLAN_MAX_SCHEMA
+        and implicit_run_path.is_file()
+    ):
+        sys.stderr.write(
+            f"refusing PLAN-only upgrade: paired RUN manifest exists at "
+            f"{implicit_run_path}. Pass --run {implicit_run_path} so the pair "
+            "is validated and upgraded atomically.\n"
+        )
+        return 1
     if plan_from >= PLAN_MAX_SCHEMA and (run is None or run_from >= RUN_MAX_SCHEMA):
         sys.stdout.write("already current: nothing to upgrade\n")
         return 0

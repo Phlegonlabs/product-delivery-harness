@@ -21,20 +21,20 @@ SCRIPTS_DIR = TESTS_DIR.parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-from test_select_parallel_missions import (  # noqa: E402
-    configure_app_task_fanout,
-    make_plan,
-    make_run,
-    manifest_markdown,
-    mission,
-    upgrade_to_schema_v6,
-)
+from manifest_fixtures import manifest_markdown  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
+    authorize_execution,
     mark_complete,
     valid_closeout_run,
     valid_plan,
 )
-from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
+from test_graph_orchestration import (  # noqa: E402
+    authorize,
+    detach_mission_edges,
+    mission_nodes,
+    valid_graph_plan,
+    valid_graph_run,
+)
 from harness_manifest import plan_digest  # noqa: E402
 from validate_node_result import validate_node_result  # noqa: E402
 from validate_worker_result import validate_worker_result_data  # noqa: E402
@@ -96,9 +96,7 @@ class HarnessCliE2ETests(unittest.TestCase):
             self.assertEqual("", validation.stderr)
             self.assertEqual("PASS", json.loads(validation.stdout)["status"])
 
-            selection = self.run_cli(
-                "select_parallel_missions.py", plan_path, run_path
-            )
+            selection = self.run_cli("select_ready_nodes.py", plan_path, run_path)
             self.assertEqual(0, selection.returncode, selection.stderr)
             self.assertEqual("", selection.stderr)
             proposal = json.loads(selection.stdout)
@@ -106,73 +104,136 @@ class HarnessCliE2ETests(unittest.TestCase):
             self.assertEqual(run_text, run_path.read_text(encoding="utf-8"))
             return proposal
 
-    def test_validated_claude_run_selects_one_dynamic_workflow(self) -> None:
-        plan = make_plan(
-            [
-                mission("M2", priority=10, merge_rank=20),
-                mission("M1", priority=20, merge_rank=10),
-            ]
+    def test_validated_claude_run_selects_dynamic_workflow_launch_path(self) -> None:
+        plan = valid_graph_plan()
+        detach_mission_edges(plan)
+        plan["max_parallel_workers"] = 2
+        for node in mission_nodes(plan):
+            node["runtime"] = {
+                "preferred_provider": "claude_code",
+                "allowed_providers": ["claude_code"],
+            }
+        run = valid_graph_run(plan)
+        mission_ids = ["M1", "M2"]
+        authorize_execution(run, mission_ids)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+                "runtime_adapter": {
+                    "provider": "claude_code",
+                    "available_drivers": [
+                        "dynamic_workflow",
+                        "subagents",
+                        "sequential_parent",
+                    ],
+                    "detection_source": "observed",
+                },
+            }
         )
-        run = make_run(plan)
-        upgrade_to_schema_v6(
-            run,
-            "claude_code",
-            ["sequential_parent", "subagents", "dynamic_workflow"],
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 2, "isolation_capacity": 2}
         )
+        for action in (
+            "spawn_subagents",
+            "create_local_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize(run, action, mission_ids, "*")
+
         proposal = self.validate_and_select(plan, run)
 
-        self.assertEqual(["M1", "M2"], proposal["selected_missions"])
         self.assertEqual(
-            {
-                "provider": "claude_code",
-                "driver": "dynamic_workflow",
-                "detection_source": "observed",
-            },
-            proposal["runtime_route"],
+            ["N-M1", "N-M2"],
+            [item["node_id"] for item in proposal["dispatchable_nodes"]],
         )
         self.assertEqual(
-            {
-                "launch_kind": "run_dynamic_workflow",
-                "mission_ids": ["M1", "M2"],
-                "script_path": "assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js",
-                "args_source": "accepted_wave",
-            },
-            proposal["wave_launch"],
+            ["run_dynamic_workflow", "run_dynamic_workflow"],
+            [item["launch_kind"] for item in proposal["dispatchable_nodes"]],
+        )
+        self.assertTrue(
+            all(
+                item["runtime_provider"] == "claude_code"
+                and item["runtime_driver"] == "dynamic_workflow"
+                and item["runtime_source"] == "host"
+                for item in proposal["dispatchable_nodes"]
+            )
         )
 
     def test_validated_codex_run_selects_app_thread_wave(self) -> None:
-        plan = make_plan(
-            [
-                mission("M3", priority=5, merge_rank=30),
-                mission("M2", priority=10, merge_rank=20),
-                mission("M1", priority=20, merge_rank=10),
-            ]
+        plan = valid_graph_plan()
+        detach_mission_edges(plan)
+        plan["max_parallel_workers"] = 2
+        for node in mission_nodes(plan):
+            node["runtime"] = {
+                "preferred_provider": "codex",
+                "allowed_providers": ["codex"],
+            }
+        run = valid_graph_run(plan)
+        mission_ids = ["M1", "M2"]
+        authorize_execution(run, mission_ids)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+                "max_parallel_workers": 2,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": [
+                        "app_threads",
+                        "subagents",
+                        "sequential_parent",
+                    ],
+                    "detection_source": "observed",
+                },
+                "nested_subagents": {
+                    "available": True,
+                    "max_depth": 1,
+                    "max_children_per_worker": 3,
+                    "allowed_roles": ["reviewer"],
+                    "write_policy": "read_only",
+                    "completion_channel": "agent_result",
+                },
+                "platform_lifecycle": {
+                    "owner": "app",
+                    "automatic_retention_cleanup_possible": True,
+                    "durable_branch_required_before_unique_work": True,
+                },
+            }
         )
-        run = make_run(plan)
-        configure_app_task_fanout(run, ["M1", "M2", "M3"])
-        upgrade_to_schema_v6(
-            run,
-            "codex",
-            ["sequential_parent", "subagents", "app_threads"],
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 2, "isolation_capacity": 2}
         )
+        for action in (
+            "spawn_subagents",
+            "create_user_owned_tasks",
+            "create_app_managed_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize(run, action, mission_ids, "*")
+
         proposal = self.validate_and_select(plan, run)
 
-        self.assertEqual(["M1", "M2", "M3"], proposal["selected_missions"])
         self.assertEqual(
-            {
-                "provider": "codex",
-                "driver": "app_threads",
-                "detection_source": "observed",
-            },
-            proposal["runtime_route"],
+            ["N-M1", "N-M2"],
+            [item["node_id"] for item in proposal["dispatchable_nodes"]],
         )
         self.assertEqual(
-            ["create_thread", "create_thread", "create_thread"],
-            [item["launch_kind"] for item in proposal["launch_directives"]],
+            ["create_thread", "create_thread"],
+            [item["launch_kind"] for item in proposal["dispatchable_nodes"]],
         )
-        self.assertEqual(
-            ["M1", "M2", "M3"],
-            [item["mission_id"] for item in proposal["launch_directives"]],
+        self.assertTrue(
+            all(
+                item["runtime_provider"] == "codex"
+                and item["runtime_driver"] == "app_threads"
+                and item["runtime_source"] == "host"
+                for item in proposal["dispatchable_nodes"]
+            )
         )
 
     @unittest.skipUnless(shutil.which("git"), "git is required for worktree handoff coverage")
