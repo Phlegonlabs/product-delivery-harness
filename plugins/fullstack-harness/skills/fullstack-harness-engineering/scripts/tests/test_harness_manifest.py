@@ -36,7 +36,7 @@ from harness_manifest import (  # noqa: E402
     validate_scope_claim,
 )
 from harness_authorization import execution_intent_target_in_scope  # noqa: E402
-from harness_schema import action_target_kind_allowed  # noqa: E402
+from harness_schema import ACTION_TARGET_CONTRACT, action_target_kind_allowed  # noqa: E402
 
 
 SHA_A = "a" * 40
@@ -3208,6 +3208,158 @@ class RunValidationTests(unittest.TestCase):
         )
         self.assertEqual([], validate_run(plan, run))
 
+    def test_merge_pr_scope_requires_the_exact_landing_identity(self) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        mismatches = (
+            (
+                0,
+                "future-pr:other/repo:"
+                "base=development:head=codex/feature",
+            ),
+            (
+                0,
+                "future-pr:example/repo:"
+                "base=production:head=codex/feature",
+            ),
+            (
+                0,
+                "future-pr:example/repo:"
+                "base=development:head=codex/other",
+            ),
+            (1, "pr:https://github.com/other/repo/pull/7"),
+            (1, "pr:https://github.com/example/repo/pull/8"),
+        )
+        for target_index, target in mismatches:
+            with self.subTest(target=target):
+                mismatched = copy.deepcopy(run)
+                mismatched["authorizations"]["merge_pr"]["scope"]["targets"][
+                    target_index
+                ] = target
+
+                errors = validate_run(plan, mismatched)
+
+                self.assertTrue(
+                    any(
+                        f"target_sources.{target}:" in error
+                        and "requires its own recorded authorization source" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
+    def test_merge_pr_exact_target_requires_its_future_identity_sibling(
+        self,
+    ) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        exact_only = copy.deepcopy(run)
+        exact_target = f"pr:{exact_only['landing']['pr_url']}"
+        exact_only["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            exact_target,
+            f"release:{development_target_id}",
+        ]
+        errors = validate_run(plan, exact_only)
+        self.assertTrue(
+            any(
+                f"target_sources.{exact_target}:" in error
+                and "requires its own recorded authorization source" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        tampered = copy.deepcopy(exact_only)
+        tampered_url = "https://github.com/other/repo/pull/99"
+        tampered_target = f"pr:{tampered_url}"
+        tampered["landing"]["pr_url"] = tampered_url
+        tampered["landing"]["pr_number"] = 99
+        tampered["authorizations"]["merge_pr"]["scope"]["targets"][0] = (
+            tampered_target
+        )
+        errors = validate_run(plan, tampered)
+        self.assertTrue(
+            any(
+                f"target_sources.{tampered_target}:" in error
+                and "requires its own recorded authorization source" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_unmarked_v10_exact_only_integration_pr_keeps_legacy_compatibility(
+        self,
+    ) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        exact_target = f"pr:{run['landing']['pr_url']}"
+        run["authorizations"]["merge_pr"]["scope"]["targets"] = [
+            exact_target,
+            f"release:{development_target_id}",
+        ]
+        plan.pop("action_target_contract")
+        run.pop("action_target_contract")
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        for entry in run["authorizations"].values():
+            if entry.get("authorized") is True:
+                entry["scope"]["plan_digest_sha256"] = digest
+
+        self.assertEqual([], validate_run(plan, run))
+
+        explicit_provenance = copy.deepcopy(run)
+        explicit_provenance["authorizations"]["merge_pr"]["target_sources"] = {}
+        errors = validate_run(plan, explicit_provenance)
+        self.assertTrue(
+            any(
+                f"target_sources.{exact_target}:" in error
+                and "requires its own recorded authorization source" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        marked_plan = copy.deepcopy(plan)
+        marked_run = copy.deepcopy(run)
+        marked_plan["action_target_contract"] = ACTION_TARGET_CONTRACT
+        marked_run["action_target_contract"] = ACTION_TARGET_CONTRACT
+        digest = plan_digest(marked_plan)
+        marked_run["plan"]["digest_sha256"] = digest
+        for entry in marked_run["authorizations"].values():
+            if entry.get("authorized") is True:
+                entry["scope"]["plan_digest_sha256"] = digest
+        errors = validate_run(marked_plan, marked_run)
+        self.assertTrue(
+            any(
+                f"target_sources.{exact_target}:" in error
+                and "requires its own recorded authorization source" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_merge_pr_future_repository_identity_is_case_insensitive(self) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        run["authorizations"]["merge_pr"]["scope"]["targets"][0] = (
+            "future-pr:Example/Repo:"
+            "base=development:head=codex/feature"
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+
     def test_integration_pull_request_into_main_cannot_use_auto_merge(self) -> None:
         plan, run, development_target_id = self.integration_pull_request_v10()
         self.authorize_merge_triggered_development_release(
@@ -3280,6 +3432,37 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assertEqual(validate_run(plan, run), [])
 
+    def test_merge_pr_scope_keeps_matching_future_identity_before_pr_creation(
+        self,
+    ) -> None:
+        plan: dict[str, object] = {}
+        run = {
+            "integration": {"branch": "refs/heads/development"},
+            "landing": {
+                "base_branch": "development",
+                "head_branch": "refs/heads/codex/feature",
+                "pr_url": None,
+            },
+        }
+        matching = (
+            "future-pr:example/repo:"
+            "base=refs/heads/development:head=codex/feature"
+        )
+
+        self.assertTrue(
+            execution_intent_target_in_scope(plan, run, "merge_pr", matching)
+        )
+        for target in (
+            "future-pr:example/repo:base=production:head=codex/feature",
+            "future-pr:example/repo:base=development:head=codex/other",
+        ):
+            with self.subTest(target=target):
+                self.assertFalse(
+                    execution_intent_target_in_scope(
+                        plan, run, "merge_pr", target
+                    )
+                )
+
     def test_merge_pr_scope_normalizes_equivalent_branch_refs(self) -> None:
         plan: dict[str, object] = {}
         exact_pr = "pr:https://github.com/example/repo/pull/7"
@@ -3293,12 +3476,21 @@ class RunValidationTests(unittest.TestCase):
             ):
                 run = {
                     "integration": {"branch": integration_branch},
-                    "landing": {"base_branch": landing_base},
+                    "landing": {
+                        "base_branch": landing_base,
+                        "head_branch": "refs/heads/codex/feature",
+                        "pr_url": "https://github.com/example/repo/pull/7",
+                    },
                 }
                 future_pr = (
                     "future-pr:example/repo:"
                     f"base={landing_base}:head=codex/feature"
                 )
+                run["authorizations"] = {
+                    "merge_pr": {
+                        "scope": {"targets": [future_pr, exact_pr]}
+                    }
+                }
                 self.assertTrue(
                     execution_intent_target_in_scope(
                         plan, run, "merge_pr", future_pr
@@ -3323,7 +3515,11 @@ class RunValidationTests(unittest.TestCase):
             ):
                 run = {
                     "integration": {"branch": integration_branch},
-                    "landing": {"base_branch": landing_base},
+                    "landing": {
+                        "base_branch": landing_base,
+                        "head_branch": "refs/heads/codex/feature",
+                        "pr_url": "https://github.com/example/repo/pull/7",
+                    },
                 }
                 future_pr = (
                     "future-pr:example/repo:"

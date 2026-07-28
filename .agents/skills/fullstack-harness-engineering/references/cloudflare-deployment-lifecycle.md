@@ -52,7 +52,7 @@ Deployment remains separate from push, PR merge, remote workflow triggering, clo
 
 One rule covers who runs the production deploy, in both trigger models below:
 
-- The harness runs the production deploy command when `deploy` is authorized for that exact production `release:<target-id>` at that exact head. That grant is never inferred from `merge_pr`, from the promotion approval, or from the development loop, and it carries its own recorded `target_sources` entry (`execution-state-model.md`).
+- The harness runs the production deploy command when `deploy` is authorized for that exact production `release:<target-id>` at that exact head. That grant is never inferred from `merge_pr`, from the promotion approval, or from the development loop. In every new marked `action-targets/1` RUN-v10 artifact, it carries its own recorded `target_sources` entry (`execution-state-model.md`); the current RUN template is marked. An existing unmarked legacy RUN-v10 entry keeps historical validation only while it omits `target_sources`, and adding `target_sources` opts that entry into the same strict provenance rules.
 - The `development -> production` merge is always the human's. The harness may open the promotion PR, observe current-head CI, and request review; it does not merge and does not enable auto-merge there.
 - Where the production Worker deploys from its own Cloudflare Git connection, the human's merge is the deploy trigger and the harness runs no deploy command. The exact production `deploy` grant still records the publication consequence, alongside the `merge_pr` grant for the merge that caused it.
 

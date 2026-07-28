@@ -143,6 +143,40 @@ def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
     return ids
 
 
+def future_pr_target_matches_landing(
+    target: str,
+    landing: Any,
+    *,
+    integration_branch: Any = None,
+) -> bool:
+    """Whether a future PR target describes the same landing identity."""
+    future_pr = FUTURE_PR_TARGET_RE.fullmatch(target)
+    if future_pr is None or not isinstance(landing, dict):
+        return False
+    target_base = _normalized_branch(future_pr.group("base"))
+    landing_base = _normalized_branch(landing.get("base_branch"))
+    if target_base is None or target_base != landing_base:
+        return False
+    if (
+        integration_branch is not None
+        and target_base != _normalized_branch(integration_branch)
+    ):
+        return False
+    if _normalized_branch(future_pr.group("head")) != _normalized_branch(
+        landing.get("head_branch")
+    ):
+        return False
+    landing_pr_url = landing.get("pr_url")
+    if not _nonempty_string(landing_pr_url):
+        return True
+    landing_pr = GITHUB_PR_URL_RE.fullmatch(landing_pr_url)
+    return (
+        landing_pr is not None
+        and future_pr.group("repository").casefold()
+        == landing_pr.group("repository").casefold()
+    )
+
+
 def execution_intent_target_in_scope(
     plan: dict[str, Any], run: dict[str, Any], action: str, target: str
 ) -> bool:
@@ -169,19 +203,57 @@ def execution_intent_target_in_scope(
         landing_base = (
             landing.get("base_branch") if isinstance(landing, dict) else None
         )
+        landing_pr_url = (
+            landing.get("pr_url") if isinstance(landing, dict) else None
+        )
+        landing_pr = (
+            GITHUB_PR_URL_RE.fullmatch(landing_pr_url)
+            if _nonempty_string(landing_pr_url)
+            else None
+        )
         target_base = future_pr.group("base") if future_pr is not None else landing_base
-        if _normalized_branch(target_base) == "main":
+        if (
+            _normalized_branch(target_base) == "main"
+            or _normalized_branch(landing_base) == "main"
+        ):
             # A generic development-loop instruction never covers a main-bound
             # merge. Every target in that merge entry must retain the later
             # exact human instruction in target_sources.
             return False
         if future_pr is not None:
-            return (
-                _normalized_branch(future_pr.group("base"))
-                == normalized_integration_branch
+            return future_pr_target_matches_landing(
+                target,
+                landing,
+                integration_branch=branch,
             )
         if target.startswith("pr:"):
-            return _normalized_branch(landing_base) == normalized_integration_branch
+            exact_target_matches = (
+                landing_pr is not None
+                and target == f"pr:{landing_pr_url}"
+                and _normalized_branch(landing_base)
+                == normalized_integration_branch
+            )
+            authorizations = run.get("authorizations")
+            merge_entry = (
+                authorizations.get("merge_pr")
+                if isinstance(authorizations, dict)
+                else None
+            )
+            scope = (
+                merge_entry.get("scope") if isinstance(merge_entry, dict) else None
+            )
+            scope_targets = (
+                scope.get("targets") if isinstance(scope, dict) else None
+            )
+            return exact_target_matches and isinstance(scope_targets, list) and any(
+                isinstance(sibling, str)
+                and future_pr_target_matches_landing(
+                    sibling,
+                    landing,
+                    integration_branch=branch,
+                )
+                for sibling in scope_targets
+            )
         # A merge-triggered release records the release consequence on the merge
         # itself. It stays in scope on the same rule as `deploy`: the
         # development target rides the loop, the production one does not.

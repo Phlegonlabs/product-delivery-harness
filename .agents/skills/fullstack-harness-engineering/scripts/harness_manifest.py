@@ -85,10 +85,10 @@ from harness_core import (
     validate_scope_claim,
 )
 from harness_authorization import (
-    _landing_future_pr_target,
     _validate_authorization_scope,
     authorization_covers,
     execution_covers,
+    future_pr_target_matches_landing,
     validate_target_sources,
 )
 from harness_graph import (
@@ -2605,7 +2605,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.authorized_head_sha",
                         "is only allowed for head-bound remote actions",
                     )
-                if schema_version == 10 and action in EXECUTION_INTENT_SCOPED_ACTIONS:
+                if (
+                    schema_version == 10
+                    and action in EXECUTION_INTENT_SCOPED_ACTIONS
+                    and (
+                        run.get("action_target_contract")
+                        == ACTION_TARGET_CONTRACT
+                        or "target_sources" in entry
+                    )
+                ):
                     validate_target_sources(
                         errors, path, entry, plan=plan, run=run, action=action
                     )
@@ -2932,7 +2940,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             for target in merge_targets
             if isinstance(target, str) and FUTURE_PR_TARGET_RE.fullmatch(target)
         }
-        if future_targets and _landing_future_pr_target(run["landing"]) not in future_targets:
+        if future_targets and not any(
+            future_pr_target_matches_landing(target, run["landing"])
+            for target in future_targets
+        ):
             _add(
                 errors,
                 "run.landing",

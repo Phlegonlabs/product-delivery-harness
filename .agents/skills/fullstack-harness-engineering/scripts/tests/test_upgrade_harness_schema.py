@@ -117,6 +117,7 @@ def current_release_plan_and_run(
     upgrade._RUN_STEPS[7](run, plan)
     upgrade._RUN_STEPS[8](run, plan)
     upgrade._PLAN_STEPS[4](plan, repo_root)
+    plan["action_target_contract"] = ACTION_TARGET_CONTRACT
 
     target = plan["release"]["targets"][0]
     target.update(
@@ -138,6 +139,7 @@ def current_release_plan_and_run(
         "digest_sha256": plan_digest(plan),
     }
     upgrade._RUN_STEPS[9](run, plan)
+    run["action_target_contract"] = ACTION_TARGET_CONTRACT
     run["integration"]["retention"] = "persistent"
     evidence_sha256 = "e" * 64
     retained = {
@@ -764,6 +766,13 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertTrue(self._target_source_errors(plan, promotion))
 
         loop_merge = copy.deepcopy(base)
+        loop_merge["landing"].update(
+            {
+                "pr_url": "https://github.com/acme/app/pull/1",
+                "base_branch": branch,
+                "head_branch": "feature",
+            }
+        )
         self._grant(loop_merge, "merge_pr", [f"future-pr:acme/app:base={branch}:head=feature"])
         self.assertEqual([], self._target_source_errors(plan, loop_merge))
 

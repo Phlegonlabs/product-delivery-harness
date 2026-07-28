@@ -515,7 +515,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-`push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers them only for the resolved integration branch, a PR merging into it, and the development release target; any other target on those three entries names the separate instruction that authorized it:
+This template is marked with `action_target_contract: "action-targets/1"`, so every new RUN-v10 artifact created from it enforces strict per-target provenance. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers them only for the resolved integration branch, a PR merging into it, and the development release target; any other target on those three entries names the separate instruction that authorized it:
 
 ```json
 "target_sources": {
@@ -523,7 +523,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-That source must differ from the entry's own `source`, every key must appear in `scope.targets`, and the RUN fails validation when an out-of-scope target has no entry — in every landing mode. See `../../references/execution-state-model.md`'s Per-Target Provenance For The Scoped Three.
+That source must differ from the entry's own `source`, every key must appear in `scope.targets`, and a marked RUN fails validation when an out-of-scope target has no entry — in every landing mode. An existing unmarked legacy RUN-v10 entry keeps historical validation only while it omits `target_sources`; adding `target_sources` opts that entry into the same strict provenance rules. See `../../references/execution-state-model.md`'s Per-Target Provenance For The Scoped Three.
 
 `execution_authorization_scope` at the top of the RUN is a different shape from the per-action `scope` above, and copying the action shape is the usual mistake. It carries `expires_when` **inside** the object and takes **no** `targets` key:
 

@@ -241,7 +241,7 @@ Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`
 
 ### Per-Target Provenance For The Scoped Three
 
-An entry carries one `source` for a whole `targets` list, so on `push`, `merge_pr`, and `deploy` — the three the execution-intent bundle covers only partially — a single grouped instruction would otherwise read as authorizing every target on the entry, including the ones it explicitly does not reach. Schema v10 closes that with an optional `target_sources` map on those three entries only:
+An entry carries one `source` for a whole `targets` list, so on `push`, `merge_pr`, and `deploy` — the three the execution-intent bundle covers only partially — a single grouped instruction would otherwise read as authorizing every target on the entry, including the ones it explicitly does not reach. A schema v10 PLAN/RUN pair marked with `action_target_contract: "action-targets/1"` closes that with an optional `target_sources` map on those three entries only. New templates carry the marker. Existing unmarked v10 files without `target_sources` keep their historical validation behavior; adding `target_sources` to an unmarked entry opts that entry into the same strict rules:
 
 ```json
 {
