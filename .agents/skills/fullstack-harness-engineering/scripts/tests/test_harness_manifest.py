@@ -746,6 +746,18 @@ def mark_observed_merge_complete_v10(
     )
 
 
+def record_external_human_merge(run: dict[str, object]) -> None:
+    landing = run["landing"]
+    landing["external_merge_observation"] = {
+        "kind": "external_human",
+        "actor": "github:user/human-reviewer",
+        "event_ref": f"github-api:{landing['pr_url']}#merged_by",
+        "pr_url": landing["pr_url"],
+        "pr_head_sha": landing["pr_head_sha"],
+        "merged_sha": landing["merged_sha"],
+    }
+
+
 def authorize_merge(run: dict[str, object], pr_url: str) -> None:
     run["authorizations"]["merge_pr"] = {
         "authorized": True,
@@ -3479,12 +3491,70 @@ class RunValidationTests(unittest.TestCase):
                     "authorized": False,
                     "source": None,
                 }
+                record_external_human_merge(observed)
                 self.assertEqual([], validate_run(plan, observed))
                 self.assertTrue(observed["authorizations"]["deploy"]["authorized"])
 
-                completed_observation = copy.deepcopy(observed)
-                mark_observed_merge_complete_v10(plan, completed_observation)
-                self.assertEqual([], validate_run(plan, completed_observation))
+                missing_observation = copy.deepcopy(observed)
+                missing_observation["landing"].pop("external_merge_observation")
+                missing_errors = validate_run(plan, missing_observation)
+                self.assertTrue(
+                    any(
+                        "requires retained external human actor and exact PR/head "
+                        "event evidence" in error
+                        for error in missing_errors
+                    ),
+                    missing_errors,
+                )
+
+                completed_current = copy.deepcopy(missing_observation)
+                mark_observed_merge_complete_v10(plan, completed_current)
+                completed_current_errors = validate_run(plan, completed_current)
+                self.assertTrue(
+                    any(
+                        "requires retained external human actor and exact PR/head "
+                        "event evidence" in error
+                        for error in completed_current_errors
+                    ),
+                    completed_current_errors,
+                )
+
+                completed_legacy = copy.deepcopy(completed_current)
+                completed_legacy.pop("external_merge_contract")
+                self.assertEqual([], validate_run(plan, completed_legacy))
+
+                contradictory = copy.deepcopy(run)
+                record_external_human_merge(contradictory)
+                contradictory_errors = validate_run(plan, contradictory)
+                self.assertTrue(
+                    any(
+                        "external_merge_observation: must be omitted when merge_pr "
+                        "was authorized" in error
+                        for error in contradictory_errors
+                    ),
+                    contradictory_errors,
+                )
+
+                for field, invalid_value in (
+                    ("actor", ""),
+                    ("event_ref", ""),
+                    ("pr_url", "https://github.com/other/repo/pull/99"),
+                    ("pr_head_sha", "f" * 40),
+                    ("merged_sha", "e" * 40),
+                ):
+                    with self.subTest(mode=mode, observation_field=field):
+                        mismatched = copy.deepcopy(observed)
+                        mismatched["landing"]["external_merge_observation"][field] = (
+                            invalid_value
+                        )
+                        mismatch_errors = validate_run(plan, mismatched)
+                        self.assertTrue(
+                            any(
+                                f"external_merge_observation.{field}" in error
+                                for error in mismatch_errors
+                            ),
+                            mismatch_errors,
+                        )
 
                 variants = {}
                 stale = copy.deepcopy(run)
@@ -3584,6 +3654,7 @@ class RunValidationTests(unittest.TestCase):
             "authorized": False,
             "source": None,
         }
+        record_external_human_merge(observed)
         self.assertEqual([], validate_run(plan, observed))
 
         missing_deploy = copy.deepcopy(observed)

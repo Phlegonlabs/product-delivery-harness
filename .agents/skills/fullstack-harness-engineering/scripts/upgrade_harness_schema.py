@@ -34,6 +34,7 @@ from harness_manifest import (
     validate_run,
     validate_ui_evidence_files,
 )
+from harness_schema import EXTERNAL_MERGE_CONTRACT
 
 
 PLAN_MAX_SCHEMA = 5
@@ -539,11 +540,13 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
             }
         )
 
+    run["external_merge_contract"] = EXTERNAL_MERGE_CONTRACT
     run["verifier_executions"] = []
     added = [
         "authorizations.trigger_remote_ci",
         "authorizations.provision_cloud_resources",
         "landing.continuity",
+        "external_merge_contract",
         "verifier_executions",
     ]
     if _plan_declares_release(plan):

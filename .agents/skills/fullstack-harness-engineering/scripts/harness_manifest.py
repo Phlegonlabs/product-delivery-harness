@@ -20,6 +20,7 @@ from harness_schema import (
     CLEANUP_WORKTREE_STATUSES,
     DEPLOYMENT_PROVIDERS,
     EXECUTION_INTENT_SCOPED_ACTIONS,
+    EXTERNAL_MERGE_CONTRACT,
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GATE_VALUES,
@@ -91,6 +92,8 @@ from harness_authorization import (
     authorization_covers,
     execution_covers,
     future_pr_target_matches_landing,
+    is_external_human_merge,
+    is_legacy_completed_external_merge,
     validate_target_sources,
 )
 from harness_graph import (
@@ -827,7 +830,11 @@ def _validate_landing(
         keys.update({"auto_merge_requested", "auto_merge_head_sha"})
     if schema_version == 10:
         keys.add("continuity")
-    optional_keys = {"base_branch_protection"} if schema_version == 10 else set()
+    optional_keys = (
+        {"base_branch_protection", "external_merge_observation"}
+        if schema_version == 10
+        else set()
+    )
     if not _keys(errors, path, value, keys, optional_keys):
         return
 
@@ -927,6 +934,62 @@ def _validate_landing(
                 "integration_push mode requires an authorized push covering the integration branch",
             )
     if schema_version == 10:
+        merge_observation = value.get("external_merge_observation")
+        if merge_observation is not None and _keys(
+            errors,
+            f"{path}.external_merge_observation",
+            merge_observation,
+            {
+                "kind",
+                "actor",
+                "event_ref",
+                "pr_url",
+                "pr_head_sha",
+                "merged_sha",
+            },
+        ):
+            if merge_observation["kind"] != "external_human":
+                _add(
+                    errors,
+                    f"{path}.external_merge_observation.kind",
+                    "must be external_human",
+                )
+            for key in ("actor", "event_ref", "pr_url"):
+                if not _nonempty_string(merge_observation[key]):
+                    _add(
+                        errors,
+                        f"{path}.external_merge_observation.{key}",
+                        "must be a non-empty retained merge value",
+                    )
+            for key in ("pr_head_sha", "merged_sha"):
+                if not is_full_sha(merge_observation[key]):
+                    _add(
+                        errors,
+                        f"{path}.external_merge_observation.{key}",
+                        "must be a full commit SHA",
+                    )
+            exact_bindings = {
+                "pr_url": value["pr_url"],
+                "pr_head_sha": value["pr_head_sha"],
+                "merged_sha": value["merged_sha"],
+            }
+            for key, expected in exact_bindings.items():
+                if merge_observation[key] != expected:
+                    _add(
+                        errors,
+                        f"{path}.external_merge_observation.{key}",
+                        f"must match landing.{key}",
+                    )
+            if (
+                value["pr_state"] != "merged"
+                or value["merge_status"] != "merged"
+                or value["auto_merge_requested"] is not False
+            ):
+                _add(
+                    errors,
+                    f"{path}.external_merge_observation",
+                    "is only allowed for an externally observed merged PR",
+                )
         protection = value.get("base_branch_protection")
         valid_unprotected_protection = (
             isinstance(protection, dict)
@@ -2374,7 +2437,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
     optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
     if schema_version == 10:
-        optional_run_keys.update({"targets", "action_target_contract"})
+        optional_run_keys.update(
+            {"targets", "action_target_contract", "external_merge_contract"}
+        )
     if graph_run:
         optional_run_keys.add("workflow_runs")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
@@ -2395,6 +2460,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             errors,
             "run.action_target_contract",
             "must match plan.action_target_contract",
+        )
+    if (
+        "external_merge_contract" in run
+        and run["external_merge_contract"] != EXTERNAL_MERGE_CONTRACT
+    ):
+        _add(
+            errors,
+            "run.external_merge_contract",
+            f"must equal {EXTERNAL_MERGE_CONTRACT!r}",
         )
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
         _add(errors, "run.status", "has an unsupported value")
@@ -2927,7 +3001,35 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             for mission_id in merge_mission_states
         )
     )
-    # An unauthorized entry means RUN only observed an external human merge.
+    observed_external_human_merge = is_external_human_merge(run)
+    legacy_completed_external_merge = is_legacy_completed_external_merge(run)
+    # Active v10 state may omit merge authorization only with retained external
+    # human actor/event proof. Completed pre-field history remains readable and
+    # cannot dispatch another action.
+    if (
+        schema_version == 10
+        and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
+        and merge_landing.get("merge_status") == "merged"
+        and merge_landing.get("auto_merge_requested") is False
+        and merge_entry.get("authorized") is False
+        and not observed_external_human_merge
+        and not legacy_completed_external_merge
+    ):
+        _add(
+            errors,
+            "run.landing.external_merge_observation",
+            "an unauthorized merged landing requires retained external human "
+            "actor and exact PR/head event evidence",
+        )
+    if (
+        merge_landing.get("external_merge_observation") is not None
+        and merge_entry.get("authorized") is True
+    ):
+        _add(
+            errors,
+            "run.landing.external_merge_observation",
+            "must be omitted when merge_pr was authorized",
+        )
     # Exact coverage is required when the harness was authorized to perform it.
     if (
         schema_version == 10

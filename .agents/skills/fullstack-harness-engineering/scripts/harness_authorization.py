@@ -12,8 +12,10 @@ from harness_core import (
     _nonempty_string,
     _normalized_branch,
     _strings,
+    is_full_sha,
 )
 from harness_schema import (
+    EXTERNAL_MERGE_CONTRACT,
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GITHUB_PR_URL_RE,
@@ -22,6 +24,60 @@ from harness_schema import (
     action_target_kind_allowed,
     action_target_kind_description,
 )
+
+
+def is_external_human_merge(run: Any) -> bool:
+    """Return whether RUN retains exact actor/event proof of an external merge."""
+
+    if not isinstance(run, dict) or run.get("schema_version") != 10:
+        return False
+    landing = run.get("landing")
+    authorizations = run.get("authorizations")
+    if not isinstance(landing, dict) or not isinstance(authorizations, dict):
+        return False
+    merge_entry = authorizations.get("merge_pr")
+    observation = landing.get("external_merge_observation")
+    return (
+        landing.get("mode") in {"pull_request", "integration_pull_request"}
+        and landing.get("pr_state") == "merged"
+        and landing.get("merge_status") == "merged"
+        and landing.get("auto_merge_requested") is False
+        and isinstance(merge_entry, dict)
+        and merge_entry.get("authorized") is False
+        and isinstance(observation, dict)
+        and set(observation)
+        == {
+            "kind",
+            "actor",
+            "event_ref",
+            "pr_url",
+            "pr_head_sha",
+            "merged_sha",
+        }
+        and observation.get("kind") == "external_human"
+        and _nonempty_string(observation.get("actor"))
+        and _nonempty_string(observation.get("event_ref"))
+        and observation.get("pr_url") == landing.get("pr_url")
+        and is_full_sha(observation.get("pr_head_sha"))
+        and observation.get("pr_head_sha") == landing.get("pr_head_sha")
+        and is_full_sha(observation.get("merged_sha"))
+        and observation.get("merged_sha") == landing.get("merged_sha")
+    )
+
+
+def is_legacy_completed_external_merge(run: Any) -> bool:
+    """Allow only completed v10 history created before actor evidence existed."""
+
+    if not isinstance(run, dict):
+        return False
+    landing = run.get("landing")
+    return (
+        run.get("schema_version") == 10
+        and run.get("status") == "complete"
+        and run.get("external_merge_contract") != EXTERNAL_MERGE_CONTRACT
+        and isinstance(landing, dict)
+        and landing.get("external_merge_observation") is None
+    )
 
 
 def _validate_authorization_scope(

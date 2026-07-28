@@ -264,7 +264,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            "leave `merge_pr` false and record the merged landing as observed external state",
+            "leave `merge_pr` false and retain the actor/event-bound "
+            "`external_merge_observation`",
             runbook,
         )
         self.assertIn(
@@ -285,13 +286,14 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             state_model,
         )
         self.assertIn(
-            "leave `merge_pr` false and record the merged landing as observed external state",
+            "leave `merge_pr` false and retain `external_merge_observation`",
             state_model,
         )
         self.assertIn(
-            "an observed external human merge leaves `merge_pr` false",
+            "observed external human merge leaves `merge_pr` false",
             state_model,
         )
+        self.assertIn("A bare boolean or merged status is not proof", state_model)
         self.assertIn(
             "exact production `deploy` authorization remains required",
             state_model,

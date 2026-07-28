@@ -86,6 +86,7 @@ FUTURE_PR_TARGET_RE = re.compile(
     r"base=(?P<base>[^:\s]+):head=(?P<head>[^:\s]+)$"
 )
 ACTION_TARGET_CONTRACT = "action-targets/1"
+EXTERNAL_MERGE_CONTRACT = "external-merge-observation/1"
 
 # A target prefix is part of an action's type. PLAN graph and RUN ledger
 # validation both consume this table so they cannot disagree about which exact

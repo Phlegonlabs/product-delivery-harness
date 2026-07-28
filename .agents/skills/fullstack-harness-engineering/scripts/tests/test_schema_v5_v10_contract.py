@@ -316,9 +316,9 @@ class SchemaV5V10ContractTests(unittest.TestCase):
             "Never infer deployment authorization from merge authorization",
             landing,
         )
-        self.assertIn("record the resulting merge as observed state", landing)
-        self.assertIn("record observed merged state", goal)
-        self.assertIn("record the merge as observed state", lifecycle)
+        self.assertIn("retain `external_merge_observation`", landing)
+        self.assertIn("retain actor/event evidence", goal)
+        self.assertIn("retain the actor/event-bound `external_merge_observation`", lifecycle)
 
     def test_goal_pushes_the_run_branch_before_protected_base_promotion(
         self,

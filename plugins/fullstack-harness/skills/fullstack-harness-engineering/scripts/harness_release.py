@@ -5,7 +5,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from harness_authorization import authorization_covers
+from harness_authorization import (
+    authorization_covers,
+    is_external_human_merge,
+    is_legacy_completed_external_merge,
+)
 from harness_core import (
     _add,
     _keys,
@@ -805,11 +809,12 @@ def _validate_targets(
             observed_external_human_merge = (
                 run.get("schema_version") == 10
                 and trigger == "merge"
-                and landing.get("mode") in {"pull_request", "integration_pull_request"}
-                and landing.get("merge_status") == "merged"
-                and landing.get("auto_merge_requested") is False
                 and isinstance(merge_entry, dict)
                 and merge_entry.get("authorized") is False
+                and (
+                    is_external_human_merge(run)
+                    or is_legacy_completed_external_merge(run)
+                )
             )
             actions = (
                 ("deploy",)
