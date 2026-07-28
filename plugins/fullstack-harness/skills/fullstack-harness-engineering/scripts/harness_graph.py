@@ -28,6 +28,8 @@ from harness_schema import (
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
     TARGET_RE,
+    action_target_kind_allowed,
+    action_target_kind_description,
 )
 
 
@@ -66,6 +68,7 @@ def _validate_graph(
     verifier_ids: set[str],
     *,
     require_bounded_review_repair: bool = False,
+    enforce_action_target_kinds: bool = False,
 ) -> None:
     path = "plan.graph"
     authorization_actions = (
@@ -216,12 +219,33 @@ def _validate_graph(
                 if target is not None and (
                     not _nonempty_string(target)
                     or target == "*"
-                    or TARGET_RE.fullmatch(target) is None
+                    or (
+                        not target.startswith("future-pr:")
+                        and TARGET_RE.fullmatch(target) is None
+                    )
                 ):
                     _add(
                         errors,
                         f"{node_path}.target",
                         "must be null or an exact non-wildcard authorization target",
+                    )
+                elif (
+                    target is not None
+                    and valid_ref
+                    and ref in authorization_actions
+                    and not action_target_kind_allowed(
+                        ref,
+                        target,
+                        10 if require_bounded_review_repair else 9,
+                        strict=enforce_action_target_kinds,
+                    )
+                ):
+                    schema_version = 10 if require_bounded_review_repair else 9
+                    _add(
+                        errors,
+                        f"{node_path}.target",
+                        f"{ref} target kind must be "
+                        f"{action_target_kind_description(ref, schema_version)}",
                     )
             if kind != "verifier" and node.get("review") is not None:
                 _add(

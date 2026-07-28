@@ -25,6 +25,8 @@ from harness_manifest import (  # noqa: E402
     validate_run,
 )
 from select_ready_nodes import (  # noqa: E402
+    GraphSelectionError,
+    _current_authorized_head,
     _runtime_binding,
     select_ready_nodes,
 )
@@ -269,6 +271,57 @@ def lifecycle_v10_plan_and_run(
 
 
 class GraphManifestTests(unittest.TestCase):
+    def test_head_bound_actions_use_their_actual_candidate_head(self) -> None:
+        run = {
+            "landing": {
+                "pushed_head_sha": "c" * 40,
+                "pr_head_sha": "a" * 40,
+            },
+            "integration": {"integration_head_sha": "b" * 40},
+        }
+
+        self.assertEqual("c" * 40, _current_authorized_head(run, "create_pr"))
+        for action in ("manage_pr_review", "merge_pr"):
+            self.assertEqual("a" * 40, _current_authorized_head(run, action))
+        for action in ("push", "deploy"):
+            self.assertEqual("b" * 40, _current_authorized_head(run, action))
+
+    def test_integration_pr_push_uses_the_observed_feature_head(self) -> None:
+        run = {
+            "landing": {
+                "mode": "integration_pull_request",
+                "head_branch": "codex/feature",
+            },
+            "integration": {"integration_head_sha": "b" * 40},
+            "observed": {
+                "git": {
+                    "parent_branch": "refs/heads/development",
+                    "parent_head_sha": "b" * 40,
+                    "worktrees": [
+                        {
+                            "branch_ref": "refs/heads/codex/feature",
+                            "head_sha": "f" * 40,
+                        }
+                    ],
+                }
+            },
+        }
+
+        self.assertEqual("f" * 40, _current_authorized_head(run, "push"))
+
+    def test_pr_actions_fail_closed_when_their_candidate_head_is_missing(self) -> None:
+        run = {
+            "landing": {
+                "pushed_head_sha": None,
+                "pr_head_sha": None,
+            },
+            "integration": {"integration_head_sha": "b" * 40},
+        }
+
+        for action in ("create_pr", "manage_pr_review", "merge_pr"):
+            with self.subTest(action=action):
+                self.assertIsNone(_current_authorized_head(run, action))
+
     def test_plan_v5_lifecycle_nodes_accept_remote_ci_and_cloud_actions(self) -> None:
         for action in ("trigger_remote_ci", "provision_cloud_resources"):
             with self.subTest(action=action):
@@ -293,6 +346,7 @@ class GraphManifestTests(unittest.TestCase):
                     {},
                     set(),
                     require_bounded_review_repair=True,
+                    enforce_action_target_kinds=True,
                 )
                 self.assertEqual([], errors)
 
@@ -303,6 +357,10 @@ class GraphManifestTests(unittest.TestCase):
         # has to accept a real target string here for every action shape.
         for action, target in (
             ("push", "branch:codex/example"),
+            (
+                "create_pr",
+                "future-pr:acme/app:base=main:head=codex/example",
+            ),
             ("deploy", "release:web-development"),
             ("trigger_remote_ci", "workflow:github-actions:ci"),
             ("provision_cloud_resources", "cloud-resource:aws:development:queue:jobs"),
@@ -332,6 +390,44 @@ class GraphManifestTests(unittest.TestCase):
                     require_bounded_review_repair=True,
                 )
                 self.assertEqual([], errors)
+
+    def test_lifecycle_nodes_reject_action_target_mismatches(self) -> None:
+        for action, target in (
+            ("push", "release:web-development"),
+            ("create_pr", "workflow:github-actions:ci"),
+            ("manage_pr_review", "branch:development"),
+            ("merge_pr", "branch:development"),
+            ("deploy", "pr:https://github.com/acme/app/pull/1"),
+        ):
+            with self.subTest(action=action, target=target):
+                errors: list[str] = []
+                _validate_graph(
+                    errors,
+                    {
+                        "entry_nodes": ["N-LIFECYCLE"],
+                        "nodes": [
+                            {
+                                "id": "N-LIFECYCLE",
+                                "kind": "lifecycle",
+                                "ref": action,
+                                "executor": "harness_parent",
+                                "allowed_outcomes": ["pass", "blocked"],
+                                "max_attempts": 1,
+                                "runtime": None,
+                                "target": target,
+                            }
+                        ],
+                        "edges": [],
+                    },
+                    {},
+                    set(),
+                    require_bounded_review_repair=True,
+                    enforce_action_target_kinds=True,
+                )
+                self.assertTrue(
+                    any("target kind" in error for error in errors),
+                    f"expected {action} to reject {target!r}: {errors!r}",
+                )
 
     def test_lifecycle_node_target_rejects_wildcard_and_bad_format(self) -> None:
         for target in ("*", "not-a-target", ""):
@@ -2106,6 +2202,285 @@ class GraphManifestTests(unittest.TestCase):
         dispatchable = {item["node_id"]: item for item in result["dispatchable_nodes"]}
         self.assertIn("N-LIFECYCLE", dispatchable)
         self.assertEqual(target, dispatchable["N-LIFECYCLE"]["target"])
+
+    def test_direct_integration_pr_merge_lifecycle_requires_release_grants(
+        self,
+    ) -> None:
+        target = "pr:https://github.com/acme/app/pull/1"
+        future_target = (
+            "future-pr:acme/app:base=development:head=codex/feature"
+        )
+        plan, run = lifecycle_v10_plan_and_run("merge_pr", target)
+        development = next(
+            item
+            for item in plan["release"]["targets"]
+            if item["stage"] == "development"
+        )
+        development["source"] = "pr_head"
+        development["trigger"] = "merge"
+        development["commands"]["publish"] = None
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        run["landing"].update(
+            {
+                "mode": "integration_pull_request",
+                "head_branch": "refs/heads/codex/feature",
+                "base_branch": "refs/heads/development",
+                "pushed_head_sha": "a" * 40,
+                "pr_number": 1,
+                "pr_url": target.removeprefix("pr:"),
+                "pr_state": "open",
+                "pr_head_sha": "a" * 40,
+                "checks_status": "PASS",
+                "checks_head_sha": "a" * 40,
+                "review_status": "PASS",
+                "review_head_sha": "a" * 40,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "ready",
+                "merged_sha": None,
+                "auto_merge_requested": False,
+                "auto_merge_head_sha": None,
+            }
+        )
+        run["landing"]["continuity"].update(
+            {
+                "status": "planned",
+                "branch_ref": "refs/heads/development",
+                "head_sha": None,
+                "reason": "retain the integration branch",
+            }
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": True,
+            "source": "user: merge the exact integration pull request",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["*"],
+                "targets": [future_target, target],
+            },
+            "expires_when": "run_complete",
+        }
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "direct merge requires separate exact deploy authorization"
+                in error
+                and development["id"] in error
+                for error in errors
+            ),
+            errors,
+        )
+        with self.assertRaises(GraphSelectionError):
+            select_ready_nodes(plan, run)
+
+        release_target = f"release:{development['id']}"
+        run["authorizations"]["merge_pr"]["scope"]["targets"].append(
+            release_target
+        )
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy the merge-triggered development release",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["*"],
+                "targets": [release_target],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assertEqual([], validate_run(plan, run))
+        dispatchable = {
+            item["node_id"] for item in select_ready_nodes(plan, run)["dispatchable_nodes"]
+        }
+        self.assertIn("N-LIFECYCLE", dispatchable)
+
+        run["landing"]["merge_status"] = "not_ready"
+        self.assertEqual([], validate_run(plan, run))
+        not_ready = select_ready_nodes(plan, run)
+        dispatchable = {
+            item["node_id"] for item in not_ready["dispatchable_nodes"]
+        }
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in not_ready["deferred_nodes"]
+        }
+        self.assertNotIn("N-LIFECYCLE", dispatchable)
+        self.assertIn("landing_not_ready", deferred["N-LIFECYCLE"])
+
+        run["landing"]["merge_status"] = "ready"
+        run["landing"]["checks_status"] = "FAIL"
+        with self.assertRaises(GraphSelectionError):
+            select_ready_nodes(plan, run)
+
+    def test_manual_production_deploy_uses_the_merged_production_head(
+        self,
+    ) -> None:
+        target = "release:web-production"
+        plan, run = lifecycle_v10_plan_and_run("deploy", target)
+        production = next(
+            item
+            for item in plan["release"]["targets"]
+            if item["id"] == "web-production"
+        )
+        production["trigger"] = "manual"
+        production["commands"]["publish"] = {
+            "id": "publish-web-production",
+            "cwd": ".",
+            "argv": ["deploy-production"],
+            "pass_signal": "Production deploy succeeds",
+        }
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        run["landing"].update(
+            {
+                "mode": "pull_request",
+                "pushed_head_sha": "a" * 40,
+                "pr_number": 1,
+                "pr_url": "https://github.com/acme/app/pull/1",
+                "pr_state": "merged",
+                "pr_head_sha": "a" * 40,
+                "checks_status": "PASS",
+                "checks_head_sha": "a" * 40,
+                "review_status": "PASS",
+                "review_head_sha": "a" * 40,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": "b" * 40,
+            }
+        )
+        run["landing"]["continuity"].update(
+            {
+                "status": "not_required",
+                "branch_ref": None,
+                "head_sha": None,
+                "reason": None,
+            }
+        )
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user requested execution",
+            "authorized_head_sha": "b" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["*"],
+                "targets": [target],
+            },
+            "expires_when": "run_complete",
+            "target_sources": {
+                target: "user separately authorized this production deploy"
+            },
+        }
+        exact_pr = f"pr:{run['landing']['pr_url']}"
+        future_pr = (
+            "future-pr:acme/app:base=production:head=development"
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": True,
+            "source": "user requested the exact production merge",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["*"],
+                "targets": [future_pr, exact_pr],
+            },
+            "expires_when": "run_complete",
+            "target_sources": {
+                future_pr: "user separately approved this production promotion",
+                exact_pr: "user separately approved this exact production PR",
+            },
+        }
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual([], validate_run(plan, run))
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"] for item in result["dispatchable_nodes"]}
+        self.assertIn("N-LIFECYCLE", dispatchable)
+
+        run["landing"].update(
+            {
+                "pr_state": "open",
+                "merge_status": "ready",
+                "merged_sha": None,
+            }
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"] for item in result["dispatchable_nodes"]}
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in result["deferred_nodes"]
+        }
+        self.assertNotIn("N-LIFECYCLE", dispatchable)
+        self.assertIn("authorization_head_stale", deferred["N-LIFECYCLE"])
+
+    def test_head_bound_lifecycle_node_defers_when_authorized_head_is_stale(
+        self,
+    ) -> None:
+        for action, target in (
+            ("push", "branch:development"),
+            ("create_pr", "pr:https://github.com/acme/app/pull/1"),
+            ("manage_pr_review", "pr:https://github.com/acme/app/pull/1"),
+            ("merge_pr", "pr:https://github.com/acme/app/pull/1"),
+            ("deploy", "release:web-development"),
+        ):
+            with self.subTest(action=action):
+                plan, run = lifecycle_v10_plan_and_run(action, target)
+                entry = {
+                    "authorized": True,
+                    "source": "user requested execution",
+                    "authorized_head_sha": "a" * 40,
+                    "scope": {
+                        "run_id": run["run_id"],
+                        "plan_revision": run["plan"]["revision"],
+                        "plan_digest_sha256": run["plan"]["digest_sha256"],
+                        "mission_ids": ["*"],
+                        "targets": [target],
+                    },
+                    "expires_when": "run_complete",
+                }
+                if action in {"push", "merge_pr", "deploy"}:
+                    entry["target_sources"] = {
+                        target: "user separately authorized this exact target"
+                    }
+                run["authorizations"][action] = entry
+                run["observed"]["git"]["parent_head_sha"] = "b" * 40
+                run["integration"]["batch_base_sha"] = "b" * 40
+                run["integration"]["integration_head_sha"] = "b" * 40
+
+                self.assertEqual([], validate_plan(plan))
+                self.assertEqual([], validate_run(plan, run))
+
+                result = select_ready_nodes(plan, run)
+
+                dispatchable = {
+                    item["node_id"] for item in result["dispatchable_nodes"]
+                }
+                deferred = {
+                    item["node_id"]: item["reason_codes"]
+                    for item in result["deferred_nodes"]
+                }
+                self.assertNotIn("N-LIFECYCLE", dispatchable)
+                self.assertIn(
+                    "authorization_head_stale", deferred["N-LIFECYCLE"]
+                )
 
     def test_lifecycle_node_requires_a_reconciled_parent_before_launch(self) -> None:
         # lifecycle nodes push/merge/deploy against the parent's current git

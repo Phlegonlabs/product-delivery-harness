@@ -31,6 +31,7 @@ from harness_manifest import (  # noqa: E402
     validate_plan,
     validate_run,
 )
+from harness_schema import ACTION_TARGET_CONTRACT  # noqa: E402
 from test_harness_manifest import cloudflare_release, valid_plan, valid_run  # noqa: E402
 from test_select_parallel_missions import manifest_markdown  # noqa: E402
 
@@ -80,17 +81,25 @@ def safe_v4_plan_and_v9_run(repo_root: Path) -> tuple[dict[str, object], dict[st
     return plan, run
 
 
-def current_plan_and_run(repo_root: Path) -> tuple[dict[str, object], dict[str, object]]:
+def current_plan_and_run(
+    repo_root: Path,
+    *,
+    strict_action_targets: bool = True,
+) -> tuple[dict[str, object], dict[str, object]]:
     """Build a valid direct PLAN-v5/RUN-v10 fixture."""
 
     plan, run = safe_v4_plan_and_v9_run(repo_root)
     upgrade._PLAN_STEPS[4](plan, repo_root)
+    if strict_action_targets:
+        plan["action_target_contract"] = ACTION_TARGET_CONTRACT
     run["plan"] = {
         "id": plan["plan_id"],
         "revision": plan["revision"],
         "digest_sha256": plan_digest(plan),
     }
     upgrade._RUN_STEPS[9](run, plan)
+    if strict_action_targets:
+        run["action_target_contract"] = ACTION_TARGET_CONTRACT
     return plan, run
 
 
@@ -108,6 +117,7 @@ def current_release_plan_and_run(
     upgrade._RUN_STEPS[7](run, plan)
     upgrade._RUN_STEPS[8](run, plan)
     upgrade._PLAN_STEPS[4](plan, repo_root)
+    plan["action_target_contract"] = ACTION_TARGET_CONTRACT
 
     target = plan["release"]["targets"][0]
     target.update(
@@ -129,6 +139,7 @@ def current_release_plan_and_run(
         "digest_sha256": plan_digest(plan),
     }
     upgrade._RUN_STEPS[9](run, plan)
+    run["action_target_contract"] = ACTION_TARGET_CONTRACT
     run["integration"]["retention"] = "persistent"
     evidence_sha256 = "e" * 64
     retained = {
@@ -604,7 +615,8 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         action: str,
         target_id: str = "development",
     ) -> None:
-        run["authorizations"][action] = {
+        target = f"release:{target_id}"
+        entry: dict[str, object] = {
             "authorized": True,
             "source": f"user: authorize {action} for {target_id}",
             "scope": {
@@ -612,11 +624,18 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
                 "plan_revision": run["plan"]["revision"],
                 "plan_digest_sha256": run["plan"]["digest_sha256"],
                 "mission_ids": list(run["mission_states"]),
-                "targets": [f"release:{target_id}"],
+                "targets": [target],
             },
             "expires_when": "run_complete",
             "authorized_head_sha": run["targets"][target_id]["authorized_head_sha"],
         }
+        if action == "merge_pr" and str(run["landing"]["base_branch"]).removeprefix(
+            "refs/heads/"
+        ) == "main":
+            entry["target_sources"] = {
+                target: "user: separately authorize this main-bound merge consequence"
+            }
+        run["authorizations"][action] = entry
 
     def test_plan_v5_verifier_ids_are_globally_unique_across_layers(self) -> None:
         root = self._seed_repo()
@@ -747,6 +766,13 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertTrue(self._target_source_errors(plan, promotion))
 
         loop_merge = copy.deepcopy(base)
+        loop_merge["landing"].update(
+            {
+                "pr_url": "https://github.com/acme/app/pull/1",
+                "base_branch": branch,
+                "head_branch": "feature",
+            }
+        )
         self._grant(loop_merge, "merge_pr", [f"future-pr:acme/app:base={branch}:head=feature"])
         self.assertEqual([], self._target_source_errors(plan, loop_merge))
 
@@ -929,6 +955,20 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         )
         self._authorize_release(run, "merge_pr")
         self._authorize_release(run, "deploy")
+        exact_pr = f"pr:{run['landing']['pr_url']}"
+        future_pr = (
+            "future-pr:example/repo:"
+            f"base={run['landing']['base_branch']}:"
+            f"head={run['landing']['head_branch']}"
+        )
+        merge_entry = run["authorizations"]["merge_pr"]
+        merge_entry["scope"]["targets"].extend([future_pr, exact_pr])
+        merge_entry["target_sources"].update(
+            {
+                future_pr: "user: start this exact protected-base promotion",
+                exact_pr: "user: merge this exact protected-base PR",
+            }
+        )
 
         self.assertEqual([], validate_run(plan, run))
 
@@ -1080,7 +1120,8 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
 
         self.assertTrue(
             any(
-                "complete pull-request run requires merge authorization at the current PR head"
+                "merged pull-request landing requires merge authorization for the "
+                "exact PR, current PR head, and every mission"
                 in error
                 for error in errors
             )
@@ -1170,6 +1211,33 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
             any("scope.plan_revision: must match run.plan.revision" in error for error in validate_run(plan, run))
         )
 
+    def test_v10_integration_pull_request_can_target_the_integration_branch(
+        self,
+    ) -> None:
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root)
+        integration_branch = run["integration"]["branch"]
+        integration_branch_ref = (
+            integration_branch
+            if integration_branch.startswith("refs/heads/")
+            else f"refs/heads/{integration_branch}"
+        )
+        run["landing"].update(
+            {
+                "mode": "integration_pull_request",
+                "head_branch": "refs/heads/codex/feature",
+                "base_branch": integration_branch,
+                "continuity": {
+                    "status": "planned",
+                    "branch_ref": integration_branch_ref,
+                    "head_sha": None,
+                    "reason": "Merge the reviewed feature into the retained integration branch",
+                },
+            }
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+
     def test_v10_remote_ci_and_cloud_actions_require_exact_target_kinds(self) -> None:
         root = self._seed_repo()
         plan, run = current_plan_and_run(root)
@@ -1184,6 +1252,84 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertTrue(
             any("provision_cloud_resources requires cloud-resource:" in error for error in errors)
         )
+
+    def test_existing_v10_without_contract_keeps_generic_exact_targets(self) -> None:
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root, strict_action_targets=False)
+        target = "remote:origin/development"
+        self._authorize(run, "push", target)
+        run["authorizations"]["push"].update(
+            {
+                "authorized_head_sha": run["integration"]["integration_head_sha"],
+                "target_sources": {
+                    target: "user: separately authorize this exact remote target"
+                },
+            }
+        )
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual([], validate_run(plan, run))
+
+    def test_v10_head_bound_actions_reject_wrong_target_kinds(self) -> None:
+        for action, target in (
+            ("push", "release:development"),
+            ("create_pr", "workflow:github-actions:ci"),
+            ("manage_pr_review", "branch:development"),
+            ("merge_pr", "branch:development"),
+            ("deploy", "pr:https://github.com/acme/app/pull/1"),
+        ):
+            with self.subTest(action=action, target=target):
+                root = self._seed_repo()
+                plan, run = current_plan_and_run(root)
+                entry: dict[str, object] = {
+                    "authorized": True,
+                    "source": f"user: authorize {action}",
+                    "authorized_head_sha": "a" * 40,
+                    "scope": {
+                        "run_id": run["run_id"],
+                        "plan_revision": run["plan"]["revision"],
+                        "plan_digest_sha256": run["plan"]["digest_sha256"],
+                        "mission_ids": list(run["mission_states"]),
+                        "targets": [target],
+                    },
+                    "expires_when": "run_complete",
+                }
+                if action in {"push", "merge_pr", "deploy"}:
+                    entry["target_sources"] = {
+                        target: f"user: separately authorize {target}"
+                    }
+                run["authorizations"][action] = entry
+
+                errors = validate_run(plan, run)
+
+                self.assertTrue(
+                    any("target kind" in error for error in errors),
+                    f"expected {action} to reject {target!r}: {errors!r}",
+                )
+
+    def test_v10_unauthorized_scoped_actions_reject_target_sources(self) -> None:
+        for action in ("push", "merge_pr", "deploy"):
+            with self.subTest(action=action):
+                root = self._seed_repo()
+                plan, run = current_plan_and_run(root)
+                run["authorizations"][action] = {
+                    "authorized": False,
+                    "source": None,
+                    "target_sources": {
+                        "branch:production": "user: stale authorization source"
+                    },
+                }
+
+                errors = validate_run(plan, run)
+
+                self.assertTrue(
+                    any(
+                        f"run.authorizations.{action}.target_sources" in error
+                        and "must be omitted when unauthorized" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
 
     def test_v10_remote_ci_and_cloud_actions_reject_wildcard_targets(self) -> None:
         root = self._seed_repo()

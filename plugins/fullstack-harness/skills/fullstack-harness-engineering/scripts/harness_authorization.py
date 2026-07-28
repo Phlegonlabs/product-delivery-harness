@@ -13,12 +13,13 @@ from harness_core import (
     _strings,
 )
 from harness_schema import (
-    CLOUD_RESOURCE_TARGET_RE,
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GITHUB_PR_URL_RE,
     SHA256_RE,
     TARGET_RE,
+    action_target_kind_allowed,
+    action_target_kind_description,
 )
 
 
@@ -31,6 +32,8 @@ def _validate_authorization_scope(
     action_name: str | None = None,
     allow_future_pr: bool = False,
     require_plan_binding: bool = False,
+    schema_version: int | None = None,
+    strict_action_targets: bool = False,
 ) -> None:
     required = (
         {"run_id", "mission_ids", "targets"}
@@ -51,6 +54,7 @@ def _validate_authorization_scope(
             _add(errors, f"{path}.plan_digest_sha256", "must be a lowercase SHA-256 digest")
     _strings(errors, f"{path}.mission_ids", value["mission_ids"], nonempty=True)
     if action:
+        resolved_schema_version = schema_version or (10 if require_plan_binding else 5)
         targets = _strings(errors, f"{path}.targets", value["targets"], nonempty=True)
         for target in targets:
             if target == "*":
@@ -61,38 +65,47 @@ def _validate_authorization_scope(
                         f"{action_name} requires exact targets, not *",
                     )
                 continue
-            if target.startswith("future-pr:"):
-                if (
-                    not allow_future_pr
-                    or action_name not in {"manage_pr_review", "merge_pr"}
-                    or not FUTURE_PR_TARGET_RE.fullmatch(target)
-                ):
-                    _add(errors, f"{path}.targets", f"unsupported target {target!r}")
-                continue
-            if not TARGET_RE.fullmatch(target):
+            malformed_future_pr = (
+                target.startswith("future-pr:")
+                and FUTURE_PR_TARGET_RE.fullmatch(target) is None
+            )
+            if (
+                (not target.startswith("future-pr:") and TARGET_RE.fullmatch(target) is None)
+                or malformed_future_pr
+                or (
+                    target.startswith("future-pr:")
+                    and (
+                        resolved_schema_version < 6
+                        or action_name
+                        not in {"create_pr", "manage_pr_review", "merge_pr"}
+                    )
+                )
+            ):
                 _add(errors, f"{path}.targets", f"unsupported target {target!r}")
-            elif action_name == "invoke_external_runtime" and not target.startswith(
-                "runtime:"
+            elif (
+                action_name is None
+                or not action_target_kind_allowed(
+                    action_name,
+                    target,
+                    resolved_schema_version,
+                    strict=strict_action_targets,
+                )
+                or (target.startswith("future-pr:") and not allow_future_pr)
             ):
-                _add(
-                    errors,
-                    f"{path}.targets",
-                    "invoke_external_runtime requires runtime:<provider> targets",
-                )
-            elif action_name == "trigger_remote_ci" and not target.startswith("workflow:"):
-                _add(
-                    errors,
-                    f"{path}.targets",
-                    "trigger_remote_ci requires workflow:<identity> targets",
-                )
-            elif action_name == "provision_cloud_resources" and not CLOUD_RESOURCE_TARGET_RE.fullmatch(
-                target
-            ):
-                _add(
-                    errors,
-                    f"{path}.targets",
-                    "provision_cloud_resources requires cloud-resource:<provider>:<environment>:<kind>:<logical-name> targets",
-                )
+                if action_name == "trigger_remote_ci":
+                    message = "trigger_remote_ci requires workflow:<identity> targets"
+                elif action_name == "provision_cloud_resources":
+                    message = (
+                        "provision_cloud_resources requires "
+                        "cloud-resource:<provider>:<environment>:<kind>:<logical-name> targets"
+                    )
+                else:
+                    message = (
+                        f"{action_name or 'action'} target kind must be "
+                        f"{action_target_kind_description(action_name or '', resolved_schema_version)}; "
+                        f"got {target!r}"
+                    )
+                _add(errors, f"{path}.targets", message)
     else:
         if value["expires_when"] not in EXPIRY_BOUNDARIES:
             _add(
@@ -107,6 +120,12 @@ def _integration_branch(run: dict[str, Any]) -> str | None:
     if isinstance(integration, dict) and _nonempty_string(integration.get("branch")):
         return integration["branch"]
     return None
+
+
+def _normalized_branch(value: Any) -> str | None:
+    if not _nonempty_string(value):
+        return None
+    return value.removeprefix("refs/heads/")
 
 
 def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
@@ -124,6 +143,40 @@ def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
     return ids
 
 
+def future_pr_target_matches_landing(
+    target: str,
+    landing: Any,
+    *,
+    integration_branch: Any = None,
+) -> bool:
+    """Whether a future PR target describes the same landing identity."""
+    future_pr = FUTURE_PR_TARGET_RE.fullmatch(target)
+    if future_pr is None or not isinstance(landing, dict):
+        return False
+    target_base = _normalized_branch(future_pr.group("base"))
+    landing_base = _normalized_branch(landing.get("base_branch"))
+    if target_base is None or target_base != landing_base:
+        return False
+    if (
+        integration_branch is not None
+        and target_base != _normalized_branch(integration_branch)
+    ):
+        return False
+    if _normalized_branch(future_pr.group("head")) != _normalized_branch(
+        landing.get("head_branch")
+    ):
+        return False
+    landing_pr_url = landing.get("pr_url")
+    if not _nonempty_string(landing_pr_url):
+        return True
+    landing_pr = GITHUB_PR_URL_RE.fullmatch(landing_pr_url)
+    return (
+        landing_pr is not None
+        and future_pr.group("repository").casefold()
+        == landing_pr.group("repository").casefold()
+    )
+
+
 def execution_intent_target_in_scope(
     plan: dict[str, Any], run: dict[str, Any], action: str, target: str
 ) -> bool:
@@ -139,18 +192,68 @@ def execution_intent_target_in_scope(
     if target == "*":
         return False
     branch = _integration_branch(run)
-    if branch is None:
+    normalized_integration_branch = _normalized_branch(branch)
+    if normalized_integration_branch is None:
         return False
     if action == "push":
         return target == f"branch:{branch}"
     if action == "merge_pr":
         future_pr = FUTURE_PR_TARGET_RE.fullmatch(target)
+        landing = run.get("landing")
+        landing_base = (
+            landing.get("base_branch") if isinstance(landing, dict) else None
+        )
+        landing_pr_url = (
+            landing.get("pr_url") if isinstance(landing, dict) else None
+        )
+        landing_pr = (
+            GITHUB_PR_URL_RE.fullmatch(landing_pr_url)
+            if _nonempty_string(landing_pr_url)
+            else None
+        )
+        target_base = future_pr.group("base") if future_pr is not None else landing_base
+        if (
+            _normalized_branch(target_base) == "main"
+            or _normalized_branch(landing_base) == "main"
+        ):
+            # A generic development-loop instruction never covers a main-bound
+            # merge. Every target in that merge entry must retain the later
+            # exact human instruction in target_sources.
+            return False
         if future_pr is not None:
-            return future_pr.group("base") == branch
+            return future_pr_target_matches_landing(
+                target,
+                landing,
+                integration_branch=branch,
+            )
         if target.startswith("pr:"):
-            landing = run.get("landing")
-            base = landing.get("base_branch") if isinstance(landing, dict) else None
-            return base == branch
+            exact_target_matches = (
+                landing_pr is not None
+                and target == f"pr:{landing_pr_url}"
+                and _normalized_branch(landing_base)
+                == normalized_integration_branch
+            )
+            authorizations = run.get("authorizations")
+            merge_entry = (
+                authorizations.get("merge_pr")
+                if isinstance(authorizations, dict)
+                else None
+            )
+            scope = (
+                merge_entry.get("scope") if isinstance(merge_entry, dict) else None
+            )
+            scope_targets = (
+                scope.get("targets") if isinstance(scope, dict) else None
+            )
+            return exact_target_matches and isinstance(scope_targets, list) and any(
+                isinstance(sibling, str)
+                and future_pr_target_matches_landing(
+                    sibling,
+                    landing,
+                    integration_branch=branch,
+                )
+                for sibling in scope_targets
+            )
         # A merge-triggered release records the release consequence on the merge
         # itself. It stays in scope on the same rule as `deploy`: the
         # development target rides the loop, the production one does not.
@@ -246,6 +349,7 @@ def authorization_covers(
     target: str | None = None,
     *,
     preserve_completed_run_expiry: bool = False,
+    required_head_sha: str | None = None,
 ) -> bool:
     authorizations = run.get("authorizations")
     if not isinstance(authorizations, dict):
@@ -265,6 +369,11 @@ def authorization_covers(
         return False
     targets = scope.get("targets", [])
     if target is not None and target not in targets and "*" not in targets:
+        return False
+    if (
+        required_head_sha is not None
+        and entry.get("authorized_head_sha") != required_head_sha
+    ):
         return False
     boundary = entry.get("expires_when")
     expiry_is_preserved = (

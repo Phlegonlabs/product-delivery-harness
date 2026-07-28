@@ -10,9 +10,9 @@
 
 Artifact: `docs/product/design-system.json`
 
-This Markdown file is the semantic authority: it carries the reasoning, the ratios, the guardrails, and the decisions. `design-system.json` is the machine-readable half — token names, primitive classes, closed variant sets, the responsive verification set, and the source paths where raw values may appear. Implementation and `fullstack-harness-engineering`'s `scripts/check_ui_contract.py` both read the JSON.
+This Markdown file owns reasoning, ratios, guardrails, and decisions. `design-system.json` is the sole structured authority for token names, primitive classes, closed variant sets, product-component contracts, responsive verification, and source paths. Implementation and `fullstack-harness-engineering`'s `scripts/check_ui_contract.py` read the JSON.
 
-The two publish together. If a token, primitive, variant, or state changes here, change it in the JSON in the same move set. Neither file may carry a token or variant the other does not.
+The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write` to refresh the generated contract block at the end of this file. Verify it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json>` before publishing. Do not hand-maintain a second token, primitive, component, motion, or state inventory in Markdown.
 
 ## Source Inputs
 
@@ -147,22 +147,15 @@ Ratios computed with `scripts/check_type_scale.py`, not estimated.
 
 ## Primitive Inventory
 
-Four layers, in order: layout, surface, typography, control. Layer N uses only layers below N. Every variant list below is a closed set — a page picks from it and may not extend it. The machine-readable form of this table is `design-system.json`'s `primitives` object; the two must agree.
+Four layers, in order: layout, surface, typography, control. Layer N uses only layers below N. Every variant list in the generated machine contract is closed — a page picks from it and may not extend it.
 
-| DS ID | Primitive | Layer | Class | Closed variant sets | Composes | Notes |
-|---|---|---|---|---|---|---|
-| DS-LAY-001 | <Container> | layout | <class> | <sizes: shell, content, narrow, dialog> | n/a | <notes> |
-| DS-SUR-001 | <Surface> | surface | <class> | <variants: plain, raised, inset> | <layout> | <notes> |
-| DS-TYP-001 | <Text> | typography | <class> | <roles: display, heading, body, caption> | n/a | <notes> |
-| DS-CTL-001 | <Button> | control | <btn> | <variants; sizes> | <typography> | <min target, accessible name> |
+Primitive rationale and exceptions: <explain why the JSON inventory fits the screens and any deliberate omissions>
 
 ### Product Components
 
-| DS ID | Component | Composes | Required content order | States | Notes |
-|---|---|---|---|---|---|
-| DS-COMP-001 | <DomainComponentName> | <DS-LAY-001, DS-SUR-001, DS-CTL-001> | <field, field, field> | <ready, loading, empty, error> | <notes> |
+Product-component rationale and exceptions: <explain the domain components declared in JSON and why their composition and state coverage fit the wireframes>
 
-Every field in Required content order is a never-drop field: it renders in that order at every viewport or size class and in every state where the component appears. The same list ships as `requiredContentOrder` in `design-system.json`, and `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against it. Leave a field off the list if it may legitimately disappear.
+Every field in JSON `requiredContentOrder` is a never-drop field: it renders in that order at every viewport or size class and in every state where the component appears. `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against it. Leave a field off the list if it may legitimately disappear.
 
 ### The Two Binding Rules
 
@@ -227,25 +220,13 @@ Call sites do not query reduced-motion preferences. They reference registered va
 
 <Grid, max widths, navigation layout, and region rules.>
 
-Responsive verification set: <the exact `viewports` or `sizeClasses` list published in `design-system.json`. Web targets use pixel viewports; native and desktop targets use that platform's own size-class or window-size model.>
+Responsive rationale: <why the generated contract's `viewports` or `sizeClasses` set covers this product. Web targets use pixel viewports; native and desktop targets use that platform's own size-class or window-size model.>
 
 ## State Matrix
 
-Every screen covers these states, or marks the inapplicable ones `n/a` with a reason. Shipping the ready state alone does not close a task.
+Every screen covers the generated contract's `stateMatrix`, or marks an inapplicable state `n/a` with a reason in the wireframe. Shipping the ready state alone does not close a task.
 
-| State | Applies to | Behavior | Notes |
-|---|---|---|---|
-| ready | <scope> | <behavior> | <notes> |
-| loading | <scope> | <behavior> | <notes> |
-| empty | <scope> | <behavior> | <notes> |
-| error | <scope> | <behavior> | <notes> |
-| disabled | <scope> | <behavior> | <notes> |
-| permission denied | <scope> | <behavior> | <notes> |
-| stale | <scope> | <behavior> | <notes> |
-| expired | <scope> | <behavior> | <notes> |
-| long content | <scope> | <behavior> | <notes> |
-| reduced motion | <scope> | <behavior> | <notes> |
-| mobile reflow | <scope> | <behavior> | <notes> |
+State rationale and exceptions: <record only behavior, scope, and justified n/a cases; do not repeat the machine-owned state list>
 
 ## Styling Pattern Usage
 
@@ -291,3 +272,246 @@ export function ExampleContentSection() {
 ## Open Questions
 
 - <question>
+
+## Generated Machine Contract
+
+<!-- BEGIN GENERATED DESIGN SYSTEM CONTRACT -->
+```json
+{
+  "enforcement": "<blocking | advisory>",
+  "motionVariants": [
+    "<variant name>",
+    "<variant name>"
+  ],
+  "platform": "<web | ios | android | flutter | react-native | macos | windows | desktop>",
+  "primitiveSources": [
+    "<path to the file that defines primitive classes, e.g. src/ui/primitives.css>"
+  ],
+  "primitives": {
+    "Button": {
+      "class": "btn",
+      "defaults": {
+        "sizes": "md",
+        "variants": "primary"
+      },
+      "layer": "control",
+      "minTargetPx": 44,
+      "sizes": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "variants": [
+        "primary",
+        "secondary",
+        "tertiary",
+        "danger"
+      ]
+    },
+    "Cluster": {
+      "aligns": [
+        "start",
+        "center",
+        "end",
+        "baseline"
+      ],
+      "gaps": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "layer": "layout"
+    },
+    "Container": {
+      "defaults": {
+        "sizes": "content"
+      },
+      "layer": "layout",
+      "sizes": [
+        "shell",
+        "content",
+        "narrow",
+        "dialog"
+      ]
+    },
+    "Divider": {
+      "layer": "surface"
+    },
+    "Grid": {
+      "columns": [
+        "2",
+        "3",
+        "4"
+      ],
+      "gaps": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "8"
+      ],
+      "layer": "layout"
+    },
+    "IconButton": {
+      "class": "btn-icon",
+      "defaults": {
+        "sizes": "md",
+        "variants": "default"
+      },
+      "layer": "control",
+      "minTargetPx": 44,
+      "requiresAccessibleName": true,
+      "sizes": [
+        "sm",
+        "md",
+        "lg"
+      ],
+      "variants": [
+        "default"
+      ]
+    },
+    "Section": {
+      "defaults": {
+        "densities": "default"
+      },
+      "densities": [
+        "compact",
+        "default",
+        "editorial"
+      ],
+      "layer": "layout"
+    },
+    "Stack": {
+      "gaps": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "8",
+        "12"
+      ],
+      "layer": "layout"
+    },
+    "Surface": {
+      "layer": "surface",
+      "variants": [
+        "plain",
+        "raised",
+        "inset",
+        "selected",
+        "warning",
+        "danger"
+      ]
+    },
+    "Text": {
+      "layer": "typography",
+      "roles": [
+        "display",
+        "heading",
+        "body",
+        "caption"
+      ],
+      "truncation": [
+        "truncate",
+        "clamp"
+      ]
+    }
+  },
+  "product": "<product name>",
+  "productComponents": {
+    "<DomainComponentName>": {
+      "composes": [
+        "<DS-LAY-001>",
+        "<DS-SUR-001>",
+        "<DS-CTL-001>"
+      ],
+      "dsId": "DS-COMP-001",
+      "requiredContentOrder": [
+        "<field>",
+        "<field>",
+        "<field>"
+      ],
+      "states": [
+        "ready",
+        "loading",
+        "empty",
+        "error"
+      ]
+    }
+  },
+  "schema": "design-system/1",
+  "stateMatrix": [
+    "ready",
+    "loading",
+    "empty",
+    "error",
+    "disabled",
+    "permission-denied",
+    "stale",
+    "expired",
+    "long-content",
+    "reduced-motion",
+    "mobile-reflow"
+  ],
+  "stylingMechanism": "<utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme>",
+  "tokenSources": [
+    "<path to the file that declares the token values, e.g. src/styles/tokens.css>"
+  ],
+  "tokens": {
+    "color": {
+      "<--accent>": "<value>",
+      "<--bg>": "<value>",
+      "<--border>": "<value>",
+      "<--danger>": "<value>",
+      "<--success>": "<value>",
+      "<--surface>": "<value>",
+      "<--text>": "<value>",
+      "<--warning>": "<value>"
+    },
+    "duration": {
+      "<--duration-base>": "<value>",
+      "<--duration-fast>": "<value>"
+    },
+    "easing": {
+      "<--ease-standard>": "<value>"
+    },
+    "fontSize": {
+      "<--text-body>": "<value>",
+      "<--text-display>": "<value>",
+      "<--text-heading>": "<value>"
+    },
+    "lineHeight": {
+      "<--leading-body>": "<value>",
+      "<--leading-heading>": "<value>"
+    },
+    "radius": {
+      "<--radius-lg>": "<value>",
+      "<--radius-md>": "<value>",
+      "<--radius-sm>": "<value>"
+    },
+    "shadow": {
+      "<--shadow-overlay>": "<value>",
+      "<--shadow-raised>": "<value>"
+    },
+    "space": {
+      "<--space-1>": "<value>",
+      "<--space-2>": "<value>",
+      "<--space-4>": "<value>"
+    }
+  },
+  "viewports": [
+    390,
+    768,
+    1200,
+    1440
+  ]
+}
+```
+<!-- END GENERATED DESIGN SYSTEM CONTRACT -->

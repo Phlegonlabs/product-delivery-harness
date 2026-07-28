@@ -85,6 +85,85 @@ FUTURE_PR_TARGET_RE = re.compile(
     r"^future-pr:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+):"
     r"base=(?P<base>[^:\s]+):head=(?P<head>[^:\s]+)$"
 )
+ACTION_TARGET_CONTRACT = "action-targets/1"
+
+# A target prefix is part of an action's type. PLAN graph and RUN ledger
+# validation both consume this table so they cannot disagree about which exact
+# target a lifecycle action accepts.
+ACTION_TARGET_RULES = {
+    "invoke_external_runtime": ("runtime",),
+    "spawn_subagents": ("worker",),
+    "create_user_owned_tasks": ("task",),
+    "create_local_worktrees": ("worktree",),
+    "create_app_managed_worktrees": ("worktree",),
+    "create_local_branches": ("branch",),
+    "create_local_commits": ("branch",),
+    "integrate_locally": ("branch",),
+    "configure_repository": ("repository",),
+    "push": ("branch",),
+    "create_pr": ("pr", "future-pr"),
+    "trigger_remote_ci": ("workflow",),
+    "manage_pr_review": ("pr", "future-pr"),
+    "merge_pr": ("pr", "future-pr", "release"),
+    "provision_cloud_resources": ("cloud-resource",),
+    "deploy": ("release",),
+    "archive_worker_tasks": ("task",),
+    "remove_worktrees": ("worktree",),
+    "delete_branches": ("branch",),
+}
+
+
+def action_target_kind_allowed(
+    action: str,
+    target: str,
+    schema_version: int,
+    *,
+    strict: bool = False,
+) -> bool:
+    """Return whether an exact target has the kind allowed for this action."""
+    if target == "*":
+        return True
+    if target.startswith("future-pr:"):
+        return (
+            schema_version >= 6
+            and "future-pr" in ACTION_TARGET_RULES.get(action, ())
+            and FUTURE_PR_TARGET_RE.fullmatch(target) is not None
+        )
+    if TARGET_RE.fullmatch(target) is None:
+        return False
+    kind = target.split(":", 1)[0]
+    if not strict:
+        # Preserve every existing schema's validation contract unless the
+        # artifact explicitly opts into action-targets/1.
+        if action == "invoke_external_runtime":
+            return kind == "runtime"
+        if action == "trigger_remote_ci":
+            return kind == "workflow"
+        if action == "provision_cloud_resources":
+            return CLOUD_RESOURCE_TARGET_RE.fullmatch(target) is not None
+        return True
+    if action == "provision_cloud_resources":
+        return CLOUD_RESOURCE_TARGET_RE.fullmatch(target) is not None
+    return kind in ACTION_TARGET_RULES.get(action, ())
+
+
+def action_target_kind_description(action: str, schema_version: int) -> str:
+    """Return the legal target shapes for validation messages."""
+    if schema_version < 10:
+        if action == "invoke_external_runtime":
+            return "runtime:<provider>"
+        return "an exact typed target"
+    rendered = []
+    for name in ACTION_TARGET_RULES.get(action, ()):
+        if name == "future-pr":
+            rendered.append("future-pr:<owner>/<repo>:base=<base>:head=<head>")
+        elif name == "cloud-resource":
+            rendered.append(
+                "cloud-resource:<provider>:<environment>:<kind>:<logical-name>"
+            )
+        else:
+            rendered.append(f"{name}:<identity>")
+    return " or ".join(rendered)
 GITHUB_PR_URL_RE = re.compile(
     r"^https://github\.com/(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/"
     r"pull/[1-9][0-9]*/?$"

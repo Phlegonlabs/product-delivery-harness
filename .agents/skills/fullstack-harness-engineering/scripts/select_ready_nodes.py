@@ -23,6 +23,7 @@ from harness_manifest import (
     validate_plan,
     validate_run,
 )
+from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS
 
 
 class GraphSelectionError(ValueError):
@@ -359,9 +360,126 @@ def _logical_reasons(
 
 
 def _action_authorized(
-    run: dict[str, Any], action: str, mission_id: str, target: str = "*"
+    run: dict[str, Any],
+    action: str,
+    mission_id: str,
+    target: str = "*",
+    *,
+    required_head_sha: str | None = None,
 ) -> bool:
-    return authorization_covers(run, action, mission_id, target)
+    return authorization_covers(
+        run,
+        action,
+        mission_id,
+        target,
+        required_head_sha=required_head_sha,
+    )
+
+
+def _current_authorized_head(
+    run: dict[str, Any],
+    action: str,
+    *,
+    plan: dict[str, Any] | None = None,
+    target: str | None = None,
+) -> str | None:
+    """Resolve the live candidate head for one head-bound lifecycle action."""
+    landing = run.get("landing")
+    if isinstance(landing, dict):
+        if action == "push" and landing.get("mode") == "integration_pull_request":
+            head_branch = landing.get("head_branch")
+            if isinstance(head_branch, str) and head_branch:
+                expected_ref = (
+                    head_branch
+                    if head_branch.startswith("refs/heads/")
+                    else f"refs/heads/{head_branch}"
+                )
+                observed = run.get("observed")
+                observed_git = (
+                    observed.get("git") if isinstance(observed, dict) else None
+                )
+                if isinstance(observed_git, dict):
+                    parent_branch = observed_git.get("parent_branch")
+                    parent_ref = (
+                        parent_branch
+                        if isinstance(parent_branch, str)
+                        and parent_branch.startswith("refs/heads/")
+                        else (
+                            f"refs/heads/{parent_branch}"
+                            if isinstance(parent_branch, str) and parent_branch
+                            else None
+                        )
+                    )
+                    if parent_ref == expected_ref:
+                        return observed_git.get("parent_head_sha")
+                    for worktree in observed_git.get("worktrees", []):
+                        if not isinstance(worktree, dict):
+                            continue
+                        branch_ref = worktree.get("branch_ref")
+                        normalized_ref = (
+                            branch_ref
+                            if isinstance(branch_ref, str)
+                            and branch_ref.startswith("refs/heads/")
+                            else (
+                                f"refs/heads/{branch_ref}"
+                                if isinstance(branch_ref, str) and branch_ref
+                                else None
+                            )
+                        )
+                        if normalized_ref == expected_ref:
+                            return worktree.get("head_sha")
+            return None
+        if action in {"manage_pr_review", "merge_pr"}:
+            return landing.get("pr_head_sha")
+        if action == "create_pr":
+            return landing.get("pushed_head_sha")
+    integration = run.get("integration")
+    if (
+        action == "deploy"
+        and isinstance(plan, dict)
+        and isinstance(target, str)
+        and target.startswith("release:")
+    ):
+        target_id = target.removeprefix("release:")
+        release = plan.get("release")
+        declared_targets = (
+            release.get("targets") if isinstance(release, dict) else None
+        )
+        declared = None
+        if isinstance(declared_targets, list):
+            declared = next(
+                (
+                    item
+                    for item in declared_targets
+                    if isinstance(item, dict) and item.get("id") == target_id
+                ),
+                None,
+            )
+        if not isinstance(declared, dict):
+            return None
+        if declared.get("trigger") == "merge":
+            if isinstance(landing, dict) and landing.get("pr_head_sha"):
+                return landing.get("pr_head_sha")
+            return (
+                integration.get("integration_head_sha")
+                if isinstance(integration, dict)
+                else None
+            )
+        source = declared.get("source")
+        if source == "pr_head":
+            return landing.get("pr_head_sha") if isinstance(landing, dict) else None
+        if source == "integration_head":
+            return (
+                integration.get("integration_head_sha")
+                if isinstance(integration, dict)
+                else None
+            )
+        if source in {"production_head", "merged_main"}:
+            return landing.get("merged_sha") if isinstance(landing, dict) else None
+        return None
+    if isinstance(integration, dict):
+        return integration.get("integration_head_sha")
+    return None
 
 
 def _write_launch_reasons(run: dict[str, Any]) -> set[str]:
@@ -497,6 +615,7 @@ def _required_actions(
 def _dispatch_reasons(
     node: dict[str, Any],
     binding: dict[str, Any] | None,
+    plan: dict[str, Any],
     run: dict[str, Any],
     missions: dict[str, dict[str, Any]],
 ) -> list[str]:
@@ -575,11 +694,42 @@ def _dispatch_reasons(
         # -valid PLANs (authored before this field existed) unchanged.
         target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
+        if node["ref"] == "merge_pr":
+            landing = run.get("landing")
+            if (
+                not isinstance(landing, dict)
+                or landing.get("merge_status") != "ready"
+            ):
+                reasons.add("landing_not_ready")
+        current_head = _current_authorized_head(
+            run,
+            node["ref"],
+            plan=plan,
+            target=target,
+        )
         if any(
             not _action_authorized(run, node["ref"], mission_id, target)
             for mission_id in mission_ids
         ):
             reasons.add("action_not_authorized")
+        elif (
+            run.get("schema_version") == 10
+            and node["ref"] in HEAD_BOUND_AUTHORIZATION_ACTIONS
+            and (
+                not isinstance(current_head, str)
+                or any(
+                    not _action_authorized(
+                        run,
+                        node["ref"],
+                        mission_id,
+                        target,
+                        required_head_sha=current_head,
+                    )
+                    for mission_id in mission_ids
+                )
+            )
+        ):
+            reasons.add("authorization_head_stale")
     return sorted(reasons)
 
 
@@ -680,7 +830,13 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
 
     dispatch_ready: list[dict[str, Any]] = []
     for item in logical_ready:
-        reasons = _dispatch_reasons(item["node"], item["binding"], run, missions)
+        reasons = _dispatch_reasons(
+            item["node"],
+            item["binding"],
+            plan,
+            run,
+            missions,
+        )
         if reasons:
             deferred.append({"node_id": item["node"]["id"], "reason_codes": reasons})
         else:

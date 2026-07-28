@@ -380,9 +380,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
     def test_deploy_target_prefix_records_the_schema_version_split(self) -> None:
         """v10 `targets` wants `release:`, the older v7-v9 `deployments` path
-        wants `environment:`, and the shared prefix pattern accepts both — so a
-        grant written for the wrong version fails as unauthorized, not as
-        malformed."""
+        wants `environment:`, and action-aware validation rejects the other
+        schema version's target kind."""
         from harness_schema import TARGET_RE
 
         reference = self.read("references/execution-state-model.md")
@@ -393,7 +392,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("The `deploy` target prefix differs between those two shapes", reference)
         self.assertIn("requires `deploy` authorization for `release:<target-id>`", reference)
         self.assertIn("requires `environment:<target-id>` for the same grant", reference)
-        self.assertIn("fails its PASS check on missing deploy authorization", reference)
+        self.assertIn(
+            "Shared action/target rules reject the other schema version's target kind",
+            reference,
+        )
 
     def test_authorization_scope_binds_the_plan_digest_only_at_v10(self) -> None:
         """`SKILL.md` says a plan revision or digest change invalidates a grant.

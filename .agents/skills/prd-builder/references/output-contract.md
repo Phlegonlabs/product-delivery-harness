@@ -500,9 +500,9 @@ A UI-bearing product ships without the pair only when the user explicitly overri
 
 Draft them after `wireframes.md`: the primitive inventory is derived from the screens the wireframes actually contain, not invented ahead of them.
 
-`design-system.md` is the semantic authority — the reasoning, the ratios, the guardrails, the decisions. It carries the sections in the template, in that order.
+`design-system.md` owns the reasoning, ratios, guardrails, and decisions. Its machine-contract block is generated and is not hand-edited.
 
-`design-system.json` is the machine-readable half, and the only file downstream tooling parses. Required keys:
+`design-system.json` is the sole structured authority and the only file downstream tooling parses. Required keys:
 
 | Key | Required | Contract |
 |---|---|---|
@@ -517,7 +517,7 @@ Draft them after `wireframes.md`: the primitive inventory is derived from the sc
 | `motionVariants` | no | List of named motion variants a call site may reference. |
 | `stateMatrix` | yes | The states every screen must cover or explicitly mark `n/a`. |
 
-`requiredContentOrder` is the ordered list of content fields a product component must render, in the order it renders them. Every field on it is a **never-drop field**: implementation may not reorder the list, drop a field at a narrow viewport or size class, hide one behind a truncation rule, or omit one in a denser variant. A field that may legitimately disappear does not belong on the list. `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, so a component published without the key leaves that gate nothing to compare. Record the same ordered fields in `design-system.md`'s Product Components table.
+`requiredContentOrder` is the ordered list of content fields a product component must render, in the order it renders them. Every field on it is a **never-drop field**: implementation may not reorder the list, drop a field at a narrow viewport or size class, hide one behind a truncation rule, or omit one in a denser variant. A field that may legitimately disappear does not belong on the list. `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, so a component published without the key fails pair validation. The generated Markdown contract reproduces the ordered list exactly.
 
 The two files must agree: neither may carry a token, primitive, variant, or state the other does not.
 
@@ -639,8 +639,8 @@ Every `wireframes.md` and design-system check below applies only to a UI-bearing
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
 - Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `design-system.md`.
 - UI states include loading, empty, error, permission, and success where applicable.
-- For a UI-bearing product, `design-system.md` and `design-system.json` are both present and agree: no token, primitive, variant, motion variant, product component, or state appears in one and not the other. They are absent only when the user explicitly overrode the requirement and `PRD.md`'s `## Assumptions` records the requester, the reason, and the visual contract implementation uses instead. Prove it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json>` and resolve every reported mismatch. Run it against the staged product pair, not against `assets/templates/DESIGN_SYSTEM.template.*` — those still carry placeholders and will report differences that mean nothing. A clean run is required before publishing the pair, because `design-system.json` is the allowlist `fullstack-harness-engineering`'s UI contract check reads: a name in the JSON that the Markdown never documents ships an allowlist entry nobody wrote down, and a name in the Markdown the JSON lacks fails at implementation time instead.
-- Every product component in `design-system.json` carries a `requiredContentOrder`, and `design-system.md`'s Product Components table records the same fields in the same order. That list is what the downstream Content contract conformance gate checks; a component that omits it weakens the gate instead of failing it.
+- For a UI-bearing product, `design-system.md` and `design-system.json` are both present. JSON is the sole structured authority; Markdown contains exactly one generated machine-contract block plus human rationale. They are absent only when the user explicitly overrode the requirement and `PRD.md`'s `## Assumptions` records the requester, the reason, and the visual contract implementation uses instead. Refresh the block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`, then run the same command without `--write` and resolve every reported mismatch before publishing.
+- Every product component in `design-system.json` carries non-empty `requiredContentOrder`, `composes`, and `states` arrays. The generated Markdown contract preserves their exact values and order.
 - `design-system.json` ships exactly one of `viewports` or `sizeClasses`, non-empty and unique, matching the resolved platform. A native or desktop target does not ship web pixel breakpoints.
 - `design-system.json` parses as JSON, declares `schema: "design-system/1"`, and its `tokenSources` are specific enough that no unrelated file shares the same path tail.
 - Every color pairing in `design-system.md` records a computed contrast ratio from `scripts/check_color_contrast.py`, and every type role records a computed line-height ratio from `scripts/check_type_scale.py`. Estimated or omitted ratios do not pass.

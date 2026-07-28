@@ -10,6 +10,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
 {
   "harness_plan": {
     "schema_version": 5,
+    "action_target_contract": "action-targets/1",
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
@@ -51,16 +52,10 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         ],
         "route": "<route or screen>",
         "breakpoints": [
-          "mobile-390",
-          "tablet-768",
-          "laptop-1200",
-          "desktop-1440"
+          "<copy the complete viewports or sizeClasses set from design-system.json>"
         ],
         "states": [
-          "ready",
-          "loading",
-          "empty",
-          "error"
+          "<copy the complete stateMatrix from design-system.json, preserving order>"
         ],
         "evidence_gate": "required"
       }

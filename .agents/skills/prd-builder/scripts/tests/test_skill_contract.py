@@ -1,6 +1,9 @@
 import json
+import shlex
 import shutil
 import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -855,6 +858,75 @@ async function agent(_prompt, options) {
             self.assertIn("Content contract conformance", content)
         self.assertIn("`dsId`, `requiredContentOrder`, `composes`, and `states`", contract)
         self.assertIn("### Product Component Content Contracts", guide)
+
+    def test_prescribed_design_system_commands_satisfy_the_real_cli_contract(self) -> None:
+        command_prefix = "scripts/check_design_system_pair.py"
+        registry = {
+            "schema": "design-system/1",
+            "product": "Fixture Product",
+            "platform": "web",
+            "stylingMechanism": "plain CSS",
+            "enforcement": "blocking",
+            "tokenSources": ["src/styles/tokens.css"],
+            "primitiveSources": [],
+            "viewports": [390],
+            "tokens": {},
+            "primitives": {},
+            "stateMatrix": ["ready"],
+        }
+
+        for relative_path in ("SKILL.md", "assets/templates/DESIGN_SYSTEM.template.md"):
+            content = self.read(relative_path)
+            code_spans = content.split("`")[1::2]
+            commands = [
+                span for span in code_spans if span.startswith(command_prefix)
+            ]
+            with self.subTest(relative_path=relative_path):
+                self.assertEqual(2, len(commands), commands)
+
+                with tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp)
+                    markdown = root / "design-system.md"
+                    registry_path = root / "design-system.json"
+                    markdown.write_text(
+                        "# Design System\n\nHuman rationale.\n",
+                        encoding="utf-8",
+                    )
+                    registry_path.write_text(
+                        json.dumps(registry),
+                        encoding="utf-8",
+                    )
+
+                    parsed_commands: list[list[str]] = []
+                    for command in commands:
+                        expanded = command.replace(
+                            "<staged design-system.md>",
+                            f'"{markdown.as_posix()}"',
+                        ).replace(
+                            "<staged design-system.json>",
+                            f'"{registry_path.as_posix()}"',
+                        )
+                        argv = shlex.split(expanded)
+                        parsed_commands.append(argv)
+                        completed = subprocess.run(
+                            [
+                                sys.executable,
+                                str(SKILL_ROOT / argv[0]),
+                                *argv[1:],
+                            ],
+                            cwd=SKILL_ROOT,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                        )
+                        self.assertEqual(
+                            0,
+                            completed.returncode,
+                            completed.stdout + completed.stderr,
+                        )
+
+                    self.assertIn("--write", parsed_commands[0])
+                    self.assertNotIn("--write", parsed_commands[1])
 
     def test_design_system_skip_needs_no_ui_surface_or_explicit_override(self) -> None:
         skill = self.read("SKILL.md")
