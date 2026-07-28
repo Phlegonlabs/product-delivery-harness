@@ -320,6 +320,52 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             # sync and --check must agree, or a synced bundle reports as stale.
             self.assertEqual([], module.differences())
 
+    def test_check_and_sync_remove_excluded_destination_test_drift(self) -> None:
+        module = self.load_sync_module()
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_tests = source_root / "sample" / "scripts" / "tests"
+            source_tests.mkdir(parents=True)
+            (source_root / "sample" / "SKILL.md").write_text(
+                "current\n", encoding="utf-8"
+            )
+            # This remains intentionally excluded from source bundling.
+            (source_tests / "stale_test.py").write_text(
+                "# canonical test-only file\n", encoding="utf-8"
+            )
+            destination_root.mkdir(parents=True)
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+            module.sync()
+
+            stale_destination = (
+                destination_root
+                / "sample"
+                / "scripts"
+                / "tests"
+                / "stale_test.py"
+            )
+            stale_destination.parent.mkdir(parents=True, exist_ok=True)
+            stale_destination.write_text("# stale generated copy\n", encoding="utf-8")
+
+            self.assertIn(
+                "extra: sample/scripts/tests/stale_test.py",
+                module.differences(),
+            )
+
+            module.sync()
+            self.assertFalse(stale_destination.exists())
+            self.assertEqual([], module.differences())
+
     def test_check_rejects_symlinked_bundle_entries(self) -> None:
         module = self.load_sync_module()
 

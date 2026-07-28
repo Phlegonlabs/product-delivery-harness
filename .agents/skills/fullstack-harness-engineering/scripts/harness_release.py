@@ -801,7 +801,21 @@ def _validate_targets(
                 expected_signing = "PASS" if declared.get("requires_signing") else "not_required"
                 if artifact.get("signing_status") != expected_signing:
                     _add(errors, f"{target_path}.artifact.signing_status", f"must equal {expected_signing}")
-            actions = ("merge_pr", "deploy") if trigger == "merge" else ("deploy",)
+            merge_entry = run.get("authorizations", {}).get("merge_pr")
+            observed_external_human_merge = (
+                run.get("schema_version") == 10
+                and trigger == "merge"
+                and landing.get("mode") in {"pull_request", "integration_pull_request"}
+                and landing.get("merge_status") == "merged"
+                and landing.get("auto_merge_requested") is False
+                and isinstance(merge_entry, dict)
+                and merge_entry.get("authorized") is False
+            )
+            actions = (
+                ("deploy",)
+                if trigger != "merge" or observed_external_human_merge
+                else ("merge_pr", "deploy")
+            )
             mission_states = run.get("mission_states")
             mission_ids = list(mission_states) if isinstance(mission_states, dict) else []
             for action in actions:

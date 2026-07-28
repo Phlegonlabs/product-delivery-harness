@@ -58,6 +58,26 @@ def included_files(root: Path) -> dict[Path, Path]:
     return files
 
 
+def enumerate_destination_files(root: Path) -> dict[Path, Path]:
+    """Enumerate every regular file already present in a generated skill.
+
+    Source bundling exclusions do not apply here: an excluded source test or
+    bytecode file is still drift when it remains in the generated destination.
+    """
+    files: dict[Path, Path] = {}
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        for path in directory.iterdir():
+            if is_link(path):
+                continue
+            if path.is_dir():
+                pending.append(path)
+            elif path.is_file():
+                files[path.relative_to(root)] = path
+    return files
+
+
 def managed_path_problem(path: Path, label: str) -> str | None:
     try:
         relative_path = path.relative_to(REPO_ROOT)
@@ -125,7 +145,9 @@ def differences() -> list[str]:
             destination_files = {}
         else:
             destination_files = (
-                included_files(destination) if destination.exists() else {}
+                enumerate_destination_files(destination)
+                if destination.exists()
+                else {}
             )
             for relative in symlink_entries(destination):
                 problems.append(f"symlink: {name}/{relative.as_posix()}")

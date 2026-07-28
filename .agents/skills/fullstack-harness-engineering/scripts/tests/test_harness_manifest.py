@@ -3509,6 +3509,124 @@ class RunValidationTests(unittest.TestCase):
                             errors,
                         )
 
+    def test_v10_merge_triggered_production_pass_distinguishes_merge_actor(
+        self,
+    ) -> None:
+        plan, run = self.merged_pull_request_v10("pull_request")
+        plan["release"]["targets"] = [
+            target
+            for target in plan["release"]["targets"]
+            if target["stage"] == "production"
+        ]
+        run["targets"].pop("web-development")
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        for entry in run["authorizations"].values():
+            if isinstance(entry, dict) and entry.get("authorized") is True:
+                entry["scope"]["plan_digest_sha256"] = digest
+
+        def retained_evidence(subject: str) -> dict[str, object]:
+            return {
+                "subject": subject,
+                "retained_reference": f"artifact:{subject}",
+                "evidence_sha256": "d" * 64,
+            }
+
+        target = run["targets"]["web-production"]
+        target.update(
+            {
+                "status": "PASS",
+                "source_sha": run["landing"]["merged_sha"],
+                "authorized_head_sha": run["landing"]["pr_head_sha"],
+                "artifact": {
+                    **retained_evidence("production-artifact"),
+                    "build_id": "build-production-1",
+                    "version": "1",
+                    "signing_status": "not_required",
+                },
+                "channel": {
+                    **retained_evidence("production-channel"),
+                    "name": "workers-production",
+                },
+                "promotion": {
+                    **retained_evidence("production-promotion"),
+                    "status": "PASS",
+                },
+                "availability": {
+                    **retained_evidence("production-availability"),
+                    "status": "PASS",
+                },
+                "migration_status": "not_required",
+                "verification_status": "PASS",
+            }
+        )
+
+        # A harness-performed merge has exact merge and deploy grants.
+        self.assertEqual([], validate_run(plan, run))
+
+        # A human merge is observed state, so only the independent deploy grant
+        # applies to the resulting production PASS.
+        observed = copy.deepcopy(run)
+        observed["authorizations"]["merge_pr"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assertEqual([], validate_run(plan, observed))
+
+        missing_deploy = copy.deepcopy(observed)
+        missing_deploy["authorizations"]["deploy"] = {
+            "authorized": False,
+            "source": None,
+        }
+        missing_deploy_errors = validate_run(plan, missing_deploy)
+        self.assertTrue(
+            any(
+                "PASS requires exact deploy authorization for "
+                "release:web-production at the authorized event head"
+                in error
+                for error in missing_deploy_errors
+            ),
+            missing_deploy_errors,
+        )
+        self.assertFalse(
+            any(
+                "PASS requires exact merge_pr authorization" in error
+                for error in missing_deploy_errors
+            ),
+            missing_deploy_errors,
+        )
+
+        stale_harness_merge = copy.deepcopy(run)
+        stale_harness_merge["authorizations"]["merge_pr"]["authorized_head_sha"] = (
+            "f" * 40
+        )
+        stale_errors = validate_run(plan, stale_harness_merge)
+        self.assertTrue(
+            any(
+                "PASS requires exact merge_pr authorization for "
+                "release:web-production at the authorized event head"
+                in error
+                for error in stale_errors
+            ),
+            stale_errors,
+        )
+
+        unauthorized_auto_merge = copy.deepcopy(observed)
+        unauthorized_auto_merge["landing"]["auto_merge_requested"] = True
+        unauthorized_auto_merge["landing"]["auto_merge_head_sha"] = (
+            unauthorized_auto_merge["landing"]["pr_head_sha"]
+        )
+        auto_merge_errors = validate_run(plan, unauthorized_auto_merge)
+        self.assertTrue(
+            any(
+                "PASS requires exact merge_pr authorization for "
+                "release:web-production at the authorized event head"
+                in error
+                for error in auto_merge_errors
+            ),
+            auto_merge_errors,
+        )
+
     def test_v10_auto_merge_still_requires_exact_merge_authorization(
         self,
     ) -> None:
