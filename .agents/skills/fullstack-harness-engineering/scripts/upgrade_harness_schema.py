@@ -791,9 +791,11 @@ def main(argv: list[str] | None = None) -> int:
         if run is not None and is_legacy_pre_branch_protection_contract(run):
             sys.stdout.write(
                 "already current: legacy RUN v10 remains readable, but its "
-                "integration push cannot dispatch until exact repository branch-"
-                "protection evidence or a separate exact target source is recorded; "
-                f"then set branch_protection_contract to "
+                "integration push cannot dispatch. Repair it by first adding "
+                "landing.integration_branch_protection: use exact repository "
+                "branch-protection evidence, or set it to null and record a "
+                "distinct authorizations.push.target_sources entry for the exact "
+                f"push target. Then set branch_protection_contract to "
                 f"{BRANCH_PROTECTION_CONTRACT!r}\n"
             )
         else:

@@ -36,6 +36,7 @@ from harness_manifest import (  # noqa: E402
     validate_scope_claim,
 )
 from harness_authorization import (  # noqa: E402
+    authorization_covers,
     execution_intent_target_in_scope,
     validate_target_sources,
 )
@@ -4243,6 +4244,84 @@ class RunValidationTests(unittest.TestCase):
         self.assertFalse(
             execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
         )
+
+    def test_direct_push_to_main_rejects_aliases_and_separate_sources(
+        self,
+    ) -> None:
+        root = SCRIPTS_DIR.parent
+        plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+        for integration_branch, target in (
+            ("main", "branch:main"),
+            ("refs/heads/main", "branch:refs/heads/main"),
+            ("main", "branch:refs/heads/main"),
+            ("refs/heads/main", "branch:main"),
+        ):
+            with self.subTest(
+                integration_branch=integration_branch,
+                target=target,
+            ):
+                run = load_run(
+                    root / "assets/templates/MISSION_RUNBOOK.template.md"
+                )
+                run["integration"]["branch"] = integration_branch
+                run["landing"].update(
+                    {
+                        "head_branch": integration_branch,
+                        "base_branch": "refs/heads/production",
+                        "base_branch_protection": {
+                            "branch_ref": "refs/heads/production",
+                            "status": "protected",
+                            "source": "repository: branch protection rules",
+                        },
+                        "integration_branch_protection": {
+                            "branch_ref": "refs/heads/main",
+                            "status": "unprotected",
+                            "source": "repository: branch protection rules",
+                        },
+                    }
+                )
+                run["landing"]["continuity"]["branch_ref"] = "refs/heads/main"
+                run["authorizations"]["push"] = {
+                    "authorized": True,
+                    "source": "user: execute the development loop",
+                    "scope": {
+                        "run_id": run["run_id"],
+                        "plan_revision": run["plan"]["revision"],
+                        "plan_digest_sha256": run["plan"]["digest_sha256"],
+                        "mission_ids": list(run["mission_states"]),
+                        "targets": [target],
+                    },
+                    "target_sources": {
+                        target: "user: push this exact main branch"
+                    },
+                    "expires_when": "run_complete",
+                    "authorized_head_sha": "a" * 40,
+                }
+
+                errors = validate_run(plan, run)
+                self.assertTrue(
+                    any(
+                        "direct push to main is forbidden" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+                for mission_id in run["mission_states"]:
+                    self.assertFalse(
+                        authorization_covers(
+                            run,
+                            "push",
+                            mission_id,
+                            target,
+                        )
+                    )
+                    self.assertFalse(
+                        authorization_covers(
+                            run,
+                            "push",
+                            mission_id,
+                        )
+                    )
 
     def test_integration_pull_request_mode_does_not_guess_custom_protection(
         self,

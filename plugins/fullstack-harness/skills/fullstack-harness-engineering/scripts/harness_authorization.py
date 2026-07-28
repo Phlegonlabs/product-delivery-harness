@@ -109,6 +109,16 @@ def is_legacy_pre_branch_protection_contract(run: Any) -> bool:
     )
 
 
+def _is_main_branch_target(target: Any) -> bool:
+    """Return whether an exact branch target resolves to main."""
+
+    return (
+        isinstance(target, str)
+        and target.startswith("branch:")
+        and _normalized_branch(target.split(":", 1)[1]) == "main"
+    )
+
+
 def _validate_authorization_scope(
     errors: list[str],
     path: str,
@@ -187,6 +197,12 @@ def _validate_authorization_scope(
                         f"got {target!r}"
                     )
                 _add(errors, f"{path}.targets", message)
+            if action_name == "push" and _is_main_branch_target(target):
+                _add(
+                    errors,
+                    f"{path}.targets",
+                    "direct push to main is forbidden; use the pull-request landing flow",
+                )
     else:
         if value["expires_when"] not in EXPIRY_BOUNDARIES:
             _add(
@@ -546,6 +562,15 @@ def authorization_covers(
     if mission_id not in missions and "*" not in missions:
         return False
     targets = scope.get("targets", [])
+    if action == "push" and (
+        _normalized_branch(_integration_branch(run)) == "main"
+        or _is_main_branch_target(target)
+        or (
+            isinstance(targets, list)
+            and any(_is_main_branch_target(item) for item in targets)
+        )
+    ):
+        return False
     if target is not None and target not in targets and "*" not in targets:
         return False
     if (

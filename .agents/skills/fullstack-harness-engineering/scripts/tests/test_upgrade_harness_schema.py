@@ -732,6 +732,10 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("legacy RUN v10 remains readable", result.stdout)
         self.assertIn("integration push cannot dispatch", result.stdout)
+        self.assertIn("landing.integration_branch_protection", result.stdout)
+        self.assertIn("set it to null", result.stdout)
+        self.assertIn("authorizations.push.target_sources", result.stdout)
+        self.assertIn("branch_protection_contract", result.stdout)
         self.assertEqual(before, run_path.read_bytes())
 
     def test_branch_protection_contract_has_two_explicit_repair_paths(
@@ -760,7 +764,7 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
             authorization_covers(current_missing, "push", "M1", target)
         )
 
-        repository_evidence = copy.deepcopy(current_missing)
+        repository_evidence = copy.deepcopy(legacy)
         repository_evidence["landing"]["integration_branch_protection"] = {
             "branch_ref": (
                 branch if branch.startswith("refs/heads/") else f"refs/heads/{branch}"
@@ -768,16 +772,22 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
             "status": "unprotected",
             "source": "repository: branch protection rules",
         }
+        repository_evidence["branch_protection_contract"] = (
+            BRANCH_PROTECTION_CONTRACT
+        )
         self.assertEqual([], validate_run(plan, repository_evidence))
         self.assertTrue(
             authorization_covers(repository_evidence, "push", "M1", target)
         )
 
-        exact_reaffirmation = copy.deepcopy(current_missing)
+        exact_reaffirmation = copy.deepcopy(legacy)
         exact_reaffirmation["landing"]["integration_branch_protection"] = None
         exact_reaffirmation["authorizations"]["push"]["target_sources"] = {
             target: "user: separately authorize this exact integration push"
         }
+        exact_reaffirmation["branch_protection_contract"] = (
+            BRANCH_PROTECTION_CONTRACT
+        )
         self.assertEqual([], validate_run(plan, exact_reaffirmation))
         self.assertTrue(
             authorization_covers(exact_reaffirmation, "push", "M1", target)
