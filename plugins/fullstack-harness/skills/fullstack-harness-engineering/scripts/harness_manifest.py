@@ -94,6 +94,7 @@ from harness_authorization import (
     future_pr_target_matches_landing,
     is_external_human_merge,
     is_legacy_completed_external_merge,
+    is_legacy_completed_unmarked_run,
     validate_target_sources,
 )
 from harness_graph import (
@@ -804,7 +805,7 @@ def _validate_landing(
     *,
     integration_head_sha: Any = None,
     push_authorized: bool = True,
-    run_status: Any = None,
+    legacy_completed_unmarked: bool = False,
 ) -> None:
     path = "run.landing"
     keys = {
@@ -1056,7 +1057,7 @@ def _validate_landing(
         if (
             value["mode"] == "integration_pull_request"
             and value["auto_merge_requested"] is True
-            and run_status != "complete"
+            and not legacy_completed_unmarked
             and not valid_unprotected_protection
         ):
             _add(
@@ -2813,7 +2814,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             schema_version,
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
-            run_status=run.get("status"),
+            legacy_completed_unmarked=is_legacy_completed_unmarked_run(run),
         )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]

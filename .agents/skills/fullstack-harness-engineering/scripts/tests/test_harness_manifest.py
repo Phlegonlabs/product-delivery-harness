@@ -4174,25 +4174,71 @@ class RunValidationTests(unittest.TestCase):
             mismatch_errors,
         )
 
-    def test_completed_integration_pr_preserves_pre_evidence_readability(
+    def test_completed_integration_pr_fallback_requires_unmarked_legacy_run(
         self,
     ) -> None:
         plan, run = self.merged_pull_request_v10("integration_pull_request")
         run["landing"]["auto_merge_requested"] = True
         run["landing"]["auto_merge_head_sha"] = run["landing"]["pr_head_sha"]
+        legacy_plan = copy.deepcopy(plan)
+        legacy_run = copy.deepcopy(run)
+        legacy_plan.pop("action_target_contract")
+        legacy_run.pop("action_target_contract")
+        digest = plan_digest(legacy_plan)
+        legacy_run["plan"]["digest_sha256"] = digest
+        execution_scope = legacy_run.get("execution_authorization_scope")
+        if isinstance(execution_scope, dict):
+            execution_scope["plan_digest_sha256"] = digest
+        for entry in legacy_run["authorizations"].values():
+            if isinstance(entry, dict) and entry.get("authorized") is True:
+                entry["scope"]["plan_digest_sha256"] = digest
+
         mark_observed_merge_complete_v10(plan, run)
+        mark_observed_merge_complete_v10(legacy_plan, legacy_run)
         del run["landing"]["base_branch_protection"]
+        del legacy_run["landing"]["base_branch_protection"]
         integration_branch = run["integration"]["branch"]
         future_pr = run["authorizations"]["merge_pr"]["scope"]["targets"][0]
 
-        self.assertEqual([], validate_run(plan, run))
+        marked_errors = validate_run(plan, run)
         self.assertTrue(
+            any(
+                "integration_pull_request auto-merge requires exact repository evidence"
+                in error
+                for error in marked_errors
+            ),
+            marked_errors,
+        )
+        self.assertTrue(
+            any("target_sources" in error for error in marked_errors),
+            marked_errors,
+        )
+        self.assertFalse(
             execution_intent_target_in_scope(
                 plan, run, "push", f"branch:{integration_branch}"
             )
         )
-        self.assertTrue(
+        self.assertFalse(
             execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
+
+        self.assertEqual([], validate_plan(legacy_plan))
+        self.assertEqual([], validate_run(legacy_plan, legacy_run))
+        self.assertTrue(
+            execution_intent_target_in_scope(
+                legacy_plan,
+                legacy_run,
+                "push",
+                f"branch:{integration_branch}",
+            )
+        )
+        self.assertTrue(
+            execution_intent_target_in_scope(
+                legacy_plan,
+                legacy_run,
+                "merge_pr",
+                future_pr,
+            )
         )
 
     def test_pull_request_into_a_protected_branch_cannot_use_auto_merge(

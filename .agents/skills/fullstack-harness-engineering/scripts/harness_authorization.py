@@ -80,6 +80,17 @@ def is_legacy_completed_external_merge(run: Any) -> bool:
     )
 
 
+def is_legacy_completed_unmarked_run(run: Any) -> bool:
+    """Return whether completed v10 history predates the current contract marker."""
+
+    return (
+        isinstance(run, dict)
+        and run.get("schema_version") == 10
+        and run.get("status") == "complete"
+        and "action_target_contract" not in run
+    )
+
+
 def _validate_authorization_scope(
     errors: list[str],
     path: str,
@@ -253,10 +264,10 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
             or _normalized_branch(protection.get("branch_ref")) != normalized_base
             or not _nonempty_string(protection.get("source"))
         ):
-            # Completed runs are read-only historical state and cannot dispatch
-            # another action. Preserve their pre-evidence v10 readability while
-            # active runs fail closed until repository protection is reaffirmed.
-            return False if run.get("status") == "complete" else None
+            # Only explicitly unmarked completed history predates this evidence.
+            # Current-contract runs fail closed even after completion so their
+            # retained target provenance cannot launder a protected base.
+            return False if is_legacy_completed_unmarked_run(run) else None
         if protection.get("status") == "protected":
             return True
         if protection.get("status") == "unprotected":
