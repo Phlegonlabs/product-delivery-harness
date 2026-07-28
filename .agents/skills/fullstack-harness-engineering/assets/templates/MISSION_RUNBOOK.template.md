@@ -12,7 +12,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
 
-Older RUN schemas remain readable. Historical unmarked RUN v10 files keep their generic exact-target kind and target-source rules while they omit `target_sources`; an unmarked scoped entry opts into strict per-target provenance when it records that map. New PLAN v5 and RUN v10 files declare the same `action-targets/1` marker to enable strict action-to-target validation. Older `deployments` objects retain their original meaning; do not copy that provider-shaped state into a new RUN schema v10 file.
+Older RUN schemas remain readable. Completed historical unmarked RUN v10 files keep their generic exact-target kind and prior target-source shape while they omit `target_sources`; every active unmarked RUN v10 must still satisfy per-target provenance before dispatch, and a completed unmarked scoped entry opts into those checks when it records that map. New PLAN v5 and RUN v10 files declare the same `action-targets/1` marker to enable strict action-to-target validation. Older `deployments` objects retain their original meaning; do not copy that provider-shaped state into a new RUN schema v10 file.
 
 ## Harness Run State
 
@@ -378,7 +378,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-Per-target provenance holds for every marked RUN-v10 artifact and for any unmarked scoped entry that opts in by recording `target_sources`; this template's `action_target_contract: "action-targets/1"` marker also enables the strict action-to-target kind table. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers `push` only for the resolved integration branch, and never covers `merge_pr` or `deploy` under the default branch model; any other target on those three entries names the separate instruction that authorized it:
+Per-target provenance holds for every active RUN-v10 artifact, every marked RUN-v10 artifact, and any completed unmarked scoped entry that opts in by recording `target_sources`; this template's `action_target_contract: "action-targets/1"` marker also enables the strict action-to-target kind table. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers `push` only for the resolved integration branch, and never covers `merge_pr` or `deploy` under the default branch model; any other target on those three entries names the separate instruction that authorized it:
 
 ```json
 "target_sources": {
@@ -386,7 +386,7 @@ Per-target provenance holds for every marked RUN-v10 artifact and for any unmark
 }
 ```
 
-That source must differ from the entry's own `source`, every key must appear in `scope.targets`, and a marked RUN fails validation when an out-of-scope target has no entry — in every landing mode. An existing unmarked legacy RUN-v10 entry keeps historical validation only while it omits `target_sources`; adding `target_sources` opts that entry into the same strict provenance rules. See `../../references/execution-state-model.md`'s Per-Target Provenance For The Scoped Three.
+That source must differ from the entry's own `source`, every key must appear in `scope.targets`, and an active or marked RUN fails validation when an out-of-scope target has no entry — in every landing mode. Only a completed unmarked legacy RUN-v10 entry keeps historical validation while it omits `target_sources`; adding `target_sources` opts that entry into the same strict provenance rules. See `../../references/execution-state-model.md`'s Per-Target Provenance For The Scoped Three.
 
 `execution_authorization_scope` at the top of the RUN is a different shape from the per-action `scope` above, and copying the action shape is the usual mistake. It carries `expires_when` **inside** the object and takes **no** `targets` key:
 

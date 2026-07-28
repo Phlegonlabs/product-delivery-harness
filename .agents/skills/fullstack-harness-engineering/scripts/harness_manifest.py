@@ -2672,14 +2672,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.authorized_head_sha",
                         "is only allowed for head-bound remote actions",
                     )
-                # New marked v10 artifacts require per-target provenance. Keep
-                # unmarked v10 artifacts readable under their historical
-                # contract, but validate target_sources whenever one opts in.
+                # Every active v10 artifact requires per-target provenance before
+                # dispatch. Only completed unmarked v10 history keeps its prior
+                # shape; an explicit marker or target_sources map still opts it in.
                 if (
                     schema_version == 10
                     and action in EXECUTION_INTENT_SCOPED_ACTIONS
                     and (
-                        run.get("action_target_contract")
+                        run.get("status") != "complete"
+                        or run.get("action_target_contract")
                         == ACTION_TARGET_CONTRACT
                         or "target_sources" in entry
                     )

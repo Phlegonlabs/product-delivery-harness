@@ -1297,7 +1297,7 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertEqual([], validate_plan(plan))
         self.assertEqual([], validate_run(plan, run))
 
-    def test_existing_unmarked_v10_keeps_legacy_target_source_shape(self) -> None:
+    def test_existing_unmarked_v10_fails_closed_until_complete(self) -> None:
         root = self._seed_repo()
         plan, run = current_plan_and_run(root, strict_action_targets=False)
         target = "remote:origin/development"
@@ -1308,7 +1308,23 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
 
         self.assertNotIn("target_sources", run["authorizations"]["push"])
         self.assertEqual([], validate_plan(plan))
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                f"target_sources.{target}:" in error
+                and "requires its own recorded authorization source" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        historical = copy.deepcopy(run)
+        historical["status"] = "complete"
+        historical_errors = validate_run(plan, historical)
+        self.assertFalse(
+            any("target_sources" in error for error in historical_errors),
+            historical_errors,
+        )
 
     def test_v10_head_bound_actions_reject_wrong_target_kinds(self) -> None:
         for action, target in (

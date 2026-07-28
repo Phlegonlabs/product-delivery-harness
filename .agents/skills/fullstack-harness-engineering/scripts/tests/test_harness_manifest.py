@@ -3861,10 +3861,10 @@ class RunValidationTests(unittest.TestCase):
             errors,
         )
 
-    def test_unmarked_v10_keeps_historical_target_source_shape(
+    def test_unmarked_v10_fails_closed_while_active_but_keeps_completed_history(
         self,
     ) -> None:
-        """Historical unmarked RUN v10 artifacts remain readable."""
+        """Active unmarked v10 dispatch fails closed without breaking history."""
         plan, run, development_target_id = self.integration_pull_request_v10()
         self.authorize_merge_triggered_development_release(
             run, development_target_id
@@ -3883,7 +3883,23 @@ class RunValidationTests(unittest.TestCase):
             if entry.get("authorized") is True:
                 entry["scope"]["plan_digest_sha256"] = digest
 
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                f"target_sources.{exact_target}:" in error
+                and "requires its own recorded authorization source" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        historical = copy.deepcopy(run)
+        historical["status"] = "complete"
+        historical_errors = validate_run(plan, historical)
+        self.assertFalse(
+            any("target_sources" in error for error in historical_errors),
+            historical_errors,
+        )
 
         opted_in = copy.deepcopy(run)
         opted_in["authorizations"]["merge_pr"]["target_sources"] = {}

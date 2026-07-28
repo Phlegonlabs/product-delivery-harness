@@ -345,22 +345,22 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("must differ from the entry `source`", reference)
         self.assertIn("Resolution fails closed", reference)
         self.assertIn("`target_sources` is rejected on any other action", reference)
-        self.assertIn("Every new marked schema-v10 RUN is held to it", reference)
+        self.assertIn("Every active schema-v10 RUN is held to it", reference)
         self.assertIn(
-            "Historical unmarked RUN-v10 files remain readable", reference
+            "Every active schema-v10 RUN is held to it before dispatch", reference
         )
         self.assertIn(
-            "if an unmarked entry records `target_sources`, the validator checks the map",
+            "Completed historical unmarked RUN-v10 files remain readable",
             reference,
         )
         self.assertIn("in every landing mode", reference)
         self.assertIn(
-            "Historical unmarked RUN v10 files keep their generic exact-target kind "
-            "and target-source rules while they omit `target_sources`",
+            "Completed historical unmarked RUN v10 files keep their generic exact-target "
+            "kind and prior target-source shape while they omit `target_sources`",
             runbook,
         )
         self.assertIn(
-            "for any unmarked scoped entry that opts in by recording `target_sources`",
+            "every active unmarked RUN v10 must still satisfy per-target provenance",
             runbook,
         )
         self.assertNotIn(
