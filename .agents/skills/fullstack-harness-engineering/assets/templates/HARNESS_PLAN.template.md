@@ -1,6 +1,6 @@
 # Plan: <feature or product slice>
 
-Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`. Resolve the target repository's existing branch and pull-request model before filling branch fields; the template's `development` and `production` names are fallbacks, not overrides.
+Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`. Resolve the target repository's existing branch and pull-request model before filling branch fields; the template's `codex/<short-name>` run branch and `main` protected base are fallbacks, not overrides.
 
 PLAN schema v5 uses one provider-neutral release target contract. `release.provider` accepts `cloudflare | vercel | aws | self_hosted | other`, but stable target IDs and fields do not change with provider. Every deployable plan declares at least one `development` and one `production` target with exact source, artifact, signing, channel, data, trigger, migration, command, prerequisite, and smoke fields. Older PLAN schemas remain readable; use their own recorded shapes only when reading them.
 
@@ -104,41 +104,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
       "provider": "cloudflare",
       "targets": [
         {
-          "id": "web-development",
-          "stage": "development",
-          "source": "integration_head",
-          "artifact_kind": "cloudflare_worker_bundle",
-          "requires_signing": false,
-          "channel": "workers-development",
-          "data_mode": "isolated_non_production",
-          "trigger": "manual",
-          "migration_classification": "not_applicable",
-          "commands": {
-            "build": {
-              "id": "build-web-development",
-              "cwd": "<app-directory>",
-              "argv": ["<package-manager>", "run", "build"],
-              "pass_signal": "Development release artifact builds successfully"
-            },
-            "migrate": null,
-            "publish": {
-              "id": "publish-web-development",
-              "cwd": "<app-directory>",
-              "argv": ["npx", "wrangler", "deploy", "--env", "development"],
-              "pass_signal": "Provider reports a successful development publication"
-            }
-          },
-          "prerequisites": ["current_head_ci"],
-          "smoke_verifiers": [
-            {
-              "id": "smoke-web-development",
-              "cwd": ".",
-              "argv": ["<smoke-runner>", "<development-smoke-argument>"],
-              "pass_signal": "Development primary journey passes"
-            }
-          ]
-        },
-        {
           "id": "web-production",
           "stage": "production",
           "source": "production_head",
@@ -158,7 +123,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
             "migrate": null,
             "publish": null
           },
-          "prerequisites": ["development_pass", "production_promoted"],
+          "prerequisites": ["production_promoted"],
           "smoke_verifiers": [
             {
               "id": "smoke-web-production",
@@ -837,7 +802,7 @@ When `architecture.md` declares a `## Release Targets` section, it owns this ide
 
 Stable target IDs are provider-neutral and must survive provider configuration changes. Each canonical target declares `id`, `stage`, `source`, `artifact_kind`, `requires_signing`, `channel`, `data_mode`, `trigger`, `migration_classification`, exact `commands.build`/`commands.migrate`/`commands.publish`, `prerequisites`, and `smoke_verifiers`. Include at least one development and one production target. Use `migration_classification: "not_applicable"` with `commands.migrate: null` only when no migration is needed. A manual target requires a publish command; a merge-triggered target sets it to null because the provider performs publication after the authorized merge.
 
-A development target may bind to `pr_head` or the retained `development` `integration_head`; a production target binds to `production_head` after the user-approved `development -> production` promotion. `merged_main` remains readable only for older plans. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
+The default model declares one production target, published from the protected base after the user merges. A production target binds to `production_head`; `merged_main` remains readable only for older plans. Declare a development-stage target only when the repository actually keeps a separate preview or staging environment, and bind it to `pr_head` or to the retained `integration_head`. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
 
 These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10. A native merge-triggered publication requires exact merge/landing authorization for the PR and its `release:<target-id>` consequence plus exact deployment authorization for the same target and head. Never infer deployment authorization from merge authorization.
 
@@ -918,7 +883,7 @@ When the product has a design system, `design-system.json`'s `stateMatrix` is th
 | Scopes use the supported grammar and resources are complete | draft / PASS / BLOCKED | <note> |
 | Worker, mission-integration, batch, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |
 | Blocking decisions and approval needs are surfaced | draft / PASS / BLOCKED | <note> |
-| Provider-neutral development and production target IDs, source/artifact/channel/signing/data/trigger/migration fields, commands, prerequisites, and smoke verifiers are complete | draft / PASS / BLOCKED / n/a | <note> |
+| Provider-neutral release target IDs, source/artifact/channel/signing/data/trigger/migration fields, commands, prerequisites, and smoke verifiers are complete | draft / PASS / BLOCKED / n/a | <note> |
 
 Implementation may start only after static validation passes, `RUN.md` records `plan_readiness: "ready"`, and the required actions have explicit user authorization. Readiness never grants authorization by itself.
 

@@ -8,7 +8,7 @@ For compact large sequential work that intentionally has no `PLAN.md`, use the s
 
 Set `max_parallel_workers`, `available_worker_slots`, and `isolation_capacity` from what you actually observed. The values shipped here are a starting point, not a limit to copy: leaving them at `1` serializes a genuinely parallel frontier and the deferral reads only as `over_budget`.
 
-For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. Resolve the target repository's branch and landing model from its instructions before filling this template. Preserve those branches when defined; otherwise use the template's `development` integration and separately approved `development -> production` promotion defaults. Create mission worktrees from the resolved current integration SHA, require one exact-head read-only review before each integration, and merge passing heads serially into the resolved integration branch. Ordinary PRD, UI, and feature work does not wait for GitHub: it starts `local_only` and moves to `integration_push` once the verified integration head is pushed to the integration branch, recording that head in `landing.pushed_head_sha`. It never becomes `pull_request`. Do not begin a pull-request promotion until the user separately reviews the accumulated integration result and gives final approval. At that late checkpoint, request the exact remaining landing actions and bind them to the resolved head and base branches. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
+For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. Resolve the target repository's branch and landing model from its instructions before filling this template. Preserve those branches when defined; otherwise use the template's main-only defaults, where `main` is production and the run's own `codex/<short-name>` branch is its integration branch. Create mission worktrees from the resolved current integration SHA, require one exact-head read-only review before each integration, and merge passing heads serially into the resolved integration branch. Ordinary PRD, UI, and feature work does not wait for GitHub: it starts `local_only` and moves to `integration_push` once the verified integration head is pushed to the integration branch, recording that head in `landing.pushed_head_sha`. That is where an ordinary run ends — the planned change is made, verified, and pushed. Do not open the pull request into the protected base until the user separately reads the pushed branch and asks for it. At that late checkpoint, request the exact remaining landing actions and bind them to the resolved head and base branches. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
 
 RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
 
@@ -25,7 +25,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "80e7832410c6bbc8969b23208cbe75449e5a4cc4b67ad0f3abede41d7cbaebc4"
+      "digest_sha256": "a320fe66409643bdcca50ae96b0b3ae8980b421702a2b3c7d6d25089957bbcd6"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -168,7 +168,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
       }
     },
     "integration": {
-      "branch": "refs/heads/development",
+      "branch": "refs/heads/codex/<short-name>",
       "retention": "persistent",
       "batch_base_sha": null,
       "integration_head_sha": null,
@@ -200,8 +200,8 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
     "landing": {
       "mode": "local_only",
       "remote": "origin",
-      "head_branch": "refs/heads/development",
-      "base_branch": "production",
+      "head_branch": "refs/heads/codex/<short-name>",
+      "base_branch": "main",
       "pushed_head_sha": null,
       "pr_number": null,
       "pr_url": null,
@@ -219,24 +219,12 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
       "auto_merge_head_sha": null,
       "continuity": {
         "status": "planned",
-        "branch_ref": "refs/heads/development",
+        "branch_ref": "refs/heads/codex/<short-name>",
         "head_sha": null,
-        "reason": "Retain reviewed work on development until the user approves promotion to production"
+        "reason": "Retain the reviewed run branch until the user opens and merges its pull request into main"
       }
     },
     "targets": {
-      "web-development": {
-        "status": "not_started",
-        "source_sha": null,
-        "authorized_head_sha": null,
-        "artifact": null,
-        "channel": null,
-        "promotion": null,
-        "availability": null,
-        "migration_status": "not_started",
-        "verification_status": "not_started",
-        "destructive_migration_confirmed_sha": null
-      },
       "web-production": {
         "status": "not_started",
         "source_sha": null,
@@ -253,7 +241,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
     "post_merge_cleanup": {
       "status": "not_started",
       "base": {
-        "branch": "production",
+        "branch": "main",
         "head_sha": null,
         "merged_sha_reachable": null
       },
@@ -463,11 +451,11 @@ RUN schema v10 has 19 independent action entries. Keep every entry false unless 
 New RUN files start at `mode: "local_only"` because nothing has been pushed yet. RUN v10 has four modes:
 
 - `local_only` — nothing left the machine. No pushed head, no PR, no remote evidence.
-- `integration_push` — the ordinary end state for feature work under the default branch model. The verified integration head has been pushed to the integration branch so its watching deployment can build; `landing.pushed_head_sha` is required, and there is still no PR and no remote check/review/merge evidence. Record the `push` authorization with its exact branch target before moving here.
+- `integration_push` — the ordinary end state for feature work under the default branch model, and the point at which the run is complete. The verified integration head has been pushed to the run's own branch; `landing.pushed_head_sha` is required, and there is still no PR and no remote check/review/merge evidence. Record the `push` authorization with its exact branch target before moving here.
 - `integration_pull_request` — a feature head is reviewed and merged into `integration.branch` through a PR. `landing.base_branch` equals the retained integration branch, while `landing.head_branch` is the disposable feature branch. CI, review, and merge bind the feature PR head; after merge, `landing.merged_sha` and `integration.integration_head_sha` match, and continuity is preserved there. If the retained integration branch resolves to `main`, do not request auto-merge; stop merge-ready for a later exact human instruction naming that PR.
-- `pull_request` — only after the user gives final approval to start the resolved head-to-base promotion. Sets continuity to `not_required`.
+- `pull_request` — only after the user separately asks for the pull request into the protected base. Sets continuity to `not_required`. The harness opens it, watches current-head CI, and requests review; the human merges.
 
-Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; use the template's `development`, `development`, and `production` values only when the repository defines no other model. `local_only`, `integration_push`, and `integration_pull_request` preserve the exact integration branch in `landing.continuity`.
+Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; use the template's `codex/<short-name>`, `codex/<short-name>`, and `main` values only when the repository defines no other model. `local_only`, `integration_push`, and `integration_pull_request` preserve the exact integration branch in `landing.continuity`.
 
 When PLAN declares release targets, `run.targets` keys must exactly equal the PLAN `release.targets[].id` set. PASS requires exact source/head binding plus retained artifact, channel, promotion, and availability evidence. Every evidence object has a retained reference and lowercase SHA-256; artifact evidence also records build ID, version, and signing status. Release execution never weakens action boundaries: a native merge-triggered publication requires exact merge/landing authorization and exact deployment authorization for the same release target and head. Never infer deployment authorization from merge authorization.
 
@@ -490,7 +478,7 @@ Schemas v5 through v10 use `post_merge_cleanup` only after a pull request reache
 
 Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. When the PR head is the persistent integration branch, `post_merge_cleanup.local_branch.status` must be `"preserved"`, not `"deleted"`. For `integration_pull_request`, retention applies to the PR base, so the feature head may be deleted after the exact cleanup gates pass. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
 
-Create mission worktrees from the current resolved integration head. Before each parent integration, require at least one read-only review bound to the exact worktree head; repair findings in that worktree and review the changed head again. Integrate passing worktrees into the persistent branch named by `integration.branch`, either locally or through `integration_pull_request` when repository policy requires an integration-base PR. In `local_only` and `integration_push`, do not create remote PR, CI, review, or merge evidence. After final verification, preserve continuity at the exact integration head. In `pull_request`, which begins only after final user approval, set continuity to `not_required` and promote the resolved integration head to the protected base. Worker branches and worktrees never become protected landing branches.
+Create mission worktrees from the current resolved integration head. Before each parent integration, require at least one read-only review bound to the exact worktree head; repair findings in that worktree and review the changed head again. Integrate passing worktrees into the branch named by `integration.branch`, either locally or through `integration_pull_request` when repository policy requires an integration-base PR. In `local_only` and `integration_push`, do not create remote PR, CI, review, or merge evidence. After final verification, preserve continuity at the exact integration head. In `pull_request`, which begins only when the user separately asks for it, set continuity to `not_required` and offer the resolved integration head to the protected base. Worker branches and worktrees never become protected landing branches.
 
 Do not include protected-branch promotion in an ordinary mission run's authorization bundle. After the user separately approves the resolved head-to-base promotion, require matching unexpired authorization for every remaining exact action—normally `push`, `create_pr`, `trigger_remote_ci` when a workflow must be dispatched, `manage_pr_review`, and `merge_pr`—and then treat that order as one continuous parent-owned landing loop that stops at a merge-ready PR. For the unborn promotion PR, use `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`; after creation, verify those fields and append `pr:<full-PR-URL>` while keeping the future target and source. Poll CI and review concurrently, repair only authorized in-scope failures on the resolved head branch, and restart both after every new push. Do not merge and do not enable auto-merge: report the PR as merge-ready once checks and review PASS with zero blocking findings and unresolved threads, and hand it over. `merge_pr` is recorded only when the user separately asks for the merge on that exact PR.
 
@@ -515,11 +503,11 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-Per-target provenance holds for every RUN-v10 artifact; this template's `action_target_contract: "action-targets/1"` marker additionally enables the strict action-to-target kind table. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers them only for the resolved integration branch, a PR merging into it, and the development release target; any other target on those three entries names the separate instruction that authorized it:
+Per-target provenance holds for every RUN-v10 artifact; this template's `action_target_contract: "action-targets/1"` marker additionally enables the strict action-to-target kind table. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers `push` only for the resolved integration branch, and never covers `merge_pr` or `deploy` under the default branch model; any other target on those three entries names the separate instruction that authorized it:
 
 ```json
 "target_sources": {
-  "branch:production": "<the separate user statement authorizing this exact target>"
+  "branch:main": "<the separate user statement authorizing this exact target>"
 }
 ```
 

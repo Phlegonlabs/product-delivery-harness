@@ -296,15 +296,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
 
         self.assertIn(
-            "`merge_pr` **restricted to a PR whose base is the resolved integration branch**",
+            "`merge_pr` and `deploy` are outside the bundle entirely under this model",
             core,
         )
         self.assertIn(
-            "A merge whose base is the resolved integration branch may use repository auto-merge",
+            "Repository auto-merge is available only for a PR whose base is a resolved "
+            "non-protected integration branch",
             core,
         )
         self.assertIn(
-            "A merge toward the protected landing branch is never the harness's to initiate",
+            "A merge into `main` is never the harness's to initiate",
             core,
         )
         self.assertIn("does not enable auto-merge there", core)
@@ -354,8 +355,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         )
 
         self.assertIn(
-            "The harness runs the production deploy when `deploy` is authorized for that "
-            "exact production target at that exact head",
+            "The harness runs it when `deploy` is authorized for that exact target at that "
+            "exact head",
             core,
         )
         self.assertIn("One rule covers who runs the production deploy", lifecycle)
@@ -370,11 +371,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("does not run the production deploy", core)
         # The checkpoint no longer claims the parent performs the promotion merge.
         self.assertNotIn(
-            "or performs the auto-deploy-triggering `development -> production` merge",
+            "or performs the auto-deploy-triggering merge into `main`",
             lifecycle,
         )
         self.assertIn(
-            "before it hands over the auto-deploy-triggering `development -> production` merge",
+            "before it hands over the auto-deploy-triggering merge into `main`",
             lifecycle,
         )
 
@@ -549,7 +550,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         things on the two hosts."""
         core = self.read("SKILL.md")
 
-        bundle = core[core.index("Eleven of these actions") : core.index("That grouping is scoped")]
+        bundle = core[core.index("Nine of these actions") : core.index("That grouping is scoped")]
         for action in ("spawn_subagents", "create_user_owned_tasks"):
             self.assertIn(action, bundle)
         self.assertIn(
@@ -584,7 +585,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         for mode in ("`local_only`", "`integration_push`", "`pull_request`"):
             self.assertIn(mode, runbook)
         self.assertIn(
-            "only after the user gives final approval to start the resolved head-to-base promotion",
+            "only after the user separately asks for the pull request into the protected base",
             runbook,
         )
 
@@ -612,7 +613,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>",
             skill,
         )
-        self.assertIn("Do not put a future protected-branch promotion", state)
+        self.assertIn("Do not put the later `main` landing", state)
         self.assertIn(
             "do not request or infer a future protected-branch promotion",
             goal,
@@ -622,7 +623,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             runbook,
         )
         self.assertIn(
-            "Do not request or infer protected-branch promotion at Plan Readiness",
+            "Do not request or infer a protected-branch pull request at Plan Readiness",
             project_rules,
         )
         self.assertIn("select authorized ready nodes", agent)
@@ -631,7 +632,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("merge_pr", content)
             self.assertIn("future-pr:", content)
 
-    def test_worktree_review_and_development_production_branch_policy(self) -> None:
+    def test_worktree_review_and_main_only_branch_policy(self) -> None:
         core = self.read("SKILL.md")
         codex = self.read_sibling_skill("fullstack-harness-codex")
         verification = self.read("references/verification-gates.md")
@@ -641,7 +642,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         worktrees = self.read("references/worktree-thread-orchestration.md")
 
-        self.assertIn("## Default Development And Production Branch Policy", core)
+        self.assertIn("## Default Main-Only Branch Policy", core)
         self.assertIn("Target-repository governance wins", core)
         self.assertIn("at least one read-only review round", core)
         self.assertIn(
@@ -649,9 +650,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             codex,
         )
         self.assertIn("Worktree pre-integration review gate", verification)
-        self.assertIn('"branch": "refs/heads/development"', runbook)
-        self.assertIn('"head_branch": "refs/heads/development"', runbook)
-        self.assertIn('"base_branch": "production"', runbook)
+        self.assertIn('"branch": "refs/heads/codex/<short-name>"', runbook)
+        self.assertIn('"head_branch": "refs/heads/codex/<short-name>"', runbook)
+        self.assertIn('"base_branch": "main"', runbook)
         self.assertIn("one child must review the proposed diff", worker_goal)
         self.assertIn(
             "If the repository already defines another branch or pull-request model",
@@ -663,7 +664,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn('"source": "production_head"', plan)
         self.assertIn(
-            "recorded `batch_base_sha` on the resolved persistent integration branch",
+            "creates every worktree from the same recorded `batch_base_sha`",
             worktrees,
         )
         self.assertNotIn("recorded current `development` SHA", worktrees)
@@ -691,7 +692,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("ref: ${{ env.E2E_HEAD_SHA }}", ci_template)
         self.assertIn("e2e-${{ env.E2E_HEAD_SHA }}", ci_template)
 
-    def test_cloudflare_release_uses_two_isolated_exact_sha_workers(self) -> None:
+    def test_cloudflare_release_publishes_one_production_worker(self) -> None:
         skill = self.read("SKILL.md")
         lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
         state_model = self.read("references/execution-state-model.md")
@@ -703,7 +704,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         agent = self.read("agents/openai.yaml")
 
-        self.assertIn("one repository and one codebase deployed to two isolated Workers", lifecycle)
+        self.assertIn("one repository and one codebase deployed to one production Worker", lifecycle)
+        self.assertIn("`production` is a Cloudflare environment, not a Git branch", lifecycle)
         self.assertIn("`release:<target-id>`", lifecycle)
         self.assertIn("`web-development`", lifecycle)
         self.assertIn("`web-production`", lifecycle)

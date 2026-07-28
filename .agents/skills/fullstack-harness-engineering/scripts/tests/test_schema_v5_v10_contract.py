@@ -83,7 +83,8 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertTrue(
             all(set(target["commands"]) == {"build", "migrate", "publish"} for target in targets)
         )
-        self.assertEqual({"development", "production"}, {target["stage"] for target in targets})
+        # Main-only default: one production target, no preview environment.
+        self.assertEqual({"production"}, {target["stage"] for target in targets})
         self.assertEqual({target["id"] for target in targets}, set(run["targets"]))
 
         acceptance = plan["missions"][0]["tasks"][0]["acceptance_matrix"][0]
@@ -114,9 +115,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         )
 
         for field in (
-            '"id": "web-development"',
             '"id": "web-production"',
-            '"stage": "development"',
             '"stage": "production"',
             '"source":',
             '"artifact_kind":',
@@ -131,14 +130,14 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         ):
             self.assertIn(field, plan_text)
         targets = {target["id"]: target for target in plan["release"]["targets"]}
-        self.assertEqual("integration_head", targets["web-development"]["source"])
+        self.assertNotIn("web-development", targets)
         self.assertEqual("production_head", targets["web-production"]["source"])
         self.assertIn("Stable target IDs are provider-neutral", plan_text)
 
     def test_run_v10_binds_plan_targets_authorization_and_evidence(self) -> None:
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn('"web-development": {', run)
+        self.assertNotIn('"web-development": {', run)
         self.assertIn('"web-production": {', run)
         self.assertIn("keys must exactly equal the PLAN `release.targets[].id` set", run)
         for field in (
@@ -160,7 +159,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
             "cloud-resource:<provider>:<environment>:<kind>:<logical-name>", run
         )
 
-    def test_run_v10_retains_verifier_executions_and_development_continuity(self) -> None:
+    def test_run_v10_retains_verifier_executions_and_branch_continuity(self) -> None:
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
         self.assertIn('"verifier_executions": [', run)
@@ -168,9 +167,9 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("append-only and parent-owned", run)
         self.assertIn('"continuity": {', run)
         self.assertIn('"status": "planned"', run)
-        self.assertIn('"branch": "refs/heads/development"', run)
-        self.assertIn('"base_branch": "production"', run)
-        self.assertIn("Retain reviewed work on development", run)
+        self.assertIn('"branch": "refs/heads/codex/<short-name>"', run)
+        self.assertIn('"base_branch": "main"', run)
+        self.assertIn("Retain the reviewed run branch", run)
 
     def test_review_repair_review_graph_is_bounded(self) -> None:
         plan = self.canonical_manifest(

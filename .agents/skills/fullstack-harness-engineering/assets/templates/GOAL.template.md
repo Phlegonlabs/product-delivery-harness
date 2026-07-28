@@ -16,7 +16,7 @@ Expected coordination:
 - automatic mission fan-out: Codex app threads | Claude Dynamic Workflow | direct subagents | disabled
 - nested mission helpers: enabled read-only, 1-3 per non-trivial app task | disabled
 - automatic PR landing: enabled after explicit landing-bundle authorization | disabled
-- automatic Cloudflare promotion: reviewed development head -> production branch only after final user approval and exact deploy authorization | disabled
+- automatic Cloudflare promotion: reviewed run branch -> protected base only after the user asks for the pull request, merges it, and gives exact deploy authorization | disabled
 
 Requested actions, pending explicit user authorization:
 - <one or more exact ledger keys, or none>
@@ -31,7 +31,7 @@ For full deployed Cloudflare delivery, request `deploy` separately for each exac
 
 Before any implementation, map every must-have requirement to a trace, dependency-ordered mission, immutable flat task ID, supported write/deny scope, complete typed resource inventory, worker verifier, integration verifier, and final gate. Write static definitions to PLAN.md and live state to the canonical JSON in RUN.md. Validate plan structure and pass the Plan Readiness Gate.
 
-In the target repository, start every mission worktree from the current resolved integration SHA. Each worktree completes one exact-head read-only review before parent integration; repairs require a fresh review. Merge passing worktrees only into that integration branch. Preserve the repository's protected landing flow. If it defines no other model, use `development` for integration and `production` for the separately approved promotion target.
+In the target repository, start every mission worktree from the current resolved integration SHA. Each worktree completes one exact-head read-only review before parent integration; repairs require a fresh review. Merge passing worktrees only into that integration branch. Preserve the repository's protected landing flow. If it defines no other model, cut the run's own `codex/<short-name>` branch from the current `main` and use it for integration; `main` is the protected base and is never written to directly.
 
 Do not treat this Goal text, plan readiness, expected mode, or requested action list as authorization. Keep all 19 schema-v10 RUN authorization entries false unless the user explicitly approves the exact action and its source, run/mission/target scope, plan revision, plan digest, and expiry boundary are recorded; older RUN schemas retain their original ledger. `invoke_external_runtime` is separate from worker creation and requires `runtime:<provider>`. Overall execution authorization also records its explicit source. The parent may perform read-only validation and static graph/conflict analysis without implementation authorization, but a launch-bound selected wave requires execution and launch-action authorization; delegating even the analysis still requires the matching worker-creation authorization. If implementation and its required actions are authorized, select only ready non-conflicting nodes against a fixed base SHA; otherwise stop at ready and report what authorization is missing.
 
@@ -54,7 +54,7 @@ Stop on requirements conflict, unsupported scope/resource claims, stale plan dig
 - [ ] Provider, observed drivers, selected route, runtime, workspace, and completion channel are recorded consistently.
 - [ ] Plan Readiness passes before implementation begins.
 - [ ] Every needed action is explicitly authorized in RUN; all other ledger entries remain false.
-- [ ] Ordinary mission work ends on reviewed `development`; any production promotion waits for the separate final user-approval checkpoint.
+- [ ] Ordinary mission work ends on the reviewed run branch once it is pushed; the pull request into the protected base waits for its own user instruction.
 - [ ] Cloudflare release targets, isolated bindings/secrets/auth/payment modes, migrations, exact-SHA deploy commands, deployed-environment checks, and separate deploy authorization are defined when deployment is in scope.
 - [ ] UI evidence and final E2E/release gates are defined when applicable, including the automated E2E command, current-head check/evidence, target environment, and manual-smoke disposition.
 - [ ] The fixed integration base and post-batch recomputation rule are recorded.

@@ -188,6 +188,43 @@ def authorize(
     }
 
 
+def add_development_release_target(
+    plan: dict[str, object], run: dict[str, object]
+) -> dict[str, object]:
+    """Give a template-built pair the optional preview environment.
+
+    The canonical templates are main-only: one production target and no
+    persistent integration branch. Tests that exercise the other supported
+    shape — a repository with its own integration branch and a preview
+    environment watching it — declare that target themselves.
+    """
+    development = copy.deepcopy(
+        next(
+            item
+            for item in plan["release"]["targets"]
+            if item["stage"] == "production"
+        )
+    )
+    development.update(
+        {
+            "id": "web-development",
+            "stage": "development",
+            "source": "integration_head",
+            "channel": "workers-development",
+            "data_mode": "isolated_non_production",
+            "trigger": "manual",
+            "prerequisites": ["current_head_ci"],
+        }
+    )
+    # Verifier and command IDs are globally unique across the PLAN.
+    development["commands"]["build"]["id"] = "build-web-development"
+    development["smoke_verifiers"][0]["id"] = "smoke-web-development"
+    plan["release"]["targets"].insert(0, development)
+    run["targets"]["web-development"] = copy.deepcopy(run["targets"]["web-production"])
+    run["integration"]["branch"] = "refs/heads/development"
+    return development
+
+
 def lifecycle_v10_plan_and_run(
     action: str, target: str | None
 ) -> tuple[dict[str, object], dict[str, object]]:
@@ -2177,11 +2214,10 @@ class GraphManifestTests(unittest.TestCase):
         self,
     ) -> None:
         # deploy is both HEAD_BOUND (needs authorized_head_sha) and execution-
-        # intent scoped (needs its target in scope.targets); web-development
-        # is the PLAN's development release target, so it needs no separate
-        # target_sources entry (harness_authorization.execution_intent_target
-        # _in_scope covers it).
-        target = "release:web-development"
+        # intent scoped (needs its target in scope.targets). No release target
+        # rides the execution-intent instruction any more, so the grant also
+        # records the separate instruction that authorized this exact target.
+        target = "release:web-production"
         plan, run = lifecycle_v10_plan_and_run("deploy", target)
         run["authorizations"]["deploy"] = {
             "authorized": True,
@@ -2194,6 +2230,7 @@ class GraphManifestTests(unittest.TestCase):
                 "mission_ids": ["*"],
                 "targets": [target],
             },
+            "target_sources": {target: "user: deploy this exact production target"},
             "expires_when": "run_complete",
         }
 
@@ -2211,11 +2248,7 @@ class GraphManifestTests(unittest.TestCase):
             "future-pr:acme/app:base=development:head=codex/feature"
         )
         plan, run = lifecycle_v10_plan_and_run("merge_pr", target)
-        development = next(
-            item
-            for item in plan["release"]["targets"]
-            if item["stage"] == "development"
-        )
+        development = add_development_release_target(plan, run)
         development["source"] = "pr_head"
         development["trigger"] = "merge"
         development["commands"]["publish"] = None

@@ -938,13 +938,37 @@ class RunValidationTests(unittest.TestCase):
         root = SCRIPTS_DIR.parent
         plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
         run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
-        development = next(
-            target
-            for target in plan["release"]["targets"]
-            if target["stage"] == "development"
+        # The default templates are main-only: one production target, no
+        # persistent integration branch. This fixture is the other supported
+        # shape — a repository that defines its own integration branch and keeps
+        # a preview environment watching it — so it declares that target itself.
+        development = copy.deepcopy(
+            next(
+                target
+                for target in plan["release"]["targets"]
+                if target["stage"] == "production"
+            )
         )
-        development["trigger"] = "merge"
+        development.update(
+            {
+                "id": "web-development",
+                "stage": "development",
+                "source": "integration_head",
+                "channel": "workers-development",
+                "data_mode": "isolated_non_production",
+                "trigger": "merge",
+                "prerequisites": ["current_head_ci"],
+            }
+        )
         development["commands"]["publish"] = None
+        # Verifier and command IDs are globally unique across the PLAN.
+        development["commands"]["build"]["id"] = "build-web-development"
+        development["smoke_verifiers"][0]["id"] = "smoke-web-development"
+        plan["release"]["targets"].insert(0, development)
+        run["targets"][development["id"]] = copy.deepcopy(
+            run["targets"]["web-production"]
+        )
+        run["integration"]["branch"] = "refs/heads/development"
         run["plan"]["digest_sha256"] = plan_digest(plan)
 
         pr_head = SHA_A

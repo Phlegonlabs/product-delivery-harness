@@ -160,9 +160,10 @@ def _validate_release_targets_v5(
             if target["data_mode"] != "production":
                 _add(errors, f"{target_path}.data_mode", "production must use production")
 
-    missing_stages = RELEASE_STAGES - seen_stages
-    if missing_stages:
-        _add(errors, f"{path}.targets", "must include at least one target for each stage")
+    # The default branch model publishes one environment from `main`. A separate
+    # preview or staging environment is optional, so only production is required.
+    if "production" not in seen_stages:
+        _add(errors, f"{path}.targets", "must include at least one production target")
 
 
 def _validate_generic_release_targets(errors: list[str], path: str, targets_value: Any) -> None:
@@ -857,30 +858,20 @@ def _validate_targets(
             _add(errors, f"{path}.{target_id}", "production PASS requires every development target PASS")
 
     # Declaring release targets in PLAN describes where the product deploys; it
-    # does not oblige every run to deploy all of them. Under the default branch
-    # model an ordinary run pushes `development` and finishes there: its
-    # development target lands, while production deliberately stays not_started
-    # until a later human-owned promotion. Only a run that actually landed
-    # through a PR owes every declared target; otherwise a run owes the
-    # development-stage targets it started and nothing beyond them.
-    landing_mode = (
-        run.get("landing", {}).get("mode") if isinstance(run.get("landing"), dict) else None
-    )
-
+    # does not oblige every run to deploy all of them. A run is complete when its
+    # planned change is verified and pushed, so production stays not_started
+    # until the human merges and a later authorized deploy runs. A run therefore
+    # owes PASS for the targets it actually started, and nothing beyond them.
     def _status(target_id: str) -> Any:
         state = states.get(target_id)
         return state.get("status") if isinstance(state, dict) else None
 
-    if landing_mode == "pull_request":
-        owed = set(declared_targets)
-    else:
-        owed = {
-            target_id
-            for target_id, declared in declared_targets.items()
-            if declared.get("stage") == "development"
-            and _status(target_id) not in {None, "not_started"}
-        }
+    owed = {
+        target_id
+        for target_id in declared_targets
+        if _status(target_id) not in {None, "not_started"}
+    }
     if run.get("status") == "complete" and any(
         _status(target_id) != "PASS" for target_id in owed
     ):
-        _add(errors, path, "complete run requires every PLAN release target PASS")
+        _add(errors, path, "complete run requires every started PLAN release target PASS")

@@ -11,7 +11,7 @@ Use the smallest reliable proof first:
 2. Identify the smallest deterministic check.
 3. Run affected task and worker checks from parent-observed changed files.
 4. Complete at least one read-only review on each exact worktree head before integration.
-5. Run the mission integration surface after serial integration into `development`.
+5. Run the mission integration surface after serial integration into the resolved integration branch.
 6. Run only real cross-mission checks at the batch gate.
 7. Converge runtime code review and repairs on an exact head.
 8. Run broad regression, browser E2E, and visual/UI checks on the final current head.
@@ -45,7 +45,7 @@ Worktree pre-integration review gate:
 
 Mission integration gate:
 
-- Runs after reviewed work lands on the target repository's `development` branch.
+- Runs after reviewed work lands on the resolved integration branch — the run's own `codex/<short-name>` branch under the default model.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 
@@ -146,18 +146,18 @@ When these conditions hold, record the manual smoke disposition as `not required
 
 Manual smoke or another environment-specific check is still required when automated E2E is missing, skipped, failed, flaky, or materially narrower than the target; when a visual or external integration remains uncovered; or when the deployed environment differs from the tested environment. Deployment smoke remains a separate gate whenever deployment is in scope and current-head E2E did not run against that exact deployed release.
 
-## Cloudflare Development And Production Gates
+## Cloudflare Deployment Gates
 
 Before either gate below can be attempted, a blocking prerequisite gate must pass: `wrangler.jsonc` exists for the target (scaffolded per `references/cloudflare-deployment-lifecycle.md`'s Wrangler Config and Account Bootstrap when missing) and Cloudflare account access is verified (GitHub Environment secrets for the CD path, or an authenticated Wrangler session for a local deploy). Do not attempt a development or production deploy while this prerequisite gate is unmet; stop and tell the user what is missing instead.
 
-For a current PLAN-v5 release targeting Cloudflare, use separate provider-neutral development and production target gates rather than treating a successful upload as release completion. Older schema-v3/v4 release plans retain their historical gate shape:
+The default release contract has one target: production, published from `main`. A repository that genuinely keeps a preview or staging environment may also declare a development-stage target, but the default model does not require one and PLAN validation does not demand one. For a current PLAN-v5 release targeting Cloudflare, run a target's own provider-neutral gate rather than treating a successful upload as release completion. A run owes that proof only for the targets it actually started; a declared target it never started stays `not_started` and does not block closeout. Older schema-v3/v4 release plans retain their historical gate shape:
 
 | Gate | Source | Required proof |
 |---|---|---|
-| Development deployment | exact reviewed `development` head | development Worker/version/URL, migration PASS or not required, sandbox payment and development auth/data checks when applicable, deployed-environment E2E PASS, retained evidence |
-| Production deployment | exact `production` head after final user-approved promotion and merge PASS | production Worker/version/URL, migration PASS or not required, live configuration boundary, critical-route and primary-journey smoke PASS, retained evidence, rollback version when available |
+| Development deployment (only when a development-stage target is declared) | exact reviewed integration head | development Worker/version/URL, migration PASS or not required, sandbox payment and development auth/data checks when applicable, deployed-environment E2E PASS, retained evidence |
+| Production deployment | exact `main` head after the user-started landing PR is merged | production Worker/version/URL, migration PASS or not required, live configuration boundary, critical-route and primary-journey smoke PASS, retained evidence, rollback version when available |
 
-Any new PR push invalidates the earlier development deployment PASS. Any new merged-base change invalidates production evidence that was not deployed from that exact SHA. Production cannot pass from the PR-head SHA after a squash merge; bind it to `landing.merged_sha` and retain the development PR-head evidence separately.
+Any new push to the deployed head invalidates the earlier development deployment PASS. Any new merged-base change invalidates production evidence that was not deployed from that exact SHA. Production cannot pass from the PR-head SHA after a squash merge; bind it to `landing.merged_sha` and retain the development PR-head evidence separately.
 
 For authentication, payment, entitlement, or customer-data products, development verification must prove sandbox/non-production boundaries and production smoke must avoid destructive live transactions. Never substitute production data access for a missing development fixture.
 
@@ -281,7 +281,7 @@ Final PASS requires:
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
 - Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
 - The final integration head still descends from every recorded required mission integration SHA.
-- Landing state is recorded: explicitly left local, or the pull request is merged with current-head evidence and `merge_pr` authorization covering every mission plus the exact `pr:<full-PR-URL>` target.
+- Landing state is recorded: the verified integration head pushed to the run's own branch, explicitly left local, or the pull request merged with current-head evidence and `merge_pr` authorization covering every mission plus the exact `pr:<full-PR-URL>` target.
 - In pull-request mode, local diff review passed before push; integration head, current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer local integration or push resets this gate.
 - For current PLAN-v5 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
