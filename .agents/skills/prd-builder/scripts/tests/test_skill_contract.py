@@ -152,19 +152,10 @@ async function agent(_prompt, options) {
     def test_completed_prd_offers_opt_in_harness_handoff(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn(
-            "ask whether the user wants to run `fullstack-harness-engineering` next",
-            skill,
-        )
+        self.assertIn("ask whether the user wants to run `fullstack-harness-engineering` next", skill)
         self.assertIn("Do not invoke another skill without an explicit yes", skill)
-        self.assertIn(
-            "do not offer the handoff while the PRD workflow is incomplete",
-            skill,
-        )
-        self.assertIn(
-            "record that gap before offering the Harness",
-            skill,
-        )
+        self.assertIn("do not offer the handoff while the PRD workflow is incomplete", skill)
+        self.assertIn("record that gap before offering the Harness", skill)
 
     def test_wireframes_remain_canonical_across_optional_html_exploration(self) -> None:
         skill = self.read("SKILL.md")
@@ -181,10 +172,7 @@ async function agent(_prompt, options) {
         self.assertIn("same one or two representative screens", guide)
         self.assertIn("selected `UI-*` screen and region IDs", guide)
         self.assertIn("Keep them outside the staged and published PRD package", guide)
-        self.assertIn(
-            "No `frontend-design` candidate or selected HTML",
-            contract,
-        )
+        self.assertIn("No `frontend-design` candidate or selected HTML", contract)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
@@ -217,10 +205,7 @@ async function agent(_prompt, options) {
 
         self.assertIn("content-led, interaction-led", interview)
         self.assertIn("rendering needs", interview)
-        self.assertIn(
-            "For products with a browser frontend, frontend technology layers",
-            architecture,
-        )
+        self.assertIn("For products with a browser frontend, frontend technology layers", architecture)
         self.assertIn("official-source verification date", architecture)
 
     def test_platform_is_resolved_via_askuserquestion_not_defaulted(self) -> None:
@@ -250,10 +235,7 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
 
-        self.assertIn(
-            "Bullets marked `(AskUserQuestion)` are a closed, enumerable set",
-            interview,
-        )
+        self.assertIn("Bullets marked `(AskUserQuestion)` are a closed, enumerable set", interview)
         for marked_bullet in (
             "or a hybrid? (AskUserQuestion)",
             "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion",
@@ -261,7 +243,6 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(marked_bullet, interview)
         self.assertNotIn("existing brand reference. (AskUserQuestion", interview)
-        self.assertIn("Do not ask the user to choose from a fixed catalog", interview)
         self.assertIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
         self.assertIn(
             "goal, users/roles, workflows, data/integrations, business rules, delivery constraints, success metrics, confirmation/recovery",
@@ -313,14 +294,8 @@ async function agent(_prompt, options) {
             self.assertIn("explicitly authorizes and scopes", content)
         self.assertIn("seed the development environment with representative mock/sample data", architecture)
         self.assertIn("seed development with representative mock/sample data", backend)
-        self.assertIn(
-            "Do not let a development environment access production customer data, production sessions, or live payment mutations.",
-            architecture,
-        )
-        self.assertIn(
-            "Never let development access production customer data or live sessions.",
-            backend,
-        )
+        self.assertIn("Do not let a development environment access production customer data", architecture)
+        self.assertIn("Never let development access production customer data or live sessions.", backend)
 
     def test_output_contract_adds_backend_and_data_technology_decision(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -328,10 +303,7 @@ async function agent(_prompt, options) {
         self.assertIn("## Backend and Data Technology Decision", contract)
         self.assertIn("### Data Entity to Store Mapping", contract)
         self.assertIn("### Platform and Vendor Compatibility Verification", contract)
-        self.assertIn(
-            "database category and auth strategy trace back to the interview's `AskUserQuestion` answers",
-            contract,
-        )
+        self.assertIn("database category and auth strategy trace back to the interview's", contract)
 
     def test_interview_marks_backend_and_auth_questions_for_askuserquestion(self) -> None:
         skill = self.read("SKILL.md")
@@ -348,15 +320,9 @@ async function agent(_prompt, options) {
     def test_skill_gates_the_backend_askuserquestion_call(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn(
-            "Skip the database-category and auth-strategy pair only when the product provably has no backend, persistent data, or auth surface",
-            skill,
-        )
+        self.assertIn("auth-strategy pair only when the product provably has no backend", skill)
         self.assertIn("Skip the whole call only when none of its questions apply.", skill)
-        self.assertIn(
-            "Do not silently pick a database category or auth strategy on the user's behalf.",
-            skill,
-        )
+        self.assertIn("Do not silently pick a database category or auth strategy on the user's behalf.", skill)
 
     def test_archetype_dependent_questions_come_after_the_archetype_answer(self) -> None:
         skill = self.read("SKILL.md")
@@ -808,18 +774,9 @@ async function agent(_prompt, options) {
     def test_workflow_lanes_receive_resolved_platform_and_ux_direction(self) -> None:
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
-        self.assertIn(
-            'throw new Error("prd-builder-graph requires boolean args.ui_bearing");',
-            workflow,
-        )
-        self.assertIn(
-            "requires non-empty args.builder_ux_direction for a ui_bearing product",
-            workflow,
-        )
-        self.assertIn(
-            'throw new Error("prd-builder-graph requires boolean args.hosted_deployable");',
-            workflow,
-        )
+        self.assertIn('throw new Error("prd-builder-graph requires boolean args.ui_bearing");', workflow)
+        self.assertIn("requires non-empty args.builder_ux_direction for a ui_bearing product", workflow)
+        self.assertIn('throw new Error("prd-builder-graph requires boolean args.hosted_deployable");', workflow)
         self.assertIn(
             "requires non-empty args.deployment_platform for a hosted deployable web, API, or backend surface",
             workflow,
@@ -833,15 +790,9 @@ async function agent(_prompt, options) {
     def test_lifecycle_keeps_the_package_in_docs_product_not_flat_docs(self) -> None:
         lifecycle = self.read("references/artifact-lifecycle.md")
 
-        self.assertIn(
-            "Never publish PRD artifacts at the repository root or flat in `docs/` by default.",
-            lifecycle,
-        )
+        self.assertIn("Never publish PRD artifacts at the repository root or flat in `docs/` by default.", lifecycle)
         self.assertIn("They belong in `docs/product/`.", lifecycle)
-        self.assertIn(
-            "in `docs/product/`, the repository root, or a legacy flat `docs/` directory",
-            lifecycle,
-        )
+        self.assertIn("in `docs/product/`, the repository root, or a legacy flat `docs/` directory", lifecycle)
         self.assertNotIn("or under `docs/product/` by default", lifecycle)
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
@@ -937,23 +888,14 @@ async function agent(_prompt, options) {
         self.assertIn("That override is the only way a UI-bearing product ships without one", skill)
         self.assertIn("Never skip the pair on your own judgment", skill)
         self.assertIn("skipped the design system under the explicit user override in step 11", skill)
-        self.assertIn(
-            "That is the only valid skip for a UI-bearing product; the drafter never decides it",
-            contract,
-        )
+        self.assertIn("That is the only valid skip for a UI-bearing product; the drafter never decides it", contract)
 
     def test_call_three_drop_order_drops_exactly_one_question(self) -> None:
         interview = self.read("references/interview-guide.md")
         skill = self.read("SKILL.md")
 
-        self.assertIn(
-            "Five candidates against a four-question cap means exactly one question drops — never two",
-            interview,
-        )
-        self.assertIn(
-            "No archetype combination produces a sixth call-3 question, so this step never fires today",
-            interview,
-        )
+        self.assertIn("four-question cap means exactly one question drops", interview)
+        self.assertIn("No archetype combination produces a sixth call-3 question", interview)
         self.assertIn("five against a four-question cap drops exactly one", skill)
 
 

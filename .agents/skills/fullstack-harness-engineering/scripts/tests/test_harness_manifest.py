@@ -549,6 +549,191 @@ def authorize_merge(run: dict[str, object], pr_url: str) -> None:
     }
 
 
+def authorize_execution(
+    run: dict[str, object],
+    mission_ids: list[str],
+    *,
+    status: str = "running",
+    plan: dict[str, object] | None = None,
+    digest: str | None = None,
+) -> None:
+    """Authorize execution for exactly `mission_ids`.
+
+    Pass `plan`/`digest` to also bind the scope to that plan revision and
+    digest, which the pinned-scope tests rely on.
+    """
+    scope: dict[str, object] = {"run_id": run["run_id"]}
+    if plan is not None:
+        scope["plan_revision"] = plan["revision"]
+    if digest is not None:
+        scope["plan_digest_sha256"] = digest
+    scope["mission_ids"] = mission_ids
+    scope["expires_when"] = "run_complete"
+    run.update(
+        {
+            "status": status,
+            "intent": "plan-then-execute",
+            "plan_readiness": "ready",
+            "execution_authorized": True,
+            "execution_authorization_source": "user requested execution",
+            "execution_authorization_scope": scope,
+        }
+    )
+
+
+def open_pr_landing(run: dict[str, object], *, pr_number: int = 7) -> None:
+    """Record an open PR whose checks passed at SHA_A."""
+    run["landing"].update(
+        {
+            "pushed_head_sha": SHA_A,
+            "pr_number": pr_number,
+            "pr_url": f"https://github.com/example/repo/pull/{pr_number}",
+            "pr_state": "open",
+            "pr_head_sha": SHA_A,
+            "checks_status": "PASS",
+            "checks_head_sha": SHA_A,
+        }
+    )
+
+
+def authorize_deploy(run: dict[str, object], *environments: str) -> None:
+    """Grant `deploy` for exactly the named release environments."""
+    listed = " and ".join(environments)
+    run["authorizations"]["deploy"] = {
+        "authorized": True,
+        "source": f"user: deploy {listed} for this run",
+        "scope": {
+            "run_id": "RUN-TEST",
+            "mission_ids": ["M1", "M2"],
+            "targets": [f"environment:{name}" for name in environments],
+        },
+        "expires_when": "run_complete",
+    }
+
+
+def ready_landing(
+    run: dict[str, object], *, pr_number: int = 7, auto_merge: bool = False
+) -> None:
+    """Record an open PR that is merge-ready: checks and review PASS at SHA_A."""
+    run["landing"].update(
+        {
+            "pushed_head_sha": SHA_A,
+            "pr_number": pr_number,
+            "pr_url": f"https://github.com/example/repo/pull/{pr_number}",
+            "pr_state": "open",
+            "pr_head_sha": SHA_A,
+            "checks_status": "PASS",
+            "checks_head_sha": SHA_A,
+            "review_status": "PASS",
+            "review_head_sha": SHA_A,
+            "blocking_findings": 0,
+            "unresolved_threads": 0,
+            "merge_status": "ready",
+        }
+    )
+    if auto_merge:
+        run["landing"].update(
+            {"auto_merge_requested": True, "auto_merge_head_sha": SHA_A}
+        )
+
+
+def merged_landing(run: dict[str, object], *, pr_number: int = 7) -> None:
+    """Record a merged PR whose checks and review both passed at SHA_A."""
+    run["landing"].update(
+        {
+            "pushed_head_sha": SHA_A,
+            "pr_number": pr_number,
+            "pr_url": f"https://github.com/example/repo/pull/{pr_number}",
+            "pr_state": "merged",
+            "pr_head_sha": SHA_A,
+            "checks_status": "PASS",
+            "checks_head_sha": SHA_A,
+            "review_status": "PASS",
+            "review_head_sha": SHA_A,
+            "blocking_findings": 0,
+            "unresolved_threads": 0,
+            "merge_status": "merged",
+            "merged_sha": SHA_B,
+        }
+    )
+
+
+def integrated_merged_run(pr_number: int = 7) -> tuple[dict[str, object], dict[str, object]]:
+    """PLAN/RUN whose missions are integrated at SHA_A behind a merged PR."""
+    plan = valid_plan()
+    run = valid_run(plan)
+    run["integration"]["integration_head_sha"] = SHA_A
+    merged_landing(run, pr_number=pr_number)
+    for state in run["mission_states"].values():
+        state.update(
+            {
+                "phase": "integrated",
+                "integration_gate": "PASS",
+                "integrated_sha": SHA_A,
+            }
+        )
+    return plan, run
+
+
+def authorize_cleanup(run: dict[str, object], action: str, target: str) -> None:
+    run["authorizations"][action] = {
+        "authorized": True,
+        "source": f"user: authorize {action}",
+        "scope": {
+            "run_id": "RUN-TEST",
+            "mission_ids": ["M1", "M2"],
+            "targets": [target],
+        },
+        "expires_when": "run_complete",
+    }
+
+
+def ready_cleanup_run(pr_number: int = 7) -> tuple[dict[str, object], dict[str, object]]:
+    """Merged-PR run parked on its feature branch with cleanup ready to run."""
+    plan, run = integrated_merged_run(pr_number)
+    run["observed"].update(
+        {
+            "captured_at": "2026-07-15T08:00:00Z",
+            "git": {
+                "parent_worktree_path": "C:/repo/fullstack-goal-dev",
+                "parent_branch": "codex/test",
+                "parent_head_sha": SHA_A,
+                "parent_dirty": False,
+                "worktrees": [],
+            },
+        }
+    )
+    authorize_cleanup(run, "delete_branches", "branch:refs/heads/codex/test")
+    run["authorizations"]["delete_branches"]["source"] = (
+        "user: remove the merged local feature branch"
+    )
+    authorize_merge(run, f"https://github.com/example/repo/pull/{pr_number}")
+    run["post_merge_cleanup"] = {
+        "status": "ready",
+        "base": {
+            "branch": "main",
+            "head_sha": SHA_B,
+            "merged_sha_reachable": True,
+        },
+        "worktree": {
+            "path": None,
+            "branch_ref": None,
+            "head_sha": None,
+            "dirty": None,
+            "managed_by": None,
+            "status": "not_applicable",
+        },
+        "local_branch": {
+            "ref": "refs/heads/codex/test",
+            "head_sha": SHA_A,
+            "status": "pending",
+        },
+        "evidence": [],
+        "deferred_reason": None,
+    }
+    return plan, run
+
+
 def markdown(heading: str, wrapper: str, value: dict[str, object]) -> str:
     payload = json.dumps({wrapper: value}, indent=2, ensure_ascii=False)
     return f"# Fixture\n\n{heading}\n\n```json\n{payload}\n```\n"
@@ -1149,30 +1334,8 @@ class RunValidationTests(unittest.TestCase):
         run = valid_release_run(plan)
         self.assertEqual(validate_run(plan, run), [])
 
-        run["authorizations"]["deploy"] = {
-            "authorized": True,
-            "source": "user: deploy development and production for this run",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": [
-                    "environment:development",
-                    "environment:production",
-                ],
-            },
-            "expires_when": "run_complete",
-        }
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-            }
-        )
+        authorize_deploy(run, "development", "production")
+        open_pr_landing(run)
         run["deployments"]["development"].update(
             {
                 "status": "PASS",
@@ -1248,16 +1411,7 @@ class RunValidationTests(unittest.TestCase):
         run["integration"]["integration_head_sha"] = SHA_A
         run["integration"]["retention"] = "persistent"
 
-        run["authorizations"]["deploy"] = {
-            "authorized": True,
-            "source": "user: deploy development for this run",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": ["environment:development"],
-            },
-            "expires_when": "run_complete",
-        }
+        authorize_deploy(run, "development")
         run["deployments"]["development"].update(
             {
                 "status": "PASS",
@@ -1395,27 +1549,8 @@ class RunValidationTests(unittest.TestCase):
         run["deployments"]["development"]["verification_status"] = "PASS"
         self.assert_run_error_contains(plan, run, "PASS requires a source SHA")
 
-        run["authorizations"]["deploy"] = {
-            "authorized": True,
-            "source": "user: deploy development for this run",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": ["environment:development"],
-            },
-            "expires_when": "run_complete",
-        }
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-            }
-        )
+        authorize_deploy(run, "development")
+        open_pr_landing(run)
         run["deployments"]["development"]["source_sha"] = SHA_A
         run["deployments"]["development"]["evidence"] = ["artifact:development-smoke"]
         # Worker/url/version_id stay None: a generic provider's PASS does not require them.
@@ -1499,20 +1634,7 @@ class RunValidationTests(unittest.TestCase):
         self.assertEqual(run["landing"]["mode"], "local_only")
         self.assertEqual(validate_run(plan, run), [])
 
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1", "M2"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["M1", "M2"])
         self.assert_run_error_contains(
             plan, run, "release PLAN in local_only mode"
         )
@@ -1586,36 +1708,8 @@ class RunValidationTests(unittest.TestCase):
                 "evidence": ["artifact:development-smoke"],
             }
         )
-        run["authorizations"]["deploy"] = {
-            "authorized": True,
-            "source": "user: deploy development and production for this run",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": [
-                    "environment:development",
-                    "environment:production",
-                ],
-            },
-            "expires_when": "run_complete",
-        }
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "merged",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "merged",
-                "merged_sha": SHA_B,
-            }
-        )
+        authorize_deploy(run, "development", "production")
+        merged_landing(run)
         run["deployments"]["production"].update(
             {
                 "status": "PASS",
@@ -1682,27 +1776,8 @@ class RunValidationTests(unittest.TestCase):
                 "authorized_head_sha": None,
             }
         )
-        run["authorizations"]["deploy"] = {
-            "authorized": True,
-            "source": "user: deploy development for this run",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": ["environment:development"],
-            },
-            "expires_when": "run_complete",
-        }
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-            }
-        )
+        authorize_deploy(run, "development")
+        open_pr_landing(run)
         self.assertFalse(
             any(
                 "authorized_head_sha" in error
@@ -1810,27 +1885,8 @@ class RunValidationTests(unittest.TestCase):
                 "evidence": ["artifact:development-smoke"],
             }
         )
-        run["authorizations"]["deploy"] = {
-            "authorized": True,
-            "source": "user: deploy development for this run",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": ["environment:development"],
-            },
-            "expires_when": "run_complete",
-        }
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-            }
-        )
+        authorize_deploy(run, "development")
+        open_pr_landing(run)
         self.assertFalse(
             any(
                 "migration_classification" in error
@@ -1898,6 +1954,30 @@ class RunValidationTests(unittest.TestCase):
             "PASS batch gate must match integration_head_sha",
         )
 
+    def test_prior_head_shas_cannot_contain_the_current_integration_head(self) -> None:
+        """The head still in use is not a superseded one.
+
+        This rule had no test: disabling it left the whole suite green, which is
+        how a later cleanup could delete it without noticing. It also guards the
+        shared `integration_prior_heads` name in validate_run, whose first
+        binding is the empty-set fallback the check reads when a run records no
+        history — split that name and this rule silently stops firing.
+        """
+        root = SCRIPTS_DIR.parent
+        plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+        run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        run["integration"]["integration_head_sha"] = SHA_A
+        run["integration"]["prior_head_shas"] = [SHA_B, SHA_A]
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must contain only superseded integration heads",
+        )
+
+        run["integration"]["prior_head_shas"] = [SHA_B]
+        self.assertEqual([], validate_run(plan, run))
+
     def test_complete_run_allows_tasks_of_a_superseded_mission(self) -> None:
         plan = valid_plan()
         run = valid_closeout_run(plan)
@@ -1926,23 +2006,7 @@ class RunValidationTests(unittest.TestCase):
             "complete pull-request run requires merged current-head landing",
         )
 
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 21,
-                "pr_url": "https://github.com/example/repo/pull/21",
-                "pr_state": "merged",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "merged",
-                "merged_sha": SHA_B,
-            }
-        )
+        merged_landing(run, pr_number=21)
 
         self.assert_run_error_contains(
             plan,
@@ -2486,80 +2550,7 @@ class RunValidationTests(unittest.TestCase):
                 )
 
     def test_post_merge_cleanup_binds_to_merged_pr_and_exact_branch(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["integration"]["integration_head_sha"] = SHA_A
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "merged",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "merged",
-                "merged_sha": SHA_B,
-            }
-        )
-        for state in run["mission_states"].values():
-            state.update(
-                {
-                    "phase": "integrated",
-                    "integration_gate": "PASS",
-                    "integrated_sha": SHA_A,
-                }
-            )
-        run["observed"].update(
-            {
-                "captured_at": "2026-07-15T08:00:00Z",
-                "git": {
-                    "parent_worktree_path": "C:/repo/fullstack-goal-dev",
-                    "parent_branch": "codex/test",
-                    "parent_head_sha": SHA_A,
-                    "parent_dirty": False,
-                    "worktrees": [],
-                },
-            }
-        )
-        run["authorizations"]["delete_branches"] = {
-            "authorized": True,
-            "source": "user: remove the merged local feature branch",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": ["branch:refs/heads/codex/test"],
-            },
-            "expires_when": "run_complete",
-        }
-        authorize_merge(run, "https://github.com/example/repo/pull/7")
-        run["post_merge_cleanup"] = {
-            "status": "ready",
-            "base": {
-                "branch": "main",
-                "head_sha": SHA_B,
-                "merged_sha_reachable": True,
-            },
-            "worktree": {
-                "path": None,
-                "branch_ref": None,
-                "head_sha": None,
-                "dirty": None,
-                "managed_by": None,
-                "status": "not_applicable",
-            },
-            "local_branch": {
-                "ref": "refs/heads/codex/test",
-                "head_sha": SHA_A,
-                "status": "pending",
-            },
-            "evidence": [],
-            "deferred_reason": None,
-        }
+        plan, run = ready_cleanup_run()
         self.assertEqual(validate_run(plan, run), [])
 
         run["status"] = "complete"
@@ -2634,80 +2625,7 @@ class RunValidationTests(unittest.TestCase):
     def test_post_merge_cleanup_persistent_retention_forbids_deleted_branch(
         self,
     ) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["integration"]["integration_head_sha"] = SHA_A
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "merged",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "merged",
-                "merged_sha": SHA_B,
-            }
-        )
-        for state in run["mission_states"].values():
-            state.update(
-                {
-                    "phase": "integrated",
-                    "integration_gate": "PASS",
-                    "integrated_sha": SHA_A,
-                }
-            )
-        run["observed"].update(
-            {
-                "captured_at": "2026-07-15T08:00:00Z",
-                "git": {
-                    "parent_worktree_path": "C:/repo/fullstack-goal-dev",
-                    "parent_branch": "codex/test",
-                    "parent_head_sha": SHA_A,
-                    "parent_dirty": False,
-                    "worktrees": [],
-                },
-            }
-        )
-        run["authorizations"]["delete_branches"] = {
-            "authorized": True,
-            "source": "user: remove the merged local feature branch",
-            "scope": {
-                "run_id": "RUN-TEST",
-                "mission_ids": ["M1", "M2"],
-                "targets": ["branch:refs/heads/codex/test"],
-            },
-            "expires_when": "run_complete",
-        }
-        authorize_merge(run, "https://github.com/example/repo/pull/7")
-        run["post_merge_cleanup"] = {
-            "status": "ready",
-            "base": {
-                "branch": "main",
-                "head_sha": SHA_B,
-                "merged_sha_reachable": True,
-            },
-            "worktree": {
-                "path": None,
-                "branch_ref": None,
-                "head_sha": None,
-                "dirty": None,
-                "managed_by": None,
-                "status": "not_applicable",
-            },
-            "local_branch": {
-                "ref": "refs/heads/codex/test",
-                "head_sha": SHA_A,
-                "status": "pending",
-            },
-            "evidence": [],
-            "deferred_reason": None,
-        }
+        plan, run = ready_cleanup_run()
         run["integration"]["retention"] = "persistent"
         self.assertEqual(validate_run(plan, run), [])
 
@@ -2747,34 +2665,7 @@ class RunValidationTests(unittest.TestCase):
         self.assertEqual(validate_run(plan, run), [])
 
     def test_post_merge_cleanup_requires_clean_observed_worktree(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        run["integration"]["integration_head_sha"] = SHA_A
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "merged",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "merged",
-                "merged_sha": SHA_B,
-            }
-        )
-        for state in run["mission_states"].values():
-            state.update(
-                {
-                    "phase": "integrated",
-                    "integration_gate": "PASS",
-                    "integrated_sha": SHA_A,
-                }
-            )
+        plan, run = integrated_merged_run()
         path = "C:/tmp/fullstack-goal-dev-cleanup"
         run["observed"] = {
             "captured_at": "2026-07-15T08:00:00Z",
@@ -2799,20 +2690,8 @@ class RunValidationTests(unittest.TestCase):
                 "completion_channel_available": True,
             },
         }
-        for action, target in (
-            ("delete_branches", "branch:refs/heads/codex/test"),
-            ("remove_worktrees", f"worktree:{path}"),
-        ):
-            run["authorizations"][action] = {
-                "authorized": True,
-                "source": f"user: authorize {action}",
-                "scope": {
-                    "run_id": "RUN-TEST",
-                    "mission_ids": ["M1", "M2"],
-                    "targets": [target],
-                },
-                "expires_when": "run_complete",
-            }
+        authorize_cleanup(run, "delete_branches", "branch:refs/heads/codex/test")
+        authorize_cleanup(run, "remove_worktrees", f"worktree:{path}")
         authorize_merge(run, "https://github.com/example/repo/pull/7")
         run["post_merge_cleanup"] = {
             "status": "ready",
@@ -2895,23 +2774,7 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         mark_complete(plan, run)
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 21,
-                "pr_url": "https://github.com/example/repo/pull/21",
-                "pr_state": "merged",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "merged",
-                "merged_sha": SHA_B,
-            }
-        )
+        merged_landing(run, pr_number=21)
         run["post_merge_cleanup"].update(
             {
                 "status": "deferred",
@@ -2937,22 +2800,7 @@ class RunValidationTests(unittest.TestCase):
     def test_landing_ready_binds_checks_and_review_to_current_pr_head(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "ready",
-            }
-        )
+        ready_landing(run)
         self.assertEqual(validate_run(plan, run), [])
 
         run["integration"]["branch"] = "main"
@@ -3124,24 +2972,7 @@ class RunValidationTests(unittest.TestCase):
     def test_future_pr_authorization_resolves_to_the_matching_exact_pr(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "ready",
-                "auto_merge_requested": True,
-                "auto_merge_head_sha": SHA_A,
-            }
-        )
+        ready_landing(run, auto_merge=True)
         run["authorizations"]["merge_pr"] = {
             "authorized": True,
             "source": "user: land the planned pull request",
@@ -3175,24 +3006,7 @@ class RunValidationTests(unittest.TestCase):
     def test_auto_merge_requires_a_ready_current_head(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
-        run["landing"].update(
-            {
-                "pushed_head_sha": SHA_A,
-                "pr_number": 7,
-                "pr_url": "https://github.com/example/repo/pull/7",
-                "pr_state": "open",
-                "pr_head_sha": SHA_A,
-                "checks_status": "PASS",
-                "checks_head_sha": SHA_A,
-                "review_status": "PASS",
-                "review_head_sha": SHA_A,
-                "blocking_findings": 0,
-                "unresolved_threads": 0,
-                "merge_status": "ready",
-                "auto_merge_requested": True,
-                "auto_merge_head_sha": SHA_A,
-            }
-        )
+        ready_landing(run, auto_merge=True)
         self.assert_run_error_contains(
             plan,
             run,

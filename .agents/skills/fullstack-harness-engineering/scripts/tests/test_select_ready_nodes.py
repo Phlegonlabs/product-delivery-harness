@@ -32,24 +32,12 @@ from select_ready_nodes import (  # noqa: E402
     select_ready_nodes,
 )
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
+from test_harness_manifest import authorize_execution  # noqa: E402
 
 
 def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
     run = valid_graph_run(plan)
-    run.update(
-        {
-            "status": "running",
-            "intent": "plan-then-execute",
-            "plan_readiness": "ready",
-            "execution_authorized": True,
-            "execution_authorization_source": "user requested execution",
-            "execution_authorization_scope": {
-                "run_id": run["run_id"],
-                "mission_ids": ["M1"],
-                "expires_when": "run_complete",
-            },
-        }
-    )
+    authorize_execution(run, ["M1"])
     run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
     run["observed"]["runtime"].update(
         {"available_worker_slots": 0, "isolation_capacity": 0}
@@ -62,22 +50,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
     plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
     run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
     digest = plan_digest(plan)
-    run.update(
-        {
-            "status": "ready",
-            "intent": "plan-then-execute",
-            "plan_readiness": "ready",
-            "execution_authorized": True,
-            "execution_authorization_source": "user requested execution",
-            "execution_authorization_scope": {
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "mission_ids": ["M1"],
-                "expires_when": "run_complete",
-            },
-        }
-    )
+    authorize_execution(run, ["M1"], status="ready", plan=plan, digest=digest)
     run["runtime_capabilities"].update(
         {
             "worker_runtime": "subagent",

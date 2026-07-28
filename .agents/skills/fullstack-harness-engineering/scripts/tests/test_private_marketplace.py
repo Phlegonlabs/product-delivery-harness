@@ -22,6 +22,17 @@ PLUGIN_ROOT = REPO_ROOT / "plugins" / "fullstack-harness" if REPO_ROOT else Path
 
 @unittest.skipIf(REPO_ROOT is None, "repository contract test requires a source checkout")
 class PrivateMarketplaceContractTests(unittest.TestCase):
+    def load_sync_module(self):
+        """Import scripts/sync_plugin_skills.py as a module under its real path."""
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def load_json(self, relative_path: str) -> dict:
         return json.loads((REPO_ROOT / relative_path).read_text(encoding="utf-8"))
 
@@ -80,13 +91,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertTrue((shared / "assets" / "templates" / "HARNESS_PLAN.template.md").is_file())
 
     def test_sync_removes_stale_generated_files(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -119,13 +124,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             )
 
     def test_sync_treats_windows_junctions_as_links(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         junction = Path("junction")
         with mock.patch.object(Path, "is_symlink", return_value=False):
@@ -133,13 +132,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 self.assertTrue(module.is_link(junction))
 
     def test_sync_refuses_symlinked_marker_without_writing(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -173,13 +166,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             )
 
     def test_sync_refuses_symlinked_destination_root_without_writing(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -213,13 +200,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             )
 
     def test_check_requires_generated_marker(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -244,13 +225,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             )
 
     def test_check_reports_a_source_skill_missing_from_skill_names(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -277,13 +252,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             self.assertIn("unlisted source skill: new-skill", module.differences())
 
     def test_sync_keeps_bytecode_out_of_the_bundle(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -319,13 +288,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         """Test suites run against `.agents/`, so mirroring them doubles the
         bundle for nothing. The packaged smoke test is the exception: it exists
         to run against the bundle's own layout, and CI discovers it there."""
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -358,13 +321,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             self.assertEqual([], module.differences())
 
     def test_check_rejects_symlinked_bundle_entries(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -395,13 +352,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 self.assertIn("symlink: sample/SKILL.md", module.differences())
 
     def test_sync_refuses_symlinked_destination_ancestor_without_writing(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -438,13 +389,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
             )
 
     def test_check_and_sync_reject_symlinked_source_entry_without_writing(self) -> None:
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
-        )
-        self.assertIsNotNone(spec)
-        self.assertIsNotNone(spec.loader)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = self.load_sync_module()
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -30,7 +30,12 @@ from select_ready_nodes import (  # noqa: E402
     _runtime_binding,
     select_ready_nodes,
 )
-from test_harness_manifest import mark_complete, valid_plan, valid_run  # noqa: E402
+from test_harness_manifest import (  # noqa: E402
+    authorize_execution,
+    mark_complete,
+    valid_plan,
+    valid_run,
+)
 from validate_node_result import validate_node_result  # noqa: E402
 
 
@@ -62,6 +67,69 @@ def graph_node(
             else None
         ),
     }
+
+
+def lifecycle_node(ref: str, **extra: object) -> dict[str, object]:
+    """A minimal harness-parent lifecycle node; `extra` sets `target` when given."""
+    return {
+        "id": "N-LIFECYCLE",
+        "kind": "lifecycle",
+        "ref": ref,
+        "executor": "harness_parent",
+        "allowed_outcomes": ["pass", "blocked"],
+        "max_attempts": 1,
+        "runtime": None,
+        **extra,
+    }
+
+
+def start_mission(
+    run: dict[str, object],
+    plan: dict[str, object],
+    digest: str,
+    mission_id: str = "M1",
+    *,
+    base_sha: str | None = None,
+) -> None:
+    """Put one mission's graph node and mission state into the running shape."""
+    run["graph_state"]["node_states"][f"N-{mission_id}"].update(
+        {
+            "phase": "running",
+            "attempts": 1,
+            "last_attempt_id": f"ATT-N-{mission_id}-1",
+            "bound_worker_id": f"W-{mission_id}",
+        }
+    )
+    run["mission_states"][mission_id].update(
+        {
+            "phase": "worker_running",
+            "lease_id": f"LEASE-{mission_id}-1",
+            "lease_plan_revision": plan["revision"],
+            "lease_plan_digest_sha256": digest,
+            "worker_id": f"W-{mission_id}",
+            "base_sha": (
+                base_sha if base_sha is not None else run["integration"]["batch_base_sha"]
+            ),
+        }
+    )
+
+
+def one_node_graph_errors(
+    node: dict[str, object],
+    missions: dict[str, object] | None = None,
+    **kwargs: object,
+) -> list[str]:
+    """Validate a single-node, edgeless graph and return the errors it raised."""
+    errors: list[str] = []
+    _validate_graph(
+        errors,
+        {"entry_nodes": [node["id"]], "nodes": [node], "edges": []},
+        missions or {},
+        set(),
+        require_bounded_review_repair=True,
+        **kwargs,
+    )
+    return errors
 
 
 def valid_graph_plan() -> dict[str, object]:
@@ -263,22 +331,7 @@ def lifecycle_v10_plan_and_run(
     }
     digest = plan_digest(plan)
     run["plan"]["digest_sha256"] = digest
-    run.update(
-        {
-            "status": "ready",
-            "intent": "plan-then-execute",
-            "plan_readiness": "ready",
-            "execution_authorized": True,
-            "execution_authorization_source": "user requested execution",
-            "execution_authorization_scope": {
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "mission_ids": ["*"],
-                "expires_when": "run_complete",
-            },
-        }
-    )
+    authorize_execution(run, ["*"], status="ready", plan=plan, digest=digest)
     run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
     run["observed"]["git"].update(
         {
@@ -362,28 +415,8 @@ class GraphManifestTests(unittest.TestCase):
     def test_plan_v5_lifecycle_nodes_accept_remote_ci_and_cloud_actions(self) -> None:
         for action in ("trigger_remote_ci", "provision_cloud_resources"):
             with self.subTest(action=action):
-                errors: list[str] = []
-                _validate_graph(
-                    errors,
-                    {
-                        "entry_nodes": ["N-LIFECYCLE"],
-                        "nodes": [
-                            {
-                                "id": "N-LIFECYCLE",
-                                "kind": "lifecycle",
-                                "ref": action,
-                                "executor": "harness_parent",
-                                "allowed_outcomes": ["pass", "blocked"],
-                                "max_attempts": 1,
-                                "runtime": None,
-                            }
-                        ],
-                        "edges": [],
-                    },
-                    {},
-                    set(),
-                    require_bounded_review_repair=True,
-                    enforce_action_target_kinds=True,
+                errors = one_node_graph_errors(
+                    lifecycle_node(action), enforce_action_target_kinds=True
                 )
                 self.assertEqual([], errors)
 
@@ -403,29 +436,7 @@ class GraphManifestTests(unittest.TestCase):
             ("provision_cloud_resources", "cloud-resource:aws:development:queue:jobs"),
         ):
             with self.subTest(action=action):
-                errors: list[str] = []
-                _validate_graph(
-                    errors,
-                    {
-                        "entry_nodes": ["N-LIFECYCLE"],
-                        "nodes": [
-                            {
-                                "id": "N-LIFECYCLE",
-                                "kind": "lifecycle",
-                                "ref": action,
-                                "executor": "harness_parent",
-                                "allowed_outcomes": ["pass", "blocked"],
-                                "max_attempts": 1,
-                                "runtime": None,
-                                "target": target,
-                            }
-                        ],
-                        "edges": [],
-                    },
-                    {},
-                    set(),
-                    require_bounded_review_repair=True,
-                )
+                errors = one_node_graph_errors(lifecycle_node(action, target=target))
                 self.assertEqual([], errors)
 
     def test_lifecycle_nodes_reject_action_target_mismatches(self) -> None:
@@ -437,28 +448,8 @@ class GraphManifestTests(unittest.TestCase):
             ("deploy", "pr:https://github.com/acme/app/pull/1"),
         ):
             with self.subTest(action=action, target=target):
-                errors: list[str] = []
-                _validate_graph(
-                    errors,
-                    {
-                        "entry_nodes": ["N-LIFECYCLE"],
-                        "nodes": [
-                            {
-                                "id": "N-LIFECYCLE",
-                                "kind": "lifecycle",
-                                "ref": action,
-                                "executor": "harness_parent",
-                                "allowed_outcomes": ["pass", "blocked"],
-                                "max_attempts": 1,
-                                "runtime": None,
-                                "target": target,
-                            }
-                        ],
-                        "edges": [],
-                    },
-                    {},
-                    set(),
-                    require_bounded_review_repair=True,
+                errors = one_node_graph_errors(
+                    lifecycle_node(action, target=target),
                     enforce_action_target_kinds=True,
                 )
                 self.assertTrue(
@@ -469,29 +460,7 @@ class GraphManifestTests(unittest.TestCase):
     def test_lifecycle_node_target_rejects_wildcard_and_bad_format(self) -> None:
         for target in ("*", "not-a-target", ""):
             with self.subTest(target=target):
-                errors: list[str] = []
-                _validate_graph(
-                    errors,
-                    {
-                        "entry_nodes": ["N-LIFECYCLE"],
-                        "nodes": [
-                            {
-                                "id": "N-LIFECYCLE",
-                                "kind": "lifecycle",
-                                "ref": "push",
-                                "executor": "harness_parent",
-                                "allowed_outcomes": ["pass", "blocked"],
-                                "max_attempts": 1,
-                                "runtime": None,
-                                "target": target,
-                            }
-                        ],
-                        "edges": [],
-                    },
-                    {},
-                    set(),
-                    require_bounded_review_repair=True,
-                )
+                errors = one_node_graph_errors(lifecycle_node("push", target=target))
                 self.assertTrue(
                     any(
                         "must be null or an exact non-wildcard authorization target" in error
@@ -504,56 +473,24 @@ class GraphManifestTests(unittest.TestCase):
         # A PLAN authored before the `target` field existed omits it entirely;
         # that must stay valid so this addition never breaks an already-valid
         # PLAN (select_ready_nodes.py falls back to the "*" default for it).
-        errors: list[str] = []
-        _validate_graph(
-            errors,
-            {
-                "entry_nodes": ["N-LIFECYCLE"],
-                "nodes": [
-                    {
-                        "id": "N-LIFECYCLE",
-                        "kind": "lifecycle",
-                        "ref": "push",
-                        "executor": "harness_parent",
-                        "allowed_outcomes": ["pass", "blocked"],
-                        "max_attempts": 1,
-                        "runtime": None,
-                    }
-                ],
-                "edges": [],
-            },
-            {},
-            set(),
-            require_bounded_review_repair=True,
-        )
-        self.assertEqual([], errors)
+        self.assertEqual([], one_node_graph_errors(lifecycle_node("push")))
 
     def test_target_field_is_rejected_outside_lifecycle_nodes(self) -> None:
-        errors: list[str] = []
-        _validate_graph(
-            errors,
+        errors = one_node_graph_errors(
             {
-                "entry_nodes": ["N-M1"],
-                "nodes": [
-                    {
-                        "id": "N-M1",
-                        "kind": "mission",
-                        "ref": "M1",
-                        "executor": "runtime_worker",
-                        "allowed_outcomes": ["pass", "retryable_failure", "blocked"],
-                        "max_attempts": 1,
-                        "runtime": {
-                            "preferred_provider": None,
-                            "allowed_providers": ["codex"],
-                        },
-                        "target": "branch:codex/example",
-                    }
-                ],
-                "edges": [],
+                "id": "N-M1",
+                "kind": "mission",
+                "ref": "M1",
+                "executor": "runtime_worker",
+                "allowed_outcomes": ["pass", "retryable_failure", "blocked"],
+                "max_attempts": 1,
+                "runtime": {
+                    "preferred_provider": None,
+                    "allowed_providers": ["codex"],
+                },
+                "target": "branch:codex/example",
             },
             {"M1": {"id": "M1"}},
-            set(),
-            require_bounded_review_repair=True,
         )
         self.assertTrue(
             any(
@@ -584,24 +521,7 @@ class GraphManifestTests(unittest.TestCase):
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
         digest = plan_digest(plan)
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-1",
-                "bound_worker_id": "W-M1",
-            }
-        )
-        run["mission_states"]["M1"].update(
-            {
-                "phase": "worker_running",
-                "lease_id": "LEASE-M1-1",
-                "lease_plan_revision": plan["revision"],
-                "lease_plan_digest_sha256": digest,
-                "worker_id": "W-M1",
-                "base_sha": run["integration"]["batch_base_sha"],
-            }
-        )
+        start_mission(run, plan, digest)
         run["workflow_runs"] = [
             {
                 "workflow_run_id": "wf_test",
@@ -668,24 +588,7 @@ class GraphManifestTests(unittest.TestCase):
         }
         run = valid_graph_run(plan)
         digest = plan_digest(plan)
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-1",
-                "bound_worker_id": "W-M1",
-            }
-        )
-        run["mission_states"]["M1"].update(
-            {
-                "phase": "worker_running",
-                "lease_id": "LEASE-M1-1",
-                "lease_plan_revision": plan["revision"],
-                "lease_plan_digest_sha256": digest,
-                "worker_id": "W-M1",
-                "base_sha": run["integration"]["batch_base_sha"],
-            }
-        )
+        start_mission(run, plan, digest)
         workflow = {
             "workflow_run_id": "wf_test",
             "workflow_task_id": "task-test",
@@ -745,33 +648,8 @@ class GraphManifestTests(unittest.TestCase):
         }
         run = valid_graph_run(plan)
         digest = plan_digest(plan)
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-1",
-                "bound_worker_id": "W-M1",
-            }
-        )
-        run["graph_state"]["node_states"]["N-M2"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-N-M2-1",
-                "bound_worker_id": "W-M2",
-            }
-        )
-        for mission_id, worker_id in (("M1", "W-M1"), ("M2", "W-M2")):
-            run["mission_states"][mission_id].update(
-                {
-                    "phase": "worker_running",
-                    "lease_id": f"LEASE-{mission_id}-1",
-                    "lease_plan_revision": plan["revision"],
-                    "lease_plan_digest_sha256": digest,
-                    "worker_id": worker_id,
-                    "base_sha": run["integration"]["batch_base_sha"],
-                }
-            )
+        start_mission(run, plan, digest, "M1")
+        start_mission(run, plan, digest, "M2")
         run["workflow_runs"] = [
             {
                 "workflow_run_id": "wf_test",
@@ -1213,20 +1091,7 @@ class GraphManifestTests(unittest.TestCase):
         plan["graph"]["nodes"][0]["executor"] = "harness_parent"
         plan["graph"]["nodes"][0]["runtime"] = None
         run = valid_graph_run(plan)
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["M1"])
 
         run["observed"]["runtime"].update(
             {"available_worker_slots": 0, "isolation_capacity": 0}
@@ -1247,20 +1112,7 @@ class GraphManifestTests(unittest.TestCase):
         # the review nodes are authored.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1", "M2"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["M1", "M2"])
         self.assertEqual(validate_run(plan, run), [])
 
         uncovered = valid_graph_plan()
@@ -1301,20 +1153,7 @@ class GraphManifestTests(unittest.TestCase):
             node["executor"] = "harness_parent"
             node["runtime"] = None
         run = valid_graph_run(plan)
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1", "M2"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["M1", "M2"])
         run["runtime_capabilities"]["max_parallel_workers"] = 2
         run["observed"]["runtime"].update(
             {"available_worker_slots": 0, "isolation_capacity": 0}
@@ -1390,20 +1229,7 @@ class GraphManifestTests(unittest.TestCase):
         }
         run = valid_graph_run(plan)
         mission_ids = ["M1", "M2"]
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": mission_ids,
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, mission_ids)
         run["runtime_capabilities"]["runtime_adapter"] = {
             "provider": "codex",
             "available_drivers": ["sequential_parent"],
@@ -1456,20 +1282,7 @@ class GraphManifestTests(unittest.TestCase):
             }
         run = valid_graph_run(plan)
         mission_ids = ["M1", "M2"]
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": mission_ids,
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, mission_ids)
         run["runtime_capabilities"].update(
             {
                 "worker_runtime": "subagent",
@@ -1663,20 +1476,7 @@ class GraphManifestTests(unittest.TestCase):
         plan["required_reviews"] = ["frontend_code", "visual"]
         plan["graph"]["entry_nodes"].extend([node["id"] for node in reviews])
         run = valid_graph_run(plan)
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1", "M2"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["M1", "M2"])
         run["graph_state"]["node_states"]["N-M1"].update(
             {"phase": "succeeded", "attempts": 1, "last_attempt_id": "A-M1", "last_outcome": "pass"}
         )
@@ -2030,24 +1830,7 @@ class GraphManifestTests(unittest.TestCase):
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
         digest = plan_digest(plan)
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-N-M1-1",
-                "bound_worker_id": "W-M1",
-            }
-        )
-        run["mission_states"]["M1"].update(
-            {
-                "phase": "worker_running",
-                "lease_id": "LEASE-M1-1",
-                "lease_plan_revision": plan["revision"],
-                "lease_plan_digest_sha256": digest,
-                "worker_id": "W-M1",
-                "base_sha": "a" * 40,
-            }
-        )
+        start_mission(run, plan, digest, base_sha="a" * 40)
         result = {
             "run_id": run["run_id"],
             "node_id": "N-M1",
@@ -2112,20 +1895,7 @@ class GraphManifestTests(unittest.TestCase):
             }
         run = valid_graph_run(plan)
         mission_ids = ["M1", "M2"]
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": mission_ids,
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, mission_ids)
         run["runtime_capabilities"].update(
             {
                 "worker_runtime": "subagent",
@@ -2534,20 +2304,7 @@ class GraphManifestTests(unittest.TestCase):
             "bound_worker_id": None,
             "blockers": [],
         }
-        run.update(
-            {
-                "status": "ready",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["*"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["*"], status="ready")
         authorize(run, "push", ["*"], "*")
 
         dispatchable = {
@@ -2579,20 +2336,7 @@ class GraphManifestTests(unittest.TestCase):
             "bound_worker_id": None,
             "blockers": [],
         }
-        run.update(
-            {
-                "status": "ready",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["*"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["*"], status="ready")
         run["integration"]["batch_base_sha"] = None
         run["observed"]["git"]["parent_dirty"] = None
 
@@ -2608,20 +2352,7 @@ class GraphManifestTests(unittest.TestCase):
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["runtime"]["allowed_providers"] = ["codex"]
         run = valid_graph_run(plan)
-        run.update(
-            {
-                "status": "running",
-                "intent": "plan-then-execute",
-                "plan_readiness": "ready",
-                "execution_authorized": True,
-                "execution_authorization_source": "user requested execution",
-                "execution_authorization_scope": {
-                    "run_id": run["run_id"],
-                    "mission_ids": ["M1", "M2"],
-                    "expires_when": "run_complete",
-                },
-            }
-        )
+        authorize_execution(run, ["M1", "M2"])
         run["runtime_capabilities"]["runtime_adapter"] = {
             "provider": "claude_code",
             "available_drivers": ["sequential_parent"],

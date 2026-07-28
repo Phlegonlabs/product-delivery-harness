@@ -22,12 +22,45 @@ from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from test_select_parallel_missions import manifest_markdown  # noqa: E402
 
 
+HOME_SURFACE = {
+    "id": "home",
+    "trace_ids": ["REQ-001"],
+    "route": "/home",
+    "breakpoints": ["390"],
+    "states": ["ready"],
+    "evidence_gate": "required",
+}
+
+
 class ValidateHarnessPlanCliTests(unittest.TestCase):
-    def run_cli(self, plan_path: Path, run_path: Path | None) -> subprocess.CompletedProcess[str]:
+    def run_cli(
+        self,
+        plan_path: Path,
+        run_path: Path | None,
+        design_system: Path | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         command = [sys.executable, str(SCRIPTS_DIR / "validate_harness_plan.py"), "--plan", str(plan_path)]
         if run_path is not None:
             command.extend(["--run", str(run_path), "--repo-root", str(plan_path.parent)])
+        if design_system is not None:
+            command.extend(["--design-system", str(design_system)])
         return subprocess.run(command, check=False, capture_output=True, text=True)
+
+    def cross_check(self, registry: dict[str, object]) -> dict[str, object]:
+        """Validate a one-surface PLAN against `registry`; return the CLI payload."""
+        plan = valid_plan()
+        plan["ui_surfaces"] = [dict(HOME_SURFACE)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            registry_path = root / "design-system.json"
+            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+            result = self.run_cli(plan_path, None, design_system=registry_path)
+        return json.loads(result.stdout)
 
     def test_valid_plan_and_run_report_pass(self) -> None:
         plan = valid_plan()
@@ -110,43 +143,10 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertTrue(payload["errors"])
 
     def test_recipe_state_coverage_is_cross_checked_against_the_registry(self) -> None:
-        plan = valid_plan()
-        plan["ui_surfaces"] = [
-            {
-                "id": "home",
-                "trace_ids": ["REQ-001"],
-                "route": "/home",
-                "breakpoints": ["390"],
-                "states": ["ready"],
-                "evidence_gate": "required",
-            }
-        ]
-        registry = {
-            "viewports": [390],
-            "stateMatrix": ["ready", "loading", "empty", "n/a"],
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan_path = root / "PLAN.md"
-            plan_path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
-            registry_path = root / "design-system.json"
-            registry_path.write_text(json.dumps(registry), encoding="utf-8")
+        payload = self.cross_check(
+            {"viewports": [390], "stateMatrix": ["ready", "loading", "empty", "n/a"]}
+        )
 
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "validate_harness_plan.py"),
-                    "--plan",
-                    str(plan_path),
-                    "--design-system",
-                    str(registry_path),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-
-        payload = json.loads(result.stdout)
         self.assertEqual("FAIL", payload["status"])
         joined = " ".join(payload["errors"])
         self.assertIn("omits state loading", joined)
@@ -155,106 +155,32 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertNotIn("/settings", joined)
 
     def test_registry_cross_check_enforces_responsive_values_per_surface(self) -> None:
-        plan = valid_plan()
-        plan["ui_surfaces"] = [
-            {
-                "id": "home",
-                "trace_ids": ["REQ-001"],
-                "route": "/home",
-                "breakpoints": ["390"],
-                "states": ["ready"],
-                "evidence_gate": "required",
-            }
-        ]
-        registry = {
-            "viewports": [390, 768],
-            "stateMatrix": ["ready", "error"],
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan_path = root / "PLAN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            registry_path = root / "design-system.json"
-            registry_path.write_text(json.dumps(registry), encoding="utf-8")
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "validate_harness_plan.py"),
-                    "--plan",
-                    str(plan_path),
-                    "--design-system",
-                    str(registry_path),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+        payload = self.cross_check(
+            {"viewports": [390, 768], "stateMatrix": ["ready", "error"]}
+        )
 
-        joined = " ".join(json.loads(result.stdout)["errors"])
+        joined = " ".join(payload["errors"])
         self.assertIn("surface home route /home omits state error", joined)
         self.assertIn("surface home route /home omits responsive target 768", joined)
         self.assertNotIn("UI-001", joined)
 
     def test_registry_cross_check_rejects_malformed_evidence_contract(self) -> None:
-        plan = valid_plan()
-        plan["ui_surfaces"] = [
+        payload = self.cross_check(
             {
-                "id": "home",
-                "trace_ids": ["REQ-001"],
-                "route": "/home",
-                "breakpoints": ["390"],
-                "states": ["ready"],
-                "evidence_gate": "required",
+                "viewports": [0],
+                "stateMatrix": ["ready", " "],
+                "$note": "both halves malformed; stateMatrix is reported first",
             }
-        ]
-        registry = {
-            "viewports": [0],
-            "stateMatrix": ["ready", " "],
-            "$note": "both halves malformed; stateMatrix is reported first",
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            plan_path = root / "PLAN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            registry_path = root / "design-system.json"
-            registry_path.write_text(json.dumps(registry), encoding="utf-8")
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "validate_harness_plan.py"),
-                    "--plan",
-                    str(plan_path),
-                    "--design-system",
-                    str(registry_path),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+        )
 
-        joined = " ".join(json.loads(result.stdout)["errors"])
+        joined = " ".join(payload["errors"])
         # A malformed stateMatrix stops the cross-check before the responsive
         # set is read, so only the first defect is reported per run.
         self.assertIn("stateMatrix: must be a non-empty string list", joined)
 
     def test_registry_cross_check_is_skipped_without_the_flag(self) -> None:
         plan = valid_plan()
-        plan["ui_surfaces"] = [
-            {
-                "id": "home",
-                "trace_ids": ["REQ-001"],
-                "route": "/home",
-                "breakpoints": ["390"],
-                "states": ["ready"],
-                "evidence_gate": "required",
-            }
-        ]
+        plan["ui_surfaces"] = [dict(HOME_SURFACE)]
         with tempfile.TemporaryDirectory() as directory:
             plan_path = Path(directory) / "PLAN.md"
             plan_path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
