@@ -26,13 +26,28 @@ function Invoke-Checked {
     }
 }
 
+function Get-JsonItems {
+    param(
+        $Payload,
+        [Parameter(Mandatory = $true)][string]$WrapperProperty
+    )
+
+    if ($null -eq $Payload) {
+        return @()
+    }
+    if ($Payload.PSObject.Properties.Name -contains $WrapperProperty) {
+        return @($Payload.$WrapperProperty)
+    }
+    return @($Payload)
+}
+
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     throw "GitHub CLI (gh) is required to access the private repository."
 }
 Invoke-Checked gh auth status
 
 if (Get-Command codex -ErrorAction SilentlyContinue) {
-    $codexMarketplaces = (Invoke-Checked codex plugin marketplace list --json | ConvertFrom-Json).marketplaces
+    $codexMarketplaces = Get-JsonItems (Invoke-Checked codex plugin marketplace list --json | ConvertFrom-Json) "marketplaces"
     if ($codexMarketplaces.name -contains $Marketplace) {
         Invoke-Checked codex plugin marketplace upgrade $Marketplace
     }
@@ -46,7 +61,7 @@ else {
 }
 
 if (Get-Command claude -ErrorAction SilentlyContinue) {
-    $claudeMarketplaces = Invoke-Checked claude plugin marketplace list --json | ConvertFrom-Json
+    $claudeMarketplaces = Get-JsonItems (Invoke-Checked claude plugin marketplace list --json | ConvertFrom-Json) "marketplaces"
     if ($claudeMarketplaces.name -contains $Marketplace) {
         Invoke-Checked claude plugin marketplace update $Marketplace
     }
@@ -54,7 +69,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
         Invoke-Checked claude plugin marketplace add $ClaudeMarketplaceSource --scope user
     }
 
-    $installedPlugins = Invoke-Checked claude plugin list --json | ConvertFrom-Json
+    $installedPlugins = Get-JsonItems (Invoke-Checked claude plugin list --json | ConvertFrom-Json) "plugins"
     if ($installedPlugins.id -contains $PluginSelector) {
         Invoke-Checked claude plugin update $PluginSelector --scope user
     }

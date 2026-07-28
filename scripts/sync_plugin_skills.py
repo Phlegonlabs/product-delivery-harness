@@ -88,6 +88,11 @@ def differences() -> list[str]:
             if path.name not in expected_entries:
                 problems.append(f"extra: {path.name}")
 
+    if SOURCE_ROOT.exists():
+        for path in sorted(SOURCE_ROOT.iterdir()):
+            if path.is_dir() and path.name not in SKILL_NAMES:
+                problems.append(f"unlisted source skill: {path.name}")
+
     for name in SKILL_NAMES:
         source = SOURCE_ROOT / name
         destination = DESTINATION_ROOT / name
@@ -194,7 +199,11 @@ def sync() -> None:
             if destination.resolve().parent != managed_root:
                 raise SystemExit(f"Refusing to remove path outside {DESTINATION_ROOT}.")
             shutil.rmtree(destination)
-        shutil.copytree(source, destination)
+        shutil.copytree(
+            source,
+            destination,
+            ignore=shutil.ignore_patterns("__pycache__", "*.py[cod]"),
+        )
 
     problems = differences()
     if problems:

@@ -46,4 +46,4 @@ jobs:
         run: python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 
       - name: Run packaged skill smoke tests
-        run: python plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests/test_packaged_smoke.py -v
+        run: python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
