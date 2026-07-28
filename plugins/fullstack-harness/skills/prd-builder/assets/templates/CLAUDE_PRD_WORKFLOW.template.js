@@ -108,15 +108,6 @@ for (const [index, target] of workflowArgs.release_targets.entries()) {
   if (!["development", "production"].includes(target.stage)) {
     throw new Error(`prd-builder-graph requires args.release_targets[${index}].stage development or production`);
   }
-  if (!["pr_head", "integration_head", "production_head"].includes(target.source_policy)) {
-    throw new Error(`prd-builder-graph requires args.release_targets[${index}].source_policy pr_head, integration_head, or production_head`);
-  }
-  if (target.stage === "development" && !["pr_head", "integration_head"].includes(target.source_policy)) {
-    throw new Error(`prd-builder-graph requires development source_policy pr_head or integration_head for ${target.id}`);
-  }
-  if (target.stage === "production" && target.source_policy !== "production_head") {
-    throw new Error(`prd-builder-graph requires production source_policy production_head for ${target.id}`);
-  }
   if (releaseTargetIds.has(target.id)) {
     throw new Error(`prd-builder-graph requires unique release target ID ${target.id}`);
   }
@@ -245,7 +236,7 @@ const roles = [
   },
   {
     key: "architecture",
-    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs. Keep stable surface identity separate from each stage's provider, which may differ between development and production. Use only PLAN-v5 source policies: pr_head or integration_head for development and production_head for production. Close artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix. Upload or submission is not availability, and native recovery may require rollout halt plus a signed forward-fix. Only when hosted_deployable is true, build hosted web/API/backend environment details from the resolved deployment_platform and the stage-specific target providers. The target provider is authoritative for that stage and may differ between development and production; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
+    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs. Keep stable surface identity separate from each stage's provider, which may differ between development and production. Record each target's source policy as the exact branch or ref the release builds from, for example the pushed integration-branch head for development and the default-branch head after merge for production. Close artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix. Upload or submission is not availability, and native recovery may require rollout halt plus a signed forward-fix. Only when hosted_deployable is true, build hosted web/API/backend environment details from the resolved deployment_platform and the stage-specific target providers. The target provider is authoritative for that stage and may differ between development and production; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
   },
 ];
 if (workflowArgs.ui_bearing) {
@@ -293,7 +284,7 @@ phase("Synthesize");
 const draft = await agent(
   "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus wireframes.md when the product is ui_bearing and implementation-plan.md only when requested. " +
     "Return null for wireframes_markdown when ui_bearing is false, and record the skip and its reason in PRD.md rather than emitting a placeholder wireframes body. When ui_bearing is true, every screen carries a Route(s) line and no two screens claim the same route. " +
-    "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral development and production release-target blocks for every expected deployable surface in the frozen inventory. Keep surface identity separate from provider, permit different providers by stage, and use only PLAN-v5 source policies. Do not treat upload/submission as availability or force native distribution into the hosted environment table. " +
+    "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral development and production release-target blocks for every expected deployable surface in the frozen inventory. Keep surface identity separate from provider, permit different providers by stage, and name the exact source branch or ref per target. Do not treat upload/submission as availability or force native distribution into the hosted environment table. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
   { label: "prd:synthesis", phase: "Synthesize", schema: draftSchema },
@@ -309,7 +300,7 @@ const reviewers = [
   },
   {
     key: "consistency-verifier",
-    task: "Check all four documents for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify that every expected deployable surface has stable development and production target IDs and complete provider-neutral release fields. Confirm surface identity is separate from provider, different stage providers are allowed, and source policies use the PLAN-v5 vocabulary. Reject missing expected surfaces, upload/submission/approval as the availability signal, and web-style rollback claims for native channels that require staged-rollout halt and forward-fix.",
+    task: "Check all four documents for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify that every expected deployable surface has stable development and production target IDs and complete provider-neutral release fields. Confirm surface identity is separate from provider, different stage providers are allowed, and each source policy names an exact branch or ref. Reject missing expected surfaces, upload/submission/approval as the availability signal, and web-style rollback claims for native channels that require staged-rollout halt and forward-fix.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {

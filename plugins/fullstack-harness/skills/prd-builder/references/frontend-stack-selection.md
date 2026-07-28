@@ -64,7 +64,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Any Platform
 
-- Use one codebase with separately named development and production environments. Development uses PLAN-v5 source `pr_head` after current-head CI, or `integration_head` for an explicitly retained integration-branch release model, and has isolated non-production bindings, data, auth, and sandbox payment credentials. Production uses `production_head` only after development passes and has production bindings, auth, and live payment credentials.
+- Use one codebase with separately named development and production environments. Development releases build from the pushed integration-branch head after current-head CI, or the head of an explicitly retained integration branch, and have isolated non-production bindings, data, auth, and sandbox payment credentials. Production releases build from the default-branch head only after development passes and have production bindings, auth, and live payment credentials.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
 - Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 

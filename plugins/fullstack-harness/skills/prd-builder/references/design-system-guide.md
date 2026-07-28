@@ -139,7 +139,7 @@ The list names the content fields the component renders, in the order it renders
 
 Keep the list to the fields that carry the component's meaning. A card whose price and availability are the point lists both; a decorative thumbnail that can fall away on a small screen stays off the list.
 
-`fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, alongside the limits, formats, and empty and long-content rules recorded here. A component published without `requiredContentOrder` gives that gate nothing to compare, so it passes on a component nobody specified.
+`fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, alongside the limits, formats, and empty and long-content rules recorded here. A component published without `requiredContentOrder` fails pair validation — `scripts/check_design_system_pair.py` rejects a `productComponents` entry missing the key — so publish the key.
 
 ## Taste & Anti-Slop Guardrails
 

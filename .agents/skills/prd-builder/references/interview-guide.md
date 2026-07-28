@@ -78,7 +78,7 @@ Ask only questions that are not already answered.
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
    - What is the complete inventory of expected deployable web, API, mobile, or desktop surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
-   - For each target, which current PLAN-v5 source policy produces it: `pr_head` or `integration_head` for development, and `production_head` for production? If the product requires a signed tag or another source rule, record that as an unresolved engineering-handoff gap instead of freezing an unsupported source choice.
+   - For each target, which exact branch or ref produces the release — for example the pushed integration-branch head for development, and the default-branch head after merge for production? If the product requires a signed tag or another source rule, record it explicitly.
    - What artifact kind is released, what signing or notarization is required, and what exact environment, store channel, testing track, update feed, or distribution channel receives it?
    - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.
    - What rollout controls apply, and what is the real recovery path? For native stores and signed installers, identify when recovery means halting a staged rollout and shipping a signed forward-fix rather than claiming an instant rollback.
@@ -97,7 +97,7 @@ Discovery is complete enough to draft when the agent can state:
 - The core data objects and integrations.
 - The v1 scope, non-goals, and constraints.
 - The architecture assumptions and high-risk unknowns.
-- A complete expected deployable-surface inventory with stable surface IDs, plus stable development and production target IDs for every expected surface. Each target separates stable `surface` identity from stage-specific `provider`, uses a current PLAN-v5 source policy, and records artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Native targets are not forced into a web environment model.
+- A complete expected deployable-surface inventory with stable surface IDs, plus stable development and production target IDs for every expected surface. Each target separates stable `surface` identity from stage-specific `provider`, names the exact branch or ref its release builds from, and records artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Native targets are not forced into a web environment model.
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider.
 - The UI screens or interaction points that need wireframes.

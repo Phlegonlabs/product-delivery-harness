@@ -128,8 +128,8 @@ async function agent(_prompt, options) {
             "hosted_deployable": False,
             "deployable_surfaces": ["ios-app"],
             "release_targets": [
-                self.release_target("ios-development", "ios-app", "TestFlight", "development", "pr_head"),
-                self.release_target("ios-production", "ios-app", "App Store", "production", "production_head"),
+                self.release_target("ios-development", "ios-app", "TestFlight", "development", "integration branch head"),
+                self.release_target("ios-production", "ios-app", "App Store", "production", "default branch head"),
             ],
             "has_public_marketing_content": False,
             "include_implementation_plan": False,
@@ -224,8 +224,8 @@ async function agent(_prompt, options) {
         self.assertIn("AskUserQuestion", agent)
         self.assertIn("one repository and one codebase", architecture)
         self.assertIn("separately named development and production Workers", frontend)
-        self.assertIn("`pr_head` after current-head CI", contract)
-        self.assertIn("`production_head` after development PASS", contract)
+        self.assertIn("The pushed integration-branch head after current-head CI", contract)
+        self.assertIn("The default-branch head after development PASS", contract)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
@@ -603,7 +603,7 @@ async function agent(_prompt, options) {
         self.assertIn("preserve the supplied stable release target IDs", workflow)
         self.assertIn("Upload or submission is not availability", workflow)
 
-    def test_release_sources_match_plan_v5_vocabulary(self) -> None:
+    def test_release_sources_name_exact_branch_or_ref(self) -> None:
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
@@ -611,22 +611,21 @@ async function agent(_prompt, options) {
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         for content in (interview, architecture, contract, frontend, workflow):
-            for source in ("pr_head", "integration_head", "production_head"):
-                self.assertIn(source, content)
+            for retired in ("PLAN-v5", "pr_head", "integration_head`", "production_head", "merged_main"):
+                self.assertNotIn(retired, content)
+        for content in (interview, architecture, contract, workflow):
+            self.assertIn("branch or ref", content)
         for content in (interview, architecture, contract):
-            self.assertIn("unresolved", content.lower())
             self.assertIn("signed tag", content.lower())
-        self.assertIn('!["pr_head", "integration_head", "production_head"].includes(target.source_policy)', workflow)
-        self.assertIn('target.source_policy !== "production_head"', workflow)
 
-    def test_migration_order_maps_to_plan_v5_fields(self) -> None:
+    def test_migration_order_drops_plan_v5_field_mapping(self) -> None:
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
 
         for content in (architecture, contract):
-            self.assertIn("`migration_classification`", content)
-            self.assertIn("`commands.migrate`", content)
-            self.assertIn("`prerequisites`", content)
+            self.assertNotIn("`migration_classification`", content)
+            self.assertNotIn("`commands.migrate`", content)
+            self.assertNotIn("`prerequisites`", content)
             self.assertNotIn("`migration_command`", content)
 
     def test_workflow_accepts_native_local_data_without_hosting_platform(self) -> None:
@@ -669,8 +668,8 @@ async function agent(_prompt, options) {
                 "deployment_platform": "development=Cloudflare; production=AWS",
                 "deployable_surfaces": ["web-app"],
                 "release_targets": [
-                    self.release_target("web-development", "web-app", "Cloudflare", "development", "pr_head"),
-                    self.release_target("web-production", "web-app", "AWS", "production", "production_head"),
+                    self.release_target("web-development", "web-app", "Cloudflare", "development", "integration branch head"),
+                    self.release_target("web-production", "web-app", "AWS", "production", "default branch head"),
                 ],
             }
         )
@@ -766,7 +765,7 @@ async function agent(_prompt, options) {
         self.assertIn("workflow-agent-null", workflow)
         self.assertIn("workflow-role-mismatch", workflow)
         self.assertIn("builder_readonly", workflow)
-        self.assertIn("machine-enforced `builder_readonly`", guide)
+        self.assertIn("`builder_readonly` launch profile, asserted via `args.tool_profile`", guide)
         self.assertIn("Read only. Do not edit, create, move, or publish files", workflow)
         self.assertIn("## Harness Handoff Signals", contract)
         self.assertIn("not a canonical Harness PLAN or RUN graph", contract)
