@@ -265,6 +265,23 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             reference,
         )
         self.assertIn("in every landing mode", reference)
+        self.assertIn(
+            "Historical unmarked RUN v10 files keep their generic exact-target kind "
+            "and target-source rules while they omit `target_sources`",
+            runbook,
+        )
+        self.assertIn(
+            "for any unmarked scoped entry that opts in by recording `target_sources`",
+            runbook,
+        )
+        self.assertNotIn(
+            "per-target provenance applies to every v10 file either way",
+            runbook,
+        )
+        self.assertNotIn(
+            "Per-target provenance holds for every RUN-v10 artifact",
+            runbook,
+        )
         self.assertIn('"target_sources": {', runbook)
         self.assertIn("in every landing mode", runbook)
 
@@ -599,6 +616,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         state_model = self.read("references/execution-state-model.md")
         plan_template = self.read("assets/templates/HARNESS_PLAN.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
         deploy_workflow = self.read(
             "assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml"
         )
@@ -617,6 +635,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("keys must exactly equal the PLAN `release.targets[].id` set", runbook)
         self.assertIn("Current PLAN schema v5 uses provider-neutral `release.targets`", state_model)
         self.assertIn("Older RUN v7-v9 `deployments` objects remain readable", state_model)
+        self.assertIn(
+            "Only when an actual preview or staging release target is declared",
+            goal,
+        )
+        self.assertIn("exact reviewed integration head", goal)
+        self.assertIn("resulting `main` head", goal)
+        self.assertIn("resulting head of the resolved protected base", goal)
+        self.assertNotIn("verified `development` head", goal)
+        self.assertNotIn("resulting `production` head", goal)
         self.assertIn("workflow_dispatch:", deploy_workflow)
         self.assertIn("source_sha:", deploy_workflow)
         self.assertIn("cloudflare/wrangler-action@v3", deploy_workflow)

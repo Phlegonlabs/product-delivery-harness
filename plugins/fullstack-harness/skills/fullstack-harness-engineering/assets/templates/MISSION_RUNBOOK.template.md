@@ -12,7 +12,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
 
-Older RUN schemas remain readable. Existing RUN v10 files without `action_target_contract` keep their generic exact-target kind rules, but per-target provenance applies to every v10 file either way. New PLAN v5 and RUN v10 files declare the same `action-targets/1` marker to enable strict action-to-target validation. Older `deployments` objects retain their original meaning; do not copy that provider-shaped state into a new RUN schema v10 file.
+Older RUN schemas remain readable. Historical unmarked RUN v10 files keep their generic exact-target kind and target-source rules while they omit `target_sources`; an unmarked scoped entry opts into strict per-target provenance when it records that map. New PLAN v5 and RUN v10 files declare the same `action-targets/1` marker to enable strict action-to-target validation. Older `deployments` objects retain their original meaning; do not copy that provider-shaped state into a new RUN schema v10 file.
 
 ## Harness Run State
 
@@ -371,7 +371,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-Per-target provenance holds for every RUN-v10 artifact; this template's `action_target_contract: "action-targets/1"` marker additionally enables the strict action-to-target kind table. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers `push` only for the resolved integration branch, and never covers `merge_pr` or `deploy` under the default branch model; any other target on those three entries names the separate instruction that authorized it:
+Per-target provenance holds for every marked RUN-v10 artifact and for any unmarked scoped entry that opts in by recording `target_sources`; this template's `action_target_contract: "action-targets/1"` marker also enables the strict action-to-target kind table. `push`, `merge_pr`, and `deploy` take one more optional key. The execution-intent instruction covers `push` only for the resolved integration branch, and never covers `merge_pr` or `deploy` under the default branch model; any other target on those three entries names the separate instruction that authorized it:
 
 ```json
 "target_sources": {
