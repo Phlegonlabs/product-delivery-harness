@@ -1785,6 +1785,34 @@ class SelectReadyNodesTests(unittest.TestCase):
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("worktree_state_unreconciled", deferred["N-M1"])
 
+    def test_active_wave_defers_dispatch_stage_nodes_with_blocker_present(self) -> None:
+        plan, run = current_preintegration_review_state()
+        baseline = select_ready_nodes(plan, run)
+        self.assertIn(
+            "N-FRONTEND-REVIEW",
+            [item["node_id"] for item in baseline["dispatchable_nodes"]],
+        )
+
+        run["active_wave"] = {
+            "wave_id": "B01",
+            "status": "active",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "batch_base_sha": "a" * 40,
+            "selected_missions": ["M1"],
+            "deferred_missions": [],
+            "conflict_edges": [],
+        }
+        self.assertEqual([], validate_run(plan, run))
+
+        selected = select_ready_nodes(plan, run)
+        self.assertEqual([], selected["dispatchable_nodes"])
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in selected["deferred_nodes"]
+        }
+        self.assertIn("blocker_present", deferred["N-FRONTEND-REVIEW"])
+
     def test_schema_mismatch_is_rejected_before_selection(self) -> None:
         # Structural validation normally rejects the pair first. Stub it so
         # this test guards select_ready_nodes's own defense-in-depth gate.

@@ -244,7 +244,7 @@ Current Claude Code can support nested subagents, but RUN schema v6 and later de
 
 ## Batch Integration And Recompute
 
-One wave lifecycle has a fixed order, and no other order works: the selector defers every node — including read-only review nodes — with `blocker_present` while `run.active_wave.status` is `active`, and worker-result validation accepts a result only while its wave is active. So:
+One wave lifecycle has a fixed order, and no other order works: the selector dispatches no node while `run.active_wave.status` is `active` — any node that reaches dispatch-stage evaluation, including read-only review nodes, is deferred with `blocker_present` — and worker-result validation accepts a result only while its wave is active. So:
 
 1. Launch the selected workers.
 2. Validate every selected mission's worker result against the still-active wave.

@@ -256,7 +256,7 @@ Push, task archival, worktree removal, and branch deletion are independent autho
 - Review the final diff locally and rerun final gates before pushing. Codex `/review` is a read-only option for uncommitted changes or a branch diff.
 - Ordinary work ends at `integration_push`: the verified integration head is pushed to the run's own branch, and the run is complete there. Landing that branch on the default branch is the user's own step, outside this harness. Local-only delivery instead stops after its authorized local branch, commit, integration, and final verification outcome; it does not push.
 - `integration.branch` is the only branch field in RUN. It names the resolved integration branch: the run's own `codex/<short-name>` branch, cut from the current default branch. Refuse `push` when the push target or `integration.branch` resolves to `main`.
-- Start later PRD, UI, and feature work from a fresh `codex/<short-name>` branch cut from the then-current `main`. Never make those edits directly on `main` and never integrate a mission worktree into it locally.
+- Start later PRD, UI, and feature work from a fresh `codex/<short-name>` branch cut from the then-current default branch. Never make those edits directly on the default branch and never integrate a mission worktree into it locally.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
 - Delete only the exact recorded, fully integrated branch when `delete_branches` is true, unless `run.integration.retention == "persistent"`, in which case the branch is preserved rather than deleted.

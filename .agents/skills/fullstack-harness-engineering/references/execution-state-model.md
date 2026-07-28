@@ -42,11 +42,11 @@ plan_readiness: draft | ready | blocked
 | RUN-v10 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS; when a UI registry is supplied, the PLAN surface matrix also covers its exact responsive set, required states, and route trace/test bindings |
 | Gate freshness | A changed integration head invalidates an earlier gate PASS immediately, in every RUN lifecycle state |
 
-RUN v10 is the only supported schema; current tools do not read older RUN versions. RUN v9 introduced the gate arrays; v10 adds PLAN-v5 binding, continuity, and append-only verifier history.
+New runs are authored at RUN v10. The manifest validator still reads older RUN schemas, but graph selection and node-result validation require RUN v10. RUN v9 introduced the gate arrays; v10 adds PLAN-v5 binding, continuity, and append-only verifier history.
 
 `plan_readiness: ready` is the machine gate. Human verification tables may display `PASS`, but selectors never substitute a table cell for canonical readiness.
 
-New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10); older version numbers are not supported.
+New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10). Older files remain validatable as manifests but cannot drive graph selection or node-result validation.
 
 ## Plan Revisions And Snapshots
 

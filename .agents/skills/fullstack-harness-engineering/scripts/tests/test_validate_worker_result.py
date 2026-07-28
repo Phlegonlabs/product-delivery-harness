@@ -530,6 +530,12 @@ class ValidateWorkerResultTests(unittest.TestCase):
         self.assertIn("observed_diff_mismatch", codes)
         self.assertNotIn("required_verifier_missing", codes)
 
+    def test_wave_not_active_rejects_the_worker_result(self) -> None:
+        run = copy.deepcopy(self.run)
+        run["active_wave"]["status"] = "closed"
+        errors = validate(self.plan, run, self.result)
+        self.assertIn("wave_not_active", error_codes(errors))
+
     def test_stale_binding_observed_diff_and_ancestry_are_rejected(self) -> None:
         result = copy.deepcopy(self.result)
         result["lease_id"] = "STALE"

@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for current PLAN schema v5 and RUN schema v10 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs are not supported.
+Use this reference for current PLAN schema v5 and RUN schema v10 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs remain validatable as manifests but cannot be selected or executed.
 
 ## Contents
 
