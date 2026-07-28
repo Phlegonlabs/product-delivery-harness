@@ -863,6 +863,7 @@ async function agent(_prompt, options) {
         command_prefix = "scripts/check_design_system_pair.py"
         registry = {
             "schema": "design-system/1",
+            "product": "Fixture Product",
             "platform": "web",
             "stylingMechanism": "plain CSS",
             "enforcement": "blocking",

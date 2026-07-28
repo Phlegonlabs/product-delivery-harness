@@ -424,6 +424,7 @@ export function ExampleContentSection() {
       ]
     }
   },
+  "product": "<product name>",
   "productComponents": {
     "<DomainComponentName>": {
       "composes": [

@@ -955,6 +955,20 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         )
         self._authorize_release(run, "merge_pr")
         self._authorize_release(run, "deploy")
+        exact_pr = f"pr:{run['landing']['pr_url']}"
+        future_pr = (
+            "future-pr:example/repo:"
+            f"base={run['landing']['base_branch']}:"
+            f"head={run['landing']['head_branch']}"
+        )
+        merge_entry = run["authorizations"]["merge_pr"]
+        merge_entry["scope"]["targets"].extend([future_pr, exact_pr])
+        merge_entry["target_sources"].update(
+            {
+                future_pr: "user: start this exact protected-base promotion",
+                exact_pr: "user: merge this exact protected-base PR",
+            }
+        )
 
         self.assertEqual([], validate_run(plan, run))
 
@@ -1106,7 +1120,8 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
 
         self.assertTrue(
             any(
-                "complete pull-request run requires merge authorization at the current PR head"
+                "merged pull-request landing requires merge authorization for the "
+                "exact PR, current PR head, and every mission"
                 in error
                 for error in errors
             )

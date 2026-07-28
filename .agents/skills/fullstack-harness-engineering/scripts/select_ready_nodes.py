@@ -694,6 +694,13 @@ def _dispatch_reasons(
         # -valid PLANs (authored before this field existed) unchanged.
         target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
+        if node["ref"] == "merge_pr":
+            landing = run.get("landing")
+            if (
+                not isinstance(landing, dict)
+                or landing.get("merge_status") != "ready"
+            ):
+                reasons.add("landing_not_ready")
         current_head = _current_authorized_head(
             run,
             node["ref"],

@@ -23,6 +23,7 @@ BEGIN_MARKER = "<!-- BEGIN GENERATED DESIGN SYSTEM CONTRACT -->"
 END_MARKER = "<!-- END GENERATED DESIGN SYSTEM CONTRACT -->"
 CONTRACT_FIELDS = (
     "schema",
+    "product",
     "platform",
     "stylingMechanism",
     "enforcement",
@@ -115,6 +116,10 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     problems: list[str] = []
     if registry.get("schema") != "design-system/1":
         problems.append("design-system.json schema must be 'design-system/1'")
+
+    product = registry.get("product")
+    if not isinstance(product, str) or not product.strip():
+        problems.append("design-system.json product must be a non-empty string")
 
     has_viewports = "viewports" in registry
     has_size_classes = "sizeClasses" in registry

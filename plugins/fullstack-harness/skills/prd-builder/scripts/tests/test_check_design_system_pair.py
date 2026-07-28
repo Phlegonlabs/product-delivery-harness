@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
+SKILL_ROOT = Path(__file__).resolve().parents[2]
 if str(SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_ROOT))
 
@@ -15,6 +16,7 @@ import check_design_system_pair as checker  # noqa: E402
 def registry(**overrides: object) -> dict:
     base = {
         "schema": "design-system/1",
+        "product": "Fixture Product",
         "platform": "web",
         "stylingMechanism": "plain CSS",
         "enforcement": "blocking",
@@ -200,6 +202,48 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         self.assertEqual([], problems)
         self.assertEqual(0, code)
 
+    def test_real_templates_match_and_product_drift_fails(self) -> None:
+        markdown = (
+            SKILL_ROOT / "assets/templates/DESIGN_SYSTEM.template.md"
+        ).read_text(encoding="utf-8")
+        data = json.loads(
+            (
+                SKILL_ROOT / "assets/templates/DESIGN_SYSTEM.template.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual([], checker.compare(markdown, data))
+
+        drifted = dict(data)
+        drifted["product"] = "Different Product"
+        problems = checker.compare(markdown, drifted)
+
+        self.assertTrue(
+            any(
+                "generated contract.product differs" in problem
+                and "Different Product" in problem
+                for problem in problems
+            ),
+            problems,
+        )
+
+    def test_missing_or_blank_json_product_fails_validation(self) -> None:
+        for invalid in (None, "", "   ", 42):
+            data = registry()
+            if invalid is None:
+                del data["product"]
+            else:
+                data["product"] = invalid
+            markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+
+            with self.subTest(product=invalid):
+                code, problems = self.run_pair(markdown, data)
+                self.assertEqual(1, code)
+                self.assertTrue(
+                    any("product must be a non-empty string" in problem for problem in problems),
+                    problems,
+                )
+
     def test_empty_primitive_sources_passes_before_primitive_files_exist(self) -> None:
         data = registry(primitiveSources=[])
         markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
@@ -346,7 +390,8 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             md = root / "design-system.md"
             js = root / "design-system.json"
             md.write_text("# Design System\n\nHuman rationale.\n", encoding="utf-8")
-            js.write_text(json.dumps(registry()), encoding="utf-8")
+            data = registry(product="Jolvex")
+            js.write_text(json.dumps(data), encoding="utf-8")
 
             code = checker.main(
                 [
@@ -361,7 +406,10 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             self.assertEqual(0, code)
             rendered = md.read_text(encoding="utf-8")
             self.assertIn(checker.BEGIN_MARKER, rendered)
+            self.assertIn("Human rationale.", rendered)
+            self.assertIn('"product": "Jolvex"', rendered)
             self.assertIn('"requiredContentOrder"', rendered)
+            self.assertEqual([], checker.compare(rendered, data))
 
     def test_write_rejects_duplicate_begin_marker_without_changing_markdown(self) -> None:
         generated = checker.generated_contract_block(registry())

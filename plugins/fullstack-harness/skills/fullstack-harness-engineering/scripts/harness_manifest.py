@@ -2837,13 +2837,59 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing.pr_head_sha",
                 "promotion pull_request CI, review, ready, and final evidence must match the current integration head",
             )
+    landing = run["landing"] if isinstance(run.get("landing"), dict) else {}
+    pr_url = landing.get("pr_url")
+    mission_states = run.get("mission_states")
+    authorizations = run.get("authorizations", {})
+    raw_merge_entry = (
+        authorizations.get("merge_pr", {})
+        if isinstance(authorizations, dict)
+        else {}
+    )
+    merge_entry = raw_merge_entry if isinstance(raw_merge_entry, dict) else {}
+    merge_scope = merge_entry.get("scope", {})
+    merge_targets = (
+        merge_scope.get("targets", []) if isinstance(merge_scope, dict) else []
+    )
+    exact_pr_target = f"pr:{pr_url}" if _nonempty_string(pr_url) else None
+    pr_head_sha = landing.get("pr_head_sha")
+    merge_authorization_covers_landing = (
+        schema_version == 10
+        and exact_pr_target is not None
+        and is_full_sha(pr_head_sha)
+        and isinstance(mission_states, dict)
+        and bool(mission_states)
+        and all(
+            authorization_covers(
+                run,
+                "merge_pr",
+                mission_id,
+                exact_pr_target,
+                preserve_completed_run_expiry=(
+                    landing.get("merge_status") == "merged"
+                ),
+                required_head_sha=pr_head_sha,
+            )
+            for mission_id in mission_states
+        )
+    )
+    if (
+        schema_version == 10
+        and landing.get("mode") in {"pull_request", "integration_pull_request"}
+        and landing.get("merge_status") == "merged"
+        and landing.get("auto_merge_requested") is False
+        and not merge_authorization_covers_landing
+    ):
+        _add(
+            errors,
+            "run.authorizations.merge_pr",
+            "merged pull-request landing requires merge authorization for the "
+            "exact PR, current PR head, and every mission",
+        )
     if (
         schema_version in {4, 5, 6, 7, 8, 9, 10}
-        and isinstance(run["landing"], dict)
-        and run["landing"].get("auto_merge_requested") is True
+        and landing.get("auto_merge_requested") is True
     ):
-        pr_url = run["landing"].get("pr_url")
-        mission_states = run.get("mission_states")
         if (
             not _nonempty_string(pr_url)
             or not isinstance(mission_states, dict)
@@ -2866,76 +2912,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "auto_merge_requested requires matching merge_pr authorization for the exact PR",
             )
-        authorizations = run.get("authorizations", {})
-        merge_entry = authorizations.get("merge_pr", {}) if isinstance(authorizations, dict) else {}
-        merge_scope = merge_entry.get("scope", {}) if isinstance(merge_entry, dict) else {}
-        merge_targets = merge_scope.get("targets", []) if isinstance(merge_scope, dict) else []
         if schema_version == 10:
-            if merge_entry.get("authorized_head_sha") != run["landing"].get("pr_head_sha"):
+            if merge_entry.get("authorized_head_sha") != pr_head_sha:
                 _add(
                     errors,
                     "run.authorizations.merge_pr.authorized_head_sha",
                     "must match the exact current PR head for auto-merge",
-                )
-            release = plan.get("release")
-            release_targets = release.get("targets", []) if isinstance(release, dict) else []
-            applicable_stage = (
-                "development"
-                if run["landing"].get("mode") == "integration_pull_request"
-                else "production"
-            )
-            merge_triggered_ids = [
-                target.get("id")
-                for target in release_targets
-                if (
-                    isinstance(target, dict)
-                    and target.get("trigger") == "merge"
-                    and target.get("stage") == applicable_stage
-                )
-            ]
-            missing_consequences = [
-                target_id
-                for target_id in merge_triggered_ids
-                if f"release:{target_id}" not in merge_targets
-            ]
-            if missing_consequences:
-                _add(
-                    errors,
-                    "run.authorizations.merge_pr.scope.targets",
-                    "merge authorization must include its auto-deploy release targets: "
-                    + ", ".join(sorted(missing_consequences)),
-                )
-            deploy_entry = (
-                authorizations.get("deploy", {})
-                if isinstance(authorizations, dict)
-                else {}
-            )
-            triggering_head = run["landing"].get("pr_head_sha")
-            missing_deploy_authorizations = [
-                target_id
-                for target_id in merge_triggered_ids
-                if deploy_entry.get("authorized_head_sha") != triggering_head
-                or not isinstance(mission_states, dict)
-                or not mission_states
-                or any(
-                    not authorization_covers(
-                        run,
-                        "deploy",
-                        mission_id,
-                        f"release:{target_id}",
-                        preserve_completed_run_expiry=(
-                            run["landing"].get("merge_status") == "merged"
-                        ),
-                    )
-                    for mission_id in mission_states
-                )
-            ]
-            if missing_deploy_authorizations:
-                _add(
-                    errors,
-                    "run.authorizations.deploy",
-                    "auto-merge requires separate exact deploy authorization at the triggering PR head for: "
-                    + ", ".join(sorted(missing_deploy_authorizations)),
                 )
         future_targets = {
             target
@@ -2950,6 +2932,82 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 errors,
                 "run.landing",
                 "auto_merge_requested exact PR does not match its authorized future PR binding",
+            )
+    merge_execution_requires_release_grants = (
+        schema_version == 10
+        and landing.get("mode") in {"pull_request", "integration_pull_request"}
+        and landing.get("merge_status") in {"ready", "merged"}
+        and merge_authorization_covers_landing
+    )
+    if merge_execution_requires_release_grants:
+        release = plan.get("release")
+        release_targets = (
+            release.get("targets", []) if isinstance(release, dict) else []
+        )
+        applicable_stage = (
+            "development"
+            if landing.get("mode") == "integration_pull_request"
+            else "production"
+        )
+        merge_triggered_ids = [
+            target.get("id")
+            for target in release_targets
+            if (
+                isinstance(target, dict)
+                and _nonempty_string(target.get("id"))
+                and target.get("trigger") == "merge"
+                and target.get("stage") == applicable_stage
+            )
+        ]
+        missing_consequences = [
+            target_id
+            for target_id in merge_triggered_ids
+            if f"release:{target_id}" not in merge_targets
+        ]
+        if missing_consequences:
+            _add(
+                errors,
+                "run.authorizations.merge_pr.scope.targets",
+                "merge authorization must include its auto-deploy release targets: "
+                + ", ".join(sorted(missing_consequences)),
+            )
+        raw_deploy_entry = (
+            authorizations.get("deploy", {})
+            if isinstance(authorizations, dict)
+            else {}
+        )
+        deploy_entry = raw_deploy_entry if isinstance(raw_deploy_entry, dict) else {}
+        missing_deploy_authorizations = [
+            target_id
+            for target_id in merge_triggered_ids
+            if deploy_entry.get("authorized_head_sha") != pr_head_sha
+            or not isinstance(mission_states, dict)
+            or not mission_states
+            or any(
+                not authorization_covers(
+                    run,
+                    "deploy",
+                    mission_id,
+                    f"release:{target_id}",
+                    preserve_completed_run_expiry=(
+                        landing.get("merge_status") == "merged"
+                    ),
+                )
+                for mission_id in mission_states
+            )
+        ]
+        if missing_deploy_authorizations:
+            execution_kind = (
+                "auto-merge"
+                if landing.get("auto_merge_requested") is True
+                else "direct merge"
+            )
+            _add(
+                errors,
+                "run.authorizations.deploy",
+                f"{execution_kind} requires separate exact deploy authorization "
+                "at the triggering PR head for: "
+                + ", ".join(sorted(missing_deploy_authorizations)),
             )
     if schema_version in {5, 6, 7, 8, 9, 10}:
         _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
@@ -4331,10 +4389,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.landing",
                 "complete pull-request run requires merged current-head landing",
             )
-        if isinstance(landing, dict) and landing.get("mode") in {
-            "pull_request",
-            "integration_pull_request",
-        }:
+        if (
+            schema_version != 10
+            and isinstance(landing, dict)
+            and landing.get("mode")
+            in {"pull_request", "integration_pull_request"}
+        ):
             pr_url = landing.get("pr_url")
             authorizations = run.get("authorizations")
             merge_authorization = (
@@ -4371,16 +4431,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     errors,
                     "run.authorizations.merge_pr",
                     "complete pull-request run requires merge authorization for the exact PR",
-                )
-            if schema_version == 10 and (
-                not isinstance(merge_authorization, dict)
-                or merge_authorization.get("authorized_head_sha")
-                != landing.get("pr_head_sha")
-            ):
-                _add(
-                    errors,
-                    "run.authorizations.merge_pr.authorized_head_sha",
-                    "complete pull-request run requires merge authorization at the current PR head",
                 )
         if graph_run:
             graph_state = run.get("graph_state")

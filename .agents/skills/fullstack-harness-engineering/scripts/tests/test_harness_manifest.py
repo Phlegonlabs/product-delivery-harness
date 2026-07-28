@@ -1016,6 +1016,102 @@ class RunValidationTests(unittest.TestCase):
             "authorized_head_sha": run["landing"]["pr_head_sha"],
         }
 
+    def merged_pull_request_v10(
+        self,
+        mode: str,
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        pr_head = run["landing"]["pr_head_sha"]
+        pr_url = run["landing"]["pr_url"]
+        run["landing"]["auto_merge_requested"] = False
+        run["landing"]["auto_merge_head_sha"] = None
+
+        if mode == "integration_pull_request":
+            self.authorize_merge_triggered_development_release(
+                run, development_target_id
+            )
+            merged_sha = SHA_B
+            run["integration"]["integration_head_sha"] = merged_sha
+            run["landing"]["continuity"].update(
+                {
+                    "status": "preserved",
+                    "head_sha": merged_sha,
+                }
+            )
+        else:
+            production = next(
+                target
+                for target in plan["release"]["targets"]
+                if target["stage"] == "production"
+            )
+            release_target = f"release:{production['id']}"
+            future_pr = (
+                "future-pr:example/repo:"
+                "base=refs/heads/production:head=refs/heads/development"
+            )
+            run["landing"].update(
+                {
+                    "mode": "pull_request",
+                    "head_branch": "refs/heads/development",
+                    "base_branch": "refs/heads/production",
+                    "continuity": {
+                        "status": "not_required",
+                        "branch_ref": None,
+                        "head_sha": None,
+                        "reason": None,
+                    },
+                }
+            )
+            run["integration"]["integration_head_sha"] = pr_head
+            run["authorizations"]["merge_pr"] = {
+                "authorized": True,
+                "source": "user: merge the exact production pull request",
+                "scope": {
+                    "run_id": run["run_id"],
+                    "plan_revision": run["plan"]["revision"],
+                    "plan_digest_sha256": run["plan"]["digest_sha256"],
+                    "mission_ids": list(run["mission_states"]),
+                    "targets": [
+                        future_pr,
+                        f"pr:{pr_url}",
+                        release_target,
+                    ],
+                },
+                "target_sources": {
+                    future_pr: "user: open this exact production promotion",
+                    f"pr:{pr_url}": "user: merge this exact production PR",
+                    release_target: "user: publish from this production merge",
+                },
+                "expires_when": "run_complete",
+                "authorized_head_sha": pr_head,
+            }
+            run["authorizations"]["deploy"] = {
+                "authorized": True,
+                "source": "user: deploy the exact production release",
+                "scope": {
+                    "run_id": run["run_id"],
+                    "plan_revision": run["plan"]["revision"],
+                    "plan_digest_sha256": run["plan"]["digest_sha256"],
+                    "mission_ids": list(run["mission_states"]),
+                    "targets": [release_target],
+                },
+                "target_sources": {
+                    release_target: "user: deploy this production target",
+                },
+                "expires_when": "run_complete",
+                "authorized_head_sha": pr_head,
+            }
+            merged_sha = SHA_B
+
+        run["landing"].update(
+            {
+                "pr_state": "merged",
+                "merge_status": "merged",
+                "merged_sha": merged_sha,
+            }
+        )
+        return plan, run
+
     def test_matching_plan_run_digest(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -3207,6 +3303,149 @@ class RunValidationTests(unittest.TestCase):
             run, development_target_id
         )
         self.assertEqual([], validate_run(plan, run))
+
+    def test_integration_pull_request_direct_merge_requires_release_grants(
+        self,
+    ) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        run["landing"]["auto_merge_requested"] = False
+        run["landing"]["auto_merge_head_sha"] = None
+
+        awaiting_authorization = copy.deepcopy(run)
+        awaiting_authorization["authorizations"]["merge_pr"] = {
+            "authorized": False,
+            "source": None,
+        }
+        self.assertEqual([], validate_run(plan, awaiting_authorization))
+
+        planning = copy.deepcopy(run)
+        planning["landing"]["merge_status"] = "not_ready"
+        self.assertEqual([], validate_run(plan, planning))
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "merge authorization must include its auto-deploy release targets"
+                in error
+                and development_target_id in error
+                for error in errors
+            ),
+            errors,
+        )
+        self.assertTrue(
+            any(
+                "direct merge requires separate exact deploy authorization"
+                in error
+                and development_target_id in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        merged = copy.deepcopy(run)
+        merged_sha = "c" * 40
+        merged["landing"].update(
+            {
+                "pr_state": "merged",
+                "merge_status": "merged",
+                "merged_sha": merged_sha,
+            }
+        )
+        merged["integration"]["integration_head_sha"] = merged_sha
+        merged["landing"]["continuity"].update(
+            {
+                "status": "preserved",
+                "head_sha": merged_sha,
+            }
+        )
+        merged_errors = validate_run(plan, merged)
+        self.assertTrue(
+            any(
+                "merge authorization must include its auto-deploy release targets"
+                in error
+                and development_target_id in error
+                for error in merged_errors
+            ),
+            merged_errors,
+        )
+        self.assertTrue(
+            any(
+                "direct merge requires separate exact deploy authorization"
+                in error
+                and development_target_id in error
+                for error in merged_errors
+            ),
+            merged_errors,
+        )
+
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+    def test_v10_merged_landing_retains_exact_current_head_merge_evidence(
+        self,
+    ) -> None:
+        for mode in ("pull_request", "integration_pull_request"):
+            with self.subTest(mode=mode):
+                plan, run = self.merged_pull_request_v10(mode)
+                self.assertEqual([], validate_run(plan, run))
+
+                completed = copy.deepcopy(run)
+                completed["status"] = "complete"
+                completed_errors = validate_run(plan, completed)
+                self.assertFalse(
+                    any(
+                        "merged pull-request landing requires merge authorization"
+                        in error
+                        or "requires separate exact deploy authorization" in error
+                        for error in completed_errors
+                    ),
+                    completed_errors,
+                )
+
+                variants = {}
+                missing = copy.deepcopy(run)
+                missing["authorizations"]["merge_pr"] = {
+                    "authorized": False,
+                    "source": None,
+                }
+                variants["missing"] = missing
+
+                stale = copy.deepcopy(run)
+                stale["authorizations"]["merge_pr"]["authorized_head_sha"] = (
+                    "f" * 40
+                )
+                variants["stale_head"] = stale
+
+                partial = copy.deepcopy(run)
+                partial["authorizations"]["merge_pr"]["scope"][
+                    "mission_ids"
+                ] = [next(iter(run["mission_states"]))]
+                variants["partial_missions"] = partial
+
+                for variant, invalid in variants.items():
+                    with self.subTest(variant=variant):
+                        errors = validate_run(plan, invalid)
+                        merge_errors = [
+                            error
+                            for error in errors
+                            if (
+                                "merged pull-request landing requires merge "
+                                "authorization for the exact PR, current PR "
+                                "head, and every mission"
+                            )
+                            in error
+                        ]
+                        self.assertEqual(1, len(merge_errors), errors)
+                        self.assertFalse(
+                            any(
+                                "requires separate exact deploy authorization"
+                                in error
+                                for error in errors
+                            ),
+                            errors,
+                        )
 
     def test_v10_promotion_gates_bind_to_the_integration_head(self) -> None:
         root = SCRIPTS_DIR.parent
