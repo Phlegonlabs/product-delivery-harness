@@ -320,6 +320,31 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("record observed merged state", goal)
         self.assertIn("record the merge as observed state", lifecycle)
 
+    def test_goal_pushes_the_run_branch_before_protected_base_promotion(
+        self,
+    ) -> None:
+        goal = self.read("assets/templates/GOAL.template.md")
+        ordinary_mission = goal[
+            goal.index("For ordinary mission work")
+            : goal.index("For full deployed Cloudflare delivery")
+        ]
+
+        self.assertIn(
+            "`push` restricted to `branch:<resolved integration branch>`",
+            ordinary_mission,
+        )
+        self.assertIn(
+            "the run's own `branch:codex/<short-name>`",
+            ordinary_mission,
+        )
+        self.assertIn("so the run can reach `integration_push`", ordinary_mission)
+        self.assertIn(
+            "request `create_pr` and `manage_pr_review`, plus any other "
+            "independently required actions",
+            ordinary_mission,
+        )
+        self.assertNotIn("request the remaining `push`", ordinary_mission)
+
     def test_cloudflare_current_contract_is_provider_neutral(self) -> None:
         lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
         guide = self.read("assets/templates/PROJECT_CLOUDFLARE_DEPLOYMENT_GUIDE.template.md")
