@@ -158,7 +158,8 @@ def execution_intent_target_in_scope(
     if target == "*":
         return False
     branch = _integration_branch(run)
-    if branch is None:
+    normalized_integration_branch = _normalized_branch(branch)
+    if normalized_integration_branch is None:
         return False
     if action == "push":
         return target == f"branch:{branch}"
@@ -175,9 +176,12 @@ def execution_intent_target_in_scope(
             # exact human instruction in target_sources.
             return False
         if future_pr is not None:
-            return future_pr.group("base") == branch
+            return (
+                _normalized_branch(future_pr.group("base"))
+                == normalized_integration_branch
+            )
         if target.startswith("pr:"):
-            return landing_base == branch
+            return _normalized_branch(landing_base) == normalized_integration_branch
         # A merge-triggered release records the release consequence on the merge
         # itself. It stays in scope on the same rule as `deploy`: the
         # development target rides the loop, the production one does not.

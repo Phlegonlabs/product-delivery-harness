@@ -57,14 +57,45 @@ def generated_contract_block(registry: dict[str, Any]) -> str:
     return f"{BEGIN_MARKER}\n```json\n{payload}\n```\n{END_MARKER}"
 
 
+def _generated_contract_match(
+    markdown_text: str,
+    *,
+    allow_absent: bool,
+) -> re.Match[str] | None:
+    begin_count = markdown_text.count(BEGIN_MARKER)
+    end_count = markdown_text.count(END_MARKER)
+    if begin_count == 0 and end_count == 0 and allow_absent:
+        return None
+    if begin_count != 1 or end_count != 1:
+        raise ValueError(
+            "design-system.md must contain exactly one matched generated "
+            "design-system contract marker pair"
+        )
+
+    begin_at = markdown_text.find(BEGIN_MARKER)
+    end_at = markdown_text.find(END_MARKER)
+    if begin_at >= end_at:
+        raise ValueError(
+            "design-system.md generated contract begin marker must precede its end marker"
+        )
+
+    match = GENERATED_BLOCK_RE.search(markdown_text)
+    if (
+        match is None
+        or match.start() != begin_at
+        or match.end() != end_at + len(END_MARKER)
+    ):
+        raise ValueError(
+            "design-system.md generated contract must be a fenced json block between its markers"
+        )
+    return match
+
+
 def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> str:
     """Replace the generated block, or append it when the document predates it."""
     block = generated_contract_block(registry)
-    matches = list(GENERATED_BLOCK_RE.finditer(markdown_text))
-    if len(matches) > 1:
-        raise ValueError("design-system.md contains more than one generated contract block")
-    if matches:
-        match = matches[0]
+    match = _generated_contract_match(markdown_text, allow_absent=True)
+    if match is not None:
         return markdown_text[: match.start()] + block + markdown_text[match.end() :]
     return markdown_text.rstrip() + "\n\n## Generated Machine Contract\n\n" + block + "\n"
 
@@ -182,17 +213,11 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
 
 
 def _extract_generated_contract(markdown_text: str) -> tuple[dict[str, Any] | None, list[str]]:
-    marker_count = markdown_text.count(BEGIN_MARKER)
-    end_count = markdown_text.count(END_MARKER)
-    if marker_count != 1 or end_count != 1:
-        return None, [
-            "design-system.md must contain exactly one complete generated design-system contract block"
-        ]
-    match = GENERATED_BLOCK_RE.search(markdown_text)
-    if match is None:
-        return None, [
-            "design-system.md generated contract must be a fenced json block between its markers"
-        ]
+    try:
+        match = _generated_contract_match(markdown_text, allow_absent=False)
+    except ValueError as error:
+        return None, [str(error)]
+    assert match is not None
     try:
         value = json.loads(match.group(1))
     except json.JSONDecodeError as error:

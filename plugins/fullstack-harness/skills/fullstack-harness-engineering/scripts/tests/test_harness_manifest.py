@@ -35,6 +35,7 @@ from harness_manifest import (  # noqa: E402
     validate_ui_evidence_files,
     validate_scope_claim,
 )
+from harness_authorization import execution_intent_target_in_scope  # noqa: E402
 from harness_schema import action_target_kind_allowed  # noqa: E402
 
 
@@ -3278,6 +3279,66 @@ class RunValidationTests(unittest.TestCase):
             "expires_when": "run_complete",
         }
         self.assertEqual(validate_run(plan, run), [])
+
+    def test_merge_pr_scope_normalizes_equivalent_branch_refs(self) -> None:
+        plan: dict[str, object] = {}
+        exact_pr = "pr:https://github.com/example/repo/pull/7"
+        for integration_branch, landing_base in (
+            ("refs/heads/development", "development"),
+            ("development", "refs/heads/development"),
+        ):
+            with self.subTest(
+                integration_branch=integration_branch,
+                landing_base=landing_base,
+            ):
+                run = {
+                    "integration": {"branch": integration_branch},
+                    "landing": {"base_branch": landing_base},
+                }
+                future_pr = (
+                    "future-pr:example/repo:"
+                    f"base={landing_base}:head=codex/feature"
+                )
+                self.assertTrue(
+                    execution_intent_target_in_scope(
+                        plan, run, "merge_pr", future_pr
+                    )
+                )
+                self.assertTrue(
+                    execution_intent_target_in_scope(
+                        plan, run, "merge_pr", exact_pr
+                    )
+                )
+
+    def test_merge_pr_scope_keeps_main_out_of_scope_after_normalization(self) -> None:
+        plan: dict[str, object] = {}
+        exact_pr = "pr:https://github.com/example/repo/pull/7"
+        for integration_branch, landing_base in (
+            ("refs/heads/main", "main"),
+            ("main", "refs/heads/main"),
+        ):
+            with self.subTest(
+                integration_branch=integration_branch,
+                landing_base=landing_base,
+            ):
+                run = {
+                    "integration": {"branch": integration_branch},
+                    "landing": {"base_branch": landing_base},
+                }
+                future_pr = (
+                    "future-pr:example/repo:"
+                    f"base={landing_base}:head=codex/feature"
+                )
+                self.assertFalse(
+                    execution_intent_target_in_scope(
+                        plan, run, "merge_pr", future_pr
+                    )
+                )
+                self.assertFalse(
+                    execution_intent_target_in_scope(
+                        plan, run, "merge_pr", exact_pr
+                    )
+                )
 
     def test_action_authorization_requires_scoped_source(self) -> None:
         plan = valid_plan()

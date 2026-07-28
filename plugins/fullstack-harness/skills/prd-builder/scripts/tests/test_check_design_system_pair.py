@@ -363,6 +363,54 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             self.assertIn(checker.BEGIN_MARKER, rendered)
             self.assertIn('"requiredContentOrder"', rendered)
 
+    def test_write_rejects_duplicate_begin_marker_without_changing_markdown(self) -> None:
+        generated = checker.generated_contract_block(registry())
+        markdown = (
+            "# Design System\n\n"
+            f"{checker.BEGIN_MARKER}\n"
+            "Human rationale between duplicate markers must survive.\n\n"
+            f"{generated}\n"
+        )
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_text(markdown, encoding="utf-8")
+            js.write_text(json.dumps(registry()), encoding="utf-8")
+
+            code = checker.main(
+                [
+                    "--markdown",
+                    str(md),
+                    "--registry",
+                    str(js),
+                    "--write",
+                ]
+            )
+
+            self.assertEqual(2, code)
+            self.assertEqual(markdown, md.read_text(encoding="utf-8"))
+
+    def test_replace_and_extract_reject_inverse_and_unmatched_markers(self) -> None:
+        cases = {
+            "inverse": f"{checker.END_MARKER}\nHuman rationale.\n{checker.BEGIN_MARKER}",
+            "begin only": f"Human rationale.\n{checker.BEGIN_MARKER}",
+            "end only": f"{checker.END_MARKER}\nHuman rationale.",
+            "duplicate end": (
+                checker.generated_contract_block(registry())
+                + f"\nHuman rationale.\n{checker.END_MARKER}"
+            ),
+        }
+        for label, markdown in cases.items():
+            with self.subTest(label=label):
+                with self.assertRaises(ValueError):
+                    checker.replace_generated_contract(markdown, registry())
+                problems = checker.compare(markdown, registry())
+                self.assertTrue(
+                    any("marker" in problem for problem in problems),
+                    problems,
+                )
+
     def test_invalid_json_exits_two(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
