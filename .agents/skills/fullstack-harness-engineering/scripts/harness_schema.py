@@ -125,10 +125,13 @@ def action_target_kind_allowed(action: str, target: str, schema_version: int) ->
     if TARGET_RE.fullmatch(target) is None:
         return False
     kind = target.split(":", 1)[0]
-    if action == "deploy" and schema_version < 10:
-        return kind == "environment"
-    if action == "push" and schema_version < 10:
-        return kind in {"branch", "remote"}
+    if schema_version < 10:
+        # Preserve the validation contract of legacy RUN files. Before v10,
+        # every exact TARGET_RE shape was accepted except the runtime action,
+        # which already required runtime:<provider>.
+        if action == "invoke_external_runtime":
+            return kind == "runtime"
+        return True
     if action == "provision_cloud_resources":
         return CLOUD_RESOURCE_TARGET_RE.fullmatch(target) is not None
     return kind in ACTION_TARGET_RULES.get(action, ())
@@ -136,10 +139,10 @@ def action_target_kind_allowed(action: str, target: str, schema_version: int) ->
 
 def action_target_kind_description(action: str, schema_version: int) -> str:
     """Return the legal target shapes for validation messages."""
-    if action == "deploy" and schema_version < 10:
-        return "environment:<name>"
-    if action == "push" and schema_version < 10:
-        return "branch:<ref> or remote:<identity>"
+    if schema_version < 10:
+        if action == "invoke_external_runtime":
+            return "runtime:<provider>"
+        return "an exact typed target"
     rendered = []
     for name in ACTION_TARGET_RULES.get(action, ()):
         if name == "future-pr":

@@ -209,6 +209,17 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         self.assertEqual([], problems)
         self.assertEqual(0, code)
 
+    def test_optional_component_and_motion_inventories_may_be_omitted(self) -> None:
+        data = registry()
+        del data["productComponents"]
+        del data["motionVariants"]
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+
+        code, problems = self.run_pair(markdown, data)
+
+        self.assertEqual([], problems)
+        self.assertEqual(0, code)
+
     def test_invalid_responsive_sets_and_platform_mismatches_fail(self) -> None:
         cases = (
             registry(viewports=["mobile", "mobile"]),

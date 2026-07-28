@@ -132,11 +132,21 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
                 "design-system.json platform 'web' requires viewports, not sizeClasses"
             )
 
-    for key in ("tokens", "primitives", "productComponents"):
+    for key in ("tokens", "primitives"):
         if not isinstance(registry.get(key), dict):
             problems.append(f"design-system.json {key} must be an object")
+    if "productComponents" in registry and not isinstance(
+        registry["productComponents"], dict
+    ):
+        problems.append("design-system.json productComponents must be an object")
 
-    _string_list(problems, "motionVariants", registry.get("motionVariants"), nonempty=False)
+    if "motionVariants" in registry:
+        _string_list(
+            problems,
+            "motionVariants",
+            registry["motionVariants"],
+            nonempty=False,
+        )
     _string_list(problems, "stateMatrix", registry.get("stateMatrix"), nonempty=True)
     _string_list(problems, "tokenSources", registry.get("tokenSources"), nonempty=True)
     _string_list(problems, "primitiveSources", registry.get("primitiveSources"), nonempty=False)

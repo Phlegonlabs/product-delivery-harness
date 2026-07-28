@@ -35,6 +35,7 @@ from harness_manifest import (  # noqa: E402
     validate_ui_evidence_files,
     validate_scope_claim,
 )
+from harness_schema import action_target_kind_allowed  # noqa: E402
 
 
 SHA_A = "a" * 40
@@ -2883,6 +2884,29 @@ class RunValidationTests(unittest.TestCase):
         legacy = copy.deepcopy(run)
         legacy["schema_version"] = 5
         self.assert_run_error_contains(plan, legacy, "unsupported target")
+
+    def test_legacy_run_preserves_historical_exact_action_targets(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        run["authorizations"]["create_local_commits"] = {
+            "authorized": True,
+            "source": "user: preserve the legacy exact target",
+            "scope": {
+                "run_id": "RUN-TEST",
+                "mission_ids": ["M1", "M2"],
+                "targets": ["task:legacy-exact-target"],
+            },
+            "expires_when": "run_complete",
+        }
+
+        self.assertEqual(validate_run(plan, run), [])
+        self.assertFalse(
+            action_target_kind_allowed(
+                "create_local_commits",
+                "task:legacy-exact-target",
+                10,
+            )
+        )
 
     def test_future_pr_authorization_resolves_to_the_matching_exact_pr(self) -> None:
         plan = valid_plan()
