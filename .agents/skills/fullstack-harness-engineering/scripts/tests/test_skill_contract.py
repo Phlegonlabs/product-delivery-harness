@@ -389,7 +389,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         landing = self.read_sibling_skill("fullstack-harness-github-landing")
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
 
-        self.assertIn("`merge_pr` and `deploy` are outside the bundle entirely under this model", core)
+        self.assertIn(
+            "`merge_pr` and `deploy` are outside the bundle entirely under the default model",
+            core,
+        )
         self.assertIn("only for a PR whose base is a resolved non-protected integration branch", core)
         self.assertIn("A merge into `main` is never the harness's to initiate", core)
         self.assertIn("does not enable auto-merge there", core)
@@ -632,6 +635,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
     def test_runbook_starts_local_only_and_names_all_three_modes(self) -> None:
         skill = self.read("SKILL.md")
+        goal = self.read("assets/templates/GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         state = self.read("references/execution-state-model.md")
 
@@ -649,9 +653,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
                 content,
             )
         self.assertIn('"base_branch_protection": {', runbook)
+        self.assertIn('"integration_branch_protection": null', runbook)
         for content in (skill, runbook, state):
             self.assertIn("landing.base_branch_protection", content)
             self.assertIn("fail", content.lower())
+        for content in (skill, goal, runbook, state):
+            self.assertIn("landing.integration_branch_protection", content)
+            self.assertIn("repository:", content)
 
     @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
     def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:

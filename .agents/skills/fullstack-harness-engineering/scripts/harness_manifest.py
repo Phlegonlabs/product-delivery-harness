@@ -803,6 +803,7 @@ def _validate_landing(
     value: Any,
     schema_version: int,
     *,
+    integration_branch: Any = None,
     integration_head_sha: Any = None,
     push_authorized: bool = True,
     legacy_completed_unmarked: bool = False,
@@ -832,7 +833,11 @@ def _validate_landing(
     if schema_version == 10:
         keys.add("continuity")
     optional_keys = (
-        {"base_branch_protection", "external_merge_observation"}
+        {
+            "base_branch_protection",
+            "integration_branch_protection",
+            "external_merge_observation",
+        }
         if schema_version == 10
         else set()
     )
@@ -1015,11 +1020,17 @@ def _validate_landing(
                     f"{path}.base_branch_protection.branch_ref",
                     "must be a full local branch ref",
                 )
-            if not _nonempty_string(protection["source"]):
+            if (
+                not _nonempty_string(protection["source"])
+                or (
+                    not legacy_completed_unmarked
+                    and not str(protection["source"]).startswith("repository:")
+                )
+            ):
                 _add(
                     errors,
                     f"{path}.base_branch_protection.source",
-                    "must be a non-empty repository policy source",
+                    "must be a repository: policy source",
                 )
             if protection["status"] not in {"protected", "unprotected"}:
                 _add(
@@ -1053,6 +1064,57 @@ def _validate_landing(
                     errors,
                     f"{path}.base_branch_protection.status",
                     "pull_request requires a protected base",
+                )
+        integration_protection = value.get("integration_branch_protection")
+        if integration_protection is not None and _keys(
+            errors,
+            f"{path}.integration_branch_protection",
+            integration_protection,
+            {"branch_ref", "status", "source"},
+        ):
+            if not _nonempty_string(
+                integration_protection["branch_ref"]
+            ) or not str(integration_protection["branch_ref"]).startswith(
+                "refs/heads/"
+            ):
+                _add(
+                    errors,
+                    f"{path}.integration_branch_protection.branch_ref",
+                    "must be a full local branch ref",
+                )
+            if (
+                not _nonempty_string(integration_protection["source"])
+                or not str(integration_protection["source"]).startswith(
+                    "repository:"
+                )
+            ):
+                _add(
+                    errors,
+                    f"{path}.integration_branch_protection.source",
+                    "must be a repository: policy source",
+                )
+            if integration_protection["status"] not in {
+                "protected",
+                "unprotected",
+            }:
+                _add(
+                    errors,
+                    f"{path}.integration_branch_protection.status",
+                    "must be protected or unprotected",
+                )
+            if _normalized_branch(
+                integration_protection["branch_ref"]
+            ) != _normalized_branch(integration_branch):
+                _add(
+                    errors,
+                    f"{path}.integration_branch_protection.branch_ref",
+                    "must match integration.branch",
+                )
+            if value["mode"] == "integration_pull_request":
+                _add(
+                    errors,
+                    f"{path}.integration_branch_protection",
+                    "integration_pull_request records this evidence as base_branch_protection",
                 )
         if (
             value["mode"] == "integration_pull_request"
@@ -2812,6 +2874,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             errors,
             run["landing"],
             schema_version,
+            integration_branch=(
+                raw_integration.get("branch")
+                if isinstance(raw_integration, dict)
+                else None
+            ),
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
             legacy_completed_unmarked=is_legacy_completed_unmarked_run(run),

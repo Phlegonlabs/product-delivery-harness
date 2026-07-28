@@ -4012,6 +4012,9 @@ class RunValidationTests(unittest.TestCase):
                 )
 
         ordinary = {
+            "schema_version": 10,
+            "status": "running",
+            "action_target_contract": ACTION_TARGET_CONTRACT,
             "integration": {"branch": "refs/heads/codex/feature"},
             "landing": {
                 "mode": "local_only",
@@ -4020,10 +4023,181 @@ class RunValidationTests(unittest.TestCase):
                 "pr_url": None,
             },
         }
+        self.assertFalse(
+            execution_intent_target_in_scope(
+                {}, ordinary, "push", "branch:refs/heads/codex/feature"
+            )
+        )
+        ordinary["landing"]["integration_branch_protection"] = {
+            "branch_ref": "refs/heads/codex/feature",
+            "status": "unprotected",
+            "source": "user: this branch should be unprotected",
+        }
+        self.assertFalse(
+            execution_intent_target_in_scope(
+                {}, ordinary, "push", "branch:refs/heads/codex/feature"
+            )
+        )
+        ordinary["landing"]["integration_branch_protection"]["source"] = (
+            "repository: branch protection rules"
+        )
         self.assertTrue(
             execution_intent_target_in_scope(
                 {}, ordinary, "push", "branch:refs/heads/codex/feature"
             )
+        )
+        ordinary["landing"]["integration_branch_protection"]["status"] = (
+            "protected"
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(
+                {}, ordinary, "push", "branch:refs/heads/codex/feature"
+            )
+        )
+
+    def test_current_push_requires_exact_integration_protection_or_target_source(
+        self,
+    ) -> None:
+        plan = {}
+        run = {
+            "schema_version": 10,
+            "status": "running",
+            "action_target_contract": ACTION_TARGET_CONTRACT,
+            "integration": {"branch": "refs/heads/development"},
+            "landing": {
+                "mode": "integration_push",
+                "base_branch": "main",
+                "head_branch": "refs/heads/development",
+                "integration_branch_protection": None,
+            },
+        }
+        target = "branch:refs/heads/development"
+        entry = {
+            "source": "user: execute the development loop",
+            "scope": {"targets": [target]},
+        }
+
+        errors: list[str] = []
+        validate_target_sources(
+            errors,
+            "run.authorizations.push",
+            entry,
+            plan=plan,
+            run=run,
+            action="push",
+        )
+        self.assertTrue(any(f"target_sources.{target}" in error for error in errors))
+
+        run["landing"]["integration_branch_protection"] = {
+            "branch_ref": "refs/heads/development",
+            "status": "unprotected",
+            "source": "repository: branch protection rules",
+        }
+        errors = []
+        validate_target_sources(
+            errors,
+            "run.authorizations.push",
+            entry,
+            plan=plan,
+            run=run,
+            action="push",
+        )
+        self.assertEqual([], errors)
+
+        run["landing"]["integration_branch_protection"]["status"] = "protected"
+        errors = []
+        validate_target_sources(
+            errors,
+            "run.authorizations.push",
+            entry,
+            plan=plan,
+            run=run,
+            action="push",
+        )
+        self.assertTrue(any(f"target_sources.{target}" in error for error in errors))
+
+        entry["target_sources"] = {
+            target: "user: push this exact protected development branch"
+        }
+        errors = []
+        validate_target_sources(
+            errors,
+            "run.authorizations.push",
+            entry,
+            plan=plan,
+            run=run,
+            action="push",
+        )
+        self.assertEqual([], errors)
+
+    def test_integration_protection_record_binds_repository_source_and_branch(
+        self,
+    ) -> None:
+        root = SCRIPTS_DIR.parent
+        plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+        run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        run["landing"]["integration_branch_protection"] = {
+            "branch_ref": run["integration"]["branch"],
+            "status": "unprotected",
+            "source": "repository: branch protection rules",
+        }
+        self.assertEqual([], validate_run(plan, run))
+
+        non_repository = copy.deepcopy(run)
+        non_repository["landing"]["integration_branch_protection"]["source"] = (
+            "user: trust this branch"
+        )
+        self.assert_run_error_contains(
+            plan,
+            non_repository,
+            "integration_branch_protection.source: must be a repository: policy source",
+        )
+
+        mismatched = copy.deepcopy(run)
+        mismatched["landing"]["integration_branch_protection"]["branch_ref"] = (
+            "refs/heads/other"
+        )
+        self.assert_run_error_contains(
+            plan,
+            mismatched,
+            "integration_branch_protection.branch_ref: must match integration.branch",
+        )
+
+    def test_integration_protection_evidence_preserves_only_historical_fallbacks(
+        self,
+    ) -> None:
+        target = "branch:refs/heads/codex/feature"
+        current = {
+            "schema_version": 10,
+            "status": "complete",
+            "action_target_contract": ACTION_TARGET_CONTRACT,
+            "integration": {"branch": "refs/heads/codex/feature"},
+            "landing": {
+                "mode": "integration_push",
+                "base_branch": "main",
+                "head_branch": "refs/heads/codex/feature",
+            },
+        }
+        self.assertFalse(
+            execution_intent_target_in_scope({}, current, "push", target)
+        )
+
+        historical = copy.deepcopy(current)
+        historical.pop("action_target_contract")
+        self.assertTrue(
+            execution_intent_target_in_scope({}, historical, "push", target)
+        )
+
+        active_unmarked = copy.deepcopy(historical)
+        active_unmarked["status"] = "running"
+        self.assertFalse(
+            execution_intent_target_in_scope({}, active_unmarked, "push", target)
+        )
+
+        schema_v9 = copy.deepcopy(active_unmarked)
+        schema_v9["schema_version"] = 9
+        self.assertTrue(
+            execution_intent_target_in_scope({}, schema_v9, "push", target)
         )
 
     def test_complete_integration_run_rejects_a_null_integration_object(self) -> None:
@@ -4144,6 +4318,29 @@ class RunValidationTests(unittest.TestCase):
         )
         self.assertTrue(
             execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
+        run["landing"]["base_branch_protection"]["source"] = (
+            "AGENTS.md integration branch policy"
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "push", push_target)
+        )
+        self.assertTrue(
+            any(
+                "base_branch_protection.source" in error
+                for error in validate_run(plan, run)
+            )
+        )
+        legacy = copy.deepcopy(run)
+        legacy["status"] = "complete"
+        legacy.pop("action_target_contract")
+        self.assertTrue(
+            execution_intent_target_in_scope(
+                plan, legacy, "push", push_target
+            )
+        )
+        run["landing"]["base_branch_protection"]["source"] = (
+            "repository: AGENTS.md integration branch policy"
         )
 
         run["landing"]["base_branch_protection"]["branch_ref"] = "development"
@@ -4491,6 +4688,11 @@ class RunValidationTests(unittest.TestCase):
 
         default_main = copy.deepcopy(custom_protected)
         default_main["landing"]["base_branch"] = "main"
+        default_main["landing"]["integration_branch_protection"] = {
+            "branch_ref": "refs/heads/codex/feature",
+            "status": "unprotected",
+            "source": "repository: branch protection rules",
+        }
         main_future_pr = protected_future_pr.replace(
             "refs/heads/release", "refs/heads/main"
         )

@@ -546,6 +546,9 @@ class RunUpgradeTests(UpgradeHelpers, unittest.TestCase):
 
         self.assertEqual("not_created", upgraded_run["landing"]["pr_state"])
         self.assertFalse(upgraded_run["landing"]["auto_merge_requested"])
+        self.assertIsNone(
+            upgraded_run["landing"]["integration_branch_protection"]
+        )
         for action in (
             "invoke_external_runtime",
             "trigger_remote_ci",
@@ -746,6 +749,13 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         root = self._seed_repo()
         plan, base = current_release_plan_and_run(root, "manual")
         branch = base["integration"]["branch"]
+        base["landing"]["integration_branch_protection"] = {
+            "branch_ref": (
+                branch if branch.startswith("refs/heads/") else f"refs/heads/{branch}"
+            ),
+            "status": "unprotected",
+            "source": "repository: branch protection rules",
+        }
 
         in_scope = copy.deepcopy(base)
         self._grant(in_scope, "push", [f"branch:{branch}"])

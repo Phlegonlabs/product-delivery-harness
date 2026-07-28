@@ -524,6 +524,7 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
             "source": None,
         }
     if isinstance(landing, dict):
+        landing["integration_branch_protection"] = None
         landing["continuity"] = (
             {
                 "status": "planned",
@@ -545,6 +546,7 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
     added = [
         "authorizations.trigger_remote_ci",
         "authorizations.provision_cloud_resources",
+        "landing.integration_branch_protection",
         "landing.continuity",
         "external_merge_contract",
         "verifier_executions",

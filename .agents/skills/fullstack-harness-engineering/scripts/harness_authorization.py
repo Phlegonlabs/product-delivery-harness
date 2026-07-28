@@ -185,6 +185,33 @@ def _integration_branch(run: dict[str, Any]) -> str | None:
     return None
 
 
+def _recorded_branch_protection(
+    protection: Any,
+    normalized_branch: str,
+    *,
+    require_repository_source: bool = False,
+) -> bool | None:
+    """Return exact repository-sourced protection state for one branch."""
+
+    if (
+        not isinstance(protection, dict)
+        or not _nonempty_string(protection.get("branch_ref"))
+        or not str(protection.get("branch_ref")).startswith("refs/heads/")
+        or _normalized_branch(protection.get("branch_ref")) != normalized_branch
+        or not _nonempty_string(protection.get("source"))
+        or (
+            require_repository_source
+            and not str(protection.get("source")).startswith("repository:")
+        )
+    ):
+        return None
+    if protection.get("status") == "protected":
+        return True
+    if protection.get("status") == "unprotected":
+        return False
+    return None
+
+
 def future_pr_target_matches_landing(
     target: str,
     landing: Any,
@@ -223,13 +250,12 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
     """Resolve branch protection from the recorded landing model.
 
     Repository policy always protects `main`, even if a malformed or stale RUN
-    labels it as an integration branch. A non-`main` integration PR base is
-    treated as unprotected only when RUN carries a repository-sourced protection
-    record bound to that exact branch.
-    `pull_request` and the non-PR modes record a protected landing base beside
-    the run's non-protected integration head. `integration_pull_request`
-    instead records a genuine non-protected integration base. Missing or
-    internally inconsistent state is unknown and therefore fails closed.
+    labels it as an integration branch. Every current RUN treats an integration
+    branch as unprotected only when it carries repository-sourced protection
+    evidence bound to that exact branch. `integration_pull_request` binds that
+    evidence to `landing.base_branch_protection`; the other modes bind it to
+    `landing.integration_branch_protection`. Missing or internally inconsistent
+    state is unknown and therefore fails closed.
     """
     landing = run.get("landing")
     integration = run.get("integration")
@@ -255,24 +281,20 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
             or normalized_head == normalized_integration
         ):
             return None
-        protection = landing.get("base_branch_protection")
-        if (
-            normalized_branch != normalized_integration
-            or not isinstance(protection, dict)
-            or not _nonempty_string(protection.get("branch_ref"))
-            or not str(protection.get("branch_ref")).startswith("refs/heads/")
-            or _normalized_branch(protection.get("branch_ref")) != normalized_base
-            or not _nonempty_string(protection.get("source"))
-        ):
+        if normalized_branch != normalized_integration:
+            return None
+        legacy_completed_unmarked = is_legacy_completed_unmarked_run(run)
+        protection = _recorded_branch_protection(
+            landing.get("base_branch_protection"),
+            normalized_integration,
+            require_repository_source=not legacy_completed_unmarked,
+        )
+        if protection is None:
             # Only explicitly unmarked completed history predates this evidence.
             # Current-contract runs fail closed even after completion so their
             # retained target provenance cannot launder a protected base.
-            return False if is_legacy_completed_unmarked_run(run) else None
-        if protection.get("status") == "protected":
-            return True
-        if protection.get("status") == "unprotected":
-            return False
-        return None
+            return False if legacy_completed_unmarked else None
+        return protection
     if mode not in {"local_only", "integration_push", "pull_request"}:
         return None
     if (
@@ -283,7 +305,19 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
     if normalized_branch == normalized_base:
         return True
     if normalized_branch == normalized_integration:
-        return False
+        protection = _recorded_branch_protection(
+            landing.get("integration_branch_protection"),
+            normalized_integration,
+            require_repository_source=True,
+        )
+        if protection is not None:
+            return protection
+        if is_legacy_completed_unmarked_run(run):
+            return False
+        schema_version = run.get("schema_version")
+        if isinstance(schema_version, int) and 2 <= schema_version <= 9:
+            return False
+        return None
     return None
 
 
