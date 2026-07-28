@@ -345,6 +345,7 @@ class GraphManifestTests(unittest.TestCase):
                     {},
                     set(),
                     require_bounded_review_repair=True,
+                    enforce_action_target_kinds=True,
                 )
                 self.assertEqual([], errors)
 
@@ -420,6 +421,7 @@ class GraphManifestTests(unittest.TestCase):
                     {},
                     set(),
                     require_bounded_review_repair=True,
+                    enforce_action_target_kinds=True,
                 )
                 self.assertTrue(
                     any("target kind" in error for error in errors),

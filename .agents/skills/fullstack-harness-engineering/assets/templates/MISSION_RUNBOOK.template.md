@@ -12,7 +12,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
 
 RUN schema v10 records provider-neutral release state under `targets`, keyed by stable PLAN `release.targets[].id`. The keys must exactly equal the PLAN `release.targets[].id` set. PASS evidence is target-neutral: exact source and authorized head SHAs, retained artifact/build/version/signing proof, exact channel proof, promotion proof, availability proof, migration result, and smoke verification. Provider-specific resource IDs may appear in retained references, but never replace the stable target key.
 
-Older RUN schemas remain readable. Their `deployments` objects retain their original meaning; do not copy that older provider-shaped state into a new RUN schema v10 file.
+Older RUN schemas remain readable. Existing RUN v10 files without `action_target_contract` also keep their generic exact-target rules. New PLAN v5 and RUN v10 files declare the same `action-targets/1` marker to enable strict action-to-target validation. Older `deployments` objects retain their original meaning; do not copy that provider-shaped state into a new RUN schema v10 file.
 
 ## Harness Run State
 
@@ -20,11 +20,12 @@ Older RUN schemas remain readable. Their `deployments` objects retain their orig
 {
   "harness_run": {
     "schema_version": 10,
+    "action_target_contract": "action-targets/1",
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "53fde3509c7409207c6e07c3a621aaf0fed2e04cc472a84f68f23ab8f102e2a5"
+      "digest_sha256": "80e7832410c6bbc8969b23208cbe75449e5a4cc4b67ad0f3abede41d7cbaebc4"
     },
     "status": "draft",
     "intent": "plan-only",

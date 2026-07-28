@@ -31,6 +31,7 @@ from harness_manifest import (  # noqa: E402
     validate_plan,
     validate_run,
 )
+from harness_schema import ACTION_TARGET_CONTRACT  # noqa: E402
 from test_harness_manifest import cloudflare_release, valid_plan, valid_run  # noqa: E402
 from test_select_parallel_missions import manifest_markdown  # noqa: E402
 
@@ -80,17 +81,25 @@ def safe_v4_plan_and_v9_run(repo_root: Path) -> tuple[dict[str, object], dict[st
     return plan, run
 
 
-def current_plan_and_run(repo_root: Path) -> tuple[dict[str, object], dict[str, object]]:
+def current_plan_and_run(
+    repo_root: Path,
+    *,
+    strict_action_targets: bool = True,
+) -> tuple[dict[str, object], dict[str, object]]:
     """Build a valid direct PLAN-v5/RUN-v10 fixture."""
 
     plan, run = safe_v4_plan_and_v9_run(repo_root)
     upgrade._PLAN_STEPS[4](plan, repo_root)
+    if strict_action_targets:
+        plan["action_target_contract"] = ACTION_TARGET_CONTRACT
     run["plan"] = {
         "id": plan["plan_id"],
         "revision": plan["revision"],
         "digest_sha256": plan_digest(plan),
     }
     upgrade._RUN_STEPS[9](run, plan)
+    if strict_action_targets:
+        run["action_target_contract"] = ACTION_TARGET_CONTRACT
     return plan, run
 
 
@@ -604,7 +613,8 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         action: str,
         target_id: str = "development",
     ) -> None:
-        run["authorizations"][action] = {
+        target = f"release:{target_id}"
+        entry: dict[str, object] = {
             "authorized": True,
             "source": f"user: authorize {action} for {target_id}",
             "scope": {
@@ -612,11 +622,18 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
                 "plan_revision": run["plan"]["revision"],
                 "plan_digest_sha256": run["plan"]["digest_sha256"],
                 "mission_ids": list(run["mission_states"]),
-                "targets": [f"release:{target_id}"],
+                "targets": [target],
             },
             "expires_when": "run_complete",
             "authorized_head_sha": run["targets"][target_id]["authorized_head_sha"],
         }
+        if action == "merge_pr" and str(run["landing"]["base_branch"]).removeprefix(
+            "refs/heads/"
+        ) == "main":
+            entry["target_sources"] = {
+                target: "user: separately authorize this main-bound merge consequence"
+            }
+        run["authorizations"][action] = entry
 
     def test_plan_v5_verifier_ids_are_globally_unique_across_layers(self) -> None:
         root = self._seed_repo()
@@ -1211,6 +1228,23 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertTrue(
             any("provision_cloud_resources requires cloud-resource:" in error for error in errors)
         )
+
+    def test_existing_v10_without_contract_keeps_generic_exact_targets(self) -> None:
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root, strict_action_targets=False)
+        target = "remote:origin/development"
+        self._authorize(run, "push", target)
+        run["authorizations"]["push"].update(
+            {
+                "authorized_head_sha": run["integration"]["integration_head_sha"],
+                "target_sources": {
+                    target: "user: separately authorize this exact remote target"
+                },
+            }
+        )
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual([], validate_run(plan, run))
 
     def test_v10_head_bound_actions_reject_wrong_target_kinds(self) -> None:
         for action, target in (

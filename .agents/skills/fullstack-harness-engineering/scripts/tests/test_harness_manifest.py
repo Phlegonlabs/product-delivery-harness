@@ -2984,11 +2984,19 @@ class RunValidationTests(unittest.TestCase):
         }
 
         self.assertEqual(validate_run(plan, run), [])
+        self.assertTrue(
+            action_target_kind_allowed(
+                "create_local_commits",
+                "task:legacy-exact-target",
+                10,
+            )
+        )
         self.assertFalse(
             action_target_kind_allowed(
                 "create_local_commits",
                 "task:legacy-exact-target",
                 10,
+                strict=True,
             )
         )
 
@@ -3213,9 +3221,23 @@ class RunValidationTests(unittest.TestCase):
         )
         exact_pr = f"pr:{run['landing']['pr_url']}"
         run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
+        release_target = f"release:{development_target_id}"
+        errors = validate_run(plan, run)
+        for target in (future_pr, exact_pr, release_target):
+            with self.subTest(target=target):
+                self.assertTrue(
+                    any(
+                        f"target_sources.{target}:" in error
+                        and "requires its own recorded authorization source" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
+
         run["authorizations"]["merge_pr"]["target_sources"] = {
             future_pr: "user: merge this main-bound pull request after it is ready",
             exact_pr: "user: merge this main-bound pull request after it is ready",
+            release_target: "user: merge this main-bound pull request after it is ready",
         }
 
         self.assert_run_error_contains(

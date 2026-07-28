@@ -85,6 +85,7 @@ FUTURE_PR_TARGET_RE = re.compile(
     r"^future-pr:(?P<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+):"
     r"base=(?P<base>[^:\s]+):head=(?P<head>[^:\s]+)$"
 )
+ACTION_TARGET_CONTRACT = "action-targets/1"
 
 # A target prefix is part of an action's type. PLAN graph and RUN ledger
 # validation both consume this table so they cannot disagree about which exact
@@ -112,7 +113,13 @@ ACTION_TARGET_RULES = {
 }
 
 
-def action_target_kind_allowed(action: str, target: str, schema_version: int) -> bool:
+def action_target_kind_allowed(
+    action: str,
+    target: str,
+    schema_version: int,
+    *,
+    strict: bool = False,
+) -> bool:
     """Return whether an exact target has the kind allowed for this action."""
     if target == "*":
         return True
@@ -125,12 +132,15 @@ def action_target_kind_allowed(action: str, target: str, schema_version: int) ->
     if TARGET_RE.fullmatch(target) is None:
         return False
     kind = target.split(":", 1)[0]
-    if schema_version < 10:
-        # Preserve the validation contract of legacy RUN files. Before v10,
-        # every exact TARGET_RE shape was accepted except the runtime action,
-        # which already required runtime:<provider>.
+    if not strict:
+        # Preserve every existing schema's validation contract unless the
+        # artifact explicitly opts into action-targets/1.
         if action == "invoke_external_runtime":
             return kind == "runtime"
+        if action == "trigger_remote_ci":
+            return kind == "workflow"
+        if action == "provision_cloud_resources":
+            return CLOUD_RESOURCE_TARGET_RE.fullmatch(target) is not None
         return True
     if action == "provision_cloud_resources":
         return CLOUD_RESOURCE_TARGET_RE.fullmatch(target) is not None

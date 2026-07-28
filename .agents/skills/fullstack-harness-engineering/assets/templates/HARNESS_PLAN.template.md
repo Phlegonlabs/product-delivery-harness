@@ -10,6 +10,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
 {
   "harness_plan": {
     "schema_version": 5,
+    "action_target_contract": "action-targets/1",
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",

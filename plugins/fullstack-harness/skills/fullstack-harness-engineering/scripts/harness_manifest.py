@@ -10,6 +10,7 @@ import json
 from typing import Any
 
 from harness_schema import (
+    ACTION_TARGET_CONTRACT,
     AUTHORIZATION_KEYS,
     AUTHORIZATION_KEYS_V2,
     AUTHORIZATION_KEYS_V8,
@@ -205,6 +206,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     if schema_version in {4, 5}:
         top_keys.update({"graph", "required_reviews"})
     optional_keys = {"release"} if schema_version in {3, 4, 5} else set()
+    if schema_version == 5:
+        optional_keys.add("action_target_contract")
     if not _keys(errors, "plan", plan, top_keys, optional_keys):
         return sorted(errors)
     if plan["schema_version"] not in {2, 3, 4, 5}:
@@ -217,6 +220,15 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         _add(errors, "plan.objective", "must be a non-empty string")
     if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
         _add(errors, "plan.max_parallel_workers", "must be a positive integer")
+    if (
+        "action_target_contract" in plan
+        and plan["action_target_contract"] != ACTION_TARGET_CONTRACT
+    ):
+        _add(
+            errors,
+            "plan.action_target_contract",
+            f"must equal {ACTION_TARGET_CONTRACT!r}",
+        )
 
     required_reviews: list[str] = []
     if schema_version in {4, 5}:
@@ -756,6 +768,9 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             missions,
             declared_verifier_ids,
             require_bounded_review_repair=plan["schema_version"] == 5,
+            enforce_action_target_kinds=(
+                plan.get("action_target_contract") == ACTION_TARGET_CONTRACT
+            ),
         )
         declared_reviews = {
             node.get("review", {}).get("type")
@@ -2291,13 +2306,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
     optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
     if schema_version == 10:
-        optional_run_keys.add("targets")
+        optional_run_keys.update({"targets", "action_target_contract"})
     if graph_run:
         optional_run_keys.add("workflow_runs")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
+    if (
+        "action_target_contract" in run
+        and run["action_target_contract"] != ACTION_TARGET_CONTRACT
+    ):
+        _add(
+            errors,
+            "run.action_target_contract",
+            f"must equal {ACTION_TARGET_CONTRACT!r}",
+        )
+    if run.get("action_target_contract") != plan.get("action_target_contract"):
+        _add(
+            errors,
+            "run.action_target_contract",
+            "must match plan.action_target_contract",
+        )
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
         _add(errors, "run.status", "has an unsupported value")
     if run["intent"] not in {
@@ -2534,6 +2564,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         allow_future_pr=(schema_version in {6, 7, 8, 9, 10}),
                         require_plan_binding=(schema_version == 10),
                         schema_version=schema_version,
+                        strict_action_targets=(
+                            run.get("action_target_contract")
+                            == ACTION_TARGET_CONTRACT
+                        ),
                     )
                     if isinstance(entry["scope"], dict):
                         action_scope = entry["scope"]

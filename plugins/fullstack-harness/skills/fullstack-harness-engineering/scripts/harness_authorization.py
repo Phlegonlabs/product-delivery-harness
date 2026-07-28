@@ -33,6 +33,7 @@ def _validate_authorization_scope(
     allow_future_pr: bool = False,
     require_plan_binding: bool = False,
     schema_version: int | None = None,
+    strict_action_targets: bool = False,
 ) -> None:
     required = (
         {"run_id", "mission_ids", "targets"}
@@ -84,7 +85,10 @@ def _validate_authorization_scope(
             elif (
                 action_name is None
                 or not action_target_kind_allowed(
-                    action_name, target, resolved_schema_version
+                    action_name,
+                    target,
+                    resolved_schema_version,
+                    strict=strict_action_targets,
                 )
                 or (target.startswith("future-pr:") and not allow_future_pr)
             ):
@@ -116,6 +120,12 @@ def _integration_branch(run: dict[str, Any]) -> str | None:
     if isinstance(integration, dict) and _nonempty_string(integration.get("branch")):
         return integration["branch"]
     return None
+
+
+def _normalized_branch(value: Any) -> str | None:
+    if not _nonempty_string(value):
+        return None
+    return value.removeprefix("refs/heads/")
 
 
 def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
@@ -154,12 +164,20 @@ def execution_intent_target_in_scope(
         return target == f"branch:{branch}"
     if action == "merge_pr":
         future_pr = FUTURE_PR_TARGET_RE.fullmatch(target)
+        landing = run.get("landing")
+        landing_base = (
+            landing.get("base_branch") if isinstance(landing, dict) else None
+        )
+        target_base = future_pr.group("base") if future_pr is not None else landing_base
+        if _normalized_branch(target_base) == "main":
+            # A generic development-loop instruction never covers a main-bound
+            # merge. Every target in that merge entry must retain the later
+            # exact human instruction in target_sources.
+            return False
         if future_pr is not None:
             return future_pr.group("base") == branch
         if target.startswith("pr:"):
-            landing = run.get("landing")
-            base = landing.get("base_branch") if isinstance(landing, dict) else None
-            return base == branch
+            return landing_base == branch
         # A merge-triggered release records the release consequence on the merge
         # itself. It stays in scope on the same rule as `deploy`: the
         # development target rides the loop, the production one does not.

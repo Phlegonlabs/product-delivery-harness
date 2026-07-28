@@ -68,6 +68,7 @@ def _validate_graph(
     verifier_ids: set[str],
     *,
     require_bounded_review_repair: bool = False,
+    enforce_action_target_kinds: bool = False,
 ) -> None:
     path = "plan.graph"
     authorization_actions = (
@@ -233,7 +234,10 @@ def _validate_graph(
                     and valid_ref
                     and ref in authorization_actions
                     and not action_target_kind_allowed(
-                        ref, target, 10 if require_bounded_review_repair else 9
+                        ref,
+                        target,
+                        10 if require_bounded_review_repair else 9,
+                        strict=enforce_action_target_kinds,
                     )
                 ):
                     schema_version = 10 if require_bounded_review_repair else 9
