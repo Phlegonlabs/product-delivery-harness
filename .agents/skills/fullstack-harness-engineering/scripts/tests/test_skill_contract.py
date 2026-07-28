@@ -206,6 +206,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
         pull_request = self.read("assets/templates/PULL_REQUEST.template.md")
+        harness_plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         state_model = self.read("references/execution-state-model.md")
         verification = self.read("references/verification-gates.md")
         agent = self.read("agents/openai.yaml")
@@ -236,6 +237,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "then and only then set the RUN to `complete`",
             skill,
         )
+        self.assertIn(
+            "leave `merge_pr` false because this is observed external state",
+            skill,
+        )
+        self.assertIn(
+            "always requires independent exact production `deploy` authorization",
+            skill,
+        )
+        self.assertIn(
+            "If the harness performs or auto-merges",
+            skill,
+        )
         self.assertNotIn(
             "A pull-request run is complete when the exact current-head CI and review gates pass",
             skill,
@@ -250,6 +263,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "bind `create_pr` and `manage_pr_review`",
             runbook,
         )
+        self.assertIn(
+            "leave `merge_pr` false and record the merged landing as observed external state",
+            runbook,
+        )
+        self.assertIn(
+            "native merge-triggered publication always requires independent exact production `deploy` authorization",
+            runbook,
+        )
+        self.assertIn(
+            "A harness-performed or auto-merge path additionally requires exact `merge_pr` authorization",
+            runbook,
+        )
         self.assertIn("The merge toward the protected base is the human's", project_rules)
         self.assertIn(
             "Do not bind `merge_pr` until a later explicit instruction names the exact existing PR",
@@ -259,6 +284,27 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "only that later instruction may supply `merge_pr` for the exact PR",
             state_model,
         )
+        self.assertIn(
+            "leave `merge_pr` false and record the merged landing as observed external state",
+            state_model,
+        )
+        self.assertIn(
+            "an observed external human merge leaves `merge_pr` false",
+            state_model,
+        )
+        self.assertIn(
+            "exact production `deploy` authorization remains required",
+            state_model,
+        )
+        for content in (self.read("SKILL.md"), harness_plan):
+            self.assertIn(
+                "always requires independent exact production `deploy` authorization",
+                content,
+            )
+            self.assertIn(
+                "`merge_pr` false",
+                content,
+            )
         for content in (pull_request, verification):
             self.assertIn("non-protected integration base", content)
             self.assertIn("protected-base PR", content)

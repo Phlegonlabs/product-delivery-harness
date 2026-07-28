@@ -228,15 +228,34 @@ class SchemaV5V10ContractTests(unittest.TestCase):
             {"harness_parent", "local_command"},
         )
 
-    def test_native_merge_trigger_requires_landing_and_deployment_authorization(self) -> None:
+    def test_native_merge_trigger_keeps_merge_and_deploy_authorization_distinct(
+        self,
+    ) -> None:
         landing = self.read_sibling_skill("fullstack-harness-github-landing")
+        goal = self.read("assets/templates/GOAL.template.md")
+        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
 
-        self.assertIn("exact merge/landing authorization", landing)
-        self.assertIn("exact deployment authorization", landing)
-        self.assertIn("Never infer deployment authorization from merge authorization", landing)
-        self.assertIn("authorized candidate head", landing)
-        self.assertIn("resulting merged source SHA", landing)
-        self.assertIn("release:<target-id>", landing)
+        for content in (landing, goal, lifecycle):
+            self.assertIn(
+                "always requires independent exact production `deploy` authorization",
+                content,
+            )
+            self.assertIn(
+                "If the harness performs or auto-merges",
+                content,
+            )
+            self.assertIn(
+                "leave `merge_pr` false",
+                content,
+            )
+            self.assertIn("release:<target-id>", content)
+        self.assertIn(
+            "Never infer deployment authorization from merge authorization",
+            landing,
+        )
+        self.assertIn("record the resulting merge as observed state", landing)
+        self.assertIn("record observed merged state", goal)
+        self.assertIn("record the merge as observed state", lifecycle)
 
     def test_cloudflare_current_contract_is_provider_neutral(self) -> None:
         lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")

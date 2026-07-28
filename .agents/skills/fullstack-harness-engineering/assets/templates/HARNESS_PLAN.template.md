@@ -498,7 +498,7 @@ Stable target IDs are provider-neutral and must survive provider configuration c
 
 The default model declares one production target, published from the protected base after the user merges. A production target binds to `production_head`; `merged_main` remains readable only for older plans. Declare a development-stage target only when the repository actually keeps a separate preview or staging environment, and bind it to `pr_head` or to the retained `integration_head`. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
 
-These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10. A native merge-triggered publication requires exact merge/landing authorization for the PR and its `release:<target-id>` consequence plus exact deployment authorization for the same target and head. Never infer deployment authorization from merge authorization.
+These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10. A native merge-triggered publication always requires independent exact production `deploy` authorization for the same target and head. A harness-performed or auto-merge path additionally requires exact `merge_pr` authorization for the PR and its `release:<target-id>` consequence; an observed human merge leaves `merge_pr` false rather than fabricating a harness grant.
 
 ## Scope And Contract Freeze
 

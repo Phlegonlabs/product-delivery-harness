@@ -536,6 +536,213 @@ def mark_complete(plan: dict[str, object], run: dict[str, object]) -> None:
         run["post_merge_cleanup"]["deferred_reason"] = "fixture cleanup is deferred"
 
 
+def retained_gate_execution(
+    plan: dict[str, object],
+    run: dict[str, object],
+    declaration: dict[str, object],
+    *,
+    layer: str,
+    execution_id: str,
+) -> dict[str, object]:
+    changed_files: list[str] = []
+    context = {
+        "run_id": run["run_id"],
+        "plan_revision": run["plan"]["revision"],
+        "plan_digest_sha256": run["plan"]["digest_sha256"],
+        "graph_revision": run["graph_state"]["graph_revision"],
+        "batch_base_sha": run["integration"]["batch_base_sha"],
+        "head_sha": run["integration"]["integration_head_sha"],
+        "changed_files": changed_files,
+        "trust_domain": "parent_local",
+        "checkout_role": "integration",
+        "checkout_dirty": False,
+        "cache_safe": False,
+        "layer": layer,
+        "mission_id": None,
+        "task_id": None,
+        "attempt_id": None,
+        "lease_id": None,
+    }
+    normalized_verifier = {
+        "id": declaration["id"],
+        "cwd": declaration["cwd"],
+        "argv": declaration["argv"],
+        "pass_signal": declaration["pass_signal"],
+        "cache": {"mode": "disabled", "environment_keys": []},
+    }
+    key_document = {
+        "protocol": "harness-verifier-execution-v1",
+        "verifier_id": declaration["id"],
+        "layer": layer,
+        "mission_id": None,
+        "task_id": None,
+        "attempt_id": None,
+        "lease_id": None,
+        "run_id": context["run_id"],
+        "plan_revision": context["plan_revision"],
+        "plan_digest_sha256": context["plan_digest_sha256"],
+        "graph_revision": context["graph_revision"],
+        "batch_base_sha": context["batch_base_sha"],
+        "head_sha": context["head_sha"],
+        "changed_files_digest": hashlib.sha256(b"[]").hexdigest(),
+        "trust_domain": context["trust_domain"],
+        "checkout_role": context["checkout_role"],
+        "checkout_dirty": context["checkout_dirty"],
+        "cache_safe": context["cache_safe"],
+        "cwd": declaration["cwd"],
+        "argv": declaration["argv"],
+        "pass_signal": declaration["pass_signal"],
+        "cache_mode": "disabled",
+        "environment_keys": [],
+        "platform": {"system": "test", "machine": "test"},
+        "executable_identity": {
+            "path": "C:/python",
+            "size": 1,
+            "mtime_ns": 1,
+            "device": 1,
+            "inode": 1,
+        },
+        "environment_digests": {},
+    }
+    execution_key = hashlib.sha256(
+        json.dumps(
+            key_document,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    empty_digest = hashlib.sha256(b"").hexdigest()
+    return {
+        "execution_id": execution_id,
+        "verifier_id": declaration["id"],
+        "layer": layer,
+        "mission_id": None,
+        "task_id": None,
+        "attempt_id": None,
+        "lease_id": None,
+        "protocol": "harness-verifier-execution-v1",
+        "execution_key": execution_key,
+        "evidence_key": execution_key,
+        "key_document": key_document,
+        "verifier": normalized_verifier,
+        "context": context,
+        "status": "PASS",
+        "exit_code": 0,
+        "cache_status": "bypassed",
+        "cache_reason": "cache_disabled",
+        "duration_ms": 1,
+        "metrics": {"executed": 1, "reused": 0},
+        "stdout_sha256": empty_digest,
+        "stderr_sha256": empty_digest,
+        "evidence_paths": [],
+    }
+
+
+def mark_observed_merge_complete_v10(
+    plan: dict[str, object], run: dict[str, object]
+) -> None:
+    run["status"] = "complete"
+    run["intent"] = "plan-then-execute"
+    run["plan_readiness"] = "ready"
+    run["integration"]["batch_base_sha"] = SHA_A
+    for source in plan["sources"]:
+        source["status"] = "frozen"
+    for state in run["mission_states"].values():
+        state.update(
+            {
+                "phase": "superseded",
+                "integration_gate": "planned",
+                "integrated_sha": None,
+                "blockers": [],
+            }
+        )
+    for state in run["task_states"].values():
+        state.update(
+            {
+                "phase": "superseded",
+                "verifier_status": "PASS",
+                "blockers": [],
+            }
+        )
+    node_kinds = {
+        node["id"]: node["kind"]
+        for node in plan["graph"]["nodes"]
+    }
+    for node_id, state in run["graph_state"]["node_states"].items():
+        state.update(
+            {
+                "phase": (
+                    "superseded" if node_kinds[node_id] == "mission" else "skipped"
+                ),
+                "blockers": [],
+            }
+        )
+    for state in run["graph_state"]["edge_states"].values():
+        state.update(
+            {
+                "status": "skipped",
+                "traversals": 0,
+                "source_attempt_id": None,
+            }
+        )
+
+    declarations = [
+        *((item, "batch") for item in plan["batch_verifiers"]),
+        *((item, "final") for item in plan["final_gates"]),
+    ]
+    run["verifier_executions"] = [
+        retained_gate_execution(
+            plan,
+            run,
+            declaration,
+            layer=layer,
+            execution_id=f"VX-CLOSEOUT-{index}",
+        )
+        for index, (declaration, layer) in enumerate(declarations, start=1)
+    ]
+    executions = {
+        execution["verifier_id"]: execution
+        for execution in run["verifier_executions"]
+    }
+    for results in (run["batch_gate_results"], run["final_gate_results"]):
+        for result in results:
+            execution = executions[result["id"]]
+            result.update(
+                {
+                    "status": "PASS",
+                    "head_sha": run["integration"]["integration_head_sha"],
+                    "evidence": [execution["execution_key"]],
+                }
+            )
+
+    run["ui_evidence"] = [
+        {
+            "surface_id": surface["id"],
+            "route": surface["route"],
+            "breakpoint": breakpoint,
+            "state": state,
+            "artifact_path": (
+                f"docs/goal/evidence/{surface['id']}-{breakpoint}-{state}.png"
+            ),
+            "artifact_sha256": "c" * 64,
+            "head_sha": run["integration"]["integration_head_sha"],
+            "status": "PASS",
+        }
+        for surface in plan["ui_surfaces"]
+        if surface["evidence_gate"] == "required"
+        for breakpoint in surface["breakpoints"]
+        for state in surface["states"]
+    ]
+    run["post_merge_cleanup"].update(
+        {
+            "status": "deferred",
+            "deferred_reason": "human-managed cleanup",
+            "evidence": [],
+        }
+    )
+
+
 def authorize_merge(run: dict[str, object], pr_url: str) -> None:
     run["authorizations"]["merge_pr"] = {
         "authorized": True,
@@ -3228,35 +3435,29 @@ class RunValidationTests(unittest.TestCase):
         )
         self.assertEqual([], validate_run(plan, run))
 
-    def test_v10_merged_landing_retains_exact_current_head_merge_evidence(
+    def test_v10_merged_landing_distinguishes_observed_and_authorized_merges(
         self,
     ) -> None:
         for mode in ("pull_request", "integration_pull_request"):
             with self.subTest(mode=mode):
                 plan, run = self.merged_pull_request_v10(mode)
+                # A harness-initiated direct merge retains exact current-head
+                # authorization for every mission.
                 self.assertEqual([], validate_run(plan, run))
 
-                completed = copy.deepcopy(run)
-                completed["status"] = "complete"
-                completed_errors = validate_run(plan, completed)
-                self.assertFalse(
-                    any(
-                        "merged pull-request landing requires merge authorization"
-                        in error
-                        or "requires separate exact deploy authorization" in error
-                        for error in completed_errors
-                    ),
-                    completed_errors,
-                )
-
-                variants = {}
-                missing = copy.deepcopy(run)
-                missing["authorizations"]["merge_pr"] = {
+                observed = copy.deepcopy(run)
+                observed["authorizations"]["merge_pr"] = {
                     "authorized": False,
                     "source": None,
                 }
-                variants["missing"] = missing
+                self.assertEqual([], validate_run(plan, observed))
+                self.assertTrue(observed["authorizations"]["deploy"]["authorized"])
 
+                completed_observation = copy.deepcopy(observed)
+                mark_observed_merge_complete_v10(plan, completed_observation)
+                self.assertEqual([], validate_run(plan, completed_observation))
+
+                variants = {}
                 stale = copy.deepcopy(run)
                 stale["authorizations"]["merge_pr"]["authorized_head_sha"] = (
                     "f" * 40
@@ -3291,6 +3492,24 @@ class RunValidationTests(unittest.TestCase):
                             ),
                             errors,
                         )
+
+    def test_v10_auto_merge_still_requires_exact_merge_authorization(
+        self,
+    ) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": False,
+            "source": None,
+        }
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "auto_merge_requested requires matching merge_pr authorization for the exact PR",
+        )
 
     def test_v10_promotion_gates_bind_to_the_integration_head(self) -> None:
         root = SCRIPTS_DIR.parent

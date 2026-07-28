@@ -2858,11 +2858,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             for mission_id in merge_mission_states
         )
     )
+    # An unauthorized entry means RUN only observed an external human merge.
+    # Exact coverage is required when the harness was authorized to perform it.
     if (
         schema_version == 10
         and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
         and merge_landing.get("merge_status") == "merged"
         and merge_landing.get("auto_merge_requested") is False
+        and merge_entry.get("authorized") is True
         and not merge_authorization_covers_landing
     ):
         _add(
