@@ -95,8 +95,12 @@ Carry all four lines into the Screen Template below verbatim. They make the layo
 
 Lead the screen with the human-readable intent lines. The `UI ID` and trace IDs close the screen in a `### Trace` block, so a reader learns what the screen is for before meeting its identifiers.
 
+`Route(s):` is the one machine-consumed line among them. Implementation looks a route up here to find its screen entry, and a route with no entry is a hard stop downstream — so write the route the way the product actually addresses it (`/settings/billing`, `/orders/:id`, a native route or deep-link name), not a prose description of it. One screen may serve several routes; list them all. A screen with no addressable route — a modal, a step inside a wizard already covered by its parent route, an email or notification surface — records `n/a` with the reason, so a missing route reads as a decision rather than an omission.
+
 ````markdown
 ## Screen: [Name]
+
+Route(s): [Every route this screen serves, exactly as the product addresses it]
 
 Main purpose: [Single primary goal, one sentence]
 

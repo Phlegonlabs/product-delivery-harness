@@ -162,6 +162,8 @@ Four layers, in order: layout, surface, typography, control. Layer N uses only l
 |---|---|---|---|---|---|
 | DS-COMP-001 | <DomainComponentName> | <DS-LAY-001, DS-SUR-001, DS-CTL-001> | <field, field, field> | <ready, loading, empty, error> | <notes> |
 
+Every field in Required content order is a never-drop field: it renders in that order at every viewport or size class and in every state where the component appears. The same list ships as `requiredContentOrder` in `design-system.json`, and `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against it. Leave a field off the list if it may legitimately disappear.
+
 ### The Two Binding Rules
 
 - Every raw color, dimension, and motion value in the product appears in this document's token sections and in the JSON's declared `tokenSources`, and nowhere else.

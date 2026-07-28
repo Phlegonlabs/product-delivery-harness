@@ -5,9 +5,13 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/PRD.md`
 - `docs/product/architecture.md`
 - `docs/product/stack-decisions.md`
-- `docs/product/wireframes.md`
+- `docs/product/wireframes.md` for a UI-bearing product
+
+A product with no UI surface — a headless API or backend service, or an automation whose only surfaces belong to someone else's client — publishes no `wireframes.md`, `design-system.md`, or `design-system.json`, and records that skip in `PRD.md`. Never publish a placeholder wireframes file for a product with no screens.
 
 This package covers the product spec and the design system. For a UI-bearing product it also publishes `design-system.md` and `design-system.json`, contracted below.
+
+It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass is on by default for a non-trivial package; when the user declined it, no web tool was available, or the role returned blocked, the package publishes without the file and records the unvalidated market context in `PRD.md`'s `## Assumptions`. See `market-research-guide.md`.
 
 It stays out of the page layer. Do not add per-route recipes, per-route high-fidelity HTML mockups, a component catalog page, or page-level visual acceptance specs. The design system is defined once at the system level; implementation composes each route from `wireframes.md` plus the design system, and a route that needs something the system lacks comes back as a design-system change rather than a page-local exception.
 
@@ -27,8 +31,9 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `wireframes.md` | A designer or frontend engineer | What each screen must show and do |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
+| `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
 
-Reading order is `PRD.md` → `wireframes.md` → `architecture.md` → `stack-decisions.md`.
+Reading order is `PRD.md` → `wireframes.md` → `architecture.md` → `stack-decisions.md`. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
 
 Two rules keep the package readable:
 
@@ -41,6 +46,7 @@ Length budget. These are targets, not caps — say less when the product is simp
 - `architecture.md`: about 250 lines.
 - `stack-decisions.md`: about 150 lines.
 - `wireframes.md`: about 40 lines per screen, plus roughly 10 lines per visible region block.
+- `market-research.md`: about 150 lines. Findings and sources, not an industry report.
 
 When a section runs past its share, the usual cause is detail that belongs in a different artifact. Move it before expanding the file.
 
@@ -154,6 +160,67 @@ Builder direction is a product input, not usability proof. Record any conflict w
 
 Keep this section's heading text exactly as written. `wireframes.md` links to it by anchor (`PRD.md#builder-ux-direction-decision`); the anchor survives the section moving to the end of the file, but not the heading being renamed.
 
+## `market-research.md`
+
+Produced by the post-draft gap pass in `market-research-guide.md`. Omit the whole file when that pass was skipped or returned blocked.
+
+Every row that states a fact carries a source. A row with no source is marked `UNVALIDATED` and reads as a hypothesis, never as a finding.
+
+Use this structure, keeping only the sections that apply to this product:
+
+```markdown
+# Market Research: [Product Name]
+
+## Scope of This Research
+[What was researched and what was deliberately left out. For an internal tool, name the real alternatives — the current spreadsheet, the existing internal system, doing nothing — rather than commercial products nobody would buy here.]
+
+Researched on: [YYYY-MM-DD]
+
+## What Exists Today
+| Alternative | What it is | Who uses it | Where it falls short | Confidence | Sources |
+| --- | --- | --- | --- | --- | --- |
+| [Named product, in-house build, manual process, or nothing] | [One line] | [Segment] | [Observed limitation, not marketing spin] | [sourced / reported / UNVALIDATED] | [S-01] |
+
+## Feature Baseline
+| Capability | Table stakes or differentiator | Present in this PRD | Confidence | Sources |
+| --- | --- | --- | --- | --- |
+| [Capability] | [Table stakes / differentiator] | [Yes / No / Partial — cite PRD-*] | [sourced / reported / UNVALIDATED] | [S-02] |
+
+## Differentiation
+[The wedge against the named alternatives, and whether the drafted PRD actually delivers it. Say so plainly when it does not.]
+
+## Pricing Reference Points
+| Alternative | Model | Published price | Retrieved | Sources |
+| --- | --- | --- | --- | --- |
+
+Omit this section when the product has no commercial surface.
+
+## Category Benchmarks
+| Metric | This PRD's target | Category reference point | Confidence | Sources |
+| --- | --- | --- | --- | --- |
+
+## Market Risks
+| Risk | Why it applies here | Confidence | Sources |
+| --- | --- | --- | --- |
+| [Incumbent response, switching cost, platform dependency, regulatory or licensing limit] | [One line] | [sourced / reported / UNVALIDATED] | [S-03] |
+
+## Findings
+| MR ID | Finding | Lands in | Recommended change | Confidence | Sources |
+| --- | --- | --- | --- | --- | --- |
+| MR-001 | [What the research established] | [Artifact and section] | [What should change, or "no change — confirms current draft"] | [sourced / reported / UNVALIDATED] | [S-01] |
+
+## Unresolved
+| Question | What was searched | What would settle it |
+| --- | --- | --- |
+
+## Sources
+| Source ID | Publisher | Title | URL | Retrieved | Type |
+| --- | --- | --- | --- | --- | --- |
+| S-01 | [Publisher] | [Title] | [URL] | [YYYY-MM-DD] | [primary / secondary] |
+```
+
+`Lands in` names the artifact and section a finding affects, so the parent can apply it without re-reading the whole package. A finding that would widen product scope is recorded as a recommendation and raised with the user; the research role never decides scope.
+
 ## `architecture.md`
 
 Use this structure:
@@ -202,7 +269,7 @@ For every deployable hosted web, API, or backend target, include this environmen
 | Target | Exact Release Source | Deployment Unit | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Development | [`pr_head` after current-head CI, or `integration_head` for an explicitly retained integration branch] | [Distinct development deployment unit, e.g. Cloudflare Worker, Vercel project environment, AWS stack] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Classification, command, and ordering or not applicable] | [URL, version, checks, smoke, evidence] | [Prior development version] |
-| Production | [`merged_main` after development PASS] | [Distinct production deployment unit] | [Production resources] | [Production] | [Live or not applicable] | [Classification, command, and ordering or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
+| Production | [`production_head` after development PASS] | [Distinct production deployment unit] | [Production resources] | [Production] | [Live or not applicable] | [Classification, command, and ordering or not applicable] | [URL, version, production smoke, evidence] | [Prior production version] |
 
 State that both hosted targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development. Write each Migration Order cell so the engineering handoff can map it to PLAN-v5 `migration_classification`, `commands.migrate`, and `prerequisites` as appropriate.
 
@@ -215,7 +282,7 @@ Expected deployable surfaces: [stable surface IDs, for example `web-app`, `publi
 - Surface: [Stable expected surface ID]
 - Provider: [Stage-specific hosting, store, or distribution provider]
 - Stage: [development / production]
-- Source policy: [`pr_head` or `integration_head` for development; `merged_main` for production. Signed tags and other source rules are unsupported by the current PLAN-v5 engineering handoff and remain an explicit unresolved handoff gap rather than a frozen target source]
+- Source policy: [`pr_head` or `integration_head` for development; `production_head` for production. `merged_main` is the retired spelling of `production_head` — an existing package may still carry it and stays readable, but a new or revised target uses `production_head`. Signed tags and other source rules are unsupported by the current PLAN-v5 engineering handoff and remain an explicit unresolved handoff gap rather than a frozen target source]
 - Artifact kind: [Static bundle, container, serverless bundle, API service, IPA, AAB, signed DMG/PKG, MSIX, signed installer, or another exact artifact]
 - Signing requirement: [Not required, or exact certificate/signing/notarization requirement and owner]
 - Exact channel / track: [Named environment, URL, TestFlight group, Play track, App Store, update feed, direct-download channel, or another exact destination]
@@ -377,6 +444,8 @@ flowchart TD
 
 ## Screen: [Name]
 
+Route(s): [Every route this screen serves, exactly as the product addresses it — `/settings/billing`, `/orders/:id`, a native route or deep-link name, or `n/a` with a reason for a screen with no addressable route]
+
 Main purpose: [Single primary goal, one sentence]
 
 Primary emphasis: [What gets the strongest weight, and why]
@@ -427,6 +496,8 @@ Trace IDs: PRD-001, UX-001, ARCH-001
 
 Publish both for a UI-bearing product; skip both for a product with no UI surface and record that decision. Follow `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json`, and read `references/design-system-guide.md` before drafting either.
 
+A UI-bearing product ships without the pair only when the user explicitly overrides the requirement — for example because implementation builds against a design system this package does not own. That is the only valid skip for a UI-bearing product; the drafter never decides it. `PRD.md`'s `## Assumptions` records who asked for the override, the reason, and what visual contract implementation uses instead.
+
 Draft them after `wireframes.md`: the primitive inventory is derived from the screens the wireframes actually contain, not invented ahead of them.
 
 `design-system.md` is the semantic authority — the reasoning, the ratios, the guardrails, the decisions. It carries the sections in the template, in that order.
@@ -442,9 +513,11 @@ Draft them after `wireframes.md`: the primitive inventory is derived from the sc
 | `viewports` **or** `sizeClasses` | exactly one | `viewports` is a non-empty list of unique positive numbers, for a web target only. `sizeClasses` is a non-empty list of unique non-empty strings, for a native or desktop target. Shipping both, neither, or an empty set is an error. |
 | `tokens` | yes | Object of token groups (`color`, `space`, `radius`, `fontSize`, `lineHeight`, `shadow`, `duration`, `easing`). Every value referenced anywhere in the product appears here. |
 | `primitives` | yes | Object keyed by primitive name. Each value has a `layer` of `layout`, `surface`, `typography`, or `control`, an optional `class` when the base class differs from the kebab-cased name, and one list per variant axis. Every variant list is a closed set. |
-| `productComponents` | no | Object keyed by component name, each with `dsId`, `composes`, and `states`. |
+| `productComponents` | no | Object keyed by component name, each with `dsId`, `requiredContentOrder`, `composes`, and `states`. |
 | `motionVariants` | no | List of named motion variants a call site may reference. |
 | `stateMatrix` | yes | The states every screen must cover or explicitly mark `n/a`. |
+
+`requiredContentOrder` is the ordered list of content fields a product component must render, in the order it renders them. Every field on it is a **never-drop field**: implementation may not reorder the list, drop a field at a narrow viewport or size class, hide one behind a truncation rule, or omit one in a denser variant. A field that may legitimately disappear does not belong on the list. `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, so a component published without the key leaves that gate nothing to compare. Record the same ordered fields in `design-system.md`'s Product Components table.
 
 The two files must agree: neither may carry a token, primitive, variant, or state the other does not.
 
@@ -521,11 +594,12 @@ Before archiving earlier documents or publishing the staged package, verify:
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
 - No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
-- Every screen block in `wireframes.md` leads with `Main purpose:` and carries its `UI ID` and trace IDs in the closing `### Trace` block, not ahead of the human-readable lines.
+- Every screen block in `wireframes.md` leads with `Route(s):` and `Main purpose:` and carries its `UI ID` and trace IDs in the closing `### Trace` block, not ahead of the human-readable lines.
+- Every screen records `Route(s):` using the product's real addressing, or `n/a` with a reason. Every route named in `## Navigation Model` resolves to exactly one screen block, and no two screens claim the same route. Implementation resolves a route to its screen entry through this field, so an unlisted or ambiguous route blocks the build.
 
 ### Completeness
 
-- All four core artifacts are present in the run-specific staging directory and are ready to publish under `docs/product/`.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. `wireframes.md` is present for a UI-bearing product; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
 - `PRD.md` includes goals, non-goals, personas, journeys, functional requirements, non-functional requirements, acceptance criteria, metrics, risks, assumptions, open questions, and test obligations.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
@@ -538,7 +612,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - For every deployable web, API, mobile, or desktop surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, separate stable surface and stage-specific provider fields, a PLAN-v5-compatible source policy, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Different providers by stage are valid for the same surface.
 - Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
 - For a deployable hosted web, API, or backend target, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
-- The hosted environment contract uses PLAN-v5 release sources (`pr_head` or an explicitly retained `integration_head` for development; `merged_main` for production), distinct per-environment deployment-unit names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. Migration Order maps to `migration_classification`, `commands.migrate`, and `prerequisites` as appropriate. For Cloudflare delivery specifically, that means distinct Worker names. Development never uses production customer data, sessions, or live payment mutations. Native mobile and desktop targets remain in provider-neutral release blocks rather than this hosted table.
+- The hosted environment contract uses PLAN-v5 release sources (`pr_head` or an explicitly retained `integration_head` for development; `production_head` for production), distinct per-environment deployment-unit names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. Migration Order maps to `migration_classification`, `commands.migrate`, and `prerequisites` as appropriate. For Cloudflare delivery specifically, that means distinct Worker names. Development never uses production customer data, sessions, or live payment mutations. Native mobile and desktop targets remain in provider-neutral release blocks rather than this hosted table.
 - Native release recovery does not claim instant rollback when the channel cannot perform it. It records how to halt or reduce a staged/phased rollout and ship a corrected signed forward-fix through the same submission, review, or distribution path.
 - For a browser product, `stack-decisions.md` records the required/selected stack or recommends one frontend stack, separates its technology layers, maps rendering by route, and records official-source verification date and runtime constraints.
 - Every frontend layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
@@ -548,6 +622,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every mobile/desktop layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
+Every `wireframes.md` and design-system check below applies only to a UI-bearing product. For a product with no UI surface, skip them and confirm instead that `PRD.md` records the skip and its reason.
+
 - `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
 - `wireframes.md` identifies itself as the canonical structural source and records whether the optional downstream `frontend-design` Preference & HTML Exploration handoff is not requested or explicitly authorized for the same one or two representative `UI-*` IDs.
 - No `frontend-design` candidate or selected HTML is stored in the staged or published PRD package. Candidate directions never add scope or silently change the canonical wireframes; any structural finding returns to the PRD owner for a bounded wireframe revision and another checklist pass.
@@ -563,7 +639,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
 - Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `design-system.md`.
 - UI states include loading, empty, error, permission, and success where applicable.
-- For a UI-bearing product, `design-system.md` and `design-system.json` are both present and agree: no token, primitive, variant, or state appears in one and not the other.
+- For a UI-bearing product, `design-system.md` and `design-system.json` are both present and agree: no token, primitive, variant, motion variant, product component, or state appears in one and not the other. They are absent only when the user explicitly overrode the requirement and `PRD.md`'s `## Assumptions` records the requester, the reason, and the visual contract implementation uses instead. Prove it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json>` and resolve every reported mismatch. Run it against the staged product pair, not against `assets/templates/DESIGN_SYSTEM.template.*` — those still carry placeholders and will report differences that mean nothing. A clean run is required before publishing the pair, because `design-system.json` is the allowlist `fullstack-harness-engineering`'s UI contract check reads: a name in the JSON that the Markdown never documents ships an allowlist entry nobody wrote down, and a name in the Markdown the JSON lacks fails at implementation time instead.
+- Every product component in `design-system.json` carries a `requiredContentOrder`, and `design-system.md`'s Product Components table records the same fields in the same order. That list is what the downstream Content contract conformance gate checks; a component that omits it weakens the gate instead of failing it.
 - `design-system.json` ships exactly one of `viewports` or `sizeClasses`, non-empty and unique, matching the resolved platform. A native or desktop target does not ship web pixel breakpoints.
 - `design-system.json` parses as JSON, declares `schema: "design-system/1"`, and its `tokenSources` are specific enough that no unrelated file shares the same path tail.
 - Every color pairing in `design-system.md` records a computed contrast ratio from `scripts/check_color_contrast.py`, and every type role records a computed line-height ratio from `scripts/check_type_scale.py`. Estimated or omitted ratios do not pass.
@@ -571,6 +648,10 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every primitive's variant lists are closed sets, and each primitive sits in exactly one of the four layers with no upward dependency.
 - `design-system.md`'s primitive inventory covers every control and surface the wireframes' screens actually use. A screen region with no primitive that can express it is an open question, not a silent gap.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
+- The market-research gap pass either produced `market-research.md`, or the package records which reason skipped it — the user declined, no web search or fetch tool was available, the package is a trivial stub, or the role returned blocked. A silently missing pass does not validate.
+- When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
+- When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
+- Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
 - When Dynamic Workflow was used, every required role has an explicit result, failed agents are retained as blocked lanes, and trace/consistency verifier findings are resolved or recorded before finalization. Workflow output is treated as a candidate; the parent still owns staging and publication.
 - Assumptions and open questions are explicit.
 - The artifacts match the selected product archetype.
@@ -579,5 +660,5 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 - No current-package artifact will be published outside `docs/product/` unless the user explicitly requested another location.
 - The superseded-document inventory excludes `docs/product/archived/`, unrelated documents, and ambiguous candidates.
-- In enhancement mode, unaffected sections, `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*` IDs, and stable release target IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed; new TEST IDs cover only obligations that were previously uncovered, and new release target IDs cover only destinations that were previously uncovered.
+- In enhancement mode, unaffected sections, `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `MR-*` IDs, and stable release target IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed; new TEST IDs cover only obligations that were previously uncovered, and new release target IDs cover only destinations that were previously uncovered.
 - Validation does not trigger publication by itself. Exact overwrite and archive moves are already authorized, or the staged package remains unchanged while approval is requested.

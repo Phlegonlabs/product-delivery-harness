@@ -4,7 +4,7 @@ export const meta = {
   phases: [
     { title: "Analyze", detail: "Run product, architecture, UX, platform, and backend roles" },
     { title: "Synthesize", detail: "Join role outputs into one PRD package" },
-    { title: "Verify", detail: "Cross-check trace coverage and consistency" },
+    { title: "Verify", detail: "Cross-check trace coverage and consistency, and research market gaps" },
   ],
 };
 
@@ -50,6 +50,9 @@ if (typeof workflowArgs.has_public_marketing_content !== "boolean") {
 }
 if (typeof workflowArgs.include_implementation_plan !== "boolean") {
   throw new Error("prd-builder-graph requires boolean args.include_implementation_plan");
+}
+if (typeof workflowArgs.market_research !== "boolean") {
+  throw new Error("prd-builder-graph requires boolean args.market_research");
 }
 if (workflowArgs.tool_profile !== "builder_readonly") {
   throw new Error("prd-builder-graph requires args.tool_profile builder_readonly");
@@ -105,14 +108,14 @@ for (const [index, target] of workflowArgs.release_targets.entries()) {
   if (!["development", "production"].includes(target.stage)) {
     throw new Error(`prd-builder-graph requires args.release_targets[${index}].stage development or production`);
   }
-  if (!["pr_head", "integration_head", "merged_main"].includes(target.source_policy)) {
-    throw new Error(`prd-builder-graph requires args.release_targets[${index}].source_policy pr_head, integration_head, or merged_main`);
+  if (!["pr_head", "integration_head", "production_head"].includes(target.source_policy)) {
+    throw new Error(`prd-builder-graph requires args.release_targets[${index}].source_policy pr_head, integration_head, or production_head`);
   }
   if (target.stage === "development" && !["pr_head", "integration_head"].includes(target.source_policy)) {
     throw new Error(`prd-builder-graph requires development source_policy pr_head or integration_head for ${target.id}`);
   }
-  if (target.stage === "production" && target.source_policy !== "merged_main") {
-    throw new Error(`prd-builder-graph requires production source_policy merged_main for ${target.id}`);
+  if (target.stage === "production" && target.source_policy !== "production_head") {
+    throw new Error(`prd-builder-graph requires production source_policy production_head for ${target.id}`);
   }
   if (releaseTargetIds.has(target.id)) {
     throw new Error(`prd-builder-graph requires unique release target ID ${target.id}`);
@@ -168,7 +171,7 @@ const draftSchema = {
     prd_markdown: { type: "string" },
     architecture_markdown: { type: "string" },
     stack_decisions_markdown: { type: "string" },
-    wireframes_markdown: { type: "string" },
+    wireframes_markdown: { type: ["string", "null"] },
     implementation_plan_markdown: { type: ["string", "null"] },
     trace_index: { type: "array", items: { type: "object" } },
     assumptions: stringArray,
@@ -184,6 +187,30 @@ const reviewSchema = {
     role: { type: "string" },
     decision: { enum: ["pass", "fix_required", "blocked"] },
     findings: stringArray,
+    evidence: stringArray,
+  },
+  additionalProperties: false,
+};
+const researchSchema = {
+  type: "object",
+  required: [
+    "role",
+    "status",
+    "market_research_markdown",
+    "mr_ids",
+    "findings",
+    "sources",
+    "unresolved",
+    "evidence",
+  ],
+  properties: {
+    role: { type: "string" },
+    status: { enum: ["complete", "blocked"] },
+    market_research_markdown: { type: ["string", "null"] },
+    mr_ids: stringArray,
+    findings: { type: "array", items: { type: "object" } },
+    sources: { type: "array", items: { type: "object" } },
+    unresolved: stringArray,
     evidence: stringArray,
   },
   additionalProperties: false,
@@ -208,6 +235,7 @@ const sourceContext = JSON.stringify({
   release_targets: workflowArgs.release_targets,
   include_implementation_plan: workflowArgs.include_implementation_plan,
   has_public_marketing_content: workflowArgs.has_public_marketing_content,
+  market_research: workflowArgs.market_research,
 });
 
 const roles = [
@@ -217,13 +245,15 @@ const roles = [
   },
   {
     key: "architecture",
-    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs. Keep stable surface identity separate from each stage's provider, which may differ between development and production. Use only PLAN-v5 source policies: pr_head or integration_head for development and merged_main for production. Close artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix. Upload or submission is not availability, and native recovery may require rollout halt plus a signed forward-fix. Only when hosted_deployable is true, build hosted web/API/backend environment details from the resolved deployment_platform and the stage-specific target providers. The target provider is authoritative for that stage and may differ between development and production; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
-  },
-  {
-    key: "ux-wireframe",
-    task: "Define UX obligations, routes, states, exact wording or bounded display contracts, low-fidelity wireframe structure, Builder UX Direction consequences, and stable UX/UI trace IDs.",
+    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs. Keep stable surface identity separate from each stage's provider, which may differ between development and production. Use only PLAN-v5 source policies: pr_head or integration_head for development and production_head for production. Close artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix. Upload or submission is not availability, and native recovery may require rollout halt plus a signed forward-fix. Only when hosted_deployable is true, build hosted web/API/backend environment details from the resolved deployment_platform and the stage-specific target providers. The target provider is authoritative for that stage and may differ between development and production; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
   },
 ];
+if (workflowArgs.ui_bearing) {
+  roles.push({
+    key: "ux-wireframe",
+    task: "Define UX obligations, routes, states, exact wording or bounded display contracts, low-fidelity wireframe structure, Builder UX Direction consequences, and stable UX/UI trace IDs. Give every screen a Route(s) line using the product's real addressing, or n/a with a reason when the screen has no addressable route; implementation resolves a route to its screen through that line, so no two screens may claim the same route.",
+  });
+}
 if (workflowArgs.browser_frontend || workflowArgs.mobile_desktop_platform) {
   roles.push({
     key: "frontend-platform",
@@ -261,7 +291,8 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, stack-decisions.md, and wireframes.md, plus implementation-plan.md only when requested. " +
+  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus wireframes.md when the product is ui_bearing and implementation-plan.md only when requested. " +
+    "Return null for wireframes_markdown when ui_bearing is false, and record the skip and its reason in PRD.md rather than emitting a placeholder wireframes body. When ui_bearing is true, every screen carries a Route(s) line and no two screens claim the same route. " +
     "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral development and production release-target blocks for every expected deployable surface in the frozen inventory. Keep surface identity separate from provider, permit different providers by stage, and use only PLAN-v5 source policies. Do not treat upload/submission as availability or force native distribution into the hosted environment table. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
@@ -288,12 +319,41 @@ if (workflowArgs.has_public_marketing_content) {
   });
 }
 phase("Verify");
-const rawReviews = await parallel(reviewers.map((reviewer) => () => agent(
+const verifyTasks = reviewers.map((reviewer) => () => agent(
   `You are the ${reviewer.key} role in a PRD org graph. ${reviewer.task}\n` +
     "Read only. Return fix_required for any material issue and blocked when a human decision or missing source prevents a valid package. " +
     `Frozen task context: ${sourceContext}\n\nDraft package: ${JSON.stringify(draft)}`,
   { label: `prd:${reviewer.key}`, phase: "Verify", schema: reviewSchema },
-)));
+));
+if (workflowArgs.market_research) {
+  verifyTasks.push(() => agent(
+    "You are the market-research role in a PRD org graph. The package is already drafted; your job is to check it against what already exists in the market and report what is missing.\n" +
+      "Research the alternatives users have today (named products, in-house builds, manual process, or nothing), the feature baseline that is table stakes versus a real differentiator, this product's differentiation against those alternatives, pricing reference points when it has a commercial surface, category benchmarks for the metric targets the draft sets, and market-side risks such as incumbent response, switching cost, platform dependency, and regulatory or licensing limits. " +
+      "For an internal tool, the alternatives are the current spreadsheet, the existing internal system, and doing nothing — not commercial products nobody here would buy.\n" +
+      "Every factual claim carries a source with publisher, URL, and retrieval date, and prefers a primary source over a roundup. A claim you could not source is recorded in unresolved and marked UNVALIDATED with what you searched — never stated as fact. Do not invent a competitor, price, funding figure, user count, market size, or feature comparison; a plausible number with no source is the worst outcome of this role. Do not present vendor marketing copy as verified capability. When sources disagree, record both and say so.\n" +
+      "Mint stable MR-* IDs for findings that could change a product decision. Each finding names the artifact and section it lands in and what should change; a finding that would widen product scope is a recommendation for the user, not a decision. Return status blocked with a null body when no web tool is available or every search failed, rather than publishing an artifact of unsourced rows.\n" +
+      "Read only. Do not edit, create, move, or publish files, and do not ask the user anything. " +
+      `Frozen task context: ${sourceContext}\n\nDraft package: ${JSON.stringify(draft)}`,
+    { label: "prd:market-research", phase: "Verify", schema: researchSchema },
+  ));
+}
+const verifyResults = await parallel(verifyTasks);
+const rawReviews = verifyResults.slice(0, reviewers.length);
+const rawResearch = workflowArgs.market_research ? verifyResults[reviewers.length] : null;
+const research = workflowArgs.market_research
+  ? (rawResearch && rawResearch.role === "market-research"
+      ? rawResearch
+      : {
+          role: "market-research",
+          status: "blocked",
+          market_research_markdown: null,
+          mr_ids: [],
+          findings: [],
+          sources: [],
+          unresolved: ["The market-research workflow agent returned no result or the wrong role."],
+          evidence: [rawResearch ? "workflow-role-mismatch" : "workflow-agent-null"],
+        })
+  : null;
 const reviews = rawReviews.map((result, index) => (
   result && result.role === reviewers[index].key
     ? result
@@ -313,4 +373,5 @@ return {
   lanes,
   draft,
   reviews,
+  research,
 };

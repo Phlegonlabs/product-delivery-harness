@@ -12,10 +12,10 @@ The closed-set questions fit three `AskUserQuestion` calls of at most four quest
 
 Never ask a call-3 question in call 1. The product surface is still unknown there, so the answer can be about a platform the product does not have — and a wrong deployment platform then freezes a wrong environment contract into `architecture.md`.
 
-Every call-3 question carries a skip rule, so a real run asks fewer than four. Only a hybrid spanning web, mobile, and desktop surfaces with a backend leaves all five unresolved. Drop in this order rather than opening a fourth call, and resolve the dropped question as an explicit `Recommended` decision per `mobile-stack-selection.md`, never as `Selected`:
+Every call-3 question carries a skip rule, so a real run asks fewer than four. Only a hybrid spanning web, mobile, and desktop surfaces with a backend leaves all five unresolved: deployment platform, mobile platform, desktop platform, database category, and auth strategy. Five candidates against a four-question cap means exactly one question drops — never two. Drop in this order rather than opening a fourth call, and resolve the dropped question as an explicit `Recommended` decision per `mobile-stack-selection.md`, never as `Selected`:
 
 1. Desktop platform — recommend one desktop target and record it as `Recommended`.
-2. Mobile platform — recommend one mobile stack and record it as `Recommended`.
+2. Mobile platform — recommend one mobile stack and record it as `Recommended`. No archetype combination produces a sixth call-3 question, so this step never fires today. It is the defensive fallback order if one is ever added.
 
 Deployment platform, database category, and auth strategy never drop. Each has no documented default to fall back on, and guessing one silently freezes the wrong environment contract into `architecture.md`, or the wrong store or identity boundary into `stack-decisions.md`.
 
@@ -37,7 +37,7 @@ Ask only questions that are not already answered.
    - What is the successful end state?
 4. Product surface
    - Should this be web, mobile app, desktop app, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)
-   - If the answer is mobile app, which mobile platform: native iOS, native Android, Flutter (cross-platform), React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, in call 3, since it depends on the archetype answer; first to drop after the desktop follow-up when the closed-set budget is full) Skip it when the user's prompt, the existing package, or the current repository already names the mobile platform. When the answer is undecided or the question was dropped, resolve the recommendation with `mobile-stack-selection.md`, the same way the browser frontend choice follows `frontend-stack-selection.md`.
+   - If the answer is mobile app, which mobile platform: native iOS, native Android, Flutter (cross-platform), React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, in call 3, since it depends on the archetype answer; second in the drop order, which no archetype combination currently reaches) Skip it when the user's prompt, the existing package, or the current repository already names the mobile platform. When the answer is undecided or the question was dropped, resolve the recommendation with `mobile-stack-selection.md`, the same way the browser frontend choice follows `frontend-stack-selection.md`.
    - If the answer is desktop app, which desktop platform: macOS, Windows, cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion, in call 3, since it depends on the archetype answer; first to drop when the closed-set budget is full) Skip it when the user's prompt, the existing package, or the current repository already names the desktop platform. When the answer is undecided or the question was dropped, resolve the recommendation with `mobile-stack-selection.md`.
    - Which platforms, devices, or channels matter?
    - Are there accessibility, localization, or offline requirements?
@@ -78,7 +78,7 @@ Ask only questions that are not already answered.
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
    - What is the complete inventory of expected deployable web, API, mobile, or desktop surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
-   - For each target, which current PLAN-v5 source policy produces it: `pr_head` or `integration_head` for development, and `merged_main` for production? If the product requires a signed tag or another source rule, record that as an unresolved engineering-handoff gap instead of freezing an unsupported source choice.
+   - For each target, which current PLAN-v5 source policy produces it: `pr_head` or `integration_head` for development, and `production_head` for production? If the product requires a signed tag or another source rule, record that as an unresolved engineering-handoff gap instead of freezing an unsupported source choice.
    - What artifact kind is released, what signing or notarization is required, and what exact environment, store channel, testing track, update feed, or distribution channel receives it?
    - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.
    - What rollout controls apply, and what is the real recovery path? For native stores and signed installers, identify when recovery means halting a staged rollout and shipping a signed forward-fix rather than claiming an instant rollback.
