@@ -44,7 +44,7 @@ Detect the host that is executing the Harness. Current-session Codex project/thr
 
 Perform this detection proactively before the first production edit in every plan-backed multi-mission run. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
 
-A PLAN node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host. There is no cross-host fallback and no mechanism to invoke the other runtime from this one: a ready node whose allowed providers do not include the current host is not executable here. Report it as blocked on provider mismatch and leave it for a run hosted by an allowed adapter.
+A PLAN node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host. There is no cross-host fallback and no mechanism to invoke the other runtime from this one: a ready node whose allowed providers do not include the current host is not executable here. Report it as deferred with `runtime_unavailable` and leave it for a run hosted by an allowed adapter.
 
 ## Default Plan-Backed Wave
 
@@ -184,7 +184,7 @@ When no safe set exists, run the next dependency-ready mission sequentially. Par
 
 ## Launch Selected Claude Dynamic Workflow
 
-This section is retained schema-v6-through-v9 context. The current mechanics live in `../../fullstack-harness-claude-code/SKILL.md`, which routes by wave composition rather than schema version; read the adapter first and use this section only for a wave on those older schemas.
+This section is retained schema-v6-through-v9 context for in-flight legacy runs only. The current mechanics live in `../../fullstack-harness-claude-code/SKILL.md`, which routes by wave composition rather than schema version; read the adapter first. Current selection requires PLAN v5/RUN v10, so current tools never produce a v6-v9 wave — nothing below can fire from a newly selected wave.
 
 When the accepted schema-v6-through-v9 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
 
