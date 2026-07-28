@@ -243,7 +243,7 @@ Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`
 
 ### Per-Target Provenance For The Scoped Three
 
-An entry carries one `source` for a whole `targets` list, so on `push`, `merge_pr`, and `deploy` — the three whose targets the execution-intent bundle can reach at most partially — a single grouped instruction would otherwise read as authorizing every target on the entry, including the ones it explicitly does not reach. An optional `target_sources` map on those three entries closes that. Every schema v10 RUN is held to it, marked or not: an upgraded v9 file lands unmarked, so gating provenance on the marker would leave the default artifact covering an out-of-scope push, merge, or deploy with one grouped instruction. The `action_target_contract: "action-targets/1"` marker gates only the stricter action-to-target kind table, which can reject target spellings an older readable file used:
+An entry carries one `source` for a whole `targets` list, so on `push`, `merge_pr`, and `deploy` — the three whose targets the execution-intent bundle can reach at most partially — a single grouped instruction would otherwise read as authorizing every target on the entry, including the ones it explicitly does not reach. An optional `target_sources` map on those three entries closes that. Every new marked schema-v10 RUN is held to it. Historical unmarked RUN-v10 files remain readable under their prior target-source shape, but if an unmarked entry records `target_sources`, the validator checks the map. The `action_target_contract: "action-targets/1"` marker also gates the stricter action-to-target kind table, which can reject target spellings an older readable file used:
 
 ```json
 {

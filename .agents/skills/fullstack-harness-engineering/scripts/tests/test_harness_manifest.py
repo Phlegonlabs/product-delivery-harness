@@ -3488,15 +3488,10 @@ class RunValidationTests(unittest.TestCase):
             errors,
         )
 
-    def test_per_target_provenance_holds_without_the_action_target_marker(
+    def test_unmarked_v10_keeps_historical_target_source_shape(
         self,
     ) -> None:
-        """The marker gates the strict target-kind table, never provenance.
-
-        An unmarked RUN v10 is the shape every artifact upgraded from v9 lands
-        in, so letting it skip target_sources would leave one generic "build it"
-        covering an out-of-scope merge for the default artifact.
-        """
+        """Historical unmarked RUN v10 artifacts remain readable."""
         plan, run, development_target_id = self.integration_pull_request_v10()
         self.authorize_merge_triggered_development_release(
             run, development_target_id
@@ -3514,7 +3509,11 @@ class RunValidationTests(unittest.TestCase):
             if entry.get("authorized") is True:
                 entry["scope"]["plan_digest_sha256"] = digest
 
-        errors = validate_run(plan, run)
+        self.assertEqual([], validate_run(plan, run))
+
+        opted_in = copy.deepcopy(run)
+        opted_in["authorizations"]["merge_pr"]["target_sources"] = {}
+        errors = validate_run(plan, opted_in)
         self.assertTrue(
             any(
                 f"target_sources.{exact_target}:" in error

@@ -191,6 +191,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("Ordinary PRD, UI, and feature work stays `local_only`", runbook)
         self.assertNotIn('New RUN files default to `mode: "local_only"`.', runbook)
 
+    def test_workflow_intake_names_every_supported_landing_mode(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn(
+            "Landing: local_only | integration_push | pull_request | "
+            "integration_pull_request",
+            skill,
+        )
+
     def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-github-landing")
         goal = self.read("assets/templates/GOAL.template.md")
@@ -247,6 +256,14 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("must differ from the entry `source`", reference)
         self.assertIn("Resolution fails closed", reference)
         self.assertIn("`target_sources` is rejected on any other action", reference)
+        self.assertIn("Every new marked schema-v10 RUN is held to it", reference)
+        self.assertIn(
+            "Historical unmarked RUN-v10 files remain readable", reference
+        )
+        self.assertIn(
+            "if an unmarked entry records `target_sources`, the validator checks the map",
+            reference,
+        )
         self.assertIn("in every landing mode", reference)
         self.assertIn('"target_sources": {', runbook)
         self.assertIn("in every landing mode", runbook)

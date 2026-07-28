@@ -1288,6 +1288,19 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertEqual([], validate_plan(plan))
         self.assertEqual([], validate_run(plan, run))
 
+    def test_existing_unmarked_v10_keeps_legacy_target_source_shape(self) -> None:
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root, strict_action_targets=False)
+        target = "remote:origin/development"
+        self._authorize(run, "push", target)
+        run["authorizations"]["push"]["authorized_head_sha"] = run["integration"][
+            "integration_head_sha"
+        ]
+
+        self.assertNotIn("target_sources", run["authorizations"]["push"])
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual([], validate_run(plan, run))
+
     def test_v10_head_bound_actions_reject_wrong_target_kinds(self) -> None:
         for action, target in (
             ("push", "release:development"),
