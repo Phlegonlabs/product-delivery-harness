@@ -1,0 +1,69 @@
+import re
+import unittest
+from pathlib import Path
+
+
+def find_repo_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (
+            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
+            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+        ):
+            return candidate
+    return None
+
+
+REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
+
+
+class ReadmeStructureTests(unittest.TestCase):
+    def structure_profile(self, path: Path) -> dict[str, object]:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        headings = [
+            (index, len(match.group(1)))
+            for index, line in enumerate(lines)
+            if (match := re.match(r"^(#{1,6})\s+\S", line))
+        ]
+        fence_lines = sum(1 for line in lines if line.startswith("```"))
+        self.assertEqual(fence_lines % 2, 0, f"unclosed fence in {path.name}")
+
+        section_starts = [0, *(index for index, _level in headings)]
+        section_counts = []
+        for section_index, start in enumerate(section_starts):
+            end = (
+                section_starts[section_index + 1]
+                if section_index + 1 < len(section_starts)
+                else len(lines)
+            )
+            body = lines[start:end]
+            if section_index:
+                body = body[1:]
+            section_counts.append(
+                (
+                    sum(bool(line.strip()) for line in body),
+                    sum(
+                        bool(re.match(r"^\s*(?:[-*+] |\d+\. )", line))
+                        for line in body
+                    ),
+                )
+            )
+
+        return {
+            "heading_order_and_levels": [level for _index, level in headings],
+            "fenced_code_blocks": fence_lines // 2,
+            "section_nonblank_and_bullet_counts": section_counts,
+        }
+
+    @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_translations_preserve_english_structure(self) -> None:
+        english = self.structure_profile(REPO_ROOT / "README.md")
+        for translation in ("README.zh-CN.md", "README.zh-TW.md"):
+            with self.subTest(translation=translation):
+                self.assertEqual(
+                    self.structure_profile(REPO_ROOT / translation),
+                    english,
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

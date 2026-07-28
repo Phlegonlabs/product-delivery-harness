@@ -87,12 +87,6 @@ Harness 是圍繞明確的邊界所打造的：
 
 對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、開 PR、審查動作、合併、部署或清理。
 
-<p align="center">
-  <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness 從需求輸入到本機驗證或 GitHub 落地的流程" width="100%">
-</p>
-
-<p align="center"><sub>流程示意圖，保留作為概覽。這張圖早於目前的 schema，上面寫的是 PLAN v4／RUN v9，實際請用 PLAN v5／RUN v10；圖中也漏了每次整合前都必須通過的 exact-head review，而且 wave 沒有固定上限。下方才是目前的流程。</sub></p>
-
 ```mermaid
 flowchart TB
   Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
@@ -131,6 +125,8 @@ flowchart TB
 共用的 script、schema、參考文件與範本仍放在 `fullstack-harness-engineering` 底下；轉接器只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡，也避免在純本機工作時觸發遠端驗證。
 
 在遠端交付時，最終的本機候選版本只推送一次。GitHub Actions 與 Codex 審查會作為同一個 PR head 的並列閘一起啟動或被觀察，並且並行輪詢。任何新的推送都會讓兩者失效，而合併仍要求兩者在同一個 SHA 上都通過。
+
+只有在儲存庫已連接到 Codex Cloud，並且已啟用程式碼審查時，Codex Cloud 審查才可用。開啟 PR 時可能會自動開始審查；否則，請使用 `@codex review` 要求審查。如果缺少審查能力，請將審查閘記錄為不可用，而不是已通過。
 
 ## 圖引擎與 Dynamic Workflow
 
@@ -301,7 +297,7 @@ plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code 外掛 manifest
 plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 外掛 manifest
 .agents/plugins/marketplace.json                     Codex 市集定義
 .claude-plugin/marketplace.json                      Claude Code 市集定義
-assets/                                              README 封面與流程圖
+assets/                                              README 封面
 scripts/sync_plugin_skills.py                        把標準技能複製進外掛套件
 scripts/update-private-skills.ps1                    更新已安裝的市集與外掛
 .github/workflows/harness-ci.yml                     契約、單元與 E2E 檢查
@@ -316,6 +312,7 @@ python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 

@@ -87,12 +87,6 @@ The Harness is built around explicit boundaries:
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, PR, review action, merge, deploy, or cleanup.
 
-<p align="center">
-  <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness workflow from intake through verified local or GitHub landing" width="100%">
-</p>
-
-<p align="center"><sub>Illustrated control flow, kept for orientation. It predates the current schemas and shows PLAN v4 / RUN v9; author PLAN v5 / RUN v10. It also omits the exact-head review that is required before every integration, and no wave is capped at a fixed number. The flow below is the current one.</sub></p>
-
 ```mermaid
 flowchart TB
   Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
@@ -303,7 +297,7 @@ plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code plugin manifest
 plugins/fullstack-harness/.codex-plugin/plugin.json  Codex plugin manifest
 .agents/plugins/marketplace.json                     Codex marketplace definition
 .claude-plugin/marketplace.json                      Claude Code marketplace definition
-assets/                                              README covers and workflow illustrations
+assets/                                              README covers
 scripts/sync_plugin_skills.py                        Copies canonical skills into the plugin bundle
 scripts/update-private-skills.ps1                    Updates installed marketplaces and plugin
 .github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
@@ -318,6 +312,7 @@ python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 

@@ -87,12 +87,6 @@ Harness 是围绕明确的边界构建的：
 
 对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、开 PR、执行审查动作、合并、部署或清理。
 
-<p align="center">
-  <img src="./assets/fullstack-harness-workflow-neobrutalism.png" alt="Full Stack Harness 从需求输入到本地验证或 GitHub 落地的流程" width="100%">
-</p>
-
-<p align="center"><sub>流程示意图，保留作为概览。这张图早于当前的 schema，上面写的是 PLAN v4／RUN v9，实际请用 PLAN v5／RUN v10；图中也漏了每次集成前都必须通过的 exact-head review，而且 wave 没有固定上限。下方才是当前的流程。</sub></p>
-
 ```mermaid
 flowchart TB
   Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
@@ -131,6 +125,8 @@ flowchart TB
 共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简，并避免在纯本地工作时进行远程验证。
 
 对于远程交付，最终的本地候选版本只推送一次。GitHub Actions 和 Codex 审查会作为同一个 PR 提交点上的并列门禁被启动或观察，并被并发轮询。一次新的推送会使二者同时失效，合并仍然要求二者在同一个 SHA 上都通过。
+
+只有在仓库已连接到 Codex Cloud，并且已启用代码审查时，Codex Cloud 审查才可用。打开 PR 时可能会自动开始审查；否则，请使用 `@codex review` 请求审查。如果缺少审查能力，请将审查门禁记录为不可用，而不是已通过。
 
 ## 图工程与动态工作流
 
@@ -301,7 +297,7 @@ plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code 插件清单
 plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 插件清单
 .agents/plugins/marketplace.json                     Codex 市场定义
 .claude-plugin/marketplace.json                      Claude Code 市场定义
-assets/                                              README 封面和流程图
+assets/                                              README 封面
 scripts/sync_plugin_skills.py                        把规范技能复制到插件包
 scripts/update-private-skills.ps1                    更新已安装的市场和插件
 .github/workflows/harness-ci.yml                     契约、单元和 E2E 检查
@@ -316,6 +312,7 @@ python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 
