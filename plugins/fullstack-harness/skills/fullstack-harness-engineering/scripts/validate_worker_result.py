@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -14,7 +13,9 @@ from typing import Any, Iterable
 from harness_manifest import (
     ManifestError,
     NESTED_SUBAGENT_ROLES,
+    SHA256_RE,
     authorization_covers,
+    is_full_sha,
     execution_covers,
     load_plan,
     load_run,
@@ -33,9 +34,6 @@ from select_verifiers import (
 )
 from verifier_runtime import PROTOCOL as VERIFIER_PROTOCOL, execution_key_from_document
 
-
-SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
-DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 
 WORKER_RESULT_FIELDS = {
     "type",
@@ -281,8 +279,8 @@ def _require_sha(
     checked = _require_string(value, path, errors)
     if checked is None:
         return None
-    pattern = DIGEST_RE if digest else SHA_RE
-    if not pattern.fullmatch(checked):
+    valid = SHA256_RE.fullmatch(checked) if digest else is_full_sha(checked)
+    if not valid:
         expected = "64 lowercase hexadecimal characters" if digest else "40 or 64 lowercase hexadecimal characters"
         _issue(errors, "invalid_sha", path, f"must contain {expected}")
         return None
@@ -295,7 +293,7 @@ def _require_execution_key(
     checked = _require_string(value, path, errors)
     if checked is None:
         return None
-    if not DIGEST_RE.fullmatch(checked):
+    if SHA256_RE.fullmatch(checked) is None:
         _issue(
             errors,
             "invalid_execution_key",
@@ -363,6 +361,7 @@ def _retained_verifier_results(
     run: dict[str, Any],
     result: dict[str, Any],
     mission: dict[str, Any] | None,
+    worker: dict[str, Any] | None,
     observed_head_sha: str | None,
     observed_changed_files: list[str],
     errors: list[dict[str, str]],
@@ -378,15 +377,6 @@ def _retained_verifier_results(
         return retained
     declarations = _declared_verifiers(mission)
     expected_checkout_dirty: bool | None = None
-    workers = run.get("workers", [])
-    worker_matches = [
-        worker
-        for worker in workers
-        if isinstance(worker, dict)
-        and worker.get("mission_id") == result.get("mission_id")
-        and worker.get("lease_id") == result.get("lease_id")
-    ] if isinstance(workers, list) else []
-    worker = worker_matches[0] if len(worker_matches) == 1 else None
     observed_git = run.get("observed", {}).get("git", {})
     if isinstance(worker, dict) and worker.get("workspace_mode") in ISOLATED_WORKSPACES:
         observed_worktrees = (
@@ -847,6 +837,7 @@ def validate_worker_result_data(
             run=run,
             result=result,
             mission=mission,
+            worker=worker or None,
             observed_head_sha=observed_checked,
             observed_changed_files=[
                 path for path in observed_paths if not _report_exception(path, worker)

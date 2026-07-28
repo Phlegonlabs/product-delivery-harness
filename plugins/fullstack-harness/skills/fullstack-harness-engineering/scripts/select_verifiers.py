@@ -5,20 +5,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 from typing import Any, Iterable
 
 from harness_manifest import (
     ManifestError,
+    is_full_sha,
     load_plan,
     path_in_scopes,
     validate_plan,
     validate_scope_claim,
 )
-
-
-SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 
 class VerifierSelectionError(ValueError):
@@ -136,7 +133,7 @@ def select_verifiers(
     ]
     if len(matches) != 1:
         raise VerifierSelectionError(f"mission {mission_id!r} is not uniquely defined")
-    if head_sha is not None and not SHA_RE.fullmatch(head_sha):
+    if head_sha is not None and not is_full_sha(head_sha):
         raise VerifierSelectionError("head SHA must be 40 or 64 lowercase hexadecimal characters")
     result = applicable_targeted_verifiers(matches[0], changed_files)
     return {

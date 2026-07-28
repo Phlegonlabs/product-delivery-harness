@@ -10,6 +10,7 @@ from harness_core import (
     _is_int,
     _keys,
     _nonempty_string,
+    _normalized_branch,
     _strings,
 )
 from harness_schema import (
@@ -31,7 +32,6 @@ def _validate_authorization_scope(
     *,
     action: bool,
     action_name: str | None = None,
-    allow_future_pr: bool = False,
     require_plan_binding: bool = False,
     schema_version: int | None = None,
     strict_action_targets: bool = False,
@@ -55,7 +55,7 @@ def _validate_authorization_scope(
             _add(errors, f"{path}.plan_digest_sha256", "must be a lowercase SHA-256 digest")
     _strings(errors, f"{path}.mission_ids", value["mission_ids"], nonempty=True)
     if action:
-        resolved_schema_version = schema_version or (10 if require_plan_binding else 5)
+        resolved_schema_version = schema_version or 5
         targets = _strings(errors, f"{path}.targets", value["targets"], nonempty=True)
         for target in targets:
             if target == "*":
@@ -83,15 +83,11 @@ def _validate_authorization_scope(
                 )
             ):
                 _add(errors, f"{path}.targets", f"unsupported target {target!r}")
-            elif (
-                action_name is None
-                or not action_target_kind_allowed(
-                    action_name,
-                    target,
-                    resolved_schema_version,
-                    strict=strict_action_targets,
-                )
-                or (target.startswith("future-pr:") and not allow_future_pr)
+            elif not action_target_kind_allowed(
+                action_name,
+                target,
+                resolved_schema_version,
+                strict=strict_action_targets,
             ):
                 if action_name == "trigger_remote_ci":
                     message = "trigger_remote_ci requires workflow:<identity> targets"
@@ -123,12 +119,6 @@ def _integration_branch(run: dict[str, Any]) -> str | None:
     return None
 
 
-def _normalized_branch(value: Any) -> str | None:
-    if not _nonempty_string(value):
-        return None
-    return value.removeprefix("refs/heads/")
-
-
 def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
     release = plan.get("release") if isinstance(plan, dict) else None
     targets = release.get("targets") if isinstance(release, dict) else None
@@ -156,7 +146,7 @@ def future_pr_target_matches_landing(
         return False
     target_base = _normalized_branch(future_pr.group("base"))
     landing_base = _normalized_branch(landing.get("base_branch"))
-    if target_base is None or target_base != landing_base:
+    if target_base != landing_base:
         return False
     if (
         integration_branch is not None
@@ -393,25 +383,6 @@ def authorization_covers(
     )
     return _nonempty_string(entry.get("source")) and (
         expiry_is_preserved or _authorization_not_expired(run, boundary)
-    )
-
-
-def _landing_future_pr_target(landing: dict[str, Any]) -> str | None:
-    pr_url = landing.get("pr_url")
-    base_branch = landing.get("base_branch")
-    head_branch = landing.get("head_branch")
-    if (
-        not _nonempty_string(pr_url)
-        or not _nonempty_string(base_branch)
-        or not _nonempty_string(head_branch)
-    ):
-        return None
-    match = GITHUB_PR_URL_RE.fullmatch(pr_url)
-    if match is None:
-        return None
-    return (
-        f"future-pr:{match.group('repository')}:"
-        f"base={base_branch}:head={head_branch}"
     )
 
 

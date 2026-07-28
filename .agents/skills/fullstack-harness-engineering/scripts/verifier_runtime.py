@@ -10,7 +10,6 @@ import os
 import platform
 import shutil
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Any, Mapping
@@ -280,6 +279,12 @@ def build_execution_key(
         checkout_root,
         effective_environment,
     )
+    return _key_document(normalized_verifier, key_inputs)
+
+
+def _key_document(
+    normalized_verifier: dict[str, Any], key_inputs: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
     key_document = {
         "protocol": PROTOCOL,
         "verifier_id": normalized_verifier["id"],
@@ -375,12 +380,7 @@ def run_verifier(
         checkout_root,
         effective_environment,
     )
-    execution_key, key_document = build_execution_key(
-        verifier,
-        context,
-        checkout_root=checkout_root,
-        environment=effective_environment,
-    )
+    execution_key, key_document = _key_document(normalized_verifier, key_inputs)
     cache_mode = normalized_verifier["cache"]["mode"]
     cache_status = "bypassed"
     cache_reason = "cache_disabled"

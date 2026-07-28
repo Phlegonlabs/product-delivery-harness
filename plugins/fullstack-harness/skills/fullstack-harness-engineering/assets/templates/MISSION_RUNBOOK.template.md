@@ -34,82 +34,25 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
     "execution_authorization_source": null,
     "execution_authorization_scope": null,
     "authorizations": {
-      "invoke_external_runtime": {
-        "authorized": false,
-        "source": null
-      },
-      "spawn_subagents": {
-        "authorized": false,
-        "source": null
-      },
-      "create_user_owned_tasks": {
-        "authorized": false,
-        "source": null
-      },
-      "create_local_worktrees": {
-        "authorized": false,
-        "source": null
-      },
-      "create_app_managed_worktrees": {
-        "authorized": false,
-        "source": null
-      },
-      "create_local_branches": {
-        "authorized": false,
-        "source": null
-      },
-      "create_local_commits": {
-        "authorized": false,
-        "source": null
-      },
-      "integrate_locally": {
-        "authorized": false,
-        "source": null
-      },
-      "push": {
-        "authorized": false,
-        "source": null
-      },
-      "create_pr": {
-        "authorized": false,
-        "source": null
-      },
-      "trigger_remote_ci": {
-        "authorized": false,
-        "source": null
-      },
-      "configure_repository": {
-        "authorized": false,
-        "source": null
-      },
-      "manage_pr_review": {
-        "authorized": false,
-        "source": null
-      },
-      "merge_pr": {
-        "authorized": false,
-        "source": null
-      },
-      "provision_cloud_resources": {
-        "authorized": false,
-        "source": null
-      },
-      "deploy": {
-        "authorized": false,
-        "source": null
-      },
-      "archive_worker_tasks": {
-        "authorized": false,
-        "source": null
-      },
-      "remove_worktrees": {
-        "authorized": false,
-        "source": null
-      },
-      "delete_branches": {
-        "authorized": false,
-        "source": null
-      }
+      "invoke_external_runtime": {"authorized": false, "source": null},
+      "spawn_subagents": {"authorized": false, "source": null},
+      "create_user_owned_tasks": {"authorized": false, "source": null},
+      "create_local_worktrees": {"authorized": false, "source": null},
+      "create_app_managed_worktrees": {"authorized": false, "source": null},
+      "create_local_branches": {"authorized": false, "source": null},
+      "create_local_commits": {"authorized": false, "source": null},
+      "integrate_locally": {"authorized": false, "source": null},
+      "push": {"authorized": false, "source": null},
+      "create_pr": {"authorized": false, "source": null},
+      "trigger_remote_ci": {"authorized": false, "source": null},
+      "configure_repository": {"authorized": false, "source": null},
+      "manage_pr_review": {"authorized": false, "source": null},
+      "merge_pr": {"authorized": false, "source": null},
+      "provision_cloud_resources": {"authorized": false, "source": null},
+      "deploy": {"authorized": false, "source": null},
+      "archive_worker_tasks": {"authorized": false, "source": null},
+      "remove_worktrees": {"authorized": false, "source": null},
+      "delete_branches": {"authorized": false, "source": null}
     },
     "runtime_capabilities": {
       "worker_runtime": "parent",
@@ -118,9 +61,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
       "max_parallel_workers": 8,
       "runtime_adapter": {
         "provider": "generic",
-        "available_drivers": [
-          "sequential_parent"
-        ],
+        "available_drivers": ["sequential_parent"],
         "detection_source": "fallback"
       },
       "permission_boundary": {
@@ -137,12 +78,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
         "available": false,
         "max_depth": 1,
         "max_children_per_worker": 3,
-        "allowed_roles": [
-          "explorer",
-          "researcher",
-          "reviewer",
-          "tester"
-        ],
+        "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
         "write_policy": "read_only",
         "completion_channel": "agent_result"
       },
@@ -174,27 +110,10 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
       "integration_head_sha": null,
       "prior_head_shas": []
     },
-    "batch_gate_results": [
-      {
-        "id": "batch-cross-mission",
-        "status": "planned",
-        "head_sha": null,
-        "evidence": []
-      }
-    ],
+    "batch_gate_results": [{"id": "batch-cross-mission", "status": "planned", "head_sha": null, "evidence": []}],
     "final_gate_results": [
-      {
-        "id": "e2e-primary-journey",
-        "status": "planned",
-        "head_sha": null,
-        "evidence": []
-      },
-      {
-        "id": "final-closeout",
-        "status": "planned",
-        "head_sha": null,
-        "evidence": []
-      }
+      {"id": "e2e-primary-journey", "status": "planned", "head_sha": null, "evidence": []},
+      {"id": "final-closeout", "status": "planned", "head_sha": null, "evidence": []}
     ],
     "ui_evidence": [],
     "landing": {
@@ -240,11 +159,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
     },
     "post_merge_cleanup": {
       "status": "not_started",
-      "base": {
-        "branch": "main",
-        "head_sha": null,
-        "merged_sha_reachable": null
-      },
+      "base": {"branch": "main", "head_sha": null, "merged_sha_reachable": null},
       "worktree": {
         "path": null,
         "branch_ref": null,
@@ -253,11 +168,7 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
         "managed_by": null,
         "status": "not_applicable"
       },
-      "local_branch": {
-        "ref": null,
-        "head_sha": null,
-        "status": "pending"
-      },
+      "local_branch": {"ref": null, "head_sha": null, "status": "pending"},
       "evidence": [],
       "deferred_reason": null
     },
@@ -322,41 +233,13 @@ Older RUN schemas remain readable. Existing RUN v10 files without `action_target
         }
       },
       "edge_states": {
-        "E-M1-FRONTEND-REVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-FRONTEND-FINAL-GATE": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-FINAL-VISUAL-REVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-VISUAL-REVIEW-REPAIR": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-VISUAL-REPAIR-CODE-REVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-VISUAL-REPAIR-REREVIEW": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        },
-        "E-VISUAL-CLOSEOUT": {
-          "status": "dormant",
-          "traversals": 0,
-          "source_attempt_id": null
-        }
+        "E-M1-FRONTEND-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-FRONTEND-FINAL-GATE": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-FINAL-VISUAL-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-VISUAL-REVIEW-REPAIR": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-VISUAL-REPAIR-CODE-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-VISUAL-REPAIR-REREVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-VISUAL-CLOSEOUT": {"status": "dormant", "traversals": 0, "source_attempt_id": null}
       }
     },
     "mission_states": {
@@ -455,28 +338,13 @@ New RUN files start at `mode: "local_only"` because nothing has been pushed yet.
 - `integration_pull_request` — a feature head is reviewed and merged into `integration.branch` through a PR. `landing.base_branch` equals the retained integration branch, while `landing.head_branch` is the disposable feature branch. CI, review, and merge bind the feature PR head; after merge, `landing.merged_sha` and `integration.integration_head_sha` match, and continuity is preserved there. If the retained integration branch resolves to `main`, do not request auto-merge; stop merge-ready for a later exact human instruction naming that PR.
 - `pull_request` — only after the user separately asks for the pull request into the protected base. Sets continuity to `not_required`. The harness opens it, watches current-head CI, and requests review; the human merges.
 
-Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; use the template's `codex/<short-name>`, `codex/<short-name>`, and `main` values only when the repository defines no other model. `local_only`, `integration_push`, and `integration_pull_request` preserve the exact integration branch in `landing.continuity`.
+Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; the template's values apply only when the repository defines no other model. See `references/execution-state-model.md`'s Pull Request Landing State for that resolution rule, the exact head-SHA equalities each mode requires before CI, review, ready state, and auto-merge, and the `closed`/`closed_unmerged` terminal pair a PR closed without merge must record.
 
 When PLAN declares release targets, `run.targets` keys must exactly equal the PLAN `release.targets[].id` set. PASS requires exact source/head binding plus retained artifact, channel, promotion, and availability evidence. Every evidence object has a retained reference and lowercase SHA-256; artifact evidence also records build ID, version, and signing status. Release execution never weakens action boundaries: a native merge-triggered publication requires exact merge/landing authorization and exact deployment authorization for the same release target and head. Never infer deployment authorization from merge authorization.
 
 See `references/execution-state-model.md`'s closeout condition table for the full `status: complete` requirement. Every applicable condition must hold, with retained RUN-v10 verifier, batch, final, UI, and release evidence bound to the current head.
 
-Set `auto_merge_requested: true` only after GitHub accepts a squash auto-merge request for the exact current PR head, and record that SHA in `auto_merge_head_sha`. In promotion `pull_request`, CI, review, ready state, and auto-merge require `checks_head_sha == review_head_sha == auto_merge_head_sha == pr_head_sha == integration.integration_head_sha`. In `integration_pull_request`, those pre-merge gates bind the feature `pr_head_sha`, which may differ from the retained base's current integration head; after merge, `landing.merged_sha == integration.integration_head_sha`. This requires `merge_status: "ready"`, current-head CI and review PASS, zero blocking findings and unresolved threads, repository auto-merge enabled under `configure_repository`, and unexpired `merge_pr` authorization bound to the current PLAN revision/digest, exact PR, and exact `authorized_head_sha`; head-bound actions never use `*`. If the merge triggers any native provider publication, the merge scope also names every `release:<target-id>` consequence and a separate `deploy` authorization names the same target and authorized head. The deploy grant is checked independently; it is never inferred from the merge grant. If the merge entry began with `future-pr:`, retain it, verify repository/base/head, and append the exact PR target. Use an exact-head merge operation. Any new PR-head push, PLAN change, canceled request, or closed-unmerged PR invalidates the request and its head-bound grants.
-
-A PR closed without merge records `pr_state: "closed"`, `merge_status: "closed_unmerged"`, and `merged_sha: null`. Do not leave a closed PR at `not_ready`, because terminal automation must stop or explicitly reopen it.
-
-Schemas v5 through v10 use `post_merge_cleanup` only after a pull request reaches `merged`. Before setting cleanup to `ready`, every precondition below must hold:
-
-| Precondition | Requirement |
-|---|---|
-| Landing merged | The PR has reached `merged` |
-| Base fetched | The base branch is freshly fetched |
-| Merge reachable | `landing.merged_sha` is reachable from that base |
-| Clean checkout | A re-observed checkout is clean |
-| Worktree recorded | `observed.git.parent_worktree_path` is recorded |
-| Feature branch head | The local feature branch still points to `landing.pr_head_sha`; when the primary checkout is on that branch, its observed `parent_head_sha` must match too |
-
-Manual worktree removal additionally requires a different exact clean linked path, branch ref, head SHA, and `managed_by: "parent"` to match the current observation. Terminal `not_applicable` requires a fresh observation with no matching linked worktree; app-managed worktrees use deferred platform lifecycle state instead. `delete_branches` must cover `branch:refs/heads/<head-branch>` for every run mission; `remove_worktrees` must separately cover `worktree:<absolute-path>` when a parent-managed linked worktree exists. Remove that worktree without force, refresh `git worktree list --porcelain`, switch the primary checkout to the base branch, then delete the exact local feature branch. When the PR head is the persistent integration branch, `post_merge_cleanup.local_branch.status` must be `"preserved"`, not `"deleted"`. For `integration_pull_request`, retention applies to the PR base, so the feature head may be deleted after the exact cleanup gates pass. A squash-merged branch may require forced local ref deletion because its commit is not a Git ancestor of the squash commit; use it only after these merged-PR and exact-head gates pass. Record `complete` with refreshed evidence, or `deferred` with a reason when cleanup is not authorized or the worktree is platform-managed. Never remove the primary checkout or treat app retention as a harness cleanup action.
+Schemas v5 through v10 use `post_merge_cleanup` only after a pull request reaches `merged`. See `references/execution-state-model.md`'s Post-Merge Cleanup State for every `ready` precondition, the `remove_worktrees`/`delete_branches` targets, the exact removal order, and the `preserved` rule for a persistent integration branch. For `integration_pull_request`, retention applies to the PR base, so the feature head may be deleted once those cleanup gates pass.
 
 Create mission worktrees from the current resolved integration head. Before each parent integration, require at least one read-only review bound to the exact worktree head; repair findings in that worktree and review the changed head again. Integrate passing worktrees into the branch named by `integration.branch`, either locally or through `integration_pull_request` when repository policy requires an integration-base PR. In `local_only` and `integration_push`, do not create remote PR, CI, review, or merge evidence. After final verification, preserve continuity at the exact integration head. In `pull_request`, which begins only when the user separately asks for it, set continuity to `not_required` and offer the resolved integration head to the protected base. Worker branches and worktrees never become protected landing branches.
 
@@ -525,35 +393,17 @@ That source must differ from the entry's own `source`, every key must appear in 
 }
 ```
 
-When an action is authorized, scope is required and must cover the current run, current PLAN revision/digest, mission, and target. Encode exact targets as `worker:<id>`, `task:<id>`, `worktree:<absolute-path>`, `branch:<full-ref>`, `remote:<remote/ref>`, `pr:<full-PR-URL>`, `repository:<identity>`, `environment:<name>`, `release:<target-id>`, `runtime:<provider>`, `workflow:<identity>`, or `cloud-resource:<provider>:<environment>:<kind>:<logical-name>` as appropriate. `create_pr`, `manage_pr_review`, and `merge_pr` may use `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` until the exact PR exists, then retain it and add the exact PR target. Head-bound `push`, `create_pr`, `manage_pr_review`, `merge_pr`, and `deploy` entries also require `authorized_head_sha` and exact targets, never `*`. `expires_when` is exactly `wave_closed`, `run_complete`, or `explicit_revocation`. Treat a changed PLAN revision/digest, changed authorized head, expired boundary, or nonmatching target as unauthorized.
-
-Treat `wave_closed` as a one-use grant. On `closed` or `superseded`, reset matching action entries to unauthorized and clear an overall wave-scoped execution grant before replacing `active_wave`; never carry that source into the next wave.
-
-The parent may inspect state, validate manifests, and compute static conflict/parallel-eligibility analysis without implementation authorization. A launch-bound ready frontier or selected wave additionally requires canonical readiness, execution authorization, and every action needed by the launch path. Delegating even read-only analysis still requires the matching `spawn_subagents` or `create_user_owned_tasks` authorization.
+See `references/execution-state-model.md`'s Authorization Action Ledger for the exact target encoding, the `future-pr:` form, the `expires_when` values and their `wave_closed` reset, and which read-only analysis the parent may perform before a launch-bound wave adds its own authorization requirements.
 
 For automatic app-task fan-out, the selector emits one `launch_directives` entry per selected mission. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `spawn_subagents`, `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If the user requested left-sidebar tasks and project lookup, thread creation, worktree setup, follow-up messaging, or polling is unavailable, leave the worker unlaunched and report the blocked topology; never silently replace it with coordinator-owned subagents or sequential parent implementation. If that topology was not requested, a sequential parent fallback remains valid. When the capability handshake proves nested-agent capability unavailable, assign a disabled task-local policy before implementation and require an equivalent parent-owned read-only review before integration.
 
 For graph workers, copy the selector's complete `runtime_binding` into the allocated mission `workers[]` record or read-only verifier `review_workers[]` record. A review worker also binds node ID, attempt ID, graph revision, review path, and exact current integrated or PR-head SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null `model` and `reasoning_effort` as task creation `model` and `thinking`; omit null values so the host default remains explicit. For Claude Code, pass each node's own `model` (and non-null `reasoning_effort` as `effort`) into that node's own `agent()` call inside the Dynamic Workflow script; a single wave may mix models and reasoning efforts freely since each node's call carries its own. The destination host validates the exact pair at launch.
 
-Use these exact coordination enums:
-
-- `worker_runtime`: `parent`, `subagent`, or `app_task`
-- `workspace_mode`: `shared_checkout`, `parent_managed_worktree`, or `app_managed_worktree`
-- `completion_channel`: `agent_result`, `thread_poll`, `report_file`, or `user_relay`
-
-Schemas v6 through v10 require `runtime_capabilities.runtime_adapter`. The parent detects actual host capabilities before selection and records `provider` as `codex`, `claude_code`, or `generic`; `detection_source` as `observed`, `explicit`, or `fallback`; and every actually available host driver in `available_drivers`. Always include `sequential_parent`. Capability detection is not authorization.
+See `references/execution-state-model.md`'s Runtime Capability Axes for the `worker_runtime`, `workspace_mode`, and `completion_channel` enums, the `runtime_adapter`, `permission_boundary`, and `nested_subagents` field rules, and the host-provider match a node needs before the parent may bind it. Its Canonical Mission Phases and Canonical Task Phases sections own the mission, task, worker, and active-wave phase values; `worker_passed` never satisfies a downstream mission dependency.
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
 
 `CLAUDE_DYNAMIC_WORKFLOW.template.js` only launches flat mission workers: it has no `node_kind`, no `tool_profile` validation, and no `EnterWorktree` call per node. A wave that mixes mission and review graph nodes, records a `tool_profile` (`mission_write`, `code_review_readonly`, `visual_review_readonly`), or needs each node instructed to call `EnterWorktree` before its own reads/writes must instead use `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js`, passing `tool_profile` and the typed `nodes[]` array (each with `node_kind: "mission"` or `"review"`) as structured `args`. Use the flat script only for single-role, all-mission waves with no read-only review nodes.
-
-A graph node's `allowed_providers` must include the current host's provider before the parent may bind it to a worker at all. There is no cross-host route: a Codex-hosted parent never binds a node to Claude Code, and a Claude-Code-hosted parent never binds a node to Codex. A ready node whose allowed/preferred providers exclude the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
-
-`runtime_capabilities.permission_boundary` records the effective parent mode before workers launch. Use `selected_mode` values `ask_for_approval`, `approve_for_me`, `full_access`, `named_profile`, or `unknown`; a non-empty `profile_name` is required only for `named_profile`. Record approval, filesystem, network, local-binding, and worker-inheritance facts, then set `status` to `ready` only after linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets fit inside the boundary. `may_prompt`, `blocked`, or `unknown` blocks unattended fan-out. Existing schema-v2 RUN files may omit this optional object.
-
-`runtime_capabilities.nested_subagents.available` records whether direct child tools/results were observed inside app tasks; it does not grant permission. The harness policy always caps nesting at depth one, children per app task at three, child work to the listed functional roles, writes to `read_only`, and child completion to `agent_result`. Set a worker's nested policy to enabled only when `spawn_subagents` covers its mission and `worker:<id>` target (or an explicitly run-wide `*`).
-
-Use mission phases `queued`, `ready`, `leased`, `worker_running`, `worker_passed`, `integrating`, and `integrated`; mission failure states are `blocked`, `worker_failed`, `integration_failed`, and `superseded`. Use task phases `queued`, `ready`, `running`, `worker_passed`, and `mission_recorded`; task failure states are `blocked`, `worker_failed`, and `superseded`. `worker_passed` does not satisfy downstream mission dependencies. Only a mission at `integrated` with `integration_gate: "PASS"` and an integrated SHA verified as an ancestor of the current integration head does.
 
 Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_plan_digest_sha256`, `base_sha`, and `worker_id`. Each `workers` entry uses this exact shape:
 
@@ -666,8 +516,6 @@ Graph RUN schemas v8 through v10 may include `workflow_runs` to bind canonical n
 Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. These profiles are carried only by `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (see above), not by the flat `CLAUDE_DYNAMIC_WORKFLOW.template.js`. A profile selects which node kinds the wave admits and which instructions go into each prompt; it is not a tool allowlist, and neither script applies one. Group Claude Graph Workflow nodes by tool profile only; model and reasoning effort travel with each node's own `agent()` call, so one wave may mix them freely. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review prompts instruct read-only behavior; that is prompt text plus result validation, not a permission boundary. Visual review consumes retained screenshots or other existing evidence until a read-only browser tool is explicitly vetted.
 
 For an enabled RUN-v10 app-task nested policy, use `max_children` from 1 to 3, require `reviewer`, and use a non-empty subset of the runtime `allowed_roles`. Legacy RUN-v8/v9 app-task policies retain their declared roles and matching spawn authorization even when `reviewer` is absent. The app task stays the only writer. A non-trivial mission must complete a post-edit read-only reviewer bound to its exact current head and record that reviewer in WORKER_RESULT; exploration, research, and test-analysis lanes remain optional. An enabled worker cannot pass with `partial` or `unavailable` activity unless it still contains a completed exact-head PASS reviewer. After validating WORKER_RESULT, copy that completed reviewer child into the worker's `nested_review_evidence`; retain its agent ID, role, task, status, summary, evidence paths, reviewed SHA, and PASS decision. RUN validation requires that canonical record to match the mission and worker head before `integrating`. Before RUN-v10 execution authorization, every writable mission must have a direct dependency to a runtime review node whose `mission_ids` contains only that mission and whose `allowed_outcomes` includes `pass`; a multi-mission batch review cannot replace it. When several direct pre-integration review nodes cover the same mission, they use distinct review-worker IDs; at least one current `worker_passed` PASS record must match the retained task-local reviewer agent. When capability is initially unknown, require `spawn_subagents` authorization before the no-production-edit handshake, record its tool/result observation, and then assign the explicit enabled or disabled policy. If that handshake proves the child runtime or reviewer lane unavailable, assign a disabled policy before implementation and record the reason. A disabled-policy worker result, or a graph-backed direct worker with no nested policy, may first validate and make its downstream review node selectable. Before the mission transitions to `integrating`, run the equivalent parent-owned read-only review and retain a `worker_passed` `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head. Every retained current or historical review attempt must bind its `reviewed_sha` to a current eligible head or an explicit mission `prior_head_shas` entry; a retained `fix_required` batch review may instead bind to an explicit integration `prior_head_shas` entry. A review node may use worktree or integrated SHAs only from its declared `mission_ids`; current integration and PR heads remain valid batch review targets. Trivial disabled-policy missions use the same parent-review path. Older schema-v2 RUN files may omit both optional nested fields; once a RUN includes `runtime_capabilities.nested_subagents`, every app-task worker must include `nested_subagent_policy`, while enabled worker passes also retain `nested_review_evidence`.
-
-Use active-wave statuses `idle`, `proposed`, `active`, `closed`, and `superseded`. Any accepted plan revision supersedes the active wave and every old-revision lease; quiesce those workers and issue new leases after revalidation rather than accepting stale results.
 
 Use these exact array entry shapes:
 

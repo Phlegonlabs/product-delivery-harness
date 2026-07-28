@@ -142,6 +142,19 @@ def canonical_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
 
 
+def _normalized_branch(value: Any) -> str | None:
+    """Return a branch name with any refs/heads/ prefix removed."""
+    if not _nonempty_string(value):
+        return None
+    return value.removeprefix("refs/heads/")
+
+
+def _branch_ref(value: Any) -> str | None:
+    """Return the full refs/heads/ ref for a branch name, or None."""
+    name = _normalized_branch(value)
+    return None if name is None else f"refs/heads/{name}"
+
+
 def is_full_sha(value: Any) -> bool:
     return isinstance(value, str) and SHA_RE.fullmatch(value) is not None
 

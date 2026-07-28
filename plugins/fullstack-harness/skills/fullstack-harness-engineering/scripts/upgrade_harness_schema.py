@@ -22,6 +22,9 @@ from typing import Any
 
 from harness_manifest import (
     ManifestError,
+    _branch_ref,
+    _is_product_staging_location,
+    _normalized_branch,
     PLAN_HEADING,
     RUN_HEADING,
     load_plan,
@@ -195,18 +198,10 @@ def _upgrade_plan_v4_to_v5(plan: dict[str, Any], repo_root: Path) -> list[str]:
                 f"cannot upgrade source {source.get('id')!r}: schema v5 requires "
                 "frozen or delta_accepted published sources"
             )
-        location = source.get("location")
-        if isinstance(location, str) and "://" not in location:
-            normalized = location.replace("\\", "/").removeprefix("./").strip("/").lower()
-            parts = normalized.split("/")
-            if any(
-                parts[index : index + 3]
-                in (["docs", "product", ".prd-staging"], ["docs", "product", ".design-staging"])
-                for index in range(max(0, len(parts) - 2))
-            ):
-                raise UpgradeError(
-                    f"cannot upgrade source {source.get('id')!r}: publish staged product input first"
-                )
+        if _is_product_staging_location(source.get("location")):
+            raise UpgradeError(
+                f"cannot upgrade source {source.get('id')!r}: publish staged product input first"
+            )
         source["staged_revision"] = None
 
     for mission in plan.get("missions", []):
@@ -509,21 +504,9 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
         head_branch = landing.get("head_branch")
         base_branch = landing.get("base_branch")
         integration_branch = integration.get("branch") if isinstance(integration, dict) else None
-        normalized_head = (
-            head_branch.removeprefix("refs/heads/")
-            if isinstance(head_branch, str) and head_branch
-            else None
-        )
-        normalized_base = (
-            base_branch.removeprefix("refs/heads/")
-            if isinstance(base_branch, str) and base_branch
-            else None
-        )
-        normalized_integration = (
-            integration_branch.removeprefix("refs/heads/")
-            if isinstance(integration_branch, str) and integration_branch
-            else None
-        )
+        normalized_head = _normalized_branch(head_branch)
+        normalized_base = _normalized_branch(base_branch)
+        normalized_integration = _normalized_branch(integration_branch)
         if (
             normalized_head is None
             or normalized_head == normalized_base
@@ -543,11 +526,7 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
         landing["continuity"] = (
             {
                 "status": "planned",
-                "branch_ref": (
-                    landing["head_branch"]
-                    if str(landing["head_branch"]).startswith("refs/heads/")
-                    else f"refs/heads/{landing['head_branch']}"
-                ),
+                "branch_ref": _branch_ref(landing["head_branch"]),
                 "head_sha": None,
                 "reason": None,
             }

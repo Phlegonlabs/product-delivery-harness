@@ -28,6 +28,19 @@ from harness_schema import (
 )
 
 
+def _validate_smoke_verifiers(errors: list[str], target_path: str, smoke: Any) -> None:
+    if not isinstance(smoke, list) or not smoke:
+        _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
+        return
+    for index, verifier in enumerate(smoke):
+        _validate_verifier(
+            errors,
+            f"{target_path}.smoke_verifiers[{index}]",
+            verifier,
+            cache_allowed=False,
+        )
+
+
 def _validate_release(
     errors: list[str], value: Any, *, schema_version: int | None = None
 ) -> None:
@@ -131,17 +144,7 @@ def _validate_release_targets_v5(
             if target["trigger"] == "merge" and commands.get("publish") is not None:
                 _add(errors, f"{target_path}.commands.publish", "must be null for merge trigger")
         _strings(errors, f"{target_path}.prerequisites", target["prerequisites"], nonempty=True)
-        smoke = target["smoke_verifiers"]
-        if not isinstance(smoke, list) or not smoke:
-            _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
-        else:
-            for verifier_index, verifier in enumerate(smoke):
-                _validate_verifier(
-                    errors,
-                    f"{target_path}.smoke_verifiers[{verifier_index}]",
-                    verifier,
-                    cache_allowed=False,
-                )
+        _validate_smoke_verifiers(errors, target_path, target["smoke_verifiers"])
         if stage == "development":
             if target["source"] is not None and target["source"] not in {"pr_head", "integration_head"}:
                 _add(errors, f"{target_path}.source", "development must use pr_head or integration_head")
@@ -220,17 +223,7 @@ def _validate_generic_release_targets(errors: list[str], path: str, targets_valu
             target["deploy_command"],
             cache_allowed=False,
         )
-        smoke = target["smoke_verifiers"]
-        if not isinstance(smoke, list) or not smoke:
-            _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
-        else:
-            for verifier_index, verifier in enumerate(smoke):
-                _validate_verifier(
-                    errors,
-                    f"{target_path}.smoke_verifiers[{verifier_index}]",
-                    verifier,
-                    cache_allowed=False,
-                )
+        _validate_smoke_verifiers(errors, target_path, target["smoke_verifiers"])
 
     missing_data_modes = {"isolated_non_production", "production"} - seen_data_modes
     if missing_data_modes:
@@ -307,17 +300,7 @@ def _validate_cloudflare_release_targets(errors: list[str], path: str, targets_v
             target["deploy_command"],
             cache_allowed=False,
         )
-        smoke = target["smoke_verifiers"]
-        if not isinstance(smoke, list) or not smoke:
-            _add(errors, f"{target_path}.smoke_verifiers", "must be a non-empty list")
-        else:
-            for verifier_index, verifier in enumerate(smoke):
-                _validate_verifier(
-                    errors,
-                    f"{target_path}.smoke_verifiers[{verifier_index}]",
-                    verifier,
-                    cache_allowed=False,
-                )
+        _validate_smoke_verifiers(errors, target_path, target["smoke_verifiers"])
 
     if set(targets) != {"development", "production"}:
         _add(errors, f"{path}.targets", "must contain development and production")

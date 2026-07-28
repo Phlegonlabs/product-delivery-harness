@@ -15,10 +15,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
     "max_parallel_workers": 8,
-    "required_reviews": [
-      "frontend_code",
-      "visual"
-    ],
+    "required_reviews": ["frontend_code", "visual"],
     "sources": [
       {
         "id": "SRC-001",
@@ -35,9 +32,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
     "traces": [
       {
         "id": "PRD-001",
-        "source_ids": [
-          "SRC-001"
-        ],
+        "source_ids": ["SRC-001"],
         "priority": "must",
         "requirement": "<requirement>",
         "disposition": "planned",
@@ -47,16 +42,10 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
     "ui_surfaces": [
       {
         "id": "UI-001",
-        "trace_ids": [
-          "PRD-001"
-        ],
+        "trace_ids": ["PRD-001"],
         "route": "<route or screen>",
-        "breakpoints": [
-          "<copy the complete viewports or sizeClasses set from design-system.json>"
-        ],
-        "states": [
-          "<copy the complete stateMatrix from design-system.json, preserving order>"
-        ],
+        "breakpoints": ["<copy the complete viewports or sizeClasses set from design-system.json>"],
+        "states": ["<copy the complete stateMatrix from design-system.json, preserving order>"],
         "evidence_gate": "required"
       }
     ],
@@ -73,10 +62,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
       {
         "id": "batch-cross-mission",
         "cwd": ".",
-        "argv": [
-          "<runner>",
-          "<batch-argument>"
-        ],
+        "argv": ["<runner>", "<batch-argument>"],
         "pass_signal": "<literal pass signal>"
       }
     ],
@@ -84,19 +70,13 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
       {
         "id": "e2e-primary-journey",
         "cwd": ".",
-        "argv": [
-          "<runner>",
-          "<e2e-argument>"
-        ],
+        "argv": ["<runner>", "<e2e-argument>"],
         "pass_signal": "<literal pass signal>"
       },
       {
         "id": "final-closeout",
         "cwd": ".",
-        "argv": [
-          "<runner>",
-          "<final-closeout-argument>"
-        ],
+        "argv": ["<runner>", "<final-closeout-argument>"],
         "pass_signal": "<literal pass signal>"
       }
     ],
@@ -136,37 +116,21 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
       ]
     },
     "graph": {
-      "entry_nodes": [
-        "N-M1"
-      ],
+      "entry_nodes": ["N-M1"],
       "nodes": [
         {
           "id": "N-M1",
           "kind": "mission",
           "ref": "M1",
           "executor": "runtime_worker",
-          "allowed_outcomes": [
-            "pass",
-            "retryable_failure",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": "claude_code",
-            "allowed_providers": [
-              "codex",
-              "claude_code"
-            ],
+            "allowed_providers": ["codex", "claude_code"],
             "provider_options": {
-              "codex": {
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "high"
-              },
-              "claude_code": {
-                "model": "sonnet",
-                "reasoning_effort": "high"
-              }
+              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
+              "claude_code": {"model": "sonnet", "reasoning_effort": "high"}
             }
           }
         },
@@ -175,43 +139,21 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "verifier",
           "ref": "batch-cross-mission",
           "executor": "runtime_worker",
-          "allowed_outcomes": [
-            "pass",
-            "fix_required",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "fix_required", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": "claude_code",
-            "allowed_providers": [
-              "codex",
-              "claude_code"
-            ],
+            "allowed_providers": ["codex", "claude_code"],
             "provider_options": {
-              "codex": {
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "medium"
-              },
-              "claude_code": {
-                "model": "sonnet",
-                "reasoning_effort": "medium"
-              }
+              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
+              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"}
             }
           },
           "review": {
             "type": "frontend_code",
-            "mission_ids": [
-              "M1"
-            ],
-            "scope": [
-              "src/example/**"
-            ],
-            "required_evidence": [
-              "reviewed_sha",
-              "path-and-line findings",
-              "pass or fix_required decision"
-            ]
+            "mission_ids": ["M1"],
+            "scope": ["src/example/**"],
+            "required_evidence": ["reviewed_sha", "path-and-line findings", "pass or fix_required decision"]
           }
         },
         {
@@ -219,12 +161,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "verifier",
           "ref": "e2e-primary-journey",
           "executor": "local_command",
-          "allowed_outcomes": [
-            "pass",
-            "retryable_failure",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": null
         },
@@ -233,44 +170,21 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "verifier",
           "ref": "e2e-primary-journey",
           "executor": "runtime_worker",
-          "allowed_outcomes": [
-            "pass",
-            "fix_required",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "fix_required", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": "claude_code",
-            "allowed_providers": [
-              "codex",
-              "claude_code"
-            ],
+            "allowed_providers": ["codex", "claude_code"],
             "provider_options": {
-              "codex": {
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "medium"
-              },
-              "claude_code": {
-                "model": "sonnet",
-                "reasoning_effort": "medium"
-              }
+              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
+              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"}
             }
           },
           "review": {
             "type": "visual",
-            "mission_ids": [
-              "M1",
-              "M3"
-            ],
-            "scope": [
-              "src/example/**"
-            ],
-            "required_evidence": [
-              "reviewed_sha",
-              "required-breakpoint screenshots",
-              "visual findings and decision"
-            ]
+            "mission_ids": ["M1", "M3"],
+            "scope": ["src/example/**"],
+            "required_evidence": ["reviewed_sha", "required-breakpoint screenshots", "visual findings and decision"]
           }
         },
         {
@@ -278,28 +192,14 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "mission",
           "ref": "M3",
           "executor": "runtime_worker",
-          "allowed_outcomes": [
-            "pass",
-            "retryable_failure",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": "claude_code",
-            "allowed_providers": [
-              "codex",
-              "claude_code"
-            ],
+            "allowed_providers": ["codex", "claude_code"],
             "provider_options": {
-              "codex": {
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "high"
-              },
-              "claude_code": {
-                "model": "sonnet",
-                "reasoning_effort": "high"
-              }
+              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
+              "claude_code": {"model": "sonnet", "reasoning_effort": "high"}
             }
           }
         },
@@ -308,43 +208,21 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "verifier",
           "ref": "batch-cross-mission",
           "executor": "runtime_worker",
-          "allowed_outcomes": [
-            "pass",
-            "fix_required",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "fix_required", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
             "preferred_provider": "claude_code",
-            "allowed_providers": [
-              "codex",
-              "claude_code"
-            ],
+            "allowed_providers": ["codex", "claude_code"],
             "provider_options": {
-              "codex": {
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "medium"
-              },
-              "claude_code": {
-                "model": "sonnet",
-                "reasoning_effort": "medium"
-              }
+              "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
+              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"}
             }
           },
           "review": {
             "type": "frontend_code",
-            "mission_ids": [
-              "M3"
-            ],
-            "scope": [
-              "src/example/**"
-            ],
-            "required_evidence": [
-              "reviewed_sha",
-              "path-and-line findings",
-              "pass or fix_required decision"
-            ]
+            "mission_ids": ["M3"],
+            "scope": ["src/example/**"],
+            "required_evidence": ["reviewed_sha", "path-and-line findings", "pass or fix_required decision"]
           }
         },
         {
@@ -352,12 +230,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "verifier",
           "ref": "final-closeout",
           "executor": "local_command",
-          "allowed_outcomes": [
-            "pass",
-            "retryable_failure",
-            "blocked",
-            "contract_gap"
-          ],
+          "allowed_outcomes": ["pass", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": null
         }
@@ -368,9 +241,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "dependency",
           "from": "N-M1",
           "to": "N-FRONTEND-REVIEW",
-          "on_outcomes": [
-            "pass"
-          ],
+          "on_outcomes": ["pass"],
           "max_traversals": null
         },
         {
@@ -378,9 +249,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "route",
           "from": "N-FRONTEND-REVIEW",
           "to": "N-FINAL-GATE",
-          "on_outcomes": [
-            "pass"
-          ],
+          "on_outcomes": ["pass"],
           "max_traversals": null
         },
         {
@@ -388,9 +257,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "dependency",
           "from": "N-FINAL-GATE",
           "to": "N-VISUAL-REVIEW",
-          "on_outcomes": [
-            "pass"
-          ],
+          "on_outcomes": ["pass"],
           "max_traversals": null
         },
         {
@@ -398,9 +265,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "route",
           "from": "N-VISUAL-REVIEW",
           "to": "N-VISUAL-REPAIR",
-          "on_outcomes": [
-            "fix_required"
-          ],
+          "on_outcomes": ["fix_required"],
           "max_traversals": 2
         },
         {
@@ -408,9 +273,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "dependency",
           "from": "N-VISUAL-REPAIR",
           "to": "N-VISUAL-REPAIR-CODE-REVIEW",
-          "on_outcomes": [
-            "pass"
-          ],
+          "on_outcomes": ["pass"],
           "max_traversals": null
         },
         {
@@ -418,9 +281,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "route",
           "from": "N-VISUAL-REPAIR-CODE-REVIEW",
           "to": "N-VISUAL-REVIEW",
-          "on_outcomes": [
-            "pass"
-          ],
+          "on_outcomes": ["pass"],
           "max_traversals": 2
         },
         {
@@ -428,9 +289,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           "kind": "route",
           "from": "N-VISUAL-REVIEW",
           "to": "N-CLOSEOUT-GATE",
-          "on_outcomes": [
-            "pass"
-          ],
+          "on_outcomes": ["pass"],
           "max_traversals": null
         }
       ]
@@ -442,60 +301,30 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         "objective": "<vertical mission outcome>",
         "priority": 100,
         "merge_rank": 10,
-        "trace_ids": [
-          "PRD-001"
-        ],
-        "write_scope": [
-          "src/example/**"
-        ],
-        "deny_scope": [
-          "docs/goal/PLAN.md",
-          "docs/goal/RUN.md"
-        ],
+        "trace_ids": ["PRD-001"],
+        "write_scope": ["src/example/**"],
+        "deny_scope": ["docs/goal/PLAN.md", "docs/goal/RUN.md"],
         "resource_inventory_complete": true,
         "serialized_resources": [],
-        "runtime_resources": [
-          {
-            "key": "service:example-http",
-            "access": "exclusive"
-          }
-        ],
+        "runtime_resources": [{"key": "service:example-http", "access": "exclusive"}],
         "worktree_eligible": true,
         "required_skills": [],
-        "stop_conditions": [
-          "<mission-specific stop condition>"
-        ],
+        "stop_conditions": ["<mission-specific stop condition>"],
         "worker_verifiers": [
           {
             "id": "mission-focused",
             "cwd": ".",
-            "argv": [
-              "<runner>",
-              "<mission-argument>"
-            ],
+            "argv": ["<runner>", "<mission-argument>"],
             "pass_signal": "exit 0",
-            "selection": {
-              "mode": "changed_files",
-              "scopes": [
-                "src/example/**"
-              ]
-            },
-            "cache": {
-              "mode": "session_exact",
-              "environment_keys": [
-                "CI"
-              ]
-            }
+            "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
+            "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
           }
         ],
         "integration_verifiers": [
           {
             "id": "mission-integration",
             "cwd": ".",
-            "argv": [
-              "<runner>",
-              "<integration-argument>"
-            ],
+            "argv": ["<runner>", "<integration-argument>"],
             "pass_signal": "<literal pass signal>"
           }
         ],
@@ -507,45 +336,26 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
             "acceptance_matrix": [
               {
                 "test_id": "TEST-M1-T01-001",
-                "trace_ids": [
-                  "PRD-001"
-                ],
+                "trace_ids": ["PRD-001"],
                 "criterion": "<observable scenario or assertion that stays inside this task>"
               }
             ],
-            "trace_ids": [
-              "PRD-001"
-            ],
+            "trace_ids": ["PRD-001"],
             "depends_on": [],
             "parent_task": null,
             "legacy_task_ids": [],
             "replaced_by": [],
             "split_reason": null,
             "refinement_generation": 0,
-            "write_scope": [
-              "src/example/**"
-            ],
+            "write_scope": ["src/example/**"],
             "verifiers": [
               {
                 "id": "task-focused",
                 "cwd": ".",
-                "argv": [
-                  "<runner>",
-                  "<task-argument>"
-                ],
+                "argv": ["<runner>", "<task-argument>"],
                 "pass_signal": "exit 0",
-                "selection": {
-                  "mode": "changed_files",
-                  "scopes": [
-                    "src/example/**"
-                  ]
-                },
-                "cache": {
-                  "mode": "session_exact",
-                  "environment_keys": [
-                    "CI"
-                  ]
-                }
+                "selection": {"mode": "changed_files", "scopes": ["src/example/**"]},
+                "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
               }
             ]
           }
@@ -557,25 +367,12 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         "objective": "Apply only accepted visual review findings, regenerate affected evidence, and return the changed head through the same visual review.",
         "priority": 80,
         "merge_rank": 30,
-        "trace_ids": [
-          "PRD-001"
-        ],
-        "write_scope": [
-          "src/example/**",
-          "docs/goal/evidence/**"
-        ],
-        "deny_scope": [
-          "docs/goal/PLAN.md",
-          "docs/goal/RUN.md"
-        ],
+        "trace_ids": ["PRD-001"],
+        "write_scope": ["src/example/**", "docs/goal/evidence/**"],
+        "deny_scope": ["docs/goal/PLAN.md", "docs/goal/RUN.md"],
         "resource_inventory_complete": true,
         "serialized_resources": [],
-        "runtime_resources": [
-          {
-            "key": "service:example-http",
-            "access": "exclusive"
-          }
-        ],
+        "runtime_resources": [{"key": "service:example-http", "access": "exclusive"}],
         "worktree_eligible": true,
         "required_skills": [],
         "stop_conditions": [
@@ -585,34 +382,17 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
           {
             "id": "visual-repair-focused",
             "cwd": ".",
-            "argv": [
-              "<runner>",
-              "<visual-repair-argument>"
-            ],
+            "argv": ["<runner>", "<visual-repair-argument>"],
             "pass_signal": "exit 0",
-            "selection": {
-              "mode": "changed_files",
-              "scopes": [
-                "src/example/**",
-                "docs/goal/evidence/**"
-              ]
-            },
-            "cache": {
-              "mode": "session_exact",
-              "environment_keys": [
-                "CI"
-              ]
-            }
+            "selection": {"mode": "changed_files", "scopes": ["src/example/**", "docs/goal/evidence/**"]},
+            "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
           }
         ],
         "integration_verifiers": [
           {
             "id": "visual-repair-integration",
             "cwd": ".",
-            "argv": [
-              "<runner>",
-              "<visual-repair-integration-argument>"
-            ],
+            "argv": ["<runner>", "<visual-repair-integration-argument>"],
             "pass_signal": "<literal pass signal>"
           }
         ],
@@ -624,47 +404,26 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
             "acceptance_matrix": [
               {
                 "test_id": "TEST-M3-T01-001",
-                "trace_ids": [
-                  "PRD-001"
-                ],
+                "trace_ids": ["PRD-001"],
                 "criterion": "Every accepted blocking visual finding is resolved and affected evidence is recaptured for the repaired head."
               }
             ],
-            "trace_ids": [
-              "PRD-001"
-            ],
+            "trace_ids": ["PRD-001"],
             "depends_on": [],
             "parent_task": null,
             "legacy_task_ids": [],
             "replaced_by": [],
             "split_reason": null,
             "refinement_generation": 0,
-            "write_scope": [
-              "src/example/**",
-              "docs/goal/evidence/**"
-            ],
+            "write_scope": ["src/example/**", "docs/goal/evidence/**"],
             "verifiers": [
               {
                 "id": "visual-repair-task",
                 "cwd": ".",
-                "argv": [
-                  "<runner>",
-                  "<visual-repair-task-argument>"
-                ],
+                "argv": ["<runner>", "<visual-repair-task-argument>"],
                 "pass_signal": "exit 0",
-                "selection": {
-                  "mode": "changed_files",
-                  "scopes": [
-                    "src/example/**",
-                    "docs/goal/evidence/**"
-                  ]
-                },
-                "cache": {
-                  "mode": "session_exact",
-                  "environment_keys": [
-                    "CI"
-                  ]
-                }
+                "selection": {"mode": "changed_files", "scopes": ["src/example/**", "docs/goal/evidence/**"]},
+                "cache": {"mode": "session_exact", "environment_keys": ["CI"]}
               }
             ]
           }
@@ -705,72 +464,7 @@ Scope entries must be POSIX, repository-relative exact paths or subtrees ending 
 
 For UI implementation, `[]` remains the default. Add `frontend-design` only when the user explicitly selected it for a new or high-impact visual surface. Then state `frontend-design conformance mode` in the mission objective or stop conditions: the worker follows the frozen wireframe, design system, registry, route recipe, and mockup; it does not invent a direction, token, primitive, variant, component, motion pattern, or structure. A missing entry returns as a design-input delta and blocks the mission until the package and PLAN digest are revised.
 
-On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield / Empty Repository section), mission M1 scaffolds the workspace and every layer the frozen `stack-decisions.md` Frontend Technology Decision names, before any archetype-specific mission runs. This is a complete, copy-paste-ready mission object rather than new field-level guidance: every field keeps the same meaning and default already explained above for the main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
-
-```json
-{
-  "id": "M1",
-  "alias": "workspace-foundation",
-  "objective": "Create the workspace manager root and a locally runnable application foundation with every decided frontend layer installed.",
-  "priority": 100,
-  "merge_rank": 10,
-  "trace_ids": ["PRD-<architecture-decision-trace>"],
-  "write_scope": ["package.json", "<lockfile>", "apps/web/**", ".env.example", ".gitignore"],
-  "deny_scope": ["docs/goal/PLAN.md", "docs/goal/RUN.md"],
-  "resource_inventory_complete": true,
-  "serialized_resources": [],
-  "runtime_resources": [],
-  "worktree_eligible": true,
-  "required_skills": [],
-  "stop_conditions": [
-    "Stop if any Frontend Technology Decision layer is still Provisional; request the missing decision instead of guessing a stack."
-  ],
-  "worker_verifiers": [
-    {
-      "id": "m1-typecheck",
-      "cwd": ".",
-      "argv": ["<package-manager>", "run", "typecheck"],
-      "pass_signal": "Typecheck exits 0"
-    }
-  ],
-  "integration_verifiers": [
-    {
-      "id": "m1-build",
-      "cwd": ".",
-      "argv": ["<package-manager>", "run", "build"],
-      "pass_signal": "Production build exits 0 with every installed layer (framework, UI library, build tool, styling/components) wired and locally runnable"
-    }
-  ],
-  "tasks": [
-    {
-      "id": "M1/T01",
-      "alias": "workspace-init",
-      "objective": "Initialize the workspace manager, lockfile, and root script contract.",
-      "depends_on": [],
-      "write_scope": ["package.json", "<lockfile>"],
-      "verifiers": [{"id": "m1-t01", "cwd": ".", "argv": ["<package-manager>", "ci"], "pass_signal": "Frozen install exits 0"}]
-    },
-    {
-      "id": "M1/T02",
-      "alias": "framework-and-ui-stack",
-      "objective": "Install and wire the decided framework, UI library, build tool, and styling/components together.",
-      "depends_on": ["M1/T01"],
-      "write_scope": ["apps/web/**"],
-      "verifiers": [{"id": "m1-t02", "cwd": ".", "argv": ["<package-manager>", "run", "build"], "pass_signal": "Build exits 0 and the dev server serves a page locally"}]
-    },
-    {
-      "id": "M1/T03",
-      "alias": "environment-configuration",
-      "objective": "Reserve every known environment variable in a tracked .env.example with placeholder values, and git-ignore the real local secret file.",
-      "depends_on": ["M1/T02"],
-      "write_scope": [".env.example", ".gitignore"],
-      "verifiers": [{"id": "m1-t03", "cwd": ".", "argv": ["<package-manager>", "run", "typecheck"], "pass_signal": "Typecheck exits 0 with no committed .env, and .env.example lists every variable read by the scaffolded app with a placeholder, not a real value"}]
-    }
-  ]
-}
-```
-
-`M1/T03` is a worked example, not a fixed template: list only the environment variables the scaffolded layers actually read at this point (for example a database connection string or an auth provider client ID), one placeholder line each, and add more entries in later tasks/missions exactly when they introduce a new read — see `commit-convention.md`'s atomic-boundary rule for this and `platform-archetypes.md`'s Greenfield / Empty Repository section for the full convention.
+On a greenfield repository, mission M1 scaffolds the workspace and every layer the frozen `stack-decisions.md` Frontend Technology Decision names, before any archetype-specific mission runs. See `references/platform-archetypes.md`'s Greenfield / Empty Repository section for the per-toolchain detection table and a complete, copy-paste-ready `M1 workspace-foundation` mission object.
 
 ## Source Map
 

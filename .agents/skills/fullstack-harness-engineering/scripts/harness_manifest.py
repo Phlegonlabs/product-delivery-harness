@@ -58,9 +58,11 @@ from harness_schema import (
 from harness_core import (
     ManifestError,
     _add,
+    _branch_ref,
     _is_int,
     _keys,
     _nonempty_string,
+    _normalized_branch,
     _optional_nonnegative_int,
     _optional_sha,
     _optional_string,
@@ -1098,12 +1100,7 @@ def _validate_post_merge_cleanup(
     if not isinstance(landing, dict):
         return
 
-    expected_branch_ref = (
-        f"refs/heads/{landing['head_branch']}"
-        if _nonempty_string(landing.get("head_branch"))
-        and not landing["head_branch"].startswith("refs/heads/")
-        else landing.get("head_branch")
-    )
+    expected_branch_ref = _branch_ref(landing.get("head_branch"))
     observed = run.get("observed")
     observed_git = observed.get("git") if isinstance(observed, dict) else None
     parent_worktree_path = (
@@ -1224,11 +1221,8 @@ def _validate_post_merge_cleanup(
         _add(errors, "run.observed.git.parent_dirty", "must be false before cleanup")
     if not _nonempty_string(parent_worktree_path):
         _add(errors, "run.observed.git.parent_worktree_path", "is required before cleanup")
-    parent_branch = observed_git.get("parent_branch") if isinstance(observed_git, dict) else None
-    parent_branch_ref = (
-        f"refs/heads/{parent_branch}"
-        if _nonempty_string(parent_branch) and not parent_branch.startswith("refs/heads/")
-        else parent_branch
+    parent_branch_ref = _branch_ref(
+        observed_git.get("parent_branch") if isinstance(observed_git, dict) else None
     )
     if (
         parent_branch_ref == local_branch.get("ref")
@@ -1381,10 +1375,7 @@ def _validate_post_merge_cleanup(
         if not evidence:
             _add(errors, f"{path}.evidence", "must record cleanup verification evidence")
         if isinstance(observed_git, dict):
-            parent_branch = observed_git.get("parent_branch")
-            if _nonempty_string(parent_branch):
-                parent_branch = parent_branch.removeprefix("refs/heads/")
-            if parent_branch != base_branch:
+            if _normalized_branch(observed_git.get("parent_branch")) != base_branch:
                 _add(errors, "run.observed.git.parent_branch", "must be the base branch after cleanup")
             if observed_git.get("parent_head_sha") != base.get("head_sha"):
                 _add(errors, "run.observed.git.parent_head_sha", "must match the observed base head after cleanup")
@@ -2437,23 +2428,23 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review = node.get("review")
             if not isinstance(review, dict):
                 continue
-            mission_ids = review.get("mission_ids") or []
+            review_mission_ids = review.get("mission_ids") or []
             if schema_version == 10:
                 if (
-                    len(mission_ids) != 1
-                    or not isinstance(mission_ids[0], str)
+                    len(review_mission_ids) != 1
+                    or not isinstance(review_mission_ids[0], str)
                     or not isinstance(node.get("allowed_outcomes"), list)
                     or "pass" not in node["allowed_outcomes"]
                     or not any(
                         isinstance(edge, dict)
                         and edge.get("kind") == "dependency"
-                        and edge.get("from") == mission_node_ids.get(mission_ids[0])
+                        and edge.get("from") == mission_node_ids.get(review_mission_ids[0])
                         and edge.get("to") == node.get("id")
                         for edge in graph_edges
                     )
                 ):
                     continue
-            for mission_id in mission_ids:
+            for mission_id in review_mission_ids:
                 if isinstance(mission_id, str):
                     reviewed_missions.add(mission_id)
         unreviewed = sorted(
@@ -2562,7 +2553,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         entry["scope"],
                         action=True,
                         action_name=action,
-                        allow_future_pr=(schema_version in {6, 7, 8, 9, 10}),
                         require_plan_binding=(schema_version == 10),
                         schema_version=schema_version,
                         strict_action_targets=(
@@ -2668,30 +2658,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             push_authorized=push_scope_ok,
         )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
-        landing = run["landing"]
-        continuity = landing.get("continuity")
-        integration = run.get("integration") if isinstance(run.get("integration"), dict) else {}
-        head_branch = landing.get("head_branch")
-        integration_branch = integration.get("branch")
-        base_branch = landing.get("base_branch")
-        normalized_head = (
-            head_branch.removeprefix("refs/heads/")
-            if _nonempty_string(head_branch)
-            else None
-        )
-        normalized_integration = (
-            integration_branch.removeprefix("refs/heads/")
-            if _nonempty_string(integration_branch)
-            else None
-        )
-        normalized_base = (
-            base_branch.removeprefix("refs/heads/")
-            if _nonempty_string(base_branch)
-            else None
-        )
+        v10_landing = run["landing"]
+        continuity = v10_landing.get("continuity")
+        v10_integration = run.get("integration") if isinstance(run.get("integration"), dict) else {}
+        head_branch = v10_landing.get("head_branch")
+        integration_branch = v10_integration.get("branch")
+        base_branch = v10_landing.get("base_branch")
+        normalized_head = _normalized_branch(head_branch)
+        normalized_integration = _normalized_branch(integration_branch)
+        normalized_base = _normalized_branch(base_branch)
         if normalized_head is None:
             _add(errors, "run.landing.head_branch", "is required for PLAN v5 branch continuity")
-        if landing.get("mode") == "integration_pull_request":
+        if v10_landing.get("mode") == "integration_pull_request":
             if normalized_base != normalized_integration:
                 _add(
                     errors,
@@ -2705,7 +2683,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "integration_pull_request head must differ from the integration branch",
                 )
             if (
-                landing.get("auto_merge_requested") is True
+                v10_landing.get("auto_merge_requested") is True
                 and (
                     normalized_integration in PROTECTED_DEFAULT_BRANCHES
                     or normalized_base in PROTECTED_DEFAULT_BRANCHES
@@ -2722,11 +2700,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.integration.branch", "must match landing.head_branch for PLAN v5")
         if normalized_head is not None and normalized_head == normalized_base:
             _add(errors, "run.landing.head_branch", "must differ from landing.base_branch")
-        expected_branch_ref = (
-            f"refs/heads/{normalized_integration}"
-            if normalized_integration is not None
-            else None
-        )
+        expected_branch_ref = _branch_ref(normalized_integration)
         if isinstance(continuity, dict):
             continuity_status = continuity.get("status")
             continuity_branch = continuity.get("branch_ref")
@@ -2742,7 +2716,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if continuity_status == "planned" and continuity_head is not None:
                 _add(errors, "run.landing.continuity.head_sha", "must be null while continuity is planned")
             if continuity_status in {"preserved", "blocked"} and continuity_head is not None and (
-                continuity_head != integration.get("integration_head_sha")
+                continuity_head != v10_integration.get("integration_head_sha")
             ):
                 _add(
                     errors,
@@ -2757,13 +2731,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.landing.continuity",
                     "not_required continuity must not record branch, head, or reason",
                 )
-        if landing.get("mode") in {"local_only", "integration_push"} and (
-            landing.get("checks_status") != "not_started"
-            or landing.get("review_status") != "not_requested"
-            or landing.get("merge_status") != "not_ready"
-            or landing.get("auto_merge_requested") is not False
+        if v10_landing.get("mode") in {"local_only", "integration_push"} and (
+            v10_landing.get("checks_status") != "not_started"
+            or v10_landing.get("review_status") != "not_requested"
+            or v10_landing.get("merge_status") != "not_ready"
+            or v10_landing.get("auto_merge_requested") is not False
             or any(
-                landing.get(key) is not None
+                v10_landing.get(key) is not None
                 for key in (
                     "checks_head_sha",
                     "review_head_sha",
@@ -2777,10 +2751,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(
                 errors,
                 "run.landing",
-                f"{landing.get('mode')} mode cannot record PR, CI, review, or merge evidence",
+                f"{v10_landing.get('mode')} mode cannot record PR, CI, review, or merge evidence",
             )
         if (
-            landing.get("mode") in {
+            v10_landing.get("mode") in {
                 "local_only",
                 "integration_push",
                 "integration_pull_request",
@@ -2793,12 +2767,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.landing.continuity",
                     "authorized integration execution requires planned or preserved integration-branch continuity",
                 )
-        if landing.get("mode") in {
+        if v10_landing.get("mode") in {
             "local_only",
             "integration_push",
             "integration_pull_request",
         } and run.get("status") == "complete":
-            integration_head = integration.get("integration_head_sha")
+            integration_head = v10_integration.get("integration_head_sha")
             if (
                 not isinstance(continuity, dict)
                 or continuity.get("status") != "preserved"
@@ -2810,9 +2784,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "complete integration run requires preserved continuity at the integration head",
                 )
         if (
-            landing.get("mode") == "integration_pull_request"
-            and landing.get("merge_status") == "merged"
-            and landing.get("merged_sha") != integration.get("integration_head_sha")
+            v10_landing.get("mode") == "integration_pull_request"
+            and v10_landing.get("merge_status") == "merged"
+            and v10_landing.get("merged_sha") != v10_integration.get("integration_head_sha")
         ):
             _add(
                 errors,
@@ -2820,28 +2794,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "merged integration_pull_request must become the current integration head",
             )
         if (
-            landing.get("mode") == "pull_request"
-            and landing.get("pr_state") in {"draft", "open", "merged"}
+            v10_landing.get("mode") == "pull_request"
+            and v10_landing.get("pr_state") in {"draft", "open", "merged"}
             and (
-                landing.get("checks_status") == "PASS"
-                or landing.get("review_status") == "PASS"
-                or landing.get("merge_status") in {"ready", "merged"}
+                v10_landing.get("checks_status") == "PASS"
+                or v10_landing.get("review_status") == "PASS"
+                or v10_landing.get("merge_status") in {"ready", "merged"}
                 or run.get("status") == "complete"
             )
-            and landing.get("pr_head_sha") != integration.get("integration_head_sha")
+            and v10_landing.get("pr_head_sha") != v10_integration.get("integration_head_sha")
         ):
             _add(
                 errors,
                 "run.landing.pr_head_sha",
                 "promotion pull_request CI, review, ready, and final evidence must match the current integration head",
             )
-    landing = run["landing"] if isinstance(run.get("landing"), dict) else {}
-    pr_url = landing.get("pr_url")
-    mission_states = run.get("mission_states")
-    authorizations = run.get("authorizations", {})
+    merge_landing = run["landing"] if isinstance(run.get("landing"), dict) else {}
+    merge_pr_url = merge_landing.get("pr_url")
+    merge_mission_states = run.get("mission_states")
+    merge_authorizations = run.get("authorizations", {})
     raw_merge_entry = (
-        authorizations.get("merge_pr", {})
-        if isinstance(authorizations, dict)
+        merge_authorizations.get("merge_pr", {})
+        if isinstance(merge_authorizations, dict)
         else {}
     )
     merge_entry = raw_merge_entry if isinstance(raw_merge_entry, dict) else {}
@@ -2849,14 +2823,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     merge_targets = (
         merge_scope.get("targets", []) if isinstance(merge_scope, dict) else []
     )
-    exact_pr_target = f"pr:{pr_url}" if _nonempty_string(pr_url) else None
-    pr_head_sha = landing.get("pr_head_sha")
+    exact_pr_target = f"pr:{merge_pr_url}" if _nonempty_string(merge_pr_url) else None
+    pr_head_sha = merge_landing.get("pr_head_sha")
     merge_authorization_covers_landing = (
         schema_version == 10
         and exact_pr_target is not None
         and is_full_sha(pr_head_sha)
-        and isinstance(mission_states, dict)
-        and bool(mission_states)
+        and isinstance(merge_mission_states, dict)
+        and bool(merge_mission_states)
         and all(
             authorization_covers(
                 run,
@@ -2864,18 +2838,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 mission_id,
                 exact_pr_target,
                 preserve_completed_run_expiry=(
-                    landing.get("merge_status") == "merged"
+                    merge_landing.get("merge_status") == "merged"
                 ),
                 required_head_sha=pr_head_sha,
             )
-            for mission_id in mission_states
+            for mission_id in merge_mission_states
         )
     )
     if (
         schema_version == 10
-        and landing.get("mode") in {"pull_request", "integration_pull_request"}
-        and landing.get("merge_status") == "merged"
-        and landing.get("auto_merge_requested") is False
+        and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
+        and merge_landing.get("merge_status") == "merged"
+        and merge_landing.get("auto_merge_requested") is False
         and not merge_authorization_covers_landing
     ):
         _add(
@@ -2886,23 +2860,23 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
     if (
         schema_version in {4, 5, 6, 7, 8, 9, 10}
-        and landing.get("auto_merge_requested") is True
+        and merge_landing.get("auto_merge_requested") is True
     ):
         if (
-            not _nonempty_string(pr_url)
-            or not isinstance(mission_states, dict)
-            or not mission_states
+            not _nonempty_string(merge_pr_url)
+            or not isinstance(merge_mission_states, dict)
+            or not merge_mission_states
             or any(
                 not authorization_covers(
                     run,
                     "merge_pr",
                     mission_id,
-                    f"pr:{pr_url}",
+                    f"pr:{merge_pr_url}",
                     preserve_completed_run_expiry=(
                         run["landing"].get("merge_status") == "merged"
                     ),
                 )
-                for mission_id in mission_states
+                for mission_id in merge_mission_states
             )
         ):
             _add(
@@ -2933,8 +2907,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
     merge_execution_requires_release_grants = (
         schema_version == 10
-        and landing.get("mode") in {"pull_request", "integration_pull_request"}
-        and landing.get("merge_status") in {"ready", "merged"}
+        and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
+        and merge_landing.get("merge_status") in {"ready", "merged"}
         and merge_authorization_covers_landing
     )
     if merge_execution_requires_release_grants:
@@ -2944,7 +2918,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         applicable_stage = (
             "development"
-            if landing.get("mode") == "integration_pull_request"
+            if merge_landing.get("mode") == "integration_pull_request"
             else "production"
         )
         merge_triggered_ids = [
@@ -2970,8 +2944,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 + ", ".join(sorted(missing_consequences)),
             )
         raw_deploy_entry = (
-            authorizations.get("deploy", {})
-            if isinstance(authorizations, dict)
+            merge_authorizations.get("deploy", {})
+            if isinstance(merge_authorizations, dict)
             else {}
         )
         deploy_entry = raw_deploy_entry if isinstance(raw_deploy_entry, dict) else {}
@@ -2979,8 +2953,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             target_id
             for target_id in merge_triggered_ids
             if deploy_entry.get("authorized_head_sha") != pr_head_sha
-            or not isinstance(mission_states, dict)
-            or not mission_states
+            or not isinstance(merge_mission_states, dict)
+            or not merge_mission_states
             or any(
                 not authorization_covers(
                     run,
@@ -2988,16 +2962,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     mission_id,
                     f"release:{target_id}",
                     preserve_completed_run_expiry=(
-                        landing.get("merge_status") == "merged"
+                        merge_landing.get("merge_status") == "merged"
                     ),
                 )
-                for mission_id in mission_states
+                for mission_id in merge_mission_states
             )
         ]
         if missing_deploy_authorizations:
             execution_kind = (
                 "auto-merge"
-                if landing.get("auto_merge_requested") is True
+                if merge_landing.get("auto_merge_requested") is True
                 else "direct merge"
             )
             _add(
@@ -3348,9 +3322,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             and run["landing"].get("mode") == "pull_request"
             and _nonempty_string(run["landing"].get("head_branch"))
             and (
-                not _nonempty_string(integration["branch"])
-                or integration["branch"].removeprefix("refs/heads/")
-                != run["landing"]["head_branch"].removeprefix("refs/heads/")
+                _normalized_branch(integration["branch"])
+                != _normalized_branch(run["landing"]["head_branch"])
             )
         ):
             _add(
@@ -3644,14 +3617,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 graph_node = graph_nodes_by_mission.get(worker["mission_id"])
                 policy = graph_node.get("runtime") if isinstance(graph_node, dict) else None
                 if isinstance(policy, dict):
-                    provider = runtime_binding["provider"]
-                    if provider not in policy.get("allowed_providers", []):
+                    binding_provider = runtime_binding["provider"]
+                    if binding_provider not in policy.get("allowed_providers", []):
                         _add(
                             errors,
                             f"{path}.runtime_binding.provider",
                             "must be allowed by the matching PLAN node",
                         )
-                    expected_options = resolve_runtime_options(policy, provider)
+                    expected_options = resolve_runtime_options(policy, binding_provider)
                     if runtime_binding["model"] != expected_options["model"]:
                         _add(
                             errors,
@@ -4087,11 +4060,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "option_source",
                     },
                 ):
-                    provider = binding["provider"]
-                    policy = node.get("runtime") if isinstance(node, dict) else None
-                    if provider not in RUNTIME_PROVIDERS:
+                    review_provider = binding["provider"]
+                    review_policy = node.get("runtime") if isinstance(node, dict) else None
+                    if review_provider not in RUNTIME_PROVIDERS:
                         _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
-                    if not isinstance(policy, dict) or provider not in policy.get(
+                    if not isinstance(review_policy, dict) or review_provider not in review_policy.get(
                         "allowed_providers", []
                     ):
                         _add(
@@ -4103,9 +4076,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
                     if binding["source"] != "host":
                         _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
-                    expected_options = (
-                        resolve_runtime_options(policy, provider)
-                        if isinstance(policy, dict)
+                    review_expected_options = (
+                        resolve_runtime_options(review_policy, review_provider)
+                        if isinstance(review_policy, dict)
                         else {
                             "model": None,
                             "reasoning_effort": None,
@@ -4114,15 +4087,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     )
                     if binding["model"] is not None and not is_safe_model_token(binding["model"]):
                         _add(errors, f"{path}.runtime_binding.model", "must be null or a safe model token")
-                    if binding["model"] != expected_options["model"]:
+                    if binding["model"] != review_expected_options["model"]:
                         _add(errors, f"{path}.runtime_binding.model", "must match the review node")
-                    if binding["reasoning_effort"] != expected_options["reasoning_effort"]:
+                    if binding["reasoning_effort"] != review_expected_options["reasoning_effort"]:
                         _add(
                             errors,
                             f"{path}.runtime_binding.reasoning_effort",
                             "must match the review node",
                         )
-                    if binding["option_source"] != expected_options["option_source"]:
+                    if binding["option_source"] != review_expected_options["option_source"]:
                         _add(
                             errors,
                             f"{path}.runtime_binding.option_source",
@@ -4137,12 +4110,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if isinstance(workers, list)
             else {}
         )
-        mission_state_items = (
+        integrating_mission_state_items = (
             mission_states.items()
             if schema_version == 10 and isinstance(mission_states, dict)
             else []
         )
-        for mission_id, state in mission_state_items:
+        for mission_id, state in integrating_mission_state_items:
             if not isinstance(state, dict) or state.get("phase") not in {
                 "integrating",
                 "integrated",
@@ -4160,16 +4133,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "transition to integrating requires a worker belonging to the same mission",
                     )
                 continue
-            nested_policy = (
+            mission_worker_nested_policy = (
                 mission_worker.get("nested_subagent_policy")
                 if isinstance(mission_worker, dict)
                 else None
             )
             nested_policy_enabled = (
-                isinstance(nested_policy, dict)
-                and nested_policy.get("enabled") is True
+                isinstance(mission_worker_nested_policy, dict)
+                and mission_worker_nested_policy.get("enabled") is True
             )
-            nested_review_evidence = mission_worker.get(
+            mission_worker_nested_review_evidence = mission_worker.get(
                 "nested_review_evidence"
             )
             head_sha = state.get("head_sha")
@@ -4177,12 +4150,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 has_task_local_review = (
                     is_full_sha(head_sha)
                     and mission_worker.get("worker_head_sha") == head_sha
-                    and isinstance(nested_review_evidence, dict)
-                    and nested_review_evidence.get("role") == "reviewer"
-                    and nested_review_evidence.get("status") == "completed"
-                    and is_full_sha(nested_review_evidence.get("reviewed_sha"))
-                    and nested_review_evidence.get("reviewed_sha") == head_sha
-                    and nested_review_evidence.get("decision") == "PASS"
+                    and isinstance(mission_worker_nested_review_evidence, dict)
+                    and mission_worker_nested_review_evidence.get("role") == "reviewer"
+                    and mission_worker_nested_review_evidence.get("status") == "completed"
+                    and is_full_sha(mission_worker_nested_review_evidence.get("reviewed_sha"))
+                    and mission_worker_nested_review_evidence.get("reviewed_sha") == head_sha
+                    and mission_worker_nested_review_evidence.get("decision") == "PASS"
                 )
                 if not has_task_local_review:
                     _add(
@@ -4190,7 +4163,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"run.mission_states.{mission_id}.integration_gate",
                         "transition to integrating requires retained task-local exact-head PASS review evidence",
                     )
-            mission_node_ids = {
+            integrating_mission_node_ids = {
                 node.get("id")
                 for node in plan.get("graph", {}).get("nodes", [])
                 if isinstance(node, dict)
@@ -4202,7 +4175,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 for edge in plan.get("graph", {}).get("edges", [])
                 if isinstance(edge, dict)
                 and edge.get("kind") == "dependency"
-                and edge.get("from") in mission_node_ids
+                and edge.get("from") in integrating_mission_node_ids
                 and edge.get("to") in review_nodes
                 and len(
                     review_nodes[edge["to"]]
@@ -4276,10 +4249,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 and (
                     not nested_policy_enabled
                     or (
-                        isinstance(nested_review_evidence, dict)
+                        isinstance(mission_worker_nested_review_evidence, dict)
                         and any(
                             review_worker.get("worker_id")
-                            == nested_review_evidence.get("agent_id")
+                            == mission_worker_nested_review_evidence.get("agent_id")
                             and review_worker.get("outcome") == "pass"
                             for review_worker in current_review_workers.values()
                             if isinstance(review_worker, dict)
@@ -4373,13 +4346,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.integration.integration_head_sha",
                 "complete run requires an integration head",
             )
-        landing = run.get("landing")
+        closeout_landing = run.get("landing")
         if (
-            isinstance(landing, dict)
-            and landing.get("mode") in {"pull_request", "integration_pull_request"}
+            isinstance(closeout_landing, dict)
+            and closeout_landing.get("mode") in {"pull_request", "integration_pull_request"}
             and (
-                landing.get("pr_state") != "merged"
-                or landing.get("merge_status") != "merged"
+                closeout_landing.get("pr_state") != "merged"
+                or closeout_landing.get("merge_status") != "merged"
             )
         ):
             _add(
@@ -4389,29 +4362,29 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
         if (
             schema_version != 10
-            and isinstance(landing, dict)
-            and landing.get("mode")
+            and isinstance(closeout_landing, dict)
+            and closeout_landing.get("mode")
             in {"pull_request", "integration_pull_request"}
         ):
-            pr_url = landing.get("pr_url")
-            authorizations = run.get("authorizations")
+            closeout_pr_url = closeout_landing.get("pr_url")
+            closeout_authorizations = run.get("authorizations")
             merge_authorization = (
-                authorizations.get("merge_pr")
-                if isinstance(authorizations, dict)
+                closeout_authorizations.get("merge_pr")
+                if isinstance(closeout_authorizations, dict)
                 else None
             )
-            merge_scope = (
+            closeout_merge_scope = (
                 merge_authorization.get("scope")
                 if isinstance(merge_authorization, dict)
                 else None
             )
-            merge_targets = (
-                merge_scope.get("targets") if isinstance(merge_scope, dict) else None
+            closeout_merge_targets = (
+                closeout_merge_scope.get("targets") if isinstance(closeout_merge_scope, dict) else None
             )
             if (
-                not _nonempty_string(pr_url)
-                or not isinstance(merge_targets, list)
-                or f"pr:{pr_url}" not in merge_targets
+                not _nonempty_string(closeout_pr_url)
+                or not isinstance(closeout_merge_targets, list)
+                or f"pr:{closeout_pr_url}" not in closeout_merge_targets
                 or not isinstance(mission_states, dict)
                 or not mission_states
                 or any(
@@ -4419,7 +4392,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         run,
                         "merge_pr",
                         mission_id,
-                        f"pr:{pr_url}",
+                        f"pr:{closeout_pr_url}",
                         preserve_completed_run_expiry=True,
                     )
                     for mission_id in mission_states
@@ -4432,7 +4405,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 )
         if graph_run:
             graph_state = run.get("graph_state")
-            node_states = (
+            closeout_node_states = (
                 graph_state.get("node_states", {})
                 if isinstance(graph_state, dict)
                 else {}
@@ -4442,31 +4415,31 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if isinstance(graph_state, dict)
                 else {}
             )
-            if not isinstance(node_states, dict) or any(
+            if not isinstance(closeout_node_states, dict) or any(
                 not isinstance(state, dict)
                 or state.get("phase")
                 not in {"succeeded", "skipped", "superseded"}
-                for state in node_states.values()
+                for state in closeout_node_states.values()
             ):
                 _add(
                     errors,
                     "run.graph_state.node_states",
                     "complete graph run requires every node to succeed, skip, or be superseded",
                 )
-            if isinstance(node_states, dict) and any(
+            if isinstance(closeout_node_states, dict) and any(
                 isinstance(state, dict) and bool(state.get("blockers"))
-                for state in node_states.values()
+                for state in closeout_node_states.values()
             ):
                 _add(
                     errors,
                     "run.graph_state.node_states",
                     "complete graph run cannot retain node blockers",
                 )
-            if isinstance(node_states, dict) and any(
+            if isinstance(closeout_node_states, dict) and any(
                 isinstance(state, dict)
                 and state.get("phase") == "succeeded"
                 and state.get("last_outcome") != "pass"
-                for state in node_states.values()
+                for state in closeout_node_states.values()
             ):
                 _add(
                     errors,
@@ -4493,12 +4466,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 and node.get("kind") == "verifier"
                 and isinstance(node.get("id"), str)
             }
-            if isinstance(node_states, dict) and any(
+            if isinstance(closeout_node_states, dict) and any(
                 isinstance(state, dict)
                 and state.get("phase") == "superseded"
                 and state.get("last_outcome") == "fix_required"
                 and node_id in verifier_node_ids
-                for node_id, state in node_states.items()
+                for node_id, state in closeout_node_states.items()
             ):
                 _add(
                     errors,
@@ -4593,11 +4566,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             for worker in workers
         ):
             _add(errors, "run.workers", "complete run cannot retain active or blocked workers")
-        review_workers = run.get("review_workers")
-        if graph_run and isinstance(review_workers, list) and any(
+        closeout_review_workers = run.get("review_workers")
+        if graph_run and isinstance(closeout_review_workers, list) and any(
             isinstance(worker, dict)
             and worker.get("phase") in {"leased", "worker_running", "blocked"}
-            for worker in review_workers
+            for worker in closeout_review_workers
         ):
             _add(
                 errors,

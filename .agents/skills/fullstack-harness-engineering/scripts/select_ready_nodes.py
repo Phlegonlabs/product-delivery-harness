@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from itertools import combinations
 from pathlib import Path
 from typing import Any
 
 from harness_manifest import (
     ManifestError,
+    _branch_ref,
     authorization_covers,
     execution_covers,
     load_plan,
@@ -45,12 +45,6 @@ def _tool_profile(node: dict[str, Any]) -> str:
     if node["kind"] == "verifier" and node.get("review") is not None:
         return "code_review_readonly"
     raise GraphSelectionError(f"runtime node {node['id']} has no supported tool profile")
-
-
-def _workspace_mode_for(
-    item: dict[str, Any], run: dict[str, Any]
-) -> str:
-    return run["runtime_capabilities"]["workspace_mode"]
 
 
 def _failure_outcome(node: dict[str, Any]) -> str:
@@ -224,7 +218,6 @@ def _preintegration_review_head_matches_current(
 
 def _incoming_route_matched(
     node: dict[str, Any],
-    plan: dict[str, Any],
     run: dict[str, Any],
     dependencies: dict[str, list[dict[str, Any]]],
     routes: dict[str, list[dict[str, Any]]],
@@ -302,7 +295,7 @@ def _logical_reasons(
         for graph_node in plan["graph"]["nodes"]
     }
     route_matched = _incoming_route_matched(
-        node, plan, run, dependencies, routes, node_states, nodes_by_id
+        node, run, dependencies, routes, node_states, nodes_by_id
     )
     # A post-integration review that returned fix_required parks in `failed`.
     # Once its bounded repair route completes and routes back, the review has to
@@ -359,23 +352,6 @@ def _logical_reasons(
     return sorted(reasons)
 
 
-def _action_authorized(
-    run: dict[str, Any],
-    action: str,
-    mission_id: str,
-    target: str = "*",
-    *,
-    required_head_sha: str | None = None,
-) -> bool:
-    return authorization_covers(
-        run,
-        action,
-        mission_id,
-        target,
-        required_head_sha=required_head_sha,
-    )
-
-
 def _current_authorized_head(
     run: dict[str, Any],
     action: str,
@@ -387,46 +363,19 @@ def _current_authorized_head(
     landing = run.get("landing")
     if isinstance(landing, dict):
         if action == "push" and landing.get("mode") == "integration_pull_request":
-            head_branch = landing.get("head_branch")
-            if isinstance(head_branch, str) and head_branch:
-                expected_ref = (
-                    head_branch
-                    if head_branch.startswith("refs/heads/")
-                    else f"refs/heads/{head_branch}"
-                )
+            expected_ref = _branch_ref(landing.get("head_branch"))
+            if expected_ref is not None:
                 observed = run.get("observed")
                 observed_git = (
                     observed.get("git") if isinstance(observed, dict) else None
                 )
                 if isinstance(observed_git, dict):
-                    parent_branch = observed_git.get("parent_branch")
-                    parent_ref = (
-                        parent_branch
-                        if isinstance(parent_branch, str)
-                        and parent_branch.startswith("refs/heads/")
-                        else (
-                            f"refs/heads/{parent_branch}"
-                            if isinstance(parent_branch, str) and parent_branch
-                            else None
-                        )
-                    )
-                    if parent_ref == expected_ref:
+                    if _branch_ref(observed_git.get("parent_branch")) == expected_ref:
                         return observed_git.get("parent_head_sha")
                     for worktree in observed_git.get("worktrees", []):
                         if not isinstance(worktree, dict):
                             continue
-                        branch_ref = worktree.get("branch_ref")
-                        normalized_ref = (
-                            branch_ref
-                            if isinstance(branch_ref, str)
-                            and branch_ref.startswith("refs/heads/")
-                            else (
-                                f"refs/heads/{branch_ref}"
-                                if isinstance(branch_ref, str) and branch_ref
-                                else None
-                            )
-                        )
-                        if normalized_ref == expected_ref:
+                        if _branch_ref(worktree.get("branch_ref")) == expected_ref:
                             return worktree.get("head_sha")
             return None
         if action in {"manage_pr_review", "merge_pr"}:
@@ -649,7 +598,7 @@ def _dispatch_reasons(
         # read-only with respect to that state and do not need this gate.
         reasons.update(_write_launch_reasons(run))
     if node["kind"] == "mission":
-        workspace_mode = _workspace_mode_for({"node": node, "binding": binding}, run)
+        workspace_mode = runtime["workspace_mode"]
         if workspace_mode == "shared_checkout":
             reasons.add("workspace_not_isolated")
         if node.get("executor") == "harness_parent":
@@ -680,7 +629,7 @@ def _dispatch_reasons(
         ):
             target = "*"
             if any(
-                not _action_authorized(run, action, mission_id, target)
+                not authorization_covers(run, action, mission_id, target)
                 for mission_id in authorization_missions
             ):
                 reasons.add("action_not_authorized")
@@ -708,7 +657,7 @@ def _dispatch_reasons(
             target=target,
         )
         if any(
-            not _action_authorized(run, node["ref"], mission_id, target)
+            not authorization_covers(run, node["ref"], mission_id, target)
             for mission_id in mission_ids
         ):
             reasons.add("action_not_authorized")
@@ -718,7 +667,7 @@ def _dispatch_reasons(
             and (
                 not isinstance(current_head, str)
                 or any(
-                    not _action_authorized(
+                    not authorization_covers(
                         run,
                         node["ref"],
                         mission_id,
@@ -853,10 +802,7 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
                 missions[left["node"]["ref"]], missions[right["node"]["ref"]]
             )
         )
-        if (
-            _workspace_mode_for(left, run) == "shared_checkout"
-            and _workspace_mode_for(right, run) == "shared_checkout"
-        ):
+        if run["runtime_capabilities"]["workspace_mode"] == "shared_checkout":
             reasons.add("workspace_not_isolated")
         if reasons:
             conflict_edges.append(
@@ -890,7 +836,7 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
         if len(selected_write) >= configured_write_budget:
             deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
             continue
-        if _workspace_mode_for(item, run) != "shared_checkout":
+        if run["runtime_capabilities"]["workspace_mode"] != "shared_checkout":
             if isolated_write_count >= isolated_write_budget:
                 deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
                 continue
