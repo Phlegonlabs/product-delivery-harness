@@ -17,6 +17,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from verifier_runtime import (  # noqa: E402
+    CACHE_BANNED_LAYERS,
     PROTOCOL,
     VerifierRuntimeError,
     build_execution_key,
@@ -48,6 +49,24 @@ def context() -> dict[str, object]:
         "attempt_id": None,
         "lease_id": None,
     }
+
+
+def cacheable_context() -> dict[str, object]:
+    """A worker-layer context: the only shape session_exact caching is ever
+    reachable from through a validated PLAN (cache_allowed=False for
+    integration/batch/final/release; harness_manifest.py, harness_release.py)."""
+
+    context_document = context()
+    context_document.update(
+        {
+            "layer": "worker",
+            "mission_id": "M1",
+            "task_id": None,
+            "attempt_id": "A1",
+            "lease_id": "L1",
+        }
+    )
+    return context_document
 
 
 def counter_command(counter: Path, *, exit_code: int = 0, delay: float = 0) -> list[str]:
@@ -92,21 +111,21 @@ class VerifierRuntimeTests(unittest.TestCase):
         counter = self.root / "counter.txt"
         first = run_verifier(
             verifier(counter),
-            context(),
+            cacheable_context(),
             checkout_root=self.checkout,
             cache_root=self.cache,
             environment=self.environment,
         )
         second = run_verifier(
             verifier(counter),
-            context(),
+            cacheable_context(),
             checkout_root=self.checkout,
             cache_root=self.cache,
             environment=self.environment,
         )
         relabeled = run_verifier(
             verifier(counter, identifier="mission-focused"),
-            context(),
+            cacheable_context(),
             checkout_root=self.checkout,
             cache_root=self.cache,
             environment=self.environment,
@@ -217,16 +236,42 @@ class VerifierRuntimeTests(unittest.TestCase):
                         environment=self.environment,
                     )
 
+    def test_banned_layers_never_reuse_even_with_a_hand_built_context(self) -> None:
+        """PLAN validation already refuses session_exact for these layers
+        (harness_core.py cache_allowed=False), which is unreachable through a
+        validated PLAN. A direct run_verifier call with a hand-built context
+        dict bypasses that PLAN-time gate, so the runtime must refuse too."""
+
+        counter = self.root / "counter.txt"
+        for layer in sorted(CACHE_BANNED_LAYERS):
+            with self.subTest(layer=layer):
+                banned = context()
+                banned["layer"] = layer
+                if layer == "mission_integration":
+                    banned["mission_id"] = "M1"
+                result = run_verifier(
+                    verifier(counter),
+                    banned,
+                    checkout_root=self.checkout,
+                    cache_root=self.cache,
+                    environment=self.environment,
+                )
+                self.assertEqual(result["status"], "PASS")
+                self.assertEqual(result["cache_status"], "bypassed")
+                self.assertEqual(result["cache_reason"], "layer_not_cacheable")
+        # Every call above executed for real; none could have reused a prior PASS.
+        self.assertEqual(self.read_count(counter), len(CACHE_BANNED_LAYERS))
+
     def test_dirty_checkout_bypasses_existing_pass(self) -> None:
         counter = self.root / "counter.txt"
         run_verifier(
             verifier(counter),
-            context(),
+            cacheable_context(),
             checkout_root=self.checkout,
             cache_root=self.cache,
             environment=self.environment,
         )
-        dirty = context()
+        dirty = cacheable_context()
         dirty["checkout_dirty"] = True
         result = run_verifier(
             verifier(counter),
@@ -285,7 +330,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         for _ in range(2):
             result = run_verifier(
                 verifier(uncached_counter),
-                context(),
+                cacheable_context(),
                 checkout_root=self.checkout,
                 cache_root=None,
                 environment=self.environment,
@@ -298,7 +343,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         candidate = verifier(counter)
         execution_key, _ = build_execution_key(
             candidate,
-            context(),
+            cacheable_context(),
             checkout_root=self.checkout,
             environment=self.environment,
         )
@@ -309,7 +354,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         for _ in range(2):
             result = run_verifier(
                 candidate,
-                context(),
+                cacheable_context(),
                 checkout_root=self.checkout,
                 cache_root=self.cache,
                 environment=self.environment,
@@ -321,7 +366,7 @@ class VerifierRuntimeTests(unittest.TestCase):
 
     def test_non_deterministic_or_inside_checkout_cache_is_bypassed(self) -> None:
         counter = self.root / "counter.txt"
-        unsafe = context()
+        unsafe = cacheable_context()
         unsafe["cache_safe"] = False
         result = run_verifier(
             verifier(counter),
@@ -335,7 +380,7 @@ class VerifierRuntimeTests(unittest.TestCase):
         inside_counter = self.root / "inside.txt"
         result = run_verifier(
             verifier(inside_counter),
-            context(),
+            cacheable_context(),
             checkout_root=self.checkout,
             cache_root=self.checkout / ".cache",
             environment=self.environment,

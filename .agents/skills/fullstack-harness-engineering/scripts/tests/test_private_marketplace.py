@@ -243,6 +243,78 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 module.differences(),
             )
 
+    def test_check_reports_a_source_skill_missing_from_skill_names(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            unlisted_skill = source_root / "new-skill"
+            destination_skill = destination_root / "sample"
+            source_skill.mkdir(parents=True)
+            unlisted_skill.mkdir(parents=True)
+            destination_skill.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            (unlisted_skill / "SKILL.md").write_text("new\n", encoding="utf-8")
+            (destination_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("generated\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+
+            self.assertIn("unlisted source skill: new-skill", module.differences())
+
+    def test_sync_keeps_bytecode_out_of_the_bundle(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_skill = source_root / "sample"
+            source_scripts = source_skill / "scripts"
+            source_scripts.mkdir(parents=True)
+            (source_skill / "SKILL.md").write_text("current\n", encoding="utf-8")
+            (source_scripts / "tool.py").write_text("print('hi')\n", encoding="utf-8")
+            cache = source_scripts / "__pycache__"
+            cache.mkdir()
+            (cache / "tool.cpython-314.pyc").write_bytes(b"\x00stale")
+            destination_root.mkdir(parents=True)
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+            module.sync()
+
+            self.assertTrue(
+                (destination_root / "sample" / "scripts" / "tool.py").is_file()
+            )
+            self.assertEqual(
+                [], list(destination_root.rglob("*.pyc")) + list(destination_root.rglob("__pycache__"))
+            )
+
     def test_check_rejects_symlinked_bundle_entries(self) -> None:
         spec = importlib.util.spec_from_file_location(
             "sync_plugin_skills", REPO_ROOT / "scripts" / "sync_plugin_skills.py"

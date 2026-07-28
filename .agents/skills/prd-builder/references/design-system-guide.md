@@ -131,6 +131,16 @@ Derive the layers from the real screen set:
 
 Every primitive's variants are a **closed set**. A page picks from the set; it does not extend it. Keep the layer count as-is — splitting layout into more layers, or merging surfaces into product components, loses the property that makes this useful: one place to change spacing, one place to change framing.
 
+### Product Component Content Contracts
+
+A product component declares the content it must show, not only what it composes. Record that as `requiredContentOrder` in `design-system.json` and in the Required content order column of `design-system.md`'s Product Components table — the same fields, in the same order, in both files.
+
+The list names the content fields the component renders, in the order it renders them. Every field on it is a **never-drop field**. Implementation may not reorder them, drop one at a narrow viewport or size class, hide one behind a truncation rule, or omit one in a denser variant. A field that may legitimately disappear is not a never-drop field and does not belong on the list.
+
+Keep the list to the fields that carry the component's meaning. A card whose price and availability are the point lists both; a decorative thumbnail that can fall away on a small screen stays off the list.
+
+`fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, alongside the limits, formats, and empty and long-content rules recorded here. A component published without `requiredContentOrder` gives that gate nothing to compare, so it passes on a component nobody specified.
+
 ## Taste & Anti-Slop Guardrails
 
 Taste here means product-specific judgment that is visible in the hierarchy, restraint, and recurring decisions. It is not a universal style or a longer blacklist.
@@ -233,7 +243,7 @@ Define only rules that implementation can apply:
 - Typography: font family category, scale, weight, line height, heading/body/caption usage, and how font roles work together
 - Iconography: primary library, market evidence, size and weight tokens, semantic inventory, state variants, brand-icon separation, implementation source, and accessibility behavior
 - Spacing system: base unit, section rhythm, component padding, grid gaps
-- Primitive inventory: one row per layout, surface, typography, and control primitive with its closed variant sets, plus one row per product component with what it composes
+- Primitive inventory: one row per layout, surface, typography, and control primitive with its closed variant sets, plus one row per product component with what it composes and its required content order
 - Shadows and elevation: component hierarchy, overlays, panels, and depth rules
 - Motion system: purpose, technology choice, duration/easing/distance tokens, triggers, interruption, responsive behavior, reduced-motion fallback, and performance limits
 - Border radius: token values and component usage rules

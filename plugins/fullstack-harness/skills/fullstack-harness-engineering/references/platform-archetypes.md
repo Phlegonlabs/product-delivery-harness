@@ -30,7 +30,7 @@ Production Worker and production resource boundary:
 
 Detect this before applying any archetype profile below: no toolchain manifest, no app source tree, or no locally runnable dev/build command exists yet. Greenfield detection is per-toolchain, not whole-repo — a repository can be simultaneously non-greenfield for an already-established platform (e.g. a working web app) and greenfield for a newly-added one (e.g. no iOS project yet); apply the toolchain-detection table below per target platform, and scope the new workspace-foundation mission only to the platform that is actually greenfield. Every archetype's "Common missions" list below assumes the workspace and chosen stack already exist — on a greenfield repository, insert one workspace-foundation mission before them and shift the archetype's own list down by one (its `M1` becomes `M2`, and so on). This renumbering applies only when drafting a fresh single-archetype plan from scratch; when a later plan revision adds a new platform to an already-integrated project, mint the new workspace-foundation mission with the next available mission ID in that revision instead — mission IDs are opaque and do not encode order (see `contract-and-traceability.md`'s Mission And Task Identity section), so do not renumber or disturb any already-integrated mission's ID.
 
-Detect which toolchain is (or should be) in play before scaffolding, and branch — do not assume a JS package manager. Match the frozen `stack-decisions.md` Frontend/Platform Technology Decision (see `prd-builder`'s `references/frontend-stack-selection.md`) to one of these, checking the repository for an existing manifest of each shape first:
+Detect which toolchain is (or should be) in play before scaffolding, and branch — do not assume a JS package manager. Match the frozen `stack-decisions.md` Frontend/Platform Technology Decision (see `../prd-builder/references/frontend-stack-selection.md`) to one of these, checking the repository for an existing manifest of each shape first:
 
 ```text
 JS/TS web:        package.json + a lockfile (Bun/npm/pnpm/Yarn)
@@ -256,6 +256,8 @@ Desktop macOS:   xcodebuild test for a Swift app, or the cross-platform toolkit'
 ```
 
 ## Trace ID Families
+
+These are lenses on requirements that already carry a core trace ID, not a separate upstream ID space. Tag an existing `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `DS-*`, or `TEST-*` requirement with the archetype family that describes it — a tenant-isolation rule frozen as `ARCH-004` is also `TENANT-001`. A harness planner may apply a tag, because applying one mints nothing; the underlying requirement still comes from an upstream contract file, per `contract-and-traceability.md`'s Trace IDs rules. A tag inherits its requirement's coverage obligation, and the same downstream task and verification row prove both.
 
 Use archetype-specific IDs as needed:
 

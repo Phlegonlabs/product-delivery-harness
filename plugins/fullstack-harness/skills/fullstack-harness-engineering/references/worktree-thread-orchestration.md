@@ -183,6 +183,8 @@ When no safe set exists, run the next dependency-ready mission sequentially. Par
 
 ## Launch Selected Claude Dynamic Workflow
 
+This section is retained schema-v6-through-v9 context. The current mechanics live in `../../fullstack-harness-claude-code/SKILL.md`, which routes by wave composition rather than schema version; read the adapter first and use this section only for a wave on those older schemas.
+
 When the accepted schema-v6-through-v9 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
 
 1. Confirm Dynamic Workflow is available in the current Claude Code runtime. Treat version support and observed command availability as capability evidence, not authorization.
@@ -200,20 +202,13 @@ Claude Code currently supports nested subagents, but this schema-v6-through-v9 r
 
 ## Launch Selected Codex App Threads
 
-When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, a non-empty selector result is an instruction for the parent to act, not a final report. Use the current Codex project/thread tools when they are available:
+When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, `../../fullstack-harness-codex/SKILL.md` owns the current launch procedure: project resolution, grant rechecks, prompt construction, task creation, bounded polling, the read-only review, and the correction loop. Read the adapter for those mechanics. This section keeps only the topology rules the procedure must preserve, which do not change with schema version.
 
-1. Search the current Codex tool surface for project listing, top-level task/thread creation, follow-up messaging, and bounded thread waiting when those tools were not loaded initially. Resolve the repository's saved project once.
-2. For each selected mission in deterministic order, allocate its worker ID, lease ID, and branch/ref. Recheck `create_user_owned_tasks` and `create_app_managed_worktrees` against the explicit pre-allocation `*` grant because the app assigns their concrete identities; recheck `create_local_branches`, `create_local_commits`, and `spawn_subagents` against every already-known target.
-3. Build the initial prompt from `WORKER_GOAL.template.md`, including the frozen plan identity, fixed base, mission/task scope, verifiers, permission boundary, nested policy, and the mission's `required_skills` list. Tell the app task directly to use its authorized multi-agent policy.
-4. Create one top-level worktree task/thread per mission from the recorded integration branch/ref. Each task must have its own app-managed worktree and appear as an independent conversation in the Codex left sidebar. Record either the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID and never substitute coordinator-owned subagents.
-5. When nested capability is unobserved, keep the task in a no-production-edit handshake. Poll its capability result, update RUN, and send the explicit enabled or disabled policy before releasing implementation. Enable it only when `reviewer` is among the allowed roles; otherwise use the disabled parent-review path.
-6. Poll running threads with backoff, route necessary follow-up through the thread-message tool, and preserve terminal, blocked, interrupted, and partial results. Do not rely on the user to relay completion when programmatic polling is available.
-7. Validate every result against live Git facts. Require the task's own post-edit read-only reviewer to PASS on the exact returned worktree head. For an enabled task-local policy, reconcile that child into the covering PLAN review node: bind the child's ID and exact-head result in `review_workers[]`, record the node's terminal PASS, and only then transition the mission to `integrating`. For a disabled task-local policy, validation may first accept the result so the covering PLAN review node becomes selectable; create the equivalent parent-owned read-only review task without `spawn_subagents`, and record its terminal exact-head PASS in `review_workers[]` before the mission transitions to `integrating`. Only this direct singleton mission-to-review dependency may use the mission worktree head; batch and PR reviews must bind to an integrated or PR head.
-8. Route pre-integration findings back through the original task/thread to the same worktree and branch; do not create a repair mission or replacement worktree. Require its focused verifier on a changed head, then re-arm the same review node and review that head again. Integrate passing heads serially into the resolved target-repository integration branch.
-
-For a non-trivial worker with an enabled nested policy, at least one direct child must run and the final useful child lane must be a post-edit proposed-diff review. The worker may use up to three read-only children across pre-edit exploration/research/test analysis and that required review, waits for them, and reports `subagent_activity`. These children belong to that top-level task only; each sibling task runs its own independent Multi-agent set. A missing current-head review is an integration blocker, not a successful single-agent downgrade.
-
-If the app lacks any required project, thread-create, thread-read, thread-message, worktree, or nested-agent capability, leave the affected directive unlaunched and record the exact capability gap. Fall back to the sequential parent only when the user did not explicitly require independent left-sidebar tasks. When that outer topology was requested, stop and report the missing capability instead of substituting coordinator-owned subagents or sequential execution. Never claim that writing a worker record created a real task.
+- A non-empty selector result is an instruction for the parent to act, not a final report. Never leave a `launch_directives` entry unlaunched without a recorded reason.
+- Use one top-level worktree task/thread per mission, created from the recorded integration branch/ref. Each task owns its own app-managed worktree and appears as an independent conversation in the Codex left sidebar. Coordinator-owned subagents do not satisfy this boundary. Record the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.
+- Nested read-only children belong to the task that spawned them; each sibling task runs its own independent Multi-agent set. A missing current-head review is an integration blocker, not a successful single-agent downgrade.
+- Only a mission's own direct pre-integration review may bind to that mission's worktree head. A review covering several missions is a batch review and must bind to an integrated or PR head.
+- If the app lacks any required project, thread-create, thread-read, thread-message, worktree, or nested-agent capability, leave the affected directive unlaunched and record the exact capability gap. Fall back to the sequential parent only when the user did not explicitly require independent left-sidebar tasks. When that outer topology was requested, stop and report the missing capability instead of substituting coordinator-owned subagents or sequential execution. Never claim that writing a worker record created a real task.
 
 ## Worker Handoff
 
@@ -264,7 +259,7 @@ Repository configuration, push, PR creation, PR review management, PR merge, dep
 - Enable repository rules or Codex Automatic reviews only with `configure_repository` authorization. If Automatic reviews are unavailable, use the repository's documented manual review trigger.
 - Bind the PR, CI, and review results to the exact current integration head SHA. After every new local integration or push, treat earlier check/review PASS state as stale and restart both remote gates for the new head.
 - Do not merge or enable auto-merge without `merge_pr` authorization, even when every gate passes. Repository-level auto-merge configuration separately requires `configure_repository`.
-- After a production promotion, start later PRD/PLD, UI, and feature work from `development` again. Never use `production` as an implementation base.
+- After a production promotion, start later PRD, UI, and feature work from `development` again. Never use `production` as an implementation base.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
 - Delete only the exact recorded, fully integrated branch when `delete_branches` is true, unless `run.integration.retention == "persistent"`, in which case the branch is preserved rather than deleted (see `execution-state-model.md`'s Post-Merge Cleanup State).

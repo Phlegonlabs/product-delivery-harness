@@ -68,6 +68,8 @@ Ranking rules:
 
 ## Mission Patterns
 
+Use this pattern when refinement starts from an audit — the user wants the app improved but supplied no updated PRD, wireframe, design system, or page UI reference. When an updated input did arrive, `design-input-updates.md`'s "Existing App Refinement Flow" is primary instead: run that flow and feed it this file's lenses, backlog rows, and regression checks rather than standing up a second parallel mission set. The merge rule is stated there.
+
 Use one mission per accepted refinement theme:
 
 ```text

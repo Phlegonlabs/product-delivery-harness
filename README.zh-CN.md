@@ -26,7 +26,7 @@
 
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
-| 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策和线框图 |
+| 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策、线框图、带来源的市场调研，以及设计系统 |
 | 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 已验证、需要送上 GitHub 的本地候选版本 | `fullstack-harness-github-landing` | 绑定当前 head 的推送、PR、CI/审查收敛和精确合并 |
 
@@ -45,7 +45,7 @@
 
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
-| `prd-builder` | 产品探索、需求、架构、前端技术栈决策，以及低保真线框图 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md` |
+| `prd-builder` | 产品探索、需求、架构、前端技术栈决策、低保真线框图、草稿完成后的市场调研补缺，以及设计系统：设计令牌、封闭变体集的基元契约、产品组件、动效规则和状态矩阵 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md`、`market-research.md`、`design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及各任务自己的只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
@@ -180,8 +180,10 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 ```powershell
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 Set-Location .\fullstack-goal-dev
-pwsh -File .\scripts\update-private-skills.ps1
+powershell -File .\scripts\update-private-skills.ps1
 ```
+
+克隆只是为了拿到这个脚本。更新脚本始终从 GitHub 安装（默认是 `Phlegonlabs/fullstack-goal-dev` 的 `main`），它不会读取你当前的工作目录。用这种方式装不上本地改动；要测试本地改动，请看下文「开发时使用本地检出」。
 
 然后打开新的 Codex 任务，或重新加载 Claude Code。确认插件已出现在列表中：
 
@@ -194,11 +196,18 @@ claude plugin list
 
 共享更新脚本会检测已安装的运行时，添加或更新市场，并在支持的地方安装插件。这个仓库更新后，重新运行同一条命令即可。
 
-Windows PowerShell：
+装有 PowerShell 7（`pwsh`）的 Windows：
 
 ```powershell
 Set-Location .\fullstack-goal-dev
 pwsh -File .\scripts\update-private-skills.ps1
+```
+
+`pwsh` 需要单独安装。Windows 自带的 Windows PowerShell 5.1 同样能运行这个脚本：
+
+```powershell
+Set-Location .\fullstack-goal-dev
+powershell -File .\scripts\update-private-skills.ps1
 ```
 
 装有 PowerShell 7 的 macOS 或 Linux shell：
@@ -286,14 +295,16 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 ## 仓库结构
 
 ```text
-.agents/skills/                   规范的技能源
-plugins/fullstack-harness/skills/ 生成的插件副本；请勿直接编辑
-.agents/plugins/marketplace.json  Codex 市场定义
-.claude-plugin/marketplace.json   Claude Code 市场定义
-assets/                           README 封面和流程图
-scripts/sync_plugin_skills.py     把规范技能复制到插件包
-scripts/update-private-skills.ps1 更新已安装的市场和插件
-.github/workflows/harness-ci.yml  契约、单元和 E2E 检查
+.agents/skills/                                      规范的技能源
+plugins/fullstack-harness/skills/                    生成的插件副本；请勿直接编辑
+plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code 插件清单
+plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 插件清单
+.agents/plugins/marketplace.json                     Codex 市场定义
+.claude-plugin/marketplace.json                      Claude Code 市场定义
+assets/                                              README 封面和流程图
+scripts/sync_plugin_skills.py                        把规范技能复制到插件包
+scripts/update-private-skills.ps1                    更新已安装的市场和插件
+.github/workflows/harness-ci.yml                     契约、单元和 E2E 检查
 ```
 
 ## 维护市场
@@ -321,4 +332,4 @@ git diff --check
 
 每次发布都要更新本节，同时完成上文所述的版本号提升。
 
-- **0.2.0** — 默认每个任务一个工作树；带多审查者扇出的 PLAN-v4 类型化图；Cloudflare 派发式部署（dispatched-deploy）和自动部署（Auto-Deploy，即原生 Git 自动部署）发布模型；持久化的集成分支；用通用的逐页 HTML 原型取代已下线的页面 UI 矩阵；移动端/桌面端平台支持，包含一份专门的移动端技术栈选型指南（原生 iOS/Android、Flutter、React Native/Expo）；通过 `.env.example` 生成环境密钥脚手架；为有界/机械式委派工作提供的 Haiku 成本档位。
+- **0.2.0** — 默认每个任务一个工作树；带多审查者扇出的 PLAN v5 / RUN v10 类型化图；Cloudflare 派发式部署（dispatched-deploy）和自动部署（Auto-Deploy，即原生 Git 自动部署）发布模型；持久化的集成分支；用通用的逐页 HTML 原型取代已下线的页面 UI 矩阵；移动端/桌面端平台支持，包含一份专门的移动端技术栈选型指南（原生 iOS/Android、Flutter、React Native/Expo）；通过 `.env.example` 生成环境密钥脚手架；为有界/机械式委派工作提供的 Haiku 成本档位。

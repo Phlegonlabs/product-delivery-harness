@@ -17,6 +17,8 @@ from harness_core import mission_dependencies  # noqa: E402
 from harness_graph import _validate_graph  # noqa: E402
 from harness_manifest import (  # noqa: E402
     AUTHORIZATION_KEYS_V8,
+    load_plan,
+    load_run,
     plan_digest,
     topological_levels,
     validate_plan,
@@ -138,6 +140,7 @@ def mission_nodes(plan: dict[str, object]) -> list[dict[str, object]]:
 
 def valid_graph_run(plan: dict[str, object]) -> dict[str, object]:
     run = valid_run(plan)
+    run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
     run["schema_version"] = 8
     run["authorizations"] = {
         key: {"authorized": False, "source": None} for key in AUTHORIZATION_KEYS_V8
@@ -183,6 +186,88 @@ def authorize(
     }
 
 
+def lifecycle_v10_plan_and_run(
+    action: str, target: str | None
+) -> tuple[dict[str, object], dict[str, object]]:
+    """A valid PLAN schema v5 / RUN schema v10 pair with one added lifecycle node.
+
+    Built on the canonical templates (already exercised end-to-end by
+    test_schema_v5_v10_contract.py) rather than a hand-built v10 fixture,
+    because schema v10 pulls in release targets, plan/run digest binding, and
+    other fields a minimal fixture would otherwise have to reconstruct from
+    scratch. The new node has no edges and is its own entry node, so it does
+    not disturb the template's existing graph reachability or mission wiring.
+    """
+    root = SCRIPTS_DIR.parent
+    plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+    run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+    node: dict[str, object] = {
+        "id": "N-LIFECYCLE",
+        "kind": "lifecycle",
+        "ref": action,
+        "executor": "harness_parent",
+        "allowed_outcomes": ["pass", "blocked"],
+        "max_attempts": 1,
+        "runtime": None,
+    }
+    if target is not None:
+        node["target"] = target
+    plan["graph"]["nodes"].append(node)
+    plan["graph"]["entry_nodes"].append("N-LIFECYCLE")
+    run["graph_state"]["node_states"]["N-LIFECYCLE"] = {
+        "phase": "dormant",
+        "attempts": 0,
+        "last_attempt_id": None,
+        "last_outcome": None,
+        "bound_worker_id": None,
+        "blockers": [],
+    }
+    digest = plan_digest(plan)
+    run["plan"]["digest_sha256"] = digest
+    run.update(
+        {
+            "status": "ready",
+            "intent": "plan-then-execute",
+            "plan_readiness": "ready",
+            "execution_authorized": True,
+            "execution_authorization_source": "user requested execution",
+            "execution_authorization_scope": {
+                "run_id": run["run_id"],
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["*"],
+                "expires_when": "run_complete",
+            },
+        }
+    )
+    run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
+    run["observed"]["git"].update(
+        {
+            "parent_worktree_path": "C:/repo",
+            "parent_branch": "refs/heads/development",
+            "parent_head_sha": "a" * 40,
+            "parent_dirty": False,
+        }
+    )
+    run["integration"].update(
+        {
+            "batch_base_sha": "a" * 40,
+            "integration_head_sha": "a" * 40,
+        }
+    )
+    run["runtime_capabilities"]["permission_boundary"] = {
+        "selected_mode": "ask_for_approval",
+        "profile_name": None,
+        "approval_policy": "on-request",
+        "filesystem_scope": "workspace",
+        "network_scope": "filtered",
+        "local_binding": "allowed",
+        "worker_inheritance": "inherited",
+        "status": "ready",
+    }
+    return plan, run
+
+
 class GraphManifestTests(unittest.TestCase):
     def test_plan_v5_lifecycle_nodes_accept_remote_ci_and_cloud_actions(self) -> None:
         for action in ("trigger_remote_ci", "provision_cloud_resources"):
@@ -210,6 +295,140 @@ class GraphManifestTests(unittest.TestCase):
                     require_bounded_review_repair=True,
                 )
                 self.assertEqual([], errors)
+
+    def test_lifecycle_node_target_accepts_exact_non_wildcard_targets(self) -> None:
+        # select_ready_nodes.py checks a lifecycle node's authorization against
+        # this exact target instead of the unreachable "*" default (see
+        # select_ready_nodes.py's _dispatch_reasons), so the graph validator
+        # has to accept a real target string here for every action shape.
+        for action, target in (
+            ("push", "branch:codex/example"),
+            ("deploy", "release:web-development"),
+            ("trigger_remote_ci", "workflow:github-actions:ci"),
+            ("provision_cloud_resources", "cloud-resource:aws:development:queue:jobs"),
+        ):
+            with self.subTest(action=action):
+                errors: list[str] = []
+                _validate_graph(
+                    errors,
+                    {
+                        "entry_nodes": ["N-LIFECYCLE"],
+                        "nodes": [
+                            {
+                                "id": "N-LIFECYCLE",
+                                "kind": "lifecycle",
+                                "ref": action,
+                                "executor": "harness_parent",
+                                "allowed_outcomes": ["pass", "blocked"],
+                                "max_attempts": 1,
+                                "runtime": None,
+                                "target": target,
+                            }
+                        ],
+                        "edges": [],
+                    },
+                    {},
+                    set(),
+                    require_bounded_review_repair=True,
+                )
+                self.assertEqual([], errors)
+
+    def test_lifecycle_node_target_rejects_wildcard_and_bad_format(self) -> None:
+        for target in ("*", "not-a-target", ""):
+            with self.subTest(target=target):
+                errors: list[str] = []
+                _validate_graph(
+                    errors,
+                    {
+                        "entry_nodes": ["N-LIFECYCLE"],
+                        "nodes": [
+                            {
+                                "id": "N-LIFECYCLE",
+                                "kind": "lifecycle",
+                                "ref": "push",
+                                "executor": "harness_parent",
+                                "allowed_outcomes": ["pass", "blocked"],
+                                "max_attempts": 1,
+                                "runtime": None,
+                                "target": target,
+                            }
+                        ],
+                        "edges": [],
+                    },
+                    {},
+                    set(),
+                    require_bounded_review_repair=True,
+                )
+                self.assertTrue(
+                    any(
+                        "must be null or an exact non-wildcard authorization target" in error
+                        for error in errors
+                    ),
+                    f"expected a target error for {target!r} in {errors!r}",
+                )
+
+    def test_lifecycle_node_target_is_optional_for_backward_compatibility(self) -> None:
+        # A PLAN authored before the `target` field existed omits it entirely;
+        # that must stay valid so this addition never breaks an already-valid
+        # PLAN (select_ready_nodes.py falls back to the "*" default for it).
+        errors: list[str] = []
+        _validate_graph(
+            errors,
+            {
+                "entry_nodes": ["N-LIFECYCLE"],
+                "nodes": [
+                    {
+                        "id": "N-LIFECYCLE",
+                        "kind": "lifecycle",
+                        "ref": "push",
+                        "executor": "harness_parent",
+                        "allowed_outcomes": ["pass", "blocked"],
+                        "max_attempts": 1,
+                        "runtime": None,
+                    }
+                ],
+                "edges": [],
+            },
+            {},
+            set(),
+            require_bounded_review_repair=True,
+        )
+        self.assertEqual([], errors)
+
+    def test_target_field_is_rejected_outside_lifecycle_nodes(self) -> None:
+        errors: list[str] = []
+        _validate_graph(
+            errors,
+            {
+                "entry_nodes": ["N-M1"],
+                "nodes": [
+                    {
+                        "id": "N-M1",
+                        "kind": "mission",
+                        "ref": "M1",
+                        "executor": "runtime_worker",
+                        "allowed_outcomes": ["pass", "retryable_failure", "blocked"],
+                        "max_attempts": 1,
+                        "runtime": {
+                            "preferred_provider": None,
+                            "allowed_providers": ["codex"],
+                        },
+                        "target": "branch:codex/example",
+                    }
+                ],
+                "edges": [],
+            },
+            {"M1": {"id": "M1"}},
+            set(),
+            require_bounded_review_repair=True,
+        )
+        self.assertTrue(
+            any(
+                "must be omitted unless the node is lifecycle" in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_plan_v4_and_v5_project_the_same_graph_dependencies(self) -> None:
         plan = valid_graph_plan()
@@ -1817,6 +2036,196 @@ class GraphManifestTests(unittest.TestCase):
                 for item in result["dispatchable_nodes"]
             )
         )
+
+    def test_lifecycle_node_without_a_target_stays_unreachable_under_schema_v10(
+        self,
+    ) -> None:
+        # Not a regression: this is the pre-fix behavior preserved for PLANs
+        # that never declared a `target`. Schema v10 rejects a wildcard scope
+        # for every lifecycle action (harness_manifest.py / harness_authoriza
+        # -tion.py), so a node that still resolves to "*" cannot ever be
+        # authorized. Declaring `target` is how a new PLAN escapes this.
+        plan, run = lifecycle_v10_plan_and_run("trigger_remote_ci", None)
+
+        result = select_ready_nodes(plan, run)
+
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("action_not_authorized", deferred["N-LIFECYCLE"])
+
+    def test_lifecycle_node_dispatches_when_authorized_at_its_exact_target(
+        self,
+    ) -> None:
+        target = "workflow:github-actions:ci"
+        plan, run = lifecycle_v10_plan_and_run("trigger_remote_ci", target)
+        run["authorizations"]["trigger_remote_ci"] = {
+            "authorized": True,
+            "source": "user requested execution",
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["*"],
+                "targets": [target],
+            },
+            "expires_when": "run_complete",
+        }
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"]: item for item in result["dispatchable_nodes"]}
+        self.assertIn("N-LIFECYCLE", dispatchable)
+        self.assertEqual("run_lifecycle_action", dispatchable["N-LIFECYCLE"]["launch_kind"])
+        self.assertEqual(target, dispatchable["N-LIFECYCLE"]["target"])
+
+    def test_head_bound_lifecycle_node_dispatches_with_its_exact_target(
+        self,
+    ) -> None:
+        # deploy is both HEAD_BOUND (needs authorized_head_sha) and execution-
+        # intent scoped (needs its target in scope.targets); web-development
+        # is the PLAN's development release target, so it needs no separate
+        # target_sources entry (harness_authorization.execution_intent_target
+        # _in_scope covers it).
+        target = "release:web-development"
+        plan, run = lifecycle_v10_plan_and_run("deploy", target)
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user requested execution",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["*"],
+                "targets": [target],
+            },
+            "expires_when": "run_complete",
+        }
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"]: item for item in result["dispatchable_nodes"]}
+        self.assertIn("N-LIFECYCLE", dispatchable)
+        self.assertEqual(target, dispatchable["N-LIFECYCLE"]["target"])
+
+    def test_lifecycle_node_requires_a_reconciled_parent_before_launch(self) -> None:
+        # lifecycle nodes push/merge/deploy against the parent's current git
+        # position, the same as a mission spawning a worker, so they need the
+        # same write-launch preconditions (batch base known, parent clean).
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        plan["graph"]["nodes"].append(
+            graph_node("N-LIFECYCLE", "lifecycle", "push", "harness_parent", ["pass", "blocked"])
+        )
+        plan["graph"]["entry_nodes"].append("N-LIFECYCLE")
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-LIFECYCLE"] = {
+            "phase": "dormant",
+            "attempts": 0,
+            "last_attempt_id": None,
+            "last_outcome": None,
+            "bound_worker_id": None,
+            "blockers": [],
+        }
+        run.update(
+            {
+                "status": "ready",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["*"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        authorize(run, "push", ["*"], "*")
+
+        dispatchable = {
+            item["node_id"] for item in select_ready_nodes(plan, run)["dispatchable_nodes"]
+        }
+        self.assertIn("N-LIFECYCLE", dispatchable)
+
+        run["integration"]["batch_base_sha"] = None
+        blocked = select_ready_nodes(plan, run)
+        deferred = {item["node_id"]: item["reason_codes"] for item in blocked["deferred_nodes"]}
+        self.assertIn("batch_base_missing", deferred["N-LIFECYCLE"])
+
+    def test_approval_node_does_not_require_a_reconciled_parent(self) -> None:
+        # Contrast with the lifecycle case above: an approval gate does not
+        # mutate parent git state, so an unreconciled parent must not defer
+        # it the way it defers a mission or lifecycle node.
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        plan["graph"]["nodes"].append(
+            graph_node("N-APPROVAL", "approval", "final-signoff", "human", ["pass", "blocked"])
+        )
+        plan["graph"]["entry_nodes"].append("N-APPROVAL")
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-APPROVAL"] = {
+            "phase": "dormant",
+            "attempts": 0,
+            "last_attempt_id": None,
+            "last_outcome": None,
+            "bound_worker_id": None,
+            "blockers": [],
+        }
+        run.update(
+            {
+                "status": "ready",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["*"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        run["integration"]["batch_base_sha"] = None
+        run["observed"]["git"]["parent_dirty"] = None
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"] for item in result["dispatchable_nodes"]}
+        self.assertIn("N-APPROVAL", dispatchable)
+
+    def test_runtime_unavailable_does_not_mask_other_deferral_reasons(self) -> None:
+        # Previously a missing binding returned early, so an agent that fixed
+        # runtime_unavailable would then discover batch_base_missing on the
+        # next run instead of seeing both at once.
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["runtime"]["allowed_providers"] = ["codex"]
+        run = valid_graph_run(plan)
+        run.update(
+            {
+                "status": "running",
+                "intent": "plan-then-execute",
+                "plan_readiness": "ready",
+                "execution_authorized": True,
+                "execution_authorization_source": "user requested execution",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "mission_ids": ["M1", "M2"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"] = {
+            "provider": "claude_code",
+            "available_drivers": ["sequential_parent"],
+            "detection_source": "observed",
+        }
+        run["integration"]["batch_base_sha"] = None
+
+        result = select_ready_nodes(plan, run)
+
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("runtime_unavailable", deferred["N-M1"])
+        self.assertIn("batch_base_missing", deferred["N-M1"])
 
 
 if __name__ == "__main__":

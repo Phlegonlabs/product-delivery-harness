@@ -73,6 +73,17 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                     evidence_run(root, artifact, 10), root
                 )
         self.assertTrue(any("requires Pillow" in error for error in errors), errors)
+        # A missing Pillow install is an environment gap, not evidence corruption:
+        # it must not be folded into the generic "cannot be decoded" wrapper, or
+        # an operator (and the gate reason) cannot tell the two causes apart.
+        self.assertFalse(any("cannot be decoded" in error for error in errors), errors)
+        self.assertEqual(
+            errors,
+            [
+                "run.ui_evidence[0].artifact_path: UI image evidence decoding "
+                "requires Pillow; install the engineering test dependencies"
+            ],
+        )
 
     def assert_real_formats_accepted(self, schema_version: int) -> None:
         for suffix, image_format in (
@@ -159,6 +170,27 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
             ):
                 errors = subject.validate_ui_evidence_files(run, root)
         self.assertTrue(any("non-zero dimensions" in error for error in errors), errors)
+
+
+class IntegrationHeadGitCrossCheckTests(unittest.TestCase):
+    def test_repo_root_that_is_not_a_git_checkout_reports_a_distinct_cause(self) -> None:
+        # --repo-root defaults to "." (validate_harness_plan.py), so running the
+        # validator from the wrong working directory must not look like an
+        # ordinary rev-parse failure (e.g. an unknown branch) on a real checkout.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)  # deliberately never `git init`-ed
+            run = {
+                "integration": {
+                    "branch": "development",
+                    "integration_head_sha": "a" * 40,
+                }
+            }
+            errors = subject.validate_integration_head_against_git(run, root)
+        self.assertEqual(len(errors), 1)
+        self.assertIn("could not be verified against live Git", errors[0])
+        self.assertIn("is not a Git checkout", errors[0])
+        self.assertIn(str(root), errors[0])
+        self.assertNotIn("does not match the live Git head", errors[0])
 
 
 class UiSurfaceDesignCoverageTests(unittest.TestCase):

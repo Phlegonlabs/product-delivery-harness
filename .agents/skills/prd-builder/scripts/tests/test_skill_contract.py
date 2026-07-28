@@ -47,6 +47,18 @@ async function agent(_prompt, options) {
   if (role.endsWith("verifier")) {
     return { role, decision: "pass", findings: [], evidence: [] };
   }
+  if (role === "market-research") {
+    return {
+      role,
+      status: "complete",
+      market_research_markdown: "# Market Research",
+      mr_ids: ["MR-001"],
+      findings: [],
+      sources: [],
+      unresolved: [],
+      evidence: [],
+    };
+  }
   return {
     role,
     status: "complete",
@@ -61,7 +73,7 @@ async function agent(_prompt, options) {
   try {
     const workflow = new AsyncFunction("args", "phase", "parallel", "agent", source);
     const result = await workflow(workflowArgs, phase, parallel, agent);
-    process.stdout.write(JSON.stringify({ ok: true, status: result.status }));
+    process.stdout.write(JSON.stringify({ ok: true, status: result.status, research: result.research }));
   } catch (error) {
     process.stdout.write(JSON.stringify({ ok: false, error: error.message }));
   }
@@ -114,10 +126,11 @@ async function agent(_prompt, options) {
             "deployable_surfaces": ["ios-app"],
             "release_targets": [
                 self.release_target("ios-development", "ios-app", "TestFlight", "development", "pr_head"),
-                self.release_target("ios-production", "ios-app", "App Store", "production", "merged_main"),
+                self.release_target("ios-production", "ios-app", "App Store", "production", "production_head"),
             ],
             "has_public_marketing_content": False,
             "include_implementation_plan": False,
+            "market_research": True,
             "tool_profile": "builder_readonly",
             "builder_ux_direction": "Guided, balanced-density native workflow.",
             "mobile_desktop_platform": "native iOS",
@@ -224,7 +237,7 @@ async function agent(_prompt, options) {
         self.assertIn("one repository and one codebase", architecture)
         self.assertIn("separately named development and production Workers", frontend)
         self.assertIn("`pr_head` after current-head CI", contract)
-        self.assertIn("`merged_main` after development PASS", contract)
+        self.assertIn("`production_head` after development PASS", contract)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
@@ -629,13 +642,13 @@ async function agent(_prompt, options) {
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         for content in (interview, architecture, contract, frontend, workflow):
-            for source in ("pr_head", "integration_head", "merged_main"):
+            for source in ("pr_head", "integration_head", "production_head"):
                 self.assertIn(source, content)
         for content in (interview, architecture, contract):
             self.assertIn("unresolved", content.lower())
             self.assertIn("signed tag", content.lower())
-        self.assertIn('!["pr_head", "integration_head", "merged_main"].includes(target.source_policy)', workflow)
-        self.assertIn('target.source_policy !== "merged_main"', workflow)
+        self.assertIn('!["pr_head", "integration_head", "production_head"].includes(target.source_policy)', workflow)
+        self.assertIn('target.source_policy !== "production_head"', workflow)
 
     def test_migration_order_maps_to_plan_v5_fields(self) -> None:
         architecture = self.read("references/architecture-playbook.md")
@@ -653,7 +666,8 @@ async function agent(_prompt, options) {
         self.assertNotIn("deployment_platform", workflow_args)
         result = self.run_workflow(workflow_args)
 
-        self.assertEqual({"ok": True, "status": "candidate_ready"}, result)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
 
     def test_workflow_rejects_hybrid_missing_expected_surface(self) -> None:
         workflow_args = self.base_workflow_args()
@@ -687,14 +701,84 @@ async function agent(_prompt, options) {
                 "deployable_surfaces": ["web-app"],
                 "release_targets": [
                     self.release_target("web-development", "web-app", "Cloudflare", "development", "pr_head"),
-                    self.release_target("web-production", "web-app", "AWS", "production", "merged_main"),
+                    self.release_target("web-production", "web-app", "AWS", "production", "production_head"),
                 ],
             }
         )
 
         result = self.run_workflow(workflow_args)
 
-        self.assertEqual({"ok": True, "status": "candidate_ready"}, result)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
+
+    def test_workflow_requires_an_explicit_market_research_decision(self) -> None:
+        workflow_args = self.base_workflow_args()
+        del workflow_args["market_research"]
+
+        result = self.run_workflow(workflow_args)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("requires boolean args.market_research", result["error"])
+
+    def test_market_research_lane_runs_by_default_and_can_be_turned_off(self) -> None:
+        enabled = self.run_workflow(self.base_workflow_args())
+
+        self.assertTrue(enabled["ok"])
+        self.assertEqual("market-research", enabled["research"]["role"])
+        self.assertEqual("complete", enabled["research"]["status"])
+        self.assertEqual(["MR-001"], enabled["research"]["mr_ids"])
+
+        disabled_args = self.base_workflow_args()
+        disabled_args["market_research"] = False
+        disabled = self.run_workflow(disabled_args)
+
+        self.assertTrue(disabled["ok"])
+        self.assertIsNone(disabled["research"])
+        self.assertEqual("candidate_ready", disabled["status"])
+
+    def test_market_research_never_blocks_the_package(self) -> None:
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+
+        status_expression = workflow[workflow.index("status: lanes.some") : workflow.index("lanes,\n  draft,")]
+        self.assertNotIn("research", status_expression)
+        self.assertIn('unresolved: ["The market-research workflow agent returned no result', workflow)
+        self.assertIn('evidence: [rawResearch ? "workflow-role-mismatch" : "workflow-agent-null"]', workflow)
+
+    def test_market_research_role_forbids_fabricated_evidence(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/market-research-guide.md")
+        contract = self.read("references/output-contract.md")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        dynamic = self.read("references/dynamic-workflow.md")
+
+        for content in (skill, guide, contract, workflow):
+            self.assertIn("UNVALIDATED", content)
+        self.assertIn("## Source Rules", guide)
+        self.assertIn("Never state an unsourced claim as fact", guide)
+        self.assertIn("Do not invent competitor names, pricing, funding, user counts", guide)
+        self.assertIn("| `sourced` |", guide)
+        self.assertIn("| `reported` |", guide)
+        self.assertIn("## Blocked Path", guide)
+        self.assertIn("publisher, URL, and retrieval date", workflow)
+        self.assertIn("Do not present vendor marketing copy as verified capability", workflow)
+        self.assertIn("never invent a competitor, price, or market figure", skill)
+        self.assertIn("| market-research |", dynamic)
+        self.assertIn("it never blocks the package on its own", dynamic)
+
+    def test_market_research_artifact_is_contracted_and_published(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        self.assertIn("references/market-research-guide.md", skill)
+        self.assertIn("`MR-*` for market-research findings", skill)
+        self.assertIn("## `market-research.md`", contract)
+        self.assertIn("| MR ID | Finding | Lands in | Recommended change | Confidence | Sources |", contract)
+        self.assertIn("| Source ID | Publisher | Title | URL | Retrieved | Type |", contract)
+        self.assertIn("`docs/product/market-research.md` when the market-research gap pass produced it", lifecycle)
+        self.assertIn("is also this package's own artifact, not the general \"research\"", lifecycle)
+        self.assertIn("do not archive a prior `market-research.md` at all", lifecycle)
+        self.assertIn("the market context is unvalidated", contract)
 
     def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")
@@ -757,6 +841,48 @@ async function agent(_prompt, options) {
         )
         self.assertNotIn("or under `docs/product/` by default", lifecycle)
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
+
+    def test_product_component_content_order_is_documented(self) -> None:
+        contract = self.read("references/output-contract.md")
+        guide = self.read("references/design-system-guide.md")
+        template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
+
+        self.assertIn('"requiredContentOrder"', template_json)
+        for content in (contract, guide, template_md):
+            self.assertIn("requiredContentOrder", content)
+            self.assertIn("never-drop field", content)
+            self.assertIn("Content contract conformance", content)
+        self.assertIn("`dsId`, `requiredContentOrder`, `composes`, and `states`", contract)
+        self.assertIn("### Product Component Content Contracts", guide)
+
+    def test_design_system_skip_needs_no_ui_surface_or_explicit_override(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+
+        for content in (skill, contract):
+            self.assertIn("the user explicitly overrides", content)
+        self.assertIn("That override is the only way a UI-bearing product ships without one", skill)
+        self.assertIn("Never skip the pair on your own judgment", skill)
+        self.assertIn("skipped the design system under the explicit user override in step 11", skill)
+        self.assertIn(
+            "That is the only valid skip for a UI-bearing product; the drafter never decides it",
+            contract,
+        )
+
+    def test_call_three_drop_order_drops_exactly_one_question(self) -> None:
+        interview = self.read("references/interview-guide.md")
+        skill = self.read("SKILL.md")
+
+        self.assertIn(
+            "Five candidates against a four-question cap means exactly one question drops — never two",
+            interview,
+        )
+        self.assertIn(
+            "No archetype combination produces a sixth call-3 question, so this step never fires today",
+            interview,
+        )
+        self.assertIn("five against a four-question cap drops exactly one", skill)
 
 
 if __name__ == "__main__":

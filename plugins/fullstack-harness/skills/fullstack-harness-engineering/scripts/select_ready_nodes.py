@@ -367,7 +367,10 @@ def _action_authorized(
 def _write_launch_reasons(run: dict[str, Any]) -> set[str]:
     reasons: set[str] = set()
     integration = run.get("integration", {})
-    observed_git = run.get("observed", {}).get("git", {})
+    observed = run.get("observed", {})
+    observed_git = observed.get("git", {})
+    if not observed.get("captured_at"):
+        reasons.add("parent_state_unreconciled")
     batch_base = integration.get("batch_base_sha")
     integration_head = integration.get("integration_head_sha")
     if not batch_base:
@@ -506,15 +509,27 @@ def _dispatch_reasons(
     if permission is not None and permission.get("status") != "ready":
         reasons.add("permission_boundary_not_ready")
     if node["executor"] == "runtime_worker":
+        # Deferral reasons are not short-circuited elsewhere in this module (see
+        # _logical_reasons), so a missing binding does not return early either:
+        # doing so hid every other applicable reason (e.g. action_not_authorized)
+        # behind runtime_unavailable, so fixing one blocker just exposed the
+        # next one instead of clearing the node. The checks below that need a
+        # real binding already guard on `binding is not None`.
         if binding is None:
             reasons.add("runtime_unavailable")
-            return sorted(reasons)
-        if observed_runtime.get("completion_channel_available") is not True:
-            reasons.add("completion_channel_unavailable")
-        if observed_runtime.get("available_worker_slots", 0) <= 0:
-            reasons.add("runtime_capacity_unavailable")
-    if node["kind"] == "mission":
+        else:
+            if observed_runtime.get("completion_channel_available") is not True:
+                reasons.add("completion_channel_unavailable")
+            if observed_runtime.get("available_worker_slots", 0) <= 0:
+                reasons.add("runtime_capacity_unavailable")
+    if node["kind"] in {"mission", "lifecycle"}:
+        # mission nodes spawn workers/commits and lifecycle nodes push/merge/
+        # deploy: both mutate real state derived from the parent's current git
+        # position, so both need a reconciled parent and a known batch base
+        # before launch. verifier, approval, and external_wait nodes are
+        # read-only with respect to that state and do not need this gate.
         reasons.update(_write_launch_reasons(run))
+    if node["kind"] == "mission":
         workspace_mode = _workspace_mode_for({"node": node, "binding": binding}, run)
         if workspace_mode == "shared_checkout":
             reasons.add("workspace_not_isolated")
@@ -551,8 +566,19 @@ def _dispatch_reasons(
             ):
                 reasons.add("action_not_authorized")
     if node["kind"] == "lifecycle":
+        # A bare "*" target is unreachable for these actions: schema v10 rejects
+        # a wildcard scope for every HEAD_BOUND_AUTHORIZATION_ACTIONS entry, and
+        # trigger_remote_ci/provision_cloud_resources reject "*" outright at any
+        # schema version (harness_authorization.py). node["target"], when the
+        # PLAN declares one, is the exact target the RUN ledger was actually
+        # granted against. Falling back to "*" when it is absent keeps already
+        # -valid PLANs (authored before this field existed) unchanged.
+        target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
-        if any(not _action_authorized(run, node["ref"], mission_id) for mission_id in mission_ids):
+        if any(
+            not _action_authorized(run, node["ref"], mission_id, target)
+            for mission_id in mission_ids
+        ):
             reasons.add("action_not_authorized")
     return sorted(reasons)
 
@@ -566,7 +592,12 @@ def _directive(
     if node["kind"] == "external_wait":
         return {**base, "launch_kind": "poll_external"}
     if node["kind"] == "lifecycle":
-        return {**base, "launch_kind": "run_lifecycle_action", "required_actions": [node["ref"]]}
+        return {
+            **base,
+            "launch_kind": "run_lifecycle_action",
+            "required_actions": [node["ref"]],
+            "target": node.get("target") or "*",
+        }
     if node["kind"] == "verifier" and node["executor"] != "runtime_worker":
         return {**base, "launch_kind": "run_verifier"}
     if binding is None:

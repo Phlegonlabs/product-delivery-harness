@@ -26,7 +26,7 @@
 
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
-| 一個產品構想 | `prd-builder` | 需求、架構、技術選型與線框圖 |
+| 一個產品構想 | `prd-builder` | 需求、架構、技術選型、線框圖、附來源的市場研究，以及設計系統 |
 | 既有儲存庫中的明確變更 | `fullstack-harness-engineering` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 已驗證、需要送上 GitHub 的本機候選版本 | `fullstack-harness-github-landing` | 綁定當前 head 的推送、PR、CI／審查收斂與精確合併 |
 
@@ -45,7 +45,7 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `prd-builder` | 產品探索、需求、架構、前端技術選型，以及低保真線框圖 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md` |
+| `prd-builder` | 產品探索、需求、架構、前端技術選型、低保真線框圖、草稿完成後的市場研究補缺，以及設計系統：設計 token、封閉變體集的基元契約、產品元件、動效規則與狀態矩陣 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md`、`market-research.md`、`design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及各任務自己的唯讀 Multi-agent 輔助 | 執行環境啟動指令與 worker 結果 |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow 與由 parent 管理的 worktree | 執行環境啟動指令與 worker 結果 |
@@ -180,8 +180,10 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 ```powershell
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 Set-Location .\fullstack-goal-dev
-pwsh -File .\scripts\update-private-skills.ps1
+powershell -File .\scripts\update-private-skills.ps1
 ```
+
+clone 只是為了拿到這個腳本。更新器一律從 GitHub 安裝（預設是 `Phlegonlabs/fullstack-goal-dev` 的 `main`），不會讀取你目前的工作目錄。本機的修改不會透過這個方式安裝；要測試本機修改，請看下面的「開發期間使用本機 checkout」。
 
 接著開啟新的 Codex 任務，或重新載入 Claude Code。確認外掛已出現在清單中：
 
@@ -194,11 +196,18 @@ claude plugin list
 
 共用更新器會偵測已安裝的執行環境、新增或更新市集，並在支援的地方安裝外掛。這個儲存庫更新後，重跑同一個指令即可。
 
-Windows PowerShell：
+搭配 PowerShell 7（`pwsh`）的 Windows：
 
 ```powershell
 Set-Location .\fullstack-goal-dev
 pwsh -File .\scripts\update-private-skills.ps1
+```
+
+`pwsh` 要另外安裝。Windows 內建的 Windows PowerShell 5.1 也能執行這個腳本：
+
+```powershell
+Set-Location .\fullstack-goal-dev
+powershell -File .\scripts\update-private-skills.ps1
 ```
 
 搭配 PowerShell 7 的 macOS 或 Linux shell：
@@ -286,14 +295,16 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 ## 儲存庫結構
 
 ```text
-.agents/skills/                   標準技能來源
-plugins/fullstack-harness/skills/ 產生的外掛副本；請勿直接編輯
-.agents/plugins/marketplace.json  Codex 市集定義
-.claude-plugin/marketplace.json   Claude Code 市集定義
-assets/                           README 封面與流程圖
-scripts/sync_plugin_skills.py     把標準技能複製進外掛套件
-scripts/update-private-skills.ps1 更新已安裝的市集與外掛
-.github/workflows/harness-ci.yml  契約、單元與 E2E 檢查
+.agents/skills/                                      標準技能來源
+plugins/fullstack-harness/skills/                    產生的外掛副本；請勿直接編輯
+plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code 外掛 manifest
+plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 外掛 manifest
+.agents/plugins/marketplace.json                     Codex 市集定義
+.claude-plugin/marketplace.json                      Claude Code 市集定義
+assets/                                              README 封面與流程圖
+scripts/sync_plugin_skills.py                        把標準技能複製進外掛套件
+scripts/update-private-skills.ps1                    更新已安裝的市集與外掛
+.github/workflows/harness-ci.yml                     契約、單元與 E2E 檢查
 ```
 
 ## 維護市集
@@ -321,4 +332,4 @@ git diff --check
 
 每次發佈都要更新這一節，並搭配上面說明的版本號提升。
 
-- **0.2.0** — 預設每個 mission 一個 worktree；PLAN-v4 typed graph，支援多 reviewer 扇出；Cloudflare 的 dispatched-deploy 與 Auto-Deploy（原生 Git 自動部署）發佈模型；持久的整合分支；以逐頁通用 HTML 樣稿取代已退役的 page UI matrix；行動裝置／桌面平台支援，包含一份專屬的行動裝置技術選型指南（原生 iOS/Android、Flutter、React Native/Expo）；透過 `.env.example` 產生環境密鑰的 scaffolding；為有界／機械式的委派工作新增 Haiku 成本層級。
+- **0.2.0** — 預設每個 mission 一個 worktree；PLAN v5 / RUN v10 typed graph，支援多 reviewer 扇出；Cloudflare 的 dispatched-deploy 與 Auto-Deploy（原生 Git 自動部署）發佈模型；持久的整合分支；以逐頁通用 HTML 樣稿取代已退役的 page UI matrix；行動裝置／桌面平台支援，包含一份專屬的行動裝置技術選型指南（原生 iOS/Android、Flutter、React Native/Expo）；透過 `.env.example` 產生環境密鑰的 scaffolding；為有界／機械式的委派工作新增 Haiku 成本層級。

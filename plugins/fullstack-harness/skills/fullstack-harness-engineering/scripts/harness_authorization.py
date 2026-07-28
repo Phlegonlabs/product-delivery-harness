@@ -102,6 +102,132 @@ def _validate_authorization_scope(
             )
 
 
+def _integration_branch(run: dict[str, Any]) -> str | None:
+    integration = run.get("integration")
+    if isinstance(integration, dict) and _nonempty_string(integration.get("branch")):
+        return integration["branch"]
+    return None
+
+
+def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
+    release = plan.get("release") if isinstance(plan, dict) else None
+    targets = release.get("targets") if isinstance(release, dict) else None
+    ids: set[str] = set()
+    if isinstance(targets, list):
+        for target in targets:
+            if (
+                isinstance(target, dict)
+                and target.get("stage") == "development"
+                and _nonempty_string(target.get("id"))
+            ):
+                ids.add(target["id"])
+    return ids
+
+
+def execution_intent_target_in_scope(
+    plan: dict[str, Any], run: dict[str, Any], action: str, target: str
+) -> bool:
+    """Whether one execution-intent instruction can cover this exact target.
+
+    The grouped development-loop bundle is scoped, not general: it reaches the
+    resolved integration branch, a PR merging into that branch, and the
+    development release target. Everything else — the protected landing branch,
+    a promotion PR, the production release target — is its own authorization
+    moment. Unknown state fails closed, because a target we cannot prove is
+    in-scope is exactly the one that needs a separate recorded instruction.
+    """
+    if target == "*":
+        return False
+    branch = _integration_branch(run)
+    if branch is None:
+        return False
+    if action == "push":
+        return target == f"branch:{branch}"
+    if action == "merge_pr":
+        future_pr = FUTURE_PR_TARGET_RE.fullmatch(target)
+        if future_pr is not None:
+            return future_pr.group("base") == branch
+        if target.startswith("pr:"):
+            landing = run.get("landing")
+            base = landing.get("base_branch") if isinstance(landing, dict) else None
+            return base == branch
+        # A merge-triggered release records the release consequence on the merge
+        # itself. It stays in scope on the same rule as `deploy`: the
+        # development target rides the loop, the production one does not.
+        if target.startswith("release:"):
+            return target[len("release:") :] in _development_release_target_ids(plan)
+        return False
+    if action == "deploy":
+        if not target.startswith("release:"):
+            return False
+        return target[len("release:") :] in _development_release_target_ids(plan)
+    return False
+
+
+def validate_target_sources(
+    errors: list[str],
+    path: str,
+    entry: dict[str, Any],
+    *,
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    action: str,
+) -> None:
+    """Require a separate recorded source for every out-of-scope target.
+
+    Without this, one "build it" recorded as the entry `source` silently covers
+    a push to the protected branch, a merge of the promotion PR, or a production
+    deploy, because the entry has a single `source` for a whole target list.
+    """
+    scope = entry.get("scope")
+    targets = scope.get("targets", []) if isinstance(scope, dict) else []
+    if not isinstance(targets, list):
+        return
+    raw = entry.get("target_sources")
+    target_sources: dict[str, Any] = {}
+    if raw is not None:
+        if not isinstance(raw, dict):
+            _add(
+                errors,
+                f"{path}.target_sources",
+                "must be an object mapping an exact target to its own authorization source",
+            )
+            return
+        target_sources = raw
+
+    for target, source in target_sources.items():
+        if target not in targets:
+            _add(
+                errors,
+                f"{path}.target_sources",
+                f"{target!r} is not listed in scope.targets",
+            )
+        elif not _nonempty_string(source):
+            _add(
+                errors,
+                f"{path}.target_sources.{target}",
+                "must be a non-empty authorization source",
+            )
+        elif source == entry.get("source"):
+            _add(
+                errors,
+                f"{path}.target_sources.{target}",
+                "must record the separate instruction that authorized this target, "
+                "not repeat the entry source",
+            )
+
+    for target in targets:
+        if execution_intent_target_in_scope(plan, run, action, target):
+            continue
+        if not _nonempty_string(target_sources.get(target)):
+            _add(
+                errors,
+                f"{path}.target_sources.{target}",
+                f"{target!r} is outside what one execution-intent instruction covers "
+                f"for {action} and requires its own recorded authorization source",
+            )
+
+
 def _scope_matches_plan(run: dict[str, Any], scope: dict[str, Any]) -> bool:
     if run.get("schema_version") != 10:
         return True

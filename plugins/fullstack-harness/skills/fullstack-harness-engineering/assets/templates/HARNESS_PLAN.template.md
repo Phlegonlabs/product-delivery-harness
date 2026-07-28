@@ -721,7 +721,7 @@ For each `runtime_worker` node, Plan Mode chooses the allowed and preferred prov
 
 Every PLAN-v5 source binds the published input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. `staged_revision` records a proposed accepted delta while the published source fields remain canonical; it is not an executable publication. A ready or executable RUN requires every source to be `frozen` or `delta_accepted` and forbids product staging locations. Publish the accepted revision to the canonical source location, move its hash/revision into the published fields, clear `staged_revision`, then increment the PLAN revision and recompute the digest.
 
-For frontend/UI implementation, use Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model (such as `claude-fable-5` or `claude-opus-4-8`) for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
+For frontend/UI implementation, use Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model — whichever premium model opened the current session — for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
 
 For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews and bind to one exact reviewed SHA in RUN. A pre-integration review covers one mission; `fix_required` returns to that mission's original task, thread, and worktree, and `max_attempts` bounds review of each changed head. A post-integration or batch review may route `fix_required` to a bounded repair node based on the reviewed integration head. Combine reviews only when the scope is genuinely single-surface and record why.
 
@@ -819,6 +819,7 @@ On a greenfield repository (see `references/platform-archetypes.md`'s Greenfield
 | Product requirements | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Builder UX Direction | <PRD section, path, or URL> | <hash or revision> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Release targets | <architecture.md `## Release Targets`> | <hash or revision> | draft / frozen / missing / n/a | <expected surface inventory and stable target IDs `release.targets[]` reuses verbatim> |
 | Stack decisions (frontend, backend/data, mobile/desktop) | <path> | <hash or revision> | required / selected / recommended / provisional / missing / n/a | <resolved layers; a still-provisional layer is a stop condition> |
 | Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Design system | <design-system.md path> | <hash or revision> | draft / frozen / missing / n/a | <tokens, primitive layers, components, state matrix, guardrails> |
@@ -836,6 +837,8 @@ UI Evidence Gate: required | optional | n/a
 UX Validation Gate: required | optional | n/a
 Release target:
 ```
+
+When `architecture.md` declares a `## Release Targets` section, it owns this identity: reuse each of its stable target IDs verbatim as `release.targets[].id`, keep each target's expected-surface assignment, and do not mint new destination names here. Every expected deployable surface that section lists must appear as at least one target below — a listed surface with no target, for example a mobile store target, is a dropped contract rather than a scoping choice. This applies whether or not the upstream package produced the optional `implementation-plan.md`.
 
 Stable target IDs are provider-neutral and must survive provider configuration changes. Each canonical target declares `id`, `stage`, `source`, `artifact_kind`, `requires_signing`, `channel`, `data_mode`, `trigger`, `migration_classification`, exact `commands.build`/`commands.migrate`/`commands.publish`, `prerequisites`, and `smoke_verifiers`. Include at least one development and one production target. Use `migration_classification: "not_applicable"` with `commands.migrate: null` only when no migration is needed. A manual target requires a publish command; a merge-triggered target sets it to null because the provider performs publication after the authorized merge.
 
@@ -899,6 +902,8 @@ Include only when UI evidence is required or optional.
 | Route / screen | Source | Breakpoints | Required states | Evidence |
 |---|---|---|---|---|
 | <route> | <wireframes.md screen entry> | <copied from design-system.json: viewports or sizeClasses> | ready/loading/empty/error/... | <screenshot/trace/test> |
+
+Each `ui_surfaces[].route` is copied verbatim from the `Route(s):` line of that screen's entry in `wireframes.md` — that field is what makes a route resolvable to a screen, and inventing a route string here breaks the lookup implementation depends on. A screen serving several routes contributes one `ui_surfaces` entry per route, all sharing the screen's `UI-*` id. A wireframe screen whose `Route(s):` is `n/a` has no addressable route and gets no `ui_surfaces` entry; cover it through the parent route that reaches it.
 
 When the product has a design system, `design-system.json`'s `stateMatrix` is the state checklist for every surface and its `viewports` or `sizeClasses` is the required responsive set — take them from there, do not restate a default here. `viewports` is a numeric pixel-width array, while a PLAN `breakpoints` entry is a label that ends in one of those widths (`mobile-390` covers `390`); `sizeClasses` is a string array matched verbatim. Putting the labels into `design-system.json` fails the responsive-set check, which reports the design system rather than the type mismatch. A state a surface genuinely cannot have is listed as `<state>:n/a`, not omitted, so `validate_harness_plan.py --design-system` can tell a deliberate exclusion from an oversight. Mirror those values into the canonical `ui_surfaces` object above — the table is a view.
 

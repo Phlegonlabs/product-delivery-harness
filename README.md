@@ -26,7 +26,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
-| A product idea | `prd-builder` | Requirements, architecture, stack decisions, wireframes, and the design system |
+| A product idea | `prd-builder` | Requirements, architecture, stack decisions, wireframes, sourced market research, and the design system |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A verified local candidate that must reach GitHub | `fullstack-harness-github-landing` | Current-head push, PR, CI/review convergence, and exact-head merge |
 
@@ -45,7 +45,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, low-fidelity wireframes, and the design system: tokens, primitive contracts with closed variant sets, product components, motion rules, and the state matrix | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md`, `design-system.md`, `design-system.json` |
+| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, low-fidelity wireframes, a post-draft market-research gap pass, and the design system: tokens, primitive contracts with closed variant sets, product components, motion rules, and the state matrix | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md`, `market-research.md`, `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -182,8 +182,10 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 ```powershell
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
 Set-Location .\fullstack-goal-dev
-pwsh -File .\scripts\update-private-skills.ps1
+powershell -File .\scripts\update-private-skills.ps1
 ```
+
+The clone only gives you the script. The updater always installs from GitHub — `Phlegonlabs/fullstack-goal-dev` at `main` by default — and never reads your working directory. Local edits are not installed this way; use [Use a local checkout during development](#use-a-local-checkout-during-development) for that.
 
 Then open a new Codex task or reload Claude Code. Confirm the plugin is visible:
 
@@ -196,11 +198,18 @@ claude plugin list
 
 The shared updater detects installed runtimes, adds or updates the marketplace, and installs the plugin where supported. Re-run the same command when this repository changes.
 
-Windows PowerShell:
+Windows with PowerShell 7 (`pwsh`):
 
 ```powershell
 Set-Location .\fullstack-goal-dev
 pwsh -File .\scripts\update-private-skills.ps1
+```
+
+`pwsh` is a separate install. Windows PowerShell 5.1, which ships with Windows, also runs the script:
+
+```powershell
+Set-Location .\fullstack-goal-dev
+powershell -File .\scripts\update-private-skills.ps1
 ```
 
 macOS or Linux shell with PowerShell 7:
@@ -288,14 +297,16 @@ Parallel implementation has no small fixed cap by default; the configured write-
 ## Repository layout
 
 ```text
-.agents/skills/                   Canonical skill sources
-plugins/fullstack-harness/skills/ Generated plugin copies; do not edit directly
-.agents/plugins/marketplace.json  Codex marketplace definition
-.claude-plugin/marketplace.json   Claude Code marketplace definition
-assets/                           README covers and workflow illustrations
-scripts/sync_plugin_skills.py     Copies canonical skills into the plugin bundle
-scripts/update-private-skills.ps1 Updates installed marketplaces and plugin
-.github/workflows/harness-ci.yml  Contract, unit, and E2E checks
+.agents/skills/                                      Canonical skill sources
+plugins/fullstack-harness/skills/                    Generated plugin copies; do not edit directly
+plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code plugin manifest
+plugins/fullstack-harness/.codex-plugin/plugin.json  Codex plugin manifest
+.agents/plugins/marketplace.json                     Codex marketplace definition
+.claude-plugin/marketplace.json                      Claude Code marketplace definition
+assets/                                              README covers and workflow illustrations
+scripts/sync_plugin_skills.py                        Copies canonical skills into the plugin bundle
+scripts/update-private-skills.ps1                    Updates installed marketplaces and plugin
+.github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
 ```
 
 ## Maintain the marketplace
@@ -323,4 +334,4 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
-- **0.2.0** — Worktree-per-mission default; PLAN-v4 typed graph with multi-reviewer fan-out; Cloudflare dispatched-deploy and Auto-Deploy (native Git auto-deploy) release models; persistent integration branches; mobile/desktop platform support including a dedicated mobile stack-selection guide (native iOS/Android, Flutter, React Native/Expo); environment-secret scaffolding via `.env.example`; a Haiku cost tier for bounded/mechanical delegated work.
+- **0.2.0** — Worktree-per-mission default; PLAN v5 / RUN v10 typed graph with multi-reviewer fan-out; Cloudflare dispatched-deploy and Auto-Deploy (native Git auto-deploy) release models; persistent integration branches; per-page generic HTML prototypes replacing the retired page UI matrix; mobile/desktop platform support including a dedicated mobile stack-selection guide (native iOS/Android, Flutter, React Native/Expo); environment-secret scaffolding via `.env.example`; a Haiku cost tier for bounded/mechanical delegated work.

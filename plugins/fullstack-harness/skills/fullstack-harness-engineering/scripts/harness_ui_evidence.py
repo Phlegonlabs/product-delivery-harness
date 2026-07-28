@@ -81,6 +81,12 @@ def _ui_image_decode_error(path: Path) -> str | None:
     expected_format = _UI_IMAGE_FORMATS[path.suffix.lower()]
     try:
         image_module = _image_module()
+    except RuntimeError as exc:
+        # Pillow being unavailable is an environment gap, not evidence corruption.
+        # Report it verbatim instead of folding it into "cannot be decoded" below,
+        # so an operator (and the gate reason) can tell the two apart.
+        return str(exc)
+    try:
         with image_module.open(path) as image:
             decoded_format = image.format
             dimensions = image.size
@@ -435,7 +441,20 @@ def validate_integration_head_against_git(
         return sorted(set(errors))
     if result.returncode != 0:
         reason = result.stderr.strip() or f"git rev-parse exited {result.returncode}"
-        _add(errors, path, f"could not be verified against live Git: {reason}")
+        # Git's own wording for "no repository here" is stable across versions
+        # ("fatal: not a git repository ..."). Surfacing that distinctly, instead
+        # of the generic wrapper, turns a wrong --repo-root/cwd into an accurate,
+        # actionable cause rather than looking like an ordinary rev-parse failure
+        # (e.g. an unknown branch) on a real checkout.
+        if "not a git repository" in reason:
+            _add(
+                errors,
+                path,
+                f"could not be verified against live Git: --repo-root {repo_root} "
+                "is not a Git checkout (pass the correct --repo-root)",
+            )
+        else:
+            _add(errors, path, f"could not be verified against live Git: {reason}")
         return sorted(set(errors))
     actual = result.stdout.strip()
     if actual != recorded:

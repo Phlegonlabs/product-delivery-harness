@@ -72,7 +72,7 @@ Rules:
 - Loading `frontend-design` does not change that route-task boundary. In frontend-design conformance mode it executes the frozen wireframe and design system with greater visual care; any proposed addition returns as a design-input delta instead of joining the route commit.
 - Each layer is one or more tasks, never one task spanning two layers — a task that adds a token and the component consuming it cannot fail the token independently.
 - A route's required states from its recipe are acceptance-matrix items inside that route's task, not separate tasks (see `What Deserves A Task` above). The same holds for every entry in the registry's responsive set.
-- For an existing product, follow the adoption sequence in `ui-architecture.md` instead of this order when the two differ; it sequences the same layers around already-shipped routes.
+- For an existing product, keep the same layer order but sequence it around already-shipped routes rather than building bottom-up from nothing: adopt tokens and primitives behind the current implementation first, migrate routes in the order `references/existing-app-refinement.md`'s audit establishes, and let the two coexist until the last route moves.
 
 ## Backend Build Order
 

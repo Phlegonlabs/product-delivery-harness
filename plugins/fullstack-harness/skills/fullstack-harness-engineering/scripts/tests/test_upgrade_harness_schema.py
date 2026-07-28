@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -627,6 +628,192 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         errors = validate_plan(plan)
 
         self.assertTrue(any("must be globally unique" in error for error in errors))
+
+    def _grant(
+        self,
+        run: dict[str, object],
+        action: str,
+        targets: list[str],
+        source: str = "user said: build it",
+        target_sources: dict[str, str] | None = None,
+        head: str | None = None,
+    ) -> None:
+        entry: dict[str, object] = {
+            "authorized": True,
+            "source": source,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": list(run["mission_states"]),
+                "targets": targets,
+            },
+            "expires_when": "run_complete",
+            "authorized_head_sha": head or "a" * 40,
+        }
+        if target_sources is not None:
+            entry["target_sources"] = target_sources
+        run["authorizations"][action] = entry
+
+    def _target_source_errors(self, plan: dict, run: dict) -> list[str]:
+        return [error for error in validate_run(plan, run) if "target_sources" in error]
+
+    def test_failed_rollback_keeps_the_only_remaining_original(self) -> None:
+        """A double fault must not delete the backup the error points at.
+
+        The forward replace already overwrote the canonical file; if the
+        rollback replace also fails, that backup is the only copy of the
+        original content left on disk.
+        """
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root)
+        first = self._write_plan(root, plan)
+        second = self._write_run(root, run)
+        first_original = first.read_text(encoding="utf-8")
+
+        rewrites = [
+            (first, "## Harness Plan Manifest", "harness_plan", plan),
+            (second, "## Harness Run State", "harness_run", run),
+        ]
+
+        real_replace = os.replace
+        calls: list[int] = []
+
+        def failing_replace(src, dst):
+            calls.append(1)
+            # Let the first forward replace land, fail the second forward
+            # replace, then fail the rollback of the first.
+            if len(calls) in (2, 3):
+                raise OSError("simulated filesystem failure")
+            return real_replace(src, dst)
+
+        with mock.patch.object(upgrade.os, "replace", failing_replace):
+            with self.assertRaises(upgrade.UpgradeError) as caught:
+                upgrade._rewrite_manifests_atomically(rewrites)
+
+        message = str(caught.exception)
+        self.assertIn("rollback failed for", message)
+        self.assertIn("original retained at", message)
+
+        retained = [path for path in root.iterdir() if ".backup." in path.name]
+        self.assertEqual(1, len(retained), f"expected one retained backup, found {retained}")
+        self.assertEqual(first_original, retained[0].read_text(encoding="utf-8"))
+        self.assertEqual([], [path for path in root.iterdir() if ".new." in path.name])
+
+    def test_execution_intent_cannot_reach_the_protected_branch_or_production(self) -> None:
+        """One 'build it' must not silently cover an out-of-scope target.
+
+        The ledger keeps one `source` per action for a whole target list, so
+        without a per-target record a grouped instruction reads as authorizing
+        every target on the entry - including a push to the protected branch, a
+        production deploy, and the promotion merge.
+        """
+        root = self._seed_repo()
+        plan, base = current_release_plan_and_run(root, "manual")
+        branch = base["integration"]["branch"]
+
+        in_scope = copy.deepcopy(base)
+        self._grant(in_scope, "push", [f"branch:{branch}"])
+        self.assertEqual([], self._target_source_errors(plan, in_scope))
+
+        out_of_scope = copy.deepcopy(base)
+        self._grant(out_of_scope, "push", ["branch:production"])
+        self.assertTrue(
+            any(
+                "outside what one execution-intent instruction covers for push" in error
+                for error in self._target_source_errors(plan, out_of_scope)
+            )
+        )
+
+        mixed = copy.deepcopy(base)
+        self._grant(mixed, "push", [f"branch:{branch}", "branch:production"])
+        self.assertTrue(self._target_source_errors(plan, mixed))
+
+        deploy_both = copy.deepcopy(base)
+        self._grant(deploy_both, "deploy", ["release:development", "release:production"])
+        self.assertTrue(
+            any(
+                "release:production" in error
+                for error in self._target_source_errors(plan, deploy_both)
+            )
+        )
+
+        promotion = copy.deepcopy(base)
+        self._grant(
+            promotion,
+            "merge_pr",
+            ["future-pr:acme/app:base=production:head=development"],
+        )
+        self.assertTrue(self._target_source_errors(plan, promotion))
+
+        loop_merge = copy.deepcopy(base)
+        self._grant(loop_merge, "merge_pr", [f"future-pr:acme/app:base={branch}:head=feature"])
+        self.assertEqual([], self._target_source_errors(plan, loop_merge))
+
+    def test_target_sources_records_the_separate_instruction(self) -> None:
+        root = self._seed_repo()
+        plan, base = current_release_plan_and_run(root, "manual")
+        branch = base["integration"]["branch"]
+
+        recorded = copy.deepcopy(base)
+        self._grant(
+            recorded,
+            "push",
+            ["branch:production"],
+            target_sources={"branch:production": "user: yes, push production too"},
+        )
+        self.assertEqual([], self._target_source_errors(plan, recorded))
+
+        laundered = copy.deepcopy(base)
+        self._grant(
+            laundered,
+            "push",
+            ["branch:production"],
+            target_sources={"branch:production": "user said: build it"},
+        )
+        self.assertTrue(
+            any(
+                "not repeat the entry source" in error
+                for error in self._target_source_errors(plan, laundered)
+            )
+        )
+
+        orphan = copy.deepcopy(base)
+        self._grant(
+            orphan,
+            "push",
+            [f"branch:{branch}"],
+            target_sources={"branch:production": "user: separate ask"},
+        )
+        self.assertTrue(
+            any(
+                "is not listed in scope.targets" in error
+                for error in self._target_source_errors(plan, orphan)
+            )
+        )
+
+        empty = copy.deepcopy(base)
+        self._grant(
+            empty,
+            "push",
+            ["branch:production"],
+            target_sources={"branch:production": "   "},
+        )
+        self.assertTrue(self._target_source_errors(plan, empty))
+
+    def test_target_sources_is_rejected_on_unscoped_actions(self) -> None:
+        root = self._seed_repo()
+        plan, run = current_release_plan_and_run(root, "manual")
+        self._grant(
+            run,
+            "create_pr",
+            ["pr:https://github.com/acme/app/pull/1"],
+            target_sources={"pr:https://github.com/acme/app/pull/1": "user: open it"},
+        )
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(any("unknown keys" in error for error in errors))
 
     def test_merge_triggered_release_requires_merge_and_deploy_authorization(self) -> None:
         root = self._seed_repo()

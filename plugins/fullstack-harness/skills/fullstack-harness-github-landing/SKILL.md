@@ -38,7 +38,7 @@ Local branch, commit, review, and integration authorization remains in the core 
 
 Read the target repository's instructions and existing branch/PR topology before filling any branch-bound authorization. Preserve its implementation, integration, head, and protected base branches. Only when it defines no other model, use `development` as the persistent integration branch and `production` as the protected landing branch. Mission worktrees are reviewed before they merge into the resolved integration branch; this adapter does not open one promotion PR per worktree.
 
-Do not push, create a promotion PR, request remote review, or merge toward the resolved protected base until the user explicitly reviews the accumulated integration result and approves starting the promotion. That late approval is not inferred from earlier implementation, local integration, deployment, or generic landing authorization. After it is recorded, require the exact resolved head and base for every branch-bound action and run the normal current-head convergence loop. Later PRD/PLD, UI, and feature changes start from the repository's resolved implementation branch again, never from the protected landing branch.
+Do not push, create a promotion PR, request remote review, or merge toward the resolved protected base until the user explicitly reviews the accumulated integration result and approves starting the promotion. That late approval is not inferred from earlier implementation, local integration, deployment, or generic landing authorization. After it is recorded, require the exact resolved head and base for every branch-bound action and run the normal current-head convergence loop. Later PRD, UI, and feature changes start from the repository's resolved implementation branch again, never from the protected landing branch.
 
 ## Local-First, Remote-Final Policy
 
@@ -69,13 +69,17 @@ Bind every remote result to the exact current head:
 - review PASS only when `review_head_sha` matches the same SHA, blocking findings are zero, and unresolved threads are zero;
 - any local integration or new push invalidates prior current-head CI, review, E2E, deployment, and auto-merge evidence tied to an older SHA.
 
-When CI or review finds an authorized in-scope defect, repair it locally, rerun invalidated local gates, commit and push the new final candidate, then restart CI and review concurrently for the new head. Stop for missing authorization, a scope/contract decision, or the worker/run-level guardrail of three consecutive no-progress iterations (see `../fullstack-harness-engineering/assets/templates/GOAL.template.md` and `WORKER_GOAL.template.md`).
+When CI or review finds an authorized in-scope defect, repair it locally, rerun invalidated local gates, commit and push the new final candidate, then restart CI and review concurrently for the new head. Stop for missing authorization, a scope/contract decision, or the worker/run-level guardrail of three consecutive no-progress iterations (see `../fullstack-harness-engineering/assets/templates/GOAL.template.md` and `../fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md`).
 
 Do not repeatedly run the complete GitHub pipeline for unchanged local work. Do not create empty commits to retrigger it. Use GitHub-native rerun only when a current-head job is transient and rerun is permitted by the repository.
 
 ## Pull-Request Handover
 
-Under the default branch model the merge toward the protected base is the human's. After final user approval starts the resolved head-to-base promotion, the parent runs one continuous loop up to — and stopping at — a merge-ready PR: push the final candidate, create the PR, mark it ready, request review, and converge CI and review on the current head. It does not merge and does not enable auto-merge.
+Which side of this section applies is decided by the PR's base branch, not by how the run was approved.
+
+A PR whose base is the resolved integration branch is ordinary development work. Once current-head CI and review pass and unresolved threads reach zero, the parent may merge it or enable repository auto-merge on it under the execution-intent `merge_pr` grant the core's Execution Authorization Gate describes. Use `gh pr merge --match-head-commit <SHA>` so the merge stays bound to the exact reviewed head. Never enable auto-merge before those gates pass.
+
+A PR whose base is the protected landing branch is the human's. After final user approval starts the resolved head-to-base promotion, the parent runs one continuous loop up to — and stopping at — a merge-ready PR: push the final candidate, create the PR, mark it ready, request review, and converge CI and review on the current head. It does not merge and does not enable auto-merge there.
 
 Report the PR as ready to merge only when:
 
@@ -87,7 +91,7 @@ Report the PR as ready to merge only when:
 
 Then stop and hand it over, naming the exact head SHA that is merge-ready. A new push resets both remote gates and the handover has to be re-established on the new head.
 
-Perform the merge yourself only when the user separately and explicitly asks for it on a named PR — approval to prepare the promotion never carries it. In that case `merge_pr` must cover every required mission and the exact PR target, use `gh pr merge --match-head-commit <SHA>` as an exact-head guard, wait until GitHub reports the PR merged, and record the resulting merged source SHA separately; a squash merge normally makes it differ from the authorized candidate head.
+Merge toward the protected base yourself only when the user separately and explicitly asks for it on a named PR — approval to prepare the promotion never carries it, and neither does the execution-intent grant that covers integration-branch merges. In that case `merge_pr` must cover every required mission and the exact PR target, use `gh pr merge --match-head-commit <SHA>` as an exact-head guard, wait until GitHub reports the PR merged, and record the resulting merged source SHA separately; a squash merge normally makes it differ from the authorized candidate head.
 
 If repository auto-merge, required checks, or review configuration needs a change, do not mutate settings without exact `configure_repository` authorization. Direct push or merge to the base branch is never a substitute for the PR flow.
 

@@ -12,7 +12,7 @@ production head -> production Worker -> production smoke
 
 ## Static Release Contract
 
-New Cloudflare release PLAN files use PLAN schema v5 and the same provider-neutral target shape as every other release. Use stable target IDs such as `web-development` and `web-production`; do not add provider-specific PLAN keys. Existing older release schemas remain readable. Non-deployable plans omit `release`.
+New Cloudflare release PLAN files use PLAN schema v5 and the same provider-neutral target shape as every other release. Use the stable target IDs `architecture.md`'s `## Release Targets` section already declares; mint IDs such as `web-development` and `web-production` only when no such section exists. Do not add provider-specific PLAN keys. Existing older release schemas remain readable. Non-deployable plans omit `release`.
 
 - The development target uses `stage: development`, `source: integration_head`, `data_mode: isolated_non_production`, and a manual or merge trigger chosen at plan time.
 - The production target uses `stage: production`, `source: production_head`, `data_mode: production`, and a manual or merge trigger chosen at plan time. `merged_main` remains readable only in older plans.
@@ -48,7 +48,15 @@ Production reaches `PASS` only after applicable prerequisite targets pass, GitHu
 
 ## Authorization And Triggering
 
-Deployment remains separate from push, PR merge, remote workflow triggering, cloud-resource provisioning, and repository configuration. Development deploy authorization may be requested with ordinary work. Production deploy and promotion actions wait for the user's separate final approval to start `development -> production`. `deploy` uses `release:<target-id>`. Dispatching remote CI additionally uses `trigger_remote_ci` with `workflow:<identity>`. Installing or changing the workflow uses `configure_repository`; creating provider resources uses `provision_cloud_resources` with exact cloud-resource targets.
+Deployment remains separate from push, PR merge, remote workflow triggering, cloud-resource provisioning, and repository configuration. Development deploy authorization may be requested with ordinary work; it rides the execution-intent instruction, restricted to the development target. Production deploy and promotion actions wait for the user's separate final approval to start `development -> production`.
+
+One rule covers who runs the production deploy, in both trigger models below:
+
+- The harness runs the production deploy command when `deploy` is authorized for that exact production `release:<target-id>` at that exact head. That grant is never inferred from `merge_pr`, from the promotion approval, or from the development loop, and it carries its own recorded `target_sources` entry (`execution-state-model.md`).
+- The `development -> production` merge is always the human's. The harness may open the promotion PR, observe current-head CI, and request review; it does not merge and does not enable auto-merge there.
+- Where the production Worker deploys from its own Cloudflare Git connection, the human's merge is the deploy trigger and the harness runs no deploy command. The exact production `deploy` grant still records the publication consequence, alongside the `merge_pr` grant for the merge that caused it.
+
+`deploy` uses `release:<target-id>` in RUN schema v10; older RUN v7-v9 `deployments` files used `environment:<target-id>` for the same grant (see `execution-state-model.md`). Dispatching remote CI additionally uses `trigger_remote_ci` with `workflow:<identity>`. Installing or changing the workflow uses `configure_repository`; creating provider resources uses `provision_cloud_resources` with exact cloud-resource targets.
 
 One explicit user statement may authorize several exact targets, but no action is inferred from another. For a native merge-triggered publication, require independent exact `merge_pr` and `deploy` grants, bound to the same PLAN revision/digest, candidate head, and `release:<target-id>`. The merge grant authorizes landing the candidate head. The deploy grant authorizes the publication consequence. After merge, observe and retain the resulting merged source SHA separately.
 
@@ -76,13 +84,13 @@ Cloudflare's own mechanism has no approval or review gate: pushing to a Worker's
 
 **No pause point on the development side — that is the intent.** Pushing `development` builds the development Worker immediately, and under the default branch model that push is part of the ordinary execution instruction rather than a separate confirmation (see `SKILL.md`'s Execution Authorization Gate). Record it honestly: the run uses `landing.mode: integration_push`, `landing.pushed_head_sha` carries the pushed integration head, and the development release target's `deploy` entry is recorded with its exact `release:<development-target-id>` target under the same execution-intent source. Do not pretend an auto-deploying push was not a deploy.
 
-**The checkpoint moves to the promotion merge, and that merge is the human's.** Run the Pre-Deploy Confirmation Checkpoint immediately before the approved `development -> production` merge because it is effectively the production deploy trigger — then hand the merge-ready PR over. The harness does not perform that merge and does not enable auto-merge for it.
+**The checkpoint moves to the promotion merge, and that merge is the human's.** Run the Pre-Deploy Confirmation Checkpoint immediately before handing over the approved `development -> production` merge, because that merge is effectively the production deploy trigger — then hand the merge-ready PR over. The harness does not perform that merge and does not enable auto-merge for it. In this model the harness runs no production deploy command at all; the exact production `deploy` grant records the publication the human's merge causes.
 
 **Substitute boundary for out-of-band merges.** Protect `production`: require a pull request and review, and disallow direct pushes. This is the remaining safety boundary against an out-of-band production deploy because Cloudflare's own auto-deploy has no human approval gate. Combined with the human-owned merge above, the only path to a production build is a person pressing merge on a PR that already converged on its exact head.
 
 ## Pre-Deploy Confirmation Checkpoint
 
-The final user approval starts production promotion; exact `merge_pr` and production `deploy` authorizations still remain independent, and neither is covered by the execution-intent instruction that covers the development loop. Before the parent runs the production deploy command or performs the auto-deploy-triggering `development -> production` merge, verify the exact SHA and migration classification below.
+The final user approval starts production promotion; exact `merge_pr` and production `deploy` authorizations still remain independent, and neither is covered by the execution-intent instruction that covers the development loop. Run this checkpoint before either production event: before the parent runs the production deploy command under its exact `deploy` grant, and before it hands over the auto-deploy-triggering `development -> production` merge. Verify the exact SHA and migration classification below.
 
 **Deploying SHA drift.** At the final production-promotion approval checkpoint, record the current `development` head SHA into `targets[production-id].authorized_head_sha`. Before production promotion or deploy fires, compare that value against the live SHA about to be promoted. If they differ because review-repair, a new push, or re-integration changed the head, stop and ask for a fresh explicit confirmation naming the new SHA.
 
@@ -91,7 +99,7 @@ The final user approval starts production promotion; exact `merge_pr` and produc
 - Additive — new column, table, or index with safe defaults and no possible data loss. This rides the exact production-target `deploy` authorization. Record the classification as the PLAN target's `migration_classification: "additive"`.
 - Potentially destructive — column or table drop, type narrowing, a `NOT NULL` added to existing data, or any data transformation that cannot be trivially reversed. This needs its own explicit confirmation, separate from the target's ordinary `deploy` grant. Do not let it ride through on the same blanket authorization as a routine additive migration. Name the exact destructive operation when asking, and confirm the rollback/backup plan is ready first. Record the classification as the PLAN target's `migration_classification: "destructive"` and, once the separate confirmation is obtained, the exact SHA it was obtained at in `targets[production-id].destructive_migration_confirmed_sha` — so the decision is auditable after the fact rather than only decided informally in conversation.
 
-If either check trips, stop and ask before proceeding. If both are clean — same SHA, additive-or-no migration — proceed under the existing authorization without a redundant prompt.
+If either check trips, stop and ask before proceeding. If both are clean — same SHA, additive-or-no migration — proceed under the existing exact `deploy` authorization without a redundant prompt: run the deploy command in the dispatched-Actions model, or hand the merge over in the auto-deploy model. "Proceed" never means merging the promotion PR.
 
 ## Migration And Data Rules
 

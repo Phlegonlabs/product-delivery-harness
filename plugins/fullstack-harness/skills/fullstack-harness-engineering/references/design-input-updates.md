@@ -24,9 +24,7 @@ A `frontend-design` result produced or requested during implementation is a prop
 Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
 Updated Builder UX Direction: changed experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, decision owner, or decision status
 Updated wireframe: screen structure, navigation, page regions, component hierarchy, state coverage
-Updated design system: tokens, typography, spacing, radius, color, component variants, interaction states
-Updated UI architecture: layer model, source-of-truth precedence, content contracts, primitive contracts, product components, motion architecture, state matrix, guardrails, definition of done, adoption sequence
-Updated design system: added/removed tokens or primitives, changed closed variant sets, motion variants, product components, state matrix, responsive set
+Updated design system: tokens, typography, spacing, radius, color, added/removed primitives, changed closed variant sets, interaction states, motion variants, product components, content contracts, state matrix, responsive set
 Page UI reference: screenshot, Figma frame, mockup, handoff spec, per-page layout target
 Existing app baseline: current route behavior, screenshots, traces, metrics, source implementation
 ```
@@ -110,6 +108,13 @@ M5 regression checks for preserved behavior
 ```
 
 Use before/after captures for UI changes. The "before" side proves the current state; the "after" side proves the accepted delta was implemented without broad rewrite.
+
+This flow is primary whenever an updated input exists. `existing-app-refinement.md` carries a second five-mission pattern for an existing app; use that one alone only when the user wants refinement with no updated PRD, wireframe, design system, or page UI reference — an open-ended "make it better", where an audit has to establish the work in the first place. When both conditions hold (an existing app being refined because a new design system or PRD arrived), run this flow and fold that reference into it. Do not run two mission sets:
+
+- Its baseline-evidence lenses supply what M1 captures.
+- Its backlog rows and ranking rules supply how M2 records what it finds.
+- A finding the audit turns up that is not part of the accepted delta stays a backlog row. It needs the user's acceptance and its own mission; it does not ride along in M3.
+- Its regression-protection checklist and stop-and-ask conditions apply to M5 unchanged.
 
 ## Conflict Handling
 
