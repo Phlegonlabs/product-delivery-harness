@@ -3953,26 +3953,45 @@ class RunValidationTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-    def test_integration_pull_request_mode_does_not_infer_protection_from_name(
+    def test_integration_pull_request_mode_always_treats_main_as_protected(
         self,
     ) -> None:
-        for integration_branch in ("main", "release"):
-            with self.subTest(branch=integration_branch):
-                plan, run, development_target_id = self.integration_pull_request_v10()
-                self.authorize_merge_triggered_development_release(
-                    run, development_target_id
-                )
-                run["integration"]["branch"] = f"refs/heads/{integration_branch}"
-                run["landing"]["base_branch"] = integration_branch
-                run["landing"]["continuity"]["branch_ref"] = (
-                    f"refs/heads/{integration_branch}"
-                )
-                future_pr = (
-                    "future-pr:example/repo:"
-                    f"base={integration_branch}:head=refs/heads/codex/feature"
-                )
-                run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
-                self.assertEqual([], validate_run(plan, run))
+        plan, run, _ = self.integration_pull_request_v10()
+        run["integration"]["branch"] = "refs/heads/main"
+        run["landing"]["base_branch"] = "main"
+        future_pr = (
+            "future-pr:example/repo:"
+            "base=main:head=refs/heads/codex/feature"
+        )
+
+        self.assertFalse(
+            execution_intent_target_in_scope(
+                plan, run, "push", "branch:refs/heads/main"
+            )
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
+
+    def test_integration_pull_request_mode_does_not_guess_custom_protection(
+        self,
+    ) -> None:
+        integration_branch = "release"
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        run["integration"]["branch"] = f"refs/heads/{integration_branch}"
+        run["landing"]["base_branch"] = integration_branch
+        run["landing"]["continuity"]["branch_ref"] = (
+            f"refs/heads/{integration_branch}"
+        )
+        future_pr = (
+            "future-pr:example/repo:"
+            f"base={integration_branch}:head=refs/heads/codex/feature"
+        )
+        run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
+        self.assertEqual([], validate_run(plan, run))
 
     def test_pull_request_into_a_protected_branch_cannot_use_auto_merge(
         self,

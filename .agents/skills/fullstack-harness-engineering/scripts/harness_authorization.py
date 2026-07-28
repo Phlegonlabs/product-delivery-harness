@@ -155,6 +155,8 @@ def future_pr_target_matches_landing(
 def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None:
     """Resolve branch protection from the recorded landing model.
 
+    Repository policy always protects `main`, even if a malformed or stale RUN
+    labels it as an integration branch.
     `pull_request` and the non-PR modes record a protected landing base beside
     the run's non-protected integration head. `integration_pull_request`
     instead records a genuine non-protected integration base. Missing or
@@ -169,6 +171,8 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
     normalized_base = _normalized_branch(landing.get("base_branch"))
     normalized_head = _normalized_branch(landing.get("head_branch"))
     normalized_integration = _normalized_branch(integration.get("branch"))
+    if normalized_branch == "main":
+        return True
     if (
         normalized_branch is None
         or normalized_base is None
