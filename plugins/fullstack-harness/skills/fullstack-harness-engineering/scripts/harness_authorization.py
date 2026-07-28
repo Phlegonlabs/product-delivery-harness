@@ -119,21 +119,6 @@ def _integration_branch(run: dict[str, Any]) -> str | None:
     return None
 
 
-def _development_release_target_ids(plan: dict[str, Any]) -> set[str]:
-    release = plan.get("release") if isinstance(plan, dict) else None
-    targets = release.get("targets") if isinstance(release, dict) else None
-    ids: set[str] = set()
-    if isinstance(targets, list):
-        for target in targets:
-            if (
-                isinstance(target, dict)
-                and target.get("stage") == "development"
-                and _nonempty_string(target.get("id"))
-            ):
-                ids.add(target["id"])
-    return ids
-
-
 def future_pr_target_matches_landing(
     target: str,
     landing: Any,
@@ -174,11 +159,11 @@ def execution_intent_target_in_scope(
     """Whether one execution-intent instruction can cover this exact target.
 
     The grouped development-loop bundle is scoped, not general: it reaches the
-    resolved integration branch, a PR merging into that branch, and the
-    development release target. Everything else — the protected landing branch,
-    a promotion PR, the production release target — is its own authorization
-    moment. Unknown state fails closed, because a target we cannot prove is
-    in-scope is exactly the one that needs a separate recorded instruction.
+    resolved integration branch and a PR merging into that branch. Everything
+    else — the protected landing branch, a promotion PR, or any deploy target —
+    is its own authorization moment. Unknown state fails closed, because a target
+    we cannot prove is in-scope is exactly the one that needs a separate recorded
+    instruction.
     """
     if target == "*":
         return False
@@ -255,15 +240,13 @@ def execution_intent_target_in_scope(
                 for sibling in scope_targets
             )
         # A merge-triggered release records the release consequence on the merge
-        # itself. It stays in scope on the same rule as `deploy`: the
-        # development target rides the loop, the production one does not.
+        # itself, but deployment never rides the development-loop instruction.
+        # Its exact release target retains the separate authorization source.
         if target.startswith("release:"):
-            return target[len("release:") :] in _development_release_target_ids(plan)
+            return False
         return False
     if action == "deploy":
-        if not target.startswith("release:"):
-            return False
-        return target[len("release:") :] in _development_release_target_ids(plan)
+        return False
     return False
 
 

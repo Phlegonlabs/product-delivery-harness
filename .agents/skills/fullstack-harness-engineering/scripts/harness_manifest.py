@@ -2688,22 +2688,29 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.landing.head_branch",
                     "integration_pull_request head must differ from the integration branch",
                 )
-            if (
-                v10_landing.get("auto_merge_requested") is True
-                and (
-                    normalized_integration in PROTECTED_DEFAULT_BRANCHES
-                    or normalized_base in PROTECTED_DEFAULT_BRANCHES
-                )
-            ):
-                _add(
-                    errors,
-                    "run.landing.auto_merge_requested",
-                    "integration_pull_request into a protected default branch cannot "
-                    "use auto-merge; a later exact human instruction must initiate "
-                    "that merge",
-                )
         elif normalized_head != normalized_integration:
             _add(errors, "run.integration.branch", "must match landing.head_branch for PLAN v5")
+        landing_mode = v10_landing.get("mode")
+        if (
+            landing_mode in {"pull_request", "integration_pull_request"}
+            and v10_landing.get("auto_merge_requested") is True
+            and (
+                landing_mode == "pull_request"
+                or (
+                    landing_mode == "integration_pull_request"
+                    and (
+                        normalized_base in PROTECTED_DEFAULT_BRANCHES
+                        or normalized_integration in PROTECTED_DEFAULT_BRANCHES
+                    )
+                )
+            )
+        ):
+            _add(
+                errors,
+                "run.landing.auto_merge_requested",
+                f"{landing_mode} into a protected default branch cannot use "
+                "auto-merge; a later exact human instruction must initiate that merge",
+            )
         if normalized_head is not None and normalized_head == normalized_base:
             _add(errors, "run.landing.head_branch", "must differ from landing.base_branch")
         expected_branch_ref = _branch_ref(normalized_integration)

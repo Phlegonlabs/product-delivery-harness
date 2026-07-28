@@ -234,10 +234,10 @@ HEAD_BOUND_AUTHORIZATION_ACTIONS = {
     "merge_pr",
     "deploy",
 }
-# Actions one execution-intent instruction covers, but only for a bounded set of
-# targets: the resolved integration branch, a PR whose base is that branch, and
-# the development release target. Any other target on these actions is a
-# separate authorization moment and records its own source in `target_sources`.
+# Actions whose target provenance depends on execution-intent scope. The bundle
+# reaches only the resolved integration branch and a PR whose base is that branch.
+# Every deploy target and every merge-carried release consequence is a separate
+# authorization moment and records its own source in `target_sources`.
 EXECUTION_INTENT_SCOPED_ACTIONS = {
     "push",
     "merge_pr",

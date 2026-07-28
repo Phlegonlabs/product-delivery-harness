@@ -1211,9 +1211,16 @@ class RunValidationTests(unittest.TestCase):
     ) -> None:
         release_target = f"release:{target_id}"
         run["authorizations"]["merge_pr"]["scope"]["targets"].append(release_target)
+        deploy_source = "user: deploy the development release from this exact merge"
+        run["authorizations"]["merge_pr"]["target_sources"] = {
+            release_target: deploy_source,
+        }
         run["authorizations"]["deploy"] = {
             "authorized": True,
-            "source": "user: deploy the development release from this exact merge",
+            "source": "user: run the authorized development deploy",
+            "target_sources": {
+                release_target: deploy_source,
+            },
             "scope": {
                 "run_id": run["run_id"],
                 "plan_revision": run["plan"]["revision"],
@@ -3501,6 +3508,7 @@ class RunValidationTests(unittest.TestCase):
             exact_target,
             f"release:{development_target_id}",
         ]
+        run["authorizations"]["merge_pr"].pop("target_sources")
         plan.pop("action_target_contract")
         run.pop("action_target_contract")
         digest = plan_digest(plan)
@@ -3526,6 +3534,9 @@ class RunValidationTests(unittest.TestCase):
         sourced = copy.deepcopy(run)
         sourced["authorizations"]["merge_pr"]["target_sources"] = {
             exact_target: "user: merge pull request 7 now that review passed",
+            f"release:{development_target_id}": (
+                "user: deploy the development release from this exact merge"
+            ),
         }
         self.assertEqual([], validate_run(plan, sourced))
 
@@ -3612,7 +3623,7 @@ class RunValidationTests(unittest.TestCase):
                 run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
                 release_target = f"release:{development_target_id}"
                 errors = validate_run(plan, run)
-                for target in (future_pr, exact_pr, release_target):
+                for target in (future_pr, exact_pr):
                     with self.subTest(target=target):
                         self.assertTrue(
                             any(
@@ -3623,6 +3634,13 @@ class RunValidationTests(unittest.TestCase):
                             ),
                             errors,
                         )
+                self.assertFalse(
+                    any(
+                        f"target_sources.{release_target}:" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
 
                 source = f"user: merge this {protected}-bound pull request once ready"
                 run["authorizations"]["merge_pr"]["target_sources"] = {
@@ -3636,6 +3654,47 @@ class RunValidationTests(unittest.TestCase):
                     run,
                     "integration_pull_request into a protected default branch "
                     "cannot use auto-merge",
+                )
+
+                run["landing"]["auto_merge_requested"] = False
+                run["landing"]["auto_merge_head_sha"] = None
+                self.assertEqual([], validate_run(plan, run))
+
+    def test_pull_request_into_a_protected_branch_cannot_use_auto_merge(
+        self,
+    ) -> None:
+        for protected in ("main", "master", "trunk", "production"):
+            with self.subTest(branch=protected):
+                plan, run = self.merged_pull_request_v10("pull_request")
+                old_future_pr = next(
+                    target
+                    for target in run["authorizations"]["merge_pr"]["scope"]["targets"]
+                    if target.startswith("future-pr:")
+                )
+                protected_future_pr = old_future_pr.replace(
+                    "base=refs/heads/production",
+                    f"base={protected}",
+                )
+                targets = run["authorizations"]["merge_pr"]["scope"]["targets"]
+                targets[targets.index(old_future_pr)] = protected_future_pr
+                target_sources = run["authorizations"]["merge_pr"]["target_sources"]
+                target_sources[protected_future_pr] = target_sources.pop(old_future_pr)
+                run["landing"].update(
+                    {
+                        "base_branch": protected,
+                        "pr_state": "open",
+                        "merge_status": "ready",
+                        "merged_sha": None,
+                        "auto_merge_requested": True,
+                        "auto_merge_head_sha": run["landing"]["pr_head_sha"],
+                    }
+                )
+
+                self.assert_run_error_contains(
+                    plan,
+                    run,
+                    "pull_request into a protected default branch cannot use "
+                    "auto-merge",
                 )
 
                 run["landing"]["auto_merge_requested"] = False

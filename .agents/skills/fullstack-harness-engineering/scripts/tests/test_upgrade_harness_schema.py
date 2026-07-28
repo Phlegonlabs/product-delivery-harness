@@ -647,11 +647,9 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
             "expires_when": "run_complete",
             "authorized_head_sha": run["targets"][target_id]["authorized_head_sha"],
         }
-        if action == "merge_pr" and str(run["landing"]["base_branch"]).removeprefix(
-            "refs/heads/"
-        ) == "main":
+        if action in {"merge_pr", "deploy"}:
             entry["target_sources"] = {
-                target: "user: separately authorize this main-bound merge consequence"
+                target: f"user: separately authorize this exact {action} release target"
             }
         run["authorizations"][action] = entry
 
@@ -768,12 +766,13 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
 
         deploy_both = copy.deepcopy(base)
         self._grant(deploy_both, "deploy", ["release:development", "release:production"])
-        self.assertTrue(
-            any(
-                "release:production" in error
-                for error in self._target_source_errors(plan, deploy_both)
-            )
-        )
+        deploy_errors = self._target_source_errors(plan, deploy_both)
+        for target in ("release:development", "release:production"):
+            with self.subTest(target=target):
+                self.assertTrue(
+                    any(target in error for error in deploy_errors),
+                    deploy_errors,
+                )
 
         promotion = copy.deepcopy(base)
         self._grant(

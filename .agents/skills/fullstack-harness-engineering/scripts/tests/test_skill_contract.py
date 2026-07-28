@@ -205,6 +205,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         goal = self.read("assets/templates/GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        pull_request = self.read("assets/templates/PULL_REQUEST.template.md")
+        state_model = self.read("references/execution-state-model.md")
+        verification = self.read("references/verification-gates.md")
         agent = self.read("agents/openai.yaml")
 
         self.assertIn("## Pull-Request Handover", skill)
@@ -217,9 +220,49 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         # The merge toward the protected base is the human's; the harness may
         # prepare the PR and must stop there.
         self.assertIn("It does not merge and does not enable auto-merge", skill)
+        self.assertIn(
+            "A pull-request run remains non-complete",
+            skill,
+        )
+        self.assertIn(
+            "keeps the run non-complete while the PR is open",
+            skill,
+        )
+        self.assertIn(
+            "observe that GitHub reports the PR merged and inspect the current merged base state",
+            skill,
+        )
+        self.assertIn(
+            "then and only then set the RUN to `complete`",
+            skill,
+        )
+        self.assertNotIn(
+            "A pull-request run is complete when the exact current-head CI and review gates pass",
+            skill,
+        )
         self.assertIn("merge-ready PR", goal)
+        self.assertIn(
+            "Do not bind `merge_pr` until a later explicit instruction names the exact existing PR",
+            goal,
+        )
         self.assertIn("Do not merge and do not enable auto-merge", runbook)
+        self.assertIn(
+            "bind `create_pr` and `manage_pr_review`",
+            runbook,
+        )
         self.assertIn("The merge toward the protected base is the human's", project_rules)
+        self.assertIn(
+            "Do not bind `merge_pr` until a later explicit instruction names the exact existing PR",
+            project_rules,
+        )
+        self.assertIn(
+            "only that later instruction may supply `merge_pr` for the exact PR",
+            state_model,
+        )
+        for content in (pull_request, verification):
+            self.assertIn("non-protected integration base", content)
+            self.assertIn("protected-base PR", content)
+            self.assertIn("merge-ready handoff", content)
         for content in (skill, goal, runbook, project_rules):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())
@@ -307,7 +350,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("the next step depends on the PR's base", project_rules)
         self.assertIn("resolved integration branch", project_rules)
 
-    def test_production_deploy_is_its_own_grant_not_the_merge(self) -> None:
+    def test_every_deploy_is_its_own_grant_not_the_merge(self) -> None:
         """One rule, three sites. The docs used to give three answers: the core
         said the harness never runs the production deploy, the Cloudflare
         reference said the parent runs it, and the validator required an exact
@@ -331,13 +374,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "integration": {"branch": "development"},
             "landing": {"base_branch": "production"},
         }
-        # The development target rides the execution-intent instruction; the
-        # production one is its own authorization moment.
-        self.assertTrue(
+        # Preview, staging, and production deploys are separate authorization
+        # moments; none rides the execution-intent instruction.
+        self.assertFalse(
             execution_intent_target_in_scope(plan, run, "deploy", "release:web-development")
         )
         self.assertFalse(
             execution_intent_target_in_scope(plan, run, "deploy", "release:web-production")
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(
+                plan, run, "merge_pr", "release:web-development"
+            )
         )
         self.assertFalse(
             execution_intent_target_in_scope(
@@ -346,6 +394,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         )
 
         self.assertIn("The harness runs it when `deploy` is authorized for that exact target at that exact head", core)
+        self.assertIn(
+            "No `deploy` — including an optional preview or staging target — "
+            "ever rides the execution-intent instruction",
+            lifecycle,
+        )
         self.assertIn("One rule covers who runs the production deploy", lifecycle)
         self.assertIn("authorized for that exact production `release:<target-id>` at that exact head", lifecycle)
         # The merge stays the human's on both sites, and neither implies the other.

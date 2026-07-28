@@ -50,7 +50,7 @@ Production reaches `PASS` only after applicable prerequisite targets pass, GitHu
 
 ## Authorization And Triggering
 
-Deployment remains separate from push, PR merge, remote workflow triggering, cloud-resource provisioning, and repository configuration. With only a production target in the default model, `deploy` never rides the execution-intent instruction: every deploy is its own authorization moment with an exact `release:<target-id>`. Landing on `main` and deploying from it wait for the user's separate instructions.
+Deployment remains separate from push, PR merge, remote workflow triggering, cloud-resource provisioning, and repository configuration. No `deploy` — including an optional preview or staging target — ever rides the execution-intent instruction: each is its own authorization moment with an exact `release:<target-id>`. Landing on `main` and deploying from it wait for the user's separate instructions.
 
 One rule covers who runs the production deploy, in both trigger models below:
 

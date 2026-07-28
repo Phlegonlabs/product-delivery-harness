@@ -2086,9 +2086,18 @@ class GraphManifestTests(unittest.TestCase):
         run["authorizations"]["merge_pr"]["scope"]["targets"].append(
             release_target
         )
+        deploy_target_source = (
+            "user: deploy the merge-triggered development release"
+        )
+        run["authorizations"]["merge_pr"]["target_sources"] = {
+            release_target: deploy_target_source,
+        }
         run["authorizations"]["deploy"] = {
             "authorized": True,
-            "source": "user: deploy the merge-triggered development release",
+            "source": "user: run the authorized development deploy",
+            "target_sources": {
+                release_target: deploy_target_source,
+            },
             "authorized_head_sha": "a" * 40,
             "scope": {
                 "run_id": run["run_id"],

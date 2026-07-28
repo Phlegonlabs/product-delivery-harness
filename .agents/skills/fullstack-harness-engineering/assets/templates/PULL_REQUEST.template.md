@@ -22,7 +22,7 @@
 - [ ] PR is ready for review
 - [ ] Codex reviewed the current PR head
 - [ ] Blocking findings and unresolved threads are zero
-- [ ] Auto-merge is SHA-bound and enabled only after all landing gates pass, or is not authorized
+- [ ] For an eligible PR into a non-protected integration base, auto-merge is SHA-bound and enabled only after all landing gates and exact `merge_pr` authorization pass; for a protected-base PR, auto-merge stays disabled and the merge-ready handoff is recorded
 - [ ] Merge and deploy remain separate authorized actions
 - [ ] When Cloudflare production deployment is in scope, it will use the exact merged base SHA and separate production bindings, secrets, auth, and payments
 - [ ] Post-merge local branch/worktree cleanup is complete, deferred, or not authorized
