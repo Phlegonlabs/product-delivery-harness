@@ -12,7 +12,7 @@ Artifact: `docs/product/design-system.json`
 
 This Markdown file owns reasoning, ratios, guardrails, and decisions. `design-system.json` is the sole structured authority for token names, primitive classes, closed variant sets, product-component contracts, responsive verification, and source paths. Implementation and `fullstack-harness-engineering`'s `scripts/check_ui_contract.py` read the JSON.
 
-The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --write` to refresh the generated contract block at the end of this file. Do not hand-maintain a second token, primitive, component, motion, or state inventory in Markdown.
+The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write` to refresh the generated contract block at the end of this file. Verify it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json>` before publishing. Do not hand-maintain a second token, primitive, component, motion, or state inventory in Markdown.
 
 ## Source Inputs
 

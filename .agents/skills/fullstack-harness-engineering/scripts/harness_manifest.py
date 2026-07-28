@@ -2825,7 +2825,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             landing.get("mode") == "pull_request"
             and landing.get("pr_state") in {"draft", "open", "merged"}
             and (
-                landing.get("merge_status") in {"ready", "merged"}
+                landing.get("checks_status") == "PASS"
+                or landing.get("review_status") == "PASS"
+                or landing.get("merge_status") in {"ready", "merged"}
                 or run.get("status") == "complete"
             )
             and landing.get("pr_head_sha") != integration.get("integration_head_sha")
@@ -2833,7 +2835,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(
                 errors,
                 "run.landing.pr_head_sha",
-                "closing PR, review, CI, and final evidence must match the current integration head",
+                "promotion pull_request CI, review, ready, and final evidence must match the current integration head",
             )
     if (
         schema_version in {4, 5, 6, 7, 8, 9, 10}

@@ -3208,6 +3208,122 @@ class RunValidationTests(unittest.TestCase):
         )
         self.assertEqual([], validate_run(plan, run))
 
+    def test_v10_promotion_gates_bind_to_the_integration_head(self) -> None:
+        root = SCRIPTS_DIR.parent
+        plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+        run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        run["integration"]["integration_head_sha"] = SHA_B
+        run["landing"].update(
+            {
+                "mode": "pull_request",
+                "pushed_head_sha": SHA_A,
+                "pr_number": 7,
+                "pr_url": "https://github.com/example/repo/pull/7",
+                "pr_state": "open",
+                "pr_head_sha": SHA_A,
+            }
+        )
+        run["landing"]["continuity"].update(
+            {
+                "status": "not_required",
+                "branch_ref": None,
+                "head_sha": None,
+                "reason": None,
+            }
+        )
+
+        gate_states = (
+            (
+                "checks",
+                {
+                    "checks_status": "PASS",
+                    "checks_head_sha": SHA_A,
+                },
+            ),
+            (
+                "review",
+                {
+                    "review_status": "PASS",
+                    "review_head_sha": SHA_A,
+                    "blocking_findings": 0,
+                    "unresolved_threads": 0,
+                },
+            ),
+            (
+                "ready",
+                {
+                    "checks_status": "PASS",
+                    "checks_head_sha": SHA_A,
+                    "review_status": "PASS",
+                    "review_head_sha": SHA_A,
+                    "blocking_findings": 0,
+                    "unresolved_threads": 0,
+                    "merge_status": "ready",
+                },
+            ),
+        )
+        for gate, landing_state in gate_states:
+            with self.subTest(gate=gate):
+                stale = copy.deepcopy(run)
+                stale["landing"].update(landing_state)
+                self.assert_run_error_contains(
+                    plan,
+                    stale,
+                    "promotion pull_request CI, review, ready, and final evidence "
+                    "must match the current integration head",
+                )
+
+        current = copy.deepcopy(run)
+        current["landing"].update(
+            {
+                "pushed_head_sha": SHA_B,
+                "pr_head_sha": SHA_B,
+                "checks_status": "PASS",
+                "checks_head_sha": SHA_B,
+                "review_status": "PASS",
+                "review_head_sha": SHA_B,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "ready",
+            }
+        )
+        self.assertEqual([], validate_run(plan, current))
+
+    def test_v10_integration_pr_uses_feature_head_then_merged_base_head(
+        self,
+    ) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+
+        run["integration"]["integration_head_sha"] = SHA_B
+        self.assertEqual([], validate_run(plan, run))
+
+        merged_sha = "c" * 40
+        run["landing"].update(
+            {
+                "pr_state": "merged",
+                "merge_status": "merged",
+                "merged_sha": merged_sha,
+            }
+        )
+        run["integration"]["integration_head_sha"] = merged_sha
+        run["landing"]["continuity"].update(
+            {
+                "status": "preserved",
+                "head_sha": merged_sha,
+            }
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        run["landing"]["merged_sha"] = SHA_B
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "merged integration_pull_request must become the current integration head",
+        )
+
     def test_merge_pr_scope_requires_the_exact_landing_identity(self) -> None:
         plan, run, development_target_id = self.integration_pull_request_v10()
         self.authorize_merge_triggered_development_release(
