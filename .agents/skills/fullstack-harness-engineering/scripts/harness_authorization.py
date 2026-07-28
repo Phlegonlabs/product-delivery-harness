@@ -13,12 +13,13 @@ from harness_core import (
     _strings,
 )
 from harness_schema import (
-    CLOUD_RESOURCE_TARGET_RE,
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GITHUB_PR_URL_RE,
     SHA256_RE,
     TARGET_RE,
+    action_target_kind_allowed,
+    action_target_kind_description,
 )
 
 
@@ -31,6 +32,7 @@ def _validate_authorization_scope(
     action_name: str | None = None,
     allow_future_pr: bool = False,
     require_plan_binding: bool = False,
+    schema_version: int | None = None,
 ) -> None:
     required = (
         {"run_id", "mission_ids", "targets"}
@@ -51,6 +53,7 @@ def _validate_authorization_scope(
             _add(errors, f"{path}.plan_digest_sha256", "must be a lowercase SHA-256 digest")
     _strings(errors, f"{path}.mission_ids", value["mission_ids"], nonempty=True)
     if action:
+        resolved_schema_version = schema_version or (10 if require_plan_binding else 5)
         targets = _strings(errors, f"{path}.targets", value["targets"], nonempty=True)
         for target in targets:
             if target == "*":
@@ -61,38 +64,43 @@ def _validate_authorization_scope(
                         f"{action_name} requires exact targets, not *",
                     )
                 continue
-            if target.startswith("future-pr:"):
-                if (
-                    not allow_future_pr
-                    or action_name not in {"manage_pr_review", "merge_pr"}
-                    or not FUTURE_PR_TARGET_RE.fullmatch(target)
-                ):
-                    _add(errors, f"{path}.targets", f"unsupported target {target!r}")
-                continue
-            if not TARGET_RE.fullmatch(target):
+            malformed_future_pr = (
+                target.startswith("future-pr:")
+                and FUTURE_PR_TARGET_RE.fullmatch(target) is None
+            )
+            if (
+                (not target.startswith("future-pr:") and TARGET_RE.fullmatch(target) is None)
+                or malformed_future_pr
+                or (
+                    target.startswith("future-pr:")
+                    and (
+                        resolved_schema_version < 6
+                        or action_name not in {"manage_pr_review", "merge_pr"}
+                    )
+                )
+            ):
                 _add(errors, f"{path}.targets", f"unsupported target {target!r}")
-            elif action_name == "invoke_external_runtime" and not target.startswith(
-                "runtime:"
+            elif (
+                action_name is None
+                or not action_target_kind_allowed(
+                    action_name, target, resolved_schema_version
+                )
+                or (target.startswith("future-pr:") and not allow_future_pr)
             ):
-                _add(
-                    errors,
-                    f"{path}.targets",
-                    "invoke_external_runtime requires runtime:<provider> targets",
-                )
-            elif action_name == "trigger_remote_ci" and not target.startswith("workflow:"):
-                _add(
-                    errors,
-                    f"{path}.targets",
-                    "trigger_remote_ci requires workflow:<identity> targets",
-                )
-            elif action_name == "provision_cloud_resources" and not CLOUD_RESOURCE_TARGET_RE.fullmatch(
-                target
-            ):
-                _add(
-                    errors,
-                    f"{path}.targets",
-                    "provision_cloud_resources requires cloud-resource:<provider>:<environment>:<kind>:<logical-name> targets",
-                )
+                if action_name == "trigger_remote_ci":
+                    message = "trigger_remote_ci requires workflow:<identity> targets"
+                elif action_name == "provision_cloud_resources":
+                    message = (
+                        "provision_cloud_resources requires "
+                        "cloud-resource:<provider>:<environment>:<kind>:<logical-name> targets"
+                    )
+                else:
+                    message = (
+                        f"{action_name or 'action'} target kind must be "
+                        f"{action_target_kind_description(action_name or '', resolved_schema_version)}; "
+                        f"got {target!r}"
+                    )
+                _add(errors, f"{path}.targets", message)
     else:
         if value["expires_when"] not in EXPIRY_BOUNDARIES:
             _add(
@@ -246,6 +254,7 @@ def authorization_covers(
     target: str | None = None,
     *,
     preserve_completed_run_expiry: bool = False,
+    required_head_sha: str | None = None,
 ) -> bool:
     authorizations = run.get("authorizations")
     if not isinstance(authorizations, dict):
@@ -265,6 +274,11 @@ def authorization_covers(
         return False
     targets = scope.get("targets", [])
     if target is not None and target not in targets and "*" not in targets:
+        return False
+    if (
+        required_head_sha is not None
+        and entry.get("authorized_head_sha") != required_head_sha
+    ):
         return False
     boundary = entry.get("expires_when")
     expiry_is_preserved = (

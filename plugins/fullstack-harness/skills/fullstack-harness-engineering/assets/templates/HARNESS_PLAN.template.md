@@ -51,16 +51,10 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         ],
         "route": "<route or screen>",
         "breakpoints": [
-          "mobile-390",
-          "tablet-768",
-          "laptop-1200",
-          "desktop-1440"
+          "<copy the complete viewports or sizeClasses set from design-system.json>"
         ],
         "states": [
-          "ready",
-          "loading",
-          "empty",
-          "error"
+          "<copy the complete stateMatrix from design-system.json, preserving order>"
         ],
         "evidence_gate": "required"
       }

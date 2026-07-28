@@ -1170,6 +1170,33 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
             any("scope.plan_revision: must match run.plan.revision" in error for error in validate_run(plan, run))
         )
 
+    def test_v10_integration_pull_request_can_target_the_integration_branch(
+        self,
+    ) -> None:
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root)
+        integration_branch = run["integration"]["branch"]
+        integration_branch_ref = (
+            integration_branch
+            if integration_branch.startswith("refs/heads/")
+            else f"refs/heads/{integration_branch}"
+        )
+        run["landing"].update(
+            {
+                "mode": "integration_pull_request",
+                "head_branch": "refs/heads/codex/feature",
+                "base_branch": integration_branch,
+                "continuity": {
+                    "status": "planned",
+                    "branch_ref": integration_branch_ref,
+                    "head_sha": None,
+                    "reason": "Merge the reviewed feature into the retained integration branch",
+                },
+            }
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+
     def test_v10_remote_ci_and_cloud_actions_require_exact_target_kinds(self) -> None:
         root = self._seed_repo()
         plan, run = current_plan_and_run(root)
@@ -1184,6 +1211,67 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         self.assertTrue(
             any("provision_cloud_resources requires cloud-resource:" in error for error in errors)
         )
+
+    def test_v10_head_bound_actions_reject_wrong_target_kinds(self) -> None:
+        for action, target in (
+            ("push", "release:development"),
+            ("create_pr", "workflow:github-actions:ci"),
+            ("manage_pr_review", "branch:development"),
+            ("merge_pr", "branch:development"),
+            ("deploy", "pr:https://github.com/acme/app/pull/1"),
+        ):
+            with self.subTest(action=action, target=target):
+                root = self._seed_repo()
+                plan, run = current_plan_and_run(root)
+                entry: dict[str, object] = {
+                    "authorized": True,
+                    "source": f"user: authorize {action}",
+                    "authorized_head_sha": "a" * 40,
+                    "scope": {
+                        "run_id": run["run_id"],
+                        "plan_revision": run["plan"]["revision"],
+                        "plan_digest_sha256": run["plan"]["digest_sha256"],
+                        "mission_ids": list(run["mission_states"]),
+                        "targets": [target],
+                    },
+                    "expires_when": "run_complete",
+                }
+                if action in {"push", "merge_pr", "deploy"}:
+                    entry["target_sources"] = {
+                        target: f"user: separately authorize {target}"
+                    }
+                run["authorizations"][action] = entry
+
+                errors = validate_run(plan, run)
+
+                self.assertTrue(
+                    any("target kind" in error for error in errors),
+                    f"expected {action} to reject {target!r}: {errors!r}",
+                )
+
+    def test_v10_unauthorized_scoped_actions_reject_target_sources(self) -> None:
+        for action in ("push", "merge_pr", "deploy"):
+            with self.subTest(action=action):
+                root = self._seed_repo()
+                plan, run = current_plan_and_run(root)
+                run["authorizations"][action] = {
+                    "authorized": False,
+                    "source": None,
+                    "target_sources": {
+                        "branch:production": "user: stale authorization source"
+                    },
+                }
+
+                errors = validate_run(plan, run)
+
+                self.assertTrue(
+                    any(
+                        f"run.authorizations.{action}.target_sources" in error
+                        and "must be omitted when unauthorized" in error
+                        for error in errors
+                    ),
+                    errors,
+                )
 
     def test_v10_remote_ci_and_cloud_actions_reject_wildcard_targets(self) -> None:
         root = self._seed_repo()

@@ -133,7 +133,7 @@ Every primitive's variants are a **closed set**. A page picks from the set; it d
 
 ### Product Component Content Contracts
 
-A product component declares the content it must show, not only what it composes. Record that as `requiredContentOrder` in `design-system.json` and in the Required content order column of `design-system.md`'s Product Components table — the same fields, in the same order, in both files.
+A product component declares the content it must show, not only what it composes. Record that as `requiredContentOrder` in `design-system.json`; the generated Markdown contract preserves the same fields in the same order. Do not maintain a second handwritten component table.
 
 The list names the content fields the component renders, in the order it renders them. Every field on it is a **never-drop field**. Implementation may not reorder them, drop one at a narrow viewport or size class, hide one behind a truncation rule, or omit one in a denser variant. A field that may legitimately disappear is not a never-drop field and does not belong on the list.
 

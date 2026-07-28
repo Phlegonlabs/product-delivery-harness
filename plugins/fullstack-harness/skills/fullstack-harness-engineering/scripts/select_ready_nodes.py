@@ -23,6 +23,7 @@ from harness_manifest import (
     validate_plan,
     validate_run,
 )
+from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS
 
 
 class GraphSelectionError(ValueError):
@@ -359,9 +360,34 @@ def _logical_reasons(
 
 
 def _action_authorized(
-    run: dict[str, Any], action: str, mission_id: str, target: str = "*"
+    run: dict[str, Any],
+    action: str,
+    mission_id: str,
+    target: str = "*",
+    *,
+    required_head_sha: str | None = None,
 ) -> bool:
-    return authorization_covers(run, action, mission_id, target)
+    return authorization_covers(
+        run,
+        action,
+        mission_id,
+        target,
+        required_head_sha=required_head_sha,
+    )
+
+
+def _current_authorized_head(run: dict[str, Any], action: str) -> str | None:
+    """Resolve the live candidate head for one head-bound lifecycle action."""
+    landing = run.get("landing")
+    if isinstance(landing, dict):
+        if action in {"manage_pr_review", "merge_pr"}:
+            return landing.get("pr_head_sha")
+        if action == "create_pr":
+            return landing.get("pushed_head_sha")
+    integration = run.get("integration")
+    if isinstance(integration, dict):
+        return integration.get("integration_head_sha")
+    return None
 
 
 def _write_launch_reasons(run: dict[str, Any]) -> set[str]:
@@ -575,11 +601,30 @@ def _dispatch_reasons(
         # -valid PLANs (authored before this field existed) unchanged.
         target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
+        current_head = _current_authorized_head(run, node["ref"])
         if any(
             not _action_authorized(run, node["ref"], mission_id, target)
             for mission_id in mission_ids
         ):
             reasons.add("action_not_authorized")
+        elif (
+            run.get("schema_version") == 10
+            and node["ref"] in HEAD_BOUND_AUTHORIZATION_ACTIONS
+            and (
+                not isinstance(current_head, str)
+                or any(
+                    not _action_authorized(
+                        run,
+                        node["ref"],
+                        mission_id,
+                        target,
+                        required_head_sha=current_head,
+                    )
+                    for mission_id in mission_ids
+                )
+            )
+        ):
+            reasons.add("authorization_head_stale")
     return sorted(reasons)
 
 
