@@ -39,8 +39,9 @@ Preserve an explicit user or PLAN choice. Otherwise, for new PLAN-v5 runtime-wor
 - frontend/UI implementation uses Codex `gpt-5.6-sol` with `high` reasoning;
 - routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`;
 - routine `frontend_code` and visual review use Codex `gpt-5.6-sol` with `medium` reasoning;
+- the run's final review — the final synthesis pass over the integration head — uses Codex `gpt-5.6-sol` with `xhigh` reasoning by default, not as an exception;
 - for bounded mechanical edits, discovery, or inexpensive preflight work (codebase exploration, documentation/API research, test/log analysis), prefer Codex's fastest/cheapest available model with `low` or `medium` reasoning instead of the general-purpose/implementation defaults above;
-- raise a mission node's effort to `xhigh`, or a review node's effort above `medium`, only for security, migration, difficult correctness, difficult debugging, broad architecture, final synthesis, or genuine ambiguity.
+- raise a mission node's effort to `xhigh`, or a routine review node's effort above `medium`, only for security, migration, difficult correctness, difficult debugging, broad architecture, or genuine ambiguity.
 
 Pass non-null PLAN-selected values to task creation as `model` and `thinking`. Never silently substitute a rejected model, effort, permission mode, or tool profile; revise the affected runtime policy and reselect. The review defaults above are the declared host substitution for the core's Claude Code review defaults on a codex-only host — a recorded policy choice, not a silent substitution.
 
