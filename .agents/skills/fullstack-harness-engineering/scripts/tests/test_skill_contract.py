@@ -629,6 +629,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Poll both gates concurrently", project_rules)
 
     def test_runbook_starts_local_only_and_names_all_three_modes(self) -> None:
+        skill = self.read("SKILL.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         state = self.read("references/execution-state-model.md")
 
@@ -645,6 +646,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
                 "auto-merge is unavailable there.",
                 content,
             )
+        self.assertIn('"base_branch_protection": {', runbook)
+        for content in (skill, runbook, state):
+            self.assertIn("landing.base_branch_protection", content)
+            self.assertIn("fail", content.lower())
 
     @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
     def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:

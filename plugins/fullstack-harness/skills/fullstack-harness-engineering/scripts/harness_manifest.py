@@ -801,6 +801,7 @@ def _validate_landing(
     *,
     integration_head_sha: Any = None,
     push_authorized: bool = True,
+    run_status: Any = None,
 ) -> None:
     path = "run.landing"
     keys = {
@@ -826,7 +827,8 @@ def _validate_landing(
         keys.update({"auto_merge_requested", "auto_merge_head_sha"})
     if schema_version == 10:
         keys.add("continuity")
-    if not _keys(errors, path, value, keys):
+    optional_keys = {"base_branch_protection"} if schema_version == 10 else set()
+    if not _keys(errors, path, value, keys, optional_keys):
         return
 
     landing_modes = {"local_only", "integration_push", "pull_request"}
@@ -925,6 +927,81 @@ def _validate_landing(
                 "integration_push mode requires an authorized push covering the integration branch",
             )
     if schema_version == 10:
+        protection = value.get("base_branch_protection")
+        valid_unprotected_protection = (
+            isinstance(protection, dict)
+            and _nonempty_string(protection.get("branch_ref"))
+            and str(protection.get("branch_ref")).startswith("refs/heads/")
+            and _normalized_branch(protection.get("branch_ref"))
+            == _normalized_branch(value["base_branch"])
+            and protection.get("status") == "unprotected"
+            and _nonempty_string(protection.get("source"))
+        )
+        if protection is not None and _keys(
+            errors,
+            f"{path}.base_branch_protection",
+            protection,
+            {"branch_ref", "status", "source"},
+        ):
+            if not _nonempty_string(protection["branch_ref"]) or not str(
+                protection["branch_ref"]
+            ).startswith("refs/heads/"):
+                _add(
+                    errors,
+                    f"{path}.base_branch_protection.branch_ref",
+                    "must be a full local branch ref",
+                )
+            if not _nonempty_string(protection["source"]):
+                _add(
+                    errors,
+                    f"{path}.base_branch_protection.source",
+                    "must be a non-empty repository policy source",
+                )
+            if protection["status"] not in {"protected", "unprotected"}:
+                _add(
+                    errors,
+                    f"{path}.base_branch_protection.status",
+                    "must be protected or unprotected",
+                )
+            normalized_protection_branch = _normalized_branch(
+                protection["branch_ref"]
+            )
+            if normalized_protection_branch != _normalized_branch(
+                value["base_branch"]
+            ):
+                _add(
+                    errors,
+                    f"{path}.base_branch_protection.branch_ref",
+                    "must match landing.base_branch",
+                )
+            if value["mode"] == "integration_pull_request" and (
+                protection["status"] != "unprotected"
+            ):
+                _add(
+                    errors,
+                    f"{path}.base_branch_protection.status",
+                    "integration_pull_request requires an unprotected base",
+                )
+            if value["mode"] == "pull_request" and (
+                protection["status"] != "protected"
+            ):
+                _add(
+                    errors,
+                    f"{path}.base_branch_protection.status",
+                    "pull_request requires a protected base",
+                )
+        if (
+            value["mode"] == "integration_pull_request"
+            and value["auto_merge_requested"] is True
+            and run_status != "complete"
+            and not valid_unprotected_protection
+        ):
+            _add(
+                errors,
+                f"{path}.auto_merge_requested",
+                "integration_pull_request auto-merge requires exact repository "
+                "evidence that the base branch is unprotected",
+            )
         continuity = value["continuity"]
         if continuity is not None and _keys(
             errors,
@@ -2661,6 +2738,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             schema_version,
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
+            run_status=run.get("status"),
         )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]

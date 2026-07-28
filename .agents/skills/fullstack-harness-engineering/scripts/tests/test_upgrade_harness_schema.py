@@ -789,6 +789,15 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
                 "pr_url": "https://github.com/acme/app/pull/1",
                 "base_branch": branch,
                 "head_branch": "feature",
+                "base_branch_protection": {
+                    "branch_ref": (
+                        branch
+                        if branch.startswith("refs/heads/")
+                        else f"refs/heads/{branch}"
+                    ),
+                    "status": "unprotected",
+                    "source": "repository: AGENTS.md integration branch policy",
+                },
             }
         )
         self._grant(loop_merge, "merge_pr", [f"future-pr:acme/app:base={branch}:head=feature"])

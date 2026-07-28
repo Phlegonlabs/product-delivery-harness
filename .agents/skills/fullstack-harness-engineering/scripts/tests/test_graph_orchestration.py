@@ -2030,6 +2030,11 @@ class GraphManifestTests(unittest.TestCase):
                 "mode": "integration_pull_request",
                 "head_branch": "refs/heads/codex/feature",
                 "base_branch": "refs/heads/development",
+                "base_branch_protection": {
+                    "branch_ref": "refs/heads/development",
+                    "status": "unprotected",
+                    "source": "repository: AGENTS.md integration branch policy",
+                },
                 "pushed_head_sha": "a" * 40,
                 "pr_number": 1,
                 "pr_url": target.removeprefix("pr:"),

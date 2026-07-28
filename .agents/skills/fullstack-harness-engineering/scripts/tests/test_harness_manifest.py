@@ -1378,6 +1378,11 @@ class RunValidationTests(unittest.TestCase):
                 "mode": "integration_pull_request",
                 "head_branch": "refs/heads/codex/feature",
                 "base_branch": "refs/heads/development",
+                "base_branch_protection": {
+                    "branch_ref": "refs/heads/development",
+                    "status": "unprotected",
+                    "source": "repository: AGENTS.md integration branch policy",
+                },
                 "pushed_head_sha": pr_head,
                 "pr_number": 7,
                 "pr_url": pr_url,
@@ -1481,6 +1486,11 @@ class RunValidationTests(unittest.TestCase):
                     "mode": "pull_request",
                     "head_branch": "refs/heads/development",
                     "base_branch": "refs/heads/production",
+                    "base_branch_protection": {
+                        "branch_ref": "refs/heads/production",
+                        "status": "protected",
+                        "source": "repository: AGENTS.md protected branch policy",
+                    },
                     "continuity": {
                         "status": "not_required",
                         "branch_ref": None,
@@ -3983,6 +3993,9 @@ class RunValidationTests(unittest.TestCase):
         )
         run["integration"]["branch"] = f"refs/heads/{integration_branch}"
         run["landing"]["base_branch"] = integration_branch
+        run["landing"]["base_branch_protection"]["branch_ref"] = (
+            f"refs/heads/{integration_branch}"
+        )
         run["landing"]["continuity"]["branch_ref"] = (
             f"refs/heads/{integration_branch}"
         )
@@ -3992,6 +4005,108 @@ class RunValidationTests(unittest.TestCase):
         )
         run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
         self.assertEqual([], validate_run(plan, run))
+
+    def test_integration_pull_request_requires_recorded_unprotected_base(
+        self,
+    ) -> None:
+        plan, run, _ = self.integration_pull_request_v10()
+        integration_branch = run["integration"]["branch"]
+        push_target = f"branch:{integration_branch}"
+        future_pr = run["authorizations"]["merge_pr"]["scope"]["targets"][0]
+
+        del run["landing"]["base_branch_protection"]
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "push", push_target)
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
+        missing_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "integration_pull_request auto-merge requires exact repository evidence"
+                in error
+                for error in missing_errors
+            ),
+            missing_errors,
+        )
+
+        run["landing"]["base_branch_protection"] = {
+            "branch_ref": integration_branch,
+            "status": "protected",
+            "source": "repository: AGENTS.md protected branch policy",
+        }
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "push", push_target)
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
+        protected_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "integration_pull_request requires an unprotected base" in error
+                for error in protected_errors
+            ),
+            protected_errors,
+        )
+
+        run["landing"]["base_branch_protection"]["status"] = "unprotected"
+        self.assertTrue(
+            execution_intent_target_in_scope(plan, run, "push", push_target)
+        )
+        self.assertTrue(
+            execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
+
+        run["landing"]["base_branch_protection"]["branch_ref"] = "development"
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "push", push_target)
+        )
+        malformed_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "base_branch_protection.branch_ref: must be a full local branch ref"
+                in error
+                for error in malformed_errors
+            ),
+            malformed_errors,
+        )
+
+        run["landing"]["base_branch_protection"]["branch_ref"] = "refs/heads/other"
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "push", push_target)
+        )
+        mismatch_errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "base_branch_protection.branch_ref: must match landing.base_branch"
+                in error
+                for error in mismatch_errors
+            ),
+            mismatch_errors,
+        )
+
+    def test_completed_integration_pr_preserves_pre_evidence_readability(
+        self,
+    ) -> None:
+        plan, run = self.merged_pull_request_v10("integration_pull_request")
+        run["landing"]["auto_merge_requested"] = True
+        run["landing"]["auto_merge_head_sha"] = run["landing"]["pr_head_sha"]
+        mark_observed_merge_complete_v10(plan, run)
+        del run["landing"]["base_branch_protection"]
+        integration_branch = run["integration"]["branch"]
+        future_pr = run["authorizations"]["merge_pr"]["scope"]["targets"][0]
+
+        self.assertEqual([], validate_run(plan, run))
+        self.assertTrue(
+            execution_intent_target_in_scope(
+                plan, run, "push", f"branch:{integration_branch}"
+            )
+        )
+        self.assertTrue(
+            execution_intent_target_in_scope(plan, run, "merge_pr", future_pr)
+        )
 
     def test_pull_request_into_a_protected_branch_cannot_use_auto_merge(
         self,
@@ -4015,6 +4130,11 @@ class RunValidationTests(unittest.TestCase):
                 run["landing"].update(
                     {
                         "base_branch": protected,
+                        "base_branch_protection": {
+                            "branch_ref": f"refs/heads/{protected}",
+                            "status": "protected",
+                            "source": "repository: AGENTS.md protected branch policy",
+                        },
                         "pr_state": "open",
                         "merge_status": "ready",
                         "merged_sha": None,
@@ -4074,6 +4194,11 @@ class RunValidationTests(unittest.TestCase):
                 "base_branch": "development",
                 "head_branch": "refs/heads/codex/feature",
                 "pr_url": None,
+                "base_branch_protection": {
+                    "branch_ref": "refs/heads/development",
+                    "status": "unprotected",
+                    "source": "repository: AGENTS.md integration branch policy",
+                },
             },
         }
         matching = (
@@ -4113,6 +4238,11 @@ class RunValidationTests(unittest.TestCase):
                         "base_branch": landing_base,
                         "head_branch": "refs/heads/codex/feature",
                         "pr_url": "https://github.com/example/repo/pull/7",
+                        "base_branch_protection": {
+                            "branch_ref": "refs/heads/development",
+                            "status": "unprotected",
+                            "source": "repository: AGENTS.md integration branch policy",
+                        },
                     },
                 }
                 future_pr = (
@@ -4252,6 +4382,11 @@ class RunValidationTests(unittest.TestCase):
                 "base_branch": "development",
                 "head_branch": "refs/heads/codex/feature",
                 "pr_url": None,
+                "base_branch_protection": {
+                    "branch_ref": "refs/heads/development",
+                    "status": "unprotected",
+                    "source": "repository: AGENTS.md integration branch policy",
+                },
             },
         }
         integration_future_pr = (

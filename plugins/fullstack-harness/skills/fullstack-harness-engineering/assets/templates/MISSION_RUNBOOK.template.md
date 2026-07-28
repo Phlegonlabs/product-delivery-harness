@@ -121,6 +121,11 @@ Older RUN schemas remain readable. Historical unmarked RUN v10 files keep their 
       "remote": "origin",
       "head_branch": "refs/heads/codex/<short-name>",
       "base_branch": "main",
+      "base_branch_protection": {
+        "branch_ref": "refs/heads/main",
+        "status": "protected",
+        "source": "repository: project branch policy"
+      },
       "pushed_head_sha": null,
       "pr_number": null,
       "pr_url": null,
@@ -337,6 +342,8 @@ New RUN files start at `mode: "local_only"` because nothing has been pushed yet.
 - `integration_push` — the ordinary end state for feature work under the default branch model, and the point at which the run is complete. The verified integration head has been pushed to the run's own branch; `landing.pushed_head_sha` is required, and there is still no PR and no remote check/review/merge evidence. Record the `push` authorization with its exact branch target before moving here.
 - `integration_pull_request` — a feature head is reviewed and merged into `integration.branch` through a PR. `landing.base_branch` equals the retained integration branch, while `landing.head_branch` is the disposable feature branch. CI, review, and merge bind the feature PR head; after merge, `landing.merged_sha` and `integration.integration_head_sha` match, and continuity is preserved there. This mode is valid only for a repository-resolved separate non-protected integration branch. If the intended base is the protected landing branch, whatever its name, use `pull_request`; auto-merge is unavailable there.
 - `pull_request` — only after the user separately asks for the pull request into the protected base. Sets continuity to `not_required`. The harness opens it, watches current-head CI, and requests review. If the human merges, leave `merge_pr` false and record observed merged state; if the harness performs the merge, require exact current-head `merge_pr` authorization.
+
+RUN v10 may record `landing.base_branch_protection` with the exact full `branch_ref`, `protected` or `unprotected` status, and the repository policy `source`. The generic execution-intent bundle may cover an active `integration_pull_request` push or merge only when this record proves that exact base is unprotected. Older active RUN-v10 files without the optional record require reaffirmation or a separate exact target source; completed pre-evidence history remains readable because it cannot dispatch another action.
 
 Resolve `integration.branch`, `landing.head_branch`, and `landing.base_branch` from target-repository instructions; the template's values apply only when the repository defines no other model. See `references/execution-state-model.md`'s Pull Request Landing State for that resolution rule, the exact head-SHA equalities each mode requires before CI, review, ready state, and auto-merge, and the `closed`/`closed_unmerged` terminal pair a PR closed without merge must record.
 

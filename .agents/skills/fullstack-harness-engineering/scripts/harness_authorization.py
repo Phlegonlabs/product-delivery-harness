@@ -156,7 +156,9 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
     """Resolve branch protection from the recorded landing model.
 
     Repository policy always protects `main`, even if a malformed or stale RUN
-    labels it as an integration branch.
+    labels it as an integration branch. A non-`main` integration PR base is
+    treated as unprotected only when RUN carries a repository-sourced protection
+    record bound to that exact branch.
     `pull_request` and the non-PR modes record a protected landing base beside
     the run's non-protected integration head. `integration_pull_request`
     instead records a genuine non-protected integration base. Missing or
@@ -186,7 +188,24 @@ def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None
             or normalized_head == normalized_integration
         ):
             return None
-        return False if normalized_branch == normalized_integration else None
+        protection = landing.get("base_branch_protection")
+        if (
+            normalized_branch != normalized_integration
+            or not isinstance(protection, dict)
+            or not _nonempty_string(protection.get("branch_ref"))
+            or not str(protection.get("branch_ref")).startswith("refs/heads/")
+            or _normalized_branch(protection.get("branch_ref")) != normalized_base
+            or not _nonempty_string(protection.get("source"))
+        ):
+            # Completed runs are read-only historical state and cannot dispatch
+            # another action. Preserve their pre-evidence v10 readability while
+            # active runs fail closed until repository protection is reaffirmed.
+            return False if run.get("status") == "complete" else None
+        if protection.get("status") == "protected":
+            return True
+        if protection.get("status") == "unprotected":
+            return False
+        return None
     if mode not in {"local_only", "integration_push", "pull_request"}:
         return None
     if (
