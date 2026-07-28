@@ -17,7 +17,6 @@ SKILL_NAMES = (
     "fullstack-harness-claude-code",
     "fullstack-harness-codex",
     "fullstack-harness-engineering",
-    "fullstack-harness-github-landing",
     "prd-builder",
 )
 

@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-claude-code
-description: "Claude Code runtime adapter for Full Stack Harness engineering. Use only when the active host is Claude Code and a large plan needs Dynamic Workflow, parent-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively claude_code-provider PLAN nodes and does not own shared PLAN/RUN schemas, shared verification, GitHub landing, merge, deployment, or cleanup."
+description: "Claude Code runtime adapter for Full Stack Harness engineering. Use only when the active host is Claude Code and a large plan needs Dynamic Workflow, parent-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively claude_code-provider PLAN nodes and does not own shared PLAN/RUN schemas, shared verification, or cleanup."
 ---
 
 # Full-Stack Harness: Claude Code Runtime Adapter
@@ -9,11 +9,11 @@ description: "Claude Code runtime adapter for Full Stack Harness engineering. Us
 
 Read `../fullstack-harness-engineering/SKILL.md` first. Use its size gate, PLAN/RUN state, authorization ledger, verification ladder, and integration rules. Load this adapter only for a Claude Code-hosted run that needs runtime orchestration. Do not load the Codex adapter in the same parent.
 
-This adapter selects Dynamic Workflow launch mechanics. Remote landing remains in `../fullstack-harness-github-landing/SKILL.md` and stays unloaded for local-only work.
+This adapter selects Dynamic Workflow launch mechanics; it grants no authorization.
 
 ## Capability Snapshot
 
-Before the first production edit or launch, inspect the active Claude Code session:
+Before the first edit or launch, inspect the active Claude Code session:
 
 - an observed Workflow tool proves `dynamic_workflow`;
 - direct Agent tools prove `subagents` only for the declared route;
@@ -54,7 +54,7 @@ Use `subagent` + `parent_managed_worktree` + `agent_result` only with exact auth
 7. Do not ask for user input inside a running Workflow. Return a blocked/refinement result, let the parent resolve it, then start a later attempt.
 8. Validate each `agent_result` against live worktree, branch, head, scope, and verifier facts before serial integration.
 
-The workflow coordinates sibling mission agents and remains flat. Mission workers do not delegate, modify PLAN/RUN, integrate, push, open a PR, deploy, or clean up. If Dynamic Workflow is unavailable, use the recorded fallback rather than an untracked fan-out.
+The workflow coordinates sibling mission agents and remains flat. Mission workers do not delegate, modify PLAN/RUN, integrate, push, or clean up. If Dynamic Workflow is unavailable, use the recorded fallback rather than an untracked fan-out.
 
 ## Provider Boundary
 

@@ -1,8 +1,6 @@
 # Plan: <feature or product slice>
 
-Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`. Resolve the target repository's existing branch and pull-request model before filling branch fields; the template's `codex/<short-name>` run branch and `main` protected base are fallbacks, not overrides.
-
-PLAN schema v5 uses one provider-neutral release target contract. `release.provider` accepts `cloudflare | vercel | aws | self_hosted | other`, but stable target IDs and fields do not change with provider. Every deployable plan declares at least one `production` target with exact source, artifact, signing, channel, data, trigger, migration, command, prerequisite, and smoke fields. A `development` target is optional and appears only when the repository actually keeps a separate preview, staging, beta, or testing environment or channel. Older PLAN schemas remain readable; use their own recorded shapes only when reading them.
+Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk, or handoff-heavy work. Keep static definitions here; keep live execution state in `RUN.md`. Resolve the target repository's existing branch model before filling branch fields; the template's `codex/<short-name>` run branch and `main` default branch are fallbacks, not overrides.
 
 ## Harness Plan Manifest
 
@@ -10,7 +8,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
 {
   "harness_plan": {
     "schema_version": 5,
-    "action_target_contract": "action-targets/1",
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
@@ -80,41 +77,6 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
         "pass_signal": "<literal pass signal>"
       }
     ],
-    "release": {
-      "provider": "cloudflare",
-      "targets": [
-        {
-          "id": "web-production",
-          "stage": "production",
-          "source": "production_head",
-          "artifact_kind": "cloudflare_worker_bundle",
-          "requires_signing": false,
-          "channel": "workers-production",
-          "data_mode": "production",
-          "trigger": "merge",
-          "migration_classification": "not_applicable",
-          "commands": {
-            "build": {
-              "id": "build-web-production",
-              "cwd": "<app-directory>",
-              "argv": ["<package-manager>", "run", "build"],
-              "pass_signal": "Production release artifact builds successfully"
-            },
-            "migrate": null,
-            "publish": null
-          },
-          "prerequisites": ["production_promoted"],
-          "smoke_verifiers": [
-            {
-              "id": "smoke-web-production",
-              "cwd": ".",
-              "argv": ["<smoke-runner>", "<production-smoke-argument>"],
-              "pass_signal": "Production critical routes and primary journey pass"
-            }
-          ]
-        }
-      ]
-    },
     "graph": {
       "entry_nodes": ["N-M1"],
       "nodes": [
@@ -434,7 +396,7 @@ PLAN schema v5 uses one provider-neutral release target contract. `release.provi
 }
 ```
 
-The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use PLAN schema v5. The graph is the canonical source for mission dependencies and routing. Older PLAN schemas remain readable; their recorded schema decides which fields apply. Keep the displayed `release` object only for deployable work and set its provider without changing the provider-neutral target shape; remove the whole object for non-deployable work. Schema version exposes the field but does not enable it by itself. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
+The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use PLAN schema v5. The graph is the canonical source for mission dependencies and routing. Older PLAN schemas remain readable; their recorded schema decides which fields apply. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
 
 For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning and keep Claude Code `sonnet` with `high` reasoning as the availability fallback. Choose review effort by risk: routine deterministic `backend_code`, `frontend_code`, and visual reviews use `medium`; reserve `xhigh` for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment. This UI-bearing example applies the frontend model override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
 
@@ -442,7 +404,7 @@ Every PLAN-v5 source binds the published input with `content_sha256`, `source_re
 
 For frontend/UI implementation, use Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model — whichever premium model opened the current session — for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
 
-For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration or preview. Each review node must name the missions and repository scope it reviews and bind to one exact reviewed SHA in RUN. A pre-integration review covers one mission; `fix_required` returns to that mission's original task, thread, and worktree, and `max_attempts` bounds review of each changed head. A post-integration or batch review may route `fix_required` to a bounded repair node based on the reviewed integration head. Combine reviews only when the scope is genuinely single-surface and record why.
+For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration. Each review node must name the missions and repository scope it reviews and bind to one exact reviewed SHA in RUN. A pre-integration review covers one mission; `fix_required` returns to that mission's original task, thread, and worktree, and `max_attempts` bounds review of each changed head. A post-integration or batch review may route `fix_required` to a bounded repair node based on the reviewed integration head. Combine reviews only when the scope is genuinely single-surface and record why.
 
 List every applicable review type in `required_reviews`. PLAN validation rejects a required type without a matching runtime-worker verifier node. Use an empty list only when the work has no frontend, backend, or visual review surface; explain that applicability decision in the human review map.
 
@@ -454,9 +416,9 @@ Each PLAN-v5 `acceptance_matrix` row is exactly `{test_id, trace_ids, criterion}
 
 The manifest owns source identity/status, requirement priority/disposition, UI route/state/breakpoint evidence needs, risks, and stop conditions. Trace priorities are `must`, `should`, or `could`; dispositions are `planned`, `deferred`, or `out_of_scope`, with a non-null rationale for the latter two. UI evidence gates are `required`, `optional`, or `n/a`; risk impact is `high`, `medium`, or `low`. Use empty arrays for truly non-applicable UI or risk surfaces; do not move any field used by validation, readiness, scheduling, launch, or integration into the human tables below. Tables may add explanatory narrative that does not alter execution semantics. Worker verifiers run in the mission workspace, mission integration verifiers run after that mission reaches the integration head, batch verifiers run after a selected wave integrates, and final gates close the whole run.
 
-Task and worker verifiers may declare `selection.mode: "changed_files"`; keep every selection scope inside the owning task or mission write scope. The parent-observed changed files decide applicability. Integration, batch, and final verifiers remain `always`. Omit `selection` for the existing always-run behavior. `cache.mode: "session_exact"` is only for deterministic local `exit 0` commands. List every environment key that can affect the result, and use a repository-external session cache root. Omit `cache` or use `disabled` for network, shared database, time/random, browser, review, migration, deployment, smoke, or other mutable checks.
+Task and worker verifiers may declare `selection.mode: "changed_files"`; keep every selection scope inside the owning task or mission write scope. The parent-observed changed files decide applicability. Integration, batch, and final verifiers remain `always`. Omit `selection` for the existing always-run behavior. `cache.mode: "session_exact"` is only for deterministic local `exit 0` commands. List every environment key that can affect the result, and use a repository-external session cache root. Omit `cache` or use `disabled` for network, shared database, time/random, browser, review, migration, smoke, or other mutable checks.
 
-Plan focused checks at task/worker level, the mission's integration surface at integration level, true cross-mission checks at batch level, and broad regression/browser/UI/release proof at final level. Place expensive final browser and screenshot work after exact-SHA code review and repair loops converge.
+Plan focused checks at task/worker level, the mission's integration surface at integration level, true cross-mission checks at batch level, and broad regression/browser/UI proof at final level. Place expensive final browser and screenshot work after exact-SHA code review and repair loops converge.
 
 Scope entries must be POSIX, repository-relative exact paths or subtrees ending in `/**`. Reject absolute paths, `..`, backslashes, negation, and other wildcard syntax. Use `runtime_resources: []` when no runtime resource applies; never use a string such as `"none"`. Allowed access values are `exclusive` and `shared_read`. Treat an incomplete or unsupported resource inventory as unsafe for parallel write execution.
 
@@ -473,7 +435,6 @@ On a greenfield repository, mission M1 scaffolds the workspace and every layer t
 | Product requirements | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Builder UX Direction | <PRD section, path, or URL> | <hash or revision> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
-| Release targets | <architecture.md `## Release Targets`> | <hash or revision> | draft / frozen / missing / n/a | <expected surface inventory and stable target IDs `release.targets[]` reuses verbatim> |
 | Stack decisions (frontend, backend/data, mobile/desktop) | <path> | <hash or revision> | required / selected / recommended / provisional / missing / n/a | <resolved layers; a still-provisional layer is a stop condition> |
 | Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Design system | <design-system.md path> | <hash or revision> | draft / frozen / missing / n/a | <tokens, primitive layers, components, state matrix, guardrails> |
@@ -489,16 +450,9 @@ Expected workspace mode: shared_checkout | parent_managed_worktree | app_managed
 Expected completion channel: agent_result | thread_poll | report_file | user_relay
 UI Evidence Gate: required | optional | n/a
 UX Validation Gate: required | optional | n/a
-Release target:
 ```
 
-When `architecture.md` declares a `## Release Targets` section, it owns this identity: reuse each of its stable target IDs verbatim as `release.targets[].id`, keep each target's expected-surface assignment, and do not mint new destination names here. Every expected deployable surface that section lists must appear as at least one target below — a listed surface with no target, for example a mobile store target, is a dropped contract rather than a scoping choice. This applies whether or not the upstream package produced the optional `implementation-plan.md`.
-
-Stable target IDs are provider-neutral and must survive provider configuration changes. Each canonical target declares `id`, `stage`, `source`, `artifact_kind`, `requires_signing`, `channel`, `data_mode`, `trigger`, `migration_classification`, exact `commands.build`/`commands.migrate`/`commands.publish`, `prerequisites`, and `smoke_verifiers`. Include at least one production target. Add a development target only when the repository actually has a separate preview, staging, beta, or testing environment or channel. Use `migration_classification: "not_applicable"` with `commands.migrate: null` only when no migration is needed. A manual target requires a publish command; a merge-triggered target sets it to null because the provider performs publication after the authorized merge.
-
-The default model declares one production target, published from the protected base after the user merges. A production target binds to `production_head`; `merged_main` remains readable only for older plans. Declare a development-stage target only when the repository actually keeps a separate preview or staging environment, and bind it to `pr_head` or to the retained `integration_head`. An `integration_head` source requires persistent branch retention. Cloudflare-specific resource names and Wrangler configuration stay in the project's provider configuration and deployment guide, not in the stable release target identity.
-
-These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10. A native merge-triggered publication always requires independent exact production `deploy` authorization for the same target and head. A harness-performed or auto-merge path additionally requires exact `merge_pr` authorization for the PR and its `release:<target-id>` consequence; an observed human merge leaves `merge_pr` false and retains actor/event evidence bound to the exact PR URL, reviewed head, and merged SHA rather than fabricating a harness grant.
+These are planning expectations, not authorization. Record explicit action authorization only in RUN schema v10.
 
 ## Scope And Contract Freeze
 
@@ -577,7 +531,6 @@ When the product has a design system, `design-system.json`'s `stateMatrix` is th
 | Scopes use the supported grammar and resources are complete | draft / PASS / BLOCKED | <note> |
 | Worker, mission-integration, batch, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |
 | Blocking decisions and approval needs are surfaced | draft / PASS / BLOCKED | <note> |
-| Provider-neutral release target IDs, source/artifact/channel/signing/data/trigger/migration fields, commands, prerequisites, and smoke verifiers are complete | draft / PASS / BLOCKED / n/a | <note> |
 
 Implementation may start only after static validation passes, `RUN.md` records `plan_readiness: "ready"`, and the required actions have explicit user authorization. Readiness never grants authorization by itself.
 

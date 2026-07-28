@@ -136,7 +136,7 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
       `- Before any repository read, write, or shell action, call EnterWorktree with that exact path.\n` +
       `- After entering it, verify the repository root, branch ${node.branch_ref}, and batch base ${workflowArgs.batch_base_sha}.\n` +
       `- Return blocked if EnterWorktree is unavailable or any identity does not match.\n` +
-      `- Do not create a replacement worktree, edit PLAN/RUN, integrate, push, open a PR, deploy, or delegate.\n`
+      `- Do not create a replacement worktree, edit PLAN/RUN, integrate, push, or delegate.\n`
     : `- Review ID: ${node.review_id}.\n` +
       `- Review type: ${node.review_type}.\n` +
       `- Review exact SHA ${node.reviewed_sha} at ${node.review_path}.\n` +

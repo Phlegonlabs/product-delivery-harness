@@ -8,8 +8,8 @@ The harness has three distinct authorities. Do not merge them into one table or 
 
 | Authority | Owns | Does not own |
 |---|---|---|
-| `PLAN.md` | Static declarations for one plan revision: requirements, traces, mission/task definitions, dependency DAGs, scopes, resource claims, verifier commands, provider/model policy, priorities, merge ranks, and release targets | Worker leases, live phase, current Git head, verifier results, authorization decisions, deployments, or selected waves |
-| `RUN.md` | Mutable coordination state: readiness, explicit authorization ledger, chosen runtime capabilities, mission/task phases, leases, workers, wave proposals accepted by the parent, integration outcomes, batch/final-gate results, UI artifact metadata, PR landing and deployment state, blockers, and evidence pointers | Repository truth, process truth, or a new plan definition |
+| `PLAN.md` | Static declarations for one plan revision: requirements, traces, mission/task definitions, dependency DAGs, scopes, resource claims, verifier commands, provider/model policy, priorities, and merge ranks | Worker leases, live phase, current Git head, verifier results, authorization decisions, or selected waves |
+| `RUN.md` | Mutable coordination state: readiness, explicit authorization ledger, chosen runtime capabilities, mission/task phases, leases, workers, wave proposals accepted by the parent, integration outcomes, batch/final-gate results, UI artifact metadata, landing state, blockers, and evidence pointers | Repository truth, process truth, or a new plan definition |
 | Observed Git/runtime facts | The current checkout, refs, commit ancestry, diffs, worktrees, dirty state, active worker slots, process availability, and completion signals | User authorization or declarative scope |
 
 `PLAN.md` and `RUN.md` each contain one canonical fenced JSON manifest. The exact level-two headings are `## Harness Plan Manifest` and `## Harness Run State`; the first non-empty content after each heading is its single fenced `json` block. Markdown tables — including the optional standalone `tasks.md` (`assets/templates/TASKS.template.md`), a regenerated mission/task listing view — are non-canonical human views. Tools parse the JSON manifests only; they must not recover state from prose or tables.
@@ -37,24 +37,20 @@ plan_readiness: draft | ready | blocked
 | Blockers | No blockers remain |
 | Workers | No active or blocked mission or review worker |
 | Waves | No proposed or active wave |
-| Pull-request mode | A merged landing preserves current-head checks and review. A harness-performed or auto-merge path requires exact `merge_pr` authorization for every mission and `pr:<full-PR-URL>`; an observed external human merge leaves `merge_pr` false and retains GitHub actor/event evidence bound to the exact PR URL, reviewed head, and merged SHA |
+| Landing | `landing.continuity` is `preserved` with its `head_sha` equal to the integration head |
 | PLAN-v5 graph run | Every node is succeeded, skipped, or superseded; every edge is terminal; no retained node blocker (a failed node must be routed or superseded before closeout) |
 | RUN-v10 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS; when a UI registry is supplied, the PLAN surface matrix also covers its exact responsive set, required states, and route trace/test bindings |
 | Gate freshness | A changed integration head invalidates an earlier gate PASS immediately, in every RUN lifecycle state |
 
-Older RUN files remain readable under their recorded schema. RUN v9 introduced the gate arrays; current RUN v10 adds PLAN-v5 binding, provider-neutral targets, continuity, and append-only verifier history.
+Older RUN files remain readable under their recorded schema. RUN v9 introduced the gate arrays; current RUN v10 adds PLAN-v5 binding, continuity, and append-only verifier history.
 
 `plan_readiness: ready` is the machine gate. Human verification tables may display `PASS`, but selectors never substitute a table cell for canonical readiness.
 
-## Schema Upgrade Maintenance
-
-New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10); older version numbers exist only so the harness can keep reading a file some earlier run instantiated. When the parent encounters an existing `PLAN.md` or `RUN.md` whose `schema_version` is below the current default, it should proactively upgrade it with `scripts/upgrade_harness_schema.py` rather than leave the file on an old schema indefinitely. This is ordinary file maintenance already covered by the parent's sole-writer authority over `PLAN.md`/`RUN.md`: an in-place, reversible, local rewrite of its own canonical files that touches no Git ref, remote, PR, deployment, or other external system, so it needs no new action-ledger entry.
-
-The upgrade adds only the keys each version introduces, always with neutral "nothing has happened yet" values: `false` for every authorization, `null` for unknown SHAs, revisions, and paths, `not_started`/`planned`/`queued`/`dormant` for status enums, and empty collections. It must never fabricate an authorization, a passed gate, a frozen source provenance, or any evidence; where a required field cannot be established without inventing content (for example a source `content_sha256`/`source_revision` whose content is not a readable file under the repository root), the tool aborts and writes nothing rather than guess. Reaching current RUN v10 requires the paired PLAN to be schema v5, so the same operation upgrades the PLAN first. Older supported PLAN-v4/RUN-v8-or-v9 pairs retain their historical contract. The result must pass the same validators as a from-scratch file before it is written. After an upgrade, the parent reports exactly which fields were added at each step and treats the file as canonical only once it has confirmed those additions.
+New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10); older version numbers exist only so the harness can keep reading a file some earlier run instantiated.
 
 ## Plan Revisions And Snapshots
 
-Every plan manifest has a stable `plan_id`, a positive integer `revision`, and a semantic SHA-256 digest of the `harness_plan` object. Before encoding, the shipped tools recursively canonicalize dictionaries; sort object lists with `id` by ID, resource lists by `(key, access)`, and scalar set-like lists lexically; and preserve `argv` order because command argument order is semantic. Canonical bytes are the UTF-8 encoding of `json.dumps(normalized_plan, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. Reordering sources, missions, tasks, release targets, claims, or other set-like fields therefore does not change the digest. Any semantic change to mission/task definitions, dependencies, scopes, resources, verifiers, or the release contract creates a new digest and requires an incremented revision.
+Every plan manifest has a stable `plan_id`, a positive integer `revision`, and a semantic SHA-256 digest of the `harness_plan` object. Before encoding, the shipped tools recursively canonicalize dictionaries; sort object lists with `id` by ID, resource lists by `(key, access)`, and scalar set-like lists lexically; and preserve `argv` order because command argument order is semantic. Canonical bytes are the UTF-8 encoding of `json.dumps(normalized_plan, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. Reordering sources, missions, tasks, claims, or other set-like fields therefore does not change the digest. Any semantic change to mission/task definitions, dependencies, scopes, resources, or verifiers creates a new digest and requires an incremented revision.
 
 Verifier declarations are data, not shell prose. Each verifier records at least `id`, repository-relative `cwd`, argument-vector `argv`, and a deterministic `pass_signal`. This keeps validation independent of shell quoting and makes worker and integration gates auditable.
 
@@ -179,7 +175,7 @@ Run `select_ready_nodes.py` for v4/v8 or v4/v9. It computes graph readiness befo
 
 Authorization is action-specific. Overall `execution_authorized` also has siblings `execution_authorization_source` and `execution_authorization_scope`; when true, both must match the run, mission, and expiry boundary. Every action entry defaults to `authorized: false` and records an explicit user source before it can become true. A goal, plan, template, skill selection, worker report, or assistant assumption cannot authorize itself.
 
-The current schema-v10 ledger has 19 actions. Schema v2 remains readable with its original 13 entries; schemas v3 through v7 retain their 16-action ledgers and later landing/runtime/release fields; v8 and v9 retain 17. New graph RUN files use v10:
+The ledger has exactly 12 actions:
 
 ```text
 invoke_external_runtime
@@ -191,25 +187,16 @@ create_local_branches
 create_local_commits
 integrate_locally
 push
-create_pr
-configure_repository
-manage_pr_review
-merge_pr
-trigger_remote_ci
-provision_cloud_resources
-deploy
 archive_worker_tasks
 remove_worktrees
 delete_branches
 ```
 
-`trigger_remote_ci` and `provision_cloud_resources` are the two entries v10 adds over v9. Both require exact targets and are never covered by the execution-intent bundle.
-
 `invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization.
 
-Nine of these entries — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` restricted to the resolved integration branch — carry the ordinary development loop. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers all nine together in a single authorization request or checkpoint, recording its `source` under each entry, while the remaining entries (`create_pr`, `manage_pr_review`, `configure_repository`, `trigger_remote_ci`, `provision_cloud_resources`, `merge_pr`, `deploy`, `archive_worker_tasks`, `remove_worktrees`, `delete_branches`, and any `push` aimed outside that scope) stay independent gates that each need their own authorization moment. Each of the nine still records its own `source`, and `push` still carries exact targets; grouping them only avoids manufacturing separate confirmation pauses.
+Nine of these entries — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` restricted to the resolved integration branch — carry the ordinary development loop. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers all nine together in a single authorization request or checkpoint, recording its `source` under each entry, while the remaining three (`archive_worker_tasks`, `remove_worktrees`, `delete_branches`) and any `push` aimed outside that scope stay independent gates that each need their own authorization moment. Each of the nine still records its own `source`, and `push` still carries exact targets; grouping them only avoids manufacturing separate confirmation pauses.
 
-Every current-contract active RUN v10 proves that its exact integration branch is unprotected before the grouped instruction may cover a push. It declares `branch_protection_contract: "branch-protection/1"`, and `local_only`, `integration_push`, and `pull_request` record the exact full ref, `unprotected` status, and a `repository:` policy source in `landing.integration_branch_protection`. Missing, stale, malformed, non-repository, or `protected` evidence fails closed and requires a separate exact target source. A RUN from the previously shipped template may omit both the marker and that landing key so validation and schema-upgrade input remain readable. This compatibility never resolves an unknown branch as unprotected: action-time authorization still denies its integration push. Repair it by adding exact repository evidence, or by adding `landing.integration_branch_protection: null` plus the distinct exact `authorizations.push.target_sources` entry; only then add the current marker. `merge_pr` and `deploy` remain outside the bundle under the default main-only branch model: every merge lands on `main` and every release target is production, so both always need their own instruction. A repository whose own instructions define a separate non-protected integration branch is the only case where a `merge_pr` can ride the loop, and then only for a PR whose base is that exact branch. `integration_pull_request` records the same proof in `landing.base_branch_protection` because its base is the retained integration branch. Only completed history without `action_target_contract` keeps the older pre-evidence readability fallback because it cannot dispatch another action.
+One branch guard applies to `push`, and it is the whole guard: the push is refused when the requested target resolves to `main`, or when the run's own `integration.branch` resolves to `main`. It reads only those two values — no evidence field, no contract marker, no repository lookup.
 
 Each `authorizations` entry has this minimum shape:
 
@@ -237,95 +224,48 @@ When `authorized` is true, add a required `scope` object with `run_id`, `mission
 }
 ```
 
-That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest changes, the scope stops matching and the grant stops covering anything, instead of silently carrying forward. Below v10 the scope has no plan binding, so nothing compares one — the invalidation rule is inert there and a v7-v9 grant survives a plan change untouched. Treat that as a reason to upgrade the file (see Schema Upgrade Maintenance), not as a rule you can rely on below v10.
+That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest changes, the scope stops matching and the grant stops covering anything, instead of silently carrying forward. Below v10 the scope has no plan binding, so nothing compares one — the invalidation rule is inert there and a v7-v9 grant survives a plan change untouched.
 
-Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`, `remote:`, `pr:`, `repository:`, `environment:`, `release:`, `runtime:`, `workflow:`, or `cloud-resource:`. The prefix pattern is shared across actions, so it does not by itself reject a target spelled for the wrong action or the wrong schema version; the action's own validation does. New PLAN v5 and RUN v10 artifacts declare `action_target_contract: "action-targets/1"` and enforce the exact action-to-target-kind table. Existing PLAN v5 and RUN v10 artifacts without that marker keep their historical generic exact-target acceptance, as do schemas v2 through v9, so stored state remains readable without migration. Schemas v6 through v9 also accept `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `create_pr`, `manage_pr_review`, and `merge_pr` before the PR exists. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide, not as a placeholder for an unborn PR. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
-
-### Per-Target Provenance For The Scoped Three
-
-An entry carries one `source` for a whole `targets` list, so on `push`, `merge_pr`, and `deploy` — the three whose targets the execution-intent bundle can reach at most partially — a single grouped instruction would otherwise read as authorizing every target on the entry, including the ones it explicitly does not reach. An optional `target_sources` map on those three entries closes that. Every active schema-v10 RUN is held to it before dispatch, whether validation enforces the current shape or admits the narrow pre-`branch-protection/1` readability exception: `authorization_covers()` independently requires proven execution-intent scope or the separate exact target source. Completed historical unmarked RUN-v10 files remain readable under their prior target-source shape, but if one records `target_sources`, the validator checks the map. The `action_target_contract: "action-targets/1"` marker also gates the stricter action-to-target kind table, which can reject target spellings an older readable file used:
-
-```json
-{
-  "authorized": true,
-  "source": "user: build and ship it",
-  "authorized_head_sha": "<40-hex>",
-  "scope": {
-    "run_id": "<run id>",
-    "plan_revision": 3,
-    "plan_digest_sha256": "<64-hex>",
-    "mission_ids": ["M1"],
-    "targets": ["branch:codex/add-billing", "branch:release/2026-07"]
-  },
-  "target_sources": {
-    "branch:release/2026-07": "user: yes, push the release branch too"
-  },
-  "expires_when": "run_complete"
-}
-```
-
-Validation rules:
-
-- A target the execution-intent bundle reaches needs no entry. That means `branch:<resolved integration branch>` for `push` — the run's own `codex/<short-name>` branch under the default model, never a protected default branch. Under that model nothing else is in scope: every `merge_pr` and `deploy` target needs its own recorded source. Only when the target repository's own instructions define a separate non-protected integration branch does a `pr:`/`future-pr:` target whose base is that branch ride the bundle for `merge_pr`. No `deploy` target ever rides it.
-- Every other target requires a non-empty `target_sources[<target>]`, and it must differ from the entry `source`. Repeating the grouped instruction there is the laundering this field exists to prevent.
-- Every `target_sources` key must appear in `scope.targets`.
-- Resolution fails closed: when the integration branch, the PR base, or the target's stage cannot be determined, the target is treated as out of scope and needs its own recorded source.
-- `target_sources` is rejected on any other action. Those already require their own authorization moment per target.
-
-This is checked in every landing mode. A `push` toward the protected branch does not become acceptable because the run is `local_only` or `pull_request` rather than `integration_push`.
+Targets use action-specific prefixes, and there are only five: `worker:`, `task:`, `worktree:`, `branch:`, and `runtime:`. The kind is part of the action's type, so every action accepts only its own kinds and this is always enforced — there is no per-artifact opt-in. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
 
 `wave_closed` is one-use authorization for the currently recorded wave. When that wave becomes `closed` or `superseded`, set every matching action entry back to `{ "authorized": false, "source": null }` and clear overall execution authorization when it used the same boundary before replacing `active_wave`. Never copy or revive a wave-scoped grant for a later wave; a new wave needs a newly recorded explicit source.
 
-A `run_complete`-bounded authorization (merge, deployment, or cleanup) stays valid evidence at closeout even after its boundary expires — do not erase the record of what was authorized and done just because the run finished. This applies uniformly to PR merge/auto-merge, Cloudflare deployment, and post-merge cleanup below; those sections do not repeat the rule.
+A `run_complete`-bounded authorization stays valid evidence at closeout even after its boundary expires — do not erase the record of what was authorized and done just because the run finished.
 
 `source` identifies the user statement or durable approval record. Narrow authorization remains narrow:
 
 - Static conflict and parallel-eligibility analysis performed by the parent does not require implementation, worktree, branch, commit, or integration authorization. A launch-bound ready frontier and selected wave do require execution plus all launch-path authorizations. Delegating even read-only analysis still requires `spawn_subagents` or `create_user_owned_tasks`, according to the chosen worker primitive.
 - `spawn_subagents` does not authorize user-owned app tasks.
 - Worktree creation does not authorize branch creation, commits, integration, or cleanup.
-- Local integration does not authorize PR creation, repository configuration, review management, PR merge, deployment, branch deletion, worktree removal, or any `push` outside the integration-branch scope named above.
-- PR creation does not authorize marking a PR ready, requesting review, resolving threads, or merging it. Repository rules and Codex review settings use `configure_repository`; PR review-state mutations use `manage_pr_review`; merge or auto-merge uses `merge_pr`.
+- Local integration does not authorize branch deletion, worktree removal, or any `push` outside the integration-branch scope named above.
 - Platform-managed retention is not a harness cleanup action and may still apply to app-managed worktrees.
 
 Before each action, check its entry again and compare it with observed state. A previously authorized action can still be unsafe because the target changed or the plan became stale.
 
-## Pull Request Landing State
+## Landing State
 
-Schemas v3 through v10 require a `landing` object. Under the default branch model, ordinary implementation, PRD, UI, branch, commit, and integration work uses `integration_push`: the verified integration head is pushed to the run's own `codex/<short-name>` branch, no PR exists, and the run is complete at that push. Use `local_only` when the run must not touch the remote at all; it cannot record a pushed head or PR and does not wait for GitHub CI or review, but every mission worktree still passes its exact-head pre-integration review. Use `pull_request` for the separate, user-started step that lands the run branch on the protected landing branch. RUN v10 may use `integration_pull_request` only when the target repository's own instructions define a separate non-protected integration branch that reviewed feature branches must enter through a PR. If the intended base is the protected landing branch, whatever its name, use `pull_request`; auto-merge is unavailable there. When the repository defines no other model, new RUN-v10 files set `integration.branch` and `landing.head_branch` to the run's own `codex/<short-name>` branch and `landing.base_branch` to `main`; otherwise record its existing branches. Older schemas retain their recorded branch names.
+Schemas v3 through v10 require a `landing` object with exactly four keys:
 
-Do not put the later protected-base landing into the ordinary mission run's early authorization bundle. When the user starts that landing, request every missing exact PR creation and review-management action for the resolved head and base branches; bind `create_pr` and `manage_pr_review` to `future-pr:<owner>/<repo>:base=<base>:head=<head>` until the PR exists. After creation, verify those branch fields, append the exact `pr:<full-PR-URL>` target, and run current-head CI and review continuously. A PR whose base is the protected landing branch follows the protected-base rule: stop merge-ready and hand it to the human unless a later explicit instruction names that exact existing PR; only that later instruction may supply `merge_pr` for the exact PR. When the human merges without asking the harness to perform it, leave `merge_pr` false and retain `external_merge_observation` with GitHub's human actor and durable API/event reference bound to the exact PR URL, reviewed head, and merged SHA. A bare boolean or merged status is not proof. New RUN v10 files declare `external_merge_contract: "external-merge-observation/1"`; only completed v10 history that predates this marker may omit the observation, and it cannot dispatch. A PR into a repository-resolved separate non-protected integration branch uses `integration_pull_request` and may merge under exact `merge_pr` authorization. Earlier implementation or local-integration authorization never supplies either merge grant.
+```text
+mode: local_only | integration_push
+remote
+pushed_head_sha
+continuity: { status, branch_ref, head_sha, reason }
+```
 
-For every created PR, `pr_head_sha` equals `pushed_head_sha`, checks bind `checks_head_sha` to that PR head, and review binds `review_head_sha` to that PR head with zero blocking findings and unresolved threads. CI and review are independent sibling gates and should run or be observed concurrently for the current PR head. The remaining equality depends on the landing mode. For a `pull_request` landing on the resolved protected base, the PR head is the run branch's integration head, so a CI or review PASS and `merge_status: ready` require `checks_head_sha == review_head_sha == pr_head_sha == integration.integration_head_sha`. A later local integration changes that landing candidate and immediately makes its earlier CI, review, and ready evidence stale.
+A run ends in one of the two modes. `integration_push` is the ordinary end: the verified integration head is pushed to the run's own branch, and the run is complete at that push. `pushed_head_sha` must equal `integration.integration_head_sha` — a later local commit would otherwise leave the run claiming a head the remote never received — and the push needs an authorization covering the integration branch. `local_only` is for a run that must not touch the remote at all; it cannot record a pushed head. Either way, every mission worktree still passes its exact-head pre-integration review.
 
-For `integration_pull_request`, the pre-merge `integration.integration_head_sha` is the retained base and may differ from the feature `pr_head_sha`. CI, review, `merge_status: ready`, and any permitted auto-merge request bind the feature head: `checks_head_sha == review_head_sha == auto_merge_head_sha == pr_head_sha`; they do not claim equality with the pre-merge integration head. After GitHub reports the PR merged and the parent observes the updated base, `landing.merged_sha == integration.integration_head_sha`; the retained CI and review evidence still names the feature PR head that was merged. These are state facts, not authorization: `merge_pr` must still cover the exact PR before merge or auto-merge.
+Landing that branch on the default branch is the user's own step, done outside this harness. The harness opens no pull request, merges nothing, deploys nothing, and records none of it.
 
-In schemas v4 through v9, `auto_merge_requested: true` records that GitHub auto-merge was successfully enabled for the exact `auto_merge_head_sha`. At request time it is valid only when `merge_status` is `ready`, the mode is `pull_request`, `auto_merge_head_sha == pr_head_sha == integration.integration_head_sha`, and an unexpired `merge_pr` authorization covers every run mission plus the exact `pr:<full-PR-URL>` target (or an explicitly run-wide `*`). RUN v10 keeps that equality for `pull_request`, which always models a protected-base landing and never permits auto-merge regardless of the base branch's name. Its `integration_pull_request` mode instead uses the feature-head equality above and is valid only for a repository-resolved separate non-protected integration branch. A schema-v6-through-v9 authorization that began with `future-pr:` must retain that binding, and the exact PR must match its repository, base, and head. Enable auto-merge only after current-head checks and configured review pass. Use an exact-head guard such as `gh pr merge --auto --squash --match-head-commit <sha>`. A new PR-head push, canceled request, or closed-unmerged PR resets `auto_merge_requested` to false and `auto_merge_head_sha` to null until fresh gates pass. Repository-level auto-merge configuration uses `configure_repository`; enabling it on a PR uses `merge_pr`.
+`integration.branch` is the only branch field in RUN. Every push target is built from it, so there is no head/base pair to keep in sync.
 
-## Cloudflare Deployment State
+`continuity` records that the run branch survives the run — it is what the user reads and lands:
 
-Current PLAN schema v5 uses provider-neutral `release.targets`; Cloudflare identity is not encoded as extra target keys. Each target has the exact v5 field set and declares source, stage, artifact/channel/data mode, trigger, migration classification, commands, prerequisites, and smoke verifiers. A null migration classification is unresolved and blocks target execution. Worker names, Wrangler config/environment, isolated binding IDs, account identity, and URLs live in project deployment documentation, prerequisites, and retained evidence. Older PLAN v3/v4 provider-shaped release contracts remain readable under their historical schema.
+```text
+status: planned | preserved | blocked
+```
 
-Current RUN schema v10 uses `targets` keyed exactly by PLAN target IDs. Each target retains exact source and authorized-head SHAs, artifact/build/version/signing proof, channel/promotion/availability proof, migration and verification status, destructive-migration confirmation when applicable, and hashed evidence references. Older RUN v7-v9 `deployments` objects remain readable but are not the current authoring shape.
-
-The `deploy` target prefix differs between those two shapes. A new RUN v10 artifact that declares `action-targets/1` requires `deploy` authorization for `release:<target-id>`; the older v7-v9 `deployments` path requires `environment:<target-id>` for the same grant. Shared action/target rules reject the other schema version's target kind when the strict contract is declared. Write `release:` in a new RUN v10 file; keep historical exact targets in existing unmarked artifacts.
-
-Production PASS requires the applicable prerequisite targets, merged landing state, `run.targets[target-id].source_sha == landing.merged_sha`, migration `PASS` or `not_required`, smoke PASS, retained evidence, and exact deploy authorization. The authorized candidate head and the resulting merged source SHA are separate values, especially after squash merge. Production is the only release target the default model has.
-
-A non-production target exists only when the repository declares one for a preview or staging environment. Its PASS binds the target's declared `pr_head` or `integration_head` source to the deployed artifact, requires migration `PASS` or `not_required`, deployed-environment verification PASS, retained evidence, and exact `deploy` authorization for `release:<target-id>`. A manual remote workflow additionally requires `trigger_remote_ci` for `workflow:<identity>`; provisioning requires `provision_cloud_resources` for `cloud-resource:<provider>:<environment>:<kind>:<logical-name>`.
-
-For a native merge-triggered publication, exact production `deploy` authorization remains required for the applicable `release:<target-id>` whether the harness performs the merge or observes a human merge. When the harness performs or auto-merges, `merge_pr` and `deploy` are independent exact grants bound to the same PLAN revision/digest, candidate head, missions, and release consequence. When the human merges externally, leave `merge_pr` false rather than fabricate a harness grant, retain the exact actor/event-bound `external_merge_observation` and merged source SHA, and keep the independently required production deploy authorization. A merge into `main` carries the applicable production-stage consequences; an `integration_pull_request` merge under target-repository governance carries whatever non-production stage consequences that repository declares. Neither action implies the other. See `cloudflare-deployment-lifecycle.md` for provider setup and evidence rules.
-
-A PR closed without merge uses the exact terminal pair `pr_state: closed` and `merge_status: closed_unmerged`, with no `merged_sha`. No state other than `merged` may record `merged_sha`. This prevents review or merge automation from treating the closed PR as merely not ready.
-
-## Post-Merge Cleanup State
-
-Schema v5 adds `post_merge_cleanup`; schemas v6 through v9 preserve it. It closes only local lifecycle state and never changes the GitHub merge result. Valid v2 through v4 RUN files remain readable without it.
-
-Cleanup may become `ready` only after the landing state is `merged`, every mission is integrated, the merged SHA is freshly confirmed reachable from the base branch, and the exact local feature branch still points to `landing.pr_head_sha`. When the primary checkout is on that feature branch, its observed `parent_head_sha` must supply the same proof. This exact-head rule matters for squash merge: the feature commit is not normally an ancestor of the squash commit, so ordinary `git branch -d` may reject it even though GitHub merged the PR. A forced local ref deletion is safe only after the merged-PR/current-head proof and exact `delete_branches` authorization pass.
-
-For a parent-managed linked worktree, record its absolute path, branch ref, head SHA, clean state, and `managed_by: parent`. Schemas v5 through v9 also record `observed.git.parent_worktree_path`; the cleanup target must differ so the primary checkout cannot be removed. `ready` requires the same clean parent-managed linked worktree in the current observed snapshot plus `remove_worktrees` authorization for `worktree:<absolute-path>`. `not_applicable` requires no matching linked worktree; an app-managed match must use deferred platform lifecycle state instead. Remove a parent-managed worktree without force, refresh the worktree observation, switch the primary checkout to the base branch, and only then delete `branch:refs/heads/<head-branch>`. `complete` requires the worktree to be absent, the primary checkout to be clean on the base branch, the local branch to be recorded `deleted`, and verification evidence to be present — except when `run.integration.retention == "persistent"`, in which case `complete` instead requires the local branch to be recorded `preserved`, not deleted, since the branch survives across runs as the next run's starting base; only its temporary worktree directory, a separate concern, may still be removed normally.
-
-Use `deferred` with a reason when either cleanup action is not authorized, observed state is dirty or changed, or platform-managed retention owns the worktree. Use `not_applicable` for local-only/uncreated/closed-unmerged landing only when a fresh terminal observation contains no matching linked worktree. Never remove the primary checkout. App-managed automatic cleanup and snapshot restoration remain platform lifecycle facts, not `remove_worktrees` execution.
+`planned` and `preserved` require a full local `refs/heads/` ref in `branch_ref`. `preserved` also requires `head_sha`. `blocked` requires a `reason`. Authorized execution requires `planned` or `preserved`; a `complete` run requires `preserved` with `head_sha` equal to the integration head.
 
 ## Runtime Capability Axes
 
@@ -419,7 +359,7 @@ An app task is a root task in its own app-managed worktree and may coordinate di
 
 When capability cannot be proven before an app task exists, use a two-stage handshake: launch or continue the task without production edits, ask it to report whether multi-agent tools/direct results are present, record that observation in RUN, then send the explicit enabled or disabled worker policy. Do not leave a known-capable task implicitly disabled merely because capability was unknown at initial allocation.
 
-The outer app task remains the mission lease holder and sole writer in its worktree. Children may inspect code, research documentation, analyze tests/logs, or review a proposed diff. They do not receive mission leases, alter the outer wave budget, edit PLAN/RUN, mutate repository or shared runtime state, create tasks/worktrees/branches/commits, integrate, land, deploy, or clean up. Their direct `agent_result` is internal to the app task; the outer parent still observes only the app task through `thread_poll`, `report_file`, or `user_relay`.
+The outer app task remains the mission lease holder and sole writer in its worktree. Children may inspect code, research documentation, analyze tests/logs, or review a proposed diff. They do not receive mission leases, alter the outer wave budget, edit PLAN/RUN, mutate repository or shared runtime state, create tasks/worktrees/branches/commits, integrate, push, or clean up. Their direct `agent_result` is internal to the app task; the outer parent still observes only the app task through `thread_poll`, `report_file`, or `user_relay`.
 
 Each new app-task worker under a RUN that records `runtime_capabilities.nested_subagents` must carry an explicit `nested_subagent_policy` with `enabled`, `max_children`, allowed roles, read-only write policy, and `agent_result` completion. Its WORKER_RESULT records `subagent_activity`: completed child summaries, partial/failure evidence, or a concrete reason that eligible delegation was skipped or unavailable. An enabled integration candidate must include a completed exact-head PASS reviewer even when other child activity is partial; `unavailable` or reviewer-failed activity blocks the result. If the pre-edit capability handshake cannot supply that reviewer, record a disabled policy and route the exact-head review to the parent before integration. This report is worker-supplied evidence, not a substitute for parent-observed Git/runtime facts. Older schema-v2 records that omit both optional nested fields remain backward-compatible.
 

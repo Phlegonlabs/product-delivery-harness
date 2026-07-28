@@ -28,18 +28,17 @@
 | --- | --- | --- |
 | 一個產品構想 | `prd-builder` | 需求、架構、技術選型、線框圖、附來源的市場研究，以及設計系統 |
 | 既有儲存庫中的明確變更 | `fullstack-harness-engineering` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
-| 已驗證、需要送上 GitHub 的本機候選版本 | `fullstack-harness-github-landing` | 綁定當前 head 的推送、PR、CI／審查收斂與精確合併 |
 
 這些技能可以單獨使用。不是每個任務都要跑完整條流程。
 
 ## 核心保證
 
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
-- **大型工作明確記錄。** PLAN v5 定義 typed graph；RUN v10 記錄授權、嘗試、佐證與落地狀態。
+- **大型工作明確記錄。** PLAN v5 定義 typed graph；RUN v10 記錄授權、嘗試與佐證。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
-- **有能力不等於有權限。** 即使執行環境能推送、合併、部署或清理，每個動作仍需要精確授權。
-- **佐證跟著 SHA。** 新的推送會讓舊 head 的 CI、審查、部署與 UI 佐證失效。
-- **部署是獨立生命週期。** 開發與正式環境使用分離的資料、密鑰、認證、付款模式與驗證。
+- **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
+- **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
+- **跑到推送為止。** Harness 負責 commit 並推送這次執行自己的分支。把它合進預設分支是你自己的步驟。
 
 ## 包含的內容
 
@@ -49,7 +48,6 @@
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及各任務自己的唯讀 Multi-agent 輔助 | 執行環境啟動指令與 worker 結果 |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow 與由 parent 管理的 worktree | 執行環境啟動指令與 worker 結果 |
-| `fullstack-harness-github-landing` | 最終 head 推送、PR、並行 CI/審查，以及對齊 head 的合併 | 遠端落地的佐證 |
 
 交付核心在啟動受管編排之前，會先做一個規模決策：
 
@@ -113,20 +111,15 @@ flowchart TB
 ```
 
 
-## 輕量的執行環境與落地轉接器
+## 輕量的執行環境轉接器
 
 共用核心掌管唯一的 PLAN/RUN 控制平面。執行環境專屬的啟動細節採延遲載入：
 
 - Codex host 只載入 `fullstack-harness-codex`，也只執行 `codex` provider 的 PLAN 節點。
 - Claude Code host 只載入 `fullstack-harness-claude-code`，也只執行 `claude_code` provider 的 PLAN 節點。
 - 兩個轉接器都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被回報為因 provider 不符而受阻，留給由對應轉接器主持的執行去處理。
-- `fullstack-harness-github-landing` 只在明確需要推送、PR、CI、審查、合併或儲存庫設定等結果時才載入。
 
-共用的 script、schema、參考文件與範本仍放在 `fullstack-harness-engineering` 底下；轉接器只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡，也避免在純本機工作時觸發遠端驗證。
-
-在遠端交付時，最終的本機候選版本只推送一次。GitHub Actions 與 Codex 審查會作為同一個 PR head 的並列閘一起啟動或被觀察，並且並行輪詢。任何新的推送都會讓兩者失效，而合併仍要求兩者在同一個 SHA 上都通過。
-
-只有在儲存庫已連接到 Codex Cloud，並且已啟用程式碼審查時，Codex Cloud 審查才可用。開啟 PR 時可能會自動開始審查；否則，請使用 `@codex review` 要求審查。如果缺少審查能力，請將審查閘記錄為不可用，而不是已通過。
+共用的 script、schema、參考文件與範本仍放在 `fullstack-harness-engineering` 底下；轉接器只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡。
 
 ## 圖引擎與 Dynamic Workflow
 
@@ -148,18 +141,6 @@ Claude 的各波依模型、推理強度與工具設定檔區隔：
 當 Claude Code 回傳真實的 Workflow 執行 ID 時，RUN 狀態可以保留 workflow/task ID、script digest、node group、圖/base 綁定、工具設定檔、狀態，以及可取得的度量。同一 session 內的續跑可以沿用該綁定；跨 session 的復原則從標準的 PLAN/RUN 狀態重新啟動一次新的 workflow 嘗試。
 
 圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Claude Code 不能把節點委派給 Codex，Codex 也不能把節點委派給 Claude Code；兩者之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被記錄為因 provider 不符而受阻，留給由對應轉接器主持的執行去處理。
-
-## 發佈與部署安全
-
-交付圖把部署視為第一級、且需要獨立授權的生命週期：
-
-- 可部署產品會在計畫中記錄 provider、目標環境、指令、migration、前置條件與部署後檢查。
-- Cloudflare 專案使用同一份 codebase，但 `development` 與 `production` Worker 完全分離；D1、KV、R2、queue、Durable Object、密鑰、認證、付款模式、route 與 webhook 也分環境設定。
-- 預設的 Cloudflare 模型使用綁定精確 SHA 的 GitHub Actions dispatch。開發環境綁定已 review 的 `development` head；正式環境綁定經使用者審批升版後產生的 `production` head。
-- 選用的 Cloudflare Workers Builds 模型可以把持久的 `development` 與受保護的 `production` 分支自動部署到對應 Worker。只有明確選用時才啟用，也不會與 dispatch 模型混用。
-- Day-one bootstrap 只建立已確認需要的環境資源與 Worker shell。真正部署功能程式碼仍需要目標環境專屬授權。
-- `docs/deployment.md` 保存給維護者閱讀的拓樸與設定；RUN 仍是機器可讀的執行紀錄。
-- 行動裝置與桌面交付同樣分離 development／beta 與 production 的憑證、後端、商店軌道與發佈佐證，不會硬套 Cloudflare 格式。
 
 ## 安裝
 
@@ -329,4 +310,5 @@ git diff --check
 
 每次發佈都要更新這一節，並搭配上面說明的版本號提升。
 
+- **0.3.0** — 移除 GitHub 落地轉接器與整套部署／發佈模型。Harness 現在到「推送這次執行自己的分支」為止；把分支合進預設分支是使用者自己的步驟。授權帳本從 19 個動作縮到 12 個；`landing` 精簡為 `mode`、`remote`、`pushed_head_sha`、`continuity`；`integration.branch` 是唯一的分支欄位。移除分支保護佐證、`target_sources`、三個契約標記、`post_merge_cleanup`、`plan.release` 與 `run.targets`。
 - **0.2.0** — 預設每個 mission 一個 worktree；PLAN v5 / RUN v10 typed graph，支援多 reviewer 扇出；Cloudflare 的 dispatched-deploy 與 Auto-Deploy（原生 Git 自動部署）發佈模型；持久的整合分支；以逐頁通用 HTML 樣稿取代已退役的 page UI matrix；行動裝置／桌面平台支援，包含一份專屬的行動裝置技術選型指南（原生 iOS/Android、Flutter、React Native/Expo）；透過 `.env.example` 產生環境密鑰的 scaffolding；為有界／機械式的委派工作新增 Haiku 成本層級。

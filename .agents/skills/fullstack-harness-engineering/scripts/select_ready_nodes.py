@@ -11,7 +11,6 @@ from typing import Any
 
 from harness_manifest import (
     ManifestError,
-    _branch_ref,
     authorization_covers,
     execution_covers,
     load_plan,
@@ -359,73 +358,12 @@ def _current_authorized_head(
     plan: dict[str, Any] | None = None,
     target: str | None = None,
 ) -> str | None:
-    """Resolve the live candidate head for one head-bound lifecycle action."""
-    landing = run.get("landing")
-    if isinstance(landing, dict):
-        if action == "push" and landing.get("mode") == "integration_pull_request":
-            expected_ref = _branch_ref(landing.get("head_branch"))
-            if expected_ref is not None:
-                observed = run.get("observed")
-                observed_git = (
-                    observed.get("git") if isinstance(observed, dict) else None
-                )
-                if isinstance(observed_git, dict):
-                    if _branch_ref(observed_git.get("parent_branch")) == expected_ref:
-                        return observed_git.get("parent_head_sha")
-                    for worktree in observed_git.get("worktrees", []):
-                        if not isinstance(worktree, dict):
-                            continue
-                        if _branch_ref(worktree.get("branch_ref")) == expected_ref:
-                            return worktree.get("head_sha")
-            return None
-        if action in {"manage_pr_review", "merge_pr"}:
-            return landing.get("pr_head_sha")
-        if action == "create_pr":
-            return landing.get("pushed_head_sha")
+    """Resolve the live candidate head for one head-bound lifecycle action.
+
+    `push` is the only head-bound action, and the only head it can publish is
+    the current integration head.
+    """
     integration = run.get("integration")
-    if (
-        action == "deploy"
-        and isinstance(plan, dict)
-        and isinstance(target, str)
-        and target.startswith("release:")
-    ):
-        target_id = target.removeprefix("release:")
-        release = plan.get("release")
-        declared_targets = (
-            release.get("targets") if isinstance(release, dict) else None
-        )
-        declared = None
-        if isinstance(declared_targets, list):
-            declared = next(
-                (
-                    item
-                    for item in declared_targets
-                    if isinstance(item, dict) and item.get("id") == target_id
-                ),
-                None,
-            )
-        if not isinstance(declared, dict):
-            return None
-        if declared.get("trigger") == "merge":
-            if isinstance(landing, dict) and landing.get("pr_head_sha"):
-                return landing.get("pr_head_sha")
-            return (
-                integration.get("integration_head_sha")
-                if isinstance(integration, dict)
-                else None
-            )
-        source = declared.get("source")
-        if source == "pr_head":
-            return landing.get("pr_head_sha") if isinstance(landing, dict) else None
-        if source == "integration_head":
-            return (
-                integration.get("integration_head_sha")
-                if isinstance(integration, dict)
-                else None
-            )
-        if source in {"production_head", "merged_main"}:
-            return landing.get("merged_sha") if isinstance(landing, dict) else None
-        return None
     if isinstance(integration, dict):
         return integration.get("integration_head_sha")
     return None
@@ -591,8 +529,8 @@ def _dispatch_reasons(
             if observed_runtime.get("available_worker_slots", 0) <= 0:
                 reasons.add("runtime_capacity_unavailable")
     if node["kind"] in {"mission", "lifecycle"}:
-        # mission nodes spawn workers/commits and lifecycle nodes push/merge/
-        # deploy: both mutate real state derived from the parent's current git
+        # mission nodes spawn workers/commits and lifecycle nodes push or
+        # clean up: both mutate real state derived from the parent's current git
         # position, so both need a reconciled parent and a known batch base
         # before launch. verifier, approval, and external_wait nodes are
         # read-only with respect to that state and do not need this gate.
@@ -634,22 +572,14 @@ def _dispatch_reasons(
             ):
                 reasons.add("action_not_authorized")
     if node["kind"] == "lifecycle":
-        # A bare "*" target is unreachable for these actions: schema v10 rejects
-        # a wildcard scope for every HEAD_BOUND_AUTHORIZATION_ACTIONS entry, and
-        # trigger_remote_ci/provision_cloud_resources reject "*" outright at any
-        # schema version (harness_authorization.py). node["target"], when the
-        # PLAN declares one, is the exact target the RUN ledger was actually
-        # granted against. Falling back to "*" when it is absent keeps already
-        # -valid PLANs (authored before this field existed) unchanged.
+        # A bare "*" target is unreachable for `push`: schema v10 rejects a
+        # wildcard scope for every HEAD_BOUND_AUTHORIZATION_ACTIONS entry
+        # (harness_authorization.py). node["target"], when the PLAN declares
+        # one, is the exact target the RUN ledger was actually granted against.
+        # Falling back to "*" when it is absent keeps already-valid PLANs
+        # (authored before this field existed) unchanged.
         target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
-        if node["ref"] == "merge_pr":
-            landing = run.get("landing")
-            if (
-                not isinstance(landing, dict)
-                or landing.get("merge_status") != "ready"
-            ):
-                reasons.add("landing_not_ready")
         current_head = _current_authorized_head(
             run,
             node["ref"],

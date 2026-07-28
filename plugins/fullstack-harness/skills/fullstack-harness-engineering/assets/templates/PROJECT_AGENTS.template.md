@@ -1,6 +1,6 @@
 # Project Rules
 
-This template's main-only branch model — `main` as the protected base, a `codex/<short-name>` run branch for the work — is the default for a new repository. If the repository already defines another branch or pull-request model, keep that existing governance and replace the default names below; never overwrite conflicting repository instructions.
+This template's main-only branch model — `main` as the default branch, an ephemeral `codex/<short-name>` run branch for the work — is the default for a new repository. If the repository already defines another branch model, keep that existing governance and replace the default names below; never overwrite conflicting repository instructions.
 
 ## Core Development Principles
 
@@ -49,42 +49,26 @@ This template's main-only branch model — `main` as the protected base, a `code
 
 ## Branch Model
 
-- Create every implementation worktree from the current resolved integration-branch SHA.
+- Cut the run branch `codex/<short-name>` from the current default branch, then create every implementation worktree from the current resolved integration-branch SHA.
+- Never edit, commit, or merge on the default branch, and never push to it. Cutting a branch from it is fine; writing to it is not.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
-- Never start ordinary feature, PRD, or UI work from the resolved protected landing branch, and never merge a worktree directly into it.
-- Open the pull request into the resolved protected landing branch only when the user reads the pushed run branch and asks for it. Later changes start again from the then-current protected landing branch.
+- The run ends when that verified integration head is pushed to the run branch. Landing the run branch on the default branch is the user's own step, done outside this harness.
+- Later work cuts a fresh run branch from the then-current default branch.
 
-## Pull Request Flow
+## Action Authorization
 
-- Do not push directly to the resolved protected landing branch.
-- Before any action represented in the RUN authorization ledger, verify its exact authorization. Common GitHub-flow examples are branch creation, local commits, local integration, repository configuration, push, PR creation, review-state mutation, merge, and cleanup. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
-- Ordinary plan-backed work starts `local_only` on the resolved integration branch and moves to `integration_push` when that verified head is pushed. The run is complete there; it does not wait for GitHub. Do not request or infer a protected-branch pull request at Plan Readiness. When the user separately asks for it, request the exact remaining PR creation and review-management actions and bind `create_pr` and `manage_pr_review` to `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`; after creation, verify the binding and append the exact `pr:<full-PR-URL>` target. Do not bind `merge_pr` until a later explicit instruction names the exact existing PR.
-- With matching `create_local_branches` authorization, work on `<branch-prefix>/<short-name>`.
+- Before any action represented in the RUN authorization ledger, verify its exact authorization. The ledger covers external runtime invocation, subagents, user-owned tasks, worktrees, local branches, local commits, local integration, push, task archival, worktree removal, and branch deletion. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
+- Ordinary plan-backed work starts `local_only` on the resolved integration branch and moves to `integration_push` when that verified head is pushed. The run is complete there; it does not wait for GitHub.
+- With matching `create_local_branches` authorization, work on `codex/<short-name>`.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
-- Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved persistent integration branch.
+- Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved integration branch.
 - Run `<verification-command>` and `<e2e-command>`, then review the complete diff before push.
-- Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual or deployment smoke only for a materially different environment or an uncovered visual/external-integration risk.
-- Change branch rules, required checks, repository auto-merge, or Codex review settings only with matching `configure_repository` authorization.
-- With matching `push` authorization, push only the verified resolved integration branch. A push whose target is the protected landing branch is never covered by the execution-intent instruction.
-- With separate `create_pr` authorization, open a Draft PR. Do not create a non-draft PR, mark it ready, or otherwise expose it to automatic review without matching `manage_pr_review` authorization.
-- With separate `manage_pr_review` authorization, mark the PR ready when required and request Codex review immediately; do not wait for CI first.
-- After every new push, start or observe current-head CI, including required E2E, and request current-head review again. Poll both gates concurrently.
-- After current-head CI and Codex review pass and unresolved threads reach zero, the next step depends on the PR's base. For a PR into the resolved integration branch, matching `merge_pr` authorization allows merging or enabling squash auto-merge with an exact head-SHA match; never enable it before those gates pass. For a PR into the resolved protected landing branch, report the PR as merge-ready and stop. The merge toward the protected base is the human's; record `merge_pr` only when the user separately asks for the merge on that exact PR, and then use an exact head-SHA match.
-- Once the user asks for the pull request and every remaining PR creation and review-management mutation is explicitly authorized for its exact resolved head-to-base target, continue through that landing flow without pausing between stages. Poll CI and review, reset stale evidence after every push, fix only authorized in-scope findings on the head branch, and finish by handing over a merge-ready PR with its exact head SHA.
-- After a merged PR, re-fetch the base and verify the exact PR head before cleanup. Remove only an authorized clean linked worktree, switch the primary checkout to the base branch, then delete only the authorized local feature branch. Never remove the primary checkout.
-- Merge, auto-merge, deploy, branch deletion, and worktree removal remain separate ledger actions even when several are approved in one explicit readiness statement.
-
-## Cloudflare Release Flow
-
-- For deployable Cloudflare applications, publish one production Worker from the protected base. Add a separate isolated non-production Worker only when the repository actually keeps a preview environment; when it does, keep its storage, secrets, auth configuration, payment mode, routes, and webhooks fully separate from production.
-- Deploy to any PLAN-v5 release target only when `deploy` authorization covers its exact `release:<target-id>` and authorized head. A new integration makes that grant and its evidence stale.
-- Where a preview environment exists, require its migration and deployed-environment E2E PASS before the pull request into the protected base, and keep it on non-production data and payment sandbox mode when payment applies.
-- Publish the exact resulting protected landing head only after GitHub reports the pull request merged and exact production-target deploy authorization is present. Keep the authorized candidate head separate from the resulting landing SHA. Production smoke must pass before release completion.
-- Use the exact-SHA dispatched Cloudflare deployment workflow. Do not make an arbitrary branch push or base-branch push an unconditional deployment path, and do not infer deploy authorization from push or merge.
-- Keep Wrangler configuration as the repository source of truth. Never store Cloudflare tokens or environment secret values in PLAN, RUN, workflow files, or committed dotenv files.
-- Before the first deploy for this product, confirm `wrangler.jsonc` exists (scaffold it per the Full-Stack Harness's `cloudflare-deployment-lifecycle.md` if missing) and confirm Cloudflare account access is verified (GitHub Environment secrets for the CD workflow, or an authenticated Wrangler session locally). Never attempt a deploy while either is unverified.
+- Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual smoke only for a materially different environment or an uncovered visual/external-integration risk.
+- With matching `push` authorization, push only the verified resolved integration branch. A push whose target resolves to `main` is refused, and so is any push from a run whose integration branch resolves to `main`.
+- Remove only an authorized clean linked worktree, then delete only the authorized local worker branch. Never remove the primary checkout, and never delete the run branch the user still has to read.
+- Task archival, worktree removal, and branch deletion remain separate ledger actions even when several are approved in one explicit readiness statement.
 
 ## Review Guidelines
 
-Treat authorization bypasses, direct base-branch landing, stale check/review/deployment SHAs, cross-environment data or secret reuse, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.
+Treat authorization bypasses, writes to the default branch, stale review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.

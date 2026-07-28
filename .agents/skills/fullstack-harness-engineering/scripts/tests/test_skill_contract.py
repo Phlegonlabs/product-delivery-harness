@@ -35,21 +35,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    def test_runtime_and_landing_adapters_load_lazily(self) -> None:
-        core = self.read("SKILL.md")
-        codex = self.read_sibling_skill("fullstack-harness-codex")
-        claude = self.read_sibling_skill("fullstack-harness-claude-code")
-        landing = self.read_sibling_skill("fullstack-harness-github-landing")
-
-        self.assertIn("Do not load all adapters in one run", core)
-        self.assertIn("Do not also read the Claude Code adapter", core)
-        self.assertIn("Do not also read the Codex adapter", core)
-        self.assertIn("only when the requested outcome includes push", core)
-        self.assertIn("Do not load the Claude Code adapter in the same parent", codex)
-        self.assertIn("Do not load the Codex adapter in the same parent", claude)
-        self.assertIn("Local branch, commit, or integration work stays `local_only`", landing)
-        self.assertNotIn("## Authorized Automatic Pull-Request Landing", codex)
-        self.assertNotIn("## Authorized Automatic Pull-Request Landing", claude)
 
     def test_project_size_gate_keeps_small_work_direct(self) -> None:
         skill = self.read("SKILL.md")
@@ -171,7 +156,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
 
-        self.assertIn("Keep all 19 schema-v10 RUN authorization entries false", goal)
+        self.assertIn("Keep all 12 schema-v10 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("one top-level left-sidebar task with its own app-managed worktree", goal)
 
@@ -191,290 +176,12 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("Ordinary PRD, UI, and feature work stays `local_only`", runbook)
         self.assertNotIn('New RUN files default to `mode: "local_only"`.', runbook)
 
-    def test_workflow_intake_names_every_supported_landing_mode(self) -> None:
-        skill = self.read("SKILL.md")
 
-        self.assertIn(
-            "Landing: local_only | integration_push | pull_request | "
-            "integration_pull_request",
-            skill,
-        )
 
-    def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
-        skill = self.read_sibling_skill("fullstack-harness-github-landing")
-        goal = self.read("assets/templates/GOAL.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-        pull_request = self.read("assets/templates/PULL_REQUEST.template.md")
-        harness_plan = self.read("assets/templates/HARNESS_PLAN.template.md")
-        state_model = self.read("references/execution-state-model.md")
-        verification = self.read("references/verification-gates.md")
-        agent = self.read("agents/openai.yaml")
 
-        self.assertIn("## Pull-Request Handover", skill)
-        self.assertIn("stopping at — a merge-ready PR", skill)
-        self.assertIn("After final user approval starts an authorized protected-branch promotion", goal)
-        self.assertIn("one continuous parent-owned landing loop", runbook)
-        self.assertIn("continue through that landing flow without pausing", project_rules)
-        self.assertIn("With separate `create_pr` authorization, open a Draft PR", project_rules)
-        self.assertIn("without matching `manage_pr_review` authorization", project_rules)
-        # The merge toward the protected base is the human's; the harness may
-        # prepare the PR and must stop there.
-        self.assertIn("It does not merge and does not enable auto-merge", skill)
-        self.assertIn(
-            "A pull-request run remains non-complete",
-            skill,
-        )
-        self.assertIn(
-            "keeps the run non-complete while the PR is open",
-            skill,
-        )
-        self.assertIn(
-            "observe that GitHub reports the PR merged and inspect the current merged base state",
-            skill,
-        )
-        self.assertIn(
-            "then and only then set the RUN to `complete`",
-            skill,
-        )
-        self.assertIn(
-            "leave `merge_pr` false because this is observed external state",
-            skill,
-        )
-        self.assertIn(
-            "always requires independent exact production `deploy` authorization",
-            skill,
-        )
-        self.assertIn(
-            "If the harness performs or auto-merges",
-            skill,
-        )
-        self.assertNotIn(
-            "A pull-request run is complete when the exact current-head CI and review gates pass",
-            skill,
-        )
-        self.assertIn("merge-ready PR", goal)
-        self.assertIn(
-            "Do not bind `merge_pr` until a later explicit instruction names the exact existing PR",
-            goal,
-        )
-        self.assertIn("Do not merge and do not enable auto-merge", runbook)
-        self.assertIn(
-            "bind `create_pr` and `manage_pr_review`",
-            runbook,
-        )
-        self.assertIn(
-            "leave `merge_pr` false and retain the actor/event-bound "
-            "`external_merge_observation`",
-            runbook,
-        )
-        self.assertIn(
-            "native merge-triggered publication always requires independent exact production `deploy` authorization",
-            runbook,
-        )
-        self.assertIn(
-            "A harness-performed or auto-merge path additionally requires exact `merge_pr` authorization",
-            runbook,
-        )
-        self.assertIn("The merge toward the protected base is the human's", project_rules)
-        self.assertIn(
-            "Do not bind `merge_pr` until a later explicit instruction names the exact existing PR",
-            project_rules,
-        )
-        self.assertIn(
-            "only that later instruction may supply `merge_pr` for the exact PR",
-            state_model,
-        )
-        self.assertIn(
-            "leave `merge_pr` false and retain `external_merge_observation`",
-            state_model,
-        )
-        self.assertIn(
-            "observed external human merge leaves `merge_pr` false",
-            state_model,
-        )
-        self.assertIn("A bare boolean or merged status is not proof", state_model)
-        self.assertIn(
-            "exact production `deploy` authorization remains required",
-            state_model,
-        )
-        for content in (self.read("SKILL.md"), harness_plan):
-            self.assertIn(
-                "always requires independent exact production `deploy` authorization",
-                content,
-            )
-            self.assertIn(
-                "`merge_pr` false",
-                content,
-            )
-        for content in (pull_request, verification):
-            self.assertIn("non-protected integration base", content)
-            self.assertIn("protected-base PR", content)
-            self.assertIn("merge-ready handoff", content)
-        for content in (skill, goal, runbook, project_rules):
-            self.assertIn("current-head", content)
-            self.assertIn("merge", content.lower())
-        self.assertIn("integrate passing work", agent)
 
-    def test_ledger_reference_lists_exactly_the_code_actions(self) -> None:
-        """The ledger reference drifted to v9/17 actions once already, because
-        nothing tied its list to the constant the validator uses."""
-        from harness_schema import AUTHORIZATION_KEYS_V10, EXECUTION_INTENT_SCOPED_ACTIONS
 
-        reference = self.read("references/execution-state-model.md")
-        core = self.read("SKILL.md")
 
-        block_start = reference.index("The current schema-v10 ledger has")
-        fence = reference.index("```text", block_start) + len("```text")
-        listed = reference[fence : reference.index("```", fence)].split()
-
-        self.assertEqual(sorted(AUTHORIZATION_KEYS_V10), sorted(listed))
-        self.assertEqual(len(AUTHORIZATION_KEYS_V10), len(listed))
-        self.assertIn(f"has {len(AUTHORIZATION_KEYS_V10)} actions", reference)
-
-        for action in AUTHORIZATION_KEYS_V10:
-            self.assertIn(f"`{action}`", core)
-        for action in EXECUTION_INTENT_SCOPED_ACTIONS:
-            self.assertIn(action, reference)
-
-    def test_out_of_scope_targets_carry_their_own_recorded_source(self) -> None:
-        core = self.read("SKILL.md")
-        reference = self.read("references/execution-state-model.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-
-        self.assertIn("`target_sources`", core)
-        self.assertIn("## Per-Target Provenance For The Scoped Three", reference)
-        self.assertIn("must differ from the entry `source`", reference)
-        self.assertIn("Resolution fails closed", reference)
-        self.assertIn("`target_sources` is rejected on any other action", reference)
-        self.assertIn("Every active schema-v10 RUN is held to it", reference)
-        self.assertIn(
-            "Every active schema-v10 RUN is held to it before dispatch", reference
-        )
-        self.assertIn(
-            "Completed historical unmarked RUN-v10 files remain readable",
-            reference,
-        )
-        self.assertIn("in every landing mode", reference)
-        self.assertIn(
-            "Completed historical unmarked RUN v10 files keep their generic exact-target "
-            "kind and prior target-source shape while they omit `target_sources`",
-            runbook,
-        )
-        self.assertIn(
-            "every active unmarked RUN v10 must still satisfy per-target provenance",
-            runbook,
-        )
-        self.assertNotIn(
-            "per-target provenance applies to every v10 file either way",
-            runbook,
-        )
-        self.assertNotIn(
-            "Per-target provenance holds for every RUN-v10 artifact",
-            runbook,
-        )
-        self.assertIn('"target_sources": {', runbook)
-        self.assertIn("in every landing mode", runbook)
-
-    def test_merge_policy_splits_on_the_pr_base_branch(self) -> None:
-        """Auto-merge is allowed into the integration branch and never into the
-        protected landing branch.
-
-        Regression guard: the ledger's grouped execution-intent bundle now
-        carries `merge_pr`, so the only thing keeping a promotion PR from being
-        merged automatically is that the grouping is scoped to the integration
-        base.
-        """
-        core = self.read("SKILL.md")
-        landing = self.read_sibling_skill("fullstack-harness-github-landing")
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-
-        self.assertIn(
-            "`merge_pr` and `deploy` are outside the bundle entirely under the default model",
-            core,
-        )
-        self.assertIn("only for a PR whose base is a resolved non-protected integration branch", core)
-        self.assertIn("A merge into `main` is never the harness's to initiate", core)
-        self.assertIn("does not enable auto-merge there", core)
-        self.assertIn("Which side of this section applies is decided by the PR's base branch", landing)
-        self.assertIn("It does not merge and does not enable auto-merge there", landing)
-        self.assertIn("the next step depends on the PR's base", project_rules)
-        self.assertIn("resolved integration branch", project_rules)
-
-    def test_every_deploy_is_its_own_grant_not_the_merge(self) -> None:
-        """One rule, three sites. The docs used to give three answers: the core
-        said the harness never runs the production deploy, the Cloudflare
-        reference said the parent runs it, and the validator required an exact
-        `deploy` grant for the production target — which only makes sense if the
-        harness can run it. The grant is what decides, not the merge.
-        """
-        from harness_authorization import execution_intent_target_in_scope
-
-        core = self.read("SKILL.md")
-        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
-
-        plan = {
-            "release": {
-                "targets": [
-                    {"id": "web-development", "stage": "development"},
-                    {"id": "web-production", "stage": "production"},
-                ]
-            }
-        }
-        run = {
-            "integration": {"branch": "development"},
-            "landing": {"base_branch": "production"},
-        }
-        # Preview, staging, and production deploys are separate authorization
-        # moments; none rides the execution-intent instruction.
-        self.assertFalse(
-            execution_intent_target_in_scope(plan, run, "deploy", "release:web-development")
-        )
-        self.assertFalse(
-            execution_intent_target_in_scope(plan, run, "deploy", "release:web-production")
-        )
-        self.assertFalse(
-            execution_intent_target_in_scope(
-                plan, run, "merge_pr", "release:web-development"
-            )
-        )
-        self.assertFalse(
-            execution_intent_target_in_scope(
-                plan, run, "merge_pr", "pr:https://github.com/o/r/pull/1"
-            )
-        )
-
-        self.assertIn("The harness runs it when `deploy` is authorized for that exact target at that exact head", core)
-        self.assertIn(
-            "No `deploy` — including an optional preview or staging target — "
-            "ever rides the execution-intent instruction",
-            lifecycle,
-        )
-        self.assertIn("One rule covers who runs the production deploy", lifecycle)
-        self.assertIn("authorized for that exact production `release:<target-id>` at that exact head", lifecycle)
-        # The merge stays the human's on both sites, and neither implies the other.
-        for content in (core, lifecycle):
-            self.assertIn("does not enable auto-merge", content)
-        self.assertNotIn("does not run the production deploy", core)
-        # The checkpoint no longer claims the parent performs the promotion merge.
-        self.assertNotIn("or performs the auto-deploy-triggering merge into `main`", lifecycle)
-        self.assertIn("before it hands over the auto-deploy-triggering merge into `main`", lifecycle)
-
-    def test_deploy_target_prefix_records_the_schema_version_split(self) -> None:
-        """v10 `targets` wants `release:`, the older v7-v9 `deployments` path
-        wants `environment:`, and action-aware validation rejects the other
-        schema version's target kind."""
-        from harness_schema import TARGET_RE
-
-        reference = self.read("references/execution-state-model.md")
-
-        self.assertIsNotNone(TARGET_RE.fullmatch("release:web-production"))
-        self.assertIsNotNone(TARGET_RE.fullmatch("environment:production"))
-
-        self.assertIn("The `deploy` target prefix differs between those two shapes", reference)
-        self.assertIn("requires `deploy` authorization for `release:<target-id>`", reference)
-        self.assertIn("requires `environment:<target-id>` for the same grant", reference)
-        self.assertIn("Shared action/target rules reject the other schema version's target kind", reference)
 
     def test_authorization_scope_binds_the_plan_digest_only_at_v10(self) -> None:
         """`SKILL.md` says a plan revision or digest change invalidates a grant.
@@ -545,21 +252,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("pass_signal_not_cacheable", runtime)
         self.assertIn("`session_exact` PASS only when the verifier's pass signal is the literal `exit 0`", core)
 
-    def test_cache_reuse_is_scoped_to_one_attempt_and_banned_layers_hold(self) -> None:
-        """`same-session` over-promised: reuse is actually scoped to one attempt
-        under one lease, because those IDs are in the execution key. The layer
-        ban is now enforced at run time as well as at PLAN time."""
-        from verifier_runtime import CACHE_BANNED_LAYERS
-
-        core = self.read("SKILL.md")
-
-        self.assertEqual(
-            CACHE_BANNED_LAYERS,
-            {"mission_integration", "batch", "final", "release"},
-        )
-        self.assertIn("same-attempt `session_exact` PASS, bound to its `attempt_id` and `lease_id`", core)
-        self.assertIn("again at run time in `verifier_runtime.py`", core)
-        self.assertNotIn("same-session", core)
 
     def test_readiness_requires_every_node_to_have_a_host(self) -> None:
         """A node whose `allowed_providers` no participating host satisfies is a
@@ -574,20 +266,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`references/graph-orchestration.md`", readiness)
         self.assertNotIn("`../references/graph-orchestration.md`", readiness)
 
-    def test_release_target_ids_are_reused_from_architecture(self) -> None:
-        """Both places that tell a planner to declare release targets used to
-        read as an invitation to mint fresh IDs. This is a prose rule only — no
-        harness script reads `architecture.md` — so nothing here may imply a
-        validator checks it."""
-        core = self.read("SKILL.md")
-        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
-
-        self.assertIn("`## Release Targets` section, reuse its target IDs verbatim", core)
-        self.assertIn("stable target IDs `architecture.md`'s `## Release Targets` section already declares", lifecycle)
-        self.assertIn("only when no such section exists", lifecycle)
-        self.assertNotIn("Use stable target IDs such as", lifecycle)
-        for content in (core, lifecycle):
-            self.assertNotIn("the validator checks release target", content)
 
     def test_content_contract_row_treats_required_order_as_the_never_drop_set(self) -> None:
         """`requiredContentOrder` and "never-drop fields" are one set, not two.
@@ -604,204 +282,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("those fields never drop", row)
         self.assertNotIn("and never-drop fields intact", row)
 
-    def test_execution_intent_bundle_covers_both_hosts_worker_launch(self) -> None:
-        """`create_user_owned_tasks` is Codex's worker launch and must be grouped
-        with `spawn_subagents`, or the same instruction would mean different
-        things on the two hosts."""
-        core = self.read("SKILL.md")
 
-        bundle = core[core.index("Nine of these actions") : core.index("That grouping is scoped")]
-        for action in ("spawn_subagents", "create_user_owned_tasks"):
-            self.assertIn(action, bundle)
-        self.assertIn("it is the Codex host's worker-launch action", core)
-        remaining = core[core.index("The remaining actions —") : core.index("`trigger_remote_ci` uses exact")]
-        self.assertIn("archive_worker_tasks", remaining)
-        self.assertNotIn("create_user_owned_tasks", remaining)
 
-    def test_remote_verification_is_final_head_and_parallel(self) -> None:
-        core = self.read("SKILL.md")
-        landing = self.read_sibling_skill("fullstack-harness-github-landing")
-        verification = self.read("references/verification-gates.md")
-        state = self.read("references/execution-state-model.md")
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-
-        self.assertIn("does not wait for GitHub CI or GitHub review", core)
-        self.assertIn("Do not push intermediate worker heads merely to obtain CI", landing)
-        self.assertIn("poll both concurrently", landing)
-        self.assertIn("sibling remote gates", landing)
-        self.assertIn("run or observe current-head CI and current-head Codex review concurrently", verification)
-        self.assertIn("CI and review are independent sibling gates", state)
-        self.assertIn("Poll both gates concurrently", project_rules)
-
-    def test_runbook_starts_local_only_and_names_all_three_modes(self) -> None:
-        skill = self.read("SKILL.md")
-        goal = self.read("assets/templates/GOAL.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        state = self.read("references/execution-state-model.md")
-
-        # A fresh RUN has pushed nothing yet, so it still starts local_only.
-        self.assertIn('"mode": "local_only"', runbook)
-        self.assertIn('New RUN files start at `mode: "local_only"`', runbook)
-        for mode in ("`local_only`", "`integration_push`", "`pull_request`"):
-            self.assertIn(mode, runbook)
-        self.assertIn("only after the user separately asks for the pull request into the protected base", runbook)
-        for content in (runbook, state):
-            self.assertIn("repository-resolved separate non-protected integration branch", content)
-            self.assertIn(
-                "If the intended base is the protected landing branch, whatever its name, use `pull_request`; "
-                "auto-merge is unavailable there.",
-                content,
-            )
-        self.assertIn('"base_branch_protection": {', runbook)
-        self.assertIn('"integration_branch_protection": null', runbook)
-        self.assertIn(
-            '"branch_protection_contract": "branch-protection/1"',
-            runbook,
-        )
-        for content in (skill, runbook, state):
-            self.assertIn("landing.base_branch_protection", content)
-            self.assertIn("fail", content.lower())
-            self.assertIn("branch-protection/1", content)
-        for content in (skill, goal, runbook, state):
-            self.assertIn("landing.integration_branch_protection", content)
-            self.assertIn("repository:", content)
 
     @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
-    def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:
-        repository_rules = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
 
-        self.assertIn("request Codex review immediately after creation", repository_rules)
-        self.assertIn("Observe current-head CI and review concurrently", repository_rules)
-        self.assertIn("poll both gates concurrently", repository_rules)
 
-    def test_production_promotion_waits_for_late_final_approval(self) -> None:
-        skill = self.read_sibling_skill("fullstack-harness-github-landing")
-        state = self.read("references/execution-state-model.md")
-        goal = self.read("assets/templates/GOAL.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
 
-        self.assertIn("do not include a future protected-branch promotion", skill)
-        self.assertIn("future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>", skill)
-        self.assertIn("Do not put the later protected-base landing", state)
-        self.assertIn("do not request or infer a future protected-branch promotion", goal)
-        self.assertIn("Do not include protected-branch promotion in an ordinary mission run", runbook)
-        self.assertIn("Do not request or infer a protected-branch pull request at Plan Readiness", project_rules)
-        for content in (skill, state, goal, runbook, project_rules):
-            self.assertIn("manage_pr_review", content)
-            self.assertIn("merge_pr", content)
-            self.assertIn("future-pr:", content)
 
-    def test_worktree_review_and_main_only_branch_policy(self) -> None:
-        core = self.read("SKILL.md")
-        codex = self.read_sibling_skill("fullstack-harness-codex")
-        verification = self.read("references/verification-gates.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
-        worktrees = self.read("references/worktree-thread-orchestration.md")
 
-        self.assertIn("## Default Main-Only Branch Policy", core)
-        self.assertIn("Target-repository governance wins", core)
-        self.assertIn("at least one read-only review round", core)
-        self.assertIn("resolved target-repository integration branch", codex)
-        self.assertIn("Worktree pre-integration review gate", verification)
-        self.assertIn('"branch": "refs/heads/codex/<short-name>"', runbook)
-        self.assertIn('"head_branch": "refs/heads/codex/<short-name>"', runbook)
-        self.assertIn('"base_branch": "main"', runbook)
-        self.assertIn("one child must review the proposed diff", worker_goal)
-        self.assertIn("If the repository already defines another branch or pull-request model", project_rules)
-        self.assertIn("Never start ordinary feature, PRD, or UI work from the resolved protected", project_rules)
-        self.assertIn('"source": "production_head"', plan)
-        self.assertIn("creates every worktree from the same recorded `batch_base_sha`", worktrees)
-        self.assertNotIn("recorded current `development` SHA", worktrees)
-
-    def test_current_head_e2e_replaces_only_duplicate_manual_smoke(self) -> None:
-        skill = self.read("SKILL.md")
-        verification = self.read("references/verification-gates.md")
-        e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        ci_template = self.read("assets/templates/PROJECT_CI.template.yml")
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-
-        self.assertIn("## Automated E2E And Smoke Reuse", verification)
-        self.assertIn("### Automated E2E And Smoke Reuse", runbook)
-        for content in (skill, verification, e2e_template, runbook, project_rules):
-            self.assertIn("not required - covered by current-head E2E", content)
-            self.assertIn("deployment smoke", content.lower())
-        self.assertIn("  e2e:", ci_template)
-        self.assertIn("<e2e-command>", ci_template)
-        self.assertIn("actions/upload-artifact@v4", ci_template)
-        self.assertIn("github.event.pull_request.head.sha", ci_template)
-        self.assertIn("ref: ${{ env.E2E_HEAD_SHA }}", ci_template)
-        self.assertIn("e2e-${{ env.E2E_HEAD_SHA }}", ci_template)
-
-    def test_cloudflare_release_publishes_one_production_worker(self) -> None:
-        skill = self.read("SKILL.md")
-        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
-        state_model = self.read("references/execution-state-model.md")
-        plan_template = self.read("assets/templates/HARNESS_PLAN.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        goal = self.read("assets/templates/GOAL.template.md")
-        deploy_workflow = self.read(
-            "assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml"
-        )
-        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
-
-        self.assertIn("one repository and one codebase deployed to one production Worker", lifecycle)
-        self.assertIn("`production` is a Cloudflare environment, not a Git branch", lifecycle)
-        self.assertIn("`release:<target-id>`", lifecycle)
-        self.assertIn("`web-development`", lifecycle)
-        self.assertIn("`web-production`", lifecycle)
-        self.assertIn("PLAN schema v5", plan_template)
-        self.assertIn('"release"', plan_template)
-        self.assertIn("RUN schema v10", runbook)
-        self.assertIn('"targets"', runbook)
-        self.assertIn("Older RUN schemas remain readable", runbook)
-        self.assertIn("keys must exactly equal the PLAN `release.targets[].id` set", runbook)
-        self.assertIn("Current PLAN schema v5 uses provider-neutral `release.targets`", state_model)
-        self.assertIn("Older RUN v7-v9 `deployments` objects remain readable", state_model)
-        self.assertIn(
-            "Only when an actual preview or staging release target is declared",
-            goal,
-        )
-        self.assertIn("exact reviewed integration head", goal)
-        self.assertIn("resulting `main` head", goal)
-        self.assertIn("resulting head of the resolved protected base", goal)
-        self.assertNotIn("verified `development` head", goal)
-        self.assertNotIn("resulting `production` head", goal)
-        self.assertIn("workflow_dispatch:", deploy_workflow)
-        self.assertIn("source_sha:", deploy_workflow)
-        self.assertIn("cloudflare/wrangler-action@v3", deploy_workflow)
-        self.assertIn("steps.cloudflare-deploy.outputs.deployment-url", deploy_workflow)
-        self.assertIn("steps.cloudflare-deploy.outputs.command-output", deploy_workflow)
-        self.assertIn("origin/<base-branch>", deploy_workflow)
-        self.assertNotIn("\n  push:", deploy_workflow)
-        for content in (skill, lifecycle, project_rules):
-            self.assertIn("development", content.lower())
-            self.assertIn("production", content.lower())
-            self.assertIn("separate", content.lower())
-
-    def test_cloudflare_deploy_requires_wrangler_config_and_account_verification(self) -> None:
-        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
-        verification = self.read("references/verification-gates.md")
-        deploy_workflow = self.read("assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml")
-        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
-
-        self.assertIn("## Wrangler Config and Account Bootstrap", lifecycle)
-        self.assertIn("generate `wrangler.jsonc` before attempting any deploy", lifecycle)
-        self.assertIn("Verify the current Wrangler config schema against official documentation", lifecycle)
-        self.assertIn("stop — do not attempt the deploy", lifecycle)
-        self.assertIn("wrangler whoami", lifecycle)
-        self.assertIn("https://developers.cloudflare.com/workers/wrangler/configuration/", lifecycle)
-
-        self.assertIn("Before either gate below can be attempted, a blocking prerequisite gate must pass", verification)
-
-        self.assertIn('"cloudflare-development" and "cloudflare-production" GitHub Environments', deploy_workflow)
-
-        self.assertIn("confirm Cloudflare account access is verified", project_agents)
-        self.assertIn("Never attempt a deploy while either is unverified", project_agents)
 
     def test_builder_ux_direction_is_ready_before_implementation_and_not_usability_proof(self) -> None:
         skill = self.read("SKILL.md")

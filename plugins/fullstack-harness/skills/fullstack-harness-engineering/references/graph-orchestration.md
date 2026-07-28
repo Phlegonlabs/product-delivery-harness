@@ -49,7 +49,7 @@ Use these node kinds:
 mission       -> one existing mission contract and write unit
 verifier      -> a declared deterministic verifier or typed read-only runtime review
 approval      -> an explicit human decision
-external_wait -> CI, review, deployment, or other observed external state
+external_wait -> review or another observed external state
 lifecycle     -> one authorization-ledger action owned by the parent
 ```
 
@@ -65,7 +65,7 @@ human           -> explicit approval or contract decision
 
 The node is the workflow identity. A thread, Claude session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
 
-A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree, integrated, or PR-head SHA. It never receives a mission lease, write scope, branch, or commit authority.
+A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree or integrated SHA. It never receives a mission lease, write scope, branch, or commit authority.
 
 For full-stack UI delivery, use this default shape:
 
@@ -90,7 +90,7 @@ Express it with the existing typed graph mechanism; no new PLAN or RUN schema fi
 
 - same `review.type` (`frontend_code`, `backend_code`, or `visual`);
 - same reviewed `mission_ids` and repository `scope`;
-- the same incoming `dependency` edges, so every reviewer binds to the SAME exact covered-mission worktree, integrated, or PR-head SHA;
+- the same incoming `dependency` edges, so every reviewer binds to the SAME exact covered-mission worktree or integrated SHA;
 - each its own node ID, its own attempt, and no shared state with the others — an independent read-only review, never a mission, and never granted write scope, a lease, or commit authority.
 
 These still count as normal `runtime_worker` review nodes for `required_reviews` validation (each is a matching verifier for its type) and for the shared runtime budget. Give the reviewers different `reasoning_effort` or providers if you want diversity of judgment; keep any delegated Claude Code model at `sonnet` per the Runtime Binding rules.

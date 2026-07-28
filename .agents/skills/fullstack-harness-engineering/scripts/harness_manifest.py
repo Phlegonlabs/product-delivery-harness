@@ -10,20 +10,8 @@ import json
 from typing import Any
 
 from harness_schema import (
-    ACTION_TARGET_CONTRACT,
     AUTHORIZATION_KEYS,
-    AUTHORIZATION_KEYS_V2,
-    AUTHORIZATION_KEYS_V8,
-    AUTHORIZATION_KEYS_V10,
-    BRANCH_PROTECTION_CONTRACT,
-    CLEANUP_BRANCH_STATUSES,
-    CLEANUP_STATUSES,
-    CLEANUP_WORKTREE_STATUSES,
-    DEPLOYMENT_PROVIDERS,
-    EXECUTION_INTENT_SCOPED_ACTIONS,
-    EXTERNAL_MERGE_CONTRACT,
     EXPIRY_BOUNDARIES,
-    FUTURE_PR_TARGET_RE,
     GATE_VALUES,
     HEAD_BOUND_AUTHORIZATION_ACTIONS,
     ID_RE,
@@ -92,22 +80,11 @@ from harness_authorization import (
     _validate_authorization_scope,
     authorization_covers,
     execution_covers,
-    future_pr_target_matches_landing,
-    is_external_human_merge,
-    is_legacy_completed_external_merge,
-    is_legacy_completed_unmarked_run,
-    is_legacy_pre_branch_protection_contract,
-    validate_target_sources,
 )
 from harness_graph import (
     _cycle_nodes,
     _validate_graph,
     _validate_graph_state,
-)
-from harness_release import (
-    _validate_deployments,
-    _validate_release,
-    _validate_targets,
 )
 from harness_ui_evidence import (
     _validate_ui_evidence,
@@ -166,18 +143,6 @@ def _validate_global_verifier_ids(errors: list[str], plan: dict[str, Any]) -> No
                     f"{mission_path}.tasks[{task_index}].verifiers[{index}]",
                     verifier,
                 )
-    release = plan.get("release")
-    if isinstance(release, dict):
-        for target_index, target in enumerate(release.get("targets", [])):
-            if not isinstance(target, dict):
-                continue
-            target_path = f"plan.release.targets[{target_index}]"
-            commands = target.get("commands")
-            if isinstance(commands, dict):
-                for command_name, verifier in commands.items():
-                    register(f"{target_path}.commands.{command_name}", verifier)
-            for index, verifier in enumerate(target.get("smoke_verifiers", [])):
-                register(f"{target_path}.smoke_verifiers[{index}]", verifier)
 
 
 def _is_product_staging_location(value: Any) -> bool:
@@ -213,10 +178,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
     if schema_version in {4, 5}:
         top_keys.update({"graph", "required_reviews"})
-    optional_keys = {"release"} if schema_version in {3, 4, 5} else set()
-    if schema_version == 5:
-        optional_keys.add("action_target_contract")
-    if not _keys(errors, "plan", plan, top_keys, optional_keys):
+    if not _keys(errors, "plan", plan, top_keys):
         return sorted(errors)
     if plan["schema_version"] not in {2, 3, 4, 5}:
         _add(errors, "plan.schema_version", "must equal 2, 3, 4, or 5")
@@ -228,16 +190,6 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         _add(errors, "plan.objective", "must be a non-empty string")
     if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
         _add(errors, "plan.max_parallel_workers", "must be a positive integer")
-    if (
-        "action_target_contract" in plan
-        and plan["action_target_contract"] != ACTION_TARGET_CONTRACT
-    ):
-        _add(
-            errors,
-            "plan.action_target_contract",
-            f"must equal {ACTION_TARGET_CONTRACT!r}",
-        )
-
     required_reviews: list[str] = []
     if schema_version in {4, 5}:
         required_reviews = _strings(
@@ -443,13 +395,6 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                         _add(errors, f"plan.{group}[{index}].id", "must be unique")
                     ids.add(verifier["id"])
                     declared_verifier_ids.add(verifier["id"])
-
-    if plan["schema_version"] in {3, 4, 5} and "release" in plan:
-        _validate_release(
-            errors,
-            plan["release"],
-            schema_version=plan["schema_version"],
-        )
 
     missions: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["missions"], list) or not plan["missions"]:
@@ -776,9 +721,6 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             missions,
             declared_verifier_ids,
             require_bounded_review_repair=plan["schema_version"] == 5,
-            enforce_action_target_kinds=(
-                plan.get("action_target_contract") == ACTION_TARGET_CONTRACT
-            ),
         )
         declared_reviews = {
             node.get("review", {}).get("type")
@@ -803,798 +745,91 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
 def _validate_landing(
     errors: list[str],
     value: Any,
-    schema_version: int,
     *,
-    integration_branch: Any = None,
     integration_head_sha: Any = None,
     push_authorized: bool = True,
-    legacy_completed_unmarked: bool = False,
-    legacy_pre_branch_protection_contract: bool = False,
 ) -> None:
+    """Validate the two states an ordinary run can end in.
+
+    A run either kept everything local, or published its verified integration
+    head to its own branch. Landing that branch on the default branch is the
+    user's own step and leaves no state here.
+    """
     path = "run.landing"
-    keys = {
-        "mode",
-        "remote",
-        "head_branch",
-        "base_branch",
-        "pushed_head_sha",
-        "pr_number",
-        "pr_url",
-        "pr_state",
-        "pr_head_sha",
-        "checks_status",
-        "checks_head_sha",
-        "review_status",
-        "review_head_sha",
-        "blocking_findings",
-        "unresolved_threads",
-        "merge_status",
-        "merged_sha",
-    }
-    if schema_version >= 4:
-        keys.update({"auto_merge_requested", "auto_merge_head_sha"})
-    if schema_version == 10:
-        keys.add("continuity")
-    optional_keys = (
-        {
-            "base_branch_protection",
-            "integration_branch_protection",
-            "external_merge_observation",
-        }
-        if schema_version == 10
-        else set()
-    )
-    if not _keys(errors, path, value, keys, optional_keys):
+    if not _keys(errors, path, value, {"mode", "remote", "pushed_head_sha", "continuity"}):
         return
 
-    landing_modes = {"local_only", "integration_push", "pull_request"}
-    if schema_version == 10:
-        landing_modes.add("integration_pull_request")
-    if value["mode"] not in landing_modes:
-        _add(
-            errors,
-            f"{path}.mode",
-            "must be local_only, integration_push, pull_request"
-            + (", or integration_pull_request" if schema_version == 10 else ""),
-        )
-    for key in ("remote", "head_branch", "base_branch", "pr_url"):
-        _optional_string(errors, f"{path}.{key}", value[key])
-    for key in (
-        "pushed_head_sha",
-        "pr_head_sha",
-        "checks_head_sha",
-        "review_head_sha",
-        "merged_sha",
-    ):
-        _optional_sha(errors, f"{path}.{key}", value[key])
-    if schema_version >= 4:
-        if not isinstance(value["auto_merge_requested"], bool):
-            _add(errors, f"{path}.auto_merge_requested", "must be boolean")
-        _optional_sha(errors, f"{path}.auto_merge_head_sha", value["auto_merge_head_sha"])
-    _optional_nonnegative_int(errors, f"{path}.blocking_findings", value["blocking_findings"])
-    _optional_nonnegative_int(errors, f"{path}.unresolved_threads", value["unresolved_threads"])
+    if value["mode"] not in {"local_only", "integration_push"}:
+        _add(errors, f"{path}.mode", "must be local_only or integration_push")
+    _optional_string(errors, f"{path}.remote", value["remote"])
+    _optional_sha(errors, f"{path}.pushed_head_sha", value["pushed_head_sha"])
 
-    if value["pr_number"] is not None and (
-        not _is_int(value["pr_number"]) or value["pr_number"] < 1
-    ):
-        _add(errors, f"{path}.pr_number", "must be null or a positive integer")
-    if value["pr_state"] not in {"not_created", "draft", "open", "closed", "merged"}:
-        _add(errors, f"{path}.pr_state", "has an unsupported value")
-    if value["checks_status"] not in {"not_started", "pending", "PASS", "FAIL", "BLOCKED"}:
-        _add(errors, f"{path}.checks_status", "has an unsupported value")
-    if value["review_status"] not in {
-        "not_requested",
-        "pending",
-        "PASS",
-        "CHANGES_REQUESTED",
-        "BLOCKED",
-    }:
-        _add(errors, f"{path}.review_status", "has an unsupported value")
-    if value["merge_status"] not in {"not_ready", "ready", "merged", "closed_unmerged"}:
-        _add(errors, f"{path}.merge_status", "has an unsupported value")
-
-    if (
-        _nonempty_string(value["head_branch"])
-        and _nonempty_string(value["base_branch"])
-        and value["head_branch"] == value["base_branch"]
-    ):
-        _add(errors, path, "head_branch and base_branch must differ")
-
-    created_states = {"draft", "open", "closed", "merged"}
-    if value["pr_state"] in created_states:
-        required_created = (
-            "remote",
-            "head_branch",
-            "base_branch",
-            "pushed_head_sha",
-            "pr_number",
-            "pr_url",
-            "pr_head_sha",
-        )
-        if any(value[key] is None for key in required_created):
-            _add(errors, path, "created PR state is missing remote, branch, URL, number, or head data")
-        if value["pr_head_sha"] != value["pushed_head_sha"]:
-            _add(errors, path, "pr_head_sha must match pushed_head_sha")
-    elif value["pr_state"] == "not_created":
-        if any(value[key] is not None for key in ("pr_number", "pr_url", "pr_head_sha")):
-            _add(errors, path, "not_created PR must not record number, URL, or PR head")
-
-    if value["mode"] in {"local_only", "integration_push"} and value["pr_state"] != "not_created":
-        _add(errors, path, f"{value['mode']} mode cannot record a created PR")
     if value["mode"] == "local_only" and value["pushed_head_sha"] is not None:
         _add(errors, path, "local_only mode cannot record a pushed head")
-    # integration_push is the ordinary path: the integration branch is pushed so
-    # its watching deployment target can build, and no PR exists yet. The pushed
-    # head must be the current integration head, or a later local integration
-    # would leave the run claiming a head the remote never received.
+    # integration_push is the ordinary end state. The pushed head must be the
+    # current integration head, or a later local commit would leave the run
+    # claiming a head the remote never received.
     if value["mode"] == "integration_push":
         if value["pushed_head_sha"] is None:
             _add(errors, path, "integration_push mode requires the pushed integration head")
-        elif is_full_sha(integration_head_sha) and value["pushed_head_sha"] != integration_head_sha:
+        elif (
+            is_full_sha(integration_head_sha)
+            and value["pushed_head_sha"] != integration_head_sha
+        ):
             _add(
                 errors,
                 f"{path}.pushed_head_sha",
                 "must equal integration.integration_head_sha",
             )
-        if not push_authorized and not legacy_pre_branch_protection_contract:
+        if not push_authorized:
             _add(
                 errors,
                 path,
                 "integration_push mode requires an authorized push covering the integration branch",
             )
-    if schema_version == 10:
-        merge_observation = value.get("external_merge_observation")
-        if merge_observation is not None and _keys(
-            errors,
-            f"{path}.external_merge_observation",
-            merge_observation,
-            {
-                "kind",
-                "actor",
-                "event_ref",
-                "pr_url",
-                "pr_head_sha",
-                "merged_sha",
-            },
-        ):
-            if merge_observation["kind"] != "external_human":
+
+    # The run branch has to survive the run: it is what the user reads and lands.
+    continuity = value["continuity"]
+    if continuity is not None and _keys(
+        errors,
+        f"{path}.continuity",
+        continuity,
+        {"status", "branch_ref", "head_sha", "reason"},
+    ):
+        if continuity["status"] not in {"planned", "preserved", "blocked"}:
+            _add(
+                errors,
+                f"{path}.continuity.status",
+                "must be planned, preserved, or blocked",
+            )
+        _optional_string(errors, f"{path}.continuity.branch_ref", continuity["branch_ref"])
+        _optional_sha(errors, f"{path}.continuity.head_sha", continuity["head_sha"])
+        _optional_string(errors, f"{path}.continuity.reason", continuity["reason"])
+        if continuity["status"] in {"planned", "preserved"}:
+            if not _nonempty_string(continuity["branch_ref"]):
                 _add(
                     errors,
-                    f"{path}.external_merge_observation.kind",
-                    "must be external_human",
+                    f"{path}.continuity.branch_ref",
+                    "is required for planned or preserved continuity",
                 )
-            for key in ("actor", "event_ref", "pr_url"):
-                if not _nonempty_string(merge_observation[key]):
-                    _add(
-                        errors,
-                        f"{path}.external_merge_observation.{key}",
-                        "must be a non-empty retained merge value",
-                    )
-            for key in ("pr_head_sha", "merged_sha"):
-                if not is_full_sha(merge_observation[key]):
-                    _add(
-                        errors,
-                        f"{path}.external_merge_observation.{key}",
-                        "must be a full commit SHA",
-                    )
-            exact_bindings = {
-                "pr_url": value["pr_url"],
-                "pr_head_sha": value["pr_head_sha"],
-                "merged_sha": value["merged_sha"],
-            }
-            for key, expected in exact_bindings.items():
-                if merge_observation[key] != expected:
-                    _add(
-                        errors,
-                        f"{path}.external_merge_observation.{key}",
-                        f"must match landing.{key}",
-                    )
-            if (
-                value["pr_state"] != "merged"
-                or value["merge_status"] != "merged"
-                or value["auto_merge_requested"] is not False
-            ):
+            elif not continuity["branch_ref"].startswith("refs/heads/"):
                 _add(
                     errors,
-                    f"{path}.external_merge_observation",
-                    "is only allowed for an externally observed merged PR",
-                )
-        protection = value.get("base_branch_protection")
-        valid_unprotected_protection = (
-            isinstance(protection, dict)
-            and _nonempty_string(protection.get("branch_ref"))
-            and str(protection.get("branch_ref")).startswith("refs/heads/")
-            and _normalized_branch(protection.get("branch_ref"))
-            == _normalized_branch(value["base_branch"])
-            and protection.get("status") == "unprotected"
-            and _nonempty_string(protection.get("source"))
-        )
-        if protection is not None and _keys(
-            errors,
-            f"{path}.base_branch_protection",
-            protection,
-            {"branch_ref", "status", "source"},
-        ):
-            if not _nonempty_string(protection["branch_ref"]) or not str(
-                protection["branch_ref"]
-            ).startswith("refs/heads/"):
-                _add(
-                    errors,
-                    f"{path}.base_branch_protection.branch_ref",
+                    f"{path}.continuity.branch_ref",
                     "must be a full local branch ref",
                 )
-            if (
-                not _nonempty_string(protection["source"])
-                or (
-                    not legacy_completed_unmarked
-                    and not str(protection["source"]).startswith("repository:")
-                )
-            ):
-                _add(
-                    errors,
-                    f"{path}.base_branch_protection.source",
-                    "must be a repository: policy source",
-                )
-            if protection["status"] not in {"protected", "unprotected"}:
-                _add(
-                    errors,
-                    f"{path}.base_branch_protection.status",
-                    "must be protected or unprotected",
-                )
-            normalized_protection_branch = _normalized_branch(
-                protection["branch_ref"]
-            )
-            if normalized_protection_branch != _normalized_branch(
-                value["base_branch"]
-            ):
-                _add(
-                    errors,
-                    f"{path}.base_branch_protection.branch_ref",
-                    "must match landing.base_branch",
-                )
-            if value["mode"] == "integration_pull_request" and (
-                protection["status"] != "unprotected"
-            ):
-                _add(
-                    errors,
-                    f"{path}.base_branch_protection.status",
-                    "integration_pull_request requires an unprotected base",
-                )
-            if value["mode"] == "pull_request" and (
-                protection["status"] != "protected"
-            ):
-                _add(
-                    errors,
-                    f"{path}.base_branch_protection.status",
-                    "pull_request requires a protected base",
-                )
-        integration_protection = value.get("integration_branch_protection")
-        if (
-            value["mode"] in {"local_only", "integration_push", "pull_request"}
-            and "integration_branch_protection" not in value
-            and not legacy_pre_branch_protection_contract
-            and not legacy_completed_unmarked
-        ):
+        if continuity["status"] == "preserved" and not is_full_sha(continuity["head_sha"]):
             _add(
                 errors,
-                f"{path}.integration_branch_protection",
-                "is required by the current branch-protection contract",
+                f"{path}.continuity.head_sha",
+                "is required when continuity is preserved",
             )
-        if integration_protection is not None and _keys(
-            errors,
-            f"{path}.integration_branch_protection",
-            integration_protection,
-            {"branch_ref", "status", "source"},
-        ):
-            if not _nonempty_string(
-                integration_protection["branch_ref"]
-            ) or not str(integration_protection["branch_ref"]).startswith(
-                "refs/heads/"
-            ):
-                _add(
-                    errors,
-                    f"{path}.integration_branch_protection.branch_ref",
-                    "must be a full local branch ref",
-                )
-            if (
-                not _nonempty_string(integration_protection["source"])
-                or not str(integration_protection["source"]).startswith(
-                    "repository:"
-                )
-            ):
-                _add(
-                    errors,
-                    f"{path}.integration_branch_protection.source",
-                    "must be a repository: policy source",
-                )
-            if integration_protection["status"] not in {
-                "protected",
-                "unprotected",
-            }:
-                _add(
-                    errors,
-                    f"{path}.integration_branch_protection.status",
-                    "must be protected or unprotected",
-                )
-            if _normalized_branch(
-                integration_protection["branch_ref"]
-            ) != _normalized_branch(integration_branch):
-                _add(
-                    errors,
-                    f"{path}.integration_branch_protection.branch_ref",
-                    "must match integration.branch",
-                )
-            if value["mode"] == "integration_pull_request":
-                _add(
-                    errors,
-                    f"{path}.integration_branch_protection",
-                    "integration_pull_request records this evidence as base_branch_protection",
-                )
-        if (
-            value["mode"] == "integration_pull_request"
-            and value["auto_merge_requested"] is True
-            and not legacy_completed_unmarked
-            and not valid_unprotected_protection
-        ):
+        if continuity["status"] == "blocked" and not _nonempty_string(continuity["reason"]):
             _add(
                 errors,
-                f"{path}.auto_merge_requested",
-                "integration_pull_request auto-merge requires exact repository "
-                "evidence that the base branch is unprotected",
+                f"{path}.continuity.reason",
+                "is required when continuity is blocked",
             )
-        continuity = value["continuity"]
-        if continuity is not None and _keys(
-            errors,
-            f"{path}.continuity",
-            continuity,
-            {"status", "branch_ref", "head_sha", "reason"},
-        ):
-            if continuity["status"] not in {"planned", "preserved", "blocked", "not_required"}:
-                _add(errors, f"{path}.continuity.status", "has an unsupported value")
-            _optional_string(errors, f"{path}.continuity.branch_ref", continuity["branch_ref"])
-            _optional_sha(errors, f"{path}.continuity.head_sha", continuity["head_sha"])
-            _optional_string(errors, f"{path}.continuity.reason", continuity["reason"])
-            if continuity["status"] in {"planned", "preserved"}:
-                if not _nonempty_string(continuity["branch_ref"]):
-                    _add(errors, f"{path}.continuity.branch_ref", "is required for planned or preserved continuity")
-                elif not continuity["branch_ref"].startswith("refs/heads/"):
-                    _add(errors, f"{path}.continuity.branch_ref", "must be a full local branch ref")
-            if continuity["status"] == "preserved" and not is_full_sha(continuity["head_sha"]):
-                _add(errors, f"{path}.continuity.head_sha", "is required when continuity is preserved")
-            if continuity["status"] == "blocked" and not _nonempty_string(continuity["reason"]):
-                _add(errors, f"{path}.continuity.reason", "is required when continuity is blocked")
-            if value["mode"] == "pull_request" and continuity["status"] != "not_required":
-                _add(errors, f"{path}.continuity.status", "pull_request mode requires not_required")
-            if value["mode"] in {
-                "local_only",
-                "integration_push",
-                "integration_pull_request",
-            } and continuity["status"] == "not_required":
-                _add(errors, f"{path}.continuity.status", f"{value['mode']} mode requires a later-PR continuity path")
-    if value["checks_status"] == "PASS" and (
-        value["pr_state"] not in created_states
-        or value["checks_head_sha"] is None
-        or value["checks_head_sha"] != value["pr_head_sha"]
-    ):
-        _add(errors, path, "PASS checks must bind to a created PR's current head")
-    if value["review_status"] == "PASS":
-        if (
-            value["pr_state"] not in created_states
-            or value["review_head_sha"] is None
-            or value["review_head_sha"] != value["pr_head_sha"]
-        ):
-            _add(errors, path, "PASS review must bind to a created PR's current head")
-        if value["blocking_findings"] != 0 or value["unresolved_threads"] != 0:
-            _add(errors, path, "PASS review requires zero blocking findings and unresolved threads")
-    if value["merge_status"] in {"ready", "merged"} and (
-        value["pr_state"] != ("open" if value["merge_status"] == "ready" else "merged")
-        or value["checks_status"] != "PASS"
-        or value["review_status"] != "PASS"
-        or value["checks_head_sha"] != value["pr_head_sha"]
-        or value["review_head_sha"] != value["pr_head_sha"]
-    ):
-        _add(
-            errors,
-            path,
-            f"{value['merge_status']} status requires the matching PR state with current-head PASS checks and review",
-        )
-    if value["merge_status"] == "merged" and (
-        value["pr_state"] != "merged" or value["merged_sha"] is None
-    ):
-        _add(errors, path, "merged status requires a merged PR and merged_sha")
-    if value["pr_state"] == "merged" and value["merge_status"] != "merged":
-        _add(errors, path, "merged PR requires merge_status merged")
-    if value["merge_status"] == "closed_unmerged" and value["pr_state"] != "closed":
-        _add(errors, path, "closed_unmerged requires a closed PR")
-    if value["pr_state"] == "closed" and value["merge_status"] != "closed_unmerged":
-        _add(errors, path, "closed PR requires merge_status closed_unmerged")
-    if value["merge_status"] != "merged" and value["merged_sha"] is not None:
-        _add(errors, path, "only merged status may record merged_sha")
-    if schema_version >= 4:
-        if value["auto_merge_requested"]:
-            if (
-                value["mode"] not in {"pull_request", "integration_pull_request"}
-                or value["merge_status"] not in {"ready", "merged"}
-                or value["auto_merge_head_sha"] is None
-                or value["auto_merge_head_sha"] != value["pr_head_sha"]
-            ):
-                _add(
-                    errors,
-                    path,
-                    "auto_merge_requested requires a ready or merged current-head PR",
-                )
-        elif value["auto_merge_head_sha"] is not None:
-            _add(
-                errors,
-                f"{path}.auto_merge_head_sha",
-                "must be null when auto_merge_requested is false",
-            )
-
-
-def _validate_post_merge_cleanup(
-    errors: list[str], value: Any, run: dict[str, Any]
-) -> None:
-    path = "run.post_merge_cleanup"
-    if not _keys(
-        errors,
-        path,
-        value,
-        {"status", "base", "worktree", "local_branch", "evidence", "deferred_reason"},
-    ):
-        return
-
-    status = value["status"]
-    if status not in CLEANUP_STATUSES:
-        _add(errors, f"{path}.status", "has an unsupported value")
-
-    base = value["base"]
-    if _keys(
-        errors,
-        f"{path}.base",
-        base,
-        {"branch", "head_sha", "merged_sha_reachable"},
-    ):
-        _optional_string(errors, f"{path}.base.branch", base["branch"])
-        _optional_sha(errors, f"{path}.base.head_sha", base["head_sha"])
-        if base["merged_sha_reachable"] is not None and not isinstance(
-            base["merged_sha_reachable"], bool
-        ):
-            _add(
-                errors,
-                f"{path}.base.merged_sha_reachable",
-                "must be null or boolean",
-            )
-
-    worktree = value["worktree"]
-    if _keys(
-        errors,
-        f"{path}.worktree",
-        worktree,
-        {"path", "branch_ref", "head_sha", "dirty", "managed_by", "status"},
-    ):
-        _optional_string(errors, f"{path}.worktree.path", worktree["path"])
-        _optional_string(errors, f"{path}.worktree.branch_ref", worktree["branch_ref"])
-        _optional_sha(errors, f"{path}.worktree.head_sha", worktree["head_sha"])
-        if worktree["dirty"] is not None and not isinstance(worktree["dirty"], bool):
-            _add(errors, f"{path}.worktree.dirty", "must be null or boolean")
-        if worktree["managed_by"] not in {None, "parent", "app"}:
-            _add(errors, f"{path}.worktree.managed_by", "must be null, parent, or app")
-        if worktree["status"] not in CLEANUP_WORKTREE_STATUSES:
-            _add(errors, f"{path}.worktree.status", "has an unsupported value")
-
-    local_branch = value["local_branch"]
-    if _keys(
-        errors,
-        f"{path}.local_branch",
-        local_branch,
-        {"ref", "head_sha", "status"},
-    ):
-        _optional_string(errors, f"{path}.local_branch.ref", local_branch["ref"])
-        _optional_sha(errors, f"{path}.local_branch.head_sha", local_branch["head_sha"])
-        if local_branch["status"] not in CLEANUP_BRANCH_STATUSES:
-            _add(errors, f"{path}.local_branch.status", "has an unsupported value")
-        integration = run.get("integration")
-        if (
-            isinstance(integration, dict)
-            and integration.get("retention") == "persistent"
-            and run.get("landing", {}).get("mode") != "integration_pull_request"
-            and local_branch["status"] == "deleted"
-        ):
-            _add(
-                errors,
-                f"{path}.local_branch.status",
-                "must not be deleted when run.integration.retention is persistent",
-            )
-
-    evidence = _strings(errors, f"{path}.evidence", value["evidence"])
-    _optional_string(errors, f"{path}.deferred_reason", value["deferred_reason"])
-
-    if not all(isinstance(item, dict) for item in (base, worktree, local_branch)):
-        return
-
-    landing = run.get("landing")
-    if not isinstance(landing, dict):
-        return
-
-    expected_branch_ref = _branch_ref(landing.get("head_branch"))
-    observed = run.get("observed")
-    observed_git = observed.get("git") if isinstance(observed, dict) else None
-    parent_worktree_path = (
-        observed_git.get("parent_worktree_path")
-        if isinstance(observed_git, dict)
-        else None
-    )
-    observed_worktrees = (
-        observed_git.get("worktrees", [])
-        if isinstance(observed_git, dict)
-        and isinstance(observed_git.get("worktrees", []), list)
-        else []
-    )
-
-    worktree_status = worktree.get("status")
-    worktree_manager = worktree.get("managed_by")
-    if worktree_status in {"pending", "removed"} and worktree_manager != "parent":
-        _add(
-            errors,
-            f"{path}.worktree.managed_by",
-            "manual cleanup worktrees must be parent-managed",
-        )
-    if worktree_status == "platform_managed" and worktree_manager != "app":
-        _add(
-            errors,
-            f"{path}.worktree.managed_by",
-            "platform-managed worktrees must be app-managed",
-        )
-    if worktree_status == "not_applicable" and worktree_manager is not None:
-        _add(
-            errors,
-            f"{path}.worktree.managed_by",
-            "must be null when no linked worktree applies",
-        )
-    if (
-        run.get("status") == "complete"
-        and landing.get("mode") in {"pull_request", "integration_pull_request"}
-        and status in {"not_started", "ready"}
-    ):
-        _add(errors, path, "a completed pull-request run must complete or defer cleanup")
-
-    if status == "not_applicable":
-        if run.get("status") == "complete":
-            if not isinstance(observed, dict) or not _nonempty_string(
-                observed.get("captured_at")
-            ):
-                _add(
-                    errors,
-                    "run.observed.captured_at",
-                    "is required for terminal not-applicable cleanup",
-                )
-            if not _nonempty_string(parent_worktree_path):
-                _add(
-                    errors,
-                    "run.observed.git.parent_worktree_path",
-                    "is required for terminal not-applicable cleanup",
-                )
-            if any(
-                isinstance(item, dict)
-                and item.get("path") != parent_worktree_path
-                and item.get("branch_ref") == expected_branch_ref
-                for item in observed_worktrees
-            ):
-                _add(
-                    errors,
-                    f"{path}.worktree.status",
-                    "not_applicable requires no matching linked worktree in the current observation",
-                )
-        if landing.get("mode") in {
-            "pull_request",
-            "integration_pull_request",
-        } and landing.get("pr_state") not in {
-            "closed",
-            "not_created",
-        }:
-            _add(
-                errors,
-                path,
-                "not_applicable is valid only before PR creation, after an unmerged close, or in local-only mode",
-            )
-        return
-
-    if status == "not_started":
-        if value["deferred_reason"] is not None:
-            _add(errors, f"{path}.deferred_reason", "must be null unless cleanup is deferred")
-        return
-
-    if status == "deferred":
-        if not _nonempty_string(value["deferred_reason"]):
-            _add(errors, f"{path}.deferred_reason", "is required when cleanup is deferred")
-        return
-
-    if value["deferred_reason"] is not None:
-        _add(errors, f"{path}.deferred_reason", "must be null unless cleanup is deferred")
-
-    if landing.get("merge_status") != "merged" or landing.get("pr_state") != "merged":
-        _add(errors, path, "ready or complete cleanup requires a merged pull request")
-
-    base_branch = landing.get("base_branch")
-    if base.get("branch") != base_branch:
-        _add(errors, f"{path}.base.branch", "must match landing.base_branch")
-    if base.get("head_sha") is None:
-        _add(errors, f"{path}.base.head_sha", "is required for cleanup")
-    if base.get("merged_sha_reachable") is not True:
-        _add(
-            errors,
-            f"{path}.base.merged_sha_reachable",
-            "must be true after observing the merged SHA on the base branch",
-        )
-    if local_branch.get("ref") != expected_branch_ref:
-        _add(errors, f"{path}.local_branch.ref", "must match the merged PR head branch")
-    if local_branch.get("head_sha") != landing.get("pr_head_sha"):
-        _add(errors, f"{path}.local_branch.head_sha", "must match the merged PR head SHA")
-
-    if not isinstance(observed, dict) or not _nonempty_string(observed.get("captured_at")):
-        _add(errors, "run.observed.captured_at", "is required before cleanup")
-    if not isinstance(observed_git, dict) or observed_git.get("parent_dirty") is not False:
-        _add(errors, "run.observed.git.parent_dirty", "must be false before cleanup")
-    if not _nonempty_string(parent_worktree_path):
-        _add(errors, "run.observed.git.parent_worktree_path", "is required before cleanup")
-    parent_branch_ref = _branch_ref(
-        observed_git.get("parent_branch") if isinstance(observed_git, dict) else None
-    )
-    if (
-        parent_branch_ref == local_branch.get("ref")
-        and isinstance(observed_git, dict)
-        and observed_git.get("parent_head_sha") != landing.get("pr_head_sha")
-    ):
-        _add(
-            errors,
-            "run.observed.git.parent_head_sha",
-            "must match the merged PR head while the primary checkout is on the cleanup branch",
-        )
-
-    mission_states = run.get("mission_states")
-    if not isinstance(mission_states, dict) or not mission_states or any(
-        not isinstance(state, dict)
-        or state.get("phase") not in {"integrated", "superseded"}
-        for state in mission_states.values()
-    ):
-        _add(
-            errors,
-            path,
-            "cleanup requires every run mission to be integrated or superseded",
-        )
-        mission_ids: list[str] = []
-    else:
-        mission_ids = list(mission_states)
-
-    branch_target = (
-        f"branch:{local_branch['ref']}"
-        if _nonempty_string(local_branch.get("ref"))
-        else None
-    )
-    preserve_expiry = status == "complete"
-    if branch_target is None or any(
-        not authorization_covers(
-            run,
-            "delete_branches",
-            mission_id,
-            branch_target,
-            preserve_completed_run_expiry=preserve_expiry,
-        )
-        for mission_id in mission_ids
-    ):
-        _add(
-            errors,
-            path,
-            "cleanup requires matching delete_branches authorization for the exact local branch",
-        )
-
-    if worktree_status in {"pending", "removed"}:
-        required_worktree = ("path", "branch_ref", "head_sha", "dirty")
-        if any(worktree.get(key) is None for key in required_worktree):
-            _add(errors, f"{path}.worktree", "manual cleanup requires path, branch, head, and dirty state")
-        if worktree.get("branch_ref") != local_branch.get("ref"):
-            _add(errors, f"{path}.worktree.branch_ref", "must match the local cleanup branch")
-        if worktree.get("head_sha") != landing.get("pr_head_sha"):
-            _add(errors, f"{path}.worktree.head_sha", "must match the merged PR head SHA")
-        if worktree.get("dirty") is not False:
-            _add(errors, f"{path}.worktree.dirty", "must be false before removal")
-        if worktree.get("path") == parent_worktree_path:
-            _add(errors, f"{path}.worktree.path", "must not target the primary checkout")
-        worktree_target = (
-            f"worktree:{worktree['path']}"
-            if _nonempty_string(worktree.get("path"))
-            else None
-        )
-        if worktree_target is None or any(
-            not authorization_covers(
-                run,
-                "remove_worktrees",
-                mission_id,
-                worktree_target,
-                preserve_completed_run_expiry=preserve_expiry,
-            )
-            for mission_id in mission_ids
-        ):
-            _add(
-                errors,
-                path,
-                "cleanup requires matching remove_worktrees authorization for the exact path",
-            )
-
-        matching_worktrees = [
-            item
-            for item in observed_worktrees
-            if isinstance(item, dict) and item.get("path") == worktree.get("path")
-        ]
-        if status == "ready" and not any(
-            item.get("branch_ref") == worktree.get("branch_ref")
-            and item.get("head_sha") == worktree.get("head_sha")
-            and item.get("managed_by") == "parent"
-            and item.get("dirty") is False
-            for item in matching_worktrees
-        ):
-            _add(
-                errors,
-                f"{path}.worktree",
-                "ready cleanup must match an observed clean parent-managed worktree",
-            )
-        if status == "complete" and matching_worktrees:
-            _add(errors, f"{path}.worktree", "removed worktree must be absent from the refreshed observation")
-    elif any(
-        worktree.get(key) is not None for key in ("path", "branch_ref", "head_sha", "dirty")
-    ):
-        _add(
-            errors,
-            f"{path}.worktree",
-            "non-manual worktree status must not record manual cleanup fields",
-        )
-
-    matching_linked_worktrees = [
-        item
-        for item in observed_worktrees
-        if isinstance(item, dict)
-        and item.get("path") != parent_worktree_path
-        and item.get("branch_ref") == local_branch.get("ref")
-    ]
-    if (
-        status in {"ready", "complete"}
-        and worktree_status == "not_applicable"
-        and matching_linked_worktrees
-    ):
-        _add(
-            errors,
-            f"{path}.worktree.status",
-            "not_applicable requires no matching linked worktree in the current observation",
-        )
-
-    if status == "ready":
-        if local_branch.get("status") != "pending":
-            _add(errors, f"{path}.local_branch.status", "must be pending when cleanup is ready")
-        if worktree_status not in {"pending", "not_applicable"}:
-            _add(errors, f"{path}.worktree.status", "must be pending or not_applicable when cleanup is ready")
-    elif status == "complete":
-        integration = run.get("integration")
-        retained = (
-            isinstance(integration, dict)
-            and integration.get("retention") == "persistent"
-            and landing.get("mode") != "integration_pull_request"
-        )
-        required_branch_status = "preserved" if retained else "deleted"
-        if local_branch.get("status") != required_branch_status:
-            _add(
-                errors,
-                f"{path}.local_branch.status",
-                f"must be {required_branch_status} when cleanup is complete",
-            )
-        if worktree_status not in {"removed", "not_applicable"}:
-            _add(errors, f"{path}.worktree.status", "must be removed or not_applicable when cleanup is complete")
-        if not evidence:
-            _add(errors, f"{path}.evidence", "must record cleanup verification evidence")
-        if isinstance(observed_git, dict):
-            if _normalized_branch(observed_git.get("parent_branch")) != base_branch:
-                _add(errors, "run.observed.git.parent_branch", "must be the base branch after cleanup")
-            if observed_git.get("parent_head_sha") != base.get("head_sha"):
-                _add(errors, "run.observed.git.parent_head_sha", "must match the observed base head after cleanup")
 
 
 def _validate_gate_results(
@@ -1888,24 +1123,6 @@ def _validate_verifier_executions(
         for verifier in plan.get(plan_key, []):
             if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
                 verifier_owners[verifier["id"]] = (layer, None, None, verifier)
-    release = plan.get("release")
-    if isinstance(release, dict):
-        for target in release.get("targets", []):
-            if not isinstance(target, dict):
-                continue
-            commands = target.get("commands")
-            if isinstance(commands, dict):
-                for verifier in commands.values():
-                    if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
-                        verifier_owners[verifier["id"]] = ("release", None, None, verifier)
-            for verifier in target.get("smoke_verifiers", []):
-                if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
-                    verifier_owners[verifier["id"]] = (
-                        "release",
-                        None,
-                        None,
-                        verifier,
-                    )
 
     attempt_log = run.get("attempt_log")
     attempt_items = attempt_log if isinstance(attempt_log, list) else []
@@ -1990,7 +1207,7 @@ def _validate_verifier_executions(
                 path,
                 "mission integration execution requires mission_id and null task/attempt/lease IDs",
             )
-        if item["layer"] in {"batch", "final", "release"} and any(
+        if item["layer"] in {"batch", "final"} and any(
             item[key] is not None
             for key in ("mission_id", "task_id", "attempt_id", "lease_id")
         ):
@@ -2472,9 +1689,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "attempt_log",
     }
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
-    plan_declares_release = (
-        plan.get("schema_version") in {3, 4, 5} and "release" in plan
-    )
     graph_run = (
         plan.get("schema_version") == 4 and schema_version in {8, 9}
     ) or (plan.get("schema_version") == 5 and schema_version == 10)
@@ -2482,14 +1696,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         run_keys.update({"graph_state", "review_workers"})
     if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
         run_keys.add("landing")
-    if schema_version in {5, 6, 7, 8, 9, 10}:
-        run_keys.add("post_merge_cleanup")
-    if schema_version in {7, 8, 9} and plan_declares_release:
-        run_keys.add("deployments")
     if schema_version == 10:
         run_keys.add("verifier_executions")
-        if plan_declares_release:
-            run_keys.add("targets")
     if schema_version in {9, 10}:
         run_keys.update({"batch_gate_results", "final_gate_results", "ui_evidence"})
     if schema_version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
@@ -2502,65 +1710,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.schema_version", "schema v8 requires a schema v4 graph PLAN")
     elif schema_version == 10 and plan.get("schema_version") != 5:
         _add(errors, "run.schema_version", "schema v10 requires a schema v5 graph PLAN")
-    elif (
-        plan_declares_release
-        and plan.get("schema_version") == 3
-        and schema_version not in {7, 9}
-    ):
-        _add(
-            errors,
-            "run.schema_version",
-            "must equal 7 or 9 when a schema v3 PLAN declares release",
-        )
-    optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
-    if schema_version == 10:
-        optional_run_keys.update(
-            {
-                "targets",
-                "action_target_contract",
-                "branch_protection_contract",
-                "external_merge_contract",
-            }
-        )
+    optional_run_keys: set[str] = set()
     if graph_run:
         optional_run_keys.add("workflow_runs")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
-    if (
-        "action_target_contract" in run
-        and run["action_target_contract"] != ACTION_TARGET_CONTRACT
-    ):
-        _add(
-            errors,
-            "run.action_target_contract",
-            f"must equal {ACTION_TARGET_CONTRACT!r}",
-        )
-    if run.get("action_target_contract") != plan.get("action_target_contract"):
-        _add(
-            errors,
-            "run.action_target_contract",
-            "must match plan.action_target_contract",
-        )
-    if (
-        "branch_protection_contract" in run
-        and run["branch_protection_contract"] != BRANCH_PROTECTION_CONTRACT
-    ):
-        _add(
-            errors,
-            "run.branch_protection_contract",
-            f"must equal {BRANCH_PROTECTION_CONTRACT!r}",
-        )
-    if (
-        "external_merge_contract" in run
-        and run["external_merge_contract"] != EXTERNAL_MERGE_CONTRACT
-    ):
-        _add(
-            errors,
-            "run.external_merge_contract",
-            f"must equal {EXTERNAL_MERGE_CONTRACT!r}",
-        )
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
         _add(errors, "run.status", "has an unsupported value")
     if run["intent"] not in {
@@ -2594,55 +1750,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 )
     if not isinstance(run["execution_authorized"], bool):
         _add(errors, "run.execution_authorized", "must be boolean")
-    if (
-        run.get("execution_authorized") is True
-        and plan_declares_release
-        and plan.get("schema_version") in {3, 4}
-        and isinstance(run.get("landing"), dict)
-        and run["landing"].get("mode") == "local_only"
-    ):
-        _add(
-            errors,
-            "run.execution_authorized",
-            "cannot authorize execution for a release PLAN in local_only mode: the "
-            "production target requires a merged PR, which local_only never records",
-        )
-    if (
-        plan.get("schema_version") == 5
-        and isinstance(plan.get("release"), dict)
-        and (
-            run.get("plan_readiness") == "ready"
-            or run.get("execution_authorized") is True
-            or run.get("status") in {"running", "complete"}
-        )
-    ):
-        unresolved_targets = sorted(
-            target.get("id", "<unknown>")
-            for target in plan["release"].get("targets", [])
-            if isinstance(target, dict)
-            and (
-                any(
-                    target.get(key) is None
-                    for key in (
-                        "source",
-                        "artifact_kind",
-                        "requires_signing",
-                        "channel",
-                        "trigger",
-                        "migration_classification",
-                    )
-                )
-                or isinstance(target.get("commands"), dict)
-                and target["commands"].get("build") is None
-            )
-        )
-        if unresolved_targets:
-            _add(
-                errors,
-                "run.plan_readiness",
-                "ready or executable RUN has unresolved release semantics: "
-                + ", ".join(unresolved_targets),
-            )
     if (
         run.get("execution_authorized") is True
         and plan.get("schema_version") in {4, 5}
@@ -2743,15 +1850,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if run["plan"]["digest_sha256"] != digest:
             _add(errors, "run.plan.digest_sha256", f"does not match semantic PLAN digest {digest}")
 
-    authorization_keys = (
-        AUTHORIZATION_KEYS_V10
-        if schema_version == 10
-        else AUTHORIZATION_KEYS_V8
-        if schema_version in {8, 9}
-        else AUTHORIZATION_KEYS
-        if schema_version in {3, 4, 5, 6, 7}
-        else AUTHORIZATION_KEYS_V2
-    )
+    authorization_keys = AUTHORIZATION_KEYS
     authorizations = run["authorizations"]
     if not isinstance(authorizations, dict):
         _add(errors, "run.authorizations", "must be an object")
@@ -2770,8 +1869,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             optional_entry_keys = {"scope", "expires_when"}
             if schema_version == 10:
                 optional_entry_keys.add("authorized_head_sha")
-                if action in EXECUTION_INTENT_SCOPED_ACTIONS:
-                    optional_entry_keys.add("target_sources")
             if not _keys(
                 errors,
                 path,
@@ -2795,11 +1892,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         action=True,
                         action_name=action,
                         require_plan_binding=(schema_version == 10),
-                        schema_version=schema_version,
-                        strict_action_targets=(
-                            run.get("action_target_contract")
-                            == ACTION_TARGET_CONTRACT
-                        ),
                     )
                     if isinstance(entry["scope"], dict):
                         action_scope = entry["scope"]
@@ -2837,22 +1929,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.authorized_head_sha",
                         "is only allowed for head-bound remote actions",
                     )
-                # Every active v10 artifact requires per-target provenance before
-                # dispatch. Only completed unmarked v10 history keeps its prior
-                # shape; an explicit marker or target_sources map still opts it in.
-                if (
-                    schema_version == 10
-                    and action in EXECUTION_INTENT_SCOPED_ACTIONS
-                    and (
-                        run.get("status") != "complete"
-                        or run.get("action_target_contract")
-                        == ACTION_TARGET_CONTRACT
-                        or "target_sources" in entry
-                    )
-                ):
-                    validate_target_sources(
-                        errors, path, entry, plan=plan, run=run, action=action
-                    )
             else:
                 if entry["source"] is not None:
                     _add(errors, f"{path}.source", "must be null when unauthorized")
@@ -2860,8 +1936,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
                 if schema_version == 10 and "authorized_head_sha" in entry:
                     _add(errors, f"{path}.authorized_head_sha", "must be omitted when unauthorized")
-                if schema_version == 10 and "target_sources" in entry:
-                    _add(errors, f"{path}.target_sources", "must be omitted when unauthorized")
 
     if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
         raw_integration = run.get("integration")
@@ -2872,7 +1946,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         # A boolean is not enough: an enabled push scoped to an unrelated branch
         # or bound to a stale head must not satisfy the integration_push gate.
-        landing_branch = run["landing"].get("head_branch")
+        # `integration.branch` is the only branch field, so the target this gate
+        # builds and the target the ledger grants can never drift apart.
+        landing_branch = (
+            raw_integration.get("branch") if isinstance(raw_integration, dict) else None
+        )
         push_target = (
             f"branch:{landing_branch}" if _nonempty_string(landing_branch) else "*"
         )
@@ -2901,67 +1979,24 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _validate_landing(
             errors,
             run["landing"],
-            schema_version,
-            integration_branch=(
-                raw_integration.get("branch")
-                if isinstance(raw_integration, dict)
-                else None
-            ),
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
-            legacy_completed_unmarked=is_legacy_completed_unmarked_run(run),
-            legacy_pre_branch_protection_contract=(
-                is_legacy_pre_branch_protection_contract(run)
-            ),
         )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]
         continuity = v10_landing.get("continuity")
-        v10_integration = run.get("integration") if isinstance(run.get("integration"), dict) else {}
-        head_branch = v10_landing.get("head_branch")
-        integration_branch = v10_integration.get("branch")
-        base_branch = v10_landing.get("base_branch")
-        normalized_head = _normalized_branch(head_branch)
-        normalized_integration = _normalized_branch(integration_branch)
-        normalized_base = _normalized_branch(base_branch)
-        if normalized_head is None:
-            _add(errors, "run.landing.head_branch", "is required for PLAN v5 branch continuity")
-        if v10_landing.get("mode") == "integration_pull_request":
-            if normalized_base != normalized_integration:
-                _add(
-                    errors,
-                    "run.landing.base_branch",
-                    "integration_pull_request base must match the retained integration branch",
-                )
-            if normalized_head == normalized_integration:
-                _add(
-                    errors,
-                    "run.landing.head_branch",
-                    "integration_pull_request head must differ from the integration branch",
-                )
-        elif normalized_head != normalized_integration:
-            _add(errors, "run.integration.branch", "must match landing.head_branch for PLAN v5")
-        landing_mode = v10_landing.get("mode")
-        if (
-            landing_mode in {"pull_request", "integration_pull_request"}
-            and v10_landing.get("auto_merge_requested") is True
-            and landing_mode == "pull_request"
-        ):
-            _add(
-                errors,
-                "run.landing.auto_merge_requested",
-                f"{landing_mode} into the resolved protected base cannot use "
-                "auto-merge; a later exact human instruction must initiate that merge",
-            )
-        if normalized_head is not None and normalized_head == normalized_base:
-            _add(errors, "run.landing.head_branch", "must differ from landing.base_branch")
-        expected_branch_ref = _branch_ref(normalized_integration)
+        v10_integration = (
+            run.get("integration") if isinstance(run.get("integration"), dict) else {}
+        )
+        integration_head = v10_integration.get("integration_head_sha")
+        expected_branch_ref = _branch_ref(v10_integration.get("branch"))
         if isinstance(continuity, dict):
             continuity_status = continuity.get("status")
-            continuity_branch = continuity.get("branch_ref")
             continuity_head = continuity.get("head_sha")
-            if continuity_status in {"planned", "preserved", "blocked"} and (
-                continuity_branch != expected_branch_ref
+            if (
+                continuity_status in {"planned", "preserved", "blocked"}
+                and expected_branch_ref is not None
+                and continuity.get("branch_ref") != expected_branch_ref
             ):
                 _add(
                     errors,
@@ -2969,310 +2004,42 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "must equal the exact retained integration branch ref",
                 )
             if continuity_status == "planned" and continuity_head is not None:
-                _add(errors, "run.landing.continuity.head_sha", "must be null while continuity is planned")
-            if continuity_status in {"preserved", "blocked"} and continuity_head is not None and (
-                continuity_head != v10_integration.get("integration_head_sha")
+                _add(
+                    errors,
+                    "run.landing.continuity.head_sha",
+                    "must be null while continuity is planned",
+                )
+            if (
+                continuity_status in {"preserved", "blocked"}
+                and continuity_head is not None
+                and continuity_head != integration_head
             ):
                 _add(
                     errors,
                     "run.landing.continuity.head_sha",
                     "must match the current integration head when recorded",
                 )
-            if continuity_status == "not_required" and any(
-                continuity.get(key) is not None for key in ("branch_ref", "head_sha", "reason")
-            ):
-                _add(
-                    errors,
-                    "run.landing.continuity",
-                    "not_required continuity must not record branch, head, or reason",
-                )
-        if v10_landing.get("mode") in {"local_only", "integration_push"} and (
-            v10_landing.get("checks_status") != "not_started"
-            or v10_landing.get("review_status") != "not_requested"
-            or v10_landing.get("merge_status") != "not_ready"
-            or v10_landing.get("auto_merge_requested") is not False
-            or any(
-                v10_landing.get(key) is not None
-                for key in (
-                    "checks_head_sha",
-                    "review_head_sha",
-                    "blocking_findings",
-                    "unresolved_threads",
-                    "merged_sha",
-                    "auto_merge_head_sha",
-                )
-            )
+        # The run branch is the deliverable: it has to still be there, at the
+        # head the run verified, for the user to read it and land it.
+        if run.get("execution_authorized") is True and (
+            not isinstance(continuity, dict)
+            or continuity.get("status") not in {"planned", "preserved"}
         ):
             _add(
                 errors,
-                "run.landing",
-                f"{v10_landing.get('mode')} mode cannot record PR, CI, review, or merge evidence",
+                "run.landing.continuity",
+                "authorized execution requires planned or preserved integration-branch continuity",
             )
-        if (
-            v10_landing.get("mode") in {
-                "local_only",
-                "integration_push",
-                "integration_pull_request",
-            }
-            and run.get("execution_authorized") is True
-        ):
-            if not isinstance(continuity, dict) or continuity.get("status") not in {"planned", "preserved"}:
-                _add(
-                    errors,
-                    "run.landing.continuity",
-                    "authorized integration execution requires planned or preserved integration-branch continuity",
-                )
-        if v10_landing.get("mode") in {
-            "local_only",
-            "integration_push",
-            "integration_pull_request",
-        } and run.get("status") == "complete":
-            integration_head = v10_integration.get("integration_head_sha")
-            if (
-                not isinstance(continuity, dict)
-                or continuity.get("status") != "preserved"
-                or continuity.get("head_sha") != integration_head
-            ):
-                _add(
-                    errors,
-                    "run.landing.continuity",
-                    "complete integration run requires preserved continuity at the integration head",
-                )
-        if (
-            v10_landing.get("mode") == "integration_pull_request"
-            and v10_landing.get("merge_status") == "merged"
-            and v10_landing.get("merged_sha") != v10_integration.get("integration_head_sha")
+        if run.get("status") == "complete" and (
+            not isinstance(continuity, dict)
+            or continuity.get("status") != "preserved"
+            or continuity.get("head_sha") != integration_head
         ):
             _add(
                 errors,
-                "run.landing.merged_sha",
-                "merged integration_pull_request must become the current integration head",
+                "run.landing.continuity",
+                "complete run requires preserved continuity at the integration head",
             )
-        if (
-            v10_landing.get("mode") == "pull_request"
-            and v10_landing.get("pr_state") in {"draft", "open", "merged"}
-            and (
-                v10_landing.get("checks_status") == "PASS"
-                or v10_landing.get("review_status") == "PASS"
-                or v10_landing.get("merge_status") in {"ready", "merged"}
-                or run.get("status") == "complete"
-            )
-            and v10_landing.get("pr_head_sha") != v10_integration.get("integration_head_sha")
-        ):
-            _add(
-                errors,
-                "run.landing.pr_head_sha",
-                "promotion pull_request CI, review, ready, and final evidence must match the current integration head",
-            )
-    merge_landing = run["landing"] if isinstance(run.get("landing"), dict) else {}
-    merge_pr_url = merge_landing.get("pr_url")
-    merge_mission_states = run.get("mission_states")
-    merge_authorizations = run.get("authorizations", {})
-    raw_merge_entry = (
-        merge_authorizations.get("merge_pr", {})
-        if isinstance(merge_authorizations, dict)
-        else {}
-    )
-    merge_entry = raw_merge_entry if isinstance(raw_merge_entry, dict) else {}
-    merge_scope = merge_entry.get("scope", {})
-    merge_targets = (
-        merge_scope.get("targets", []) if isinstance(merge_scope, dict) else []
-    )
-    exact_pr_target = f"pr:{merge_pr_url}" if _nonempty_string(merge_pr_url) else None
-    pr_head_sha = merge_landing.get("pr_head_sha")
-    merge_authorization_covers_landing = (
-        schema_version == 10
-        and exact_pr_target is not None
-        and is_full_sha(pr_head_sha)
-        and isinstance(merge_mission_states, dict)
-        and bool(merge_mission_states)
-        and all(
-            authorization_covers(
-                run,
-                "merge_pr",
-                mission_id,
-                exact_pr_target,
-                preserve_completed_run_expiry=(
-                    merge_landing.get("merge_status") == "merged"
-                ),
-                required_head_sha=pr_head_sha,
-            )
-            for mission_id in merge_mission_states
-        )
-    )
-    observed_external_human_merge = is_external_human_merge(run)
-    legacy_completed_external_merge = is_legacy_completed_external_merge(run)
-    # Active v10 state may omit merge authorization only with retained external
-    # human actor/event proof. Completed pre-field history remains readable and
-    # cannot dispatch another action.
-    if (
-        schema_version == 10
-        and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
-        and merge_landing.get("merge_status") == "merged"
-        and merge_landing.get("auto_merge_requested") is False
-        and merge_entry.get("authorized") is False
-        and not observed_external_human_merge
-        and not legacy_completed_external_merge
-    ):
-        _add(
-            errors,
-            "run.landing.external_merge_observation",
-            "an unauthorized merged landing requires retained external human "
-            "actor and exact PR/head event evidence",
-        )
-    if (
-        merge_landing.get("external_merge_observation") is not None
-        and merge_entry.get("authorized") is True
-    ):
-        _add(
-            errors,
-            "run.landing.external_merge_observation",
-            "must be omitted when merge_pr was authorized",
-        )
-    # Exact coverage is required when the harness was authorized to perform it.
-    if (
-        schema_version == 10
-        and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
-        and merge_landing.get("merge_status") == "merged"
-        and merge_landing.get("auto_merge_requested") is False
-        and merge_entry.get("authorized") is True
-        and not merge_authorization_covers_landing
-    ):
-        _add(
-            errors,
-            "run.authorizations.merge_pr",
-            "merged pull-request landing requires merge authorization for the "
-            "exact PR, current PR head, and every mission",
-        )
-    if (
-        schema_version in {4, 5, 6, 7, 8, 9, 10}
-        and merge_landing.get("auto_merge_requested") is True
-    ):
-        if (
-            not _nonempty_string(merge_pr_url)
-            or not isinstance(merge_mission_states, dict)
-            or not merge_mission_states
-            or any(
-                not authorization_covers(
-                    run,
-                    "merge_pr",
-                    mission_id,
-                    f"pr:{merge_pr_url}",
-                    preserve_completed_run_expiry=(
-                        run["landing"].get("merge_status") == "merged"
-                    ),
-                )
-                for mission_id in merge_mission_states
-            )
-        ):
-            _add(
-                errors,
-                "run.landing",
-                "auto_merge_requested requires matching merge_pr authorization for the exact PR",
-            )
-        if schema_version == 10:
-            if merge_entry.get("authorized_head_sha") != pr_head_sha:
-                _add(
-                    errors,
-                    "run.authorizations.merge_pr.authorized_head_sha",
-                    "must match the exact current PR head for auto-merge",
-                )
-        future_targets = {
-            target
-            for target in merge_targets
-            if isinstance(target, str) and FUTURE_PR_TARGET_RE.fullmatch(target)
-        }
-        if future_targets and not any(
-            future_pr_target_matches_landing(target, run["landing"])
-            for target in future_targets
-        ):
-            _add(
-                errors,
-                "run.landing",
-                "auto_merge_requested exact PR does not match its authorized future PR binding",
-            )
-    merge_execution_requires_release_grants = (
-        schema_version == 10
-        and merge_landing.get("mode") in {"pull_request", "integration_pull_request"}
-        and merge_landing.get("merge_status") in {"ready", "merged"}
-        and merge_authorization_covers_landing
-    )
-    if merge_execution_requires_release_grants:
-        release = plan.get("release")
-        release_targets = (
-            release.get("targets", []) if isinstance(release, dict) else []
-        )
-        applicable_stage = (
-            "development"
-            if merge_landing.get("mode") == "integration_pull_request"
-            else "production"
-        )
-        merge_triggered_ids = [
-            target.get("id")
-            for target in release_targets
-            if (
-                isinstance(target, dict)
-                and _nonempty_string(target.get("id"))
-                and target.get("trigger") == "merge"
-                and target.get("stage") == applicable_stage
-            )
-        ]
-        missing_consequences = [
-            target_id
-            for target_id in merge_triggered_ids
-            if f"release:{target_id}" not in merge_targets
-        ]
-        if missing_consequences:
-            _add(
-                errors,
-                "run.authorizations.merge_pr.scope.targets",
-                "merge authorization must include its auto-deploy release targets: "
-                + ", ".join(sorted(missing_consequences)),
-            )
-        raw_deploy_entry = (
-            merge_authorizations.get("deploy", {})
-            if isinstance(merge_authorizations, dict)
-            else {}
-        )
-        deploy_entry = raw_deploy_entry if isinstance(raw_deploy_entry, dict) else {}
-        missing_deploy_authorizations = [
-            target_id
-            for target_id in merge_triggered_ids
-            if deploy_entry.get("authorized_head_sha") != pr_head_sha
-            or not isinstance(merge_mission_states, dict)
-            or not merge_mission_states
-            or any(
-                not authorization_covers(
-                    run,
-                    "deploy",
-                    mission_id,
-                    f"release:{target_id}",
-                    preserve_completed_run_expiry=(
-                        merge_landing.get("merge_status") == "merged"
-                    ),
-                )
-                for mission_id in merge_mission_states
-            )
-        ]
-        if missing_deploy_authorizations:
-            execution_kind = (
-                "auto-merge"
-                if merge_landing.get("auto_merge_requested") is True
-                else "direct merge"
-            )
-            _add(
-                errors,
-                "run.authorizations.deploy",
-                f"{execution_kind} requires separate exact deploy authorization "
-                "at the triggering PR head for: "
-                + ", ".join(sorted(missing_deploy_authorizations)),
-            )
-    if schema_version in {5, 6, 7, 8, 9, 10}:
-        _validate_post_merge_cleanup(errors, run["post_merge_cleanup"], run)
-    if schema_version in {7, 8, 9} and "deployments" in run:
-        _validate_deployments(errors, run["deployments"], run, plan)
-    if schema_version == 10 and "targets" in run:
-        _validate_targets(errors, run["targets"], run, plan)
 
     runtime_keys = {
         "worker_runtime",
@@ -3602,35 +2369,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         retention = integration.get("retention")
         if retention is not None and retention not in {"persistent", "ephemeral"}:
             _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
-        if (
-            schema_version in {3, 4, 5, 6, 7, 8, 9}
-            and isinstance(run["landing"], dict)
-            and run["landing"].get("mode") == "pull_request"
-            and _nonempty_string(run["landing"].get("head_branch"))
-            and (
-                _normalized_branch(integration["branch"])
-                != _normalized_branch(run["landing"]["head_branch"])
-            )
-        ):
-            _add(
-                errors,
-                "run.landing",
-                "pull_request mode requires integration.branch to match head_branch",
-            )
-        if (
-            schema_version in {3, 4, 5, 6, 7, 8, 9}
-            and isinstance(run["landing"], dict)
-            and (
-                run["landing"].get("checks_status") == "PASS"
-                or run["landing"].get("review_status") == "PASS"
-            )
-            and run["landing"].get("pr_head_sha") != integration["integration_head_sha"]
-        ):
-            _add(
-                errors,
-                "run.landing",
-                "PASS landing evidence requires the current PR head to match integration_head_sha",
-            )
 
     mission_ids = {mission["id"] for mission in plan.get("missions", []) if isinstance(mission, dict) and "id" in mission}
     task_ids = {
@@ -4632,63 +3370,6 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.integration.integration_head_sha",
                 "complete run requires an integration head",
             )
-        closeout_landing = run.get("landing")
-        if (
-            isinstance(closeout_landing, dict)
-            and closeout_landing.get("mode") in {"pull_request", "integration_pull_request"}
-            and (
-                closeout_landing.get("pr_state") != "merged"
-                or closeout_landing.get("merge_status") != "merged"
-            )
-        ):
-            _add(
-                errors,
-                "run.landing",
-                "complete pull-request run requires merged current-head landing",
-            )
-        if (
-            schema_version != 10
-            and isinstance(closeout_landing, dict)
-            and closeout_landing.get("mode")
-            in {"pull_request", "integration_pull_request"}
-        ):
-            closeout_pr_url = closeout_landing.get("pr_url")
-            closeout_authorizations = run.get("authorizations")
-            merge_authorization = (
-                closeout_authorizations.get("merge_pr")
-                if isinstance(closeout_authorizations, dict)
-                else None
-            )
-            closeout_merge_scope = (
-                merge_authorization.get("scope")
-                if isinstance(merge_authorization, dict)
-                else None
-            )
-            closeout_merge_targets = (
-                closeout_merge_scope.get("targets") if isinstance(closeout_merge_scope, dict) else None
-            )
-            if (
-                not _nonempty_string(closeout_pr_url)
-                or not isinstance(closeout_merge_targets, list)
-                or f"pr:{closeout_pr_url}" not in closeout_merge_targets
-                or not isinstance(mission_states, dict)
-                or not mission_states
-                or any(
-                    not authorization_covers(
-                        run,
-                        "merge_pr",
-                        mission_id,
-                        f"pr:{closeout_pr_url}",
-                        preserve_completed_run_expiry=True,
-                    )
-                    for mission_id in mission_states
-                )
-            ):
-                _add(
-                    errors,
-                    "run.authorizations.merge_pr",
-                    "complete pull-request run requires merge authorization for the exact PR",
-                )
         if graph_run:
             graph_state = run.get("graph_state")
             closeout_node_states = (

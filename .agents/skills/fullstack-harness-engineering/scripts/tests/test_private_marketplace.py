@@ -61,34 +61,10 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertEqual(codex["version"], claude["version"])
         self.assertEqual(codex["version"], marketplace["metadata"]["version"])
         self.assertEqual(codex["version"], marketplace_plugin["version"])
-        self.assertEqual(codex["version"], "0.2.0")
+        self.assertEqual(codex["version"], "0.3.0")
         self.assertEqual(marketplace_plugin["source"], "./plugins/fullstack-harness")
 
-    def test_both_runtime_manifests_have_all_skills(self) -> None:
-        for skill in (
-            "fullstack-harness-claude-code",
-            "fullstack-harness-codex",
-            "fullstack-harness-engineering",
-            "fullstack-harness-github-landing",
-            "prd-builder",
-        ):
-            self.assertTrue((PLUGIN_ROOT / "skills" / skill / "SKILL.md").is_file())
 
-    def test_runtime_adapters_do_not_duplicate_shared_assets(self) -> None:
-        skills_root = PLUGIN_ROOT / "skills"
-        for skill in (
-            "fullstack-harness-claude-code",
-            "fullstack-harness-codex",
-            "fullstack-harness-github-landing",
-        ):
-            adapter = skills_root / skill
-            self.assertFalse((adapter / "scripts").exists())
-            self.assertFalse((adapter / "assets").exists())
-            self.assertFalse((adapter / "references").exists())
-
-        shared = skills_root / "fullstack-harness-engineering"
-        self.assertTrue((shared / "scripts" / "validate_harness_plan.py").is_file())
-        self.assertTrue((shared / "assets" / "templates" / "HARNESS_PLAN.template.md").is_file())
 
     def test_sync_removes_stale_generated_files(self) -> None:
         module = self.load_sync_module()

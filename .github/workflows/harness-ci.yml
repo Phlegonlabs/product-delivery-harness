@@ -6,6 +6,8 @@ on:
   push:
     branches:
       - main
+      # A harness run ends by pushing its work branch, so verify that push too.
+      - 'codex/**'
 
 permissions:
   contents: read

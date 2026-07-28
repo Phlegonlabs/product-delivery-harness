@@ -32,9 +32,6 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Catalog / ecommerce | yes / no | planned | | |
 | Performance | yes / no | planned | | |
 | Automated E2E | yes / no | planned | | |
-| Development deployment smoke | yes / no | planned | | |
-| Production deployment smoke | yes / no | planned | | |
-| Release impact | yes / no | planned | | |
 
 ## Automated E2E Contract
 
@@ -50,9 +47,7 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Manual smoke disposition | `required / not required - covered by current-head E2E` |
 | Disposition reason | `<coverage match or uncovered risk>` |
 
-A current-head E2E PASS may replace only a duplicate manual smoke for the same journey and equivalent environment. Keep deployment, external-integration, visual, or other materially different smoke checks required until they have their own proof.
-
-For a Cloudflare release, record development and production separately. Development evidence binds to the current PR head and isolated non-production resources. Production evidence binds to the exact merged base SHA and production resources; do not reuse development evidence as production proof.
+A current-head E2E PASS may replace only a duplicate manual smoke for the same journey and equivalent environment. Keep external-integration, visual, or other materially different smoke checks required until they have their own proof.
 
 ## Primary Journey
 

@@ -1,6 +1,6 @@
 # Verification Gates
 
-Use this reference to define task, mission, integration, UI, and release acceptance.
+Use this reference to define task, mission, integration, and UI acceptance.
 
 ## Verification Ladder
 
@@ -57,10 +57,10 @@ Batch integration gate:
 
 Final/current-head gate:
 
-- Runs broad regression, browser E2E, visual/UI evidence, and release gates only after local code-review and repair loops converge.
-- Binds every PASS to the exact integration or PR head. Any later code or configuration change invalidates the affected proof.
-- Local-only delivery ends on this local evidence and never waits for GitHub CI or GitHub review.
-- For an explicitly requested pull-request landing, push only the final verified candidate, then run or observe current-head CI and current-head Codex review concurrently. They are sibling gates; merge still requires both to pass on the same SHA.
+- Runs broad regression, browser E2E, and visual/UI evidence only after local code-review and repair loops converge.
+- Binds every PASS to the exact integration head. Any later code or configuration change invalidates the affected proof.
+- Delivery ends on this local evidence. The harness never waits for remote CI or remote review.
+- In `integration_push` mode, push only the final verified candidate — the exact head this gate passed on.
 
 E2E gate:
 
@@ -100,13 +100,12 @@ Use or adapt this matrix:
 | Analytics / conversion | CTA/form/tracking changed | event/form/webhook observed or stub-verified | log/trace |
 | Catalog / ecommerce | catalog surface changed | PLP/PDP/search/price/availability pass | test/trace |
 | Performance | perf-sensitive path changed | metric threshold met | benchmark/report |
-| Deployment smoke | deployment in scope | deployed URL and critical routes pass | command/trace |
-| Release impact | user/operator-visible change | impact recorded | release note or mission row |
+| User-visible impact | user/operator-visible change | impact recorded | mission row |
 ```
 
 ## Changed-File Selection And Exact Execution Reuse
 
-Changed-file selection is allowed only for task and worker verifiers. The declared selection scopes must stay inside the owning task or mission write scope. Integration, batch, final, migration, deployment, and smoke gates always run when their stage applies.
+Changed-file selection is allowed only for task and worker verifiers. The declared selection scopes must stay inside the owning task or mission write scope. Integration, batch, final, migration, and smoke gates always run when their stage applies.
 
 The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
 
@@ -129,7 +128,7 @@ A local verifier may declare:
 
 `session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`. The parent must also mark the command deterministic and local, supply a clean checkout, and place the session cache in a repository-external path. The execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, executable identity, OS/architecture, pass signal, and selected environment-value digests.
 
-Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Verifier IDs are not in the execution key, so two gates may cite one exact execution while each keeps its own PASS record and evidence key. Never use this cache for runtime review, browser capture, deployment, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
+Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Verifier IDs are not in the execution key, so two gates may cite one exact execution while each keeps its own PASS record and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
 
 ## Automated E2E And Smoke Reuse
 
@@ -137,29 +136,14 @@ Make deterministic automated E2E the normal proof for every primary journey. Rec
 
 A current-head E2E PASS replaces a duplicate manual smoke only when all of these are true:
 
-- The E2E ran against the exact integration or PR head being accepted.
+- The E2E ran against the exact integration head being accepted.
 - It covers the same primary journey, assertions, configuration, data, auth state, and external dependencies as the proposed smoke.
 - It has a deterministic pass signal and retained evidence that can be tied to that head SHA.
-- No later code, configuration, migration, dependency, or deployment change invalidated the result.
+- No later code, configuration, migration, or dependency change invalidated the result.
 
 When these conditions hold, record the manual smoke disposition as `not required - covered by current-head E2E`, with the E2E check and SHA. This is not a skipped gate and needs no risk acceptance.
 
-Manual smoke or another environment-specific check is still required when automated E2E is missing, skipped, failed, flaky, or materially narrower than the target; when a visual or external integration remains uncovered; or when the deployed environment differs from the tested environment. Deployment smoke remains a separate gate whenever deployment is in scope and current-head E2E did not run against that exact deployed release.
-
-## Cloudflare Deployment Gates
-
-Before either gate below can be attempted, a blocking prerequisite gate must pass: `wrangler.jsonc` exists for the target (scaffolded per `references/cloudflare-deployment-lifecycle.md`'s Wrangler Config and Account Bootstrap when missing) and Cloudflare account access is verified (GitHub Environment secrets for the CD path, or an authenticated Wrangler session for a local deploy). Do not attempt a development or production deploy while this prerequisite gate is unmet; stop and tell the user what is missing instead.
-
-The default release contract has one target: production, published from `main`. A repository that genuinely keeps a preview or staging environment may also declare a development-stage target, but the default model does not require one and PLAN validation does not demand one. For a current PLAN-v5 release targeting Cloudflare, run a target's own provider-neutral gate rather than treating a successful upload as release completion. A run owes that proof only for the targets it actually started; a declared target it never started stays `not_started` and does not block closeout. Older schema-v3/v4 release plans retain their historical gate shape:
-
-| Gate | Source | Required proof |
-|---|---|---|
-| Development deployment (only when a development-stage target is declared) | exact reviewed integration head | development Worker/version/URL, migration PASS or not required, sandbox payment and development auth/data checks when applicable, deployed-environment E2E PASS, retained evidence |
-| Production deployment | exact `main` head after the user-started landing PR is merged | production Worker/version/URL, migration PASS or not required, live configuration boundary, critical-route and primary-journey smoke PASS, retained evidence, rollback version when available |
-
-Any new push to the deployed head invalidates the earlier development deployment PASS. Any new merged-base change invalidates production evidence that was not deployed from that exact SHA. Production cannot pass from the PR-head SHA after a squash merge; bind it to `landing.merged_sha` and retain the development PR-head evidence separately.
-
-For authentication, payment, entitlement, or customer-data products, development verification must prove sandbox/non-production boundaries and production smoke must avoid destructive live transactions. Never substitute production data access for a missing development fixture.
+Manual smoke or another environment-specific check is still required when automated E2E is missing, skipped, failed, flaky, or materially narrower than the target, or when a visual or external integration remains uncovered.
 
 ## UI Evidence Gate
 
@@ -281,12 +265,8 @@ Final PASS requires:
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
 - Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
 - The final integration head still descends from every recorded required mission integration SHA.
-- Landing state is recorded: the verified integration head pushed to the run's own branch, explicitly left local, or the pull request merged with current-head evidence and `merge_pr` authorization covering every mission plus the exact `pr:<full-PR-URL>` target.
-- In pull-request mode, local diff review passed before push; integration head, current PR head, check head, and review head match; checks and review are PASS; blocking findings and unresolved threads are zero. Any newer local integration or push resets this gate.
+- Landing state is recorded: the verified integration head pushed to the run's own branch, or the run explicitly left local. `landing.continuity` is `preserved` at that integration head.
+- In `integration_push` mode, local diff review passed before push and `pushed_head_sha` equals the integration head. Any newer local integration resets this gate.
 - For current PLAN-v5 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
-- `merge_status: ready` is recorded only after the current-head landing gate passes, and `merged` preserves that evidence while adding the merged PR state and merge SHA. Actual merge and deploy remain separate authorized actions.
-- A current PLAN-v5/RUN-v10 auto-merge request is recorded only for an eligible PR into a resolved non-protected integration base, after the same current-head landing gate passes, `merge_pr` covers the exact PR, and the request is bound to that PR head SHA. Never record auto-merge for a protected-base PR; stop at the merge-ready handoff instead. Any changed head resets an eligible request before fresh CI and review.
-- A PR closed without merge records `closed` / `closed_unmerged` with no merge SHA; it is not left in the reusable `not_ready` state.
-- In schemas v5 through v9, a completed pull-request run records `post_merge_cleanup` as complete or deferred. Complete cleanup proves the merged SHA is reachable from the refreshed base, the exact local branch still matched the merged PR head before deletion, the primary checkout is clean on the base, and any exact parent-managed linked worktree was clean and is now absent — except when `run.integration.retention == "persistent"`, in which case the branch is recorded `preserved`, not deleted, per `execution-state-model.md`'s Post-Merge Cleanup State. `not_applicable` requires no matching linked worktree in the current observation; app-managed lifecycle is deferred instead of manually removed.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

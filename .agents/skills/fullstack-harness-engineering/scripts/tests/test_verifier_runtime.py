@@ -54,7 +54,7 @@ def context() -> dict[str, object]:
 def cacheable_context() -> dict[str, object]:
     """A worker-layer context: the only shape session_exact caching is ever
     reachable from through a validated PLAN (cache_allowed=False for
-    integration/batch/final/release; harness_manifest.py, harness_release.py)."""
+    integration/batch/final; harness_manifest.py)."""
 
     context_document = context()
     context_document.update(

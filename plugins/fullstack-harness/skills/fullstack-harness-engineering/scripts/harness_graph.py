@@ -16,8 +16,7 @@ from harness_core import (
     is_safe_model_token,
 )
 from harness_schema import (
-    AUTHORIZATION_KEYS_V8,
-    AUTHORIZATION_KEYS_V10,
+    AUTHORIZATION_KEYS,
     GRAPH_EDGE_PHASES,
     GRAPH_EXECUTORS,
     GRAPH_NODE_KINDS,
@@ -68,14 +67,9 @@ def _validate_graph(
     verifier_ids: set[str],
     *,
     require_bounded_review_repair: bool = False,
-    enforce_action_target_kinds: bool = False,
 ) -> None:
     path = "plan.graph"
-    authorization_actions = (
-        AUTHORIZATION_KEYS_V10
-        if require_bounded_review_repair
-        else AUTHORIZATION_KEYS_V8
-    )
+    authorization_actions = AUTHORIZATION_KEYS
     if not _keys(errors, path, value, {"entry_nodes", "nodes", "edges"}):
         return
 
@@ -219,10 +213,7 @@ def _validate_graph(
                 if target is not None and (
                     not _nonempty_string(target)
                     or target == "*"
-                    or (
-                        not target.startswith("future-pr:")
-                        and TARGET_RE.fullmatch(target) is None
-                    )
+                    or TARGET_RE.fullmatch(target) is None
                 ):
                     _add(
                         errors,
@@ -233,19 +224,13 @@ def _validate_graph(
                     target is not None
                     and valid_ref
                     and ref in authorization_actions
-                    and not action_target_kind_allowed(
-                        ref,
-                        target,
-                        10 if require_bounded_review_repair else 9,
-                        strict=enforce_action_target_kinds,
-                    )
+                    and not action_target_kind_allowed(ref, target)
                 ):
-                    schema_version = 10 if require_bounded_review_repair else 9
                     _add(
                         errors,
                         f"{node_path}.target",
                         f"{ref} target kind must be "
-                        f"{action_target_kind_description(ref, schema_version)}",
+                        f"{action_target_kind_description(ref)}",
                     )
             if kind != "verifier" and node.get("review") is not None:
                 _add(

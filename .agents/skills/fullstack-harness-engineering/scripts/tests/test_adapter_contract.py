@@ -27,14 +27,6 @@ class AdapterContractTests(unittest.TestCase):
         return (SKILLS_ROOT / name / "SKILL.md").read_text(encoding="utf-8")
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
-    def test_readme_documents_codex_cloud_review_prerequisites(self) -> None:
-        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-
-        self.assertIn("repository is connected to Codex Cloud", readme)
-        self.assertIn("code review is enabled", readme)
-        self.assertIn("Automatic review may start when a PR opens", readme)
-        self.assertIn("otherwise request it with `@codex review`", readme)
-        self.assertIn("review gate as unavailable, never passed", readme)
 
     def test_allowed_providers_alone_controls_current_host_eligibility(self) -> None:
         codex = self.read_sibling_skill("fullstack-harness-codex")

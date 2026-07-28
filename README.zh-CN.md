@@ -28,18 +28,17 @@
 | --- | --- | --- |
 | 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策、线框图、带来源的市场调研，以及设计系统 |
 | 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
-| 已验证、需要送上 GitHub 的本地候选版本 | `fullstack-harness-github-landing` | 绑定当前 head 的推送、PR、CI/审查收敛和精确合并 |
 
 这些技能可以单独使用。不是每个任务都要运行整条流程。
 
 ## 核心保证
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
-- **大型工作明确记录。** PLAN v5 定义 typed graph；RUN v10 记录授权、尝试、证据和落地状态。
+- **大型工作明确记录。** PLAN v5 定义 typed graph；RUN v10 记录授权、尝试和证据。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
-- **有能力不等于有权限。** 即使运行时能够推送、合并、部署或清理，每个动作仍需要精确授权。
-- **证据跟随 SHA。** 新的推送会让旧 head 的 CI、审查、部署和 UI 证据失效。
-- **部署是独立生命周期。** 开发与生产环境使用分离的数据、密钥、认证、支付模式和验证。
+- **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
+- **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
+- **运行到推送为止。** Harness 负责提交并推送这次运行自己的分支。把它合进默认分支是你自己的步骤。
 
 ## 包含哪些内容
 
@@ -49,7 +48,6 @@
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及各任务自己的只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
-| `fullstack-harness-github-landing` | 终态提交推送、PR、并发的 CI/审查，以及精确到提交点的合并 | 远程落地证据 |
 
 交付核心在调用托管编排之前，会先做一个规模判定：
 
@@ -113,20 +111,15 @@ flowchart TB
 ```
 
 
-## 轻量的运行时与落地适配器
+## 轻量的运行时适配器
 
 共享核心掌管唯一的 PLAN/RUN 控制平面。运行时相关的启动细节按需惰性加载：
 
 - Codex 宿主只加载 `fullstack-harness-codex`，并且只执行 `codex` 提供方的 PLAN 节点。
 - Claude Code 宿主只加载 `fullstack-harness-claude-code`，并且只执行 `claude_code` 提供方的 PLAN 节点。
 - 两个适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被报告为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
-- 只有在明确需要推送、PR、CI、审查、合并或仓库配置这类结果时，才会加载 `fullstack-harness-github-landing`。
 
-共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简，并避免在纯本地工作时进行远程验证。
-
-对于远程交付，最终的本地候选版本只推送一次。GitHub Actions 和 Codex 审查会作为同一个 PR 提交点上的并列门禁被启动或观察，并被并发轮询。一次新的推送会使二者同时失效，合并仍然要求二者在同一个 SHA 上都通过。
-
-只有在仓库已连接到 Codex Cloud，并且已启用代码审查时，Codex Cloud 审查才可用。打开 PR 时可能会自动开始审查；否则，请使用 `@codex review` 请求审查。如果缺少审查能力，请将审查门禁记录为不可用，而不是已通过。
+共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
 
 ## 图工程与动态工作流
 
@@ -148,18 +141,6 @@ Claude 的批次波（wave）按模型、推理强度和工具画像区分开：
 当 Claude Code 返回真实的工作流运行 ID 时，RUN 状态可以保留工作流/任务 ID、脚本摘要、节点分组、图/基点绑定、工具画像、状态和可用指标。同会话续跑可以复用该绑定；跨会话恢复则从规范的 PLAN/RUN 状态开启一次新的工作流尝试。
 
 图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Claude Code 不能把节点委派给 Codex，Codex 也不能把节点委派给 Claude Code；两者之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被记录为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
-
-## 发布与部署安全
-
-交付图把部署视为一级且需要独立授权的生命周期：
-
-- 可部署产品会在计划中记录提供方、目标环境、命令、迁移、前置条件和部署后检查。
-- Cloudflare 项目使用同一份代码库，但 `development` 与 `production` Worker 完全分离；D1、KV、R2、queue、Durable Object、密钥、认证、支付模式、路由和 webhook 也按环境设置。
-- 默认 Cloudflare 模型使用绑定精确 SHA 的 GitHub Actions 调度。开发环境绑定已审查的 `development` head；生产环境绑定用户审批升版后产生的 `production` head。
-- 可选的 Cloudflare Workers Builds 模型可以把持久的 `development` 和受保护的 `production` 分支自动部署到对应 Worker。只有明确选择时才启用，也不会与调度模型混用。
-- 第一天引导只创建已确认需要的环境资源和 Worker 外壳。真正部署功能代码仍需要目标环境专属授权。
-- `docs/deployment.md` 保存供维护者阅读的拓扑与设置；RUN 仍是机器可读的执行记录。
-- 移动端和桌面端交付同样分离 development/beta 与 production 的凭据、后端、商店轨道和发布证据，不会强套 Cloudflare 格式。
 
 ## 安装
 
@@ -329,4 +310,5 @@ git diff --check
 
 每次发布都要更新本节，同时完成上文所述的版本号提升。
 
+- **0.3.0** — 移除 GitHub 落地适配器和整套部署/发布模型。Harness 现在到「推送本次运行自己的分支」为止；把分支合进默认分支是用户自己的步骤。授权账本从 19 个动作缩到 12 个；`landing` 精简为 `mode`、`remote`、`pushed_head_sha`、`continuity`；`integration.branch` 是唯一的分支字段。移除分支保护证据、`target_sources`、三个契约标记、`post_merge_cleanup`、`plan.release` 和 `run.targets`。
 - **0.2.0** — 默认每个任务一个工作树；带多审查者扇出的 PLAN v5 / RUN v10 类型化图；Cloudflare 派发式部署（dispatched-deploy）和自动部署（Auto-Deploy，即原生 Git 自动部署）发布模型；持久化的集成分支；用通用的逐页 HTML 原型取代已下线的页面 UI 矩阵；移动端/桌面端平台支持，包含一份专门的移动端技术栈选型指南（原生 iOS/Android、Flutter、React Native/Expo）；通过 `.env.example` 生成环境密钥脚手架；为有界/机械式委派工作提供的 Haiku 成本档位。

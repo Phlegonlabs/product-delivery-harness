@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-codex
-description: "Codex runtime adapter for Full Stack Harness engineering. Use only when the active host is Codex and a large plan needs app tasks, app-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively codex-provider PLAN nodes and does not own PLAN/RUN schemas, shared verification, GitHub landing, merge, deployment, or cleanup."
+description: "Codex runtime adapter for Full Stack Harness engineering. Use only when the active host is Codex and a large plan needs app tasks, app-managed worktrees, or direct subagents. This adapter is host-native only: it executes exclusively codex-provider PLAN nodes and does not own PLAN/RUN schemas, shared verification, or cleanup."
 ---
 
 # Full-Stack Harness: Codex Runtime Adapter
@@ -9,11 +9,11 @@ description: "Codex runtime adapter for Full Stack Harness engineering. Use only
 
 Read `../fullstack-harness-engineering/SKILL.md` first. Use its size gate, PLAN/RUN state, authorization ledger, verification ladder, and integration rules. Load this adapter only for a Codex-hosted run that actually needs runtime orchestration. Do not load the Claude Code adapter in the same parent.
 
-This adapter selects launch mechanics; it grants no authorization. GitHub CI, PR review, merge, and remote landing belong to `../fullstack-harness-github-landing/SKILL.md` and remain unloaded for local-only work.
+This adapter selects launch mechanics; it grants no authorization.
 
 ## Capability Snapshot
 
-Before the first production edit or worker launch, inspect the current Codex session:
+Before the first edit or worker launch, inspect the current Codex session:
 
 - project/thread create, read, message, and completion polling surfaces prove `app_threads`;
 - direct child-agent tools prove `subagents`;
@@ -75,7 +75,7 @@ A mission is `non-trivial` when its task list spans more than one file or module
 
 Every non-trivial app-task mission gets a depth-one policy capped at three direct read-only children when current capability and `spawn_subagents` authorization are both proven. Eligible pre-edit lanes are codebase exploration, documentation/API research, and test/log analysis. After implementation, one direct child must perform the final proposed-diff review on the current worktree head. This is the inner layer: each left-sidebar task coordinates its own children after the outer task-per-worktree wave exists.
 
-When child capability is unknown, launch a no-production-edit handshake, poll it, record the result, and send an enabled or disabled policy before implementation. Enable it only when the allowed roles include `reviewer`. With an enabled policy, the post-edit reviewer is mandatory for a non-trivial mission; `partial` or `unavailable` activity without a completed exact-head PASS reviewer cannot return `worker_passed`. Children never write, run mutating generators or shared-state services, spawn further agents, edit PLAN/RUN, create Git objects, integrate, land, deploy, or clean up. The app task reconciles their evidence and reports the reviewer's exact head, decision, findings, and `subagent_activity`. After validating that result, the parent copies the completed reviewer child into the worker's canonical `nested_review_evidence`; the mission cannot transition to integration without that retained exact-head PASS record. If the handshake proves the child runtime or reviewer role unavailable, assign a disabled policy before implementation. A trivial or disabled-policy mission, and a graph-backed direct worker with no nested policy, still needs an equivalent parent-owned read-only review recorded as a terminal exact-head `review_workers[]` PASS before the mission may transition to integration.
+When child capability is unknown, launch a no-edit handshake, poll it, record the result, and send an enabled or disabled policy before implementation. Enable it only when the allowed roles include `reviewer`. With an enabled policy, the post-edit reviewer is mandatory for a non-trivial mission; `partial` or `unavailable` activity without a completed exact-head PASS reviewer cannot return `worker_passed`. Children never write, run mutating generators or shared-state services, spawn further agents, edit PLAN/RUN, create Git objects, integrate, or clean up. The app task reconciles their evidence and reports the reviewer's exact head, decision, findings, and `subagent_activity`. After validating that result, the parent copies the completed reviewer child into the worker's canonical `nested_review_evidence`; the mission cannot transition to integration without that retained exact-head PASS record. If the handshake proves the child runtime or reviewer role unavailable, assign a disabled policy before implementation. A trivial or disabled-policy mission, and a graph-backed direct worker with no nested policy, still needs an equivalent parent-owned read-only review recorded as a terminal exact-head `review_workers[]` PASS before the mission may transition to integration.
 
 ## Provider Boundary
 

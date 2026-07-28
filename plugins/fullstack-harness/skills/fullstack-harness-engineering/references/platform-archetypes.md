@@ -21,9 +21,6 @@ Billing / entitlement model:
 Admin / operator surfaces:
 External integrations:
 Regulated or sensitive data:
-Release target:
-Development Worker and non-production resource boundary:
-Production Worker and production resource boundary:
 ```
 
 ## Greenfield / Empty Repository
@@ -45,7 +42,6 @@ The scaffold mission installs every layer the frozen decision names for the dete
 ```text
 JS/TS web:
   Workspace manager: init the chosen manager (Bun/npm/pnpm/Yarn) and its workspace layout, lockfile, and root script contract
-  Deployment/runtime: install and configure the resolved platform adapter (e.g. Cloudflare adapter, Vercel adapter)
   Web framework: install and wire the decided framework (e.g. Astro, a React framework)
   UI library: install the decided UI library when one is named (e.g. React, Preact, Vue), including the framework's integration for it
   Build tool: install/configure the build tool the framework doesn't already own
@@ -56,7 +52,7 @@ iOS/macOS Swift:
   Project: create the Xcode project/workspace (*.xcodeproj / *.xcworkspace) or a Package.swift target, with app, unit-test, and UI-test targets
   Dependencies: wire Swift Package Manager (or the decided manager) for the named libraries
   App shell: minimal navigation/entry point the later feature missions extend
-  Signing/config: record the bundle identifier and target OS version from the decision record (leave signing certificates to the release lifecycle, not the scaffold)
+  Signing/config: record the bundle identifier and target OS version from the decision record
 
 Android:
   Project: create the Gradle project (build.gradle(.kts) + settings.gradle(.kts)) with app module, unit-test, and instrumented-test source sets
@@ -74,7 +70,7 @@ Windows .NET:
   Project: create the .NET solution/project (*.sln / *.csproj) for the decided UI toolkit (WPF/WinUI/MAUI or a cross-platform toolkit)
   Dependencies: restore the named NuGet packages from the decision record
   App shell: minimal window/navigation the later feature missions extend
-  Config: record the target framework and packaging shape (MSIX vs installer) for the release lifecycle
+  Config: record the target framework and packaging shape (MSIX vs installer)
 ```
 
 **Environment configuration (every toolchain).** Reserve a place for environment secrets from the first scaffold commit, before any task needs one: create a tracked `.env.example` (or the toolchain's native equivalent — e.g. `local.properties.example` for Android, an `.xcconfig` template for Swift) listing every environment variable the app currently needs by name, with a placeholder or one-line description and no real value. Ensure the real `.env` (or equivalent local secret file) is git-ignored from this same commit, never committed. Treat `.env.example` as living documentation: a later task that reads a new environment variable adds its entry to `.env.example` in the same commit that introduces the read (see `commit-convention.md`), not as a separate cleanup pass. Never invent a placeholder's real value — when a required variable's actual value is unavailable, stop and ask per `contract-and-traceability.md`'s Stop And Ask Conditions rather than guessing.
@@ -118,7 +114,7 @@ This is a complete, copy-paste-ready PLAN-v5 mission object for the scaffold mis
       "id": "m1-build",
       "cwd": ".",
       "argv": ["<package-manager>", "run", "build"],
-      "pass_signal": "Production build exits 0 with every installed layer (framework, UI library, build tool, styling/components) wired and locally runnable"
+      "pass_signal": "Build exits 0 with every installed layer (framework, UI library, build tool, styling/components) wired and locally runnable"
     }
   ],
   "tasks": [
@@ -165,7 +161,6 @@ Billing / entitlements: plans, limits, feature flags, subscription states, trial
 Admin / operator surfaces: impersonation policy, moderation, support actions, destructive actions
 Audit / observability: audit events, logs, metrics, alerts, data export/delete/retention
 Integrations: webhooks, background jobs, email, queues, object storage, third-party APIs
-Cloudflare release isolation: development uses non-production data, development auth, sandbox payments, and separate stateful bindings; production uses production data, production auth, live payments, and production bindings
 ```
 
 Common missions:
@@ -204,7 +199,6 @@ Content source: repo markdown, CMS, API, spreadsheet, manual copy, media library
 SEO metadata: title, description, Open Graph, Twitter cards, schema, sitemap, robots
 Conversion: CTA, forms, analytics events, pixels, consent, UTM preservation, CRM/webhook target
 Performance budget: LCP, CLS, INP or Lighthouse threshold, image/media policy
-Release target: deployed URL, cache/CDN/revalidation, rollback notes
 ```
 
 Common missions:
@@ -215,7 +209,7 @@ M2 page templates and responsive layout
 M3 SEO/metadata/structured data
 M4 conversion forms, analytics, consent, integrations
 M5 accessibility, visual QA, performance
-M6 deployed URL smoke, sitemap/robots/redirect checks
+M6 sitemap/robots/redirect checks
 ```
 
 M2 and M5 above are illustrative single lines, not a mandate to lump every page into one mission or defer all visual QA to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M2 into one mission per page (or a small tightly-coupled group, for example the legal/about/contact pages sharing one trivial template) and pair each with its own scoped `visual` review as soon as that mission integrates, rather than one M2 covering the whole page inventory reviewed once by a later M5.
@@ -229,7 +223,6 @@ Required E2E scenarios:
 - Sitemap, robots policy, redirects, and 404 behavior are checked when relevant.
 - Analytics/conversion events fire or are stub-verified.
 - Responsive and visual checks cover page templates, not just one page.
-- Public deployed URL smoke test passes before final PASS when deployment is in scope.
 
 ## Docs Or Content Site
 
@@ -272,7 +265,7 @@ Required E2E scenarios:
 
 ## Mobile / Desktop Archetype
 
-Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows desktop app. These do not have a URL model, SEO metadata, or a Worker redeploy — their distribution runs through app stores or signed installers. Read `references/mobile-desktop-deployment-lifecycle.md` for the release/promotion model; freeze the surfaces below before implementation.
+Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows desktop app. These do not have a URL model or SEO metadata. Freeze the surfaces below before implementation.
 
 The design-source input for this profile is the product's design system, written for the resolved platform's own conventions (HIG, Material, or desktop window chrome). `design-system.md` and `design-system.json` bind here too: the primitive layers keep their meaning and take the platform's vocabulary, so tokens become theme values, layout primitives become the platform's layout containers, and control primitives wrap its native controls. Wrapping a platform's own component in a registered primitive is what keeps the closed variant sets — do not drop the primitive layer because the platform ships a component library. UI evidence for these targets, once the real app is implemented, uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots.
 
@@ -280,14 +273,13 @@ Freeze these surfaces:
 
 ```text
 Toolchain and project shape: iOS (*.xcodeproj/*.xcworkspace, Package.swift), Android (build.gradle(.kts), settings.gradle(.kts)), Flutter (pubspec.yaml + native runners), macOS (*.xcodeproj/Swift or cross-platform toolkit), Windows (*.csproj/*.sln, WPF/WinUI/MAUI or cross-platform toolkit)
-Targets and minimums: OS/SDK floor (minSdk/targetSdk, deployment target, target framework), device classes (phone/tablet/desktop), orientation, per-target parity for Flutter
+Targets and minimums: OS/SDK floor (minSdk/targetSdk, minimum OS version, target framework), device classes (phone/tablet/desktop), orientation, per-target parity for Flutter
 App shell and navigation: entry point, navigation model, deep links / universal links / app links, state restoration
 Local persistence and sync: on-device storage (Core Data/SwiftData, Room, SQLite, Hive/Isar), offline behavior, background sync, migration of on-device schema across app versions
 Platform capabilities: push notifications (APNs/FCM), permissions (camera, location, contacts), background tasks, in-app purchase/entitlements when present
 Identity and data: auth flow (native, OAuth, platform sign-in), secure credential storage (Keychain/Keystore/DPAPI), account recovery
 Analytics / crash reporting / feature flags: crash-reporting tool and its symbol-upload step, analytics events for key user actions, feature-flag mechanism when used — or explicitly out of scope for this product
-Signing and distribution identity: bundle/application identifier, signing certificates and provisioning profiles / keystore / code-signing cert (configured, never stored in PLAN/RUN), distribution channel (TestFlight + App Store, Play tracks + production, Developer ID/notarized, Microsoft Store/MSIX/installer)
-Release isolation: development/staging build config (sandbox APIs, test push, non-production backend, debug entitlements) kept separate from production build config (live APIs, production push, production backend, release entitlements)
+Application identity: bundle/application identifier and the local build configuration that carries it
 ```
 
 Common missions:
@@ -298,8 +290,7 @@ M2 crash-reporting/analytics SDK wired into the app shell (symbol-upload step, k
 M3 core feature and platform-capability integration (persistence, permissions, native APIs)
 M4 identity, secure storage, and backend/data contract
 M5 push notifications, background tasks, in-app purchase/entitlements when present
-M6 beta distribution (TestFlight / Play internal or closed track) and store metadata/assets
-M7 store submission/review readiness and E2E across device/OS states
+M6 E2E across device/OS states
 ```
 
 Required E2E scenarios:
@@ -314,13 +305,13 @@ Required E2E scenarios:
 - Deep link / universal link / app link opens the correct in-app destination, when in scope.
 - A representative crash or logged error reaches the crash-reporting tool, and a key user action reaches the analytics pipeline (or both are explicitly marked out of scope with a stated reason).
 
-Required verification per toolchain (run before any distribution gate):
+Required verification per toolchain:
 
 ```text
-iOS/macOS Swift: xcodebuild test (unit + UI tests via XCTest/XCUITest); xcodebuild build for the release config
-Android:         ./gradlew test (unit) and ./gradlew connectedAndroidTest (instrumented, on an emulator/device); ./gradlew assembleRelease
+iOS/macOS Swift: xcodebuild test (unit + UI tests via XCTest/XCUITest); xcodebuild build
+Android:         ./gradlew test (unit) and ./gradlew connectedAndroidTest (instrumented, on an emulator/device); ./gradlew assembleDebug
 Flutter:         flutter test (widget/unit) and flutter test integration_test/ (integration); flutter build for each native target in scope
-Windows .NET:    dotnet test (unit/integration); dotnet build/publish for the release config
+Windows .NET:    dotnet test (unit/integration); dotnet build
 Desktop macOS:   xcodebuild test for a Swift app, or the cross-platform toolkit's own test runner
 ```
 
@@ -346,13 +337,10 @@ CATALOG-* product/catalog/search
 CHECKOUT-* cart/payment/checkout
 A11Y-* accessibility
 PERF-* performance budgets
-RELEASE-* deployment/smoke/rollback
 APPSHELL-* native app shell/navigation
 CAP-* platform capabilities (push, permissions, background tasks)
-STORE-* store submission/review/distribution
-SIGN-* signing/provisioning/notarization
 ```
 
 ## Profile Selection Rule
 
-If a task spans profiles, freeze the shared contract first, then split missions by ownership. For example, a SaaS marketing site plus authenticated dashboard should keep public-site SEO/content missions separate from app-shell tenant/auth/billing missions and integrate through a final release/E2E gate.
+If a task spans profiles, freeze the shared contract first, then split missions by ownership. For example, a SaaS marketing site plus authenticated dashboard should keep public-site SEO/content missions separate from app-shell tenant/auth/billing missions and integrate through a final E2E gate.

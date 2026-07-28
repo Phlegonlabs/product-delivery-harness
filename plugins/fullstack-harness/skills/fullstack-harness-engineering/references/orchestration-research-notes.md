@@ -18,7 +18,7 @@ This replaces the older single mode enum. A mode label hid important differences
 
 Schema v6 adds a small runtime adapter beside those axes. It records `provider`, observed `available_drivers`, and `detection_source`. The selector uses a deterministic provider route: Codex prefers app threads, Claude Code prefers Dynamic Workflow, both fall back to direct subagents when observed, and every provider has sequential parent execution as the final fallback. Provider routing does not replace authorization, isolation, or completion-channel checks.
 
-The portable default favors an isolated worktree per mission over shared-checkout serialization even with no real parallelism in play, because it lets a mission implement and receive an exact-head read-only review before one controlled merge into the run's own integration branch. `main` remains outside ordinary worktree execution: the run branch reaches it only through a later user-started pull request that a human merges. Read-only work may fan out freely; parallel writes additionally require complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
+The portable default favors an isolated worktree per mission over shared-checkout serialization even with no real parallelism in play, because it lets a mission implement and receive an exact-head read-only review before one controlled merge into the run's own integration branch. `main` remains outside ordinary worktree execution: the run ends at its own pushed branch, and landing that branch on `main` is the user's own step outside this harness. Read-only work may fan out freely; parallel writes additionally require complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
 
 Before any planner, scheduler, worker-capability scan, or external-runtime preflight, the skill uses a two-way project-size gate. Small work stays in the current parent with no PLAN/RUN or delegation by default. Large work enters managed planning and defaults every mission to its own worktree; scheduler fan-out beyond one mission at a time additionally requires at least two dependency-ready nonconflicting missions. Size means coordination scope and blast radius, not a raw file or line count. If direct work grows, checkpoint completed work and plan only the remainder.
 
@@ -83,24 +83,17 @@ An authorization such as `remove_worktrees: false` controls harness-initiated cl
 
 Worktrees isolate files. They do not isolate ports, processes, databases, migration streams, queues, buckets, test identities, feature-flag namespaces, or external sandboxes.
 
-## Local And GitHub Code Review
+## Local Code Review
 
-Official Codex review documentation establishes these current facts:
+Official Codex review documentation establishes this current fact:
 
-- Local `/review` runs in read-only mode and can review uncommitted changes or compare the current branch with a base branch. It is the pre-push review gate, not proof that GitHub reviewed the pushed head.
-- GitHub review requires the repository to be connected to Codex Cloud with Code review enabled. Automatic reviews can review each new PR opened for review; `@codex review` is the manual trigger.
-- Repository `AGENTS.md` files may define `## Review guidelines` that Codex uses during GitHub review.
-- Codex GitHub review reports high-signal P0/P1 findings. Ordinary CI, repository rules, and required status checks remain separate controls.
-- GitHub auto-merge merges a PR only after its required reviews and status checks pass, and the repository must have auto-merge enabled first.
-- GitHub CLI supports an exact-head merge guard through `gh pr merge --match-head-commit <SHA>` and can combine it with squash and auto-merge.
+- Local `/review` runs in read-only mode and can review uncommitted changes or compare the current branch with a base branch. It is the pre-push review gate.
 
-The harness therefore records local diff review separately from GitHub review and binds GitHub CI/review evidence to the exact PR head SHA. A later push invalidates earlier evidence even if the PR number is unchanged. Because CI and Codex review are independent merge gates, the parent starts or observes both for the final pushed head as soon as PR state and authorization allow, polls them concurrently, and restarts both after a new push.
+The harness records that local diff review as evidence bound to the exact reviewed head. A later commit on the same branch invalidates it.
 
-A landing adapter can direct the interactive parent to run a persistent GitHub loop: create or ready the PR, start or observe checks and Codex review in parallel, poll both, and submit an exact-head merge after every gate passes. The skill cannot turn on repository Automatic reviews or auto-merge by itself. Those remain repository settings, and changing them requires separate authorization; when Automatic reviews are not observed, the portable review trigger is `@codex review`.
+The runtime adapters stay separate. A Codex parent loads only the Codex adapter and executes only `codex`-provider nodes; a Claude Code parent loads only the Claude Code adapter and executes only `claude_code`-provider nodes. This preserves one PLAN/RUN control plane while reducing default skill context.
 
-The runtime adapters remain separate from this landing adapter. A Codex parent loads only the Codex adapter and executes only `codex`-provider nodes; a Claude Code parent loads only the Claude Code adapter and executes only `claude_code`-provider nodes. Local-only work does not load the GitHub adapter. This preserves one PLAN/RUN control plane while reducing default skill context and remote waiting.
-
-For plan-backed shared-repository execution, the harness now surfaces the full launch and landing authorization set in one Plan Readiness checkpoint. Every action still has its own ledger entry and live pre-mutation recheck; the checkpoint only removes repeated prompts after the user has approved the exact path.
+For plan-backed shared-repository execution, the harness surfaces the full launch authorization set in one Plan Readiness checkpoint. Every action still has its own ledger entry and live pre-mutation recheck; the checkpoint only removes repeated prompts after the user has approved the exact path.
 
 ## Completion And Event Notifications
 
@@ -162,10 +155,7 @@ Record environment-specific observations in RUN evidence. Keep this reference ab
 - Codex sandbox and approvals: https://learn.chatgpt.com/docs/sandboxing
 - Codex permission profiles: https://learn.chatgpt.com/docs/permissions
 - Codex local code review: https://developers.openai.com/codex/app/code-review
-- Codex GitHub code review: https://developers.openai.com/codex/cloud/code-review
 - Codex AGENTS.md guidance: https://developers.openai.com/codex/guides/agents-md
-- GitHub auto-merge: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/automatically-merging-a-pull-request
-- GitHub CLI PR merge: https://cli.github.com/manual/gh_pr_merge
 - Claude Code agent overview: https://code.claude.com/docs/en/agents
 - Claude Code subagents: https://code.claude.com/docs/en/sub-agents
 - Claude Code workflows: https://code.claude.com/docs/en/workflows

@@ -1,13 +1,13 @@
 ---
 name: fullstack-harness-engineering
-description: "Classify engineering work as small or large, then plan, execute, verify, and integrate it under explicit action authorization. This is the lightweight shared Full Stack Harness core: it owns PLAN/RUN state, traceability, scheduling contracts, local verification, and integration. Load exactly one sibling runtime adapter for Codex or Claude Code only when runtime-specific orchestration is needed, and load the GitHub landing adapter only when remote landing is requested."
+description: "Classify engineering work as small or large, then plan, execute, verify, and integrate it under explicit action authorization. This is the lightweight shared Full Stack Harness core: it owns PLAN/RUN state, traceability, scheduling contracts, local verification, and integration. Load exactly one sibling runtime adapter for Codex or Claude Code only when runtime-specific orchestration is needed."
 ---
 
 # Full-Stack Harness Engineering
 
 ## Purpose
 
-Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Runtime launch mechanics and remote landing are separate adapters so ordinary work does not load every Codex, Claude Code, GitHub, CI, review, and deployment rule.
+Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. A run ends when its verified work is committed and pushed to its own branch. Landing that branch on the default branch is the user's own step, outside this harness.
 
 Keep `prd-builder` as a separate upstream skill. Reuse its artifacts — `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md`, and for a UI-bearing product `design-system.md` and `design-system.json` — instead of duplicating them. If product, Builder UX Direction, architecture, or design evidence is missing, route to that skill, use an explicitly authorized assumption, or record the gap as `UNVALIDATED`. An implementation agent does not invent Builder UX Direction and does not author the design system.
 
@@ -19,7 +19,7 @@ Classify the work as `small` only when all of these are true:
 
 - It has one primary outcome in one bounded component or repository area.
 - One writer can finish it without parallel missions or durable handoff.
-- It has no broad migration, multi-environment release, destructive data operation, or independently staged deployment.
+- It has no broad migration or destructive data operation.
 - It does not require a frozen multi-surface contract or conditional correction graph.
 - One coherent test and review pass can verify it.
 
@@ -63,32 +63,27 @@ The core is runtime-neutral. Do not load all adapters in one run.
 1. For small sequential work, load no runtime adapter unless a runtime-specific action is actually required.
 2. For large orchestration in a Codex host, read `../fullstack-harness-codex/SKILL.md`. Do not also read the Claude Code adapter; the Codex adapter is host-native only and executes exclusively nodes whose `allowed_providers` includes `codex`.
 3. For large orchestration in a Claude Code host, read `../fullstack-harness-claude-code/SKILL.md`. Do not also read the Codex adapter; the Claude Code adapter is host-native only and executes exclusively nodes whose `allowed_providers` includes `claude_code`.
-4. Read `../fullstack-harness-github-landing/SKILL.md` only when the requested outcome includes push, PR creation, GitHub CI, GitHub review, merge, or remote repository configuration. Local branch and commit work alone does not load it.
 
 Explicit adapter invocation still begins with this core. The adapters may select shared scripts, templates, and references from this directory; they never create a second PLAN/RUN state model.
 
 ## Reference Routing
 
 - Read `references/contract-and-traceability.md` for source handoff, contract freeze, trace IDs, permissions, and file placement.
-- Read `references/execution-state-model.md` before creating or changing PLAN/RUN manifests, authorization, phases, runtime capability fields, landing, deployment, or integration state.
+- Read `references/execution-state-model.md` before creating or changing PLAN/RUN manifests, authorization, phases, runtime capability fields, or integration state.
 - Read `references/graph-orchestration.md` for PLAN schema v5, RUN schema v10, older readable schemas, typed nodes, bounded review-repair-review routes, provider policy, retry, or subgraph replay.
 - Read `references/execution-task-decomposition.md` for flat task IDs, one bounded execution-time split, or the UI build order a design system implies.
 - Read `references/parallel-mission-selection.md` before proposing a parallel write wave.
 - Read `references/design-input-updates.md`, `references/platform-archetypes.md`, or `references/existing-app-refinement.md` only when those inputs or product shapes apply.
 - Read `references/worktree-thread-orchestration.md` only after the selected runtime adapter requires multiple missions, subagents, threads, or worktrees.
-- Read `references/verification-gates.md` for task, integration, UI, release, and evidence gates.
-- Read `references/cloudflare-deployment-lifecycle.md` only for Cloudflare delivery.
-- Read `references/mobile-desktop-deployment-lifecycle.md` only for iOS/Android/Flutter/macOS/Windows delivery.
+- Read `references/verification-gates.md` for task, integration, UI, and evidence gates.
 - Read `references/commit-convention.md` before a harness-managed commit.
-- Read `references/orchestration-research-notes.md` for the underlying Codex/Claude Code orchestration capability facts, version gates, and GitHub review/merge mechanics behind this skill's guidance, including the Codex Cloud connection requirement and the `@codex review` manual trigger the GitHub landing adapter depends on.
+- Read `references/orchestration-research-notes.md` for the underlying Codex/Claude Code orchestration capability facts and version gates behind this skill's guidance.
 - Use `assets/templates/HARNESS_PLAN.template.md` for `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` for `RUN.md`. Load another template only for its named expansion:
   - `assets/templates/TASKS.template.md` for `tasks.md`, a non-canonical mission/task listing view regenerated from `RUN.md` whenever a RUN.md exists.
   - `assets/templates/GOAL.template.md` for a standalone copy-ready goal prompt when a workflow needs one without creating `RUN.md`.
   - `assets/templates/WORKER_GOAL.template.md` for a mission worker's frozen launch prompt.
-  - `assets/templates/PULL_REQUEST.template.md` as the PR body base when the GitHub landing adapter creates a pull request.
   - `assets/templates/E2E_VERIFICATION.template.md` only as a standalone expansion of `RUN.md`'s verification matrix when it becomes too large to scan inline.
   - `assets/templates/REFINEMENT_BACKLOG.template.md` only as a standalone expansion of `RUN.md`'s refinement backlog when it becomes too large to scan inline.
-  - `assets/templates/PROJECT_CLOUDFLARE_DEPLOYMENT_GUIDE.template.md` for `docs/deployment.md`, an operational setup guide recording how this project's Cloudflare Workers are actually configured, only for Cloudflare-deploying products.
 
 ## File Budget
 
@@ -106,41 +101,39 @@ worktree workers      -> temporary per-mission reports only while integration ne
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
 - On first bootstrap of a new target repository, seed a missing root `AGENTS.md` and a missing root `CLAUDE.md` from the same `assets/templates/PROJECT_AGENTS.template.md`. The rules are runtime-neutral, so one template keeps both files from drifting apart. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
-- On that same first bootstrap, also seed a missing CI workflow from `assets/templates/PROJECT_CI.template.yml`, and, only for Cloudflare delivery, its separate CD companion `assets/templates/PROJECT_CLOUDFLARE_DEPLOY.template.yml` (see `references/cloudflare-deployment-lifecycle.md`). Skip either file that already exists; never overwrite established CI configuration.
+- On that same first bootstrap, also seed a missing CI workflow from `assets/templates/PROJECT_CI.template.yml`. Skip it if it already exists; never overwrite established CI configuration.
 
 ## Shared Validation Tools
 
 - `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head.
-- `scripts/upgrade_harness_schema.py` rewrites an older PLAN/RUN in place to the current schema (PLAN v5, RUN v10), adding only each version's neutral keys — never a fabricated authorization, gate, SHA, release decision, or evidence — and validates the result before writing; `--dry-run` reports the per-step additions without touching the file. Older PLAN schemas remain readable and older RUN schemas remain readable without an upgrade.
 - `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it also continues to read supported older graph schemas.
-- `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, final, release, migration, or smoke gates.
+- `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, or final gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
-- `scripts/check_wrangler_binding_isolation.py` resolves a scaffolded `wrangler.jsonc`'s effective per-environment bindings and flags any D1, KV, R2, queue, or Durable Object resource identity shared between `development` and `production`.
 
-Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. All but `upgrade_harness_schema.py` are read-only and never mutate Git, PLAN, RUN, tasks, or worktrees; `upgrade_harness_schema.py` is the one exception and only ever rewrites the exact PLAN/RUN files it was pointed at, never Git, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
+Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. Every script is read-only and never mutates Git, PLAN, RUN, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
 
 ## Default Runtime And Wave Policy
 
 Apply this to all large plan-backed work, whether the frontier ever holds more than one ready mission or processes them one at a time:
 
-1. Before the first production edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
+1. Before the first edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
 2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear.
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
-4. New plan-backed files use PLAN schema v5 and RUN schema v10. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN versions remain readable, but new files do not copy their weaker acceptance, source-publication, authorization, release, continuity, or evidence shapes.
-5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order. Before that first selection, record `observed.captured_at` and `observed.git` from a live `git status` / `git rev-parse`, and set `integration.batch_base_sha` to the observed integration head. The validator does not require these — a RUN that leaves them null still reports `PASS` — but the selector then has nothing to launch: every mission and lifecycle node lands in `deferred_nodes` with `parent_state_unreconciled` or `batch_base_missing`, and `dispatchable_nodes` comes back empty. Those two kinds mutate state derived from the parent's current Git position — a mission spawns writers, a lifecycle node pushes, merges, or deploys — so both are gated on it. `verifier`, `approval`, and `external_wait` nodes are not, because they change nothing the snapshot describes. Read those two keys, not `ready_frontier`: these are dispatch-time reasons, so the frontier list can still look full while nothing is dispatchable. Once `status` is `running`, the Resume Reconciliation Gate applies the same unreconciled state to every node and `ready_frontier` empties too. A green validator next to empty `dispatchable_nodes` means the observed snapshot was never filled in, not that the plan is wrong.
-6. First read the target repository's instructions and existing branch/landing model. When they define implementation, integration, or protected landing branches, preserve those exact names and topology. Otherwise treat `main` as the single protected production branch and do not create or assume a persistent development branch: the run's own `codex/<short-name>` branch is its integration branch, cut from the recorded current `main` SHA and disposed of once the work lands. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
+4. New plan-backed files use PLAN schema v5 and RUN schema v10. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN versions remain readable, but new files do not copy their weaker acceptance, source-publication, authorization, continuity, or evidence shapes.
+5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order. Before that first selection, record `observed.captured_at` and `observed.git` from a live `git status` / `git rev-parse`, and set `integration.batch_base_sha` to the observed integration head. The validator does not require these — a RUN that leaves them null still reports `PASS` — but the selector then has nothing to launch: every mission and lifecycle node lands in `deferred_nodes` with `parent_state_unreconciled` or `batch_base_missing`, and `dispatchable_nodes` comes back empty. Those two kinds mutate state derived from the parent's current Git position — a mission spawns writers, a lifecycle node pushes or cleans up — so both are gated on it. `verifier`, `approval`, and `external_wait` nodes are not, because they change nothing the snapshot describes. Read those two keys, not `ready_frontier`: these are dispatch-time reasons, so the frontier list can still look full while nothing is dispatchable. Once `status` is `running`, the Resume Reconciliation Gate applies the same unreconciled state to every node and `ready_frontier` empties too. A green validator next to empty `dispatchable_nodes` means the observed snapshot was never filled in, not that the plan is wrong.
+6. First read the target repository's instructions and existing branch model. When they define implementation or integration branches, preserve those exact names and topology. Otherwise the run's own `codex/<short-name>` branch is its integration branch, cut from the recorded current default-branch SHA. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
-8. Default the landing mode from the requested outcome. Under the default branch model, ordinary implementation, PRD updates, UI changes, branch, commit, and integration work uses `integration_push`: the verified integration head is pushed to the run's own branch, and no PR exists. That push is where an ordinary run ends — the planned change is made and verified, and nothing has reached `main`. Landing on `main` is a separate step the user starts: a `pull_request` whose head is that same run branch and whose base is `main`, opened only on its own instruction and merged only by the user. Use `local_only` when the run must not touch the remote at all. When target-repository instructions define another model, record and follow that model instead. In every case, `integration.branch`, `landing.head_branch`, and `landing.base_branch` must contain the resolved repository branches rather than assumed names. Older readable schemas keep their recorded branch semantics.
+8. There are two landing modes. Ordinary implementation, PRD updates, UI changes, branch, commit, and integration work uses `integration_push`: the verified integration head is pushed to the run's own branch. That push is where an ordinary run ends. Use `local_only` when the run must not touch the remote at all. `integration.branch` must contain the resolved repository branch rather than an assumed name; it is the only branch field, and every push target is built from it.
 
-## Default Main-Only Branch Policy
+## Default Branch Policy
 
-Apply this policy to the target repository where the skill runs only when its own instructions do not already define the implementation, integration, and landing branches. Target-repository governance wins; never replace an existing authorized flow with this one.
+Apply this policy to the target repository where the skill runs only when its own instructions do not already define the implementation and integration branches. Target-repository governance wins; never replace an existing authorized flow with this one.
 
-`main` is production and is the only persistent branch this model needs. There is no development or integration branch to set up: each run cuts its own `codex/<short-name>` branch from the current `main`, and that branch goes away once the work lands.
+Each run cuts its own `codex/<short-name>` branch from the current default branch and does all its work there. That branch is the deliverable.
 
 ```text
-current main SHA
+current default-branch SHA
 -> one independent mission worktree
 -> worker checks
 -> at least one exact-head read-only review
@@ -148,21 +141,15 @@ current main SHA
 -> authorized serial integration into the run branch
 -> push the run branch       (covered by the execution-intent instruction)
 -> the run is complete
-
-the pushed run branch
--> the user reads it and asks for the pull request
--> harness opens the run branch -> main PR
--> current-head CI and review
--> STOP. the human merges.
 ```
 
-The ordinary loop runs end to end without stopping: work happens in mission worktrees cut from `main`, integrates into the run's own branch, and the push that publishes that branch is part of ordinary execution rather than a separate confirmation. Nothing in that loop touches `main`, so nothing in it needs a confirmation pause. A run is complete when its planned PRD, UI, architecture, or implementation change is made, verified, and pushed — not when it reaches `main` and not when anything deploys.
+The ordinary loop runs end to end without stopping: work happens in mission worktrees cut from the default branch, integrates into the run's own branch, and the push that publishes that branch is part of ordinary execution rather than a separate confirmation. A run is complete when its planned PRD, UI, architecture, or implementation change is made, verified, and pushed.
 
-`main` is the opposite. The harness may open the pull request, observe current-head CI, and request review, but opening it is its own instruction and merging it is the user's. Only a separate explicit user instruction naming that exact PR can authorize that merge.
+Landing the pushed branch on the default branch is outside this harness. The user does it themselves. The harness opens no pull request, merges nothing, and deploys nothing, so none of that appears in PLAN, RUN, or the ledger. Report the pushed branch and its head SHA and stop there.
 
-The production deploy is a different action again. `deploy` is its own ledger gate with exact `release:<target-id>` targets and is never part of the execution-intent bundle. The harness runs it when `deploy` is authorized for that exact target at that exact head, and never otherwise: it does not infer the grant from the merge or from the loop. Where the production Worker deploys from its own Git connection instead of a harness-run command, the human's merge is the deploy trigger and that same exact `deploy` grant records the publication consequence. See `references/cloudflare-deployment-lifecycle.md`.
+`push` is refused for a `branch:main` target and for a run whose own integration branch resolves to `main`. That is the one branch rule the harness enforces; everything else about branch naming comes from the target repository.
 
-Under this default model, never make ordinary feature, PRD, or UI edits directly on `main`, and never integrate a mission worktree into `main` locally. Each run starts from the then-current `main`, including immediately after a previous run landed. `main` already exists in every repository, so this model needs no branch creation and no setup gap to report.
+Under this default model, never make ordinary feature, PRD, or UI edits directly on the default branch, and never integrate a mission worktree into it locally. Each run starts from the then-current default branch, including immediately after a previous run landed.
 
 ## Execution Authorization Gate
 
@@ -188,31 +175,21 @@ create_app_managed_worktrees
 create_local_branches
 create_local_commits
 integrate_locally
-configure_repository
 push
-create_pr
-trigger_remote_ci
-manage_pr_review
-merge_pr
-provision_cloud_resources
-deploy
 archive_worker_tasks
 remove_worktrees
 delete_branches
 ```
 
 - One user instruction may authorize several exact actions, but its source is recorded under every covered key; never replace them with blanket permission.
-- Nine of these actions carry the ordinary development loop: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` **restricted to the resolved integration branch**. One clear execution-intent instruction ("implement this", "build it", "ship it") covers all nine together: record its source under each of their ledger entries in the same authorization request or checkpoint, and do not manufacture separate confirmation pauses for them. They still each get their own ledger entry with its own recorded source, and `push` still carries exact targets — grouping them changes only that a single instruction suffices, not what gets recorded. Under the default branch model the resolved integration branch is the run's own `codex/<short-name>` branch, so the grouped `push` reaches only a disposable branch; a protected default branch is never in scope for it.
+- Nine of the twelve actions carry the ordinary development loop: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` **restricted to the resolved integration branch**. One clear execution-intent instruction ("implement this", "build it", "ship it") covers all nine together: record its source under each of their ledger entries in the same authorization request or checkpoint, and do not manufacture separate confirmation pauses for them. They still each get their own ledger entry with its own recorded source, and `push` still carries exact targets — grouping them changes only that a single instruction suffices, not what gets recorded.
 - `create_user_owned_tasks` is grouped for the same reason `spawn_subagents` is: it is the Codex host's worker-launch action. Whether worker launch needs a separate confirmation must not depend on which host the run happens to be on.
-- That grouping is scoped, not general. A `push` whose target is any branch other than the resolved integration branch is not covered and needs its own authorization moment, and a `push` never reaches a protected default branch even when the run names one as its integration branch. A current RUN v10 declares `branch_protection_contract: "branch-protection/1"` and binds the ordinary integration push to `landing.integration_branch_protection`: the exact full integration ref, `unprotected` status, and a `repository:` policy source. Missing, stale, malformed, non-repository, or `protected` evidence fails closed and requires a separate exact target source. A RUN from the previously shipped template may omit both the marker and that landing key so its state remains readable, but action-time coverage denies the push. Repair it by adding exact repository evidence, or by adding `landing.integration_branch_protection: null` plus the distinct exact `authorizations.push.target_sources` entry; only then add the current marker. `merge_pr` and `deploy` are outside the bundle entirely under the default model: every merge lands on `main` and every release target is production, so both always need their own instruction. A repository that defines its own non-protected integration branch is the only case where a `merge_pr` can ride the loop, and then only for a PR whose base is that exact branch; `integration_pull_request` records that same proof in `landing.base_branch_protection` because its base is the retained integration branch. Completed pre-evidence v10 history remains readable because it cannot dispatch another action.
-- Record that separation in the ledger rather than leaving it to prose. Every new RUN-v10 artifact uses `action_target_contract: "action-targets/1"`; the shipped template is already marked. In a marked RUN, a `push`, `merge_pr`, or `deploy` entry carrying a target the execution-intent instruction does not reach must name the separate instruction for that exact target in `target_sources` (`references/execution-state-model.md`), and that source must differ from the entry's own. The validator fails a marked RUN otherwise in every landing mode. Historical unmarked RUN-v10 files remain readable under their prior target-source shape; if one records `target_sources`, the validator checks the map.
-- The remaining actions — `create_pr`, `trigger_remote_ci`, `manage_pr_review`, `merge_pr`, `deploy`, `provision_cloud_resources`, `configure_repository`, `remove_worktrees`, `archive_worker_tasks`, and `delete_branches`, plus the out-of-scope `push` cases above — remain independent gates. Each needs its own distinct authorization moment and is never swept in by the execution-intent statement. `trigger_remote_ci` uses exact `workflow:<identity>` targets. `provision_cloud_resources` uses exact `cloud-resource:<provider>:<environment>:<kind>:<logical-name>` targets.
-- Repository auto-merge is available only for a PR whose base is a resolved non-protected integration branch, and only once its current-head CI and review gates pass. Under the default branch model no such PR exists, so auto-merge is never enabled.
-- A merge into `main` is never the harness's to initiate. The harness may open the PR, observe current-head CI, and request review, but it does not merge and does not enable auto-merge there — authorization to open the PR is not authorization to land it. Hand back a verified PR and stop. The single exception is a separate, explicit user instruction naming that exact PR; that instruction is its own `merge_pr` grant bound to the exact `pr:<full-PR-URL>` target and head SHA, and it is never inferred from the execution-intent statement or from promotion approval.
+- That grouping is scoped, not general. A `push` whose target is any branch other than the resolved integration branch is not covered and needs its own authorization moment. A `push` is refused outright when the target resolves to `main`, or when the run's own integration branch resolves to `main` — that is the whole branch guard, and it needs no recorded evidence to work.
+- The remaining three actions — `archive_worker_tasks`, `remove_worktrees`, and `delete_branches` — are independent gates. Each needs its own distinct authorization moment and is never swept in by the execution-intent statement.
 - For large, plan-backed work, every RUN-v10 execution and action scope binds the current `run_id`, mission set, PLAN revision, PLAN digest, exact targets where applicable, time, and lifecycle boundary. A plan revision or digest change invalidates the grant rather than silently carrying it forward. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
-- `invoke_external_runtime` does not replace spawn, workspace, branch, commit, integration, landing, or deployment authorization.
-- PR creation, repository configuration, review-state mutation, merge, deploy, archival, worktree removal, and branch deletion are independent boundaries.
-- Workers never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, open PRs, merge, deploy, or clean up.
+- `invoke_external_runtime` does not replace spawn, workspace, branch, commit, or integration authorization.
+- Archival, worktree removal, and branch deletion are independent boundaries.
+- Workers never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, or clean up.
 
 ## UI Implementation Contract
 
@@ -249,8 +226,8 @@ Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Planning depth: direct | compact RUN | PLAN + RUN
 Host adapter: none | codex | claude_code
 Workspace: shared_checkout | parent_managed_worktree | app_managed_worktree
-Landing: local_only | integration_push | pull_request | integration_pull_request
-Verification: focused local | integration | final local | remote final-head
+Landing: local_only | integration_push
+Verification: focused local | integration | final local
 ```
 
 Do not scan every optional platform or adapter. Inspect only what the selected route needs.
@@ -259,21 +236,19 @@ When an existing `RUN.md` is `running`, pass the Resume Reconciliation Gate (`re
 
 ### 2. Plan Large Work
 
-Freeze relevant source paths and SHA-256 digests, functional and non-functional requirements, Builder UX Direction, architecture boundaries, frontend stack, data/integration contracts, failure states, security, observability, migration/release order, acceptance criteria, and exact verification commands. Preserve stable PRD, ARCH, UI, UX, DS, and TEST trace IDs. Every task acceptance row is structured as `{test_id, trace_ids, criterion}` so each planned trace has named verification coverage.
+Freeze relevant source paths and SHA-256 digests, functional and non-functional requirements, Builder UX Direction, architecture boundaries, frontend stack, data/integration contracts, failure states, security, observability, migration order, acceptance criteria, and exact verification commands. Preserve stable PRD, ARCH, UI, UX, DS, and TEST trace IDs. Every task acceptance row is structured as `{test_id, trace_ids, criterion}` so each planned trace has named verification coverage.
 
 For every UI implementation mission, default `required_skills` to `[]`. Add `frontend-design` only when the user explicitly selected it for that mission's new or high-impact visual surface, and record frontend-design conformance mode in the mission objective or stop conditions. Do not infer the skill from a frontend path, a visual review requirement, or a desire to make the page look better.
 
 A PLAN-v5 source may record a `staged_revision`, but that is not an executable publication. The current canonical `location`, `content_sha256`, and `source_revision` stay binding until the accepted revision is published to the canonical source location, the source becomes `frozen` or `delta_accepted`, and the PLAN revision and digest change. A ready or executing RUN never points at a product staging path.
 
-For deployable work, declare a stable provider-neutral `production` release target ID. The default model runs one environment, published from `main`; declare a `development`-stage target only when the repository actually keeps a separate preview or staging environment. When `architecture.md` has a `## Release Targets` section, reuse its target IDs verbatim instead of minting new ones, and give every expected deployable surface it lists at least one target — see `references/contract-and-traceability.md`'s Trace IDs rules. Every target names its exact stage, source, artifact kind, signing requirement, channel, data mode, trigger, migration classification, build/migrate/publish commands, prerequisites, and smoke verifiers. RUN-v10 `targets` keys exactly equal those PLAN target IDs and retain PASS artifact, channel, promotion, and availability evidence with hashes, build/version identity, and signing status.
-
-Draw an acyclic typed graph with bounded correction handling. Before integration, send review findings back to the original mission task, thread, and worktree; after its verifier passes on a changed head, re-arm the same review node and review that head again. Bound this loop with the review node's `max_attempts`. Do not create a second repair mission from an integration branch that does not contain the reviewed head. A post-integration or batch review may route to a bounded repair node based on the reviewed integration head, then back through review; it never routes straight past the review gate. Separate independently writable frontend, backend, data, integration, review, UI evidence, and release work when their contracts and verifiers are distinct. Every runtime review is read-only and binds one exact reviewed SHA.
+Draw an acyclic typed graph with bounded correction handling. Before integration, send review findings back to the original mission task, thread, and worktree; after its verifier passes on a changed head, re-arm the same review node and review that head again. Bound this loop with the review node's `max_attempts`. Do not create a second repair mission from an integration branch that does not contain the reviewed head. A post-integration or batch review may route to a bounded repair node based on the reviewed integration head, then back through review; it never routes straight past the review gate. Separate independently writable frontend, backend, data, integration, review, and UI evidence work when their contracts and verifiers are distinct. Every runtime review is read-only and binds one exact reviewed SHA.
 
 ### 3. Pass Plan Readiness
 
 Ready means the required inputs are frozen or explicitly `UNVALIDATED`, scope and denial boundaries are concrete, every task has a verifier, dependencies and resource conflicts are known, action authorization is recorded, and the next selected route is executable. Executability covers the whole graph, not just the next node: every `runtime_worker` node's `allowed_providers` must include a provider that will actually host part of this run. A node no available host can execute is a blocking readiness gap unless the user explicitly acknowledges it as deferred to a run on another host (see `references/graph-orchestration.md`). Builder approval proves direction conformance, not usability proof. Every must-have `UX-*` trace needs an objective check or planned evidence.
 
-For `plan-then-stop`, stop after readiness. For execution intent, request only the missing exact execution and optional landing actions, then continue when they are authorized.
+For `plan-then-stop`, stop after readiness. For execution intent, request only the missing exact execution actions, then continue when they are authorized.
 
 ### 4. Execute And Integrate
 
@@ -281,7 +256,7 @@ For small work, use one parent writer and the smallest relevant checks. For larg
 
 When a UI worker loads `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe screen, `design-system.md`, and `design-system.json` inputs. A generic instruction to "make it distinctive" is not a valid handoff.
 
-The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. An enabled task-local reviewer records its exact-head PASS in WORKER_RESULT; after validation, the parent retains that completed reviewer child in the worker's canonical `nested_review_evidence`, which must still match the mission head before integration. A disabled task-local policy, or a graph-backed direct worker with no nested policy, may validate first so its downstream review node becomes selectable, but the mission cannot transition to `integrating` until the parent records a terminal `review_workers[]` PASS covering that mission and worktree head. A review worker may bind only mission worktree or integrated SHAs declared by its own review node, plus the current integration or PR head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into the resolved integration branch, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
+The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. An enabled task-local reviewer records its exact-head PASS in WORKER_RESULT; after validation, the parent retains that completed reviewer child in the worker's canonical `nested_review_evidence`, which must still match the mission head before integration. A disabled task-local policy, or a graph-backed direct worker with no nested policy, may validate first so its downstream review node becomes selectable, but the mission cannot transition to `integrating` until the parent records a terminal `review_workers[]` PASS covering that mission and worktree head. A review worker may bind only mission worktree or integrated SHAs declared by its own review node, plus the current integration head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into the resolved integration branch, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
 
 ### 5. Verify Local-First
 
@@ -291,19 +266,19 @@ Use a verification ladder:
 2. Before each worktree merges, complete at least one read-only review round on its exact current head. Any repair invalidates that review.
 3. After real integration into the resolved integration branch, run the mission integration gate and the relevant batch and interaction gates.
 4. Converge local deterministic checks and exact-SHA runtime review. A repair invalidates only affected layers.
-5. After those loops close, run broad regression, browser E2E, breakpoint-by-state UI evidence, visual review, migration, and release checks that apply to the final integration head.
+5. After those loops close, run broad regression, browser E2E, breakpoint-by-state UI evidence, visual review, and migration checks that apply to the final integration head.
 6. Run `git diff --check` and review the complete final diff.
 
-A clean, cache-safe focused task or worker verifier may reuse only an exact same-attempt `session_exact` PASS, bound to its `attempt_id` and `lease_id`, from a repository-external cache. Do not cache integration, cross-mission, UI, migration, release, or remote gates; that ban is enforced both when the PLAN declares the verifier and again at run time in `verifier_runtime.py`. RUN-v10 `verifier_executions` is append-only and parent-owned: workers return candidate results, but only the parent validates and appends the normalized verifier, execution context, key document/digests, cache decision, output hashes, metrics, and retained evidence paths. Required UI artifacts live under `docs/goal/evidence/`, record lowercase SHA-256, and bind to the exact integration head.
+A clean, cache-safe focused task or worker verifier may reuse only an exact same-attempt `session_exact` PASS, bound to its `attempt_id` and `lease_id`, from a repository-external cache. Do not cache integration, cross-mission, UI, or migration gates; that ban is enforced both when the PLAN declares the verifier and again at run time in `verifier_runtime.py`. RUN-v10 `verifier_executions` is append-only and parent-owned: workers return candidate results, but only the parent validates and appends the normalized verifier, execution context, key document/digests, cache decision, output hashes, metrics, and retained evidence paths. Required UI artifacts live under `docs/goal/evidence/`, record lowercase SHA-256, and bind to the exact integration head.
 
-Automated current-head E2E may replace only an equivalent duplicate manual smoke. Record `not required - covered by current-head E2E`; deployment smoke remains separate when the tested environment differs.
+Automated current-head E2E may replace only an equivalent duplicate manual smoke. Record `not required - covered by current-head E2E`.
 
-Local-only work stops after its authorized worktree commits are reviewed and integrated into the resolved persistent integration branch, with local evidence recorded. It does not wait for GitHub CI or GitHub review and never changes the resolved protected landing branch. Remote final-head verification and any later approved promotion are owned by the GitHub landing adapter.
+Local-only work stops after its authorized worktree commits are reviewed and integrated into the resolved integration branch, with local evidence recorded. It does not wait for CI and never changes the default branch.
 
 ### 6. Complete
 
-A local-only run completes when authorized local mutations are finished, all applicable local gates pass on the integration head, no blocker remains, and RUN records evidence, changed files, commits, residual risk, and explicit local landing state.
+A local-only run completes when authorized local mutations are finished, all applicable local gates pass on the integration head, no blocker remains, and RUN records evidence, changed files, commits, and residual risk.
 
-A pull-request run completes only through the GitHub landing adapter's exact-head requirements. Deployment completes only through the declared provider lifecycle. Merge or landing permission never implies deployment permission. A native merge-triggered release always requires independent exact production `deploy` authorization for the target. If the harness performs or auto-merges, it additionally requires exact `merge_pr` authorization for the PR, current head, missions, and release consequence; if a human merges externally, leave `merge_pr` false and retain GitHub actor/event evidence bound to the exact PR URL, reviewed head, and merged SHA rather than fabricating a harness grant.
+An `integration_push` run completes when the verified integration head reaches the run's own branch and RUN records that branch, the pushed head SHA, and the local evidence behind it. It does not wait for a PR, for CI, or for a deploy.
 
-Finish by checking final Git status, reporting what changed and what was verified, and listing every intentionally unexecuted remote or lifecycle action. Never claim a push, PR, review, merge, deploy, archival, or cleanup action that did not happen.
+Finish by checking final Git status, reporting what changed, what was verified, the branch and head SHA that were pushed, and every intentionally unexecuted lifecycle action. Never claim a push, archival, or cleanup action that did not happen.

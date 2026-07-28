@@ -18,7 +18,7 @@ Do not start by rewriting. Start by proving the current state.
 ## Intake Fields
 
 ```text
-Refinement target: UX | visual polish | performance | accessibility | SEO | conversion | reliability | test coverage | code quality | release readiness
+Refinement target: UX | visual polish | performance | accessibility | SEO | conversion | reliability | test coverage | code quality
 Current state: deployed URL | local app route | screenshots | failing checks | user complaints | analytics | known TODOs
 Baseline command:
 Primary journey:
@@ -43,7 +43,6 @@ Conversion: CTA visibility, form completion, event tracking, thank-you/confirmat
 Reliability: console/network errors, failed requests, flaky tests, error boundaries, retries
 Test coverage: missing tests around changed behavior, weak E2E journeys, unverified permissions
 Code quality: duplication, unclear ownership, brittle state, dead code, overly broad components
-Release readiness: env vars, deploy smoke, migrations, rollback, monitoring, release impact
 ```
 
 Evidence can be command output, screenshots, traces, console logs, metrics, file references, or a rendered-page observation. When PLAN marks UI evidence required, retain a real screenshot for every planned breakpoint and state; the other evidence types are supplemental. Mark unverifiable surfaces as `UNVALIDATED`.
@@ -77,7 +76,7 @@ M1 baseline and backlog
 M2 targeted UX/visual refinement
 M3 performance or accessibility pass
 M4 platform-specific refinement, such as SaaS auth/tenant or public-site SEO
-M5 regression and release verification
+M5 regression verification
 ```
 
 For small accepted refinements, skip worktrees and run direct work with before/after evidence. Use worktrees when several accepted refinements can run independently or when the parent checkout must remain stable.
@@ -101,4 +100,4 @@ Stop before implementation when:
 - The app cannot build or run and no baseline can be captured.
 - The only available evidence is subjective preference with no design source or user goal.
 - A change would remove existing behavior, content, routes, analytics, permissions, or data.
-- The user asks for production-affecting changes without a safe verification path.
+- The requested change has no safe local verification path.

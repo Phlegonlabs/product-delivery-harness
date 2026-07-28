@@ -1,6 +1,6 @@
 # Parallel Mission Selection
 
-Use this reference after plan readiness passes and before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, PRs, deployments, or cleanup actions.
+Use this reference after plan readiness passes and before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions.
 
 The Project Size Gate runs first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted plan and execute it with the sequential parent.
 
@@ -249,7 +249,7 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 1. Confirm worker base/head ancestry and head stability.
 2. Recompute actual changed paths and reject scope escape or parent-owned files.
 3. Require at least one read-only review PASS bound to the exact current worktree head. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`. Repair findings in that worktree and review the changed head again.
-4. Integrate into the resolved persistent integration branch only when `integrate_locally` is authorized.
+4. Integrate into the resolved integration branch only when `integrate_locally` is authorized.
 5. Run the affected mission's integration verifiers after its integration.
 6. Mark it `integrated` only after the gate passes and record `integrated_sha`.
 7. Stop the batch on worker failure, review failure, integration failure, unexpected conflict, stale base, or contract gap.
@@ -257,7 +257,7 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 9. Refresh RUN observations and recompute the next ready frontier and conflict graph.
 10. Repeat steps 1-9 with the recomputed frontier until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the final/current-head gate on the resolved integration branch; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
 
-Never reuse the prior wave's independence result. Each merge changes the integration head and may change dependencies, generated artifacts, or resource availability. Push, PR, deploy, task archival, worktree removal, and branch deletion remain separate authorization-gated actions.
+Never reuse the prior wave's independence result. Each merge changes the integration head and may change dependencies, generated artifacts, or resource availability. Push, task archival, worktree removal, and branch deletion remain separate authorization-gated actions.
 
 ## Conservative Fallback
 
