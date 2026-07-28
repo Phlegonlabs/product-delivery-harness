@@ -35,7 +35,6 @@ from harness_schema import (
     PERMISSION_SELECTED_MODES,
     PERMISSION_STATUSES,
     PLAN_HEADING,
-    PROTECTED_DEFAULT_BRANCHES,
     RUN_HEADING,
     RUNTIME_DETECTION_SOURCES,
     RUNTIME_DRIVER_PRIORITY,
@@ -2694,21 +2693,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if (
             landing_mode in {"pull_request", "integration_pull_request"}
             and v10_landing.get("auto_merge_requested") is True
-            and (
-                landing_mode == "pull_request"
-                or (
-                    landing_mode == "integration_pull_request"
-                    and (
-                        normalized_base in PROTECTED_DEFAULT_BRANCHES
-                        or normalized_integration in PROTECTED_DEFAULT_BRANCHES
-                    )
-                )
-            )
+            and landing_mode == "pull_request"
         ):
             _add(
                 errors,
                 "run.landing.auto_merge_requested",
-                f"{landing_mode} into a protected default branch cannot use "
+                f"{landing_mode} into the resolved protected base cannot use "
                 "auto-merge; a later exact human instruction must initiate that merge",
             )
         if normalized_head is not None and normalized_head == normalized_base:

@@ -630,6 +630,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
     def test_runbook_starts_local_only_and_names_all_three_modes(self) -> None:
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        state = self.read("references/execution-state-model.md")
 
         # A fresh RUN has pushed nothing yet, so it still starts local_only.
         self.assertIn('"mode": "local_only"', runbook)
@@ -637,6 +638,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         for mode in ("`local_only`", "`integration_push`", "`pull_request`"):
             self.assertIn(mode, runbook)
         self.assertIn("only after the user separately asks for the pull request into the protected base", runbook)
+        for content in (runbook, state):
+            self.assertIn("repository-resolved separate non-protected integration branch", content)
+            self.assertIn(
+                "If the intended base is the protected landing branch, whatever its name, use `pull_request`; "
+                "auto-merge is unavailable there.",
+                content,
+            )
 
     @unittest.skipIf(REPO_ROOT is None, "repository rules require a source checkout")
     def test_repository_rules_do_not_shadow_concurrent_review_flow(self) -> None:
@@ -655,7 +663,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("do not include a future protected-branch promotion", skill)
         self.assertIn("future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>", skill)
-        self.assertIn("Do not put the later `main` landing", state)
+        self.assertIn("Do not put the later protected-base landing", state)
         self.assertIn("do not request or infer a future protected-branch promotion", goal)
         self.assertIn("Do not include protected-branch promotion in an ordinary mission run", runbook)
         self.assertIn("Do not request or infer a protected-branch pull request at Plan Readiness", project_rules)

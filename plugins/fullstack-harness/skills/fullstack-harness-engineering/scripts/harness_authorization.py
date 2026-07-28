@@ -17,7 +17,6 @@ from harness_schema import (
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GITHUB_PR_URL_RE,
-    PROTECTED_DEFAULT_BRANCHES,
     SHA256_RE,
     TARGET_RE,
     action_target_kind_allowed,
@@ -153,6 +152,51 @@ def future_pr_target_matches_landing(
     )
 
 
+def _resolved_branch_protection(run: dict[str, Any], branch: Any) -> bool | None:
+    """Resolve branch protection from the recorded landing model.
+
+    `pull_request` and the non-PR modes record a protected landing base beside
+    the run's non-protected integration head. `integration_pull_request`
+    instead records a genuine non-protected integration base. Missing or
+    internally inconsistent state is unknown and therefore fails closed.
+    """
+    landing = run.get("landing")
+    integration = run.get("integration")
+    if not isinstance(landing, dict) or not isinstance(integration, dict):
+        return None
+    mode = landing.get("mode")
+    normalized_branch = _normalized_branch(branch)
+    normalized_base = _normalized_branch(landing.get("base_branch"))
+    normalized_head = _normalized_branch(landing.get("head_branch"))
+    normalized_integration = _normalized_branch(integration.get("branch"))
+    if (
+        normalized_branch is None
+        or normalized_base is None
+        or normalized_head is None
+        or normalized_integration is None
+    ):
+        return None
+    if mode == "integration_pull_request":
+        if (
+            normalized_base != normalized_integration
+            or normalized_head == normalized_integration
+        ):
+            return None
+        return False if normalized_branch == normalized_integration else None
+    if mode not in {"local_only", "integration_push", "pull_request"}:
+        return None
+    if (
+        normalized_head != normalized_integration
+        or normalized_head == normalized_base
+    ):
+        return None
+    if normalized_branch == normalized_base:
+        return True
+    if normalized_branch == normalized_integration:
+        return False
+    return None
+
+
 def execution_intent_target_in_scope(
     plan: dict[str, Any], run: dict[str, Any], action: str, target: str
 ) -> bool:
@@ -172,10 +216,9 @@ def execution_intent_target_in_scope(
     if normalized_integration_branch is None:
         return False
     if action == "push":
-        # A protected default branch is never the loop's push target, even when
-        # the run names it as its own integration branch. Pushing it is the one
-        # step a later exact human instruction has to authorize by itself.
-        if normalized_integration_branch in PROTECTED_DEFAULT_BRANCHES:
+        # The loop may push only a resolved non-protected integration branch.
+        # A protected base or unresolved branch model needs its own instruction.
+        if _resolved_branch_protection(run, branch) is not False:
             return False
         return target == f"branch:{branch}"
     if action == "merge_pr":
@@ -194,12 +237,12 @@ def execution_intent_target_in_scope(
         )
         target_base = future_pr.group("base") if future_pr is not None else landing_base
         if (
-            _normalized_branch(target_base) in PROTECTED_DEFAULT_BRANCHES
-            or _normalized_branch(landing_base) in PROTECTED_DEFAULT_BRANCHES
+            not isinstance(landing, dict)
+            or landing.get("mode") != "integration_pull_request"
+            or _resolved_branch_protection(run, target_base) is not False
         ):
-            # A generic development-loop instruction never covers a merge into a
-            # protected default branch. Every target in that merge entry must
-            # retain the later exact human instruction in target_sources.
+            # Only a PR into the resolved non-protected integration branch can
+            # ride the development loop. Protected and unknown bases stay out.
             return False
         if future_pr is not None:
             return future_pr_target_matches_landing(

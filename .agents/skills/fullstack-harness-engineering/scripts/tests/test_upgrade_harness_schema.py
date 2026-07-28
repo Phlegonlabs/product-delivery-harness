@@ -785,6 +785,7 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
         loop_merge = copy.deepcopy(base)
         loop_merge["landing"].update(
             {
+                "mode": "integration_pull_request",
                 "pr_url": "https://github.com/acme/app/pull/1",
                 "base_branch": branch,
                 "head_branch": "feature",
