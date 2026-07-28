@@ -2664,6 +2664,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.landing.head_branch",
                     "integration_pull_request head must differ from the integration branch",
                 )
+            if (
+                landing.get("auto_merge_requested") is True
+                and (
+                    normalized_integration == "main"
+                    or normalized_base == "main"
+                )
+            ):
+                _add(
+                    errors,
+                    "run.landing.auto_merge_requested",
+                    "integration_pull_request into main cannot use auto-merge; "
+                    "a later exact human instruction must initiate that merge",
+                )
         elif normalized_head != normalized_integration:
             _add(errors, "run.integration.branch", "must match landing.head_branch for PLAN v5")
         if normalized_head is not None and normalized_head == normalized_base:
@@ -2820,16 +2833,21 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.authorizations.merge_pr.authorized_head_sha",
                     "must match the exact current PR head for auto-merge",
                 )
-            release = (
-                plan.get("release")
-                if run["landing"].get("mode") == "pull_request"
-                else None
-            )
+            release = plan.get("release")
             release_targets = release.get("targets", []) if isinstance(release, dict) else []
+            applicable_stage = (
+                "development"
+                if run["landing"].get("mode") == "integration_pull_request"
+                else "production"
+            )
             merge_triggered_ids = [
                 target.get("id")
                 for target in release_targets
-                if isinstance(target, dict) and target.get("trigger") == "merge"
+                if (
+                    isinstance(target, dict)
+                    and target.get("trigger") == "merge"
+                    and target.get("stage") == applicable_stage
+                )
             ]
             missing_consequences = [
                 target_id

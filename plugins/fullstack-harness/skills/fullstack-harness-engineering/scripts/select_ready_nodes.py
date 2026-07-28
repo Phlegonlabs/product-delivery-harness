@@ -376,7 +376,13 @@ def _action_authorized(
     )
 
 
-def _current_authorized_head(run: dict[str, Any], action: str) -> str | None:
+def _current_authorized_head(
+    run: dict[str, Any],
+    action: str,
+    *,
+    plan: dict[str, Any] | None = None,
+    target: str | None = None,
+) -> str | None:
     """Resolve the live candidate head for one head-bound lifecycle action."""
     landing = run.get("landing")
     if isinstance(landing, dict):
@@ -428,6 +434,49 @@ def _current_authorized_head(run: dict[str, Any], action: str) -> str | None:
         if action == "create_pr":
             return landing.get("pushed_head_sha")
     integration = run.get("integration")
+    if (
+        action == "deploy"
+        and isinstance(plan, dict)
+        and isinstance(target, str)
+        and target.startswith("release:")
+    ):
+        target_id = target.removeprefix("release:")
+        release = plan.get("release")
+        declared_targets = (
+            release.get("targets") if isinstance(release, dict) else None
+        )
+        declared = None
+        if isinstance(declared_targets, list):
+            declared = next(
+                (
+                    item
+                    for item in declared_targets
+                    if isinstance(item, dict) and item.get("id") == target_id
+                ),
+                None,
+            )
+        if not isinstance(declared, dict):
+            return None
+        if declared.get("trigger") == "merge":
+            if isinstance(landing, dict) and landing.get("pr_head_sha"):
+                return landing.get("pr_head_sha")
+            return (
+                integration.get("integration_head_sha")
+                if isinstance(integration, dict)
+                else None
+            )
+        source = declared.get("source")
+        if source == "pr_head":
+            return landing.get("pr_head_sha") if isinstance(landing, dict) else None
+        if source == "integration_head":
+            return (
+                integration.get("integration_head_sha")
+                if isinstance(integration, dict)
+                else None
+            )
+        if source in {"production_head", "merged_main"}:
+            return landing.get("merged_sha") if isinstance(landing, dict) else None
+        return None
     if isinstance(integration, dict):
         return integration.get("integration_head_sha")
     return None
@@ -566,6 +615,7 @@ def _required_actions(
 def _dispatch_reasons(
     node: dict[str, Any],
     binding: dict[str, Any] | None,
+    plan: dict[str, Any],
     run: dict[str, Any],
     missions: dict[str, dict[str, Any]],
 ) -> list[str]:
@@ -644,7 +694,12 @@ def _dispatch_reasons(
         # -valid PLANs (authored before this field existed) unchanged.
         target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
-        current_head = _current_authorized_head(run, node["ref"])
+        current_head = _current_authorized_head(
+            run,
+            node["ref"],
+            plan=plan,
+            target=target,
+        )
         if any(
             not _action_authorized(run, node["ref"], mission_id, target)
             for mission_id in mission_ids
@@ -768,7 +823,13 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
 
     dispatch_ready: list[dict[str, Any]] = []
     for item in logical_ready:
-        reasons = _dispatch_reasons(item["node"], item["binding"], run, missions)
+        reasons = _dispatch_reasons(
+            item["node"],
+            item["binding"],
+            plan,
+            run,
+            missions,
+        )
         if reasons:
             deferred.append({"node_id": item["node"]["id"], "reason_codes": reasons})
         else:

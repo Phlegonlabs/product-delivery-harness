@@ -931,6 +931,90 @@ class RunValidationTests(unittest.TestCase):
             f"expected {fragment!r} in {errors!r}",
         )
 
+    def integration_pull_request_v10(
+        self,
+    ) -> tuple[dict[str, object], dict[str, object], str]:
+        root = SCRIPTS_DIR.parent
+        plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
+        run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        development = next(
+            target
+            for target in plan["release"]["targets"]
+            if target["stage"] == "development"
+        )
+        development["trigger"] = "merge"
+        development["commands"]["publish"] = None
+        run["plan"]["digest_sha256"] = plan_digest(plan)
+
+        pr_head = SHA_A
+        pr_url = "https://github.com/example/repo/pull/7"
+        future_pr = (
+            "future-pr:example/repo:"
+            "base=refs/heads/development:head=refs/heads/codex/feature"
+        )
+        run["landing"].update(
+            {
+                "mode": "integration_pull_request",
+                "head_branch": "refs/heads/codex/feature",
+                "base_branch": "refs/heads/development",
+                "pushed_head_sha": pr_head,
+                "pr_number": 7,
+                "pr_url": pr_url,
+                "pr_state": "open",
+                "pr_head_sha": pr_head,
+                "checks_status": "PASS",
+                "checks_head_sha": pr_head,
+                "review_status": "PASS",
+                "review_head_sha": pr_head,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "ready",
+                "auto_merge_requested": True,
+                "auto_merge_head_sha": pr_head,
+                "continuity": {
+                    "status": "planned",
+                    "branch_ref": "refs/heads/development",
+                    "head_sha": None,
+                    "reason": "retain the integration branch for later promotion",
+                },
+            }
+        )
+        run["authorizations"]["merge_pr"] = {
+            "authorized": True,
+            "source": "user: merge the exact integration pull request",
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": list(run["mission_states"]),
+                "targets": [future_pr, f"pr:{pr_url}"],
+            },
+            "expires_when": "run_complete",
+            "authorized_head_sha": pr_head,
+        }
+        return plan, run, development["id"]
+
+    def authorize_merge_triggered_development_release(
+        self,
+        run: dict[str, object],
+        target_id: str,
+    ) -> None:
+        release_target = f"release:{target_id}"
+        run["authorizations"]["merge_pr"]["scope"]["targets"].append(release_target)
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user: deploy the development release from this exact merge",
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": list(run["mission_states"]),
+                "targets": [release_target],
+            },
+            "expires_when": "run_complete",
+            "authorized_head_sha": run["landing"]["pr_head_sha"],
+        }
+
     def test_matching_plan_run_digest(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
@@ -3084,6 +3168,65 @@ class RunValidationTests(unittest.TestCase):
             run,
             "auto_merge_head_sha: must be null when auto_merge_requested is false",
         )
+
+    def test_integration_pull_request_auto_merge_requires_development_release_grants(
+        self,
+    ) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "merge authorization must include its auto-deploy release targets"
+                in error
+                and development_target_id in error
+                for error in errors
+            ),
+            errors,
+        )
+        self.assertTrue(
+            any(
+                "auto-merge requires separate exact deploy authorization"
+                in error
+                and development_target_id in error
+                for error in errors
+            ),
+            errors,
+        )
+
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+    def test_integration_pull_request_into_main_cannot_use_auto_merge(self) -> None:
+        plan, run, development_target_id = self.integration_pull_request_v10()
+        self.authorize_merge_triggered_development_release(
+            run, development_target_id
+        )
+        run["integration"]["branch"] = "refs/heads/main"
+        run["landing"]["base_branch"] = "main"
+        run["landing"]["continuity"]["branch_ref"] = "refs/heads/main"
+        future_pr = (
+            "future-pr:example/repo:"
+            "base=main:head=refs/heads/codex/feature"
+        )
+        exact_pr = f"pr:{run['landing']['pr_url']}"
+        run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
+        run["authorizations"]["merge_pr"]["target_sources"] = {
+            future_pr: "user: merge this main-bound pull request after it is ready",
+            exact_pr: "user: merge this main-bound pull request after it is ready",
+        }
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "integration_pull_request into main cannot use auto-merge",
+        )
+
+        run["landing"]["auto_merge_requested"] = False
+        run["landing"]["auto_merge_head_sha"] = None
+        self.assertEqual([], validate_run(plan, run))
 
     def test_local_only_landing_rejects_a_pushed_head(self) -> None:
         plan = valid_plan()

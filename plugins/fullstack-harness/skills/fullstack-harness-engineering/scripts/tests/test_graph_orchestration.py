@@ -2200,6 +2200,96 @@ class GraphManifestTests(unittest.TestCase):
         self.assertIn("N-LIFECYCLE", dispatchable)
         self.assertEqual(target, dispatchable["N-LIFECYCLE"]["target"])
 
+    def test_manual_production_deploy_uses_the_merged_production_head(
+        self,
+    ) -> None:
+        target = "release:web-production"
+        plan, run = lifecycle_v10_plan_and_run("deploy", target)
+        production = next(
+            item
+            for item in plan["release"]["targets"]
+            if item["id"] == "web-production"
+        )
+        production["trigger"] = "manual"
+        production["commands"]["publish"] = {
+            "id": "publish-web-production",
+            "cwd": ".",
+            "argv": ["deploy-production"],
+            "pass_signal": "Production deploy succeeds",
+        }
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        run["landing"].update(
+            {
+                "mode": "pull_request",
+                "pushed_head_sha": "a" * 40,
+                "pr_number": 1,
+                "pr_url": "https://github.com/acme/app/pull/1",
+                "pr_state": "merged",
+                "pr_head_sha": "a" * 40,
+                "checks_status": "PASS",
+                "checks_head_sha": "a" * 40,
+                "review_status": "PASS",
+                "review_head_sha": "a" * 40,
+                "blocking_findings": 0,
+                "unresolved_threads": 0,
+                "merge_status": "merged",
+                "merged_sha": "b" * 40,
+            }
+        )
+        run["landing"]["continuity"].update(
+            {
+                "status": "not_required",
+                "branch_ref": None,
+                "head_sha": None,
+                "reason": None,
+            }
+        )
+        run["authorizations"]["deploy"] = {
+            "authorized": True,
+            "source": "user requested execution",
+            "authorized_head_sha": "b" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": digest,
+                "mission_ids": ["*"],
+                "targets": [target],
+            },
+            "expires_when": "run_complete",
+            "target_sources": {
+                target: "user separately authorized this production deploy"
+            },
+        }
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual([], validate_run(plan, run))
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"] for item in result["dispatchable_nodes"]}
+        self.assertIn("N-LIFECYCLE", dispatchable)
+
+        run["landing"].update(
+            {
+                "pr_state": "open",
+                "merge_status": "ready",
+                "merged_sha": None,
+            }
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        result = select_ready_nodes(plan, run)
+
+        dispatchable = {item["node_id"] for item in result["dispatchable_nodes"]}
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in result["deferred_nodes"]
+        }
+        self.assertNotIn("N-LIFECYCLE", dispatchable)
+        self.assertIn("authorization_head_stale", deferred["N-LIFECYCLE"])
+
     def test_head_bound_lifecycle_node_defers_when_authorized_head_is_stale(
         self,
     ) -> None:
