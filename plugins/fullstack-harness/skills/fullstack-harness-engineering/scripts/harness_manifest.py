@@ -18,6 +18,7 @@ from harness_schema import (
     CLEANUP_STATUSES,
     CLEANUP_WORKTREE_STATUSES,
     DEPLOYMENT_PROVIDERS,
+    EXECUTION_INTENT_SCOPED_ACTIONS,
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GATE_VALUES,
@@ -87,6 +88,7 @@ from harness_authorization import (
     _validate_authorization_scope,
     authorization_covers,
     execution_covers,
+    validate_target_sources,
 )
 from harness_graph import (
     _cycle_nodes,
@@ -2485,6 +2487,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             optional_entry_keys = {"scope", "expires_when"}
             if schema_version == 10:
                 optional_entry_keys.add("authorized_head_sha")
+                if action in EXECUTION_INTENT_SCOPED_ACTIONS:
+                    optional_entry_keys.add("target_sources")
             if not _keys(
                 errors,
                 path,
@@ -2545,6 +2549,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         errors,
                         f"{path}.authorized_head_sha",
                         "is only allowed for head-bound remote actions",
+                    )
+                if schema_version == 10 and action in EXECUTION_INTENT_SCOPED_ACTIONS:
+                    validate_target_sources(
+                        errors, path, entry, plan=plan, run=run, action=action
                     )
             else:
                 if entry["source"] is not None:

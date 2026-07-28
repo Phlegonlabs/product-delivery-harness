@@ -1,9 +1,13 @@
+import sys
 import unittest
 from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 SKILLS_ROOT = SKILL_ROOT.parent
+SCRIPTS_DIR = SKILL_ROOT / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 
 def find_repo_root(start: Path) -> Path | None:
@@ -211,7 +215,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("uses `integration_push`", skill)
         self.assertIn("integration_push", runbook)
         self.assertIn("landing.pushed_head_sha", runbook)
-        self.assertNotIn("Ordinary PRD/PLD, UI, and feature work stays `local_only`", runbook)
+        self.assertNotIn("Ordinary PRD, UI, and feature work stays `local_only`", runbook)
         self.assertNotIn('New RUN files default to `mode: "local_only"`.', runbook)
 
     def test_authorized_landing_runs_without_intermediate_stop(self) -> None:
@@ -241,6 +245,318 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("current-head", content)
             self.assertIn("merge", content.lower())
         self.assertIn("integrate passing work", agent)
+
+    def test_ledger_reference_lists_exactly_the_code_actions(self) -> None:
+        """The ledger reference drifted to v9/17 actions once already, because
+        nothing tied its list to the constant the validator uses."""
+        from harness_schema import AUTHORIZATION_KEYS_V10, EXECUTION_INTENT_SCOPED_ACTIONS
+
+        reference = self.read("references/execution-state-model.md")
+        core = self.read("SKILL.md")
+
+        block_start = reference.index("The current schema-v10 ledger has")
+        fence = reference.index("```text", block_start) + len("```text")
+        listed = reference[fence : reference.index("```", fence)].split()
+
+        self.assertEqual(sorted(AUTHORIZATION_KEYS_V10), sorted(listed))
+        self.assertEqual(len(AUTHORIZATION_KEYS_V10), len(listed))
+        self.assertIn(f"has {len(AUTHORIZATION_KEYS_V10)} actions", reference)
+
+        for action in AUTHORIZATION_KEYS_V10:
+            self.assertIn(f"`{action}`", core)
+        for action in EXECUTION_INTENT_SCOPED_ACTIONS:
+            self.assertIn(action, reference)
+
+    def test_out_of_scope_targets_carry_their_own_recorded_source(self) -> None:
+        core = self.read("SKILL.md")
+        reference = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertIn("`target_sources`", core)
+        self.assertIn("## Per-Target Provenance For The Scoped Three", reference)
+        self.assertIn("must differ from the entry `source`", reference)
+        self.assertIn("Resolution fails closed", reference)
+        self.assertIn("`target_sources` is rejected on any other action", reference)
+        self.assertIn("in every landing mode", reference)
+        self.assertIn('"target_sources": {', runbook)
+        self.assertIn("in every landing mode", runbook)
+
+    def test_merge_policy_splits_on_the_pr_base_branch(self) -> None:
+        """Auto-merge is allowed into the integration branch and never into the
+        protected landing branch.
+
+        Regression guard: the ledger's grouped execution-intent bundle now
+        carries `merge_pr`, so the only thing keeping a promotion PR from being
+        merged automatically is that the grouping is scoped to the integration
+        base.
+        """
+        core = self.read("SKILL.md")
+        landing = self.read_sibling_skill("fullstack-harness-github-landing")
+        project_rules = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
+
+        self.assertIn(
+            "`merge_pr` **restricted to a PR whose base is the resolved integration branch**",
+            core,
+        )
+        self.assertIn(
+            "A merge whose base is the resolved integration branch may use repository auto-merge",
+            core,
+        )
+        self.assertIn(
+            "A merge toward the protected landing branch is never the harness's to initiate",
+            core,
+        )
+        self.assertIn("does not enable auto-merge there", core)
+        self.assertIn("Which side of this section applies is decided by the PR's base branch", landing)
+        self.assertIn("It does not merge and does not enable auto-merge there", landing)
+        for content in (project_rules, project_claude):
+            self.assertIn("the next step depends on the PR's base", content)
+            self.assertIn("resolved integration branch", content)
+        self.assertIn("The merge toward the protected base is the human's", project_rules)
+
+    def test_production_deploy_is_its_own_grant_not_the_merge(self) -> None:
+        """One rule, three sites. The docs used to give three answers: the core
+        said the harness never runs the production deploy, the Cloudflare
+        reference said the parent runs it, and the validator required an exact
+        `deploy` grant for the production target — which only makes sense if the
+        harness can run it. The grant is what decides, not the merge.
+        """
+        from harness_authorization import execution_intent_target_in_scope
+
+        core = self.read("SKILL.md")
+        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
+
+        plan = {
+            "release": {
+                "targets": [
+                    {"id": "web-development", "stage": "development"},
+                    {"id": "web-production", "stage": "production"},
+                ]
+            }
+        }
+        run = {
+            "integration": {"branch": "development"},
+            "landing": {"base_branch": "production"},
+        }
+        # The development target rides the execution-intent instruction; the
+        # production one is its own authorization moment.
+        self.assertTrue(
+            execution_intent_target_in_scope(plan, run, "deploy", "release:web-development")
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(plan, run, "deploy", "release:web-production")
+        )
+        self.assertFalse(
+            execution_intent_target_in_scope(
+                plan, run, "merge_pr", "pr:https://github.com/o/r/pull/1"
+            )
+        )
+
+        self.assertIn(
+            "The harness runs the production deploy when `deploy` is authorized for that "
+            "exact production target at that exact head",
+            core,
+        )
+        self.assertIn("One rule covers who runs the production deploy", lifecycle)
+        self.assertIn(
+            "The harness runs the production deploy command when `deploy` is authorized "
+            "for that exact production `release:<target-id>` at that exact head",
+            lifecycle,
+        )
+        # The merge stays the human's on both sites, and neither implies the other.
+        for content in (core, lifecycle):
+            self.assertIn("does not enable auto-merge", content)
+        self.assertNotIn("does not run the production deploy", core)
+        # The checkpoint no longer claims the parent performs the promotion merge.
+        self.assertNotIn(
+            "or performs the auto-deploy-triggering `development -> production` merge",
+            lifecycle,
+        )
+        self.assertIn(
+            "before it hands over the auto-deploy-triggering `development -> production` merge",
+            lifecycle,
+        )
+
+    def test_deploy_target_prefix_records_the_schema_version_split(self) -> None:
+        """v10 `targets` wants `release:`, the older v7-v9 `deployments` path
+        wants `environment:`, and the shared prefix pattern accepts both — so a
+        grant written for the wrong version fails as unauthorized, not as
+        malformed."""
+        from harness_schema import TARGET_RE
+
+        reference = self.read("references/execution-state-model.md")
+
+        self.assertIsNotNone(TARGET_RE.fullmatch("release:web-production"))
+        self.assertIsNotNone(TARGET_RE.fullmatch("environment:production"))
+
+        self.assertIn("The `deploy` target prefix differs between those two shapes", reference)
+        self.assertIn("requires `deploy` authorization for `release:<target-id>`", reference)
+        self.assertIn("requires `environment:<target-id>` for the same grant", reference)
+        self.assertIn("fails its PASS check on missing deploy authorization", reference)
+
+    def test_authorization_scope_binds_the_plan_digest_only_at_v10(self) -> None:
+        """`SKILL.md` says a plan revision or digest change invalidates a grant.
+        That is only true at v10, and the reference has to say so — below v10
+        nothing compares a plan binding and a stale grant keeps matching."""
+        from harness_authorization import authorization_covers
+
+        reference = self.read("references/execution-state-model.md")
+
+        def run_at(schema_version: int) -> dict:
+            return {
+                "schema_version": schema_version,
+                "run_id": "RUN-1",
+                "status": "running",
+                "plan": {"revision": 4, "digest_sha256": "b" * 64},
+                "authorizations": {
+                    "push": {
+                        "authorized": True,
+                        "source": "user: build it",
+                        "scope": {
+                            "run_id": "RUN-1",
+                            # Bound to a plan revision/digest that has moved on.
+                            "plan_revision": 3,
+                            "plan_digest_sha256": "a" * 64,
+                            "mission_ids": ["M1"],
+                            "targets": ["branch:development"],
+                        },
+                        "expires_when": "run_complete",
+                    }
+                },
+            }
+
+        self.assertFalse(
+            authorization_covers(run_at(10), "push", "M1", "branch:development")
+        )
+        self.assertTrue(
+            authorization_covers(run_at(9), "push", "M1", "branch:development")
+        )
+
+        self.assertIn("Schema v10 additionally requires `plan_revision` and `plan_digest_sha256`", reference)
+        self.assertIn('"plan_digest_sha256": "<64-hex>"', reference)
+        self.assertIn("the invalidation rule is inert there", reference)
+
+    def test_unfilled_observed_snapshot_empties_dispatchable_nodes(self) -> None:
+        """The old wording sent the operator looking for an empty
+        `ready_frontier`. At draft/ready the frontier stays populated and only
+        `dispatchable_nodes` empties, so the operator saw a full frontier and
+        concluded the snapshot was already filled in."""
+        core = self.read("SKILL.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        for content in (core, runbook):
+            self.assertIn("`dispatchable_nodes`", content)
+            self.assertIn("`deferred_nodes`", content)
+            self.assertIn("parent_state_unreconciled", content)
+            self.assertIn("batch_base_missing", content)
+            self.assertIn("observed.captured_at", content)
+            self.assertIn("dispatch-time reasons", content)
+            self.assertNotIn("an empty frontier with every node deferred", content)
+            self.assertNotIn("returns an empty frontier", content)
+
+    def test_session_exact_reuse_lists_the_pass_signal_precondition(self) -> None:
+        """The pass signal is the first condition the runtime checks and was the
+        one missing from the core's list of four."""
+        core = self.read("SKILL.md")
+        runtime = self.read("scripts/verifier_runtime.py")
+
+        self.assertIn("pass_signal_not_cacheable", runtime)
+        self.assertIn(
+            "may reuse a `session_exact` PASS only when the verifier's pass signal "
+            "is the literal `exit 0`",
+            core,
+        )
+
+    def test_cache_reuse_is_scoped_to_one_attempt_and_banned_layers_hold(self) -> None:
+        """`same-session` over-promised: reuse is actually scoped to one attempt
+        under one lease, because those IDs are in the execution key. The layer
+        ban is now enforced at run time as well as at PLAN time."""
+        from verifier_runtime import CACHE_BANNED_LAYERS
+
+        core = self.read("SKILL.md")
+
+        self.assertEqual(
+            CACHE_BANNED_LAYERS,
+            {"mission_integration", "batch", "final", "release"},
+        )
+        self.assertIn(
+            "may reuse only an exact same-attempt `session_exact` PASS, bound to its "
+            "`attempt_id` and `lease_id`",
+            core,
+        )
+        self.assertIn("again at run time in `verifier_runtime.py`", core)
+        self.assertNotIn("same-session", core)
+
+    def test_readiness_requires_every_node_to_have_a_host(self) -> None:
+        """A node whose `allowed_providers` no participating host satisfies is a
+        readiness gap, not a surprise at dispatch time."""
+        core = self.read("SKILL.md")
+
+        readiness = core[core.index("### 3. Pass Plan Readiness") : core.index("### 4. Execute And Integrate")]
+        self.assertIn("Executability covers the whole graph, not just the next node", readiness)
+        self.assertIn("`allowed_providers`", readiness)
+        self.assertIn("blocking readiness gap", readiness)
+        # Reference paths in the core resolve from the skill root, unprefixed.
+        self.assertIn("`references/graph-orchestration.md`", readiness)
+        self.assertNotIn("`../references/graph-orchestration.md`", readiness)
+
+    def test_release_target_ids_are_reused_from_architecture(self) -> None:
+        """Both places that tell a planner to declare release targets used to
+        read as an invitation to mint fresh IDs. This is a prose rule only — no
+        harness script reads `architecture.md` — so nothing here may imply a
+        validator checks it."""
+        core = self.read("SKILL.md")
+        lifecycle = self.read("references/cloudflare-deployment-lifecycle.md")
+
+        self.assertIn(
+            "When `architecture.md` has a `## Release Targets` section, reuse its target IDs "
+            "verbatim instead of minting new ones",
+            core,
+        )
+        self.assertIn(
+            "Use the stable target IDs `architecture.md`'s `## Release Targets` section already declares",
+            lifecycle,
+        )
+        self.assertIn("only when no such section exists", lifecycle)
+        self.assertNotIn("Use stable target IDs such as", lifecycle)
+        for content in (core, lifecycle):
+            self.assertNotIn("the validator checks release target", content)
+
+    def test_content_contract_row_treats_required_order_as_the_never_drop_set(self) -> None:
+        """`requiredContentOrder` and "never-drop fields" are one set, not two.
+        prd-builder contracts them that way; this row is the only place the
+        harness names the term."""
+        verification = self.read("references/verification-gates.md")
+
+        row = next(
+            line
+            for line in verification.splitlines()
+            if line.startswith("| Content contract conformance ")
+        )
+        self.assertIn(
+            "every field in `design-system.json`'s `requiredContentOrder` renders, in that order "
+            "— those fields never drop",
+            row,
+        )
+        self.assertNotIn("and never-drop fields intact", row)
+
+    def test_execution_intent_bundle_covers_both_hosts_worker_launch(self) -> None:
+        """`create_user_owned_tasks` is Codex's worker launch and must be grouped
+        with `spawn_subagents`, or the same instruction would mean different
+        things on the two hosts."""
+        core = self.read("SKILL.md")
+
+        bundle = core[core.index("Eleven of these actions") : core.index("That grouping is scoped")]
+        for action in ("spawn_subagents", "create_user_owned_tasks"):
+            self.assertIn(action, bundle)
+        self.assertIn(
+            "it is the Codex host's worker-launch action",
+            core,
+        )
+        remaining = core[core.index("The remaining actions —") : core.index("`trigger_remote_ci` uses exact")]
+        self.assertIn("archive_worker_tasks", remaining)
+        self.assertNotIn("create_user_owned_tasks", remaining)
 
     def test_remote_verification_is_final_head_and_parallel(self) -> None:
         core = self.read("SKILL.md")
@@ -340,7 +656,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             project_rules,
         )
         self.assertIn(
-            "Never start ordinary feature, PRD/PLD, or UI work from the resolved protected landing branch",
+            "Never start ordinary feature, PRD, or UI work from the resolved protected landing branch",
             project_rules,
         )
         self.assertIn('"source": "production_head"', plan)
@@ -524,10 +840,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             skill,
         )
         self.assertIn("reserve", skill.lower())
+        # The premium Claude model name is illustrative, not normative, so it is
+        # deliberately not pinned here: pinning `claude-opus-4-8` in three files
+        # is what let it rot in place. Assert the rule that outlives the name.
         for content in (skill, graph, plan):
-            self.assertIn("claude-fable-5", content)
+            self.assertIn("for the parent's own coordination and planning", content)
+            self.assertIn("sonnet", content)
             self.assertIn("gpt-5.6-sol", content)
             self.assertIn("xhigh", content)
+        for content in (skill, graph):
+            self.assertIn("haiku", content)
         self.assertIn("workers[].runtime_binding", state)
         self.assertIn("task creation `model` and `thinking`", run)
         self.assertIn('"runtime_binding": binding', selector)

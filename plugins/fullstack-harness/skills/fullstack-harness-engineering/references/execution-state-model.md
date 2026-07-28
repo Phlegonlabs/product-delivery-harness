@@ -179,7 +179,7 @@ Run `select_ready_nodes.py` for v4/v8 or v4/v9. It computes graph readiness befo
 
 Authorization is action-specific. Overall `execution_authorized` also has siblings `execution_authorization_source` and `execution_authorization_scope`; when true, both must match the run, mission, and expiry boundary. Every action entry defaults to `authorized: false` and records an explicit user source before it can become true. A goal, plan, template, skill selection, worker report, or assistant assumption cannot authorize itself.
 
-The schema-v8-and-v9 ledger has 17 actions. Schema v2 remains readable with its original 13 entries; schemas v3 through v7 retain their 16-action ledgers and later landing/runtime/release fields. New graph RUN files use v9:
+The current schema-v10 ledger has 19 actions. Schema v2 remains readable with its original 13 entries; schemas v3 through v7 retain their 16-action ledgers and later landing/runtime/release fields; v8 and v9 retain 17. New graph RUN files use v10:
 
 ```text
 invoke_external_runtime
@@ -195,15 +195,19 @@ create_pr
 configure_repository
 manage_pr_review
 merge_pr
+trigger_remote_ci
+provision_cloud_resources
 deploy
 archive_worker_tasks
 remove_worktrees
 delete_branches
 ```
 
+`trigger_remote_ci` and `provision_cloud_resources` are the two entries v10 adds over v9. Both require exact targets and are never covered by the execution-intent bundle.
+
 `invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization.
 
-Nine of these entries — `invoke_external_runtime`, `spawn_subagents`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push` restricted to the resolved integration branch, and `deploy` restricted to the development release target — carry the ordinary development loop. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers all nine together in a single authorization request or checkpoint, recording its `source` under each entry, while the remaining entries (`create_pr`, `manage_pr_review`, `merge_pr`, `configure_repository`, `trigger_remote_ci`, `provision_cloud_resources`, `remove_worktrees`, `delete_branches`, and any `push` or `deploy` aimed outside that scope) stay independent gates that each need their own authorization moment. Each of the nine still records its own `source`, and `push` and `deploy` still carry exact targets; grouping them only avoids manufacturing separate confirmation pauses.
+Eleven of these entries — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push` restricted to the resolved integration branch, `merge_pr` restricted to a PR whose base is that branch, and `deploy` restricted to the development release target — carry the ordinary development loop. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers all eleven together in a single authorization request or checkpoint, recording its `source` under each entry, while the remaining entries (`create_pr`, `manage_pr_review`, `configure_repository`, `trigger_remote_ci`, `provision_cloud_resources`, `archive_worker_tasks`, `remove_worktrees`, `delete_branches`, and any `push`, `merge_pr`, or `deploy` aimed outside that scope) stay independent gates that each need their own authorization moment. Each of the eleven still records its own `source`, and `push`, `merge_pr`, and `deploy` still carry exact targets; grouping them only avoids manufacturing separate confirmation pauses.
 
 Each `authorizations` entry has this minimum shape:
 
@@ -214,7 +218,59 @@ Each `authorizations` entry has this minimum shape:
 }
 ```
 
-When `authorized` is true, add a required `scope` object with `run_id`, `mission_ids`, and exact `targets`, plus `expires_when`. Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`, `remote:`, `pr:`, `repository:`, `environment:`, or `runtime:`. Schemas v6 through v9 also accept `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr` before the PR exists. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide, not as a placeholder for an unborn PR. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
+When `authorized` is true, add a required `scope` object with `run_id`, `mission_ids`, and exact `targets`, plus `expires_when`. Schema v10 additionally requires `plan_revision` and `plan_digest_sha256` in that scope, and both must equal `run.plan.revision` and `run.plan.digest_sha256`:
+
+```json
+{
+  "authorized": true,
+  "source": "<exact user statement>",
+  "scope": {
+    "run_id": "<run id>",
+    "plan_revision": 3,
+    "plan_digest_sha256": "<64-hex>",
+    "mission_ids": ["M1"],
+    "targets": ["branch:development"]
+  },
+  "expires_when": "run_complete"
+}
+```
+
+That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest changes, the scope stops matching and the grant stops covering anything, instead of silently carrying forward. Below v10 the scope has no plan binding, so nothing compares one — the invalidation rule is inert there and a v7-v9 grant survives a plan change untouched. Treat that as a reason to upgrade the file (see Schema Upgrade Maintenance), not as a rule you can rely on below v10.
+
+Targets use action-specific prefixes: `worker:`, `task:`, `worktree:`, `branch:`, `remote:`, `pr:`, `repository:`, `environment:`, `release:`, `runtime:`, `workflow:`, or `cloud-resource:`. The prefix pattern is shared across actions, so it does not by itself reject a target spelled for the wrong action or the wrong schema version; the action's own validation does. Schemas v6 through v9 also accept `future-pr:<owner>/<repo>:base=<base-branch>:head=<head-branch>` only for `manage_pr_review` and `merge_pr` before the PR exists. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide, not as a placeholder for an unborn PR. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
+
+### Per-Target Provenance For The Scoped Three
+
+An entry carries one `source` for a whole `targets` list, so on `push`, `merge_pr`, and `deploy` — the three the execution-intent bundle covers only partially — a single grouped instruction would otherwise read as authorizing every target on the entry, including the ones it explicitly does not reach. Schema v10 closes that with an optional `target_sources` map on those three entries only:
+
+```json
+{
+  "authorized": true,
+  "source": "user: build and ship it",
+  "authorized_head_sha": "<40-hex>",
+  "scope": {
+    "run_id": "<run id>",
+    "plan_revision": 3,
+    "plan_digest_sha256": "<64-hex>",
+    "mission_ids": ["M1"],
+    "targets": ["branch:development", "branch:production"]
+  },
+  "target_sources": {
+    "branch:production": "user: yes, push to production too"
+  },
+  "expires_when": "run_complete"
+}
+```
+
+Validation rules:
+
+- A target the execution-intent bundle reaches needs no entry. That means `branch:<resolved integration branch>` for `push`; a `pr:`/`future-pr:` target whose base is that branch, or a development-stage `release:` consequence, for `merge_pr`; and a development-stage `release:<target-id>` for `deploy`.
+- Every other target requires a non-empty `target_sources[<target>]`, and it must differ from the entry `source`. Repeating the grouped instruction there is the laundering this field exists to prevent.
+- Every `target_sources` key must appear in `scope.targets`.
+- Resolution fails closed: when the integration branch, the PR base, or the target's stage cannot be determined, the target is treated as out of scope and needs its own recorded source.
+- `target_sources` is rejected on any other action. Those already require their own authorization moment per target.
+
+This is checked in every landing mode. A `push` toward the protected branch does not become acceptable because the run is `local_only` or `pull_request` rather than `integration_push`.
 
 `wave_closed` is one-use authorization for the currently recorded wave. When that wave becomes `closed` or `superseded`, set every matching action entry back to `{ "authorized": false, "source": null }` and clear overall execution authorization when it used the same boundary before replacing `active_wave`. Never copy or revive a wave-scoped grant for a later wave; a new wave needs a newly recorded explicit source.
 
@@ -233,7 +289,7 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Pull Request Landing State
 
-Schemas v3 through v10 require a `landing` object. Ordinary implementation, PRD/PLD, UI, branch, commit, or local integration work defaults to `local_only` on the persistent integration branch resolved from target-repository instructions. Local-only mode cannot record a pushed head or promotion PR and does not wait for GitHub CI or review, but every mission worktree still passes its exact-head pre-integration review. Use `pull_request` for a later landing-branch promotion only after the user separately reviews the accumulated integration result and gives final approval to start promotion. When the repository defines no other model, new RUN-v10 files default `development` to `integration.branch` and `landing.head_branch`, and `production` to `landing.base_branch`; otherwise record its existing branches. Older schemas retain their recorded branch names.
+Schemas v3 through v10 require a `landing` object. Ordinary implementation, PRD, UI, branch, commit, or local integration work defaults to `local_only` on the persistent integration branch resolved from target-repository instructions. Local-only mode cannot record a pushed head or promotion PR and does not wait for GitHub CI or review, but every mission worktree still passes its exact-head pre-integration review. Use `pull_request` for a later landing-branch promotion only after the user separately reviews the accumulated integration result and gives final approval to start promotion. When the repository defines no other model, new RUN-v10 files default `development` to `integration.branch` and `landing.head_branch`, and `production` to `landing.base_branch`; otherwise record its existing branches. Older schemas retain their recorded branch names.
 
 Do not put a future protected-branch promotion into the ordinary mission run's early authorization bundle. After final user approval starts promotion, request every missing exact landing action for the resolved head and base branches; bind review and merge to `future-pr:<owner>/<repo>:base=<base>:head=<head>` until the PR exists. After creation, verify those branch fields, append the exact `pr:<full-PR-URL>` target, and run the authorized CI/review/merge path continuously. Earlier implementation or local-integration authorization never supplies this late approval.
 
@@ -248,6 +304,8 @@ In schemas v4 through v9, `auto_merge_requested: true` records that GitHub auto-
 Current PLAN schema v5 uses provider-neutral `release.targets`; Cloudflare identity is not encoded as extra target keys. Each target has the exact v5 field set and declares source, stage, artifact/channel/data mode, trigger, migration classification, commands, prerequisites, and smoke verifiers. A null migration classification is unresolved and blocks target execution. Worker names, Wrangler config/environment, isolated binding IDs, account identity, and URLs live in project deployment documentation, prerequisites, and retained evidence. Older PLAN v3/v4 provider-shaped release contracts remain readable under their historical schema.
 
 Current RUN schema v10 uses `targets` keyed exactly by PLAN target IDs. Each target retains exact source and authorized-head SHAs, artifact/build/version/signing proof, channel/promotion/availability proof, migration and verification status, destructive-migration confirmation when applicable, and hashed evidence references. Older RUN v7-v9 `deployments` objects remain readable but are not the current authoring shape.
+
+The `deploy` target prefix differs between those two shapes. A v10 `targets` entry requires `deploy` authorization for `release:<target-id>`; the older v7-v9 `deployments` path requires `environment:<target-id>` for the same grant. The prefix pattern accepts both spellings for any action, so a grant written with the other version's prefix is not reported as malformed — it simply never matches, and the target fails its PASS check on missing deploy authorization. Write `release:` in a new RUN v10 file; keep `environment:` only in an existing v7-v9 file, or upgrade the file.
 
 Development PASS binds the target's declared `pr_head` or `integration_head` source to the deployed artifact, requires migration `PASS` or `not_required`, deployed-environment verification PASS, retained evidence, and exact `deploy` authorization for `release:<target-id>`. A manual remote workflow additionally requires `trigger_remote_ci` for `workflow:<identity>`; provisioning requires `provision_cloud_resources` for `cloud-resource:<provider>:<environment>:<kind>:<logical-name>`.
 

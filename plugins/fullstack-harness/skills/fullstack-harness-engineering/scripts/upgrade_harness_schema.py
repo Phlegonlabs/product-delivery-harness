@@ -697,6 +697,10 @@ def _rewrite_manifests_atomically(
 
     staged: list[tuple[Path, Path, Path]] = []
     replaced: list[tuple[Path, Path]] = []
+    # Backups whose rollback failed. Their canonical file was already
+    # overwritten by the forward replace, so each one holds the only remaining
+    # copy of that file's original content and must survive cleanup.
+    preserved: set[Path] = set()
     try:
         for path, heading, wrapper, manifest in rewrites:
             original = path.read_bytes()
@@ -717,7 +721,8 @@ def _rewrite_manifests_atomically(
             try:
                 os.replace(backup, path)
             except OSError as rollback_exc:
-                rollback_errors.append(f"{path}: {rollback_exc}")
+                rollback_errors.append(f"{path}: {rollback_exc} (original retained at {backup})")
+                preserved.add(backup)
         detail = ""
         if rollback_errors:
             detail = "; rollback failed for " + "; ".join(rollback_errors)
@@ -725,7 +730,8 @@ def _rewrite_manifests_atomically(
     finally:
         for _, replacement, backup in staged:
             replacement.unlink(missing_ok=True)
-            backup.unlink(missing_ok=True)
+            if backup not in preserved:
+                backup.unlink(missing_ok=True)
 
 
 # --- CLI --------------------------------------------------------------------

@@ -52,7 +52,7 @@ This template's `development` and `production` branch names are defaults for a n
 - Create every implementation worktree from the current resolved integration-branch SHA.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
-- Never start ordinary feature, PRD/PLD, or UI work from the resolved protected landing branch, and never merge a worktree directly into it.
+- Never start ordinary feature, PRD, or UI work from the resolved protected landing branch, and never merge a worktree directly into it.
 - Start the resolved integration-to-landing promotion only after the user reviews the accumulated result and gives explicit final approval. Later changes continue from the resolved implementation branch.
 
 ## Pull Request Flow
@@ -70,7 +70,7 @@ This template's `development` and `production` branch names are defaults for a n
 - With separate `create_pr` authorization, open a Draft PR. Do not create a non-draft PR, mark it ready, or otherwise expose it to automatic review without matching `manage_pr_review` authorization.
 - With separate `manage_pr_review` authorization, mark the PR ready when required and request Codex review immediately; do not wait for CI first.
 - After every new push, start or observe current-head CI, including required E2E, and request current-head review again. Poll both gates concurrently.
-- After current-head CI and Codex review pass and unresolved threads reach zero, report the PR as merge-ready and stop. The merge toward the protected base is the human's; record `merge_pr` only when the user separately asks for the merge on that exact PR, and then use an exact head-SHA match.
+- After current-head CI and Codex review pass and unresolved threads reach zero, the next step depends on the PR's base. For a PR into the resolved integration branch, matching `merge_pr` authorization allows merging or enabling squash auto-merge with an exact head-SHA match. For a PR into the resolved protected landing branch, report the PR as merge-ready and stop. The merge toward the protected base is the human's; record `merge_pr` only when the user separately asks for the merge on that exact PR, and then use an exact head-SHA match.
 - After final promotion approval, when every remaining push, PR creation, and review-management mutation is explicitly authorized for its exact resolved head-to-base target, continue through that landing flow without pausing between stages. Poll CI and review, reset stale evidence after every push, fix only authorized in-scope findings on the head branch, and finish by handing over a merge-ready PR with its exact head SHA.
 - After a merged PR, re-fetch the base and verify the exact PR head before cleanup. Remove only an authorized clean linked worktree, switch the primary checkout to the base branch, then delete only the authorized local feature branch. Never remove the primary checkout.
 - Merge, auto-merge, deploy, branch deletion, and worktree removal remain separate ledger actions even when several are approved in one explicit readiness statement.

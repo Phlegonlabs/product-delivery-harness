@@ -31,7 +31,7 @@ Do not cap the configured write-worker maximum at a small fixed number; set it g
 
 ## Claude Provider Defaults
 
-Reserve the parent's own top-tier model — whichever model opened the current session (for example `claude-fable-5` or `claude-opus-4-8`) — for the parent's own coordination and planning. Do not assign it to a delegated node by default. Preserve explicit user and PLAN choices. Otherwise, for new PLAN-v5 runtime-worker nodes, a delegated implementation or review node defaults to Claude Code `sonnet`; a node doing bounded, mechanical, or purely read-only work (exploration, research, test/log analysis, discovery, inexpensive preflight checks) instead defaults to `haiku`, per the core's Runtime Binding point 6:
+Reserve the parent's own top-tier model — whichever premium model opened the current session, such as `claude-fable-5` — for the parent's own coordination and planning. Do not assign it to a delegated node by default. Preserve explicit user and PLAN choices. Otherwise, for new PLAN-v5 runtime-worker nodes, a delegated implementation or review node defaults to Claude Code `sonnet`; a node doing bounded, mechanical, or purely read-only work (exploration, research, test/log analysis, discovery, inexpensive preflight checks) instead defaults to `haiku`, per the core's Runtime Binding point 6:
 
 - frontend/UI implementation, general-purpose, and backend mission nodes use `sonnet` with `high` effort;
 - routine `frontend_code`, `backend_code`, and visual review use `sonnet` with `medium` effort;

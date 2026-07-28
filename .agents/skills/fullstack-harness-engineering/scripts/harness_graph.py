@@ -27,6 +27,7 @@ from harness_schema import (
     RUNTIME_PROVIDERS,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
+    TARGET_RE,
 )
 
 
@@ -92,7 +93,7 @@ def _validate_graph(
     else:
         for index, node in enumerate(value["nodes"]):
             node_path = f"{path}.nodes[{index}]"
-            if not _keys(errors, node_path, node, node_keys, {"review"}):
+            if not _keys(errors, node_path, node, node_keys, {"review", "target"}):
                 continue
             node_id = node["id"]
             if not _nonempty_string(node_id) or not ID_RE.fullmatch(node_id):
@@ -203,11 +204,36 @@ def _validate_graph(
                     _add(errors, f"{node_path}.executor", "lifecycle requires harness_parent")
                 if valid_ref and ref not in authorization_actions:
                     _add(errors, f"{node_path}.ref", "must reference an authorization action")
+                # `target` is optional so PLANs written before this field existed
+                # stay valid (they keep resolving to the "*" default, exactly as
+                # before). When present it must be the exact authorization
+                # target select_ready_nodes.py checks the RUN ledger against —
+                # schema v10 rejects "*" scope targets for every one of these
+                # actions, so a lifecycle node with no target is permanently
+                # unauthorized there; declaring one is how a PLAN makes the node
+                # reachable.
+                target = node.get("target")
+                if target is not None and (
+                    not _nonempty_string(target)
+                    or target == "*"
+                    or TARGET_RE.fullmatch(target) is None
+                ):
+                    _add(
+                        errors,
+                        f"{node_path}.target",
+                        "must be null or an exact non-wildcard authorization target",
+                    )
             if kind != "verifier" and node.get("review") is not None:
                 _add(
                     errors,
                     f"{node_path}.review",
                     "must be omitted unless a verifier uses runtime_worker",
+                )
+            if kind != "lifecycle" and node.get("target") is not None:
+                _add(
+                    errors,
+                    f"{node_path}.target",
+                    "must be omitted unless the node is lifecycle",
                 )
 
             runtime = node["runtime"]

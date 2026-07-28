@@ -19,6 +19,12 @@ from select_verifiers import VerifierSelectionError, normalize_changed_files
 
 
 PROTOCOL = "harness-verifier-execution-v1"
+# PLAN validation already refuses session_exact for these layers
+# (harness_core.py's cache_allowed=False, enforced via harness_manifest.py and
+# harness_release.py). That is unreachable through a validated PLAN, but a
+# direct run_verifier call with a hand-built context dict bypasses it, so the
+# runtime enforces the same ban here as defense in depth.
+CACHE_BANNED_LAYERS = {"mission_integration", "batch", "final", "release"}
 CACHE_ENTRY_FIELDS = {
     "protocol",
     "execution_key",
@@ -380,7 +386,10 @@ def run_verifier(
     cache_reason = "cache_disabled"
     cache_path: Path | None = None
     can_reuse = cache_mode == "session_exact"
-    if can_reuse and normalized_verifier["pass_signal"] != "exit 0":
+    if can_reuse and key_inputs["context"]["layer"] in CACHE_BANNED_LAYERS:
+        can_reuse = False
+        cache_reason = "layer_not_cacheable"
+    elif can_reuse and normalized_verifier["pass_signal"] != "exit 0":
         can_reuse = False
         cache_reason = "pass_signal_not_cacheable"
     elif can_reuse and not key_inputs["context"]["cache_safe"]:

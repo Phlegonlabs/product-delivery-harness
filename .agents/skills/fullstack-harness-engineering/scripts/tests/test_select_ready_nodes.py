@@ -1603,6 +1603,22 @@ class SelectReadyNodesTests(unittest.TestCase):
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("parent_state_unreconciled", deferred["N-M1"])
 
+    def test_missing_captured_at_alone_defers_the_write_launch(self) -> None:
+        plan = valid_graph_plan()
+        plan["graph"]["nodes"][0]["executor"] = "harness_parent"
+        plan["graph"]["nodes"][0]["runtime"] = None
+        run = authorized_parent_run(plan)
+        run["observed"]["git"]["parent_dirty"] = False
+        run["observed"]["captured_at"] = None
+
+        result = select_ready_nodes(plan, run)
+
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("parent_state_unreconciled", deferred["N-M1"])
+        self.assertNotIn(
+            "N-M1", [item["node_id"] for item in result["dispatchable_nodes"]]
+        )
+
     def test_running_resume_reconciles_every_linked_worktree(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["executor"] = "harness_parent"
