@@ -100,7 +100,7 @@ ACTION_TARGET_RULES = {
     "integrate_locally": ("branch",),
     "configure_repository": ("repository",),
     "push": ("branch",),
-    "create_pr": ("pr",),
+    "create_pr": ("pr", "future-pr"),
     "trigger_remote_ci": ("workflow",),
     "manage_pr_review": ("pr", "future-pr"),
     "merge_pr": ("pr", "future-pr", "release"),

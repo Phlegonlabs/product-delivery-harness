@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -84,16 +85,52 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     if registry.get("schema") != "design-system/1":
         problems.append("design-system.json schema must be 'design-system/1'")
 
-    responsive = [
-        key
-        for key in ("viewports", "sizeClasses")
-        if isinstance(registry.get(key), list) and registry[key]
-    ]
-    if len(responsive) != 1:
-        problems.append(
-            "design-system.json must declare exactly one non-empty responsive set: "
-            "viewports or sizeClasses"
+    has_viewports = "viewports" in registry
+    has_size_classes = "sizeClasses" in registry
+    viewports = registry.get("viewports")
+    size_classes = registry.get("sizeClasses")
+    valid_viewports = (
+        isinstance(viewports, list)
+        and bool(viewports)
+        and all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value > 0
+            for value in viewports
         )
+        and len(set(viewports)) == len(viewports)
+    )
+    valid_size_classes = (
+        isinstance(size_classes, list)
+        and bool(size_classes)
+        and all(
+            isinstance(value, str) and bool(value.strip())
+            for value in size_classes
+        )
+        and len(set(size_classes)) == len(size_classes)
+    )
+    if (
+        has_viewports == has_size_classes
+        or (has_viewports and not valid_viewports)
+        or (has_size_classes and not valid_size_classes)
+    ):
+        problems.append(
+            "design-system.json must declare exactly one non-empty unique responsive "
+            "set: positive numeric viewports or string sizeClasses"
+        )
+    platform = registry.get("platform")
+    if not isinstance(platform, str) or not platform.strip():
+        problems.append("design-system.json platform must be a non-empty string")
+    elif not (platform.startswith("<") and platform.endswith(">")):
+        if has_viewports and platform != "web":
+            problems.append(
+                "design-system.json viewports require platform 'web'"
+            )
+        if has_size_classes and platform == "web":
+            problems.append(
+                "design-system.json platform 'web' requires viewports, not sizeClasses"
+            )
 
     for key in ("tokens", "primitives", "productComponents"):
         if not isinstance(registry.get(key), dict):

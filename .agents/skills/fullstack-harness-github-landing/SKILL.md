@@ -30,7 +30,7 @@ manage_pr_review
 merge_pr
 ```
 
-Local branch, commit, review, and integration authorization remains in the core ledger. At Plan Readiness, request every missing action for the outcome that is currently in scope. Ordinary mission work ends on the integration branch resolved from target-repository instructions; do not include a future protected-branch promotion merely because implementation is authorized. After the user gives final approval to start promotion, bind `manage_pr_review` and `merge_pr` to `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`. After PR creation, verify repository/base/head and append the exact `pr:<full-PR-URL>` target without discarding the future binding or user source.
+Local branch, commit, review, and integration authorization remains in the core ledger. At Plan Readiness, request every missing action for the outcome that is currently in scope. Ordinary mission work ends on the integration branch resolved from target-repository instructions; do not include a future protected-branch promotion merely because implementation is authorized. After the user gives final approval to start promotion, bind `create_pr`, `manage_pr_review`, and `merge_pr` to `future-pr:<owner>/<repo>:base=<resolved-base>:head=<resolved-head>`. After PR creation, verify repository/base/head and append the exact `pr:<full-PR-URL>` target without discarding the future binding or user source.
 
 `create_pr` does not authorize marking ready, requesting or resolving review, changing repository settings, or merging. `manage_pr_review`, `configure_repository`, and `merge_pr` remain independent.
 

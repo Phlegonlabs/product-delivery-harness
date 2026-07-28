@@ -285,6 +285,29 @@ class GraphManifestTests(unittest.TestCase):
         for action in ("push", "deploy"):
             self.assertEqual("b" * 40, _current_authorized_head(run, action))
 
+    def test_integration_pr_push_uses_the_observed_feature_head(self) -> None:
+        run = {
+            "landing": {
+                "mode": "integration_pull_request",
+                "head_branch": "codex/feature",
+            },
+            "integration": {"integration_head_sha": "b" * 40},
+            "observed": {
+                "git": {
+                    "parent_branch": "refs/heads/development",
+                    "parent_head_sha": "b" * 40,
+                    "worktrees": [
+                        {
+                            "branch_ref": "refs/heads/codex/feature",
+                            "head_sha": "f" * 40,
+                        }
+                    ],
+                }
+            },
+        }
+
+        self.assertEqual("f" * 40, _current_authorized_head(run, "push"))
+
     def test_pr_actions_fail_closed_when_their_candidate_head_is_missing(self) -> None:
         run = {
             "landing": {
@@ -332,6 +355,10 @@ class GraphManifestTests(unittest.TestCase):
         # has to accept a real target string here for every action shape.
         for action, target in (
             ("push", "branch:codex/example"),
+            (
+                "create_pr",
+                "future-pr:acme/app:base=main:head=codex/example",
+            ),
             ("deploy", "release:web-development"),
             ("trigger_remote_ci", "workflow:github-actions:ci"),
             ("provision_cloud_resources", "cloud-resource:aws:development:queue:jobs"),

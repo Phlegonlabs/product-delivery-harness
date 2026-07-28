@@ -75,7 +75,8 @@ def _validate_authorization_scope(
                     target.startswith("future-pr:")
                     and (
                         resolved_schema_version < 6
-                        or action_name not in {"manage_pr_review", "merge_pr"}
+                        or action_name
+                        not in {"create_pr", "manage_pr_review", "merge_pr"}
                     )
                 )
             ):

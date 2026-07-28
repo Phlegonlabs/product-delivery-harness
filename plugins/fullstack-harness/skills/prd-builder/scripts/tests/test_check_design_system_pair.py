@@ -209,6 +209,35 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         self.assertEqual([], problems)
         self.assertEqual(0, code)
 
+    def test_invalid_responsive_sets_and_platform_mismatches_fail(self) -> None:
+        cases = (
+            registry(viewports=["mobile", "mobile"]),
+            registry(viewports=[390, 390]),
+            registry(viewports=[-1, float("inf")]),
+            registry(platform="ios"),
+            registry(platform="web", viewports=None, sizeClasses=["compact"]),
+            registry(
+                platform="ios",
+                viewports=None,
+                sizeClasses=["compact", "compact"],
+            ),
+        )
+        for data in cases:
+            data = {key: value for key, value in data.items() if value is not None}
+            markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+            with self.subTest(data=data):
+                code, problems = self.run_pair(markdown, data)
+                self.assertEqual(1, code)
+                self.assertTrue(
+                    any(
+                        "responsive set" in problem
+                        or "require platform" in problem
+                        or "platform 'web'" in problem
+                        for problem in problems
+                    ),
+                    problems,
+                )
+
     def test_token_only_in_json_fails(self) -> None:
         data = registry()
         data["tokens"]["radius"] = {"sm": "4px"}

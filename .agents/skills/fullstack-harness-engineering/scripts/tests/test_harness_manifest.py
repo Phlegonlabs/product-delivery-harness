@@ -2855,7 +2855,7 @@ class RunValidationTests(unittest.TestCase):
         run = valid_run(plan)
         run["schema_version"] = 6
         future_target = "future-pr:example/repo:base=main:head=codex/test"
-        for action in ("manage_pr_review", "merge_pr"):
+        for action in ("create_pr", "manage_pr_review", "merge_pr"):
             run["authorizations"][action] = {
                 "authorized": True,
                 "source": "user: land the planned pull request",

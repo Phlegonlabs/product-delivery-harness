@@ -380,6 +380,49 @@ def _current_authorized_head(run: dict[str, Any], action: str) -> str | None:
     """Resolve the live candidate head for one head-bound lifecycle action."""
     landing = run.get("landing")
     if isinstance(landing, dict):
+        if action == "push" and landing.get("mode") == "integration_pull_request":
+            head_branch = landing.get("head_branch")
+            if isinstance(head_branch, str) and head_branch:
+                expected_ref = (
+                    head_branch
+                    if head_branch.startswith("refs/heads/")
+                    else f"refs/heads/{head_branch}"
+                )
+                observed = run.get("observed")
+                observed_git = (
+                    observed.get("git") if isinstance(observed, dict) else None
+                )
+                if isinstance(observed_git, dict):
+                    parent_branch = observed_git.get("parent_branch")
+                    parent_ref = (
+                        parent_branch
+                        if isinstance(parent_branch, str)
+                        and parent_branch.startswith("refs/heads/")
+                        else (
+                            f"refs/heads/{parent_branch}"
+                            if isinstance(parent_branch, str) and parent_branch
+                            else None
+                        )
+                    )
+                    if parent_ref == expected_ref:
+                        return observed_git.get("parent_head_sha")
+                    for worktree in observed_git.get("worktrees", []):
+                        if not isinstance(worktree, dict):
+                            continue
+                        branch_ref = worktree.get("branch_ref")
+                        normalized_ref = (
+                            branch_ref
+                            if isinstance(branch_ref, str)
+                            and branch_ref.startswith("refs/heads/")
+                            else (
+                                f"refs/heads/{branch_ref}"
+                                if isinstance(branch_ref, str) and branch_ref
+                                else None
+                            )
+                        )
+                        if normalized_ref == expected_ref:
+                            return worktree.get("head_sha")
+            return None
         if action in {"manage_pr_review", "merge_pr"}:
             return landing.get("pr_head_sha")
         if action == "create_pr":
