@@ -654,9 +654,14 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             )
         self.assertIn('"base_branch_protection": {', runbook)
         self.assertIn('"integration_branch_protection": null', runbook)
+        self.assertIn(
+            '"branch_protection_contract": "branch-protection/1"',
+            runbook,
+        )
         for content in (skill, runbook, state):
             self.assertIn("landing.base_branch_protection", content)
             self.assertIn("fail", content.lower())
+            self.assertIn("branch-protection/1", content)
         for content in (skill, goal, runbook, state):
             self.assertIn("landing.integration_branch_protection", content)
             self.assertIn("repository:", content)

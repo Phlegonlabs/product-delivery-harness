@@ -15,6 +15,8 @@ from harness_core import (
     is_full_sha,
 )
 from harness_schema import (
+    ACTION_TARGET_CONTRACT,
+    EXECUTION_INTENT_SCOPED_ACTIONS,
     EXTERNAL_MERGE_CONTRACT,
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
@@ -88,6 +90,22 @@ def is_legacy_completed_unmarked_run(run: Any) -> bool:
         and run.get("schema_version") == 10
         and run.get("status") == "complete"
         and "action_target_contract" not in run
+    )
+
+
+def is_legacy_pre_branch_protection_contract(run: Any) -> bool:
+    """Return whether RUN matches the shipped v10 shape before branch evidence."""
+
+    if not isinstance(run, dict):
+        return False
+    landing = run.get("landing")
+    return (
+        run.get("schema_version") == 10
+        and run.get("action_target_contract") == ACTION_TARGET_CONTRACT
+        and "branch_protection_contract" not in run
+        and isinstance(landing, dict)
+        and landing.get("mode") in {"local_only", "integration_push", "pull_request"}
+        and "integration_branch_protection" not in landing
     )
 
 
@@ -472,6 +490,16 @@ def validate_target_sources(
     for target in targets:
         if execution_intent_target_in_scope(plan, run, action, target):
             continue
+        if (
+            action == "push"
+            and is_legacy_pre_branch_protection_contract(run)
+            and target == f"branch:{_integration_branch(run)}"
+        ):
+            # The previously shipped v10 template had no field in which to retain
+            # repository branch-protection evidence. Keep that exact input
+            # readable, but authorization_covers() still denies action dispatch
+            # until evidence or a separate exact target source is recorded.
+            continue
         if not _nonempty_string(target_sources.get(target)):
             _add(
                 errors,
@@ -525,6 +553,23 @@ def authorization_covers(
         and entry.get("authorized_head_sha") != required_head_sha
     ):
         return False
+    if (
+        run.get("schema_version") == 10
+        and action in EXECUTION_INTENT_SCOPED_ACTIONS
+        and target is not None
+        and not execution_intent_target_in_scope({}, run, action, target)
+    ):
+        target_sources = entry.get("target_sources")
+        separate_source = (
+            target_sources.get(target)
+            if isinstance(target_sources, dict)
+            else None
+        )
+        if (
+            not _nonempty_string(separate_source)
+            or separate_source == entry.get("source")
+        ):
+            return False
     boundary = entry.get("expires_when")
     expiry_is_preserved = (
         preserve_completed_run_expiry

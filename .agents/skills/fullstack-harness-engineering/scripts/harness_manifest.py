@@ -15,6 +15,7 @@ from harness_schema import (
     AUTHORIZATION_KEYS_V2,
     AUTHORIZATION_KEYS_V8,
     AUTHORIZATION_KEYS_V10,
+    BRANCH_PROTECTION_CONTRACT,
     CLEANUP_BRANCH_STATUSES,
     CLEANUP_STATUSES,
     CLEANUP_WORKTREE_STATUSES,
@@ -95,6 +96,7 @@ from harness_authorization import (
     is_external_human_merge,
     is_legacy_completed_external_merge,
     is_legacy_completed_unmarked_run,
+    is_legacy_pre_branch_protection_contract,
     validate_target_sources,
 )
 from harness_graph import (
@@ -807,6 +809,7 @@ def _validate_landing(
     integration_head_sha: Any = None,
     push_authorized: bool = True,
     legacy_completed_unmarked: bool = False,
+    legacy_pre_branch_protection_contract: bool = False,
 ) -> None:
     path = "run.landing"
     keys = {
@@ -933,7 +936,7 @@ def _validate_landing(
                 f"{path}.pushed_head_sha",
                 "must equal integration.integration_head_sha",
             )
-        if not push_authorized:
+        if not push_authorized and not legacy_pre_branch_protection_contract:
             _add(
                 errors,
                 path,
@@ -1066,6 +1069,17 @@ def _validate_landing(
                     "pull_request requires a protected base",
                 )
         integration_protection = value.get("integration_branch_protection")
+        if (
+            value["mode"] in {"local_only", "integration_push", "pull_request"}
+            and "integration_branch_protection" not in value
+            and not legacy_pre_branch_protection_contract
+            and not legacy_completed_unmarked
+        ):
+            _add(
+                errors,
+                f"{path}.integration_branch_protection",
+                "is required by the current branch-protection contract",
+            )
         if integration_protection is not None and _keys(
             errors,
             f"{path}.integration_branch_protection",
@@ -2501,7 +2515,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     optional_run_keys = {"deployments"} if schema_version in {7, 8, 9} else set()
     if schema_version == 10:
         optional_run_keys.update(
-            {"targets", "action_target_contract", "external_merge_contract"}
+            {
+                "targets",
+                "action_target_contract",
+                "branch_protection_contract",
+                "external_merge_contract",
+            }
         )
     if graph_run:
         optional_run_keys.add("workflow_runs")
@@ -2523,6 +2542,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             errors,
             "run.action_target_contract",
             "must match plan.action_target_contract",
+        )
+    if (
+        "branch_protection_contract" in run
+        and run["branch_protection_contract"] != BRANCH_PROTECTION_CONTRACT
+    ):
+        _add(
+            errors,
+            "run.branch_protection_contract",
+            f"must equal {BRANCH_PROTECTION_CONTRACT!r}",
         )
     if (
         "external_merge_contract" in run
@@ -2882,6 +2910,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
             legacy_completed_unmarked=is_legacy_completed_unmarked_run(run),
+            legacy_pre_branch_protection_contract=(
+                is_legacy_pre_branch_protection_contract(run)
+            ),
         )
     if schema_version == 10 and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]

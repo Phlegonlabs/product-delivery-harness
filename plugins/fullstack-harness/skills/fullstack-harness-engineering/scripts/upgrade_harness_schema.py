@@ -34,7 +34,8 @@ from harness_manifest import (
     validate_run,
     validate_ui_evidence_files,
 )
-from harness_schema import EXTERNAL_MERGE_CONTRACT
+from harness_schema import BRANCH_PROTECTION_CONTRACT, EXTERNAL_MERGE_CONTRACT
+from harness_authorization import is_legacy_pre_branch_protection_contract
 
 
 PLAN_MAX_SCHEMA = 5
@@ -542,6 +543,7 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
         )
 
     run["external_merge_contract"] = EXTERNAL_MERGE_CONTRACT
+    run["branch_protection_contract"] = BRANCH_PROTECTION_CONTRACT
     run["verifier_executions"] = []
     added = [
         "authorizations.trigger_remote_ci",
@@ -549,6 +551,7 @@ def _upgrade_run_v9_to_v10(run: dict[str, Any], plan: dict[str, Any]) -> list[st
         "landing.integration_branch_protection",
         "landing.continuity",
         "external_merge_contract",
+        "branch_protection_contract",
         "verifier_executions",
     ]
     if _plan_declares_release(plan):
@@ -785,7 +788,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
     if plan_from >= PLAN_MAX_SCHEMA and (run is None or run_from >= RUN_MAX_SCHEMA):
-        sys.stdout.write("already current: nothing to upgrade\n")
+        if run is not None and is_legacy_pre_branch_protection_contract(run):
+            sys.stdout.write(
+                "already current: legacy RUN v10 remains readable, but its "
+                "integration push cannot dispatch until exact repository branch-"
+                "protection evidence or a separate exact target source is recorded; "
+                f"then set branch_protection_contract to "
+                f"{BRANCH_PROTECTION_CONTRACT!r}\n"
+            )
+        else:
+            sys.stdout.write("already current: nothing to upgrade\n")
         return 0
 
     upgraded_plan = copy.deepcopy(plan)

@@ -31,7 +31,10 @@ from harness_manifest import (  # noqa: E402
     validate_plan,
     validate_run,
 )
-from harness_schema import ACTION_TARGET_CONTRACT  # noqa: E402
+from harness_schema import (  # noqa: E402
+    ACTION_TARGET_CONTRACT,
+    BRANCH_PROTECTION_CONTRACT,
+)
 from manifest_fixtures import manifest_markdown  # noqa: E402
 from test_harness_manifest import cloudflare_release, valid_plan, valid_run  # noqa: E402
 
@@ -549,6 +552,10 @@ class RunUpgradeTests(UpgradeHelpers, unittest.TestCase):
         self.assertIsNone(
             upgraded_run["landing"]["integration_branch_protection"]
         )
+        self.assertEqual(
+            BRANCH_PROTECTION_CONTRACT,
+            upgraded_run["branch_protection_contract"],
+        )
         for action in (
             "invoke_external_runtime",
             "trigger_remote_ci",
@@ -695,6 +702,95 @@ class RunV10ContractTests(UpgradeHelpers, unittest.TestCase):
 
     def _target_source_errors(self, plan: dict, run: dict) -> list[str]:
         return [error for error in validate_run(plan, run) if "target_sources" in error]
+
+    def test_previous_shipped_v10_is_readable_but_push_fails_closed(
+        self,
+    ) -> None:
+        root = self._seed_repo()
+        plan, run = current_plan_and_run(root)
+        branch = run["integration"]["branch"]
+        target = f"branch:{branch}"
+        self._grant(run, "push", [target])
+        run.pop("branch_protection_contract")
+        run["landing"].pop("integration_branch_protection")
+        plan_path = self._write_plan(root, plan)
+        run_path = self._write_run(root, run)
+        before = run_path.read_bytes()
+
+        self.assertEqual([], validate_run(plan, run))
+        self.assertFalse(authorization_covers(run, "push", "M1", target))
+
+        result = self._run_cli(
+            "--plan",
+            str(plan_path),
+            "--run",
+            str(run_path),
+            "--repo-root",
+            str(root),
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("legacy RUN v10 remains readable", result.stdout)
+        self.assertIn("integration push cannot dispatch", result.stdout)
+        self.assertEqual(before, run_path.read_bytes())
+
+    def test_branch_protection_contract_has_two_explicit_repair_paths(
+        self,
+    ) -> None:
+        root = self._seed_repo()
+        plan, legacy = current_plan_and_run(root)
+        branch = legacy["integration"]["branch"]
+        target = f"branch:{branch}"
+        self._grant(legacy, "push", [target])
+        legacy.pop("branch_protection_contract")
+        legacy["landing"].pop("integration_branch_protection")
+
+        current_missing = copy.deepcopy(legacy)
+        current_missing["branch_protection_contract"] = BRANCH_PROTECTION_CONTRACT
+        missing_errors = validate_run(plan, current_missing)
+        self.assertTrue(
+            any("integration_branch_protection" in error for error in missing_errors),
+            missing_errors,
+        )
+        self.assertTrue(
+            any("target_sources" in error for error in missing_errors),
+            missing_errors,
+        )
+        self.assertFalse(
+            authorization_covers(current_missing, "push", "M1", target)
+        )
+
+        repository_evidence = copy.deepcopy(current_missing)
+        repository_evidence["landing"]["integration_branch_protection"] = {
+            "branch_ref": (
+                branch if branch.startswith("refs/heads/") else f"refs/heads/{branch}"
+            ),
+            "status": "unprotected",
+            "source": "repository: branch protection rules",
+        }
+        self.assertEqual([], validate_run(plan, repository_evidence))
+        self.assertTrue(
+            authorization_covers(repository_evidence, "push", "M1", target)
+        )
+
+        exact_reaffirmation = copy.deepcopy(current_missing)
+        exact_reaffirmation["landing"]["integration_branch_protection"] = None
+        exact_reaffirmation["authorizations"]["push"]["target_sources"] = {
+            target: "user: separately authorize this exact integration push"
+        }
+        self.assertEqual([], validate_run(plan, exact_reaffirmation))
+        self.assertTrue(
+            authorization_covers(exact_reaffirmation, "push", "M1", target)
+        )
+
+        laundered = copy.deepcopy(exact_reaffirmation)
+        laundered["authorizations"]["push"]["target_sources"][target] = (
+            laundered["authorizations"]["push"]["source"]
+        )
+        self.assertTrue(
+            any("not repeat the entry source" in error for error in validate_run(plan, laundered))
+        )
+        self.assertFalse(authorization_covers(laundered, "push", "M1", target))
 
     def test_failed_rollback_keeps_the_only_remaining_original(self) -> None:
         """A double fault must not delete the backup the error points at.
