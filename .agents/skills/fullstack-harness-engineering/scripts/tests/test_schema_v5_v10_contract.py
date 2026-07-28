@@ -324,6 +324,13 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self,
     ) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
+        state = self.read("references/execution-state-model.md")
+        run = self.canonical_manifest(
+            "assets/templates/MISSION_RUNBOOK.template.md", "harness_run"
+        )
+        integration_branch = run["integration"]["branch"]
+        self.assertEqual(integration_branch, run["landing"]["head_branch"])
+        exact_target = f"branch:{integration_branch}"
         ordinary_mission = goal[
             goal.index("For ordinary mission work")
             : goal.index("For full deployed Cloudflare delivery")
@@ -334,9 +341,16 @@ class SchemaV5V10ContractTests(unittest.TestCase):
             ordinary_mission,
         )
         self.assertIn(
-            "the run's own `branch:codex/<short-name>`",
+            f"the run's own `{exact_target}`",
             ordinary_mission,
         )
+        self.assertEqual(3, goal.count(f"`{exact_target}`"))
+        self.assertIn(
+            f'"targets": ["{exact_target}"]',
+            state,
+        )
+        self.assertNotIn("branch:codex/<short-name>", goal)
+        self.assertNotIn("branch:codex/<short-name>", state)
         self.assertIn("so the run can reach `integration_push`", ordinary_mission)
         self.assertIn(
             "request `create_pr` and `manage_pr_review`, plus any other "

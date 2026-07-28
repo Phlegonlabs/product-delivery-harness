@@ -231,7 +231,7 @@ When `authorized` is true, add a required `scope` object with `run_id`, `mission
     "plan_revision": 3,
     "plan_digest_sha256": "<64-hex>",
     "mission_ids": ["M1"],
-    "targets": ["branch:codex/<short-name>"]
+    "targets": ["branch:refs/heads/codex/<short-name>"]
   },
   "expires_when": "run_complete"
 }
