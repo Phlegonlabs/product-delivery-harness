@@ -87,6 +87,13 @@ FUTURE_PR_TARGET_RE = re.compile(
 )
 ACTION_TARGET_CONTRACT = "action-targets/1"
 
+# The branch a repository protects as its default. A generic execution-intent
+# instruction never covers a merge into one of these; only a later exact human
+# instruction does. This is a name check because nothing in PLAN or RUN declares
+# which branch the host protects, so an unrecognized default branch name still
+# needs its own recorded source through the ordinary out-of-scope path.
+PROTECTED_DEFAULT_BRANCHES = frozenset({"main", "master", "trunk"})
+
 # A target prefix is part of an action's type. PLAN graph and RUN ledger
 # validation both consume this table so they cannot disagree about which exact
 # target a lifecycle action accepts.

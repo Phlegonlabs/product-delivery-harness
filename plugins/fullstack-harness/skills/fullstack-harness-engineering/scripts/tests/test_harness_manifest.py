@@ -3650,9 +3650,15 @@ class RunValidationTests(unittest.TestCase):
             errors,
         )
 
-    def test_unmarked_v10_exact_only_integration_pr_keeps_legacy_compatibility(
+    def test_per_target_provenance_holds_without_the_action_target_marker(
         self,
     ) -> None:
+        """The marker gates the strict target-kind table, never provenance.
+
+        An unmarked RUN v10 is the shape every artifact upgraded from v9 lands
+        in, so letting it skip target_sources would leave one generic "build it"
+        covering an out-of-scope merge for the default artifact.
+        """
         plan, run, development_target_id = self.integration_pull_request_v10()
         self.authorize_merge_triggered_development_release(
             run, development_target_id
@@ -3670,11 +3676,7 @@ class RunValidationTests(unittest.TestCase):
             if entry.get("authorized") is True:
                 entry["scope"]["plan_digest_sha256"] = digest
 
-        self.assertEqual([], validate_run(plan, run))
-
-        explicit_provenance = copy.deepcopy(run)
-        explicit_provenance["authorizations"]["merge_pr"]["target_sources"] = {}
-        errors = validate_run(plan, explicit_provenance)
+        errors = validate_run(plan, run)
         self.assertTrue(
             any(
                 f"target_sources.{exact_target}:" in error
@@ -3684,24 +3686,60 @@ class RunValidationTests(unittest.TestCase):
             errors,
         )
 
-        marked_plan = copy.deepcopy(plan)
-        marked_run = copy.deepcopy(run)
-        marked_plan["action_target_contract"] = ACTION_TARGET_CONTRACT
-        marked_run["action_target_contract"] = ACTION_TARGET_CONTRACT
-        digest = plan_digest(marked_plan)
-        marked_run["plan"]["digest_sha256"] = digest
-        for entry in marked_run["authorizations"].values():
-            if entry.get("authorized") is True:
-                entry["scope"]["plan_digest_sha256"] = digest
-        errors = validate_run(marked_plan, marked_run)
+        sourced = copy.deepcopy(run)
+        sourced["authorizations"]["merge_pr"]["target_sources"] = {
+            exact_target: "user: merge pull request 7 now that review passed",
+        }
+        self.assertEqual([], validate_run(plan, sourced))
+
+    def test_execution_intent_never_pushes_a_protected_default_branch(self) -> None:
+        """A run naming a protected branch as its own integration branch.
+
+        Without this the push arm matched `branch:<integration>` unconditionally,
+        so one execution-intent instruction authorized a direct push to the
+        repository's default branch.
+        """
+        for protected in ("main", "master", "trunk"):
+            with self.subTest(branch=protected):
+                run = {
+                    "integration": {"branch": f"refs/heads/{protected}"},
+                    "landing": {
+                        "base_branch": protected,
+                        "head_branch": f"refs/heads/{protected}",
+                        "pr_url": None,
+                    },
+                }
+                self.assertFalse(
+                    execution_intent_target_in_scope(
+                        {}, run, "push", f"branch:refs/heads/{protected}"
+                    )
+                )
+
+        ordinary = {
+            "integration": {"branch": "refs/heads/codex/feature"},
+            "landing": {
+                "base_branch": "main",
+                "head_branch": "refs/heads/codex/feature",
+                "pr_url": None,
+            },
+        }
         self.assertTrue(
-            any(
-                f"target_sources.{exact_target}:" in error
-                and "requires its own recorded authorization source" in error
-                for error in errors
-            ),
-            errors,
+            execution_intent_target_in_scope(
+                {}, ordinary, "push", "branch:refs/heads/codex/feature"
+            )
         )
+
+    def test_complete_integration_run_rejects_a_null_integration_object(self) -> None:
+        """validate_run used to raise AttributeError instead of reporting."""
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["status"] = "complete"
+        run["landing"]["mode"] = "integration_pull_request"
+        run["landing"]["merge_status"] = "merged"
+        run["integration"] = None
+
+        errors = validate_run(plan, run)
+        self.assertTrue(errors)
 
     def test_merge_pr_future_repository_identity_is_case_insensitive(self) -> None:
         plan, run, development_target_id = self.integration_pull_request_v10()
@@ -3715,48 +3753,57 @@ class RunValidationTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-    def test_integration_pull_request_into_main_cannot_use_auto_merge(self) -> None:
-        plan, run, development_target_id = self.integration_pull_request_v10()
-        self.authorize_merge_triggered_development_release(
-            run, development_target_id
-        )
-        run["integration"]["branch"] = "refs/heads/main"
-        run["landing"]["base_branch"] = "main"
-        run["landing"]["continuity"]["branch_ref"] = "refs/heads/main"
-        future_pr = (
-            "future-pr:example/repo:"
-            "base=main:head=refs/heads/codex/feature"
-        )
-        exact_pr = f"pr:{run['landing']['pr_url']}"
-        run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
-        release_target = f"release:{development_target_id}"
-        errors = validate_run(plan, run)
-        for target in (future_pr, exact_pr, release_target):
-            with self.subTest(target=target):
-                self.assertTrue(
-                    any(
-                        f"target_sources.{target}:" in error
-                        and "requires its own recorded authorization source" in error
-                        for error in errors
-                    ),
-                    errors,
+    def test_integration_pull_request_into_a_protected_branch_cannot_use_auto_merge(
+        self,
+    ) -> None:
+        # `master` and `trunk` are the same protected default as `main`. Keying
+        # this on the literal "main" let every other default-branch name through.
+        for protected in ("main", "master", "trunk"):
+            with self.subTest(branch=protected):
+                plan, run, development_target_id = self.integration_pull_request_v10()
+                self.authorize_merge_triggered_development_release(
+                    run, development_target_id
+                )
+                run["integration"]["branch"] = f"refs/heads/{protected}"
+                run["landing"]["base_branch"] = protected
+                run["landing"]["continuity"]["branch_ref"] = f"refs/heads/{protected}"
+                future_pr = (
+                    "future-pr:example/repo:"
+                    f"base={protected}:head=refs/heads/codex/feature"
+                )
+                exact_pr = f"pr:{run['landing']['pr_url']}"
+                run["authorizations"]["merge_pr"]["scope"]["targets"][0] = future_pr
+                release_target = f"release:{development_target_id}"
+                errors = validate_run(plan, run)
+                for target in (future_pr, exact_pr, release_target):
+                    with self.subTest(target=target):
+                        self.assertTrue(
+                            any(
+                                f"target_sources.{target}:" in error
+                                and "requires its own recorded authorization source"
+                                in error
+                                for error in errors
+                            ),
+                            errors,
+                        )
+
+                source = f"user: merge this {protected}-bound pull request once ready"
+                run["authorizations"]["merge_pr"]["target_sources"] = {
+                    future_pr: source,
+                    exact_pr: source,
+                    release_target: source,
+                }
+
+                self.assert_run_error_contains(
+                    plan,
+                    run,
+                    "integration_pull_request into a protected default branch "
+                    "cannot use auto-merge",
                 )
 
-        run["authorizations"]["merge_pr"]["target_sources"] = {
-            future_pr: "user: merge this main-bound pull request after it is ready",
-            exact_pr: "user: merge this main-bound pull request after it is ready",
-            release_target: "user: merge this main-bound pull request after it is ready",
-        }
-
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "integration_pull_request into main cannot use auto-merge",
-        )
-
-        run["landing"]["auto_merge_requested"] = False
-        run["landing"]["auto_merge_head_sha"] = None
-        self.assertEqual([], validate_run(plan, run))
+                run["landing"]["auto_merge_requested"] = False
+                run["landing"]["auto_merge_head_sha"] = None
+                self.assertEqual([], validate_run(plan, run))
 
     def test_local_only_landing_rejects_a_pushed_head(self) -> None:
         plan = valid_plan()

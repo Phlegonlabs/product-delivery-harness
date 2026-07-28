@@ -35,6 +35,7 @@ from harness_schema import (
     PERMISSION_SELECTED_MODES,
     PERMISSION_STATUSES,
     PLAN_HEADING,
+    PROTECTED_DEFAULT_BRANCHES,
     RUN_HEADING,
     RUNTIME_DETECTION_SOURCES,
     RUNTIME_DRIVER_PRIORITY,
@@ -2605,15 +2606,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.authorized_head_sha",
                         "is only allowed for head-bound remote actions",
                     )
-                if (
-                    schema_version == 10
-                    and action in EXECUTION_INTENT_SCOPED_ACTIONS
-                    and (
-                        run.get("action_target_contract")
-                        == ACTION_TARGET_CONTRACT
-                        or "target_sources" in entry
-                    )
-                ):
+                # Per-target provenance is a v10 invariant, not an opt-in. The
+                # action_target_contract marker gates the stricter target-kind
+                # table above, where tightening can break a readable older file;
+                # it must not also decide whether an out-of-scope push, merge, or
+                # deploy needs its own recorded human instruction.
+                if schema_version == 10 and action in EXECUTION_INTENT_SCOPED_ACTIONS:
                     validate_target_sources(
                         errors, path, entry, plan=plan, run=run, action=action
                     )
@@ -2709,15 +2707,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if (
                 landing.get("auto_merge_requested") is True
                 and (
-                    normalized_integration == "main"
-                    or normalized_base == "main"
+                    normalized_integration in PROTECTED_DEFAULT_BRANCHES
+                    or normalized_base in PROTECTED_DEFAULT_BRANCHES
                 )
             ):
                 _add(
                     errors,
                     "run.landing.auto_merge_requested",
-                    "integration_pull_request into main cannot use auto-merge; "
-                    "a later exact human instruction must initiate that merge",
+                    "integration_pull_request into a protected default branch cannot "
+                    "use auto-merge; a later exact human instruction must initiate "
+                    "that merge",
                 )
         elif normalized_head != normalized_integration:
             _add(errors, "run.integration.branch", "must match landing.head_branch for PLAN v5")
@@ -2799,8 +2798,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "integration_push",
             "integration_pull_request",
         } and run.get("status") == "complete":
-            integration = run.get("integration")
-            integration_head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
+            integration_head = integration.get("integration_head_sha")
             if (
                 not isinstance(continuity, dict)
                 or continuity.get("status") != "preserved"

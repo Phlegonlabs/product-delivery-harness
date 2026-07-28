@@ -16,6 +16,7 @@ from harness_schema import (
     EXPIRY_BOUNDARIES,
     FUTURE_PR_TARGET_RE,
     GITHUB_PR_URL_RE,
+    PROTECTED_DEFAULT_BRANCHES,
     SHA256_RE,
     TARGET_RE,
     action_target_kind_allowed,
@@ -196,6 +197,11 @@ def execution_intent_target_in_scope(
     if normalized_integration_branch is None:
         return False
     if action == "push":
+        # A protected default branch is never the loop's push target, even when
+        # the run names it as its own integration branch. Pushing it is the one
+        # step a later exact human instruction has to authorize by itself.
+        if normalized_integration_branch in PROTECTED_DEFAULT_BRANCHES:
+            return False
         return target == f"branch:{branch}"
     if action == "merge_pr":
         future_pr = FUTURE_PR_TARGET_RE.fullmatch(target)
@@ -213,12 +219,12 @@ def execution_intent_target_in_scope(
         )
         target_base = future_pr.group("base") if future_pr is not None else landing_base
         if (
-            _normalized_branch(target_base) == "main"
-            or _normalized_branch(landing_base) == "main"
+            _normalized_branch(target_base) in PROTECTED_DEFAULT_BRANCHES
+            or _normalized_branch(landing_base) in PROTECTED_DEFAULT_BRANCHES
         ):
-            # A generic development-loop instruction never covers a main-bound
-            # merge. Every target in that merge entry must retain the later
-            # exact human instruction in target_sources.
+            # A generic development-loop instruction never covers a merge into a
+            # protected default branch. Every target in that merge entry must
+            # retain the later exact human instruction in target_sources.
             return False
         if future_pr is not None:
             return future_pr_target_matches_landing(
@@ -233,6 +239,10 @@ def execution_intent_target_in_scope(
                 and _normalized_branch(landing_base)
                 == normalized_integration_branch
             )
+            # A `pr:` target names a PR that already exists, so the generic
+            # instruction can only have covered it if the same entry also carries
+            # the matching `future-pr:` identity the grant was written against.
+            # That sibling is what binds the exact PR to one repository.
             authorizations = run.get("authorizations")
             merge_entry = (
                 authorizations.get("merge_pr")
