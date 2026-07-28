@@ -4,7 +4,7 @@ Use this reference after plan readiness passes and before any parallel write fan
 
 The Project Size Gate runs first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted plan and execute it with the sequential parent.
 
-This file defines the shared scope/resource conflict rules and deterministic write budget. Current PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`; supported PLAN-v4/RUN-v8-or-v9 typed graphs use it too. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes.
+This file defines the shared scope/resource conflict rules and deterministic write budget. PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes.
 
 For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, set the configured maximum generously high unless the user sets an explicit lower limit, and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number.
 
@@ -18,26 +18,22 @@ The selector reads only canonical machine data. In RUN schema v6 and later, prov
 
 It must not parse Markdown tables, inspect UI labels, guess resource ownership, or mutate Git/Codex state.
 
-The output is canonical sorted JSON with no timestamps. It binds:
+The output is canonical sorted JSON with no timestamps. Its top-level keys are exactly:
 
 ```text
 plan_id
 plan_revision
 plan_digest_sha256
-batch_base_sha
-effective_worker_budget
-runtime_route (RUN schema v6+)
+graph_revision
 ready_frontier
-conflict_edges with reason codes
-selected_missions
-launch_directives
-wave_launch (RUN schema v6+ Claude Dynamic Workflow only)
-deferred_missions with reason codes
+dispatchable_nodes
+deferred_nodes
+conflict_edges
 ```
 
-Serialize each conflict edge as `{ "left": <lower mission ID>, "right": <higher mission ID>, "reason_codes": [...] }`. Serialize each deferred mission as `{ "mission_id": ..., "reason_codes": [...], "conflicts_with": [...] }`. Sort IDs and reason codes; never encode a reason only in prose.
+`ready_frontier` lists the node IDs that are logically ready before dispatch gating. Serialize each deferred entry as `{ "node_id": ..., "reason_codes": [...] }` and each conflict edge as `{ "left": <node ID>, "right": <node ID>, "reason_codes": [...] }`. Sort IDs and reason codes; never encode a reason only in prose.
 
-Each selected mission has one deterministic `launch_directives` entry containing its mission ID, launch kind, runtime provider/driver, runtime/workspace/completion axes, required action keys, worker prompt template, and any route-specific policy. It contains no allocated worker, task, branch, or worktree identity. For Claude Dynamic Workflow, `wave_launch` bundles the selected mission IDs into one flat workflow invocation, supplies the template through `script_path`, and marks the accepted wave as the structured argument source; the per-mission directives remain the source for allocation and validation. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
+Each `dispatchable_nodes` entry carries the node's `node_id`, `kind`, `ref`, and `launch_kind`; runtime-bound nodes also carry the runtime provider/driver/source, the immutable `runtime_binding`, `tool_profile`, `failure_outcome`, required action keys, and the runtime/workspace/completion axes. It contains no allocated worker, task, branch, or worktree identity. Wave bundling — the workflow template `script_path` and its structured `args` — and the `batch_base_sha`/budget binding are parent-side steps, not selector output: the parent re-observes facts, records the batch base and accepted wave in RUN, and renders launcher arguments from the dispatchable entries. The output is a proposal until the parent rechecks observed facts and records it in RUN state.
 
 ## Ready Frontier
 
@@ -55,7 +51,7 @@ A mission is in the ready frontier only when all conditions pass:
 10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
 11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
-An isolated write worker must have an authorized durable branch/ref and `create_local_commits: true`; the portable protocol does not integrate an uncommitted patch from another workspace. When those are unavailable, keep the mission out of fan-out and use sequential parent execution in the integration checkout.
+An isolated write worker must have an authorized durable branch/ref and `create_local_commits: true`; the portable protocol does not integrate an uncommitted patch from another workspace. When those are unavailable, the mission stays deferred and the parent requests the missing branch/commit authorization; the integration checkout is merge-only and never hosts implementation.
 
 Selection happens before worker/task/branch/worktree identities are allocated. Therefore a launch-path action passes this pre-allocation gate only when the user explicitly authorized that action for the mission scope with `targets: ["*"]`. A selector must never manufacture `worker:<mission-id>`, `branch:<mission-id>`, or another pseudo-target. After the parent allocates concrete identities, it checks the exact `worker:`, `task:`, `worktree:`, or `branch:` target again immediately before each mutation; the pre-allocation result is not a substitute for that check.
 
@@ -134,30 +130,34 @@ runtime_resource_conflict
 workspace_not_isolated
 ```
 
-Unary ineligibility or deferral belongs on the mission/proposal, not on a graph edge. Use exact applicable codes from:
+Unary ineligibility or deferral belongs on the node entry, not on a graph edge. The selector emits exactly these deferral codes:
 
-```text
-plan_not_ready
-execution_not_authorized
-action_not_authorized
-mission_phase_not_ready
-dependency_not_integrated
-dependency_gate_not_pass
-dependency_ancestry_unconfirmed
-plan_digest_mismatch
-batch_base_missing
-batch_base_stale
-incomplete_resource_inventory
-unsupported_scope
-parent_owned_scope
-worktree_ineligible
-runtime_capacity_unavailable
-completion_channel_unavailable
-permission_boundary_not_ready
-blocker_present
-platform_lifecycle_unknown
-over_budget
-```
+- `action_not_authorized` — a required launch-path action has no grant covering the mission and target.
+- `attempts_exhausted` — the node's attempts reached its `max_attempts`.
+- `authorization_head_stale` — a v10 head-bound lifecycle grant does not cover the current integration head.
+- `batch_base_missing` — no `batch_base_sha` is recorded.
+- `batch_base_stale` — the batch base no longer matches the integration head or the observed parent head.
+- `blocker_present` — the node carries a recorded blocker, or a wave is still `active`.
+- `completion_channel_unavailable` — the observed runtime has no completion channel.
+- `dependency_not_satisfied` — a dependency source has not succeeded with `pass` (and no pre-integration review source is ready).
+- `execution_not_authorized` — run-level execution authorization is missing or does not cover the mission.
+- `incomplete_resource_inventory` — the plan mission's `resource_inventory_complete` is not true.
+- `mission_phase_not_ready` — the mission state is not `queued` or `ready`.
+- `node_phase_not_ready` — the node is not `dormant` or `ready`, and no re-arm applies.
+- `over_budget` — the mission fell outside the write-worker budget.
+- `over_runtime_budget` — the node fell outside the shared runtime-worker budget.
+- `parent_state_unreconciled` — observed parent checkout facts are missing or dirty.
+- `permission_boundary_not_ready` — the recorded permission boundary status is not `ready`.
+- `plan_not_ready` — `plan_readiness` is not `ready`.
+- `review_head_unchanged` — a `fix_required` review's source head has not changed.
+- `route_not_activated` — no incoming route edge has activated the node.
+- `runtime_capacity_unavailable` — observed worker slots or isolation capacity are exhausted.
+- `runtime_unavailable` — the node's allowed providers exclude the current host.
+- `worker_state_unreconciled` — a live worker's worktree, branch, or head does not match observation.
+- `worktree_ineligible` — the plan mission's `worktree_eligible` is not true.
+- `worktree_state_unreconciled` — observed worktree facts are missing, dirty, duplicated, or unmatched.
+- `write_conflict` — the mission conflicts with an already-selected write mission.
+- `workspace_not_isolated` — the workspace mode is `shared_checkout` or the executor is `harness_parent`.
 
 Dependency edges determine readiness and topological level; they are not conflict edges among already-ready missions. Unknown facts yield an ineligibility/defer code or a conservative pairwise edge, never an assumed independent pair.
 
@@ -244,11 +244,20 @@ Current Claude Code can support nested subagents, but RUN schema v6 and later de
 
 ## Batch Integration And Recompute
 
+One wave lifecycle has a fixed order, and no other order works: the selector defers every node — including read-only review nodes — with `blocker_present` while `run.active_wave.status` is `active`, and worker-result validation accepts a result only while its wave is active. So:
+
+1. Launch the selected workers.
+2. Validate every selected mission's worker result against the still-active wave.
+3. Close the wave: once all selected missions' worker results are validated, the parent transitions the wave out of `active`. No node dispatches while a wave is active.
+4. Re-run selection; the review nodes now dispatch. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.
+5. Integrate the passing missions serially in declared merge order (steps below).
+6. Run the batch gates, then recompute.
+
 The parent integrates one worker-passed mission at a time in declared merge order:
 
 1. Confirm worker base/head ancestry and head stability.
 2. Recompute actual changed paths and reject scope escape or parent-owned files.
-3. Require at least one read-only review PASS bound to the exact current worktree head. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`. Repair findings in that worktree and review the changed head again.
+3. Require the read-only review PASS from the post-close selector pass above: at least one review bound to the exact current worktree head. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`.
 4. Integrate into the resolved integration branch only when `integrate_locally` is authorized.
 5. Run the affected mission's integration verifiers after its integration.
 6. Mark it `integrated` only after the gate passes and record `integrated_sha`.

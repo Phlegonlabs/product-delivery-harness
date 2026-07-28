@@ -136,6 +136,7 @@ def authorization_covers(
     mission_id: str,
     target: str | None = None,
     *,
+    require_exact_target: bool = False,
     preserve_completed_run_expiry: bool = False,
     required_head_sha: str | None = None,
 ) -> bool:
@@ -153,9 +154,12 @@ def authorization_covers(
     ):
         return False
     missions = scope.get("mission_ids")
-    if not isinstance(missions, list) or (
-        mission_id not in missions and "*" not in missions
-    ):
+    if not isinstance(missions, list):
+        return False
+    if require_exact_target:
+        if "*" in missions or mission_id not in missions:
+            return False
+    elif mission_id not in missions and "*" not in missions:
         return False
     targets = scope.get("targets")
     if action == "push" and (
@@ -164,7 +168,12 @@ def authorization_covers(
         or (isinstance(targets, list) and any(_is_main_branch_target(t) for t in targets))
     ):
         return False
-    if not _covers_target(targets, target):
+    checked_targets = targets
+    if require_exact_target:
+        if target is None or not isinstance(targets, list):
+            return False
+        checked_targets = [item for item in targets if item != "*"]
+    if not _covers_target(checked_targets, target):
         return False
     if (
         required_head_sha is not None
@@ -182,7 +191,12 @@ def authorization_covers(
     )
 
 
-def execution_covers(run: dict[str, Any], mission_id: str) -> bool:
+def execution_covers(
+    run: dict[str, Any],
+    mission_id: str,
+    *,
+    preserve_completed_run_expiry: bool = False,
+) -> bool:
     if run.get("execution_authorized") is not True:
         return False
     if not _nonempty_string(run.get("execution_authorization_source")):
@@ -197,8 +211,14 @@ def execution_covers(run: dict[str, Any], mission_id: str) -> bool:
     missions = scope.get("mission_ids")
     if not isinstance(missions, list):
         return False
-    return (mission_id in missions or "*" in missions) and _authorization_not_expired(
-        run, scope.get("expires_when")
+    boundary = scope.get("expires_when")
+    expiry_is_preserved = (
+        preserve_completed_run_expiry
+        and boundary == "run_complete"
+        and run.get("status") == "complete"
+    )
+    return (mission_id in missions or "*" in missions) and (
+        expiry_is_preserved or _authorization_not_expired(run, boundary)
     )
 
 

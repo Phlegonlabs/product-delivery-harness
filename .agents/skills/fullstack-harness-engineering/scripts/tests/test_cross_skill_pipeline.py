@@ -15,7 +15,12 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_manifest import validate_plan  # noqa: E402
 from select_ready_nodes import _runtime_binding  # noqa: E402
-from test_graph_orchestration import graph_node, valid_graph_plan, valid_graph_run  # noqa: E402
+from test_graph_orchestration import (  # noqa: E402
+    attach_single_mission_review,
+    graph_node,
+    valid_graph_plan,
+    valid_graph_run,
+)
 
 
 class CrossSkillPipelineTests(unittest.TestCase):
@@ -124,9 +129,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],
         }
-        plan["graph"]["nodes"].append(review)
+        attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["frontend_code"]
-        plan["graph"]["entry_nodes"].append(review["id"])
         self.assertEqual([], validate_plan(plan))
 
         runtime = valid_graph_run(plan)["runtime_capabilities"]

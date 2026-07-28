@@ -255,7 +255,7 @@ Final PASS requires:
 - Every must-have trace ID is covered.
 - Every required gate is PASS.
 - Every visual `TEST-*` obligation `PRD.md` marks required maps to a specific verification row above and that row is PASS. A generically named visual gate does not satisfy a specific obligation (see `contract-and-traceability.md`'s Trace IDs). A required `TEST-*` ID with no matching row is an uncovered must-have trace, not an optional extra.
-- Schema-v9 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
+- Schema-v9-and-later batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
 - Closeout runs `scripts/validate_harness_plan.py --design-system <path to design-system.json>` whenever a design system is a contract source, so its `stateMatrix` and responsive set are cross-checked against the PLAN's UI surfaces. Without it, required screenshot coverage is derived from the PLAN's own state list, and a PLAN that declares `ready` alone reaches a PASS closeout with one state of eleven.
 - Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Every skipped gate is justified.
@@ -266,7 +266,7 @@ Final PASS requires:
 - Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
 - The final integration head still descends from every recorded required mission integration SHA.
 - Landing state is recorded: the verified integration head pushed to the run's own branch, or the run explicitly left local. `landing.continuity` is `preserved` at that integration head.
-- In `integration_push` mode, local diff review passed before push and `pushed_head_sha` equals the integration head. Any newer local integration resets this gate.
+- In `integration_push` mode, local diff review passed before push and `pushed_head_sha` equals the integration head. Any newer local integration resets this gate. `pushed_head_sha` is a parent-attested record: the push itself is observed by the parent, not provable by the validators, which check it only for internal consistency and against the local branch.
 - For current PLAN-v5 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

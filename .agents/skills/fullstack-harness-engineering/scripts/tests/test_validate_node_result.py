@@ -19,11 +19,19 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_manifest import plan_digest  # noqa: E402
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
+from test_harness_manifest import authorize_execution  # noqa: E402
 from validate_node_result import validate_node_result  # noqa: E402
 
 
 def running_result(plan: dict[str, object], run: dict[str, object]) -> dict[str, object]:
     digest = plan_digest(plan)
+    authorize_execution(
+        run,
+        ["M1"],
+        status="running",
+        plan=plan,
+        digest=digest,
+    )
     run["graph_state"]["node_states"]["N-M1"].update(
         {
             "phase": "running",
@@ -78,23 +86,26 @@ class ValidateNodeResultTests(unittest.TestCase):
         self.assertTrue(any("active attempt" in error for error in errors))
 
     def test_schema_mismatch_reports_the_required_versions(self) -> None:
-        # Structural validate_plan/validate_run already reject a v4 PLAN paired
-        # with a non-8/9 RUN, so isolate validate_node_result's own schema gate
-        # (the line this test guards) by stubbing structural validation out.
+        # Structural validation normally rejects the pair first. Stub it so
+        # this test guards validate_node_result's own schema gate.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
         result = running_result(plan, run)
-        run["schema_version"] = 6
 
-        with patch("validate_node_result.validate_plan", return_value=[]), patch(
-            "validate_node_result.validate_run", return_value=[]
-        ):
-            errors = validate_node_result(plan, run, result)
+        for plan_version, run_version in [(5, 6), (4, 8), (4, 9)]:
+            with self.subTest(plan_version=plan_version, run_version=run_version):
+                plan["schema_version"] = plan_version
+                run["schema_version"] = run_version
 
-        self.assertIn(
-            "node result validation requires PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10",
-            errors,
-        )
+                with patch("validate_node_result.validate_plan", return_value=[]), patch(
+                    "validate_node_result.validate_run", return_value=[]
+                ):
+                    errors = validate_node_result(plan, run, result)
+
+                self.assertIn(
+                    "node result validation requires PLAN v5 with RUN v10",
+                    errors,
+                )
 
     def test_plan_v5_run_v10_pair_uses_graph_node_result_validation(self) -> None:
         plan = valid_graph_plan()

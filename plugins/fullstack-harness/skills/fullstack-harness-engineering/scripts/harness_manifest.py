@@ -126,7 +126,10 @@ def _validate_global_verifier_ids(errors: list[str], plan: dict[str, Any]) -> No
             )
 
     for group in ("batch_verifiers", "final_gates"):
-        for index, verifier in enumerate(plan.get(group, [])):
+        verifiers = plan.get(group)
+        if not isinstance(verifiers, list):
+            continue
+        for index, verifier in enumerate(verifiers):
             register(f"plan.{group}[{index}]", verifier)
     for mission_index, mission in enumerate(plan.get("missions", [])):
         if not isinstance(mission, dict):
@@ -1091,18 +1094,14 @@ def _validate_workflow_runs(
                 _add(errors, path, "complete RUN cannot retain a running workflow")
 
 
-def _validate_verifier_executions(
-    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
-) -> None:
-    value = run.get("verifier_executions")
-    if not isinstance(value, list):
-        _add(errors, "run.verifier_executions", "must be an append-only list")
-        return
-
+def _verifier_owners(
+    plan: dict[str, Any],
+) -> dict[str, tuple[str, str | None, str | None, dict[str, Any]]]:
     verifier_owners: dict[
         str, tuple[str, str | None, str | None, dict[str, Any]]
     ] = {}
-    for mission in plan.get("missions", []):
+    raw_missions = plan.get("missions")
+    for mission in (raw_missions if isinstance(raw_missions, list) else []):
         if not isinstance(mission, dict):
             continue
         mission_id = mission.get("id")
@@ -1120,9 +1119,24 @@ def _validate_verifier_executions(
                 if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
                     verifier_owners[verifier["id"]] = ("task", mission_id, task_id, verifier)
     for plan_key, layer in (("batch_verifiers", "batch"), ("final_gates", "final")):
-        for verifier in plan.get(plan_key, []):
+        verifiers = plan.get(plan_key)
+        if not isinstance(verifiers, list):
+            continue
+        for verifier in verifiers:
             if isinstance(verifier, dict) and _nonempty_string(verifier.get("id")):
                 verifier_owners[verifier["id"]] = (layer, None, None, verifier)
+    return verifier_owners
+
+
+def _validate_verifier_executions(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    value = run.get("verifier_executions")
+    if not isinstance(value, list):
+        _add(errors, "run.verifier_executions", "must be an append-only list")
+        return
+
+    verifier_owners = _verifier_owners(plan)
 
     attempt_log = run.get("attempt_log")
     attempt_items = attempt_log if isinstance(attempt_log, list) else []
@@ -1563,11 +1577,27 @@ def _validate_verifier_executions(
                         f"{path}.context.batch_base_sha",
                         "must match run.integration.batch_base_sha",
                     )
-                if context["head_sha"] != integration.get("integration_head_sha"):
+                expected_head_sha = integration.get("integration_head_sha")
+                head_error = "must match run.integration.integration_head_sha"
+                enforce_head_sha = True
+                if item.get("layer") == "mission_integration":
+                    mission_state = (
+                        mission_states.get(item.get("mission_id"))
+                        if isinstance(mission_states, dict)
+                        else None
+                    )
+                    expected_head_sha = (
+                        mission_state.get("integrated_sha")
+                        if isinstance(mission_state, dict)
+                        else None
+                    )
+                    head_error = "must match the mission integrated_sha"
+                    enforce_head_sha = is_full_sha(expected_head_sha)
+                if enforce_head_sha and context["head_sha"] != expected_head_sha:
                     _add(
                         errors,
                         f"{path}.context.head_sha",
-                        "must match run.integration.integration_head_sha",
+                        head_error,
                     )
             for key in ("trust_domain", "checkout_role"):
                 if not _nonempty_string(context[key]):
@@ -1664,6 +1694,358 @@ def _validate_verifier_executions(
         _strings(errors, f"{path}.evidence_paths", item["evidence_paths"])
 
 
+def _has_retained_pass_execution(
+    run: dict[str, Any],
+    *,
+    verifier_id: str,
+    layer: str,
+    mission_id: str | None,
+    task_id: str | None,
+    head_sha: str | None,
+    lease_id: str | None = None,
+) -> bool:
+    executions = run.get("verifier_executions")
+    if not isinstance(executions, list) or not is_full_sha(head_sha):
+        return False
+    for execution in executions:
+        if not isinstance(execution, dict):
+            continue
+        if (
+            execution.get("verifier_id") != verifier_id
+            or execution.get("layer") != layer
+            or execution.get("mission_id") != mission_id
+            or execution.get("task_id") != task_id
+            or execution.get("status") != "PASS"
+            or execution.get("exit_code") != 0
+        ):
+            continue
+        if layer in {"task", "worker"} and (
+            execution.get("lease_id") != lease_id
+            or not _nonempty_string(execution.get("attempt_id"))
+        ):
+            continue
+        context = execution.get("context")
+        if (
+            isinstance(context, dict)
+            and context.get("head_sha") == head_sha
+            and context.get("layer") == layer
+            and context.get("mission_id") == mission_id
+            and context.get("task_id") == task_id
+            and context.get("lease_id") == execution.get("lease_id")
+            and context.get("attempt_id") == execution.get("attempt_id")
+        ):
+            return True
+    return False
+
+
+def _validate_v10_execution_records(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    raw_missions = plan.get("missions")
+    mission_items = [
+        mission
+        for mission in (raw_missions if isinstance(raw_missions, list) else [])
+        if isinstance(mission, dict) and _nonempty_string(mission.get("id"))
+    ]
+    missions = {mission["id"]: mission for mission in mission_items}
+    mission_states = (
+        run.get("mission_states")
+        if isinstance(run.get("mission_states"), dict)
+        else {}
+    )
+    workers = run.get("workers") if isinstance(run.get("workers"), list) else []
+    workers_by_id = {
+        worker.get("worker_id"): worker
+        for worker in workers
+        if isinstance(worker, dict) and _nonempty_string(worker.get("worker_id"))
+    }
+    preserve_expiry = run.get("status") == "complete"
+    if run.get("status") == "complete" and run.get("execution_authorized") is not True:
+        _add(
+            errors,
+            "run.execution_authorized",
+            "complete RUN requires a retained overall execution grant",
+        )
+
+    executable_phases = {
+        "leased",
+        "worker_running",
+        "worker_passed",
+        "integrating",
+        "integrated",
+    }
+    for mission_id, state in mission_states.items():
+        if (
+            isinstance(state, dict)
+            and state.get("phase") in executable_phases
+            and not execution_covers(
+                run,
+                mission_id,
+                preserve_completed_run_expiry=preserve_expiry,
+            )
+        ):
+            _add(
+                errors,
+                "run.execution_authorization_scope",
+                f"must retain execution authorization for executable mission {mission_id}",
+            )
+
+    raw_observed = run.get("observed")
+    observed_git = (
+        raw_observed.get("git", {}) if isinstance(raw_observed, dict) else {}
+    )
+    observed_worktrees = (
+        observed_git.get("worktrees", [])
+        if isinstance(observed_git, dict)
+        and isinstance(observed_git.get("worktrees"), list)
+        else []
+    )
+    claimed_paths: dict[str, str] = {}
+    claimed_branches: dict[str, str] = {}
+    for index, worker in enumerate(workers):
+        if not isinstance(worker, dict):
+            continue
+        mission_id = worker.get("mission_id")
+        mission = missions.get(mission_id)
+        if not isinstance(mission, dict) or not mission.get("write_scope"):
+            continue
+        path = f"run.workers[{index}]"
+        workspace_mode = worker.get("workspace_mode")
+        if worker.get("worker_runtime") == "subagent":
+            worker_id = worker.get("worker_id")
+            target = (
+                f"worker:{worker_id}" if _nonempty_string(worker_id) else None
+            )
+            if target is None or not authorization_covers(
+                run,
+                "spawn_subagents",
+                mission_id,
+                target,
+                require_exact_target=True,
+                preserve_completed_run_expiry=preserve_expiry,
+            ):
+                _add(
+                    errors,
+                    "run.authorizations.spawn_subagents",
+                    f"must exactly authorize {mission_id} target {target or 'worker:<worker_id>'}",
+                )
+        elif worker.get("worker_runtime") == "app_task":
+            task_thread_id = worker.get("task_thread_id")
+            target = (
+                f"task:{task_thread_id}"
+                if _nonempty_string(task_thread_id)
+                else None
+            )
+            if target is None or not authorization_covers(
+                run,
+                "create_user_owned_tasks",
+                mission_id,
+                target,
+                require_exact_target=True,
+                preserve_completed_run_expiry=preserve_expiry,
+            ):
+                _add(
+                    errors,
+                    "run.authorizations.create_user_owned_tasks",
+                    f"must exactly authorize {mission_id} target {target or 'task:<task_thread_id>'}",
+                )
+        if workspace_mode == "shared_checkout":
+            _add(
+                errors,
+                f"{path}.workspace_mode",
+                "PLAN-v5 write mission requires an isolated managed worktree",
+            )
+            continue
+        if workspace_mode not in {
+            "parent_managed_worktree",
+            "app_managed_worktree",
+        }:
+            continue
+        worktree_path = worker.get("worktree_path")
+        branch_ref = worker.get("branch_ref")
+        if not _nonempty_string(worktree_path):
+            _add(errors, f"{path}.worktree_path", "is required for an isolated write mission")
+        if not _nonempty_string(branch_ref):
+            _add(errors, f"{path}.branch_ref", "is required for an isolated write mission")
+
+        worktree_action = (
+            "create_local_worktrees"
+            if workspace_mode == "parent_managed_worktree"
+            else "create_app_managed_worktrees"
+        )
+        required_actions = (
+            (worktree_action, f"worktree:{worktree_path}"),
+            ("create_local_branches", f"branch:{branch_ref}"),
+            ("create_local_commits", f"branch:{branch_ref}"),
+        )
+        for action, target in required_actions:
+            if (
+                _nonempty_string(worktree_path)
+                and _nonempty_string(branch_ref)
+                and not authorization_covers(
+                    run,
+                    action,
+                    mission_id,
+                    target,
+                    require_exact_target=True,
+                    preserve_completed_run_expiry=preserve_expiry,
+                )
+            ):
+                _add(
+                    errors,
+                    f"run.authorizations.{action}",
+                    f"must exactly authorize {mission_id} target {target}",
+                )
+
+        if _nonempty_string(worktree_path) and _nonempty_string(branch_ref):
+            expected_owner = (
+                "parent" if workspace_mode == "parent_managed_worktree" else "app"
+            )
+            matching_worktrees = [
+                observed
+                for observed in observed_worktrees
+                if isinstance(observed, dict)
+                and observed.get("path") == worktree_path
+                and observed.get("branch_ref") == branch_ref
+                and observed.get("managed_by") == expected_owner
+                and (
+                    not is_full_sha(worker.get("worker_head_sha"))
+                    or observed.get("head_sha") == worker.get("worker_head_sha")
+                )
+            ]
+            if len(matching_worktrees) != 1:
+                _add(
+                    errors,
+                    path,
+                    "requires one matching parent-observed isolated worktree and branch",
+                )
+            elif (
+                worker.get("phase") == "worker_passed"
+                and matching_worktrees[0].get("dirty") is not False
+            ):
+                _add(errors, path, "passed worker requires a clean observed worktree")
+
+            prior_path_owner = claimed_paths.setdefault(worktree_path, mission_id)
+            prior_branch_owner = claimed_branches.setdefault(branch_ref, mission_id)
+            if prior_path_owner != mission_id:
+                _add(errors, f"{path}.worktree_path", "must be unique per write mission")
+            if prior_branch_owner != mission_id:
+                _add(errors, f"{path}.branch_ref", "must be unique per write mission")
+
+    integration = run.get("integration")
+    integration_branch = (
+        integration.get("branch") if isinstance(integration, dict) else None
+    )
+    for mission_id, state in mission_states.items():
+        if not isinstance(state, dict) or state.get("phase") != "integrated":
+            continue
+        target = (
+            f"branch:{integration_branch}"
+            if _nonempty_string(integration_branch)
+            else None
+        )
+        if target is None or not authorization_covers(
+            run,
+            "integrate_locally",
+            mission_id,
+            target,
+            require_exact_target=True,
+            preserve_completed_run_expiry=preserve_expiry,
+        ):
+            _add(
+                errors,
+                "run.authorizations.integrate_locally",
+                f"must exactly authorize integrated mission {mission_id} on the integration branch",
+            )
+
+    owners = _verifier_owners(plan)
+    task_states = (
+        run.get("task_states") if isinstance(run.get("task_states"), dict) else {}
+    )
+    for verifier_id, (layer, mission_id, task_id, _) in owners.items():
+        if layer == "task":
+            task_state = task_states.get(task_id)
+            mission_state = mission_states.get(mission_id)
+            worker = (
+                workers_by_id.get(mission_state.get("worker_id"))
+                if isinstance(mission_state, dict)
+                else None
+            )
+            if (
+                isinstance(task_state, dict)
+                and task_state.get("phase") == "mission_recorded"
+                and task_state.get("verifier_status") == "PASS"
+                and isinstance(worker, dict)
+                and not _has_retained_pass_execution(
+                    run,
+                    verifier_id=verifier_id,
+                    layer=layer,
+                    mission_id=mission_id,
+                    task_id=task_id,
+                    head_sha=worker.get("worker_head_sha"),
+                    lease_id=worker.get("lease_id"),
+                )
+            ):
+                _add(
+                    errors,
+                    "run.verifier_executions",
+                    f"missing retained PASS execution for task verifier {verifier_id}",
+                )
+        elif layer == "worker":
+            mission_state = mission_states.get(mission_id)
+            worker = (
+                workers_by_id.get(mission_state.get("worker_id"))
+                if isinstance(mission_state, dict)
+                else None
+            )
+            if (
+                isinstance(worker, dict)
+                and (
+                    worker.get("phase") == "worker_passed"
+                    or (
+                        isinstance(mission_state, dict)
+                        and mission_state.get("phase")
+                        in {"worker_passed", "integrating", "integrated"}
+                    )
+                )
+                and not _has_retained_pass_execution(
+                    run,
+                    verifier_id=verifier_id,
+                    layer=layer,
+                    mission_id=mission_id,
+                    task_id=None,
+                    head_sha=worker.get("worker_head_sha"),
+                    lease_id=worker.get("lease_id"),
+                )
+            ):
+                _add(
+                    errors,
+                    "run.verifier_executions",
+                    f"missing retained PASS execution for worker verifier {verifier_id}",
+                )
+        elif layer == "mission_integration":
+            mission_state = mission_states.get(mission_id)
+            if (
+                isinstance(mission_state, dict)
+                and mission_state.get("phase") == "integrated"
+                and mission_state.get("integration_gate") == "PASS"
+                and not _has_retained_pass_execution(
+                    run,
+                    verifier_id=verifier_id,
+                    layer=layer,
+                    mission_id=mission_id,
+                    task_id=None,
+                    head_sha=mission_state.get("integrated_sha"),
+                )
+            ):
+                _add(
+                    errors,
+                    "run.verifier_executions",
+                    "missing retained PASS execution for mission integration verifier "
+                    f"{verifier_id}",
+                )
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -1733,7 +2115,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         or run.get("execution_authorized") is True
         or run.get("status") in {"running", "complete"}
     ):
-        for index, source in enumerate(plan.get("sources", [])):
+        sources = plan.get("sources")
+        for index, source in enumerate(sources if isinstance(sources, list) else []):
             if not isinstance(source, dict):
                 continue
             if source.get("status") not in {"frozen", "delta_accepted"}:
@@ -3005,6 +3388,41 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and mission_node_refs.get(edge.get("from"))
                     in reviewed_mission_ids
                 }
+                if (
+                    schema_version == 10
+                    and len(direct_preintegration_mission_ids) == 1
+                    and isinstance(mission_states, dict)
+                    and isinstance(workers, list)
+                ):
+                    reviewed_mission_id = next(
+                        iter(direct_preintegration_mission_ids)
+                    )
+                    reviewed_mission_state = mission_states.get(
+                        reviewed_mission_id
+                    )
+                    retained_mission_workers = [
+                        mission_worker
+                        for mission_worker in workers
+                        if isinstance(mission_worker, dict)
+                        and isinstance(reviewed_mission_state, dict)
+                        and mission_worker.get("worker_id")
+                        == reviewed_mission_state.get("worker_id")
+                        and mission_worker.get("mission_id")
+                        == reviewed_mission_id
+                    ]
+                    if (
+                        len(retained_mission_workers) == 1
+                        and _nonempty_string(
+                            retained_mission_workers[0].get("worktree_path")
+                        )
+                        and worker.get("review_path")
+                        != retained_mission_workers[0].get("worktree_path")
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.review_path",
+                            "must match the singleton mission worker worktree_path",
+                        )
                 raw_state = run["graph_state"]["node_states"].get(
                     worker["node_id"], {}
                 )
@@ -3013,12 +3431,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     sha
                     for sha in (
                         run.get("integration", {}).get("integration_head_sha"),
-                        run.get("landing", {}).get("pr_head_sha"),
                         # integrated_sha is a permanent historical value, so it
                         # never goes stale on its own. Only a direct singleton
                         # pre-integration review may bind to it; a batch or
                         # post-integration review must bind to the current
-                        # integration or PR head, or a repair that lands after
+                        # integration head, or a repair that lands after
                         # it would leave its PASS silently covering an older head.
                         *(
                             state.get("integrated_sha")
@@ -3046,7 +3463,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(
                         errors,
                         f"{path}.reviewed_sha",
-                        "must identify the direct singleton pre-integration worktree, integrated, or PR head",
+                        "must identify the direct singleton pre-integration worktree or integrated head",
                     )
                 if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
                     _add(errors, f"{path}.worker_runtime", "has an unsupported value")
@@ -3323,6 +3740,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
     if schema_version == 10:
         _validate_verifier_executions(errors, plan, run)
+        _validate_v10_execution_records(errors, plan, run)
 
     if schema_version in {9, 10}:
         _validate_gate_results(

@@ -82,7 +82,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         agent = self.read_sibling_agent("fullstack-harness-codex")
 
         self.assertIn("Do not stop after printing a non-empty app-task wave", skill)
-        self.assertIn("consume every `launch_directives` entry", skill)
+        self.assertIn("consume every `dispatchable_nodes` entry", skill)
         self.assertIn("search the current Codex tool surface", skill)
         self.assertIn("own conversation in the left sidebar", skill)
         self.assertIn("## Launch Selected Codex App Threads", orchestration)

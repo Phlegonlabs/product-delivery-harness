@@ -42,11 +42,11 @@ plan_readiness: draft | ready | blocked
 | RUN-v10 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS; when a UI registry is supplied, the PLAN surface matrix also covers its exact responsive set, required states, and route trace/test bindings |
 | Gate freshness | A changed integration head invalidates an earlier gate PASS immediately, in every RUN lifecycle state |
 
-Older RUN files remain readable under their recorded schema. RUN v9 introduced the gate arrays; current RUN v10 adds PLAN-v5 binding, continuity, and append-only verifier history.
+RUN v10 is the only supported schema; current tools do not read older RUN versions. RUN v9 introduced the gate arrays; v10 adds PLAN-v5 binding, continuity, and append-only verifier history.
 
 `plan_readiness: ready` is the machine gate. Human verification tables may display `PASS`, but selectors never substitute a table cell for canonical readiness.
 
-New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10); older version numbers exist only so the harness can keep reading a file some earlier run instantiated.
+New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10); older version numbers are not supported.
 
 ## Plan Revisions And Snapshots
 
@@ -151,7 +151,7 @@ A resume snapshot is usable only when the parent checkout path, branch, head, an
 
 ## Typed Graph State
 
-PLAN schema v4 adds typed nodes and explicit dependency/route edges. RUN schema v8 and v9 add one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.
+PLAN v5 and RUN v10 carry the typed-graph contract: typed nodes, explicit dependency/route edges, and one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.
 
 Use node phases:
 
@@ -169,7 +169,7 @@ Every node state records `attempts`, `last_attempt_id`, `last_outcome`, optional
 
 Dependency edges always consume `pass` and remain acyclic. Route edges activate from declared outcomes. A cyclic route requires a PLAN traversal bound and an exit. A retry or subgraph replay creates new attempts and preserves old evidence; it never revives a lease, action grant, base/head binding, or verifier result.
 
-Run `select_ready_nodes.py` for v4/v8 or v4/v9. It computes graph readiness before runtime binding, then applies the existing write-conflict and worker-budget rules to ready mission nodes. See `graph-orchestration.md` for the complete routing contract.
+Run `select_ready_nodes.py` for PLAN v5 with RUN v10. It computes graph readiness before runtime binding, then applies the existing write-conflict and worker-budget rules to ready mission nodes. See `graph-orchestration.md` for the complete routing contract.
 
 ## Authorization Action Ledger
 
@@ -244,7 +244,7 @@ Before each action, check its entry again and compare it with observed state. A 
 
 ## Landing State
 
-Schemas v3 through v10 require a `landing` object with exactly four keys:
+Schema v10 requires a `landing` object with exactly four keys:
 
 ```text
 mode: local_only | integration_push
@@ -271,11 +271,11 @@ status: planned | preserved | blocked
 
 Represent orchestration with three independent axes. Do not encode them as a single mode string.
 
-RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and optional backward-compatible `nested_subagents` and `permission_boundary` objects. Schemas v6 through v9 require `runtime_adapter`. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
+RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and optional backward-compatible `nested_subagents` and `permission_boundary` objects. Schema v10 requires `runtime_adapter`. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
 
 ### Runtime adapter and routing
 
-Schemas v6 through v9 record observed host capabilities without replacing the three portable axes:
+RUN v10 records observed host capabilities without replacing the three portable axes:
 
 ```json
 {
@@ -289,9 +289,9 @@ Schemas v6 through v9 record observed host capabilities without replacing the th
 
 `provider` is `codex`, `claude_code`, or `generic`. `detection_source` is `observed`, `explicit`, or `fallback`. `available_drivers` contains only capabilities proven in the current surface and always includes `sequential_parent`. The selector applies a fixed route: Codex uses `app_threads`, then `subagents`, then `sequential_parent`; Claude Code uses `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic uses `subagents`, then `sequential_parent`.
 
-PLAN v4 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex and Claude Code, while generic providers keep it null. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`. The destination host still validates current model and effort support.
+PLAN v5 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex and Claude Code, while generic providers keep it null. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`. The destination host still validates current model and effort support.
 
-When the parent allocates a PLAN-v4 graph worker in RUN v8 or v9, copy a mission binding into `workers[].runtime_binding` or a read-only verifier binding into `review_workers[].runtime_binding`, with provider, driver, source, model, reasoning effort, and option source. A review worker also records node/attempt identity, graph revision, review path, and exact reviewed SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null values through task creation. A Claude Code host passes each node's own model and non-null reasoning effort directly into that node's own `agent()` call inside the Workflow script; one wave may freely mix models and reasoning efforts across nodes since selection happens per spawned agent, not per wave. Never silently replace a rejected model or effort; replan the affected node and increment the PLAN revision.
+When the parent allocates a PLAN-v5 graph worker in RUN v10, copy a mission binding into `workers[].runtime_binding` or a read-only verifier binding into `review_workers[].runtime_binding`, with provider, driver, source, model, reasoning effort, and option source. A review worker also records node/attempt identity, graph revision, review path, and exact reviewed SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null values through task creation. A Claude Code host passes each node's own model and non-null reasoning effort directly into that node's own `agent()` call inside the Workflow script; one wave may freely mix models and reasoning efforts across nodes since selection happens per spawned agent, not per wave. Never silently replace a rejected model or effort; replan the affected node and increment the PLAN revision.
 
 For every plan-backed multi-mission run, capture this adapter before the first production edit or worker launch. Capability observation and action authorization are separate facts: record a usable driver even when its launch actions remain false. In particular, do not omit `app_threads` because `create_user_owned_tasks` or worktree authorization is missing. Record the capability, request the launch bundle once at Plan Readiness, and rerun selection after the answer.
 
@@ -431,4 +431,4 @@ deferred_missions and reason codes
 
 Each mission lease and worker record repeats the lease ID, plan revision/digest, and batch base so stale results can be rejected without inference. The run-level `runtime_adapter` records provider/driver routing. Worker records name runtime/workspace/completion axes, the selected runtime binding when graph-backed, task/thread identity when applicable, worktree path, branch/ref, optional nested-subagent policy, optional report path, phase, and observed head SHA.
 
-Worker status, head SHA, integration result, and evidence are live RUN state. After any worker failure, integration failure, dependency change, plan revision, or completed batch, close the wave and recompute from current state. A plan revision supersedes every active old-revision lease: quiesce those workers at safe boundaries and issue new leases only after validating their preserved heads against the new plan. Never carry forward an old result, conflict, or readiness assumption.
+Worker status, head SHA, integration result, and evidence are live RUN state. A wave stays `active` while its selected workers run — worker-result validation accepts a result only against the active wave — and the selector dispatches no node while a wave is active. The wave therefore closes as soon as every selected mission's worker result is validated, before any review node can dispatch. The parent then re-runs selection to dispatch the review nodes; review PASS, serial integration, and batch gates all follow the wave close, never precede it. Any worker failure, integration failure, dependency change, or plan revision also closes the wave and forces a recompute from current state. A plan revision supersedes every active old-revision lease: quiesce those workers at safe boundaries and issue new leases only after validating their preserved heads against the new plan. Never carry forward an old result, conflict, or readiness assumption.

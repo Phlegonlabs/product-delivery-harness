@@ -13,7 +13,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from harness_core import mission_dependencies  # noqa: E402
+from harness_core import mission_dependencies, resolve_runtime_options  # noqa: E402
 from harness_graph import _validate_graph  # noqa: E402
 from harness_manifest import (  # noqa: E402
     AUTHORIZATION_KEYS,
@@ -31,8 +31,13 @@ from select_ready_nodes import (  # noqa: E402
     select_ready_nodes,
 )
 from test_harness_manifest import (  # noqa: E402
+    authorize_action,
     authorize_execution,
+    legacy_graph_plan,
+    legacy_graph_run,
+    mark_legacy_complete,
     mark_complete,
+    retained_gate_execution,
     valid_plan,
     valid_run,
 )
@@ -92,6 +97,19 @@ def start_mission(
     base_sha: str | None = None,
 ) -> None:
     """Put one mission's graph node and mission state into the running shape."""
+    current_scope = run.get("execution_authorization_scope")
+    current_missions = (
+        current_scope.get("mission_ids", [])
+        if isinstance(current_scope, dict)
+        else []
+    )
+    authorize_execution(
+        run,
+        sorted(set(current_missions) | {mission_id}),
+        status="running",
+        plan=plan,
+        digest=digest,
+    )
     run["graph_state"]["node_states"][f"N-{mission_id}"].update(
         {
             "phase": "running",
@@ -133,74 +151,15 @@ def one_node_graph_errors(
 
 
 def valid_graph_plan() -> dict[str, object]:
-    plan = valid_plan()
-    plan["schema_version"] = 4
-    plan["required_reviews"] = []
-    for source in plan["sources"]:
-        source.update({"content_sha256": "f" * 64, "source_revision": None})
-    for item in plan["missions"]:
-        item.pop("depends_on")
-    plan["graph"] = {
-        "entry_nodes": ["N-M1"],
-        "nodes": [
-            graph_node(
-                "N-M1",
-                "mission",
-                "M1",
-                "runtime_worker",
-                ["pass", "retryable_failure", "blocked", "contract_gap"],
-            ),
-            graph_node(
-                "N-M2",
-                "mission",
-                "M2",
-                "runtime_worker",
-                ["pass", "retryable_failure", "blocked", "contract_gap"],
-            ),
-        ],
-        "edges": [
-            {
-                "id": "E-M1-M2",
-                "kind": "dependency",
-                "from": "N-M1",
-                "to": "N-M2",
-                "on_outcomes": ["pass"],
-                "max_traversals": None,
-            }
-        ],
-    }
-    coverage_review = graph_node(
-        "N-COVERAGE-REVIEW",
-        "verifier",
-        "batch",
-        "runtime_worker",
-        ["pass", "fix_required", "retryable_failure", "blocked", "contract_gap"],
-    )
-    coverage_review["review"] = {
-        "type": "backend_code",
-        "mission_ids": ["M1", "M2"],
-        "scope": ["src/a/**", "src/ab/**"],
-        "required_evidence": ["reviewed_sha", "findings"],
-    }
-    plan["graph"]["nodes"].append(coverage_review)
-    plan["graph"]["edges"].append(
-        {
-            "id": "E-M2-COVERAGE-REVIEW",
-            "kind": "dependency",
-            "from": "N-M2",
-            "to": coverage_review["id"],
-            "on_outcomes": ["pass"],
-            "max_traversals": None,
-        }
-    )
-    return plan
+    """The canonical PLAN. It has been graph-backed since v5 became the only one."""
+    return valid_plan()
 
 
 def detach_mission_edges(plan: dict[str, object]) -> None:
-    """Make M1 and M2 independent roots while keeping the review node wired."""
+    """Make M1 and M2 independent roots while keeping their reviews wired."""
     plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
     plan["graph"]["edges"] = [
-        edge for edge in plan["graph"]["edges"] if edge["to"] == "N-COVERAGE-REVIEW"
+        edge for edge in plan["graph"]["edges"] if edge["id"] != "E-M1-M2"
     ]
 
 
@@ -208,52 +167,292 @@ def mission_nodes(plan: dict[str, object]) -> list[dict[str, object]]:
     return [node for node in plan["graph"]["nodes"] if node["kind"] == "mission"]
 
 
+def attach_single_mission_review(
+    plan: dict[str, object],
+    review: dict[str, object],
+    mission_id: str = "M1",
+) -> None:
+    """Attach a same-worktree review and route PASS to the deterministic final gate."""
+    plan["graph"]["nodes"].append(review)
+    plan["graph"]["edges"].extend(
+        [
+            {
+                "id": f"E-{mission_id}-{review['id']}",
+                "kind": "dependency",
+                "from": f"N-{mission_id}",
+                "to": review["id"],
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            },
+            {
+                "id": f"E-{review['id']}-FINAL",
+                "kind": "route",
+                "from": review["id"],
+                "to": "N-FINAL",
+                "on_outcomes": ["pass"],
+                "max_traversals": None,
+            },
+        ]
+    )
+
+
+def record_worker_passed_mission_with_review(
+    plan: dict[str, object],
+    run: dict[str, object],
+    mission_id: str,
+    *,
+    provider: str,
+    driver: str,
+) -> None:
+    """Record a worker-passed mission and its current exact-head singleton review."""
+    digest = plan_digest(plan)
+    head_sha = "b" * 40
+    worker_id = f"W-{mission_id}"
+    lease_id = f"LEASE-{mission_id}"
+    review_node_id = f"N-REVIEW-{mission_id}"
+    review_worker_id = f"RW-{mission_id}"
+    review_attempt_id = f"ATT-REVIEW-{mission_id}"
+    mission_node = next(
+        node
+        for node in plan["graph"]["nodes"]
+        if node["kind"] == "mission" and node["ref"] == mission_id
+    )
+    review_node = next(
+        node for node in plan["graph"]["nodes"] if node["id"] == review_node_id
+    )
+
+    def binding(node: dict[str, object]) -> dict[str, object]:
+        options = resolve_runtime_options(node["runtime"], provider)
+        return {
+            "provider": provider,
+            "driver": driver,
+            "source": "host",
+            **options,
+        }
+
+    run["graph_state"]["node_states"][f"N-{mission_id}"].update(
+        {
+            "phase": "running",
+            "attempts": 1,
+            "last_attempt_id": f"ATT-{mission_id}",
+            "last_outcome": None,
+            "bound_worker_id": worker_id,
+        }
+    )
+    run["mission_states"][mission_id].update(
+        {
+            "phase": "worker_passed",
+            "lease_id": lease_id,
+            "lease_plan_revision": plan["revision"],
+            "lease_plan_digest_sha256": digest,
+            "worker_id": worker_id,
+            "base_sha": run["integration"]["batch_base_sha"],
+            "head_sha": head_sha,
+            "integration_gate": "planned",
+            "integrated_sha": None,
+        }
+    )
+    run["workers"].append(
+        {
+            "worker_id": worker_id,
+            "mission_id": mission_id,
+            "lease_id": lease_id,
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "batch_base_sha": run["integration"]["batch_base_sha"],
+            "worker_runtime": "subagent",
+            "workspace_mode": "parent_managed_worktree",
+            "completion_channel": "agent_result",
+            "runtime_binding": binding(mission_node),
+            "task_thread_id": None,
+            "worktree_path": f"C:/repo/worktrees/{mission_id}",
+            "branch_ref": f"refs/heads/codex/{mission_id.lower()}",
+            "report_path": None,
+            "phase": "worker_passed",
+            "worker_head_sha": head_sha,
+        }
+    )
+    run["observed"]["git"]["worktrees"] = [
+        {
+            "path": f"C:/repo/worktrees/{mission_id}",
+            "branch_ref": f"refs/heads/codex/{mission_id.lower()}",
+            "head_sha": head_sha,
+            "managed_by": "parent",
+            "dirty": False,
+        }
+    ]
+    authorize_action(
+        run,
+        "spawn_subagents",
+        [mission_id],
+        [f"worker:{worker_id}"],
+    )
+    authorize_action(
+        run,
+        "create_local_worktrees",
+        [mission_id],
+        [f"worktree:C:/repo/worktrees/{mission_id}"],
+    )
+    authorize_action(
+        run,
+        "create_local_branches",
+        [mission_id],
+        [f"branch:refs/heads/codex/{mission_id.lower()}"],
+    )
+    authorize_action(
+        run,
+        "create_local_commits",
+        [mission_id],
+        [f"branch:refs/heads/codex/{mission_id.lower()}"],
+    )
+    worker_attempt_id = f"ATT-{mission_id}"
+    run["attempt_log"].append(
+        {
+            "attempt_id": worker_attempt_id,
+            "mission_id": mission_id,
+            "task_id": None,
+            "lease_id": lease_id,
+            "kind": "worker_verifier",
+            "result": "PASS",
+            "evidence": [],
+        }
+    )
+    declaration = next(
+        mission
+        for mission in plan["missions"]
+        if mission["id"] == mission_id
+    )["worker_verifiers"][0]
+    run["verifier_executions"].append(
+        retained_gate_execution(
+            plan,
+            run,
+            declaration,
+            layer="worker",
+            execution_id=f"EXEC-WORKER-{mission_id}",
+            mission_id=mission_id,
+            attempt_id=worker_attempt_id,
+            lease_id=lease_id,
+            head_sha=head_sha,
+            checkout_role="worker",
+        )
+    )
+    run["graph_state"]["node_states"][review_node_id].update(
+        {
+            "phase": "succeeded",
+            "attempts": 1,
+            "last_attempt_id": review_attempt_id,
+            "last_outcome": "pass",
+            "bound_worker_id": review_worker_id,
+        }
+    )
+    run["review_workers"].append(
+        {
+            "worker_id": review_worker_id,
+            "node_id": review_node_id,
+            "attempt_id": review_attempt_id,
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "reviewed_sha": head_sha,
+            "review_path": f"C:/repo/worktrees/{mission_id}",
+            "worker_runtime": "subagent",
+            "completion_channel": "agent_result",
+            "runtime_binding": binding(review_node),
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "worker_passed",
+            "outcome": "pass",
+            "findings": [],
+        }
+    )
+
+
 def valid_graph_run(plan: dict[str, object]) -> dict[str, object]:
+    """The canonical RUN with a live observation, ready for node selection."""
     run = valid_run(plan)
     run["observed"]["captured_at"] = "2026-07-25T00:00:00Z"
-    run["schema_version"] = 8
-    run["authorizations"] = {
-        key: {"authorized": False, "source": None} for key in AUTHORIZATION_KEYS
-    }
-    run["review_workers"] = []
-    run["graph_state"] = {
-        "graph_revision": plan["revision"],
-        "node_states": {
-            node["id"]: {
-                "phase": "dormant",
-                "attempts": 0,
-                "last_attempt_id": None,
-                "last_outcome": None,
-                "bound_worker_id": None,
-                "blockers": [],
-            }
-            for node in plan["graph"]["nodes"]
-        },
-        "edge_states": {
-            edge["id"]: {
-                "status": "dormant",
-                "traversals": 0,
-                "source_attempt_id": None,
-            }
-            for edge in plan["graph"]["edges"]
-        },
-    }
     return run
 
 
 def authorize(
     run: dict[str, object], action: str, mission_ids: list[str], target: str
 ) -> None:
+    existing = run["authorizations"].get(action)
+    existing_scope = (
+        existing.get("scope")
+        if isinstance(existing, dict) and existing.get("authorized") is True
+        else None
+    )
+    retained_missions = (
+        existing_scope.get("mission_ids", [])
+        if isinstance(existing_scope, dict)
+        else []
+    )
+    retained_targets = (
+        existing_scope.get("targets", [])
+        if isinstance(existing_scope, dict)
+        else []
+    )
     run["authorizations"][action] = {
         "authorized": True,
         "source": "user requested graph execution and Claude trial",
         "scope": {
             "run_id": run["run_id"],
-            "mission_ids": mission_ids,
-            "targets": [target],
+            "plan_revision": run["plan"]["revision"],
+            "plan_digest_sha256": run["plan"]["digest_sha256"],
+            "mission_ids": sorted(set(retained_missions) | set(mission_ids)),
+            "targets": list(dict.fromkeys([*retained_targets, target])),
         },
         "expires_when": "run_complete",
     }
+
+
+def authorize_recorded_worker(
+    run: dict[str, object], worker: dict[str, object]
+) -> None:
+    """Retain the exact lifecycle grants and observed checkout for one worker."""
+    mission_id = worker["mission_id"]
+    worktree_path = worker["worktree_path"]
+    branch_ref = worker["branch_ref"]
+    managed_by = (
+        "app"
+        if worker["workspace_mode"] == "app_managed_worktree"
+        else "parent"
+    )
+    worktree_action = (
+        "create_app_managed_worktrees"
+        if managed_by == "app"
+        else "create_local_worktrees"
+    )
+    run["observed"]["git"]["worktrees"].append(
+        {
+            "path": worktree_path,
+            "branch_ref": branch_ref,
+            "head_sha": worker["worker_head_sha"] or worker["batch_base_sha"],
+            "managed_by": managed_by,
+            "dirty": False,
+        }
+    )
+    if worker["worker_runtime"] == "app_task":
+        authorize_action(
+            run,
+            "create_user_owned_tasks",
+            [mission_id],
+            [f"task:{worker['task_thread_id']}"],
+        )
+    authorize_action(
+        run,
+        worktree_action,
+        [mission_id],
+        [f"worktree:{worktree_path}"],
+    )
+    for action in ("create_local_branches", "create_local_commits"):
+        authorize_action(
+            run,
+            action,
+            [mission_id],
+            [f"branch:{branch_ref}"],
+        )
 
 
 def add_development_release_target(
@@ -411,17 +610,17 @@ class GraphManifestTests(unittest.TestCase):
         )
 
     def test_plan_v4_and_v5_project_the_same_graph_dependencies(self) -> None:
-        plan = valid_graph_plan()
-        expected = mission_dependencies(plan)
+        current_plan = valid_graph_plan()
+        expected = mission_dependencies(current_plan)
         self.assertTrue(any(expected.values()))
 
-        plan["schema_version"] = 5
+        legacy_plan = legacy_graph_plan()
 
-        self.assertEqual(expected, mission_dependencies(plan))
+        self.assertEqual(expected, mission_dependencies(legacy_plan))
 
     def test_schema_v4_and_v8_are_valid_and_keep_mission_topology(self) -> None:
-        plan = valid_graph_plan()
-        run = valid_graph_run(plan)
+        plan = legacy_graph_plan()
+        run = legacy_graph_run(plan, 8)
 
         self.assertEqual([], validate_plan(plan))
         self.assertEqual([], validate_run(plan, run))
@@ -595,49 +794,10 @@ class GraphManifestTests(unittest.TestCase):
         )
 
     def test_schema_v4_and_v9_closeout_preserves_graph_state(self) -> None:
-        plan = valid_graph_plan()
-        plan["graph"]["nodes"].append(
-            graph_node(
-                "N-FINAL",
-                "verifier",
-                "final",
-                "local_command",
-                ["pass", "retryable_failure"],
-            )
-        )
-        plan["graph"]["edges"].append(
-            {
-                "id": "E-M2-FINAL",
-                "kind": "dependency",
-                "from": "N-M2",
-                "to": "N-FINAL",
-                "on_outcomes": ["pass"],
-                "max_traversals": None,
-            }
-        )
-        run = valid_graph_run(plan)
-        run["schema_version"] = 9
-        run["batch_gate_results"] = [
-            {
-                "id": gate["id"],
-                "status": "planned",
-                "head_sha": None,
-                "evidence": [],
-            }
-            for gate in plan["batch_verifiers"]
-        ]
-        run["final_gate_results"] = [
-            {
-                "id": gate["id"],
-                "status": "planned",
-                "head_sha": None,
-                "evidence": [],
-            }
-            for gate in plan["final_gates"]
-        ]
-        run["ui_evidence"] = []
-        run["landing"]["mode"] = "local_only"
-        mark_complete(plan, run)
+        plan = legacy_graph_plan()
+        run = legacy_graph_run(plan, 9)
+        mark_legacy_complete(plan, run)
+
         errors = validate_run(plan, run)
         self.assertTrue(
             any("every node to succeed, skip, or be superseded" in error for error in errors),
@@ -647,19 +807,19 @@ class GraphManifestTests(unittest.TestCase):
             any("every edge to be terminal" in error for error in errors),
             errors,
         )
+
+        attempt_by_node: dict[str, str] = {}
         for index, node in enumerate(plan["graph"]["nodes"], start=1):
+            attempt_id = f"ATTEMPT-{index}"
+            attempt_by_node[node["id"]] = attempt_id
             run["graph_state"]["node_states"][node["id"]].update(
                 {
                     "phase": "succeeded",
                     "attempts": 1,
-                    "last_attempt_id": f"ATTEMPT-{index}",
+                    "last_attempt_id": attempt_id,
                     "last_outcome": "pass",
                 }
             )
-        attempt_by_node = {
-            node["id"]: f"ATTEMPT-{index}"
-            for index, node in enumerate(plan["graph"]["nodes"], start=1)
-        }
         for edge in plan["graph"]["edges"]:
             run["graph_state"]["edge_states"][edge["id"]].update(
                 {
@@ -694,6 +854,7 @@ class GraphManifestTests(unittest.TestCase):
                 for error in validate_run(plan, run)
             )
         )
+
 
     def test_malformed_graph_scalars_return_errors_without_crashing(self) -> None:
         plan = valid_graph_plan()
@@ -751,7 +912,7 @@ class GraphManifestTests(unittest.TestCase):
                 )
 
     def test_schema_v4_source_content_is_bound_into_the_plan_digest(self) -> None:
-        plan = valid_graph_plan()
+        plan = legacy_graph_plan()
         original_digest = plan_digest(plan)
         plan["sources"][0]["content_sha256"] = "e" * 64
 
@@ -860,14 +1021,15 @@ class GraphManifestTests(unittest.TestCase):
                     "reasoning_effort": "medium",
                     "option_source": "plan_provider_options",
                 },
-                "task_thread_id": None,
-                "worktree_path": None,
-                "branch_ref": None,
+                "task_thread_id": "THREAD-M1",
+                "worktree_path": "C:/repo/worktrees/M1",
+                "branch_ref": "refs/heads/codex/m1",
                 "report_path": None,
                 "phase": "leased",
                 "worker_head_sha": None,
             }
         )
+        authorize_recorded_worker(run, run["workers"][0])
 
         self.assertEqual([], validate_run(plan, run))
         run["workers"][0]["runtime_binding"]["reasoning_effort"] = "high"
@@ -900,13 +1062,14 @@ class GraphManifestTests(unittest.TestCase):
                 "option_source": "provider_default",
             },
             "task_thread_id": "thread-codex-1",
-            "worktree_path": None,
-            "branch_ref": None,
+            "worktree_path": "C:/repo/worktrees/M1",
+            "branch_ref": "refs/heads/codex/m1",
             "report_path": None,
             "phase": "leased",
             "worker_head_sha": None,
         }
         run["workers"].append(worker)
+        authorize_recorded_worker(run, worker)
         self.assertEqual([], validate_run(plan, run))
 
         run["workers"][0]["runtime_binding"]["source"] = "external_agent"
@@ -1026,14 +1189,24 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual(validate_run(plan, run), [])
 
         uncovered = valid_graph_plan()
-        review = next(
-            node for node in uncovered["graph"]["nodes"] if node["id"] == "N-COVERAGE-REVIEW"
-        )
-        review["review"]["mission_ids"] = ["M1"]
-        errors = validate_run(uncovered, run)
+        removed_node_ids = {"N-REVIEW-M2", "N-REVIEW-PASS-M2"}
+        uncovered["graph"]["nodes"] = [
+            node
+            for node in uncovered["graph"]["nodes"]
+            if node["id"] not in removed_node_ids
+        ]
+        uncovered["graph"]["edges"] = [
+            edge
+            for edge in uncovered["graph"]["edges"]
+            if edge["from"] not in removed_node_ids and edge["to"] not in removed_node_ids
+        ]
+        uncovered_run = valid_graph_run(uncovered)
+        authorize_execution(uncovered_run, ["M1", "M2"])
+        errors = validate_run(uncovered, uncovered_run)
         self.assertTrue(
             any(
-                "these missions have a write scope and no review node: M2" in error
+                "these missions have a write scope and no direct singleton pre-integration review node: M2"
+                in error
                 for error in errors
             ),
             f"expected an uncovered-M2 error in {errors!r}",
@@ -1041,11 +1214,11 @@ class GraphManifestTests(unittest.TestCase):
 
         # An unauthorized run is still valid: the plan may legitimately be a
         # draft that has not authored its review nodes yet.
-        draft = dict(run)
+        draft = dict(uncovered_run)
         draft["execution_authorized"] = False
         draft["execution_authorization_source"] = None
         draft["execution_authorization_scope"] = None
-        draft["status"] = "planning"
+        draft["status"] = "draft"
         self.assertEqual(
             [
                 error
@@ -1089,11 +1262,19 @@ class GraphManifestTests(unittest.TestCase):
                 "execution_authorization_source": "user requested M2 execution",
                 "execution_authorization_scope": {
                     "run_id": run["run_id"],
+                    "plan_revision": run["plan"]["revision"],
+                    "plan_digest_sha256": run["plan"]["digest_sha256"],
                     "mission_ids": ["M2"],
                     "expires_when": "run_complete",
                 },
             }
         )
+        run["landing"]["continuity"] = {
+            "status": "planned",
+            "branch_ref": "refs/heads/codex/test",
+            "head_sha": None,
+            "reason": None,
+        }
         run["runtime_capabilities"].update(
             {
                 "worker_runtime": "subagent",
@@ -1175,13 +1356,9 @@ class GraphManifestTests(unittest.TestCase):
         }
         self.assertIn("runtime_unavailable", deferred["N-M1"])
 
-    def test_claude_parent_cannot_bridge_codex_only_nodes_in_isolated_worktrees(self) -> None:
-        # Mirror image of the Codex-host case: a Claude Code parent has no
-        # mechanism to invoke Codex anymore. A codex-only node stays
-        # unavailable no matter the authorization or observed capability;
-        # widening allowed_providers to include the host's own provider is
-        # the only thing that makes it dispatchable, and it dispatches
-        # natively (source "host"), never through a guarded external route.
+    def test_claude_parent_cannot_bridge_codex_only_nodes_in_isolated_worktrees(
+        self,
+    ) -> None:
         plan = valid_graph_plan()
         detach_mission_edges(plan)
         plan["max_parallel_workers"] = 2
@@ -1209,68 +1386,51 @@ class GraphManifestTests(unittest.TestCase):
         run["observed"]["runtime"].update(
             {"available_worker_slots": 2, "isolation_capacity": 2}
         )
-        authorize(run, "spawn_subagents", mission_ids, "worker:preallocation")
         for action in (
-            "create_app_managed_worktrees",
+            "spawn_subagents",
+            "create_local_worktrees",
             "create_local_branches",
             "create_local_commits",
         ):
             authorize(run, action, mission_ids, "*")
 
-        schema_v8 = select_ready_nodes(plan, run)
-        schema_v8_deferred = {
+        unavailable = select_ready_nodes(plan, run)
+        unavailable_reasons = {
             item["node_id"]: item["reason_codes"]
-            for item in schema_v8["deferred_nodes"]
+            for item in unavailable["deferred_nodes"]
         }
-        self.assertEqual([], schema_v8["dispatchable_nodes"])
-        self.assertIn("runtime_unavailable", schema_v8_deferred["N-M1"])
-        self.assertIn("runtime_unavailable", schema_v8_deferred["N-M2"])
-        self.assertNotIn("wave_launches", schema_v8)
+        self.assertEqual([], unavailable["dispatchable_nodes"])
+        self.assertIn("runtime_unavailable", unavailable_reasons["N-M1"])
+        self.assertIn("runtime_unavailable", unavailable_reasons["N-M2"])
+        self.assertNotIn("wave_launches", unavailable)
 
-        for node in plan["graph"]["nodes"]:
+        for node in mission_nodes(plan):
             node["runtime"]["allowed_providers"] = ["codex", "claude_code"]
-        run["plan"]["digest_sha256"] = plan_digest(plan)
-        authorize(run, "spawn_subagents", mission_ids, "*")
-        authorize(run, "create_local_worktrees", mission_ids, "*")
-        schema_v8_native = select_ready_nodes(plan, run)
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["active_wave"]["plan_digest_sha256"] = digest
+        authorize_execution(run, mission_ids)
+        for action in (
+            "spawn_subagents",
+            "create_local_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize(run, action, mission_ids, "*")
+
+        native = select_ready_nodes(plan, run)
         self.assertEqual(
             ["run_dynamic_workflow", "run_dynamic_workflow"],
-            [item["launch_kind"] for item in schema_v8_native["dispatchable_nodes"]],
+            [item["launch_kind"] for item in native["dispatchable_nodes"]],
         )
         self.assertTrue(
             all(
                 item["runtime_provider"] == "claude_code"
                 and item["runtime_source"] == "host"
-                for item in schema_v8_native["dispatchable_nodes"]
+                for item in native["dispatchable_nodes"]
             )
         )
 
-        # Narrowing back to codex-only removes any native route; schema v9
-        # closeout scaffolding does not unlock a guarded external fallback.
-        for node in plan["graph"]["nodes"]:
-            node["runtime"]["allowed_providers"] = ["codex"]
-        run["plan"]["digest_sha256"] = plan_digest(plan)
-        run["schema_version"] = 9
-        run["batch_gate_results"] = [
-            {"id": item["id"], "status": "planned", "head_sha": None, "evidence": []}
-            for item in plan["batch_verifiers"]
-        ]
-        run["final_gate_results"] = [
-            {"id": item["id"], "status": "planned", "head_sha": None, "evidence": []}
-            for item in plan["final_gates"]
-        ]
-        run["ui_evidence"] = []
-        result = select_ready_nodes(plan, run)
-
-        self.assertEqual(["N-M1", "N-M2"], result["ready_frontier"])
-        self.assertEqual([], result["dispatchable_nodes"])
-        deferred = {
-            item["node_id"]: item["reason_codes"]
-            for item in result["deferred_nodes"]
-        }
-        self.assertIn("runtime_unavailable", deferred["N-M1"])
-        self.assertIn("runtime_unavailable", deferred["N-M2"])
-        self.assertNotIn("wave_launches", result)
 
     def test_codex_only_review_defers_on_a_claude_code_host(self) -> None:
         plan = valid_graph_plan()
@@ -1289,17 +1449,7 @@ class GraphManifestTests(unittest.TestCase):
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],
         }
-        plan["graph"]["nodes"].append(review)
-        plan["graph"]["edges"].append(
-            {
-                "id": "E-M1-BACKEND-REVIEW",
-                "kind": "dependency",
-                "from": "N-M1",
-                "to": review["id"],
-                "on_outcomes": ["pass"],
-                "max_traversals": None,
-            }
-        )
+        attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["backend_code"]
         run = valid_graph_run(plan)
         run.update(
@@ -1311,14 +1461,19 @@ class GraphManifestTests(unittest.TestCase):
                 "execution_authorization_source": "user requested review",
                 "execution_authorization_scope": {
                     "run_id": run["run_id"],
+                    "plan_revision": run["plan"]["revision"],
+                    "plan_digest_sha256": run["plan"]["digest_sha256"],
                     "mission_ids": ["M1"],
                     "expires_when": "run_complete",
                 },
             }
         )
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {"phase": "succeeded", "attempts": 1, "last_attempt_id": "A-M1", "last_outcome": "pass"}
-        )
+        run["landing"]["continuity"] = {
+            "status": "planned",
+            "branch_ref": "refs/heads/codex/test",
+            "head_sha": None,
+            "reason": None,
+        }
         run["graph_state"]["node_states"]["N-M2"].update(
             {
                 "phase": "blocked",
@@ -1327,9 +1482,6 @@ class GraphManifestTests(unittest.TestCase):
                 "last_outcome": "blocked",
                 "blockers": ["not selected"],
             }
-        )
-        run["mission_states"]["M1"].update(
-            {"phase": "integrated", "integration_gate": "PASS", "integrated_sha": "a" * 40}
         )
         run["mission_states"]["M2"]["phase"] = "blocked"
         run["runtime_capabilities"].update(
@@ -1344,11 +1496,21 @@ class GraphManifestTests(unittest.TestCase):
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
         }
+        record_worker_passed_mission_with_review(
+            plan,
+            run,
+            "M1",
+            provider="claude_code",
+            driver="dynamic_workflow",
+        )
         authorize(run, "spawn_subagents", ["M1"], "worker:preallocation")
 
         result = select_ready_nodes(plan, run)
 
-        self.assertEqual([], result["dispatchable_nodes"])
+        self.assertNotIn(
+            "N-BACKEND-REVIEW",
+            [item["node_id"] for item in result["dispatchable_nodes"]],
+        )
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("runtime_unavailable", deferred["N-BACKEND-REVIEW"])
         self.assertNotIn("wave_launches", result)
@@ -1382,14 +1544,11 @@ class GraphManifestTests(unittest.TestCase):
                 "required_evidence": ["reviewed_sha", "findings"],
             }
             reviews.append(node)
-        plan["graph"]["nodes"].extend(reviews)
+        for review in reviews:
+            attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["frontend_code", "visual"]
-        plan["graph"]["entry_nodes"].extend([node["id"] for node in reviews])
         run = valid_graph_run(plan)
         authorize_execution(run, ["M1", "M2"])
-        run["graph_state"]["node_states"]["N-M1"].update(
-            {"phase": "succeeded", "attempts": 1, "last_attempt_id": "A-M1", "last_outcome": "pass"}
-        )
         run["graph_state"]["node_states"]["N-M2"].update(
             {
                 "phase": "blocked",
@@ -1401,9 +1560,6 @@ class GraphManifestTests(unittest.TestCase):
         )
         digest = plan_digest(plan)
         run["plan"]["digest_sha256"] = digest
-        run["mission_states"]["M1"].update(
-            {"phase": "integrated", "integration_gate": "PASS", "integrated_sha": "a" * 40}
-        )
         run["mission_states"]["M2"]["phase"] = "blocked"
         run["integration"]["integration_head_sha"] = "a" * 40
         run["runtime_capabilities"].update(
@@ -1418,6 +1574,13 @@ class GraphManifestTests(unittest.TestCase):
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
         }
+        record_worker_passed_mission_with_review(
+            plan,
+            run,
+            "M1",
+            provider="claude_code",
+            driver="dynamic_workflow",
+        )
 
         unauthorized = select_ready_nodes(plan, run)
         review_deferred = {
@@ -1428,27 +1591,33 @@ class GraphManifestTests(unittest.TestCase):
 
         authorize(run, "spawn_subagents", ["M1"], "*")
         selected = select_ready_nodes(plan, run)
-        self.assertEqual(1, len(selected["dispatchable_nodes"]))
-        self.assertEqual("N-FRONTEND-REVIEW", selected["dispatchable_nodes"][0]["node_id"])
+        runtime_reviews = [
+            item
+            for item in selected["dispatchable_nodes"]
+            if item["node_id"] in {"N-FRONTEND-REVIEW", "N-VISUAL-REVIEW"}
+        ]
+        self.assertEqual(1, len(runtime_reviews))
+        selected_review = runtime_reviews[0]
+        self.assertEqual("N-FRONTEND-REVIEW", selected_review["node_id"])
         self.assertEqual(
             "claude-fable-5",
-            selected["dispatchable_nodes"][0]["runtime_binding"]["model"],
+            selected_review["runtime_binding"]["model"],
         )
         self.assertEqual(
             "xhigh",
-            selected["dispatchable_nodes"][0]["runtime_binding"]["reasoning_effort"],
+            selected_review["runtime_binding"]["reasoning_effort"],
         )
         self.assertEqual(
             "host",
-            selected["dispatchable_nodes"][0]["runtime_binding"]["source"],
+            selected_review["runtime_binding"]["source"],
         )
         self.assertEqual(
             ["spawn_subagents"],
-            selected["dispatchable_nodes"][0]["required_actions"],
+            selected_review["required_actions"],
         )
         self.assertEqual(
             "code_review_readonly",
-            selected["dispatchable_nodes"][0]["tool_profile"],
+            selected_review["tool_profile"],
         )
         review_deferred = {
             item["node_id"]: item["reason_codes"] for item in selected["deferred_nodes"]
@@ -1475,9 +1644,8 @@ class GraphManifestTests(unittest.TestCase):
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],
         }
-        plan["graph"]["nodes"].append(review)
+        attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["frontend_code"]
-        plan["graph"]["entry_nodes"].append(review["id"])
         run = valid_graph_run(plan)
         run["integration"]["integration_head_sha"] = "a" * 40
         run["graph_state"]["node_states"][review["id"]].update(
@@ -1518,13 +1686,7 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual([], validate_run(plan, run))
         run["mission_states"]["M1"]["head_sha"] = "b" * 40
         run["review_workers"][0]["reviewed_sha"] = "b" * 40
-        self.assertTrue(
-            any(
-                "must identify the direct singleton pre-integration worktree"
-                in error
-                for error in validate_run(plan, run)
-            )
-        )
+        self.assertEqual([], validate_run(plan, run))
         malformed_reviews = copy.deepcopy(run)
         malformed_reviews["review_workers"] = None
         self.assertTrue(
@@ -1612,9 +1774,8 @@ class GraphManifestTests(unittest.TestCase):
     def test_review_worker_outcome_and_findings_are_validated_per_reviewer(self) -> None:
         plan = valid_graph_plan()
         review = self._frontend_review_node()
-        plan["graph"]["nodes"].append(review)
+        attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["frontend_code"]
-        plan["graph"]["entry_nodes"].append(review["id"])
         run = valid_graph_run(plan)
         run["integration"]["integration_head_sha"] = "a" * 40
         run["graph_state"]["node_states"][review["id"]].update(
@@ -1674,9 +1835,8 @@ class GraphManifestTests(unittest.TestCase):
     def test_multiple_reviewers_on_same_node_keep_independent_outcomes(self) -> None:
         plan = valid_graph_plan()
         review = self._frontend_review_node()
-        plan["graph"]["nodes"].append(review)
+        attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["frontend_code"]
-        plan["graph"]["entry_nodes"].append(review["id"])
         run = valid_graph_run(plan)
         run["integration"]["integration_head_sha"] = "a" * 40
         run["graph_state"]["node_states"][review["id"]].update(

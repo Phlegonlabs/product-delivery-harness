@@ -41,7 +41,7 @@ When small work touches a frontend/UI surface, insert a bounded UI review betwee
 - Small UI work obeys the UI Implementation Contract below exactly as large work does. It creates no PLAN/RUN file, so `design-system.json`, the route's screen entry in `wireframes.md`, and the exact user instruction are what bound it.
 - Large work enters the workflow below. Planning does not imply parallel execution.
 - Enable scheduler fan-out only when there are at least two dependency-ready, nonconflicting missions and every isolation, capacity, permission, and action gate passes.
-- A ready node is executable here only when its `allowed_providers` includes the current host adapter's provider; a declared `preferred_provider` affects only which allowed provider is chosen, it does not gate executability by itself. There is no cross-host fallback: a node whose `allowed_providers` excludes the running host is simply not executable here and is reported blocked on provider mismatch.
+- A ready node is executable here only when its `allowed_providers` includes the current host adapter's provider; a declared `preferred_provider` affects only which allowed provider is chosen, it does not gate executability by itself. There is no cross-host fallback: a node whose `allowed_providers` excludes the running host is not executable here. Unless the user explicitly acknowledged that deferral at Plan Readiness as a run on another host, a node no planned host can execute is a blocking readiness gap (see Pass Plan Readiness), not a routine deferral.
 - If small work grows large, stop at a safe checkpoint, preserve completed edits and evidence, and plan only the remainder.
 
 ## Optional External Skill Assist
@@ -70,7 +70,7 @@ Explicit adapter invocation still begins with this core. The adapters may select
 
 - Read `references/contract-and-traceability.md` for source handoff, contract freeze, trace IDs, permissions, and file placement.
 - Read `references/execution-state-model.md` before creating or changing PLAN/RUN manifests, authorization, phases, runtime capability fields, or integration state.
-- Read `references/graph-orchestration.md` for PLAN schema v5, RUN schema v10, older readable schemas, typed nodes, bounded review-repair-review routes, provider policy, retry, or subgraph replay.
+- Read `references/graph-orchestration.md` for PLAN schema v5, RUN schema v10, typed nodes, bounded review-repair-review routes, provider policy, retry, or subgraph replay.
 - Read `references/execution-task-decomposition.md` for flat task IDs, one bounded execution-time split, or the UI build order a design system implies.
 - Read `references/parallel-mission-selection.md` before proposing a parallel write wave.
 - Read `references/design-input-updates.md`, `references/platform-archetypes.md`, or `references/existing-app-refinement.md` only when those inputs or product shapes apply.
@@ -106,7 +106,7 @@ worktree workers      -> temporary per-mission reports only while integration ne
 ## Shared Validation Tools
 
 - `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head.
-- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it also continues to read supported older graph schemas.
+- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it accepts no older graph schema.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, or final gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
@@ -120,7 +120,7 @@ Apply this to all large plan-backed work, whether the frontier ever holds more t
 1. Before the first edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
 2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear.
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
-4. New plan-backed files use PLAN schema v5 and RUN schema v10. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN versions remain readable, but new files do not copy their weaker acceptance, source-publication, authorization, continuity, or evidence shapes.
+4. New plan-backed files use PLAN schema v5 and RUN schema v10, the only supported pair. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. Older PLAN and RUN files are not readable by the current validators; do not carry their weaker acceptance, source-publication, authorization, continuity, or evidence shapes forward.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order. Before that first selection, record `observed.captured_at` and `observed.git` from a live `git status` / `git rev-parse`, and set `integration.batch_base_sha` to the observed integration head. The validator does not require these — a RUN that leaves them null still reports `PASS` — but the selector then has nothing to launch: every mission and lifecycle node lands in `deferred_nodes` with `parent_state_unreconciled` or `batch_base_missing`, and `dispatchable_nodes` comes back empty. Those two kinds mutate state derived from the parent's current Git position — a mission spawns writers, a lifecycle node pushes or cleans up — so both are gated on it. `verifier`, `approval`, and `external_wait` nodes are not, because they change nothing the snapshot describes. Read those two keys, not `ready_frontier`: these are dispatch-time reasons, so the frontier list can still look full while nothing is dispatchable. Once `status` is `running`, the Resume Reconciliation Gate applies the same unreconciled state to every node and `ready_frontier` empties too. A green validator next to empty `dispatchable_nodes` means the observed snapshot was never filled in, not that the plan is wrong.
 6. First read the target repository's instructions and existing branch model. When they define implementation or integration branches, preserve those exact names and topology. Otherwise the run's own `codex/<short-name>` branch is its integration branch, cut from the recorded current default-branch SHA. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
@@ -134,16 +134,17 @@ Each run cuts its own `codex/<short-name>` branch from the current default branc
 
 ```text
 current default-branch SHA
--> one independent mission worktree
+-> one independent worktree per selected mission
 -> worker checks
 -> at least one exact-head read-only review
 -> repair and fresh review when needed
 -> authorized serial integration into the run branch
+-> mission, batch, and final gates on the integration head
 -> push the run branch       (covered by the execution-intent instruction)
 -> the run is complete
 ```
 
-The ordinary loop runs end to end without stopping: work happens in mission worktrees cut from the default branch, integrates into the run's own branch, and the push that publishes that branch is part of ordinary execution rather than a separate confirmation. A run is complete when its planned PRD, UI, architecture, or implementation change is made, verified, and pushed.
+The ordinary loop runs end to end without stopping: work happens in mission worktrees cut from the recorded integration head (the default-branch SHA at run start), integrates into the run's own branch, and the push that publishes that branch is part of ordinary execution rather than a separate confirmation. A run is complete when its planned PRD, UI, architecture, or implementation change is made, verified, and pushed.
 
 Landing the pushed branch on the default branch is outside this harness. The user does it themselves. The harness opens no pull request, merges nothing, and deploys nothing, so none of that appears in PLAN, RUN, or the ledger. Report the pushed branch and its head SHA and stop there.
 
@@ -279,6 +280,6 @@ Local-only work stops after its authorized worktree commits are reviewed and int
 
 A local-only run completes when authorized local mutations are finished, all applicable local gates pass on the integration head, no blocker remains, and RUN records evidence, changed files, commits, and residual risk.
 
-An `integration_push` run completes when the verified integration head reaches the run's own branch and RUN records that branch, the pushed head SHA, and the local evidence behind it. It does not wait for a PR, for CI, or for a deploy.
+An `integration_push` run completes when the verified integration head reaches the run's own branch and RUN records that branch, the pushed head SHA, and the local evidence behind it. The pushed head SHA is a parent-attested record: the validators check it for internal consistency and against the local branch head, but the push itself is observed by the parent, not provable by the scripts. It does not wait for a PR, for CI, or for a deploy.
 
 Finish by checking final Git status, reporting what changed, what was verified, the branch and head SHA that were pushed, and every intentionally unexecuted lifecycle action. Never claim a push, archival, or cleanup action that did not happen.

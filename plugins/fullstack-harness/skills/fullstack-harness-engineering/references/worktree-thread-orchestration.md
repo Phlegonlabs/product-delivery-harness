@@ -22,7 +22,7 @@ If a requested combination is unsupported, downgrade to sequential parent execut
 
 ## Runtime Adapter Routing
 
-Schemas v6 through v9 record the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
+RUN v10 records the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
 
 ```text
 provider: codex | claude_code | generic
@@ -86,7 +86,7 @@ Reserve `shared_checkout` for genuinely small direct work (see the Project Size 
 
 ### Parent-managed worktree
 
-Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. Create each worktree from the recorded `batch_base_sha` on the resolved integration branch; under the default model that is the run's own `codex/<short-name>` branch, cut from the recorded current `main` SHA. The primary integration checkout is a merge target, never a direct implementation surface: each mission's worktree branch receives an exact-head read-only review before it may merge there.
+Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. Create each worktree from the recorded `batch_base_sha` on the resolved integration branch; under the default model that is the run's own `codex/<short-name>` branch, cut from the recorded current default-branch SHA. The first wave's `batch_base_sha` is the default-branch SHA recorded at run start; each later wave re-anchors its batch base to the current integration head. The primary integration checkout is a merge target, never a direct implementation surface: each mission's worktree branch receives an exact-head read-only review before it may merge there.
 
 - The parent creates every worktree from the same recorded `batch_base_sha`; portable write handoff also requires `create_local_branches` and `create_local_commits`, because the parent integrates a durable committed head rather than an uncommitted patch.
 - The parent records the exact path, branch/ref, lease, ports, databases, fixtures, and external resource claims.
@@ -168,16 +168,17 @@ Branch and worktree identities are runtime allocations, not static PLAN truth. D
 Run the pure validator and selector before any mutating Git or Codex action. The selector emits a proposal bound to:
 
 ```text
+plan_id
 plan_revision
 plan_digest_sha256
-batch_base_sha
-candidate order and conflict reasons
-effective worker budget
-selected mission IDs
-runtime provider and selected driver
+graph_revision
+ready_frontier
+dispatchable_nodes with per-node launch directives
+deferred_nodes with reason codes
+conflict_edges with reason codes
 ```
 
-The parent reviews live Git/runtime facts, confirms the proposal, records it in `RUN.md`, assigns leases, and only then creates branches, worktrees, subagents, or app tasks. Scripts must not parse human Markdown tables or mutate Git, Codex, PLAN, or RUN.
+The selector does not emit a batch base, an effective budget, or a bundled wave. The parent binds the committed `batch_base_sha`, confirms the budget it applied, records the accepted wave in `RUN.md`, assigns leases, and only then creates branches, worktrees, subagents, or app tasks. Scripts must not parse human Markdown tables or mutate Git, Codex, PLAN, or RUN.
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
@@ -204,7 +205,7 @@ Claude Code currently supports nested subagents, but this schema-v6-through-v9 r
 
 When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, `../../fullstack-harness-codex/SKILL.md` owns the current launch procedure: project resolution, grant rechecks, prompt construction, task creation, bounded polling, the read-only review, and the correction loop. Read the adapter for those mechanics. This section keeps only the topology rules the procedure must preserve, which do not change with schema version.
 
-- A non-empty selector result is an instruction for the parent to act, not a final report. Never leave a `launch_directives` entry unlaunched without a recorded reason.
+- A non-empty selector result is an instruction for the parent to act, not a final report. Never leave a `dispatchable_nodes` entry unlaunched without a recorded reason.
 - Use one top-level worktree task/thread per mission, created from the recorded integration branch/ref. Each task owns its own app-managed worktree and appears as an independent conversation in the Codex left sidebar. Coordinator-owned subagents do not satisfy this boundary. Record the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.
 - Nested read-only children belong to the task that spawned them; each sibling task runs its own independent Multi-agent set. A missing current-head review is an integration blocker, not a successful single-agent downgrade.
 - Only a mission's own direct pre-integration review may bind to that mission's worktree head. A review covering several missions is a batch review and must bind to an integrated head.

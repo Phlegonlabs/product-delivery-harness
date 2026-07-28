@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for current PLAN schema v5 and RUN schema v10 typed graphs, conditional routing, retries, and graph traces. PLAN v4 with RUN v8 or v9 remains readable as an older typed-graph contract.
+Use this reference for current PLAN schema v5 and RUN schema v10 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs are not supported.
 
 ## Contents
 
@@ -65,6 +65,8 @@ human           -> explicit approval or contract decision
 
 The node is the workflow identity. A thread, Claude session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
 
+A `push` lifecycle node must declare an exact branch `target`. When `target` is absent the selector falls back to `"*"`, and schema v10 forbids `"*"`-scoped grants for head-bound actions, so a target-less push node is permanently `action_not_authorized`.
+
 A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree or integrated SHA. It never receives a mission lease, write scope, branch, or commit authority.
 
 For full-stack UI delivery, use this default shape:
@@ -123,7 +125,7 @@ Every `runtime_worker` or parent-executed mission declares at least one failure 
 
 ## Readiness And Outcomes
 
-Run `scripts/select_ready_nodes.py` for current PLAN v5 and RUN v10, and for supported PLAN-v4/RUN-v8-or-v9 typed graphs. A node is logically ready only when:
+Run `scripts/select_ready_nodes.py` for PLAN v5 with RUN v10. A node is logically ready only when:
 
 - plan readiness and execution authorization are current;
 - its phase is `dormant` or `ready` and its attempt budget remains;

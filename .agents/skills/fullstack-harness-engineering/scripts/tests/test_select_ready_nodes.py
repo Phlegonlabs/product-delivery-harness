@@ -32,7 +32,139 @@ from select_ready_nodes import (  # noqa: E402
     select_ready_nodes,
 )
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
-from test_harness_manifest import authorize_execution  # noqa: E402
+from test_harness_manifest import (  # noqa: E402
+    authorize_action,
+    authorize_execution,
+    retained_gate_execution,
+)
+
+
+def retain_current_worker_state(
+    plan: dict[str, object],
+    run: dict[str, object],
+    *,
+    managed_by: str = "parent",
+) -> None:
+    """Bind the recorded worker checkout, grants, and PASS to its current head."""
+    worker = run["workers"][0]
+    mission_id = worker["mission_id"]
+    worktree_action = (
+        "create_app_managed_worktrees"
+        if managed_by == "app"
+        else "create_local_worktrees"
+    )
+    if worker.get("worker_runtime") == "subagent":
+        spawn_entry = run["authorizations"].get("spawn_subagents")
+        spawn_scope = (
+            spawn_entry.get("scope")
+            if isinstance(spawn_entry, dict)
+            and spawn_entry.get("authorized") is True
+            else None
+        )
+        retained_targets = (
+            spawn_scope.get("targets", [])
+            if isinstance(spawn_scope, dict)
+            else []
+        )
+        authorize_action(
+            run,
+            "spawn_subagents",
+            [mission_id],
+            list(
+                dict.fromkeys(
+                    [*retained_targets, f"worker:{worker['worker_id']}"]
+                )
+            ),
+        )
+    elif worker.get("worker_runtime") == "app_task":
+        task_entry = run["authorizations"].get("create_user_owned_tasks")
+        task_scope = (
+            task_entry.get("scope")
+            if isinstance(task_entry, dict)
+            and task_entry.get("authorized") is True
+            else None
+        )
+        retained_targets = (
+            task_scope.get("targets", [])
+            if isinstance(task_scope, dict)
+            else []
+        )
+        authorize_action(
+            run,
+            "create_user_owned_tasks",
+            [mission_id],
+            list(
+                dict.fromkeys(
+                    [
+                        *retained_targets,
+                        f"task:{worker['task_thread_id']}",
+                    ]
+                )
+            ),
+        )
+    run["observed"]["git"]["worktrees"] = [
+        {
+            "path": worker["worktree_path"],
+            "branch_ref": worker["branch_ref"],
+            "head_sha": worker["worker_head_sha"],
+            "managed_by": managed_by,
+            "dirty": False,
+        }
+    ]
+    authorize_action(
+        run,
+        worktree_action,
+        [mission_id],
+        [f"worktree:{worker['worktree_path']}"],
+    )
+    for action in ("create_local_branches", "create_local_commits"):
+        authorize_action(
+            run,
+            action,
+            [mission_id],
+            [f"branch:{worker['branch_ref']}"],
+        )
+    attempt_id = f"ATT-WORKER-{mission_id}"
+    run["attempt_log"] = [
+        attempt
+        for attempt in run["attempt_log"]
+        if attempt.get("attempt_id") != attempt_id
+    ]
+    run["attempt_log"].append(
+        {
+            "attempt_id": attempt_id,
+            "mission_id": mission_id,
+            "task_id": None,
+            "lease_id": worker["lease_id"],
+            "kind": "worker_verifier",
+            "result": "PASS",
+            "evidence": [],
+        }
+    )
+    run["verifier_executions"] = [
+        execution
+        for execution in run["verifier_executions"]
+        if execution.get("layer") != "worker"
+    ]
+    mission = next(
+        mission
+        for mission in plan["missions"]
+        if mission["id"] == mission_id
+    )
+    run["verifier_executions"].append(
+        retained_gate_execution(
+            plan,
+            run,
+            mission["worker_verifiers"][0],
+            layer="worker",
+            execution_id=f"EXEC-WORKER-{mission_id}",
+            mission_id=mission_id,
+            attempt_id=attempt_id,
+            lease_id=worker["lease_id"],
+            head_sha=worker["worker_head_sha"],
+            checkout_role="worker",
+        )
+    )
 
 
 def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
@@ -158,6 +290,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
         },
         "expires_when": "run_complete",
     }
+    retain_current_worker_state(plan, run)
     return plan, run
 
 
@@ -225,6 +358,7 @@ def fanout_preintegration_review_state(
     ] = digest
     run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
     run["workers"][0]["plan_digest_sha256"] = digest
+    retain_current_worker_state(plan, run)
     return plan, run, digest
 
 
@@ -238,6 +372,26 @@ def exact_head_review_worker(
     run: dict[str, object],
     outcome: str = "pass",
 ) -> dict[str, object]:
+    review_node = next(
+        node for node in plan["graph"]["nodes"] if node["id"] == node_id
+    )
+    reviewed_mission_ids = review_node.get("review", {}).get(
+        "mission_ids", []
+    )
+    review_path = "C:/repo/worktrees/M1"
+    if len(reviewed_mission_ids) == 1:
+        mission_state = run["mission_states"].get(reviewed_mission_ids[0])
+        mission_worker = next(
+            (
+                worker
+                for worker in run["workers"]
+                if isinstance(mission_state, dict)
+                and worker.get("worker_id") == mission_state.get("worker_id")
+            ),
+            None,
+        )
+        if isinstance(mission_worker, dict):
+            review_path = mission_worker["worktree_path"]
     return {
         "worker_id": worker_id,
         "node_id": node_id,
@@ -246,7 +400,7 @@ def exact_head_review_worker(
         "plan_digest_sha256": digest,
         "graph_revision": run["graph_state"]["graph_revision"],
         "reviewed_sha": "b" * 40,
-        "review_path": "C:/repo/worktrees/M1",
+        "review_path": review_path,
         "worker_runtime": "subagent",
         "completion_channel": "agent_result",
         "runtime_binding": {
@@ -266,7 +420,10 @@ def exact_head_review_worker(
 
 
 def configure_enabled_nested_app_task(
-    run: dict[str, object], *, include_evidence: bool
+    plan: dict[str, object],
+    run: dict[str, object],
+    *,
+    include_evidence: bool,
 ) -> dict[str, object]:
     run["runtime_capabilities"].update(
         {
@@ -314,15 +471,7 @@ def configure_enabled_nested_app_task(
         }
     )
     worker["runtime_binding"]["driver"] = "app_threads"
-    run["observed"]["git"]["worktrees"] = [
-        {
-            "path": "C:/repo/worktrees/M1",
-            "branch_ref": "refs/heads/codex/m1",
-            "head_sha": "b" * 40,
-            "managed_by": "app",
-            "dirty": False,
-        }
-    ]
+    retain_current_worker_state(plan, run, managed_by="app")
     run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
         "worker:W-M1"
     ]
@@ -426,6 +575,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         run["authorizations"]["spawn_subagents"]["scope"]["mission_ids"] = [
             "M3"
         ]
+        retain_current_worker_state(plan, run)
         self.assertEqual([], validate_run(plan, run))
 
         selected = select_ready_nodes(plan, run)
@@ -485,6 +635,25 @@ class SelectReadyNodesTests(unittest.TestCase):
         )
         run["integration"]["integration_head_sha"] = "c" * 40
         run["observed"]["git"]["parent_head_sha"] = "c" * 40
+        authorize_action(
+            run,
+            "integrate_locally",
+            ["M3"],
+            [f"branch:{run['integration']['branch']}"],
+        )
+        visual_repair = next(
+            mission for mission in plan["missions"] if mission["id"] == "M3"
+        )
+        run["verifier_executions"].append(
+            retained_gate_execution(
+                plan,
+                run,
+                visual_repair["integration_verifiers"][0],
+                layer="mission_integration",
+                execution_id="EXEC-INTEGRATION-M3",
+                mission_id="M3",
+            )
+        )
 
         self.assertEqual([], validate_run(plan, run))
 
@@ -563,6 +732,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             "authorized": False,
             "source": None,
         }
+        retain_current_worker_state(plan, run, managed_by="app")
         self.assertEqual([], validate_run(plan, run))
 
         selected = select_ready_nodes(plan, run)
@@ -852,6 +1022,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         run["mission_states"]["M1"]["prior_head_shas"] = ["b" * 40]
         run["mission_states"]["M1"]["head_sha"] = "c" * 40
         run["workers"][0]["worker_head_sha"] = "c" * 40
+        retain_current_worker_state(plan, run)
 
         self.assertEqual([], validate_run(plan, run))
         selected = select_ready_nodes(plan, run)
@@ -922,6 +1093,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         run["mission_states"]["M1"]["prior_head_shas"] = ["b" * 40]
         run["mission_states"]["M1"]["head_sha"] = "c" * 40
         original_worker["worker_head_sha"] = "c" * 40
+        retain_current_worker_state(plan, run)
 
         selected = select_ready_nodes(plan, run)
         directives = {
@@ -981,7 +1153,7 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
+                "reviewed_sha: must identify the direct singleton pre-integration worktree or integrated head"
                 in error
                 for error in errors
             ),
@@ -1018,7 +1190,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         errors = validate_run(plan, run)
         self.assertTrue(
             any(
-                "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
+                "reviewed_sha: must identify the direct singleton pre-integration worktree or integrated head"
                 in error
                 for error in errors
             ),
@@ -1065,7 +1237,7 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "reviewed_sha: must identify the direct singleton pre-integration worktree, integrated, or PR head"
+                "reviewed_sha: must identify the direct singleton pre-integration worktree or integrated head"
                 in error
                 for error in errors
             ),
@@ -1126,7 +1298,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         self.assertTrue(
             any(
                 "reviewed_sha: must identify the direct singleton pre-integration "
-                "worktree, integrated, or PR head" in error
+                "worktree or integrated head" in error
                 for error in errors
             ),
             errors,
@@ -1393,7 +1565,7 @@ class SelectReadyNodesTests(unittest.TestCase):
     ) -> None:
         plan, run = current_preintegration_review_state()
         worker = configure_enabled_nested_app_task(
-            run, include_evidence=False
+            plan, run, include_evidence=False
         )
         run["mission_states"]["M1"]["phase"] = "integrating"
 
@@ -1488,7 +1660,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         self,
     ) -> None:
         plan, run, digest = fanout_preintegration_review_state()
-        configure_enabled_nested_app_task(run, include_evidence=True)
+        configure_enabled_nested_app_task(plan, run, include_evidence=True)
         run["mission_states"]["M1"]["phase"] = "integrating"
         review_specs = (
             ("N-FRONTEND-REVIEW", "A-REVIEW-M1", "ATT-REVIEW-FIRST"),
@@ -1614,23 +1786,27 @@ class SelectReadyNodesTests(unittest.TestCase):
         self.assertIn("worktree_state_unreconciled", deferred["N-M1"])
 
     def test_schema_mismatch_is_rejected_before_selection(self) -> None:
-        # Structural validate_plan/validate_run already reject unsupported
-        # PLAN/RUN pairs, so isolate select_ready_nodes's own schema gate (the
-        # line this test guards) by stubbing structural validation out.
+        # Structural validation normally rejects the pair first. Stub it so
+        # this test guards select_ready_nodes's own defense-in-depth gate.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
-        run["schema_version"] = 6
 
-        with patch("select_ready_nodes.validate_plan", return_value=[]), patch(
-            "select_ready_nodes.validate_run", return_value=[]
-        ):
-            with self.assertRaises(GraphSelectionError) as ctx:
-                select_ready_nodes(plan, run)
+        for plan_version, run_version in [(5, 6), (4, 8), (4, 9)]:
+            with self.subTest(plan_version=plan_version, run_version=run_version):
+                plan["schema_version"] = plan_version
+                run["schema_version"] = run_version
 
-        self.assertIn(
-            "PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10",
-            str(ctx.exception),
-        )
+                with patch("select_ready_nodes.validate_plan", return_value=[]), patch(
+                    "select_ready_nodes.validate_run", return_value=[]
+                ):
+                    with self.assertRaises(GraphSelectionError) as ctx:
+                        select_ready_nodes(plan, run)
+
+                self.assertIn(
+                    "typed graph selection requires PLAN v5 with RUN v10",
+                    str(ctx.exception),
+                )
+
 
 
 if __name__ == "__main__":

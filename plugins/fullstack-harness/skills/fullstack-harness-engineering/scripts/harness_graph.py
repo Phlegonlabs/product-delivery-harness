@@ -416,6 +416,7 @@ def _validate_graph(
                 nodes[source].get("ref")
                 for source in dependency_map[node_id]
                 if nodes[source].get("kind") == "mission"
+                and _nonempty_string(nodes[source].get("ref"))
             }
             same_mission_correction = (
                 len(reviewed_missions) == 1

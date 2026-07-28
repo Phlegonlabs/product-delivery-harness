@@ -39,7 +39,7 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 |---|---|
 | Command | `<e2e-command>` |
 | CI check name | `<e2e-check-name>` |
-| Environment | `<local / preview / staging / deployed>` |
+| Environment | `<local / preview / staging / deployed>` — `deployed` applies only to evidence captured against a pre-existing deployment outside the run; the harness itself deploys nothing |
 | Covered journeys | `<journey IDs>` |
 | Expected pass signal | `<exit code / assertion>` |
 | Bound commit SHA | `<hash>` |

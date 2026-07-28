@@ -607,7 +607,7 @@ Gate values: `planned`, `PASS`, `FAIL`, `BLOCKED`, `UNVALIDATED`.
 
 | E2E command | CI check | Environment | Covered journeys | Head SHA | Retained evidence | Status |
 |---|---|---|---|---|---|---|
-| `<e2e-command>` | `<check-name>` | <local / preview / staging / deployed> | <journey IDs> | <SHA> | <artifact / trace / CI log> | planned |
+| `<e2e-command>` | `<check-name>` | <local / preview / staging / deployed — deployed only for a pre-existing deployment outside the run> | <journey IDs> | <SHA> | <artifact / trace / CI log> | planned |
 
 | Proposed manual smoke | Same journey and equivalent environment covered | Disposition | Reason / uncovered risk |
 |---|---|---|---|

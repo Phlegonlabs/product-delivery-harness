@@ -47,8 +47,8 @@ def validate_node_result(
     if errors:
         return sorted(set(errors))
     schema_pair = (plan.get("schema_version"), run.get("schema_version"))
-    if schema_pair not in {(4, 8), (4, 9), (5, 10)}:
-        return ["node result validation requires PLAN v4 with RUN v8/v9 or PLAN v5 with RUN v10"]
+    if schema_pair != (5, 10):
+        return ["node result validation requires PLAN v5 with RUN v10"]
     if not isinstance(result, dict):
         return ["node_result must contain the exact typed graph result fields"]
     if set(result) != RESULT_KEYS:
