@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cloudflare Worker Deployments"
+  short_description: "Manage branch previews and a gated production bootstrap"
+  default_prompt: "Use $manage-cloudflare-worker-deployments to configure automatic per-branch Cloudflare Worker deployment and cleanup, plus a separate manually gated first production deployment when explicitly authorized."

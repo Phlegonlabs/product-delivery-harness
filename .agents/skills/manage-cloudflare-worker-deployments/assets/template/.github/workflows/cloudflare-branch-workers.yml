@@ -1,0 +1,106 @@
+name: Cloudflare branch Workers
+
+on:
+  push:
+    branches-ignore:
+      - main
+  delete:
+  pull_request:
+    types:
+      - reopened
+  pull_request_target:
+    types:
+      - closed
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy branch Worker
+    if: >-
+      github.event_name == 'push' ||
+      (
+        github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-branch-worker-${{ github.event.pull_request.head.ref || github.ref_name }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out branch source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Keep this step when the selected install/build/Wrangler commands use Bun.
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install, verify, and build
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: node scripts/cloudflare-branch-worker.mjs prepare "$BRANCH_NAME"
+
+      - name: Deploy branch Worker
+        id: deploy
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/cloudflare-branch-worker.mjs deploy "$BRANCH_NAME"
+
+      - name: Run post-deployment checks
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: node scripts/cloudflare-branch-worker.mjs after-deploy "$BRANCH_NAME"
+
+      - name: Publish deployment summary
+        env:
+          WORKER_NAME: ${{ steps.deploy.outputs.worker_name }}
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+        run: |
+          echo "### Cloudflare branch Worker" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Worker: \`$WORKER_NAME\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $WORKER_URL" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    name: Remove branch Worker
+    if: >-
+      (
+        github.event_name == 'delete' &&
+        github.event.ref_type == 'branch'
+      ) ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-branch-worker-${{ github.event.pull_request.head.ref || github.event.ref }}
+      cancel-in-progress: false
+    steps:
+      # Cleanup deliberately uses the trusted default-branch copy of the script.
+      - name: Check out cleanup script
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Delete branch Worker
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref || github.event.ref }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/cloudflare-branch-worker.mjs delete "$BRANCH_NAME"
