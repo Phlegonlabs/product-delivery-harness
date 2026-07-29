@@ -1,6 +1,6 @@
 # Claude Code Dynamic Workflow
 
-Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete. A running workflow cannot ask the user for decisions, approve publication, or replace the parent-owned artifact lifecycle.
+Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete. A running workflow cannot ask the user for decisions, run the later Visual Direction Gate, approve publication, or replace the parent-owned artifact lifecycle.
 
 ## Graph Model
 
@@ -58,7 +58,7 @@ Use `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments
 5. When `args.market_research` is true, the `market-research` role runs in the same stage against the same synthesis. It is not a verifier: it returns a `market-research.md` body and gap findings rather than a pass/fail decision, so it never blocks the package on its own. A role that finds nothing sourceable returns blocked, and the package publishes without the artifact.
 6. The parent receives candidate Markdown bodies, review findings, and the research result.
 
-A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle, repairs unresolved findings, runs the output checklist, and presents exact mutations for approval. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation.
+A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle, repairs unresolved findings, and runs the structural wireframe checklist. For a UI-bearing product, the parent then runs `wireframe-guide.md`'s Visual Direction Gate with the human owner and drafts the small design-system contract from the selected result. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation. Only after the complete package passes the output checklist does the parent present exact mutations for approval.
 
 ## Failure And Resume
 

@@ -167,12 +167,12 @@ async function agent(_prompt, options) {
             self.assertIn("non-canonical", content)
             self.assertIn("explicitly authoriz", content)
             self.assertIn("bounded wireframe revision", content)
-        self.assertIn("## Optional Frontend Design Preference & HTML Exploration Handoff", guide)
-        self.assertIn("low-fidelity wireframes remain canonical for structure and flow", guide)
+        self.assertIn("## Visual Direction Gate", guide)
+        self.assertIn("low-fidelity wireframes remain canonical for screen structure", guide)
         self.assertIn("same one or two representative screens", guide)
         self.assertIn("selected `UI-*` screen and region IDs", guide)
         self.assertIn("Keep them outside the staged and published PRD package", guide)
-        self.assertIn("No `frontend-design` candidate or selected HTML", contract)
+        self.assertIn("No candidate or selected HTML", contract)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
@@ -375,7 +375,7 @@ async function agent(_prompt, options) {
         self.assertIn("specific style direction or animation", interview)
         self.assertIn("Required style and motion intent", interview)
 
-    def test_wireframes_defer_dynamic_visual_preference_discovery(self) -> None:
+    def test_visual_direction_gate_is_product_specific_and_not_a_fixed_catalog(self) -> None:
         skill = self.read("SKILL.md")
         agent = self.read("agents/openai.yaml")
         interview = self.read("references/interview-guide.md")
@@ -384,15 +384,20 @@ async function agent(_prompt, options) {
 
         self.assertIn("Do not run a fixed high-fidelity visual-style questionnaire here", skill)
         self.assertIn("Do not ask the user to choose from a fixed catalog", interview)
-        self.assertIn("Purpose, Tone, Constraints, and Differentiation", interview)
+        self.assertIn("three product-specific directions by default", interview)
         self.assertIn("## Structural Direction And Configuration", guide)
-        self.assertIn("Do not ask the user to choose a high-fidelity style catalog", guide)
-        self.assertIn("product-specific Ask User call", guide)
+        self.assertIn("Do not ask the user to choose a fixed high-fidelity style catalog", guide)
+        self.assertIn("## Visual Direction Gate", guide)
+        self.assertIn("Present three materially different directions by default", guide)
+        self.assertIn("Present four only when a real product tension", guide)
+        for choice in ("`Select`", "`Reject`", "`Mix`", "`Check This`"):
+            self.assertIn(choice, guide)
         self.assertIn("Dashboard or monitoring screen", guide)
         self.assertIn("## Wireframe Direction", contract)
+        self.assertIn("Visual Direction Gate:", contract)
         self.assertIn("Layout pattern:", contract)
-        self.assertIn("high-fidelity preference discovery", contract)
         self.assertNotIn("modern-minimal assumption", agent)
+        self.assertIn("small frontend implementation contract", agent)
 
     def test_builder_ux_direction_precedes_wireframes_without_claiming_validation(self) -> None:
         skill = self.read("SKILL.md")
@@ -408,6 +413,34 @@ async function agent(_prompt, options) {
         self.assertIn("## Builder UX Direction Gate", guide)
         self.assertIn("selected / provisional / assumed", contract)
         self.assertIn("not usability proof", agent)
+
+    def test_selected_visual_direction_precedes_a_small_frontend_contract(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/design-system-guide.md")
+        wireframe = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+        template = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        workflow = self.read("references/dynamic-workflow.md")
+
+        self.assertIn("First finish the structural wireframes", skill)
+        self.assertIn("## Visual Direction Gate", wireframe)
+        self.assertIn("Do not fix token values or component styling until", guide)
+        self.assertIn("small frontend implementation contract", guide)
+        self.assertIn("small frontend implementation contract", contract)
+        self.assertIn("This design system is the frontend implementation contract", template)
+        self.assertIn("If the contract cannot express a required UI, update the design system", template)
+        self.assertIn("cannot ask the user for decisions, run the later Visual Direction Gate", workflow)
+        self.assertIn("the parent then runs `wireframe-guide.md`'s Visual Direction Gate", workflow)
+        for content in (skill, guide, contract, template):
+            self.assertIn("selected direction", content.lower())
+        for removed_heading in (
+            "## Landing Page Simplicity & Media Plan",
+            "## Styling Pattern Usage",
+            "## Example Component Reference Code",
+        ):
+            self.assertNotIn(removed_heading, template)
+        self.assertNotIn("Draft them in two passes around `wireframes.md`", skill)
+        self.assertNotIn("Draft them in two passes around `wireframes.md`", contract)
 
     def test_trace_ids_and_publish_approval_are_explicit(self) -> None:
         skill = self.read("SKILL.md")
@@ -809,7 +842,7 @@ async function agent(_prompt, options) {
             self.assertIn("never-drop field", content)
             self.assertIn("Content contract conformance", content)
         self.assertIn("`dsId`, `requiredContentOrder`, `composes`, and `states`", contract)
-        self.assertIn("### Product Component Content Contracts", guide)
+        self.assertIn("## Primitives And Product Components", guide)
         for unsupported_family in ("DS-LAY-*", "DS-SUR-*", "DS-TYP-*", "DS-CTL-*"):
             with self.subTest(unsupported_family=unsupported_family):
                 self.assertNotIn(unsupported_family, skill)

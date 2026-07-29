@@ -2,273 +2,111 @@
 
 ## Overview
 
-<Product archetype, audience, visual intent, density, tone, constraints, and source priority.>
+<One paragraph: product, platform, audience, implementation mechanism, and what this contract controls.>
 
-<Resolved platform (web, native iOS, native Android, Flutter, React Native, macOS, Windows, or cross-platform desktop). The platform sets the vocabulary for the sections below: icon family, component-code language, breakpoint vs. size-class model, and the styling-pattern section. Do not default to web/Tailwind for a native or desktop target — see `references/design-system-guide.md`'s Product Archetype Rules.>
+This design system is the frontend implementation contract. It contains only the selected direction, tokens, primitives, recurring product components, states, responsive rules, accessibility rules, and source boundaries needed to build the product consistently.
 
 ## Machine-Readable Companion
 
 Artifact: `docs/product/design-system.json`
 
-This Markdown file owns reasoning, ratios, guardrails, and decisions. `design-system.json` is the sole structured authority for token names, primitive classes, closed variant sets, product-component contracts, responsive verification, and source paths. Implementation and `fullstack-harness-engineering`'s `scripts/check_ui_contract.py` read the JSON.
+`design-system.json` is the sole structured authority for token names, source paths, primitives, closed variant sets, product-component contracts, responsive verification, motion variants, and states. This Markdown file keeps the short human rationale and generated contract view.
 
-The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write` to refresh the generated contract block at the end of this file. Verify it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled` before publishing. Do not hand-maintain a second token, primitive, component, motion, or state inventory in Markdown.
+The two files publish together. Edit structured fields in JSON, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`. Verify with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
 
 ## Source Inputs
 
-| Source | Path / URL | Role | Notes |
+| Source | Path / URL | Role |
+|---|---|---|
+| PRD | <path> | product scope and requirements |
+| Wireframes | <path> | screen structure, content, actions, and states |
+| Selected direction / brand | <path, URL, or decision record> | approved visual input |
+
+## Selected Visual Direction
+
+- Status: <selected / provisional / assumed>
+- Decision owner: <human product/design owner>
+- Approval or assumption: <record>
+- Summary: <one paragraph describing the selected visual character and why it fits>
+
+| DS ID | Implementation rule | Product or source basis | Upstream trace IDs |
 |---|---|---|---|
-| PRD | <path> | product source | <notes> |
-| Wireframes | <path> | structure source | <notes> |
-| Brand / reference | <path or URL> | visual source | <notes> |
+| DS-001 | <specific hierarchy, density, typography, color, surface, icon/media, or motion rule> | <basis> | PRD-001, UX-001, UI-001 |
 
-## Builder UX Direction Handoff
+### Do / Don't
 
-Decision owner: <human product/design owner or commissioning team>
+| Do | Don't |
+|---|---|
+| <specific implementation behavior> | <specific unsupported pattern> |
 
-| Dimension | Upstream direction | Status | Design-system expression | Evidence or validation need |
-|---|---|---|---|---|
-| Experience priority | <direction> | <selected / provisional / assumed> | <hierarchy, component, content, or interaction consequence> | <user evidence, prototype test, or none> |
-| Guidance and control | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
-| Information density | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
-| Interaction and layout | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
-| Confirmation and recovery | <direction> | <selected / provisional / assumed> | <system expression> | <need> |
+Do not copy candidate directions or the full `Check This` analysis into this document.
 
-Builder approval proves direction conformance only, not usability. Keep unsupported preferences provisional or assumed until separate user evidence exists.
+## Token Decisions
 
-## Visual Direction
+Define only tokens the product uses. Raw values live only in the files declared by JSON `tokenSources`.
 
-Status: <derived from product inputs / derived from brand sources / explored with frontend-design / n/a>
+### Color
 
-Decision owner: <human product/design owner; never an agent>
-Basis: <brand assets, reference product, explored HTML path, or explicit assumption>
-Approval: <explicit approval record, or `assumed — <reason>`>
+Palette basis: <brand or selected-direction reason>
 
-When `frontend-design` is loaded and the user explicitly asked for it, use it to explore a direction before the tokens below are fixed. Record which direction was chosen and why. Exploration artifacts are evidence, not contract — only this file and `design-system.json` bind implementation. When no exploration happened, derive the system from recorded product inputs and explicit visual assumptions, and do not claim approved-direction extraction.
-
-## Product-Specific Visual Thesis
-
-| DS ID | Cue / signature decision | Product or source basis | Upstream trace IDs | System expression | Avoid |
-|---|---|---|---|---|---|
-| DS-001 | <concrete cue or recurring decision> | <evidence or explicit assumption> | PRD-001, UI-001, UX-001 | <tokens, components, layouts, imagery, or motion> | <unsupported generic default> |
-
-## Taste & Anti-Slop Guardrails
-
-Taste statement: <one sentence naming the intended visual character and the concrete typography, composition, color, imagery, or interaction choices that create it>
-
-| Risk | Default rule | Allowed exception | Review test |
+| Pairing | Tokens | Computed contrast | Non-color cue or notes |
 |---|---|---|---|
-| <generic or AI-UI pattern risk> | <product-specific rule> | <evidence-based exception> | <how to verify> |
-| Repeated bordered panels with a colored side rail or accent stripe | Do not use as a generic section treatment | Named state, selection, priority, category, or approved brand motif | Every use has a documented semantic or brand role |
-| Uniform default border on every button, input, image, and avatar | Border only where rule 4 of Container & Border Decision Rules applies | Control boundary, data structure, focus, selection, validation, or status | Removal test leaves hierarchy and comprehension intact |
-| Unexamined default font pairing (Inter/Poppins/Manrope/Geist) or default icon library (Lucide/Heroicons/Font Awesome) | Name the choice as deliberate with a brand or coverage reason | Evidence-based selection matching the product's audience and content | Taste statement cites the concrete typography/icon choice and why |
+| <text on background / UI boundary / semantic state> | <token names> | <ratio from check_color_contrast.py> | <notes> |
 
-### Container & Border Rules
+### Typography
 
-| Surface / region | Default treatment | Primary grouping cue | Border / elevation allowed for | Must avoid |
+Family and scale rationale: <reason>
+
+| Role | Token names | Weight | Computed line-height ratio | Usage |
 |---|---|---|---|---|
-| Ordinary content section | open | spacing | n/a | decorative frame, nested card, accent rail |
-| <surface> | <open / background band / real container> | <spacing / alignment / background / divider / border / elevation> | <named interaction, hierarchy, state, data, or accessibility purpose> | <unsupported framing or stacked effects> |
+| <display / heading / body / caption> | <font-size and line-height tokens> | <weight> | <ratio from check_type_scale.py> | <usage> |
 
-## Content & Data Realism
+### Space, Shape, Elevation, And Motion
 
-<Domain vocabulary, representative data shapes and lengths, asset constraints, placeholder rules, and claims that must not be fabricated.>
+<One short paragraph explaining the spacing rhythm, radius/elevation rule, and motion rule. Omit a category the product does not use. Exact values live in the generated JSON contract.>
 
-## Landing Page Simplicity & Media Plan
+## Primitive And Component Rules
 
-<Use when a public website, marketing page, or landing page is in scope. Keep one clear value proposition and one primary action in the first viewport. Give each section one job.>
+Primitive rationale: <why the JSON layout, surface, typography, and control primitives cover the wireframes>
 
-| Section / region | Single job | Exact wording / display contract | Style direction | Image / media | Motion | Defer / exclude |
-|---|---|---|---|---|---|---|
-| <region> | <what the user must understand or do> | <verbatim wording, or what to show + intended takeaway/action + source + constraints> | <visual job; open/container/background/layout treatment; purpose> | <required / optional / none; purpose; source or creation need; responsive and static fallback> | <required / optional / none; purpose; trigger; reduced-motion fallback> | <content that belongs elsewhere> |
+Product-component rationale: <why each JSON product component recurs and belongs in the system>
 
-## Color Palette
+Every JSON `requiredContentOrder` entry is a never-drop field. It renders in that order wherever the component appears. The downstream Content contract conformance gate checks it.
 
-Harmony method: <complementary / analogous / monochromatic / triadic / brand-anchored, and why it fits the product-specific visual thesis>
+Do not duplicate the machine-owned primitive, variant, component, composition, or state inventory here.
 
-| Token | Value / Direction | CSS reference | Usage | Contrast ratio (if text/UI pairing) |
-|---|---|---|---|---|
-| Background | <value> | <class or CSS var> | <usage> | <n/a> |
-| Surface | <value> | <class or CSS var> | <usage> | <n/a> |
-| Text | <value> | <class or CSS var> | <usage> | <e.g. 7.2:1 on Background> |
-| Accent | <value> | <class or CSS var> | <usage> | <e.g. 4.8:1 on Background> |
-| Border | <value> | <class or CSS var> | <usage> | <n/a> |
-| Success / warning / danger | <value> | <class or CSS var> | <usage> | <ratio on their usual background, plus the non-color cue used to keep them colorblind-safe> |
+## Responsive Rules
 
-Ratios computed with `scripts/check_color_contrast.py`, not estimated.
+- Responsive set: <JSON viewports or sizeClasses and why this smallest set covers the product>
+- Reflow rule: <what moves, stacks, or resizes>
+- Never-drop content: <what remains visible>
+- Platform rule: <web, native, or desktop convention>
 
-## Typography
+## State And Interaction Rules
 
-Pay attention to font family, font weight, font size, line height, and how different fonts or font roles are used together.
+Every screen implements every JSON `stateMatrix` entry or records `<state>: n/a — <reason>` in the wireframe.
 
-Pairing rationale: <why these families/roles work together, and the type-scale ratio or logic tying the sizes below into one system>
-
-| Role | Font / family | Size | Weight | Line height | Line-height ratio | Usage |
-|---|---|---|---|---|---|---|
-| Display / page title | <font> | <size> | <weight> | <line height> | <e.g. 1.15 (heading floor 1.1)> | <usage> |
-| Section heading | <font> | <size> | <weight> | <line height> | <e.g. 1.2 (heading floor 1.1)> | <usage> |
-| Body | <font> | <size> | <weight> | <line height> | <e.g. 1.5 (WCAG 1.4.12 minimum)> | <usage> |
-| Caption / metadata | <font> | <size> | <weight> | <line height> | <e.g. 1.5 (WCAG 1.4.12 minimum)> | <usage> |
-
-Ratios computed with `scripts/check_type_scale.py`, not estimated.
-
-## Iconography System
-
-### Market Scan & Decision
-
-| Candidate | Official source | Visual fit | Required-icon coverage | Integration | License / checked date | Decision |
-|---|---|---|---|---|---|---|
-| <icon set> | <official URL> | <fit> | <pass / gaps> | <package, SVG, font, or platform API> | <license / YYYY-MM-DD> | <primary, exception, or rejected> |
-
-### Icon Tokens
-
-| Token | Optical size | Stroke / weight / fill | Color behavior | Usage |
-|---|---|---|---|---|
-| <token> | <size> | <setting> | <currentColor or semantic token> | <usage> |
-
-### Semantic Icon Inventory
-
-| Intent / object | Visible label | Icon name | Source | Token / variant | State behavior | Accessibility behavior |
-|---|---|---|---|---|---|---|
-| <action, status, navigation, or domain object> | <label or none> | <exact name> | <library or custom source> | <token / variant> | <selected, disabled, RTL, etc.> | <hidden, named control, tooltip, etc.> |
-
-### Source & Exception Rules
-
-<Primary package/import path or asset source, version policy, tree-shaking or subsetting, RTL handling, brand-icon source, custom-icon construction rules, and approved secondary-library exceptions.>
-
-## Spacing System
-
-| Token | Value | Usage |
-|---|---|---|
-| Base spacing | <value> | <usage> |
-| Component padding | <value> | <usage> |
-| Section gap | <value> | <usage> |
-| Grid gap | <value> | <usage> |
-
-## Primitive Inventory
-
-Four layers, in order: layout, surface, typography, control. Layer N uses only layers below N. Every variant list in the generated machine contract is closed — a page picks from it and may not extend it.
-
-Primitive rationale and exceptions: <explain why the JSON inventory fits the screens and any deliberate omissions>
-
-### Product Components
-
-Product-component rationale and exceptions: <explain the domain components declared in JSON and why their composition and state coverage fit the wireframes>
-
-Every field in JSON `requiredContentOrder` is a never-drop field: it renders in that order at every viewport or size class and in every state where the component appears. `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against it. Leave a field off the list if it may legitimately disappear.
-
-### The Two Binding Rules
-
-- Every raw color, dimension, and motion value in the product appears in this document's token sections and in the JSON's declared `tokenSources`, and nowhere else.
-- Nothing outside this document may invent a value or a control. A page that needs one gets a new token here plus a new entry in `design-system.json` — it does not style its own.
-
-## Shadows & Elevation
-
-| Token | Value / Direction | Usage |
-|---|---|---|
-| None / flat | <value> | <usage> |
-| Raised | <value> | <usage> |
-| Overlay | <value> | <usage> |
-
-## Motion System
-
-### Motion Principles & Stack
-
-| Mechanism | Technology | Owns | Dependency / version | Performance constraints | Fallback |
-|---|---|---|---|---|---|
-| <style-layer transition / animation runtime / route-level transition> | <CSS, WAAPI, Motion, GSAP, Rive, native, or none> | <the work this mechanism owns> | <dependency / version or built-in> | <constraints> | <fallback> |
-
-Mechanism and purpose are separate decisions. Every pattern below uses exactly one purpose: feedback, continuity, processing, or storytelling. There is no decorative or ambient exception.
-
-### Global Reduced-Motion Configuration
-
-| Configuration point | Location | Normal behavior | Reduced-motion behavior | Opt-out / exception rule |
-|---|---|---|---|---|
-| Application boundary | <single style-layer media query, runtime provider/configuration, and route-transition setting> | <global default inherited by every registered variant> | <final state immediately, or opacity-only; no spatial transform, parallax, autoplay, continuous ambience, or scale> | <route-level opt-out or justified per-variant exception; name the owner and reason> |
-
-Call sites do not query reduced-motion preferences. They reference registered variants that inherit this global configuration.
-
-### Motion Tokens
-
-| Token | Duration | Easing / spring | Distance / scale | Usage | Reduced-motion value |
-|---|---|---|---|---|---|
-| <token> | <duration> | <curve or spring> | <distance or scale> | <usage> | <none, instant, or opacity-only> |
-
-### Motion Pattern Inventory
-
-| Motion ID | Surface / component | Mechanism | Purpose | Trigger | Properties | Token / sequence | Repeat / interruption | Responsive and reduced-motion behavior |
-|---|---|---|---|---|---|---|---|---|
-| MOTION-001 | <surface> | <mechanism> | <feedback / continuity / processing / storytelling> | <load, viewport, interaction, state, or scroll> | <opacity/transform/etc.> | <tokens> | <rules> | <behavior> |
-
-## Border Radius
-
-| Token | Value | Usage |
-|---|---|---|
-| Small | <value> | <usage> |
-| Medium | <value> | <usage> |
-| Large | <value> | <usage> |
-
-## Opacity & Transparency
-
-| Token / Pattern | Value | Usage |
-|---|---|---|
-| Disabled | <value> | <usage> |
-| Overlay | <value> | <usage> |
-| Subtle surface | <value> | <usage> |
-
-## Layout Rules
-
-<Grid, max widths, navigation layout, and region rules.>
-
-Responsive rationale: <why the generated contract's `viewports` or `sizeClasses` set covers this product. Web targets use pixel viewports; native and desktop targets use that platform's own size-class or window-size model.>
-
-## State Matrix
-
-Every screen covers the generated contract's `stateMatrix`, or marks an inapplicable state `n/a` with a reason in the wireframe. Shipping the ready state alone does not close a task.
-
-State rationale and exceptions: <record only behavior, scope, and justified n/a cases; do not repeat the machine-owned state list>
-
-## Styling Pattern Usage
-
-<Web target. For a native or desktop target, rename this to the platform's styling model (SwiftUI view modifiers, Compose Modifier chains and MaterialTheme tokens, Flutter ThemeData/widget styles, or WinUI resources) and list the reusable style patterns implementers apply.>
-
-| Pattern | Classes / tokens | Usage | Notes |
-|---|---|---|---|
-| Page shell | <classes> | <usage> | <notes> |
-| Card / panel | <classes> | <usage> | <notes> |
-| Button | <classes> | <usage> | <notes> |
-| Form control | <classes> | <usage> | <notes> |
-| Responsive grid | <classes> | <usage> | <notes> |
-
-## Example Component Reference Code
-
-```tsx
-// Example only. Adapt to the target project stack.
-export function ExampleContentSection() {
-  return (
-    <section className="<open layout classes>">
-      <div className="<header classes>">
-        <h2 className="<title classes>">Example title</h2>
-        <p className="<body classes>">Example supporting copy.</p>
-      </div>
-      <button className="<button classes>">Primary action</button>
-    </section>
-  );
-}
-```
-
-## Interaction Rules
-
-<Focus, hover, active, loading, disabled, selected, expanded, and validation feedback.>
+<Concise rules for focus, hover where applicable, active, loading, disabled, selected, expanded, validation, retry, and reduced motion.>
 
 ## Accessibility Rules
 
-<Contrast intent, focus visibility, keyboard path, text sizing, labels, and motion.>
+- Focus: <visible focus and order>
+- Keyboard: <path or n/a>
+- Labels and announcements: <accessible names, errors, and status>
+- Targets: <minimum target size>
+- Contrast: <required level>
+- Reduced motion: <fallback>
+
+## Source And Enforcement Rules
+
+- Raw colors, dimensions, and motion values appear only in JSON `tokenSources`.
+- Reusable control and surface definitions appear only in JSON `primitiveSources`.
+- Pages use registered tokens, primitives, variants, and product components.
+- If the contract cannot express a required UI, update the design system before implementing the page.
 
 ## Assumptions
 
 - <assumption>
-
 
 ## Open Questions
 
