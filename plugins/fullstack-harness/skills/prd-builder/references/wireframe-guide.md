@@ -50,7 +50,7 @@ If the visual pass exposes a structural problem, return a concise finding tied t
 - Use fixed-width fenced code blocks with `text`.
 - Keep layouts low fidelity and structural, not decorative.
 - Label key regions, controls, data, errors, and actions.
-- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Label the style direction of visually important regions with its intended effect on hierarchy or comprehension. Keep tokens, art direction, and detailed choreography out of the low-fidelity wireframe.
+- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Label the style direction of visually important regions with its intended effect on hierarchy or comprehension. Token names from the design system's foundation pass (spacing tokens, type roles) may appear in element inventories and spacing declarations; token values, art direction, and detailed choreography stay out of the low-fidelity wireframe.
 - Show responsive differences when mobile and desktop experiences materially differ.
 - Include primary, secondary, and destructive actions when relevant.
 - Include loading, empty, error, permission, and success states for each major screen or workflow.
@@ -71,6 +71,48 @@ Do not leave `Main content`, `Feature section`, `Card 1`, `Lorem ipsum`, or simi
 - A box in an ASCII wireframe must mean real grouping, interaction, state, or hierarchy. Do not box every section merely because ASCII makes it easy.
 - Do not imply repeated bordered cards or panels with a colored side rail or accent stripe as a default visual treatment. Allow that pattern only when the stripe communicates a named state, selection, priority, category, or approved brand motif.
 - Prefer open layout regions, spacing, typography, alignment, rules, or background changes when they communicate the hierarchy without another container.
+
+## Element Inventory And Spacing
+
+Each region contract lists its elements top-to-bottom, one line each:
+
+`- [element type] [content ref] — [component or custom] — [type role]`
+
+- Element type: `heading`, `text`, `button`, `link`, `input`, `image`, `icon`, `divider`, `list`, or `table`.
+- Content ref: the exact-copy key or display-contract summary already in the region contract.
+- Component: the design-system primitive or product component the element maps to. Write `custom — [one-line reason]` when nothing fits; the design-system completion pass resolves every `custom` flag into a named primitive or component before publication.
+- Type role: the design-system type-scale role (`display`, `title`, `body`, `caption`), not a font size.
+
+An element not in the inventory does not exist. Downstream image generation and implementation must not invent one; a plausible extra element in a generated image or a built page is a spec gap to add here, never something to copy into code.
+
+Declare spacing as design-system spacing token names, never raw values or vague words such as "some breathing room":
+
+- Three levels per region, in the region contract: `Spacing: above <token>, below <token>, padding <token>, element gap <token>`. Above/below is the gap to neighboring regions, padding is inside the region's own container, element gap sits between inventory elements.
+- The same region type uses the same tokens on every screen; only a stated reason changes them.
+- Note mobile only where the token differs from desktop. Silence means the same token.
+
+Spacing tokens and type roles come from the design system's foundation pass, which is drafted before the wireframes for exactly this reason. Wireframes cite names only; values live in `design-system.md` and `design-system.json`.
+
+## SEO Copy Rules
+
+Every screen with a public route gets an SEO block right after its Density line:
+
+```text
+SEO:
+- Primary keyword: [one phrase, the way the target audience actually searches]
+- Secondary keywords: [1-2 phrases]
+- Meta title: [≤ 60 chars, contains the primary keyword]
+- Meta description: [≤ 160 chars, primary keyword plus one concrete benefit]
+```
+
+A screen with no public route — an authenticated workspace, a modal, a wizard step — records `SEO: n/a` with the reason, so the skip reads as a decision.
+
+- A primary keyword belongs to exactly one route in the product. Keep the route-to-keyword map in `wireframes.md`'s direction section; two routes competing for one keyword is an authoring error.
+- Exactly one `H1` per screen, containing the primary keyword. Heading order `H1 → H2 → H3` never skips a level; the element inventory marks each heading's level.
+- Exact copy for the H1, first paragraph, and primary CTA each contains the primary or a secondary keyword, written naturally. Copy that misses every keyword stays `draft`, not `approved`.
+- Write keywords in the language the audience searches in, not the language of the internal docs.
+- Every meaningful `image` element declares its alt text in the region contract (`alt: "..."`, descriptive, with a keyword only when it fits naturally). Decorative images declare `alt: ""`.
+- Implementation never paraphrases a heading, meta field, or alt text. SEO copy is frozen copy: the wireframe wins.
 
 ## KISS Landing Page Rules
 
@@ -112,6 +154,8 @@ Layout pattern: [Landing / workspace / dashboard / form or wizard / search or ca
 
 Density: [Sparse / balanced / dense, with a task or content reason]
 
+SEO: [public route: primary keyword, 1-2 secondary keywords, meta title ≤ 60 chars, meta description ≤ 160 chars — otherwise `n/a` with the reason]
+
 ```text
 [Start from the matching skeleton in Layout Skeletons by Pattern below, then adapt its regions to this screen's actual content.]
 ```
@@ -131,6 +175,8 @@ One block per visible region, in the order the region appears on screen.
 - Exact wording or display contract: [Verbatim wording, or what to show + intended takeaway/action + source + constraints]
 - Content priority: [must-have / secondary / defer]
 - Style direction: [Visual job and hierarchy/comprehension purpose]
+- Element inventory: [one line per element: type, content ref, design-system component or `custom — reason`, type role]
+- Spacing: [above / below / padding / element gap as spacing tokens; mobile only where it differs]
 - Image / media: [required / optional / none; purpose]
 - Motion: [required / optional / none; purpose]
 - Notes: [Status, fallback, or handoff question]

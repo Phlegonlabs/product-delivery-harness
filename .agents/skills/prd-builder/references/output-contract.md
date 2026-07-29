@@ -433,7 +433,7 @@ Use this structure:
 - Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
 - Canonical structure: [This `wireframes.md`; downstream visual candidates cannot change scope, screen structure, actions, states, region responsibilities, or trace IDs]
 - Optional preference & HTML exploration handoff: [not requested / explicitly authorized for the same one or two representative UI IDs; owner and selected IDs]
-- Visual layer: [Tokens, typefaces, palette, primitive contracts and their closed variant sets, and detailed art direction live in `design-system.md` and `design-system.json`, drafted after this file from the screens below]
+- Visual layer: [Tokens, typefaces, palette, primitive contracts and their closed variant sets, and detailed art direction live in `design-system.md` and `design-system.json` — the foundation token scales are drafted before this file so screens can cite token names; the primitives and components are drafted after, from the screens below]
 
 ## Navigation Model
 [Primary navigation, tabs, routes, or channels.]
@@ -458,6 +458,8 @@ Secondary / quiet: [What stays present but subordinate]
 Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern] — chosen because: [one sentence tying the pattern to the main purpose]
 
 Density: [Sparse / balanced / dense, with a task or content reason]
+
+SEO: [public route: primary keyword, 1-2 secondary keywords, meta title ≤ 60 chars, meta description ≤ 160 chars — otherwise `n/a` with the reason]
 
 ```text
 +------------------------------------------------+
@@ -484,6 +486,8 @@ One block per visible region, in the order the region appears on screen.
 - Exact wording or display contract: [Verbatim wording, or what to show + intended takeaway/action + source + constraints]
 - Content priority: [must-have / secondary / defer]
 - Style direction: [Visual job and hierarchy/comprehension purpose]
+- Element inventory: [one line per element: type, content ref, design-system component or `custom — reason`, type role]
+- Spacing: [above / below / padding / element gap as design-system spacing tokens; mobile only where it differs]
 - Image / media: [required / optional / none; purpose]
 - Motion: [required / optional / none; purpose]
 - Notes: [Status, fallback, or design handoff question]
@@ -501,7 +505,7 @@ Publish both for a UI-bearing product; skip both for a product with no UI surfac
 
 A UI-bearing product ships without the pair only when the user explicitly overrides the requirement — for example because implementation builds against a design system this package does not own. That is the only valid skip for a UI-bearing product; the drafter never decides it. `PRD.md`'s `## Assumptions` records who asked for the override, the reason, and what visual contract implementation uses instead.
 
-Draft them after `wireframes.md`: the primitive inventory is derived from the screens the wireframes actually contain, not invented ahead of them.
+Draft them in two passes around `wireframes.md`, per `references/design-system-guide.md`'s Drafting Order: the foundation pass (visual thesis, color, typography, and the spacing and type token scales) comes before the wireframes because screens cite those token names; the completion pass (primitive layers, product components, state matrix) comes after, because the primitive inventory is derived from the screens the wireframes actually contain, not invented ahead of them.
 
 `design-system.md` owns the reasoning, ratios, guardrails, and decisions. Its machine-contract block is generated and is not hand-edited.
 

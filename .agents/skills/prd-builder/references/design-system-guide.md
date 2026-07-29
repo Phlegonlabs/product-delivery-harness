@@ -4,6 +4,15 @@ Use this guide when turning product inputs into the design system this skill pub
 
 The design system is the product's visual contract. It owns tokens, primitives, and components. Implementation reads it and may not invent a value or a control that is not in it.
 
+## Drafting Order With Wireframes
+
+Draft the design system in two passes around `wireframes.md`:
+
+1. **Foundation pass — before wireframes.** The product-specific visual thesis, the color palette, typography, and the spacing and type token scales. None of these depend on which screens exist, and wireframes cite their token and role names (`space-4`, `body`, `title`), so they must exist first.
+2. **Completion pass — after wireframes.** The four primitive layers, the product components, and the state matrix, derived from the real screen set as described in Primitive Layers. Wireframe region inventories flag every unmatched element as `custom — reason`; resolve each flag here into a named primitive or product component before publication. A pair published with unresolved `custom` flags invites implementation to invent one-off UI.
+
+Publish `design-system.md` and `design-system.json` together after both passes. Wireframes cite token names only; a token's value lives here, in one place.
+
 ## Product Archetype Rules
 
 Pick the archetype from the product itself, not from the platform. `architecture.md`'s `Product Archetype` records a platform (web app, mobile app, desktop app, internal tool, automation, API, hybrid); only `internal tool` is also a design target. Resolve the design target separately.
