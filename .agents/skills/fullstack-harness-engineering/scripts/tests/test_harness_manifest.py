@@ -1460,60 +1460,6 @@ class RunValidationTests(unittest.TestCase):
         )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def _authorize_and_pass_production(self, plan, run) -> None:
-        run["deployments"]["development"].update(
-            {
-                "status": "PASS",
-                "source_sha": SHA_A,
-                "worker_name": "test-app-development",
-                "url": "https://test-app-development.example.workers.dev",
-                "version_id": "dev-version-1",
-                "migration_status": "not_required",
-                "verification_status": "PASS",
-                "evidence": ["artifact:development-smoke"],
-            }
-        )
-        authorize_deploy(run, "development", "production")
-        merged_landing(run)
-        run["deployments"]["production"].update(
-            {
-                "status": "PASS",
-                "source_sha": SHA_B,
-                "worker_name": "test-app-production",
-                "url": "https://test-app-production.example.workers.dev",
-                "version_id": "prod-version-1",
-                "migration_status": "not_required",
-                "verification_status": "PASS",
-                "evidence": ["artifact:production-smoke"],
-            }
-        )
-
-
-
-
-
-
-
-
-
-
-
-
     def test_complete_run_rejects_unfinished_missions_and_tasks(self) -> None:
         plan = valid_plan()
         run = valid_closeout_run(plan)

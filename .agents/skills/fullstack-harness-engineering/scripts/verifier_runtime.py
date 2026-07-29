@@ -174,7 +174,7 @@ def _validated_inputs(
     _require_string(context["trust_domain"], "context.trust_domain")
     _require_string(context["checkout_role"], "context.checkout_role")
     layer = _require_string(context["layer"], "context.layer")
-    if layer not in {"task", "worker", "mission_integration", "batch", "final", "release"}:
+    if layer not in {"task", "worker", "mission_integration", "batch", "final"}:
         raise VerifierRuntimeError("context.layer is unsupported")
     for key in ("mission_id", "task_id", "attempt_id", "lease_id"):
         value = context[key]
@@ -203,7 +203,7 @@ def _validated_inputs(
         raise VerifierRuntimeError(
             "mission_integration verifier context requires mission_id and null task/attempt/lease IDs"
         )
-    if context["layer"] in {"batch", "final", "release"} and any(
+    if context["layer"] in {"batch", "final"} and any(
         context[key] is not None
         for key in ("mission_id", "task_id", "attempt_id", "lease_id")
     ):

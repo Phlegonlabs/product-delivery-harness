@@ -35,7 +35,8 @@ Reserve the parent's own top-tier model — whichever premium model opened the c
 
 - frontend/UI implementation, general-purpose, and backend mission nodes use `sonnet` with `high` effort;
 - routine `frontend_code`, `backend_code`, and visual review use `sonnet` with `medium` effort;
-- raise a delegated node's effort to `xhigh` — while keeping its model at `sonnet` — only for security, migration, difficult correctness, difficult debugging, broad architecture, final synthesis, or genuine visual ambiguity;
+- the run's final review — the final synthesis pass over the integration head — uses `sonnet` with `xhigh` effort by default, not as an exception;
+- raise a delegated node's effort to `xhigh` — while keeping its model at `sonnet` — only for security, migration, difficult correctness, difficult debugging, broad architecture, or genuine visual ambiguity;
 - raise a delegated node's model above `sonnet` only on an explicit user request naming that specific node;
 - bounded/mechanical/discovery/read-only nodes use `haiku` with `low` or `medium` reasoning effort instead of `sonnet` — this is a lower tier than the `sonnet` default above, not a request to raise a node's model above `sonnet`, so it does not need the explicit-user-request bullet above.
 

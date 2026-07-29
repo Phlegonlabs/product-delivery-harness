@@ -18,7 +18,7 @@
 
 私有技能市场，用于借助 Codex 或 Claude Code 把产品想法或变更需求变成一条经过验证的交付流程。
 
-它不是提示词集合。这个插件把产品定义、视觉设计、工程执行和 GitHub 落地拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
+它不是提示词集合。这个插件把产品定义、视觉设计和工程执行拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
 
 > 定义产品。把设计做具体。只执行已就绪的工作。每次移交前，都验证实际结果。
 
@@ -54,7 +54,7 @@
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
 - 大型工作进入托管规划。它可以用 `RUN.md` 完成一次顺序交付，或者用 `PLAN.md` 和 `RUN.md` 处理多个任务并实现可持久的移交。
 - 只有当一个大型计划中至少有两个彼此独立、可立即执行的任务时，调度器才会开始扇出。此时核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
-- 本地的实现、分支和提交工作不会加载 GitHub 适配器，也不会等待远程 CI。拉取请求（PR）交付会推送最终验证通过的候选版本，并对同一提交点的 CI 和 Codex 审查并发评估。
+- 工作不需要等待远程 CI。当验证过的集成 head 推送到这次运行自己的分支时，运行就结束了。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
 
@@ -65,9 +65,8 @@ flowchart LR
   Idea["产品想法或变更请求"] --> PRD["prd-builder\n产品与技术定义"]
   PRD --> Harness["fullstack-harness-engineering\n共享交付核心"]
   Harness --> Runtime["单一宿主适配器\nCodex 或 Claude Code"]
-  Harness --> Landing["可选的 GitHub 落地适配器"]
   Runtime --> Evidence["本地测试与 UI 证据"]
-  Evidence --> Landing
+  Evidence --> Push["推送到这次运行自己的分支\n合进默认分支是你自己的步骤"]
 ```
 
 你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用，或者在 PRD 已存在时使用设计技能。这些技能各自的职责保持分离：PRD 技能不会自己发明一套设计系统，设计技能也不会去写交付计划。
@@ -81,9 +80,9 @@ Harness 是围绕明确的边界构建的：
 3. 当任务大到需要时，在动手实现之前先规划依赖关系。
 4. 只有当工作彼此独立、相互隔离且获得明确授权时，才使用并行工作节点。
 5. 验证任务结果、集成、相关的 UI 流程，以及最终的差异（diff）。
-6. 默认在本地停下，除非明确要求远程结果；届时才通过仓库的 PR 流程落地，并且每一个 GitHub 动作都需要单独授权。
+6. 默认带着验证过的本地证据停下，除非明确要求远程结果；届时在精确的推送授权下，把这次运行自己的分支推送上去。开 PR、合并和部署都是你在 Harness 之外自己做的步骤。
 
-对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、开 PR、执行审查动作、合并、部署或清理。
+对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、移除工作树或删除分支。
 
 ```mermaid
 flowchart TB
@@ -103,11 +102,10 @@ flowchart TB
   Rereview --> Gates
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"remote outcome requested?"}
+  Local --> Remote{"push requested and authorized?"}
   Remote -->|no| Done["Stop with verified local evidence"]
-  Remote -->|yes| Landing["Push final candidate, PR,<br/>current-head CI and review in parallel"]
-  Landing --> Merge["Exact-head merge"]
-  Merge --> Deploy["Deploy: separate authorization, never implied by merge"]
+  Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
+  Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
 ```
 
 
@@ -247,10 +245,10 @@ Use $fullstack-harness-engineering to implement the approved plan. Create a bran
 ```
 
 ```text
-Use $fullstack-harness-engineering to deliver this through a Draft PR. Request current-head CI and Codex review, but stop before merge or deployment.
+Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
-对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、创建 PR、审查管理、合并、部署、移除工作树和删除分支都是彼此独立的动作。
+对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、移除工作树和删除分支都是彼此独立的动作。Harness 不会开 PR、不会合并、也不会部署——这些步骤由你自己完成。
 
 ## Codex 与 Claude Code 执行
 
@@ -263,7 +261,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 在 Codex 中，首选路线分为两层：每个选中的 mission 先在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管工作树；然后由该任务运行自己的有界 Multi-agent 辅助。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
-目标仓库自己的分支与 PR 规则优先。只有当仓库没有定义其他流程时，mission 工作树才默认从当前 `development` SHA 开始，在完成绑定当前 head 的只读审查后集成回 `development`，并在用户最终明确审批后才开始 `development -> production` 升版；如果有修复，必须对新 head 重新审查。
+目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支；当验证过的分支推送完成，运行就结束了。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
 
 每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被报告为“因提供方不匹配而阻塞”，而不会在这里执行。
 

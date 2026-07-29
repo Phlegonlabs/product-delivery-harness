@@ -18,7 +18,7 @@
 
 私有技能市集，讓你用 Codex 或 Claude Code 把產品構想或變更需求轉化為經過驗證的交付流程。
 
-它不是提示詞集合。這個外掛把產品定義、視覺設計、工程執行與 GitHub 落地拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
+它不是提示詞集合。這個外掛把產品定義、視覺設計與工程執行拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
 
 > 定義產品。把設計做具體。只執行已就緒的工作。每次移交前，都驗證實際結果。
 
@@ -54,7 +54,7 @@
 - 小型工作維持直接動手，預設不啟用 planner、scheduler、PLAN/RUN、subagent，也不做外部執行環境的預檢。
 - 大型工作進入受管規劃。它可以用 `RUN.md` 走循序交付，或用 `PLAN.md` 加 `RUN.md` 處理多任務與可持久的交棒。
 - 只有在大型計畫至少有兩個彼此獨立、已就緒的任務時，scheduler 才會開始扇出。核心接著只載入一個 host 轉接器；只有在選定路線需要時，才對外部執行環境做預檢。
-- 本機的實作、分支與提交工作不會載入 GitHub 轉接器，也不會等待遠端 CI。Pull request 交付會推送最終驗證過的候選版本，並同時評估當前 head 的 CI 與 Codex 審查。
+- 工作不需要等待遠端 CI。當驗證過的整合 head 推送到這次執行自己的分支時，這次執行就結束了。
 
 規模指的是協調範圍與影響半徑，而不是原始的檔案或行數。如果小型工作長大了，Harness 會保留已完成的部分，只針對剩下的部分重新規劃。
 
@@ -65,9 +65,8 @@ flowchart LR
   Idea["產品構想或變更需求"] --> PRD["prd-builder\n產品與技術定義"]
   PRD --> Harness["fullstack-harness-engineering\n共用交付核心"]
   Harness --> Runtime["單一 host 轉接器\nCodex 或 Claude Code"]
-  Harness --> Landing["選用的 GitHub 落地轉接器"]
   Runtime --> Evidence["本機測試與 UI 佐證"]
-  Evidence --> Landing
+  Evidence --> Push["推送到這次執行自己的分支\n合進預設分支是你自己的步驟"]
 ```
 
 你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app，或在 PRD 已存在時只用設計技能。這些技能各司其職：PRD 技能不會自行發明設計系統，設計技能也不會撰寫交付計畫。
@@ -81,9 +80,9 @@ Harness 是圍繞明確的邊界所打造的：
 3. 當任務大到需要時，先規劃相依關係，再開始實作。
 4. 只有在工作彼此獨立、隔離且經過明確授權時，才使用平行 worker。
 5. 驗證任務結果、整合、相關的 UI 流程，以及最終的 diff。
-6. 除非有人要求遠端結果，否則停在本機；要遠端時，只能透過儲存庫的 PR 流程落地，且每個 GitHub 動作都要各自取得授權。
+6. 除非有人要求遠端結果，否則帶著驗證過的本機佐證停下；要遠端時，在精確的推送授權下，把這次執行自己的分支推送上去。開 PR、合併與部署都是你在 Harness 之外自己做的步驟。
 
-對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、開 PR、審查動作、合併、部署或清理。
+對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。
 
 ```mermaid
 flowchart TB
@@ -103,11 +102,10 @@ flowchart TB
   Rereview --> Gates
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"remote outcome requested?"}
+  Local --> Remote{"push requested and authorized?"}
   Remote -->|no| Done["Stop with verified local evidence"]
-  Remote -->|yes| Landing["Push final candidate, PR,<br/>current-head CI and review in parallel"]
-  Landing --> Merge["Exact-head merge"]
-  Merge --> Deploy["Deploy: separate authorization, never implied by merge"]
+  Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
+  Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
 ```
 
 
@@ -247,10 +245,10 @@ Use $fullstack-harness-engineering to implement the approved plan. Create a bran
 ```
 
 ```text
-Use $fullstack-harness-engineering to deliver this through a Draft PR. Request current-head CI and Codex review, but stop before merge or deployment.
+Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
-若要進行多任務交付，請在需求中說清楚預期的本機與遠端結果。建立分支、提交、整合、儲存庫設定、推送、建立 PR、審查管理、合併、部署、移除 worktree 與刪除分支，都是各自獨立的動作。
+若要進行多任務交付，請在需求中說清楚預期的本機與遠端結果。建立分支、提交、整合、儲存庫設定、推送、移除 worktree 與刪除分支，都是各自獨立的動作。Harness 不會開 PR、不會合併、也不會部署——這些步驟由你自己完成。
 
 ## Codex 與 Claude Code 的執行
 
@@ -263,7 +261,7 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 
 在 Codex 中，偏好的路線分成兩層：每個選中的 mission 先在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree；接著由該任務執行自己的有界 Multi-agent 輔助。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
 
-目標 repo 自己的 branch 與 PR 規則優先。只有在 repo 未定義其他流程時，mission worktree 才預設從目前的 `development` SHA 開始，完成綁定當前 head 的唯讀 review 後整合回 `development`，並在最後明確審批後才開始 `development -> production` 升版；若有修正，必須對新 head 重新 review。
+目標 repo 自己的 branch 規則優先。當 repo 未定義其他流程時，mission worktree 從目前預設分支的 SHA 開始，在綁定當前 head 的唯讀 review 通過後整合進這次執行自己的分支；當驗證過的分支推送完成，這次執行就結束了。把它合進預設分支是你自己的步驟。若有修正，必須對新 head 重新 review。
 
 每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要另一個 host 的 provider，會被回報為因 provider 不符而受阻，而不會在這裡執行。
 

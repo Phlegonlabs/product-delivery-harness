@@ -18,7 +18,7 @@
 
 Private skill marketplace for turning a product idea or change request into a verified delivery flow with Codex or Claude Code.
 
-It is not a prompt collection. The plugin separates product definition, visual design, engineering execution, and GitHub landing so each stage has one source of truth, a bounded handoff, and its own verification.
+It is not a prompt collection. The plugin separates product definition, visual design, and engineering execution so each stage has one source of truth, a bounded handoff, and its own verification.
 
 > Define the product. Make the design concrete. Execute only the work that is ready. Verify the exact result before it moves.
 
@@ -65,9 +65,8 @@ flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
   PRD --> Harness["fullstack-harness-engineering\nShared delivery core"]
   Harness --> Runtime["One host adapter\nCodex or Claude Code"]
-  Harness --> Landing["Optional GitHub landing adapter"]
   Runtime --> Evidence["Local tests and UI evidence"]
-  Evidence --> Landing
+  Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
 
 You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines what to build and what it looks like, and the Harness builds it without redesigning it.
@@ -81,9 +80,9 @@ The Harness is built around explicit boundaries:
 3. Plan dependencies before starting implementation when the task is large enough to need it.
 4. Use parallel workers only when the work is independent, isolated, and explicitly authorized.
 5. Verify task results, integrations, UI journeys where relevant, and the final diff.
-6. Stop locally unless a remote outcome is requested; then land through the repository's PR flow only with separate authorization for each GitHub action.
+6. Stop with verified local evidence unless a remote outcome is requested; then push the run's own branch with exact push authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
 
-For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, PR, review action, merge, deploy, or cleanup.
+For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion.
 
 ```mermaid
 flowchart TB
@@ -103,11 +102,10 @@ flowchart TB
   Rereview --> Gates
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"remote outcome requested?"}
+  Local --> Remote{"push requested and authorized?"}
   Remote -->|no| Done["Stop with verified local evidence"]
-  Remote -->|yes| Landing["Push final candidate, PR,<br/>current-head CI and review in parallel"]
-  Landing --> Merge["Exact-head merge"]
-  Merge --> Deploy["Deploy: separate authorization, never implied by merge"]
+  Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
+  Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
 ```
 
 
@@ -247,10 +245,10 @@ Use $fullstack-harness-engineering to implement the approved plan. Create a bran
 ```
 
 ```text
-Use $fullstack-harness-engineering to deliver this through a Draft PR. Request current-head CI and Codex review, but stop before merge or deployment.
+Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
-For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, PR creation, review management, merge, deployment, worktree removal, and branch deletion are independent actions.
+For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.
 
 ## Codex and Claude Code execution
 
@@ -263,7 +261,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 On Codex, the preferred route is two-level: each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree, then that task runs its own bounded Multi-agent helpers. Coordinator-owned subagents do not replace those top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
-Target-repository branch and pull-request instructions take precedence. When a repository does not define another model, mission worktrees start from the current `development` SHA, pass an exact-head read-only review before integration into `development`, and reach `production` only through a later explicitly approved `development -> production` promotion. Fixes require a fresh review on the new head.
+Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA, pass an exact-head read-only review before integration into the run's own branch, and the run ends when that verified branch is pushed. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
 
 Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
 
