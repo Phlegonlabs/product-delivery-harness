@@ -243,7 +243,20 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(marked_bullet, interview)
         self.assertNotIn("existing brand reference. (AskUserQuestion", interview)
-        self.assertIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
+        self.assertIn(
+            "end the turn and wait for the user's reply before any `AskUserQuestion` call",
+            skill,
+        )
+        self.assertIn(
+            "Do not call `AskUserQuestion` in the same turn as the free-text interview",
+            skill,
+        )
+        self.assertIn(
+            "End the free-text turn, wait for the user's reply, and only then resolve",
+            interview,
+        )
+        self.assertNotIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
+        self.assertNotIn("immediately after the free-text interview message", interview)
         self.assertIn(
             "goal, users/roles, workflows, data/integrations, business rules, delivery constraints, success metrics, confirmation/recovery",
             skill,
@@ -398,6 +411,35 @@ async function agent(_prompt, options) {
         self.assertIn("Layout pattern:", contract)
         self.assertNotIn("modern-minimal assumption", agent)
         self.assertIn("small frontend implementation contract", agent)
+
+    def test_reference_images_can_seed_the_design_system_after_owner_confirmation(self) -> None:
+        skill = self.read("SKILL.md")
+        agent = self.read("agents/openai.yaml")
+        wireframe = self.read("references/wireframe-guide.md")
+        design_system = self.read("references/design-system-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("ask whether the human owner wants to provide one or more reference images", skill)
+        self.assertIn("## Reference Image Checkpoint", wireframe)
+        self.assertIn("end the turn and wait for attachments or an explicit skip", wireframe)
+        self.assertIn("candidate **design-system signals**", wireframe)
+        self.assertIn("separate repeated patterns from one-off details or contradictions", wireframe)
+        for signal in (
+            "hierarchy and density",
+            "palette roles and contrast intent",
+            "typography character and scale",
+            "spacing rhythm",
+            "controls and recurring component patterns",
+            "icons or media",
+            "motion",
+        ):
+            self.assertIn(signal, wireframe)
+        self.assertIn("owner-confirmed `Adopt / Adapt / Avoid` principles", design_system)
+        self.assertIn("do not become final token values", design_system)
+        self.assertIn("Reference Image Checkpoint:", contract)
+        self.assertIn("wait for the attachments or an explicit skip", agent)
+        for content in (skill, wireframe, agent):
+            self.assertIn("protected artwork", content)
 
     def test_builder_ux_direction_precedes_wireframes_without_claiming_validation(self) -> None:
         skill = self.read("SKILL.md")
