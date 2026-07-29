@@ -98,11 +98,13 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md"
         )
 
-        self.assertIn("Preference & HTML Exploration Handoff", wireframes)
+        self.assertIn("## Visual Direction Gate", wireframes)
         self.assertIn(
-            "low-fidelity wireframes remain canonical for structure and flow",
+            "low-fidelity wireframes remain canonical for screen structure",
             wireframes,
         )
+        self.assertIn("The gate is required; optional preview tooling is not", wireframes)
+        self.assertIn("The published design system records only the selected direction", wireframes)
         self.assertIn("The normal UI handoff is", harness)
         self.assertIn("frontend-design conformance mode", harness)
         self.assertIn("missing contract entry returns as a design-input delta", harness)

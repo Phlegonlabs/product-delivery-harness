@@ -2,7 +2,7 @@
 
 Use low-fidelity ASCII wireframes plus Mermaid flows. Do not produce Figma or HTML unless the user asks for them.
 
-Across the design handoff, low-fidelity wireframes remain canonical for structure and flow. They are also the product source for scope, visible-region responsibilities, actions, states, and trace IDs. A later visual prototype can interpret that structure, but it cannot replace it.
+Across the design handoff, `PRD.md` remains canonical for product scope and low-fidelity wireframes remain canonical for screen structure, flow, visible-region responsibilities, actions, states, and trace IDs. A later visual prototype can interpret that structure, but it cannot replace it.
 
 ## Builder UX Direction Gate
 
@@ -16,7 +16,7 @@ Builder preference controls direction, not usability claims. When preference con
 
 - Freeze product and structural constraints before visual exploration: screen purpose, content responsibilities, actions, states, trace IDs, brand rules, accessibility, platform, and performance limits.
 - Keep the wireframe simple: grayscale in visual tools, clear hierarchy, consistent alignment, restrained containers, and only enough detail to explain content, behavior, and flow.
-- Do not ask the user to choose a high-fidelity style catalog or record `modern-minimal` as the default. High-fidelity visual preference discovery happens later through `frontend-design` and a product-specific Ask User call.
+- Do not ask the user to choose a fixed high-fidelity style catalog or record `modern-minimal` as the default. Product-specific visual preference discovery happens later through the Visual Direction Gate.
 - Translate vague product direction into structural consequences such as information density, hierarchy, region order, imagery responsibility, container use, and interaction behavior. Defer typeface, palette, spacing scale, radius, surface styling, and motion choreography.
 - Choose the layout pattern from the screen's primary task and content shape:
   - Landing or narrative page: ordered story, one first-viewport value proposition, one primary action, and secondary detail deferred.
@@ -26,22 +26,33 @@ Builder preference controls direction, not usability claims. When preference con
   - Search, catalog, or comparison screen: query and filters, result summary, scannable results, then detail or comparison.
 - State the selected layout pattern and density for each important screen. Change the pattern only when the user task or content shape changes.
 
-## Optional Frontend Design Preference & HTML Exploration Handoff
+## Visual Direction Gate
 
-Use this handoff only after the wireframes pass their quality checklist and the user explicitly authorizes a `frontend-design` pass. No other approval in this run implies approval for that skill.
+Run this gate for every UI-bearing product after the structural wireframes pass their quality checklist and before fixing design-system tokens or components. The gate is required; optional preview tooling is not.
 
-The downstream design parent selects the same one or two representative screens for every direction and passes:
+Select the same one or two representative screens for every direction and carry:
 
 - the selected `UI-*` screen and region IDs;
 - each screen's purpose, layout pattern, density, exact copy or display contracts, actions, states, and responsive constraints;
 - the Builder UX Direction Decision, known brand constraints, and product-specific visual goals;
 - an instruction that scope, routes, content responsibilities, interaction behavior, and trace IDs are frozen.
 
-The downstream parent first reads the product sources through `frontend-design`'s Purpose, Tone, Constraints, and Differentiation criteria, then uses the host's Ask User tool to present product-specific preference choices. It must not reuse a fixed style catalog. The answers form a non-binding Visual Preference Brief, not a token specification.
+First ask a short, product-specific visual preference set covering desired character, density, color constraints, typography feel, imagery or icon preferences, motion tolerance, references, and disliked patterns. Derive the choices from the product's purpose, audience, content, platform, brand inputs, and structural wireframes. Never reuse a fixed catalog. The answers form a non-binding Visual Preference Brief, not a token specification.
 
-Invoke `frontend-design` separately for exactly two or three materially different directions. Each execution receives the same hard limits and representative screens and produces complete dependency-free HTML. Make every direction reviewable, then ask the human owner to select, reject, or mix them. A mix requires one consolidated selected HTML pass. Tokens, primitives, components, recipes, and the registry are extracted only after the human explicitly approves that selected HTML.
+Present three materially different directions by default. Present four only when a real product tension makes the fourth useful. Each direction uses the same frozen structure and states and explains its character, hierarchy, density, color, typography, surfaces, icon or media treatment, motion approach, signature decisions, and explicit avoid list. Make every direction reviewable, then ask the human owner to:
+
+- `Select` one direction;
+- `Reject` one or all directions;
+- `Mix` named parts of multiple directions into one consolidated direction for another review; or
+- `Check This` by providing a URL, screenshot, Figma view, named product, or brand reference.
+
+For `Check This`, inspect the reference when the available tools permit it, then return a short `Adopt / Adapt / Avoid` analysis across hierarchy, density, typography, color, surfaces, components, icons or media, and motion. Record what the user actually likes instead of treating the whole reference as approval. Generate a revised set of directions from those principles. Do not copy another product's protected artwork, branding, copy, or distinctive composition.
+
+If the user explicitly authorizes `frontend-design`, use it to render complete dependency-free HTML previews for the same representative screens and frozen constraints. No other approval implies approval for that skill. Preview HTML is optional; the direction decision is not. Fix tokens, primitives, components, and the registry only after the human explicitly selects the consolidated direction, or explicitly authorizes a provisional assumption.
 
 Candidate and selected HTML are non-canonical design-stage evidence. Keep them outside the staged and published PRD package. They may explore typography, color, composition, texture, imagery, and motion, but they must not add product scope or silently change the canonical wireframes.
+
+The published design system records only the selected direction's short summary and implementation consequences. It does not preserve candidate directions or the full `Check This` analysis.
 
 If the visual pass exposes a structural problem, return a concise finding tied to the affected `UI-*` IDs. The parent or human product/design owner decides whether to make one bounded wireframe revision, preserves unaffected scope and IDs, and reruns the PRD quality checklist. Only then may the visual pass continue from the revised wireframe.
 
@@ -50,10 +61,10 @@ If the visual pass exposes a structural problem, return a concise finding tied t
 - Use fixed-width fenced code blocks with `text`.
 - Keep layouts low fidelity and structural, not decorative.
 - Label key regions, controls, data, errors, and actions.
-- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Label the style direction of visually important regions with its intended effect on hierarchy or comprehension. Token names from the design system's foundation pass (spacing tokens, type roles) may appear in element inventories and spacing declarations; token values, art direction, and detailed choreography stay out of the low-fidelity wireframe.
+- Label image/media and motion needs as `required`, `optional`, or `none`, with a short purpose. Label the style direction of visually important regions with its intended effect on hierarchy or comprehension. Before the Visual Direction Gate, use structural spacing and type-role descriptions rather than invented token values. After the design system is complete, reconcile those descriptions to the final token and component names.
 - Show responsive differences when mobile and desktop experiences materially differ.
 - Include primary, secondary, and destructive actions when relevant.
-- Include loading, empty, error, permission, and success states for each major screen or workflow.
+- Before the design system exists, include ready, loading, empty, error, permission-denied, and success outcomes plus known edge states. During final reconciliation, make each screen cover every `design-system.json` `stateMatrix` entry or mark it `n/a` with a reason.
 
 ## Content Specificity Rules
 
@@ -80,18 +91,18 @@ Each region contract lists its elements top-to-bottom, one line each:
 
 - Element type: `heading`, `text`, `button`, `link`, `input`, `image`, `icon`, `divider`, `list`, or `table`.
 - Content ref: the exact-copy key or display-contract summary already in the region contract.
-- Component: the design-system primitive or product component the element maps to. Write `custom — [one-line reason]` when nothing fits; the design-system completion pass resolves every `custom` flag into a named primitive or component before publication.
-- Type role: the design-system type-scale role (`display`, `title`, `body`, `caption`), not a font size.
+- Component: before the design system exists, write the required role or `custom — [one-line reason]`; during final reconciliation, replace it with the selected design-system primitive or product component. Every unresolved `custom` flag blocks publication.
+- Type role: before the design system exists, use a structural role (`display`, `title`, `body`, `caption`), not a font size. Final reconciliation binds it to the design-system type token.
 
 An element not in the inventory does not exist. Downstream image generation and implementation must not invent one; a plausible extra element in a generated image or a built page is a spec gap to add here, never something to copy into code.
 
-Declare spacing as design-system spacing token names, never raw values or vague words such as "some breathing room":
+Before the Visual Direction Gate, declare spacing relationships as `compact`, `default`, or `generous`, with above, below, padding, and element-gap roles. Never use raw values or vague words such as "some breathing room".
 
-- Three levels per region, in the region contract: `Spacing: above <token>, below <token>, padding <token>, element gap <token>`. Above/below is the gap to neighboring regions, padding is inside the region's own container, element gap sits between inventory elements.
-- The same region type uses the same tokens on every screen; only a stated reason changes them.
-- Note mobile only where the token differs from desktop. Silence means the same token.
+- During final reconciliation, replace each role with the selected design-system token: `Spacing: above <token>, below <token>, padding <token>, element gap <token>`. Above/below is the gap to neighboring regions, padding is inside the region's own container, and element gap sits between inventory elements.
+- The same region type uses the same final tokens on every screen; only a stated reason changes them.
+- Note mobile only where the relationship or final token differs from desktop. Silence means the same rule.
 
-Spacing tokens and type roles come from the design system's foundation pass, which is drafted before the wireframes for exactly this reason. Wireframes cite names only; values live in `design-system.md` and `design-system.json`.
+The final published wireframes cite names only; values live in `design-system.md` and `design-system.json`.
 
 ## SEO Copy Rules
 
@@ -161,11 +172,17 @@ SEO: [public route: primary keyword, 1-2 secondary keywords, meta title ≤ 60 c
 ```
 
 ### States
+- Ready: [Normal usable state]
 - Loading: [Skeleton, spinner, progress, disabled controls]
 - Empty: [Message and next best action]
 - Error: [Error message, retry, support path]
-- Permission: [Access denied or request access path]
-- Success: [Confirmation and next step]
+- Disabled: [Why the action is unavailable]
+- Permission denied: [Access denied or request-access path]
+- Stale: [Freshness warning and refresh behavior]
+- Expired: [Expired-session or expired-object recovery]
+- Long content: [Wrapping, truncation, overflow, or expansion]
+- Reduced motion: [Equivalent non-spatial feedback]
+- Mobile reflow: [Order, stacking, and never-drop content]
 
 ### Content, Style, Media & Motion Notes
 One block per visible region, in the order the region appears on screen.
@@ -329,13 +346,4 @@ flowchart TD
 
 ## State Coverage
 
-For each primary screen or workflow, define:
-
-- Default state.
-- Loading or long-running state.
-- Empty state.
-- Validation error or integration failure state.
-- Permission or blocked state.
-- Success or completion state.
-
-If a state does not apply, write `Not applicable` and briefly explain why.
+For each primary screen or workflow, define every state in the final `design-system.json` `stateMatrix`. Use the template's common set as the starting point, then add or remove states only through the design-system contract. If a state does not apply, write `<state>: n/a — <reason>` so validation can distinguish a deliberate exclusion from an omission.
