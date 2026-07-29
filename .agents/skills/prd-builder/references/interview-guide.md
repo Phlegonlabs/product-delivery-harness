@@ -2,9 +2,9 @@
 
 Ask a full product interview before drafting artifacts unless the user explicitly permits assumptions or asks to skip discovery. Keep the interview concise, grouped, and practical.
 
-Bullets marked `(AskUserQuestion)` are a closed, enumerable set — resolve them with Claude Code's `AskUserQuestion` tool immediately after the free-text interview message, not as open questions inside it. Everything else stays free text, since it is too product-specific or too action-specific to enumerate.
+Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include them as open questions in the free-text interview and do not show them immediately after posting that interview. End the free-text turn, wait for the user's reply, and only then resolve the remaining applicable decisions with Claude Code's `AskUserQuestion` tool. Everything else stays free text, since it is too product-specific or too action-specific to enumerate.
 
-The closed-set questions fit three `AskUserQuestion` calls of at most four questions each, in this order:
+The closed-set questions fit three `AskUserQuestion` calls of at most four questions each. Start them only after the user replies to the free-text interview, in this order:
 
 1. The decisions that depend on no other answer: product archetype and validation depth.
 2. For a UI-bearing product, the four closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, and preferred layout/interaction pattern.

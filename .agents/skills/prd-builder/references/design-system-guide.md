@@ -7,7 +7,7 @@ The design system exists so frontend implementation can follow one set of tokens
 ## Drafting Order
 
 1. Finish the PRD and structural wireframes.
-2. Run `wireframe-guide.md`'s Visual Direction Gate. Do not fix token values or component styling until the human owner selects one consolidated direction, or explicitly authorizes a provisional assumption.
+2. Run `wireframe-guide.md`'s Visual Direction Gate, including its Reference Image Checkpoint. When the owner supplies images, extract candidate design-system signals, confirm the `Adopt / Adapt / Avoid` interpretation with them, and use only those confirmed principles to form the directions. Do not fix token values or component styling until the human owner selects one consolidated direction, or explicitly authorizes a provisional assumption.
 3. Build `design-system.json` from the selected direction and the real controls, surfaces, repeated compositions, states, and responsive needs in the wireframes.
 4. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
 5. Reconcile the final token, primitive, and product-component names back into every wireframe element inventory and spacing declaration. An unresolved `custom — reason` flag blocks publication.
@@ -34,7 +34,7 @@ Publish the Markdown and JSON together.
 - concise responsive, interaction, and accessibility rules; and
 - product-specific do/don't guardrails.
 
-Do not preserve rejected direction history, the full `Check This` analysis, exploratory HTML, per-route recipes, implementation examples, or general design theory in either file.
+Do not preserve reference-image files, the full image extraction or `Check This` analysis, rejected direction history, exploratory HTML, per-route recipes, implementation examples, or general design theory in either file.
 
 ## Selected Visual Direction
 
@@ -47,6 +47,8 @@ Record:
 - three to five implementation consequences across hierarchy, density, typography, color, surfaces, icons or media, and motion.
 
 Keep only the selected result. Candidate directions and reference-analysis notes remain non-canonical design-stage evidence outside the package.
+
+Reference images influence the design system only through owner-confirmed `Adopt / Adapt / Avoid` principles in the selected direction. Sampled colors, measured spacing, inferred type sizes, and other screenshot pixels do not become final token values. Synthesize accessible, platform-fit tokens from the confirmed principles and validate them with the normal contrast, type-scale, responsive, and state checks.
 
 Builder approval proves direction conformance, not usability. Product requirements, representative-user evidence, platform convention, and accessibility outrank preference.
 

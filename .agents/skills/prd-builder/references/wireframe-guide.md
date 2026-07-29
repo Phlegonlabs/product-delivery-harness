@@ -37,6 +37,19 @@ Select the same one or two representative screens for every direction and carry:
 - the Builder UX Direction Decision, known brand constraints, and product-specific visual goals;
 - an instruction that scope, routes, content responsibilities, interaction behavior, and trace IDs are frozen.
 
+### Reference Image Checkpoint
+
+Before asking for the remaining visual preference details or presenting directions, ask whether the human owner wants to provide one or more reference images or screenshots. This is optional. Unless usable reference images are already attached, end the turn and wait for attachments or an explicit skip; do not present visual directions in the same turn as this prompt.
+
+When reference images are provided:
+
+1. Confirm that every image is readable. If an attachment cannot be inspected with the available tools, ask the user to attach it again and do not infer unseen details.
+2. Label each image so the analysis is traceable. For multiple images, separate repeated patterns from one-off details or contradictions.
+3. Extract candidate **design-system signals** across hierarchy and density, palette roles and contrast intent, typography character and scale, spacing rhythm, borders, radius, shadow and surface treatment, controls and recurring component patterns, states, icons or media, and motion.
+4. Return a concise `Adopt / Adapt / Avoid` analysis and ask the owner to confirm or correct it before using those signals to generate directions.
+
+Reference pixels are evidence, not token values. Recreate the approved principles for this product and its frozen wireframes; do not copy protected artwork, branding, exact copy, or a distinctive composition. Accessibility, product requirements, and platform conventions still outrank the reference. Reference images and the full extraction analysis remain non-canonical design-stage evidence outside the published package.
+
 First ask a short, product-specific visual preference set covering desired character, density, color constraints, typography feel, imagery or icon preferences, motion tolerance, references, and disliked patterns. Derive the choices from the product's purpose, audience, content, platform, brand inputs, and structural wireframes. Never reuse a fixed catalog. The answers form a non-binding Visual Preference Brief, not a token specification.
 
 Present three materially different directions by default. Present four only when a real product tension makes the fourth useful. Each direction uses the same frozen structure and states and explains its character, hierarchy, density, color, typography, surfaces, icon or media treatment, motion approach, signature decisions, and explicit avoid list. Make every direction reviewable, then ask the human owner to:
@@ -46,7 +59,7 @@ Present three materially different directions by default. Present four only when
 - `Mix` named parts of multiple directions into one consolidated direction for another review; or
 - `Check This` by providing a URL, screenshot, Figma view, named product, or brand reference.
 
-For `Check This`, inspect the reference when the available tools permit it, then return a short `Adopt / Adapt / Avoid` analysis across hierarchy, density, typography, color, surfaces, components, icons or media, and motion. Record what the user actually likes instead of treating the whole reference as approval. Generate a revised set of directions from those principles. Do not copy another product's protected artwork, branding, copy, or distinctive composition.
+For `Check This`, apply the same Reference Image Checkpoint extraction and confirmation rules to the new reference, then return to the direction choice. Record what the user actually likes instead of treating the whole reference as approval. Generate a revised set of directions from the confirmed principles.
 
 If the user explicitly authorizes `frontend-design`, use it to render complete dependency-free HTML previews for the same representative screens and frozen constraints. No other approval implies approval for that skill. Preview HTML is optional; the direction decision is not. Fix tokens, primitives, components, and the registry only after the human explicitly selects the consolidated direction, or explicitly authorizes a provisional assumption.
 
