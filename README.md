@@ -28,6 +28,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 | --- | --- | --- |
 | A product idea | `prd-builder` | Requirements, architecture, stack decisions, wireframes, sourced market research, and the design system |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
+| Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
 
 The skills can be used independently. You do not need to run the entire pipeline for every task.
 
@@ -48,6 +49,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
+| `manage-cloudflare-worker-deployments` | Automatic per-branch Cloudflare Worker previews, guarded cleanup, and optional manual production bootstrap | Installer, lifecycle script, tests, configuration, and GitHub Actions templates |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
@@ -246,6 +248,10 @@ Use $fullstack-harness-engineering to implement the approved plan. Create a bran
 
 ```text
 Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+```
+
+```text
+Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.

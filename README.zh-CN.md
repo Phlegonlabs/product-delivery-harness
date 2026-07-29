@@ -28,6 +28,7 @@
 | --- | --- | --- |
 | 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策、线框图、带来源的市场调研，以及设计系统 |
 | 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
+| 每个分支各自的 Cloudflare Worker 预览 | `manage-cloudflare-worker-deployments` | 安全的预览 Worker 部署与清理，以及可选、单独设门的生产环境初始部署 |
 
 这些技能可以单独使用。不是每个任务都要运行整条流程。
 
@@ -48,6 +49,7 @@
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及各任务自己的只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
+| `manage-cloudflare-worker-deployments` | 自动为每个分支创建 Cloudflare Worker 预览、受保护的清理流程，以及可选的手动生产环境初始部署 | 安装器、生命周期脚本、测试、配置和 GitHub Actions 模板 |
 
 交付核心在调用托管编排之前，会先做一个规模判定：
 
@@ -246,6 +248,10 @@ Use $fullstack-harness-engineering to implement the approved plan. Create a bran
 
 ```text
 Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+```
+
+```text
+Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、移除工作树和删除分支都是彼此独立的动作。Harness 不会开 PR、不会合并、也不会部署——这些步骤由你自己完成。
