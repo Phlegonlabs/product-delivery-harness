@@ -80,7 +80,7 @@ Explicit adapter invocation still begins with this core. The adapters may select
 - Read `references/commit-convention.md` before a harness-managed commit.
 - Read `references/orchestration-research-notes.md` for the underlying Codex/Claude Code orchestration capability facts and version gates behind this skill's guidance.
 - Use `assets/templates/HARNESS_PLAN.template.md` for `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` for `RUN.md`. Load another template only for its named expansion:
-  - `assets/templates/TASKS.template.md` for `tasks.md`, a non-canonical mission/task listing view regenerated from `RUN.md` whenever a RUN.md exists.
+  - `assets/templates/TASKS.template.md` for `tasks.md`, the human-readable mission/task listing view. Create it in the same step that creates `RUN.md` and regenerate it from `RUN.md` whenever mission or task state changes; it stays non-canonical.
   - `assets/templates/GOAL.template.md` for a standalone copy-ready goal prompt when a workflow needs one without creating `RUN.md`.
   - `assets/templates/WORKER_GOAL.template.md` for a mission worker's frozen launch prompt.
   - `assets/templates/E2E_VERIFICATION.template.md` only as a standalone expansion of `RUN.md`'s verification matrix when it becomes too large to scan inline.
@@ -90,14 +90,14 @@ Explicit adapter invocation still begins with this core. The adapters may select
 
 ```text
 small direct work      -> no management files
-large sequential work -> docs/goal/RUN.md (+ optional docs/goal/tasks.md)
-large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md (+ optional docs/goal/tasks.md)
+large sequential work -> docs/goal/RUN.md + docs/goal/tasks.md
+large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md + docs/goal/tasks.md
 binary UI evidence    -> docs/goal/evidence/** only when artifacts exist
 worktree workers      -> temporary per-mission reports only while integration needs them
 ```
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
-- Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md`, when present, is a regenerated mission/task listing view only — it never becomes a second source of truth.
+- Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md` is a regenerated mission/task listing view only — it never becomes a second source of truth.
 - A compact `RUN.md` without `PLAN.md` is sequential (one mission at a time, no leases or deterministic wave claim); its workspace default still follows the Default Runtime And Wave Policy below, not `shared_checkout`.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
