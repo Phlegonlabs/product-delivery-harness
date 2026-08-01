@@ -99,6 +99,11 @@ PRODUCT_DESIGN_SOURCE_PATHS = (
     "docs/product/design-system.md",
     "docs/product/design-system.json",
 )
+PRODUCT_DESIGN_SOURCE_FILENAMES = {
+    "wireframes.md",
+    "design-system.md",
+    "design-system.json",
+}
 
 
 def _validated_sha_history(
@@ -165,6 +170,20 @@ def _is_product_staging_location(value: Any) -> bool:
             if parts[index : index + 3] == ["docs", "product", staging_name]:
                 return True
     return False
+
+
+def _scope_includes_product_design_source(scope: Any) -> bool:
+    if not isinstance(scope, str):
+        return False
+    if any(path_in_scopes(path, [scope]) for path in PRODUCT_DESIGN_SOURCE_PATHS):
+        return True
+    if not _is_product_staging_location(scope):
+        return False
+    normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
+    return (
+        normalized.endswith("/**")
+        or normalized.rsplit("/", 1)[-1] in PRODUCT_DESIGN_SOURCE_FILENAMES
+    )
 
 
 def validate_plan(plan: dict[str, Any]) -> list[str]:
@@ -516,8 +535,7 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             mission["required_skills"],
         )
         design_source_scope = any(
-            path_in_scopes(path, mission_write)
-            for path in PRODUCT_DESIGN_SOURCE_PATHS
+            _scope_includes_product_design_source(scope) for scope in mission_write
         )
         design_skill_pair = {"product-design-builder", "frontend-design"}
         if design_source_scope and not design_skill_pair.issubset(required_skills):

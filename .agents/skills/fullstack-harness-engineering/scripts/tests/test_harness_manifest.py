@@ -1273,6 +1273,35 @@ class PlanValidationTests(unittest.TestCase):
         mission["required_skills"] = ["frontend-design"]
         self.assert_error_contains(plan, "design-source write scope must include both")
 
+    def test_staged_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
+        for staging_scope in (
+            "docs/product/.prd-staging/run-001/**",
+            "docs/product/.design-staging/run-001/**",
+            "docs/product/.prd-staging/run-001/wireframes.md",
+            "docs/product/.prd-staging/run-001/design-system.md",
+            "docs/product/.prd-staging/run-001/design-system.json",
+        ):
+            with self.subTest(staging_scope=staging_scope):
+                plan = valid_plan()
+                mission = plan["missions"][0]
+                mission["write_scope"].append(staging_scope)
+
+                self.assert_error_contains(
+                    plan, "design-source write scope must include both"
+                )
+
+                mission["required_skills"] = [
+                    "product-design-builder",
+                    "frontend-design",
+                ]
+                self.assertEqual(validate_plan(plan), [])
+
+        plan = valid_plan()
+        plan["missions"][0]["write_scope"].append(
+            "docs/product/.prd-staging/run-001/PRD.md"
+        )
+        self.assertEqual(validate_plan(plan), [])
+
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = "frontend-design"
