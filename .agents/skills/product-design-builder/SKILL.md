@@ -62,13 +62,13 @@ Product scope or architecture gaps return to `prd-builder` or the named product 
 
 ## Validation
 
-Run these from the skill directory or use absolute script paths:
+Run these from the repository root. Do not run the validation workflow from the skill directory:
 
 ```text
-python scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write
-python scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled
-python scripts/check_color_contrast.py <the arguments required by the staged design system>
-python scripts/check_type_scale.py <the arguments required by the staged design system>
+python .agents/skills/product-design-builder/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write
+python .agents/skills/product-design-builder/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled
+python .agents/skills/product-design-builder/scripts/check_color_contrast.py <the arguments required by the staged design system>
+python .agents/skills/product-design-builder/scripts/check_type_scale.py <the arguments required by the staged design system>
 ```
 
 Also confirm:

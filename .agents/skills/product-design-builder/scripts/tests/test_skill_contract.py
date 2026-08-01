@@ -218,7 +218,12 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
 
-        self.assertIn("scripts/check_design_system_pair.py", skill)
+        self.assertIn("Run these from the repository root", skill)
+        self.assertIn(
+            ".agents/skills/product-design-builder/scripts/check_design_system_pair.py",
+            skill,
+        )
+        self.assertNotIn("Run these from the skill directory", skill)
         self.assertIn("scripts/check_color_contrast.py", skill)
         self.assertIn("scripts/check_type_scale.py", skill)
         self.assertIn("This design system is the frontend implementation contract", template_md)
