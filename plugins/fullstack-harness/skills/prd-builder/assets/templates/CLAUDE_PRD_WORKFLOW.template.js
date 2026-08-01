@@ -151,7 +151,6 @@ const draftSchema = {
     "prd_markdown",
     "architecture_markdown",
     "stack_decisions_markdown",
-    "wireframes_markdown",
     "implementation_plan_markdown",
     "trace_index",
     "assumptions",
@@ -162,7 +161,6 @@ const draftSchema = {
     prd_markdown: { type: "string" },
     architecture_markdown: { type: "string" },
     stack_decisions_markdown: { type: "string" },
-    wireframes_markdown: { type: ["string", "null"] },
     implementation_plan_markdown: { type: ["string", "null"] },
     trace_index: { type: "array", items: { type: "object" } },
     assumptions: stringArray,
@@ -239,12 +237,6 @@ const roles = [
     task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs. Keep stable surface identity separate from each stage's provider, which may differ between development and production. Record each target's source policy as the exact branch or ref the release builds from, for example the pushed integration-branch head for development and the default-branch head after merge for production. Close artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix. Upload or submission is not availability, and native recovery may require rollout halt plus a signed forward-fix. Only when hosted_deployable is true, build hosted web/API/backend environment details from the resolved deployment_platform and the stage-specific target providers. The target provider is authoritative for that stage and may differ between development and production; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
   },
 ];
-if (workflowArgs.ui_bearing) {
-  roles.push({
-    key: "ux-wireframe",
-    task: "Define UX obligations, routes, states, exact wording or bounded display contracts, low-fidelity wireframe structure, Builder UX Direction consequences, and stable UX/UI trace IDs. Give every screen a Route(s) line using the product's real addressing, or n/a with a reason when the screen has no addressable route; implementation resolves a route to its screen through that line, so no two screens may claim the same route.",
-  });
-}
 if (workflowArgs.browser_frontend || workflowArgs.mobile_desktop_platform) {
   roles.push({
     key: "frontend-platform",
@@ -282,8 +274,7 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus wireframes.md when the product is ui_bearing and implementation-plan.md only when requested. " +
-    "Return null for wireframes_markdown when ui_bearing is false, and record the skip and its reason in PRD.md rather than emitting a placeholder wireframes body. When ui_bearing is true, every screen carries a Route(s) line and no two screens claim the same route. " +
+  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. Do not create wireframes or design-system artifacts; the parent hands stable UI-bearing product inputs to product-design-builder after this workflow. " +
     "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral development and production release-target blocks for every expected deployable surface in the frozen inventory. Keep surface identity separate from provider, permit different providers by stage, and name the exact source branch or ref per target. Do not treat upload/submission as availability or force native distribution into the hosted environment table. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,

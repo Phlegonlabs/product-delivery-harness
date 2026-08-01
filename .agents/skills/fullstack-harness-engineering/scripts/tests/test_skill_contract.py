@@ -120,7 +120,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A non-trivial mission must complete a post-edit read-only reviewer", runbook)
         self.assertIn("require an equivalent parent-owned read-only review before integration", runbook)
 
-    def test_frontend_design_is_loaded_only_in_ui_conformance_mode(self) -> None:
+    def test_frontend_design_has_creation_and_conformance_modes(self) -> None:
         skill = self.read("SKILL.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
@@ -129,9 +129,25 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, plan, worker_goal):
             self.assertIn("frontend-design conformance mode", content)
             self.assertIn("design-input delta", content)
+            self.assertIn("product-design-builder", content)
+            self.assertIn("creation mode", content)
         self.assertIn("user explicitly selected it", plan)
         self.assertIn("new or high-impact visual surface", plan)
         self.assertIn("proposed design-input delta", design_updates)
+        self.assertIn("Return it to `product-design-builder`", design_updates)
+
+    def test_page_reference_modes_do_not_bypass_frozen_design_sources(self) -> None:
+        skill = self.read("SKILL.md")
+        updates = self.read("references/design-input-updates.md")
+
+        self.assertIn("Design inspiration", updates)
+        self.assertIn("Page-faithful target", updates)
+        self.assertIn("non-canonical evidence", updates)
+        self.assertIn("only after the user requests faithful matching", updates)
+        self.assertIn("Source version / hash", updates)
+        self.assertIn("Tolerance / allowed deviations", updates)
+        self.assertIn("`product-design-builder` must normalize either accepted source type", updates)
+        self.assertIn("user explicitly requests faithful conformance", skill)
 
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
         skill = self.read_sibling_skill("fullstack-harness-claude-code")

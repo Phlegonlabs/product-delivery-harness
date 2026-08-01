@@ -94,6 +94,24 @@ from harness_ui_evidence import (
 )
 
 
+PRODUCT_DESIGN_SOURCE_PATHS = (
+    "docs/product/wireframes.md",
+    "docs/product/design-system.md",
+    "docs/product/design-system.json",
+)
+PRODUCT_DESIGN_SOURCE_FILENAMES = {
+    "wireframes.md",
+    "design-system.md",
+    "design-system.json",
+}
+PRODUCT_DESIGN_SOURCE_KINDS = {
+    "wireframe",
+    "wireframes",
+    "design system",
+    "design system machine",
+}
+
+
 def _validated_sha_history(
     errors: list[str], path: str, value: Any
 ) -> set[str]:
@@ -158,6 +176,58 @@ def _is_product_staging_location(value: Any) -> bool:
             if parts[index : index + 3] == ["docs", "product", staging_name]:
                 return True
     return False
+
+
+def _product_design_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]:
+    paths = set(PRODUCT_DESIGN_SOURCE_PATHS)
+    for source in sources.values():
+        location = source.get("location")
+        kind = source.get("kind")
+        if not isinstance(location, str) or "://" in location:
+            continue
+        normalized_kind = ""
+        if isinstance(kind, str):
+            normalized_kind = " ".join(
+                kind.replace("_", " ").replace("-", " ").casefold().split()
+            )
+        normalized_location = (
+            location.replace("\\", "/").removeprefix("./").strip("/")
+        )
+        filename = normalized_location.rsplit("/", 1)[-1].lower()
+        kind_is_product_design = (
+            normalized_kind in PRODUCT_DESIGN_SOURCE_KINDS
+            or normalized_kind.startswith("wireframe ")
+            or normalized_kind.startswith("design system ")
+        )
+        if (
+            kind_is_product_design
+            or filename in PRODUCT_DESIGN_SOURCE_FILENAMES
+        ):
+            paths.add(normalized_location)
+    return paths
+
+
+def _scope_includes_product_design_source(
+    scope: Any, product_design_source_paths: set[str]
+) -> bool:
+    if not isinstance(scope, str):
+        return False
+    if any(path_in_scopes(path, [scope]) for path in product_design_source_paths):
+        return True
+    if not _is_product_staging_location(scope):
+        return False
+    normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
+    parts = normalized.split("/")
+    staging_index = next(
+        index
+        for index, part in enumerate(parts)
+        if part in {".prd-staging", ".design-staging"}
+    )
+    tree_scope = parts[-1] == "**"
+    tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
+    if tree_scope:
+        return len(tail) <= 1
+    return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_DESIGN_SOURCE_FILENAMES
 
 
 def validate_plan(plan: dict[str, Any]) -> list[str]:
@@ -503,7 +573,34 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 resource_map[resource["key"]] = resource["access"]
         if not isinstance(mission["worktree_eligible"], bool):
             _add(errors, f"{mission_path}.worktree_eligible", "must be boolean")
-        _strings(errors, f"{mission_path}.required_skills", mission["required_skills"])
+        required_skills = _strings(
+            errors,
+            f"{mission_path}.required_skills",
+            mission["required_skills"],
+        )
+        product_design_source_paths = _product_design_source_paths(sources)
+        design_source_scope = any(
+            _scope_includes_product_design_source(
+                scope, product_design_source_paths
+            )
+            for scope in mission_write
+        )
+        design_skill_pair = {"product-design-builder", "frontend-design"}
+        if design_source_scope and not design_skill_pair.issubset(required_skills):
+            _add(
+                errors,
+                f"{mission_path}.required_skills",
+                "design-source write scope must include both 'product-design-builder' and 'frontend-design'",
+            )
+        elif (
+            "product-design-builder" in required_skills
+            and "frontend-design" not in required_skills
+        ):
+            _add(
+                errors,
+                f"{mission_path}.required_skills",
+                "must include 'frontend-design' when 'product-design-builder' is required",
+            )
         _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
         for verifier_group in ("worker_verifiers", "integration_verifiers"):
             values = mission[verifier_group]

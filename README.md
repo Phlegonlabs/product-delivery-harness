@@ -26,7 +26,8 @@ It is not a prompt collection. The plugin separates product definition, visual d
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
-| A product idea | `prd-builder` | Requirements, architecture, stack decisions, wireframes, sourced market research, and the design system |
+| A product idea | `prd-builder` | Requirements, architecture, stack decisions, release targets, tests, and sourced market research |
+| Frozen product inputs that need UI design | `product-design-builder` + `frontend-design` | Low-fidelity wireframes and a binding design-system contract |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
 
@@ -45,7 +46,8 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, architecture, frontend-stack decisions, low-fidelity wireframes, a post-draft market-research gap pass, and the design system: tokens, primitive contracts with closed variant sets, product components, motion rules, and the state matrix | `PRD.md`, `architecture.md`, `stack-decisions.md`, `wireframes.md`, `market-research.md`, `design-system.md`, `design-system.json` |
+| `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `architecture.md`, `stack-decisions.md`, `market-research.md` |
+| `product-design-builder` | Product wireframes, visual direction, and the design-system contract. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `wireframes.md`, `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -65,13 +67,14 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
-  PRD --> Harness["fullstack-harness-engineering\nShared delivery core"]
+  PRD --> Design["product-design-builder + frontend-design\nWireframes and design system"]
+  Design --> Harness["fullstack-harness-engineering\nShared delivery core"]
   Harness --> Runtime["One host adapter\nCodex or Claude Code"]
   Runtime --> Evidence["Local tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines what to build and what it looks like, and the Harness builds it without redesigning it.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines the product, `product-design-builder` uses `frontend-design` to define its UI contract, and the Harness implements the frozen result.
 
 ## Delivery model
 
@@ -231,11 +234,11 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name.
 
 ```text
-Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, and wireframes.
+Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, release targets, and test obligations.
 ```
 
 ```text
-Use $prd-builder to add the design system to docs/product/ from the existing PRD.md and wireframes.md.
+Use $product-design-builder with $frontend-design to create wireframes and the design-system contract from the approved docs/product/ product inputs.
 ```
 
 ```text
@@ -297,6 +300,7 @@ python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
 python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```

@@ -1,6 +1,6 @@
 # Claude Code Dynamic Workflow
 
-Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete. A running workflow cannot ask the user for decisions, run the later Visual Direction Gate, approve publication, or replace the parent-owned artifact lifecycle.
+Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete. A running workflow cannot ask the user for decisions, create wireframes or a design system, approve publication, or replace the parent-owned artifact lifecycle.
 
 ## Graph Model
 
@@ -10,7 +10,6 @@ The stable org graph defines these roles:
 | --- | --- | --- |
 | requirements | Product scope, functional requirements, measurable non-functional requirements, stable test obligations, metrics, risks | PRD sections with PRD/TEST trace coverage |
 | architecture | Components, data, APIs, security, deployment, failure handling | Architecture sections and contracts |
-| ux-wireframe | Journeys, UX obligations, routes, states, wireframe structure | UX/UI sections and wireframe requirements |
 | frontend-platform | Browser stack and platform evidence when applicable, plus the mobile/desktop platform decision when that target is in scope | Frontend and mobile/desktop decisions with source evidence |
 | backend | Service topology first, then backend runtime, database, and auth technology decisions when the product has a backend, persistent data, or auth requirement | Backend and Data Technology Decision rows with per-layer status and cited source evidence |
 | synthesis | Reconcile all lanes into one package | Draft artifact bodies |
@@ -51,14 +50,14 @@ Only when the platform choice is genuinely ambiguous under the technology-neutra
 
 Use `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments. The workflow is read-only:
 
-1. Requirements, architecture, UX/wireframe, and conditional frontend/platform roles run independently.
+1. Requirements, architecture, and conditional frontend/platform roles run independently.
 2. All successful and failed lane results are retained explicitly.
 3. Synthesis starts only after the analysis barrier.
 4. Trace, consistency, and (when public-facing content is in scope) SEO copy verifiers review the same synthesis independently. Trace verification checks that every Must functional requirement and applicable NFR maps to a required stable `TEST-*` obligation with an observable expected signal.
 5. When `args.market_research` is true, the `market-research` role runs in the same stage against the same synthesis. It is not a verifier: it returns a `market-research.md` body and gap findings rather than a pass/fail decision, so it never blocks the package on its own. A role that finds nothing sourceable returns blocked, and the package publishes without the artifact.
 6. The parent receives candidate Markdown bodies, review findings, and the research result.
 
-A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle, repairs unresolved findings, and runs the structural wireframe checklist. For a UI-bearing product, the parent then runs `wireframe-guide.md`'s Visual Direction Gate with the human owner and drafts the small design-system contract from the selected result. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation. Only after the complete package passes the output checklist does the parent present exact mutations for approval.
+A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle and repairs unresolved findings. For a UI-bearing product, the parent then hands the frozen product sources and Builder UX Direction to `product-design-builder`, which must use `frontend-design` to create the wireframes and design-system contract. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation. Only after the complete package passes the output checklist does the parent present exact mutations for approval.
 
 ## Failure And Resume
 

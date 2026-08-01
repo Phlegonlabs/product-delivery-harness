@@ -26,7 +26,8 @@
 
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
-| 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策、线框图、带来源的市场调研，以及设计系统 |
+| 一个产品想法 | `prd-builder` | 需求、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
+| 已冻结、需要 UI 设计的产品输入 | `product-design-builder` + `frontend-design` | 低保真线框图与有约束力的设计系统契约 |
 | 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 每个分支各自的 Cloudflare Worker 预览 | `manage-cloudflare-worker-deployments` | 安全的预览 Worker 部署与清理，以及可选、单独设门的生产环境初始部署 |
 
@@ -45,7 +46,8 @@
 
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
-| `prd-builder` | 产品探索、需求、架构、前端技术栈决策、低保真线框图、草稿完成后的市场调研补缺，以及设计系统：设计令牌、封闭变体集的基元契约、产品组件、动效规则和状态矩阵 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`wireframes.md`、`market-research.md`、`design-system.md`、`design-system.json` |
+| `prd-builder` | 产品探索、需求、Builder UX Direction 输入、架构、技术栈决策、发布目标、测试义务，以及草稿完成后的市场调研补缺 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`market-research.md` |
+| `product-design-builder` | 产品线框图、视觉方向与设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `wireframes.md`、`design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及各任务自己的只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
@@ -65,13 +67,14 @@
 ```mermaid
 flowchart LR
   Idea["产品想法或变更请求"] --> PRD["prd-builder\n产品与技术定义"]
-  PRD --> Harness["fullstack-harness-engineering\n共享交付核心"]
+  PRD --> Design["product-design-builder + frontend-design\n线框图与设计系统"]
+  Design --> Harness["fullstack-harness-engineering\n共享交付核心"]
   Harness --> Runtime["单一宿主适配器\nCodex 或 Claude Code"]
   Runtime --> Evidence["本地测试与 UI 证据"]
   Evidence --> Push["推送到这次运行自己的分支\n合进默认分支是你自己的步骤"]
 ```
 
-你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用，或者在 PRD 已存在时使用设计技能。这些技能各自的职责保持分离：PRD 技能不会自己发明一套设计系统，设计技能也不会去写交付计划。
+你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`prd-builder` 定义产品，`product-design-builder` 使用 `frontend-design` 定义 UI 契约，Harness 实现已冻结的结果。
 
 ## 交付模型
 
@@ -231,11 +234,11 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。
 
 ```text
-Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, and wireframes.
+Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, release targets, and test obligations.
 ```
 
 ```text
-Use $prd-builder to add the design system to docs/product/ from the existing PRD.md and wireframes.md.
+Use $product-design-builder with $frontend-design to create wireframes and the design-system contract from the approved docs/product/ product inputs.
 ```
 
 ```text
@@ -297,6 +300,7 @@ python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
 python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```

@@ -1233,6 +1233,133 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["required_skills"] = ["frontend-design", "feature-dev"]
         self.assertEqual(validate_plan(plan), [])
 
+    def test_product_design_builder_requires_frontend_design(self) -> None:
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = ["product-design-builder"]
+        self.assert_error_contains(plan, "frontend-design")
+
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = [
+            "product-design-builder",
+            "frontend-design",
+        ]
+        self.assertEqual(validate_plan(plan), [])
+
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = ["frontend-design"]
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
+        plan = valid_plan()
+        design_scopes = [
+            "docs/product/wireframes.md",
+            "docs/product/design-system.md",
+            "docs/product/design-system.json",
+        ]
+        mission = plan["missions"][0]
+        mission["write_scope"] = design_scopes
+        mission["tasks"][0]["write_scope"] = [design_scopes[0]]
+        mission["tasks"][1]["write_scope"] = [design_scopes[1]]
+        for node in plan["graph"]["nodes"]:
+            review = node.get("review")
+            if isinstance(review, dict) and review.get("mission_ids") == ["M1"]:
+                review["scope"] = design_scopes
+
+        self.assert_error_contains(plan, "design-source write scope must include both")
+
+        mission["required_skills"] = ["product-design-builder", "frontend-design"]
+        self.assertEqual(validate_plan(plan), [])
+
+        mission["required_skills"] = ["frontend-design"]
+        self.assert_error_contains(plan, "design-source write scope must include both")
+
+    def test_staged_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
+        for staging_scope in (
+            "docs/product/.prd-staging/run-001/**",
+            "docs/product/.design-staging/run-001/**",
+            "docs/product/.prd-staging/run-001/wireframes.md",
+            "docs/product/.prd-staging/run-001/design-system.md",
+            "docs/product/.prd-staging/run-001/design-system.json",
+        ):
+            with self.subTest(staging_scope=staging_scope):
+                plan = valid_plan()
+                mission = plan["missions"][0]
+                mission["write_scope"].append(staging_scope)
+
+                self.assert_error_contains(
+                    plan, "design-source write scope must include both"
+                )
+
+                mission["required_skills"] = [
+                    "product-design-builder",
+                    "frontend-design",
+                ]
+                self.assertEqual(validate_plan(plan), [])
+
+        plan = valid_plan()
+        plan["missions"][0]["write_scope"].append(
+            "docs/product/.prd-staging/run-001/PRD.md"
+        )
+        self.assertEqual(validate_plan(plan), [])
+
+        for non_design_scope in (
+            "docs/product/.prd-staging/run-001/research/**",
+            "docs/product/.design-staging/run-001/notes/**",
+        ):
+            with self.subTest(non_design_scope=non_design_scope):
+                plan = valid_plan()
+                plan["missions"][0]["write_scope"].append(non_design_scope)
+                self.assertEqual(validate_plan(plan), [])
+
+    def test_registered_custom_design_sources_require_the_exact_skill_pair(self) -> None:
+        plan = valid_plan()
+        plan["sources"].extend(
+            [
+                {
+                    "id": "SRC-DESIGN-001",
+                    "kind": "wireframes",
+                    "location": "specs/custom/ui-map.md",
+                    "owner": "design",
+                    "status": "frozen",
+                    "content_sha256": "d" * 64,
+                    "source_revision": None,
+                    "staged_revision": None,
+                    "notes": "custom named wireframe source",
+                },
+                {
+                    "id": "SRC-DESIGN-002",
+                    "kind": "design_system",
+                    "location": "specs/custom/visual-contract.yml",
+                    "owner": "design",
+                    "status": "frozen",
+                    "content_sha256": "c" * 64,
+                    "source_revision": None,
+                    "staged_revision": None,
+                    "notes": "custom named design system source",
+                },
+                {
+                    "id": "SRC-DESIGN-003",
+                    "kind": "visual contract",
+                    "location": "alternate-product-path/design-system.json",
+                    "owner": "design",
+                    "status": "frozen",
+                    "content_sha256": "b" * 64,
+                    "source_revision": None,
+                    "staged_revision": None,
+                    "notes": "default design filename outside the default folder",
+                },
+            ]
+        )
+        mission = plan["missions"][0]
+        mission["write_scope"].extend(
+            ["specs/custom/**", "alternate-product-path/**"]
+        )
+
+        self.assert_error_contains(plan, "design-source write scope must include both")
+
+        mission["required_skills"] = ["product-design-builder", "frontend-design"]
+        self.assertEqual(validate_plan(plan), [])
+
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = "frontend-design"

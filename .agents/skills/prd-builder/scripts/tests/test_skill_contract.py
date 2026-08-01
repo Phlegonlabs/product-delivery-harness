@@ -39,7 +39,6 @@ async function agent(_prompt, options) {
       prd_markdown: "# PRD",
       architecture_markdown: "# Architecture",
       stack_decisions_markdown: "# Stack Decisions",
-      wireframes_markdown: "# Wireframes",
       implementation_plan_markdown: null,
       trace_index: [],
       assumptions: [],
@@ -157,22 +156,39 @@ async function agent(_prompt, options) {
         self.assertIn("do not offer the handoff while the PRD workflow is incomplete", skill)
         self.assertIn("record that gap before offering the Harness", skill)
 
-    def test_wireframes_remain_canonical_across_optional_html_exploration(self) -> None:
+    def test_ui_design_is_delegated_to_the_mandatory_paired_skills(self) -> None:
         skill = self.read("SKILL.md")
-        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+        agent = self.read("agents/openai.yaml")
+
+        for content in (skill, contract, agent):
+            self.assertIn("product-design-builder", content)
+            self.assertIn("frontend-design", content)
+        self.assertIn("must load `frontend-design` before any design work", skill)
+        self.assertIn("do not author its wireframes or design system here", skill)
+        self.assertIn("Do not create wireframes, visual directions, design tokens, or a design system", agent)
+        self.assertIn("Those contracts belong only to `product-design-builder`", contract)
+        self.assertNotIn("Visual Direction Gate in `wireframe-guide.md`", contract)
+        self.assertNotIn("Optional `frontend-design`", contract)
+
+    def test_market_research_precedes_style_aware_design_handoff(self) -> None:
+        skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
-        for content in (skill, guide, contract):
-            self.assertIn("canonical", content)
-            self.assertIn("non-canonical", content)
-            self.assertIn("explicitly authoriz", content)
-            self.assertIn("bounded wireframe revision", content)
-        self.assertIn("## Visual Direction Gate", guide)
-        self.assertIn("low-fidelity wireframes remain canonical for screen structure", guide)
-        self.assertIn("same one or two representative screens", guide)
-        self.assertIn("selected `UI-*` screen and region IDs", guide)
-        self.assertIn("Keep them outside the staged and published PRD package", guide)
-        self.assertIn("No candidate or selected HTML", contract)
+        research = skill.index("13. Run the market-research gap pass")
+        design = skill.index("14. For a UI-bearing product")
+        self.assertLess(research, design)
+        self.assertIn("`market-research.md` and its `MR-*` evidence when produced", skill)
+        self.assertIn("asks the human owner once for style preferences and visual references", skill)
+        self.assertIn("recommends exactly three product-specific, current-reference-informed directions", skill)
+        self.assertIn("may call a direction market-supported only when valid `MR-*` evidence applies", skill)
+        self.assertIn("a market-research URL is not visual evidence", skill)
+        self.assertIn("`design inspiration` or `page-faithful target`", skill)
+        self.assertIn("do not infer faithful-copy intent", contract)
+        self.assertIn("complete the market-research gap pass first", contract)
+        interview = self.read("references/interview-guide.md")
+        self.assertIn("recommends exactly three product-specific directions", interview)
+        self.assertNotIn("or four when a real product tension justifies it", interview)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
@@ -355,144 +371,16 @@ async function agent(_prompt, options) {
         self.assertIn("first to drop when the closed-set budget is full", interview)
         self.assertIn("Deployment platform, database category, and auth strategy never drop", interview)
 
-    def test_wireframes_keep_landing_pages_simple_and_label_media(self) -> None:
-        skill = self.read("SKILL.md")
-        agent = self.read("agents/openai.yaml")
-        interview = self.read("references/interview-guide.md")
-        guide = self.read("references/wireframe-guide.md")
-        contract = self.read("references/output-contract.md")
-
-        self.assertIn("one job per section", skill)
-        self.assertIn("exact UI wording or a bounded display contract", skill)
-        self.assertIn("## Content Specificity Rules", guide)
-        self.assertIn("## Style And Anti-Slop Structure Rules", guide)
-        self.assertIn("colored side rail or accent stripe", guide)
-        self.assertIn("A box in an ASCII wireframe must mean real grouping", guide)
-        self.assertIn("`Exact copy`", guide)
-        self.assertIn("`Display contract`", guide)
-        self.assertIn("Do not leave `Main content`", guide)
-        self.assertIn("## KISS Landing Page Rules", guide)
-        self.assertIn("Do not turn every PRD requirement", guide)
-        self.assertIn("### Content, Style, Media & Motion Notes", guide)
-        self.assertIn("Style direction", guide)
-        self.assertIn("required / optional / none", guide)
-        self.assertIn("### Content, Style, Media & Motion Notes", contract)
-        self.assertIn("Exact wording or display contract", contract)
-        self.assertNotIn("| Main content", contract)
-        self.assertIn("KISS landing-page wireframes", agent)
-        self.assertIn("bounded display contracts", agent)
-        self.assertIn("explicit style/image/media/motion labels", agent)
-        self.assertIn("restrained container use", agent)
-        self.assertIn("already have approved wording", interview)
-        self.assertIn("bounded display responsibilities", interview)
-        self.assertIn("specific style direction or animation", interview)
-        self.assertIn("Required style and motion intent", interview)
-
-    def test_visual_direction_gate_is_product_specific_and_not_a_fixed_catalog(self) -> None:
-        skill = self.read("SKILL.md")
-        agent = self.read("agents/openai.yaml")
-        interview = self.read("references/interview-guide.md")
-        guide = self.read("references/wireframe-guide.md")
-        contract = self.read("references/output-contract.md")
-
-        self.assertIn("Do not run a fixed high-fidelity visual-style questionnaire here", skill)
-        self.assertIn("Do not ask the user to choose from a fixed catalog", interview)
-        self.assertIn("three product-specific directions by default", interview)
-        self.assertIn("## Structural Direction And Configuration", guide)
-        self.assertIn("Do not ask the user to choose a fixed high-fidelity style catalog", guide)
-        self.assertIn("## Visual Direction Gate", guide)
-        self.assertIn("Present three materially different directions by default", guide)
-        self.assertIn("Present four only when a real product tension", guide)
-        for choice in ("`Select`", "`Reject`", "`Mix`", "`Check This`"):
-            self.assertIn(choice, guide)
-        self.assertIn("Dashboard or monitoring screen", guide)
-        self.assertIn("## Wireframe Direction", contract)
-        self.assertIn("Visual Direction Gate:", contract)
-        self.assertIn("Layout pattern:", contract)
-        self.assertNotIn("modern-minimal assumption", agent)
-        self.assertIn("small frontend implementation contract", agent)
-
-    def test_reference_images_can_seed_the_design_system_after_owner_confirmation(self) -> None:
-        skill = self.read("SKILL.md")
-        agent = self.read("agents/openai.yaml")
-        wireframe = self.read("references/wireframe-guide.md")
-        design_system = self.read("references/design-system-guide.md")
-        contract = self.read("references/output-contract.md")
-
-        self.assertIn("ask whether the human owner wants to provide one or more reference images", skill)
-        self.assertIn("## Reference Image Checkpoint", wireframe)
-        self.assertIn("end the turn and wait for attachments or an explicit skip", wireframe)
-        self.assertIn("candidate **design-system signals**", wireframe)
-        self.assertIn("separate repeated patterns from one-off details or contradictions", wireframe)
-        for signal in (
-            "hierarchy and density",
-            "palette roles and contrast intent",
-            "typography character and scale",
-            "spacing rhythm",
-            "controls and recurring component patterns",
-            "icons or media",
-            "motion",
-        ):
-            self.assertIn(signal, wireframe)
-        self.assertIn("owner-confirmed `Adopt / Adapt / Avoid` principles", design_system)
-        self.assertIn("do not become final token values", design_system)
-        self.assertIn("Reference Image Checkpoint:", contract)
-        self.assertIn("wait for the attachments or an explicit skip", agent)
-        for content in (skill, wireframe, agent):
-            self.assertIn("protected artwork", content)
-
-    def test_builder_ux_direction_precedes_wireframes_without_claiming_validation(self) -> None:
-        skill = self.read("SKILL.md")
-        interview = self.read("references/interview-guide.md")
-        guide = self.read("references/wireframe-guide.md")
-        contract = self.read("references/output-contract.md")
-        agent = self.read("agents/openai.yaml")
-
-        for content in (skill, interview, guide, contract, agent):
-            self.assertIn("Builder UX Direction", content)
-        self.assertIn("before drafting wireframes", skill)
-        self.assertIn("guided or flexible", interview)
-        self.assertIn("## Builder UX Direction Gate", guide)
-        self.assertIn("selected / provisional / assumed", contract)
-        self.assertIn("not usability proof", agent)
-
-    def test_selected_visual_direction_precedes_a_small_frontend_contract(self) -> None:
-        skill = self.read("SKILL.md")
-        guide = self.read("references/design-system-guide.md")
-        wireframe = self.read("references/wireframe-guide.md")
-        contract = self.read("references/output-contract.md")
-        template = self.read("assets/templates/DESIGN_SYSTEM.template.md")
-        workflow = self.read("references/dynamic-workflow.md")
-
-        self.assertIn("First finish the structural wireframes", skill)
-        self.assertIn("## Visual Direction Gate", wireframe)
-        self.assertIn("Do not fix token values or component styling until", guide)
-        self.assertIn("small frontend implementation contract", guide)
-        self.assertIn("small frontend implementation contract", contract)
-        self.assertIn("This design system is the frontend implementation contract", template)
-        self.assertIn("If the contract cannot express a required UI, update the design system", template)
-        self.assertIn("cannot ask the user for decisions, run the later Visual Direction Gate", workflow)
-        self.assertIn("the parent then runs `wireframe-guide.md`'s Visual Direction Gate", workflow)
-        for content in (skill, guide, contract, template):
-            self.assertIn("selected direction", content.lower())
-        for removed_heading in (
-            "## Landing Page Simplicity & Media Plan",
-            "## Styling Pattern Usage",
-            "## Example Component Reference Code",
-        ):
-            self.assertNotIn(removed_heading, template)
-        self.assertNotIn("Draft them in two passes around `wireframes.md`", skill)
-        self.assertNotIn("Draft them in two passes around `wireframes.md`", contract)
-
     def test_trace_ids_and_publish_approval_are_explicit(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
 
-        for trace_prefix in ("`PRD-*`", "`ARCH-*`", "`UI-*`", "`UX-*`", "`TEST-*`"):
+        for trace_prefix in ("`PRD-*`", "`ARCH-*`", "`UX-*`", "`TEST-*`"):
             self.assertIn(trace_prefix, skill)
         self.assertIn("## Architecture Trace Index", contract)
-        self.assertIn("UI ID: UI-001", contract)
+        self.assertIn("`product-design-builder`", contract)
+        self.assertIn("`UI-*`", contract)
         self.assertIn("| TEST ID | Test Type", contract)
         self.assertIn("Passing validation does not authorize an overwrite, move, or archive", lifecycle)
         self.assertIn("keep the staged package", lifecycle)
@@ -870,113 +758,12 @@ async function agent(_prompt, options) {
         self.assertNotIn("or under `docs/product/` by default", lifecycle)
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
-    def test_product_component_content_order_is_documented(self) -> None:
-        skill = self.read("SKILL.md")
-        contract = self.read("references/output-contract.md")
-        guide = self.read("references/design-system-guide.md")
-        template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
-        template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
-
-        self.assertIn('"requiredContentOrder"', template_json)
-        self.assertIn('"composes": ["Container", "Surface", "Button"]', template_json)
-        for content in (contract, guide, template_md):
-            self.assertIn("requiredContentOrder", content)
-            self.assertIn("never-drop field", content)
-            self.assertIn("Content contract conformance", content)
-        self.assertIn("`dsId`, `requiredContentOrder`, `composes`, and `states`", contract)
-        self.assertIn("## Primitives And Product Components", guide)
-        for unsupported_family in ("DS-LAY-*", "DS-SUR-*", "DS-TYP-*", "DS-CTL-*"):
-            with self.subTest(unsupported_family=unsupported_family):
-                self.assertNotIn(unsupported_family, skill)
-                self.assertNotIn(unsupported_family, contract)
-        for content in (skill, contract):
-            self.assertIn("DS-COMP-*", content)
-
-    def test_prescribed_design_system_commands_satisfy_the_real_cli_contract(self) -> None:
-        command_prefix = "scripts/check_design_system_pair.py"
-        registry = {
-            "schema": "design-system/1",
-            "product": "Fixture Product",
-            "platform": "web",
-            "stylingMechanism": "plain CSS",
-            "enforcement": "blocking",
-            "tokenSources": ["src/styles/tokens.css"],
-            "primitiveSources": [],
-            "viewports": [390],
-            "tokens": {},
-            "primitives": {},
-            "stateMatrix": ["ready"],
-        }
-
-        for relative_path in (
-            "SKILL.md",
-            "assets/templates/DESIGN_SYSTEM.template.md",
-            "references/output-contract.md",
-        ):
-            content = self.read(relative_path)
-            code_spans = content.split("`")[1::2]
-            commands = [
-                span for span in code_spans if span.startswith(command_prefix)
-            ]
-            with self.subTest(relative_path=relative_path):
-                self.assertEqual(2, len(commands), commands)
-
-                with tempfile.TemporaryDirectory() as temp:
-                    root = Path(temp)
-                    markdown = root / "design-system.md"
-                    registry_path = root / "design-system.json"
-                    markdown.write_text(
-                        "# Design System\n\nHuman rationale.\n",
-                        encoding="utf-8",
-                    )
-                    registry_path.write_text(
-                        json.dumps(registry),
-                        encoding="utf-8",
-                    )
-
-                    parsed_commands: list[list[str]] = []
-                    for command in commands:
-                        expanded = command.replace(
-                            "<staged design-system.md>",
-                            f'"{markdown.as_posix()}"',
-                        ).replace(
-                            "<staged design-system.json>",
-                            f'"{registry_path.as_posix()}"',
-                        )
-                        argv = shlex.split(expanded)
-                        parsed_commands.append(argv)
-                        completed = subprocess.run(
-                            [
-                                sys.executable,
-                                str(SKILL_ROOT / argv[0]),
-                                *argv[1:],
-                            ],
-                            cwd=SKILL_ROOT,
-                            capture_output=True,
-                            text=True,
-                            check=False,
-                        )
-                        self.assertEqual(
-                            0,
-                            completed.returncode,
-                            completed.stdout + completed.stderr,
-                        )
-
-                    self.assertIn("--write", parsed_commands[0])
-                    self.assertNotIn("--write", parsed_commands[1])
-                    self.assertNotIn("--require-filled", parsed_commands[0])
-                    self.assertIn("--require-filled", parsed_commands[1])
-
-    def test_design_system_skip_needs_no_ui_surface_or_explicit_override(self) -> None:
+    def test_design_handoff_skip_needs_no_ui_surface_or_explicit_override(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
-        for content in (skill, contract):
-            self.assertIn("the user explicitly overrides", content)
-        self.assertIn("That override is the only way a UI-bearing product ships without one", skill)
-        self.assertIn("Never skip the pair on your own judgment", skill)
-        self.assertIn("skipped the design system under the explicit user override in step 11", skill)
-        self.assertIn("That is the only valid skip for a UI-bearing product; the drafter never decides it", contract)
+        self.assertIn("A UI-bearing product skips the design handoff only when the user explicitly overrides it", skill)
+        self.assertIn("may skip the handoff only under an explicit user override", contract)
 
     def test_call_three_drop_order_drops_exactly_one_question(self) -> None:
         interview = self.read("references/interview-guide.md")

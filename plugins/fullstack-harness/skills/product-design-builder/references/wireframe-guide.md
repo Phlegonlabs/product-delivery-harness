@@ -8,7 +8,7 @@ Across the design handoff, `PRD.md` remains canonical for product scope and low-
 
 Before drafting interface wireframes, ask one organized set of questions about the builder's intended experience. Resolve the builder to the human product/design decision owner or commissioning team; the implementation agent does not supply its own taste as a substitute.
 
-Record the resulting `Builder UX Direction Decision` in `PRD.md` and carry it into `wireframes.md`. It must cover experience priority, guided versus expert control, information density, familiar versus expressive interaction, primary layout preference, confirmation/recovery behavior, and validation depth. Mark every decision `selected`, `provisional`, or `assumed`.
+Consume the recorded `Builder UX Direction Decision` from `PRD.md` and carry it into `wireframes.md`. It must cover experience priority, guided versus expert control, information density, familiar versus expressive interaction, primary layout preference, confirmation/recovery behavior, and validation depth. Mark every decision `selected`, `provisional`, or `assumed`. Use `assumed` only when the human owner explicitly authorizes that assumption; the agent cannot self-authorize it. If the decision is missing or incomplete, ask the questions, return the bounded decision update to `prd-builder` or the named product owner for recording, and stop. Do not edit `PRD.md` from this skill. Resume only after the recorded source is available.
 
 Builder preference controls direction, not usability claims. When preference conflicts with observed user needs, accessibility, or task evidence, preserve the conflict as a hypothesis and name the prototype or user test needed to resolve it. Never label a wireframe user-validated merely because the builder approved it.
 
@@ -35,37 +35,49 @@ Select the same one or two representative screens for every direction and carry:
 - the selected `UI-*` screen and region IDs;
 - each screen's purpose, layout pattern, density, exact copy or display contracts, actions, states, and responsive constraints;
 - the Builder UX Direction Decision, known brand constraints, and product-specific visual goals;
+- the relevant sourced or reported `MR-*` findings and their source IDs from prior market research;
 - an instruction that scope, routes, content responsibilities, interaction behavior, and trace IDs are frozen.
 
-### Reference Image Checkpoint
+### Style And Reference Intake
 
-Before asking for the remaining visual preference details or presenting directions, ask whether the human owner wants to provide one or more reference images or screenshots. This is optional. Unless usable reference images are already attached, end the turn and wait for attachments or an explicit skip; do not present visual directions in the same turn as this prompt.
+Read `market-research.md` and the `MR-*` citations in `PRD.md` when they exist. Build a short Market Design Evidence Brief containing only findings that can reasonably affect audience fit, category expectations, trust, information density, differentiation, or product tone. Keep each item tied to its `MR-*` and `S-*` source IDs. Use only `sourced` or `reported` findings. Treat `UNVALIDATED` rows as open questions, not evidence. Market research about features, pricing, or competitors does not prove a visual convention or user preference; label every resulting design implication as an inference.
 
-When reference images are provided:
+If prior market research was skipped, blocked, missing, or contains no relevant supported finding, say so. Ask whether the owner wants to return to `prd-builder` for research or continue with product evidence only. Do not claim that a recommendation is market-research-backed when that evidence is unavailable.
 
-1. Confirm that every image is readable. If an attachment cannot be inspected with the available tools, ask the user to attach it again and do not infer unseen details.
-2. Label each image so the analysis is traceable. For multiple images, separate repeated patterns from one-off details or contradictions.
-3. Extract candidate **design-system signals** across hierarchy and density, palette roles and contrast intent, typography character and scale, spacing rhythm, borders, radius, shadow and surface treatment, controls and recurring component patterns, states, icons or media, and motion.
-4. Return a concise `Adopt / Adapt / Avoid` analysis and ask the owner to confirm or correct it before using those signals to generate directions.
+Ask the human owner what style they want and whether they already have visual references in one combined, product-specific set. Cover desired character, density, color constraints, typography feel, imagery or icon preferences, motion tolerance, disliked patterns, and optional images, screenshots, URLs, Figma views, named products, or brand references. Say that `Check This` remains available if the first directions do not fit. Derive the questions from the product's purpose, audience, content, platform, brand inputs, structural wireframes, and Market Design Evidence Brief. Never reuse a fixed catalog. The answers form a non-binding Visual Preference Brief, not a token specification. End the turn and wait for the answer; do not recommend styles in the same turn as these questions.
 
-Reference pixels are evidence, not token values. Recreate the approved principles for this product and its frozen wireframes; do not copy protected artwork, branding, exact copy, or a distinctive composition. Accessibility, product requirements, and platform conventions still outrank the reference. Reference images and the full extraction analysis remain non-canonical design-stage evidence outside the published package.
+If the owner supplies a reference, read `design-reference-guide.md`, inspect it through the matching source route, return traceable `Adopt / Adapt / Avoid` principles, and end the turn for confirmation. Do not generate directions from owner-supplied signals before that confirmation.
 
-First ask a short, product-specific visual preference set covering desired character, density, color constraints, typography feel, imagery or icon preferences, motion tolerance, references, and disliked patterns. Derive the choices from the product's purpose, audience, content, platform, brand inputs, and structural wireframes. Never reuse a fixed catalog. The answers form a non-binding Visual Preference Brief, not a token specification.
+### Reference-Informed Direction Recommendations
 
-Present three materially different directions by default. Present four only when a real product tension makes the fourth useful. Each direction uses the same frozen structure and states and explains its character, hierarchy, density, color, typography, surfaces, icon or media treatment, motion approach, signature decisions, and explicit avoid list. Make every direction reviewable, then ask the human owner to:
+After the combined intake and any owner-supplied reference confirmation are resolved, use `frontend-design` and `design-reference-guide.md` to recommend exactly three materially different, product-specific style directions. Do not add a fourth. Find and inspect one current public reference for every direction; add a second only when it contributes a distinct useful mechanic. Include one contemporary/modern direction by default and a second only when preference, product constraints, and valid evidence support a materially different modern treatment. If the owner rejects modern or a product, platform, brand, or accessibility constraint makes it unsuitable, explain the exception rather than forcing it. Modern is an evidence-backed quality lane, not a fixed catalog entry or `modern-minimal` default.
+
+Base each recommendation on the Visual Preference Brief, valid Market Design Evidence Brief, inspected visual references, and frozen product constraints. For each direction, provide:
+
+- a versioned direction ID such as `VD-R1-01`, modernity classification, memorable style name, and one-sentence concept;
+- why it fits the owner's stated preferences;
+- the market basis when available, citing applicable `MR-*` and `S-*` IDs and clearly labeling every design inference;
+- one or two inspected `REF-*` visual sources with direct URL, retrieval date, evidence status, limitations, and observed mechanics;
+- proposed `RP-*` `Adopt / Adapt / Avoid` principles, each resolving to one or more of those inspected `REF-*` sources;
+- character, hierarchy, density, color roles, typography roles, surfaces, icon or media treatment, motion approach, and signature decisions;
+- the main tradeoff and an explicit avoid list.
+
+Do not call a direction market-supported when prior market research was skipped, blocked, missing, `UNVALIDATED`, or irrelevant. `MR-*`/`S-*` and `REF-*` are separate evidence lanes and cannot substitute for one another.
+
+The three directions use the same frozen structure and states. Make every direction reviewable, then ask the human owner to:
 
 - `Select` one direction;
 - `Reject` one or all directions;
 - `Mix` named parts of multiple directions into one consolidated direction for another review; or
 - `Check This` by providing a URL, screenshot, Figma view, named product, or brand reference.
 
-For `Check This`, apply the same Reference Image Checkpoint extraction and confirmation rules to the new reference, then return to the direction choice. Record what the user actually likes instead of treating the whole reference as approval. Generate a revised set of directions from the confirmed principles.
+For a partial `Reject`, record why and keep the remaining directions selectable; if replacements are requested, ask what should change and present a complete versioned set of exactly three rather than appending a fourth. For `Reject`-all, ask what did not fit, update the Visual Preference Brief and avoid list, then create a versioned new set of exactly three directions. For `Check This`, apply `design-reference-guide.md` to the new reference, return `Adopt / Adapt / Avoid`, and wait for confirmation before creating the versioned new set of exactly three. Record what the user actually likes instead of treating the whole reference as approval. For `Mix`, present one consolidated direction for review, but do not proceed to tokens until it is explicitly selected and its contributing principles are confirmed.
 
-If the user explicitly authorizes `frontend-design`, use it to render complete dependency-free HTML previews for the same representative screens and frozen constraints. No other approval implies approval for that skill. Preview HTML is optional; the direction decision is not. Fix tokens, primitives, components, and the registry only after the human explicitly selects the consolidated direction, or explicitly authorizes a provisional assumption.
+`product-design-builder` must load and use `frontend-design` to create the structural wireframes and every visual direction. Apply its purposeful hierarchy, differentiation, composition, responsive, typography, color, motion, and anti-generic-UI discipline while preserving the frozen product constraints. If `frontend-design` is unavailable, stop; do not use a fallback design path. Preview HTML remains optional and requires an explicit user request. When requested, render complete dependency-free HTML previews for the same representative screens and frozen constraints. Fix tokens, primitives, components, and the registry only after the human explicitly selects the consolidated direction, or explicitly authorizes a provisional assumption.
 
 Candidate and selected HTML are non-canonical design-stage evidence. Keep them outside the staged and published PRD package. They may explore typography, color, composition, texture, imagery, and motion, but they must not add product scope or silently change the canonical wireframes.
 
-The published design system records only the selected direction's short summary and implementation consequences. It does not preserve candidate directions or the full `Check This` analysis.
+The published design system records the selected direction ID, compact `MR-*`/`REF-*`/confirmed `RP-*` provenance, owner confirmation, short summary, and implementation consequences. It does not preserve candidate directions or the full reference analysis.
 
 If the visual pass exposes a structural problem, return a concise finding tied to the affected `UI-*` IDs. The parent or human product/design owner decides whether to make one bounded wireframe revision, preserves unaffected scope and IDs, and reruns the PRD quality checklist. Only then may the visual pass continue from the revised wireframe.
 

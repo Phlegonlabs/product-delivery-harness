@@ -20,12 +20,13 @@ The two files publish together. Edit structured fields in JSON, then run `script
 |---|---|---|
 | PRD | <path> | product scope and requirements |
 | Wireframes | <path> | screen structure, content, actions, and states |
-| Selected direction / brand | <path, URL, or decision record> | approved visual input |
+| Selected direction / brand | <VD-* direction ID or decision record> | approved visual input |
 
 ## Selected Visual Direction
 
 - Status: <selected / provisional / assumed>
 - Decision owner: <human product/design owner>
+- Direction ID: <VD-R1-01 or consolidated direction ID>
 - Approval or assumption: <record>
 - Summary: <one paragraph describing the selected visual character and why it fits>
 
@@ -40,6 +41,15 @@ The two files publish together. Edit structured fields in JSON, then run `script
 | <specific implementation behavior> | <specific unsupported pattern> |
 
 Do not copy candidate directions or the full `Check This` analysis into this document.
+
+## Reference Influence
+
+- Market evidence: <applicable MR-* IDs, or `none — no valid market evidence for the visual decision`>
+- Visual references: <REF-* — direct URL or attachment label — inspected YYYY-MM-DD>
+- Confirmed principles: <RP-* — Adopt / Adapt / Avoid — implementation consequence>
+- Owner confirmation: <decision record and date>
+
+Keep this trace short. Do not embed source images, copied assets, or the full extraction history.
 
 ## Token Decisions
 

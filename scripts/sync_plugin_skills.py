@@ -19,6 +19,7 @@ SKILL_NAMES = (
     "fullstack-harness-engineering",
     "manage-cloudflare-worker-deployments",
     "prd-builder",
+    "product-design-builder",
 )
 
 
