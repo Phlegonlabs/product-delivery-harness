@@ -44,12 +44,12 @@ Record every canonical input and its status:
 ```text
 | Source | Path / URL | Content SHA-256 / immutable revision | Owner | Status | Notes |
 |---|---|---|---|---|---|
-| PRD | <path> | <hash or revision> | human / team | draft / frozen | <summary> |
+| PRD | <path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <summary> |
 | Builder UX direction | <PRD section, path, or URL> | <hash or revision> | human decision owner | selected / provisional / assumed | <direction and validation needs> |
-| Wireframe | <path or URL> | <hash or revision> | human / team | draft / frozen | <screens> |
-| Design system | <design-system.md path> | <hash or revision> | human / team | draft / frozen | <tokens, primitive layers, components, state matrix, guardrails> |
-| Design system (machine) | <design-system.json path> | <hash or revision> | human / team | draft / frozen | <the allowlist check_ui_contract.py reads; publishes with the Markdown> |
-| Architecture | <path> | <hash or revision> | Codex / team | draft / frozen | <contract surfaces> |
+| Wireframe | <path or URL> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <screens> |
+| Design system | <design-system.md path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <tokens, primitive layers, components, state matrix, guardrails> |
+| Design system (machine) | <design-system.json path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <the allowlist check_ui_contract.py reads; publishes with the Markdown> |
+| Architecture | <path> | <hash or revision> | Codex / team | draft / frozen / delta_accepted / revision staged | <contract surfaces> |
 | Stack decisions | <path> | <hash or revision> | human / team | required / selected / recommended / provisional | <resolved frontend, backend/data, mobile/desktop layers> |
 ```
 

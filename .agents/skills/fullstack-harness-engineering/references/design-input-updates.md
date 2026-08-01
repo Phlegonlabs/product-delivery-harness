@@ -23,6 +23,8 @@ A `frontend-design` result produced or requested during implementation is a prop
 7. Verify conformance and regression.
 ```
 
+**What "freeze" records.** Freezing is a manifest entry, not just a decision. Record the accepted delta on the affected source in the HARNESS_PLAN manifest: for a PLAN-v5 source, set `staged_revision` to the accepted revision. The source status moves to `frozen` or `delta_accepted`, and the binding fields (`location`, `content_sha256`, `source_revision`) update only once that revision is published to the canonical source location — then the PLAN revision and digest change too. A `staged_revision` alone is not an executable publication; a ready or executing RUN never points at a product staging path. See the HARNESS_PLAN template's source map for these fields.
+
 ## Input Types
 
 ```text

@@ -171,10 +171,9 @@ def _is_product_staging_location(value: Any) -> bool:
         return False
     normalized = value.replace("\\", "/").removeprefix("./").strip("/").lower()
     parts = normalized.split("/")
-    for staging_name in (".prd-staging", ".design-staging"):
-        for index in range(len(parts) - 2):
-            if parts[index : index + 3] == ["docs", "product", staging_name]:
-                return True
+    for index in range(len(parts) - 2):
+        if parts[index : index + 3] == ["docs", "product", ".prd-staging"]:
+            return True
     return False
 
 
@@ -219,9 +218,7 @@ def _scope_includes_product_design_source(
     normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
     parts = normalized.split("/")
     staging_index = next(
-        index
-        for index, part in enumerate(parts)
-        if part in {".prd-staging", ".design-staging"}
+        index for index, part in enumerate(parts) if part == ".prd-staging"
     )
     tree_scope = parts[-1] == "**"
     tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
