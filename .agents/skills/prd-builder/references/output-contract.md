@@ -1,21 +1,20 @@
 # Output Contract
 
-Produce a core multi-file Markdown PRD package. Stage and publish it according to `artifact-lifecycle.md`. The final package belongs under `docs/product/`. Use exactly these artifact names unless the user requests different names:
+Produce a core multi-file Markdown PRD package. Stage and publish it according to `artifact-lifecycle.md`. The final package belongs under `docs/product/`. Use exactly these core artifact names unless the user requests different names:
 
 - `docs/product/PRD.md`
 - `docs/product/architecture.md`
 - `docs/product/stack-decisions.md`
-- `docs/product/wireframes.md` for a UI-bearing product
 
-A product with no UI surface — a headless API or backend service, or an automation whose only surfaces belong to someone else's client — publishes no `wireframes.md`, `design-system.md`, or `design-system.json`, and records that skip in `PRD.md`. Never publish a placeholder wireframes file for a product with no screens.
+For a UI-bearing product, hand the staged core documents to `product-design-builder`. That separate skill must load `frontend-design` and return `wireframes.md`, `design-system.md`, and `design-system.json` as one validated set before whole-package publication. A product with no UI surface — a headless API or backend service, or an automation whose only surfaces belong to someone else's client — records the skip in `PRD.md` and publishes no placeholder design artifacts.
 
-This package covers the product spec and the design system. For a UI-bearing product it also publishes `design-system.md` and `design-system.json`, contracted below.
+This contract covers the product spec. It does not define or create wireframes, visual directions, tokens, components, or design-system rules. Those contracts belong only to `product-design-builder`.
 
 It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass is on by default for a non-trivial package; when the user declined it, no web tool was available, or the role returned blocked, the package publishes without the file and records the unvalidated market context in `PRD.md`'s `## Assumptions`. See `market-research-guide.md`.
 
-It stays out of the page layer. Do not add per-route recipes, per-route high-fidelity HTML mockups, a component catalog page, or page-level visual acceptance specs. The design system is defined once at the system level; implementation composes each route from `wireframes.md` plus the design system, and a route that needs something the system lacks comes back as a design-system change rather than a page-local exception.
+It stays out of the page and design layers. Do not add wireframe templates, visual-direction methods, token schemas, per-route recipes, high-fidelity HTML mockups, component catalogs, or page-level visual acceptance specs here.
 
-`PRD.md` is the canonical source for product scope. `wireframes.md` is the canonical source for screen structure, visible-region responsibility, actions, states, and flow. Every UI-bearing product passes the Visual Direction Gate in `wireframe-guide.md` after its structural wireframes are stable. The gate first offers a Reference Image Checkpoint and waits for provided images or an explicit skip. When images are provided, it extracts candidate design-system signals and confirms an `Adopt / Adapt / Avoid` interpretation with the human owner before generating directions. The gate then presents three product-specific directions by default or four when a real product tension justifies it, and supports select, reject, mix, and `Check This`. Optional `frontend-design` preview HTML remains non-canonical evidence outside this package. A visual direction cannot change scope or silently replace a wireframe; structural findings return to the PRD owner for a bounded wireframe revision and another quality-check pass.
+`PRD.md` is the canonical source for product scope and the Builder UX Direction Decision. The returned `wireframes.md` is the canonical source for screen structure, visible-region responsibility, actions, states, and flow. The returned design-system pair is the canonical visual implementation contract. Any design finding that changes product scope comes back to the PRD owner; `prd-builder` does not revise the design artifacts itself.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -28,13 +27,13 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `PRD.md` | Anyone deciding whether to build this | What is it, for whom, and what counts as done |
-| `wireframes.md` | A designer or frontend engineer | What each screen must show and do |
+| `wireframes.md` (returned by `product-design-builder`) | A designer or frontend engineer | What each screen must show and do |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
-| `design-system.md` + `design-system.json` | A designer or frontend engineer styling a screen | The binding visual contract — tokens, primitives, components, and states; read alongside `wireframes.md` |
+| `design-system.md` + `design-system.json` (returned by `product-design-builder`) | A designer or frontend engineer styling a screen | The binding visual contract — tokens, primitives, components, and states; read alongside `wireframes.md` |
 
-Reading order is `PRD.md` → `wireframes.md` → `architecture.md` → `stack-decisions.md`. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
+Core reading order is `PRD.md` → `architecture.md` → `stack-decisions.md`. When the design handoff exists, read `wireframes.md` and the design-system pair after `PRD.md`. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
 
 Two rules keep the package readable:
 
@@ -46,7 +45,6 @@ Length budget. These are targets, not caps — say less when the product is simp
 - `PRD.md`: about 200 lines. `## At a Glance` fits on one screen.
 - `architecture.md`: about 250 lines.
 - `stack-decisions.md`: about 150 lines.
-- `wireframes.md`: about 40 lines per screen, plus roughly 10 lines per visible region block.
 - `market-research.md`: about 150 lines. Findings and sources, not an industry report.
 
 When a section runs past its share, the usual cause is detail that belongs in a different artifact. Move it before expanding the file.
@@ -418,132 +416,11 @@ Use only when a layer cannot yet be decided.
 | --- | --- | --- | --- | --- | --- | --- |
 ```
 
-## `wireframes.md`
+## Product Design Handoff
 
-Use this structure:
+For a UI-bearing product, complete the market-research gap pass first, then pass the staged core documents, Builder UX Direction Decision, `market-research.md` and its `MR-*` evidence when produced, or the recorded skipped/blocked research status to `../product-design-builder/SKILL.md`. That skill owns the exact `wireframes.md`, `design-system.md`, and `design-system.json` contracts, requires `frontend-design`, asks the human owner once for style preferences and visual references, inspects current public references, recommends exactly three product-specific directions, preserves `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*`, and returns one reconciled design set to this package lifecycle. Pass a known reference use as `design inspiration` or `page-faithful target`; do not infer faithful-copy intent from a URL, screenshot, or Figma frame. Market-research URLs remain product evidence rather than visual references unless that skill separately inspects and records them; it claims market support only when valid `MR-*` evidence applies.
 
-````markdown
-# Wireframes: [Product Name]
-
-## Wireframe Direction
-- Fidelity: Low
-- Builder UX direction source: [PRD.md#builder-ux-direction-decision]
-- Decision status: [selected / provisional / assumed, with unresolved items]
-- Product visual inputs: [Known brand references, hard limits, disliked patterns, and product-specific visual goals]
-- Structural interpretation: [Hierarchy, spacing, density, grouping, imagery, and interaction-tone consequences]
-- Canonical structure: [This `wireframes.md`; downstream visual candidates cannot change scope, screen structure, actions, states, region responsibilities, or trace IDs]
-- Reference Image Checkpoint: [provided image labels / explicitly skipped; owner confirmation status; do not include the images or full extraction analysis]
-- Visual Direction Gate: [pending / selected / provisional; human owner; selected direction summary]
-- Optional frontend-design preview: [not requested / explicitly authorized for the same one or two representative UI IDs]
-- Visual layer: [After the Visual Direction Gate, final token and component names are reconciled into this file; their values and closed contracts live in `design-system.md` and `design-system.json`]
-
-## Navigation Model
-[Primary navigation, tabs, routes, or channels.]
-
-## User Flow
-```mermaid
-flowchart TD
-  A["Entry"] --> B["Core Action"]
-  B --> C["Success State"]
-```
-
-## Screen: [Name]
-
-Route(s): [Every route this screen serves, exactly as the product addresses it — `/settings/billing`, `/orders/:id`, a native route or deep-link name, or `n/a` with a reason for a screen with no addressable route]
-
-Main purpose: [Single primary goal, one sentence]
-
-Primary emphasis: [What gets the strongest weight, and why]
-
-Secondary / quiet: [What stays present but subordinate]
-
-Layout pattern: [Landing / workspace / dashboard / form or wizard / search or catalog / justified custom pattern] — chosen because: [one sentence tying the pattern to the main purpose]
-
-Density: [Sparse / balanced / dense, with a task or content reason]
-
-SEO: [public route: primary keyword, 1-2 secondary keywords, meta title ≤ 60 chars, meta description ≤ 160 chars — otherwise `n/a` with the reason]
-
-```text
-+------------------------------------------------+
-| Header                                         |
-+------------------------------------------------+
-| [Exact copy/data or DISPLAY: responsibility]  |
-|                                                |
-| [Exact primary action label]                   |
-+------------------------------------------------+
-```
-
-### States
-- Ready:
-- Loading:
-- Empty:
-- Error:
-- Disabled:
-- Permission denied:
-- Stale:
-- Expired:
-- Long content:
-- Reduced motion:
-- Mobile reflow:
-
-### Content, Style, Media & Motion Notes
-One block per visible region, in the order the region appears on screen.
-
-**UI-001-R01 — [Region]**
-- Content mode: [exact copy / display contract]
-- Exact wording or display contract: [Verbatim wording, or what to show + intended takeaway/action + source + constraints]
-- Content priority: [must-have / secondary / defer]
-- Style direction: [Visual job and hierarchy/comprehension purpose]
-- Element inventory: [one line per element: type, content ref, design-system component or `custom — reason`, type role]
-- Spacing: [above / below / padding / element gap as design-system spacing tokens; mobile only where it differs]
-- Image / media: [required / optional / none; purpose]
-- Motion: [required / optional / none; purpose]
-- Notes: [Status, fallback, or design handoff question]
-- Trace IDs: PRD-001, UX-001
-
-### Trace
-UI ID: UI-001
-
-Trace IDs: PRD-001, UX-001, ARCH-001
-````
-
-## `design-system.md` and `design-system.json`
-
-Publish both for a UI-bearing product; skip both for a product with no UI surface and record that decision. Follow `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json`, and read `references/design-system-guide.md` before drafting either.
-
-A UI-bearing product ships without the pair only when the user explicitly overrides the requirement — for example because implementation builds against a design system this package does not own. That is the only valid skip for a UI-bearing product; the drafter never decides it. `PRD.md`'s `## Assumptions` records who asked for the override, the reason, and what visual contract implementation uses instead.
-
-Draft the pair only after the structural wireframes pass and the human owner completes the Visual Direction Gate. Build a small frontend implementation contract that covers the real screens, then reconcile its final token, primitive, and component names back into the wireframes before publication.
-
-`design-system.md` owns the selected direction's short summary, computed ratios, concise implementation rationale, accessibility rules, and do/don't guardrails. It does not preserve candidate directions, reference-analysis notes, page recipes, design research, or governance essays. Its machine-contract block is generated and is not hand-edited.
-
-`design-system.json` is the sole structured authority and the only file downstream tooling parses. Required keys:
-
-| Key | Required | Contract |
-|---|---|---|
-| `schema` | yes | Literal `design-system/1`. |
-| `product`, `platform` | yes | Non-empty strings. `platform` is one of `web`, `ios`, `android`, `flutter`, `react-native`, `macos`, `windows`, or `desktop`. Any browser-surfaced product, including an internal tool with a browser frontend, uses the literal value `web`; `viewports` requires exactly `web`. |
-| `tokenSources` | yes | Non-empty list of paths. The only files where a raw color, dimension, or motion value may appear. Matched as path suffixes, so give enough of the path to be unambiguous — `theme/vars.css`, not `vars.css`. |
-| `primitiveSources` | yes | List of paths whose job is defining control and surface selectors. May be empty when the product has no such file yet. Same suffix-matching rule. |
-| `viewports` **or** `sizeClasses` | exactly one | `viewports` is a non-empty list of unique positive numbers, for a web target only. `sizeClasses` is a non-empty list of unique non-empty strings, for a native or desktop target. Shipping both, neither, or an empty set is an error. |
-| `tokens` | yes | Object of token groups (`color`, `space`, `radius`, `fontSize`, `lineHeight`, `shadow`, `duration`, `easing`). Every value referenced anywhere in the product appears here. |
-| `primitives` | yes | Object keyed by primitive name. Each value has a `layer` of `layout`, `surface`, `typography`, or `control`, an optional `class` when the base class differs from the kebab-cased name, and one list per variant axis. Every variant list is a closed set. |
-| `productComponents` | no | Object keyed by component name, each with `dsId`, `requiredContentOrder`, `composes`, and `states`. |
-| `motionVariants` | no | List of named motion variants a call site may reference. |
-| `stateMatrix` | yes | The states every screen must cover or explicitly mark `n/a`. |
-
-`requiredContentOrder` is the ordered list of content fields a product component must render, in the order it renders them. Every field on it is a **never-drop field**: implementation may not reorder the list, drop a field at a narrow viewport or size class, hide one behind a truncation rule, or omit one in a denser variant. A field that may legitimately disappear does not belong on the list. `fullstack-harness-engineering`'s Content contract conformance gate checks the built component against this list, so a component published without the key fails pair validation. The generated Markdown contract reproduces the ordered list exactly.
-
-The two files must agree: neither may carry a token, primitive, variant, or state the other does not.
-
-### Design System Trace IDs
-
-| Family | Covers |
-|---|---|
-| `DS-*` | An implementation rule carried from the selected Visual Direction |
-| `DS-COMP-*` | A product component |
-
-Preserve these across revisions and never reuse a retired ID for a different meaning, exactly like `PRD-*` and `UI-*`.
+Do not duplicate its wireframe template, visual-direction method, token schema, primitive rules, component rules, or design validation checklist here. If the product has no shipped UI surface, record the reason in `PRD.md` and publish no placeholder design artifacts. A UI-bearing package may skip the handoff only under an explicit user override recorded in `PRD.md` with the replacement visual contract.
 
 ## Optional `implementation-plan.md`
 
@@ -605,12 +482,10 @@ Before archiving earlier documents or publishing the staged package, verify:
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
 - No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
-- Every screen block in `wireframes.md` leads with `Route(s):` and `Main purpose:` and carries its `UI ID` and trace IDs in the closing `### Trace` block, not ahead of the human-readable lines.
-- Every screen records `Route(s):` using the product's real addressing, or `n/a` with a reason. Every route named in `## Navigation Model` resolves to exactly one screen block, and no two screens claim the same route. Implementation resolves a route to its screen entry through this field, so an unlisted or ambiguous route blocks the build.
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. `wireframes.md` is present for a UI-bearing product; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. For a UI-bearing complete package, the validated three-file design set returned by `product-design-builder` is also present; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
@@ -629,31 +504,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every mobile/desktop layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
-Every `wireframes.md` and design-system check below applies only to a UI-bearing product. For a product with no UI surface, skip them and confirm instead that `PRD.md` records the skip and its reason.
-
-- `wireframes.md` includes ASCII wireframes and at least one Mermaid user flow.
-- `wireframes.md` identifies `PRD.md` as canonical for product scope and itself as canonical for screen structure, visible-region responsibility, actions, states, and flow.
-- Every UI-bearing package completed the product-specific Visual Direction Gate after structural wireframes passed. It offered the Reference Image Checkpoint in its own turn unless usable images were already attached, waited for provided images or an explicit skip, and recorded that outcome. Supplied images produced owner-confirmed `Adopt / Adapt / Avoid` principles before direction generation; their pixels were not copied into token values. The gate then presented three directions by default or four only when justified, supported select, reject, mix, and `Check This`, and recorded the human owner plus the selected or explicitly provisional direction.
-- Optional `frontend-design` preview HTML requires explicit authorization. No candidate or selected HTML is stored in the staged or published PRD package. Candidate directions never add scope or silently change the canonical wireframes; any structural finding returns to the PRD owner for a bounded wireframe revision and another checklist pass.
-- `wireframes.md` records brand references, visual hard limits, disliked patterns, and product-specific visual goals. It does not freeze a fixed style catalog or a `modern-minimal` default.
-- `wireframes.md` cites the Builder UX Direction Decision and preserves whether each controlling choice is selected, provisional, or assumed.
-- Every important screen names a layout pattern and density justified by its primary task and content shape.
-- Every important screen states a one-sentence main purpose, names its primary emphasis and secondary/quiet content, and ties its layout pattern to that purpose with a stated reason. A main purpose that could describe any screen in the product (for example "helps the user get things done") does not pass; it must be specific to this screen's job.
-- The screen's ASCII layout is drawn from the skeleton matching its stated layout pattern in `references/wireframe-guide.md`'s Layout Skeletons by Pattern, not the workspace skeleton reused by default for a landing, wizard, or search screen.
-- For a product with any public-facing marketing, landing, or SEO-relevant page, the exact copy on those screens has a clear headline/H1 and keyword-relevant (not stuffed) wording, a usable heading hierarchy, a meta-description-worthy summary, and descriptive non-generic alt text or `DISPLAY` contracts for images. This check does not apply to internal-tool, dashboard, or authenticated-only screens. Run it whether or not Dynamic Workflow's `seo-copy-verifier` role executed.
-- Every visible wireframe region contains either exact UI wording or a display contract covering what to show, the intended takeaway or action, the source, and relevant constraints. Generic placeholders do not pass validation.
-- Every visually important wireframe region names its style direction and purpose. Every animated region labels motion as required, optional, or none and states what it communicates.
-- ASCII boxes represent real grouping, interaction, state, or hierarchy. Repeated bordered panels with colored side rails or accent stripes are not implied without a named semantic or approved brand role.
-- Landing-page wireframes keep one clear value proposition and primary action in the first viewport, give each section one job, and defer secondary detail instead of copying the whole PRD into the page.
-- Relevant wireframes label image/media and motion as required, optional, or none with a stated purpose, while leaving visual treatment and detailed choreography to `design-system.md`.
-- For a UI-bearing product, `design-system.md` and `design-system.json` are both present. JSON is the sole structured authority; Markdown contains exactly one generated machine-contract block plus only the selected-direction summary, implementation rationale, computed evidence, accessibility rules, and do/don't guardrails. They are absent only when the user explicitly overrode the requirement and `PRD.md`'s `## Assumptions` records the requester, the reason, and the visual contract implementation uses instead. Refresh the block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`, then run `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled` and resolve every reported mismatch or placeholder before publishing.
-- Every product component in `design-system.json` carries non-empty `requiredContentOrder`, `composes`, and `states` arrays. The generated Markdown contract preserves their exact values and order.
-- `design-system.json` ships exactly one of `viewports` or `sizeClasses`, non-empty and unique, matching the resolved platform. A native or desktop target does not ship web pixel breakpoints.
-- `design-system.json` parses as JSON, declares `schema: "design-system/1"`, and its `tokenSources` are specific enough that no unrelated file shares the same path tail.
-- Every color pairing in `design-system.md` records a computed contrast ratio from `scripts/check_color_contrast.py`, and every type role records a computed line-height ratio from `scripts/check_type_scale.py`. Estimated or omitted ratios do not pass.
-- The design system records one selected or explicitly provisional direction, three to five implementation rules, and concrete do/don't guardrails. It does not contain rejected directions or the full `Check This` analysis.
-- Every primitive's variant lists are closed sets, and each primitive sits in exactly one of the four layers with no upward dependency.
-- The generated design-system contract covers every control and surface the wireframes actually use. Final wireframe inventories name the selected tokens, primitives, and components. An unresolved `custom — reason` flag or required page-local value blocks publication.
+For a UI-bearing product, the package includes the validated design set returned by `product-design-builder`, or `PRD.md` records the user's explicit override and replacement visual contract. The parent confirms that `product-design-builder` reported the mandatory `frontend-design` gate, one selected or explicitly provisional direction, a passing design-output checklist, and the exact staged paths. It does not reimplement the design checks here.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - The market-research gap pass either produced `market-research.md`, or the package records which reason skipped it — the user declined, no web search or fetch tool was available, the package is a trivial stub, or the role returned blocked. A silently missing pass does not validate.
 - When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.

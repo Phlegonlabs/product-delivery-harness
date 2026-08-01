@@ -1,12 +1,17 @@
 # Design Input Updates
 
-Use this reference when the user provides a new or updated PRD, wireframe, design system, screenshot, Figma/page UI reference, or page-specific UI target for either a new build or an existing app refinement.
+Use this reference when the user provides a new or updated PRD, wireframe, design system, design inspiration, or explicit page-faithful target for either a new build or an existing app refinement.
 
 ## Core Rule
 
-Treat design and product inputs as versioned contract sources, not informal inspiration. `design-system.md` and `design-system.json` are binding together, and implementation works from that pair plus the route's screen entry in `wireframes.md` — see `SKILL.md`'s UI Implementation Contract.
+Classify every visual source before planning or implementation:
 
-A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply its new visual direction, token, variant, component, motion pattern, or structure directly. Return it to `prd-builder`, normalize and freeze the accepted change, then resume against the revised design system.
+- **Design inspiration** is non-canonical evidence. It can influence implementation only after `product-design-builder` extracts owner-confirmed principles and freezes their consequences into `wireframes.md`, `design-system.md`, and `design-system.json`. A URL, screenshot, Figma frame, or market-research source is not implementation authority merely because it exists.
+- **Page-faithful target** is an explicit user requirement for visual conformance. Treat it as binding only after the user requests faithful matching and the readable source version, route, states, responsive scope, and acceptance tolerance are frozen. Preserve it as version-bound acceptance evidence; do not silently broaden one target to other routes.
+
+`design-system.md` and `design-system.json` are binding together, and implementation works from that pair plus the route's screen entry in `wireframes.md` — see `SKILL.md`'s UI Implementation Contract. `product-design-builder` must normalize either accepted source type into that frozen contract before code changes begin.
+
+A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply its new visual direction, token, variant, component, motion pattern, or structure directly. Return it to `product-design-builder`, normalize and freeze the accepted change, then resume against the revised design system.
 
 ```text
 1. Identify source type and version.
@@ -25,7 +30,8 @@ Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
 Updated Builder UX Direction: changed experience priority, guidance/control, density, interaction/layout, confirmation/recovery, validation depth, decision owner, or decision status
 Updated wireframe: screen structure, navigation, page regions, component hierarchy, state coverage
 Updated design system: tokens, typography, spacing, radius, color, added/removed primitives, changed closed variant sets, interaction states, motion variants, product components, content contracts, state matrix, responsive set
-Page UI reference: screenshot, Figma frame, mockup, handoff spec, per-page layout target
+Design inspiration: screenshot, image, Figma frame, website, named product, or visual reference used only for confirmed design principles
+Page-faithful target: version-bound screenshot, Figma frame, mockup, handoff spec, or page target the user explicitly requires the implementation to match
 Existing app baseline: current route behavior, screenshots, traces, metrics, source implementation
 ```
 
@@ -43,21 +49,22 @@ Rules:
 
 - A delta can add, modify, or explicitly remove behavior.
 - Superseded requirements must be recorded; do not silently drop existing behavior.
-- Page UI references must map to routes/screens and responsive breakpoints.
+- Design inspiration must return to `product-design-builder`; only its accepted, frozen `REF-*` / `RP-*` consequences may enter implementation.
+- Page-faithful targets must map to routes/screens, states, responsive breakpoints, source version, and acceptance tolerance.
 - Design-system deltas must map to affected components and variants.
 - A design-system delta must name every route that uses the changed entry. A delta that removes an entry must state what replaces it at each call site; an entry that disappears from `design-system.json` while a route still uses it is a break, not a cleanup.
 - `design-system.md` and `design-system.json` are binding sources, so a design-system delta is a contract change and must be frozen before implementation like any other. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
 - Builder UX Direction deltas must preserve their human owner and selected/provisional/assumed status, map to affected `UX-*`, `UI-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
-## Page UI Matrix
+## Page-Faithful Target Matrix
 
-Use this when the user provides different UI references for different pages. When the product has wireframes, their screen entries already carry this mapping — read it there instead of rebuilding the table.
+Use this only when the user explicitly provides page-faithful targets for different pages. Design inspiration never enters this matrix. When the product has wireframes, their screen entries already carry the accepted mapping — read it there instead of rebuilding the table.
 
 ```text
-| Page / route | UI source | Breakpoints | States | Components | Data source | Acceptance evidence |
-|---|---|---|---|---|---|---|
-| /dashboard | Figma frame <id> | mobile/tablet/desktop | loading/empty/error/ready | cards/table/filter | API-002 | screenshot + journey |
+| Page / route | UI source | Source version / hash | Breakpoints | States | Tolerance / allowed deviations | Components | Data source | Acceptance evidence |
+|---|---|---|---|---|---|---|---|---|
+| /dashboard | Figma frame <id> | <version or content hash> | mobile/tablet/desktop | loading/empty/error/ready | <named tolerance and allowed deviations> | cards/table/filter | API-002 | screenshot + journey |
 ```
 
 For a required UI surface, `screenshot + journey` means a retained screenshot for every listed breakpoint-by-state combination, plus journey/console/network evidence where applicable. Record the screenshot path, hash, and integration head in current RUN-v10 state. Older RUN-v9 UI evidence remains readable.
@@ -79,7 +86,7 @@ When the product has a design system, `design-system.json`'s `stateMatrix` is th
 
 ## New Build Flow
 
-For a new build with provided PRD, wireframe, design system, and page UI references:
+For a new build with provided PRD, wireframe, design system, and any explicit page-faithful targets:
 
 ```text
 M1 source intake and conflict resolution
@@ -97,7 +104,7 @@ M6 and M7 above are illustrative single lines, not a mandate to implement every 
 
 ## Existing App Refinement Flow
 
-For an existing app with updated PRD/wireframe/design system/page UI:
+For an existing app with an updated PRD, wireframe, design system, or page-faithful target:
 
 ```text
 M1 baseline current app and source map
@@ -122,8 +129,9 @@ Stop and ask when:
 
 - Updated PRD conflicts with updated wireframe.
 - Builder UX Direction conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
-- Updated design system conflicts with page UI mockups.
-- Page UI reference omits required states or breakpoints.
+- Updated design system conflicts with an explicit page-faithful target.
+- A page-faithful target omits required states, breakpoints, source version, or tolerance.
+- A design inspiration source is being treated as code-side authority without an accepted, frozen `product-design-builder` delta.
 - An in-scope route has no wireframe screen, or a route needs a token, primitive, variant, component, or motion variant that `design-system.json` does not list. Ask for the missing screen or design-system entry instead of improvising the route or passing a raw value at the call site.
 - The updated input can only be implemented by leaving the design system — for example a spacing value no token carries, or a control the primitives do not cover. The fix is a delta on the token or primitive, decided once by the design source, not a page-local exception.
 - A conformance-mode `frontend-design` pass proposes a value, variant, component, motion pattern, or page structure the frozen package does not contain. Record it as a delta and stop the implementation mission; do not treat the skill output as implicit design approval.
@@ -136,7 +144,7 @@ Stop and ask when:
 Design-input verification should include:
 
 - Trace coverage: every accepted delta has implementation and evidence.
-- Visual conformance: page/component matches accepted UI source within stated tolerance.
+- Visual conformance: when a page-faithful target exists, the page/component matches its frozen source, scope, and tolerance; inspiration alone creates no pixel-faithful claim.
 - State coverage: required states and breakpoints are checked.
 - Behavior conformance: PRD workflow and data/API behavior still pass.
 - Design-system conformance: tokens/components/variants follow the updated system.

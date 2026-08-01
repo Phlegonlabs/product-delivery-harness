@@ -1,31 +1,21 @@
 interface:
   display_name: "PRD Builder"
-  short_description: "Create PRDs, architecture, and wireframes"
+  short_description: "Create PRDs, architecture, and product decisions"
   default_prompt: >-
-    Use $prd-builder to turn this product idea into a complete PRD package with architecture, simple low-fidelity wireframes, and a sourced market-research gap pass.
-    Before drafting wireframes for a UI-bearing product, ask the human builder or product/design decision owner for a Builder UX Direction covering experience priority, guidance versus expert control, information density, preferred layout/interaction pattern, confirmation/recovery, and validation depth.
+    Use $prd-builder to turn this product idea into a buildable PRD package with measurable requirements, architecture, stack decisions, release targets, test obligations, and a sourced market-research gap pass.
+    For a UI-bearing product, ask the human product/design decision owner for a Builder UX Direction covering experience priority, guidance versus expert control, information density, preferred layout/interaction pattern, confirmation/recovery, and validation depth.
     Mark choices selected, provisional, or assumed, and state that builder preference is not usability proof.
-    Freeze screen purpose, structure, content responsibilities, actions, states, trace IDs, brand constraints, accessibility, platform, and performance limits.
-    Do not ask from a fixed high-fidelity style catalog or inject a default aesthetic.
-    After structural wireframes pass, run a product-specific Visual Direction Gate before fixing design-system tokens. First ask whether the human owner wants to provide reference images or screenshots, and wait for the attachments or an explicit skip before continuing unless usable images are already attached.
-    For supplied images, extract candidate design-system signals across hierarchy, density, palette roles, typography, spacing, surfaces, controls, components, icons or media, and motion; confirm an Adopt, Adapt, and Avoid interpretation with the owner before generating directions. Image pixels are not final token values, and the reference never authorizes copying protected artwork, branding, copy, or distinctive composition.
-    Then ask for remaining visual preferences, present three directions by default or four when a real product tension justifies it, and let the human owner select, reject, mix, or use Check This with a URL, screenshot, Figma view, named product, or brand reference. Optional frontend-design preview HTML requires explicit authorization and stays outside the package.
-    After selection, keep design-system.md and design-system.json as a small frontend implementation contract: selected-direction summary, tokens actually used, primitives and recurring product components, closed variants, responsive and state rules, accessibility, source paths, and concise do/don't guardrails.
-    Do not put candidate history, reference-analysis notes, page recipes, design research, component-showcase prose, or governance essays in the design system.
-    Mint stable PRD, ARCH, UI, UX, TEST, and MR trace IDs across the package.
-    After the package is drafted, run the market-research gap pass by default: one bounded read-only researcher checks the draft against the alternatives users have today, the table-stakes feature baseline, differentiation, pricing reference points, category benchmarks, and market-side risks, then returns market-research.md plus gap findings.
-    Every claim carries a source publisher, URL, and retrieval date, or it is recorded UNVALIDATED with what was searched. Never invent a competitor, price, funding figure, user count, or market size, and do not treat vendor marketing copy as verified capability.
-    The researcher reports; the parent applies findings, cites the supporting MR IDs, and raises anything that would widen scope with the user instead of acting on it.
-    Skip the pass only when the user declined it, no web tool is available, or the package is a trivial stub, and record which reason applied.
-    Keep an always-present measurable Non-Functional Requirements table after Functional Requirements and an always-present Test Obligations table after Open Questions.
-    Map every Must functional requirement and every applicable NFR to a required TEST row with upstream trace IDs and an observable expected signal; reuse those TEST IDs in an optional implementation plan, and preserve them during enhancements.
-    Keep task-fit layout patterns, KISS landing-page wireframes, exact UI wording or bounded display contracts for every visible region, explicit style/image/media/motion labels, restrained container use, and an explicit or recommended frontend stack when the product has a browser surface.
-    For every deployable web, API, mobile, or desktop surface, record a complete expected deployable-surface inventory with stable surface IDs and provider-neutral release targets with stable IDs and development/production stage.
-    Keep stable surface identity separate from stage-specific provider, allow providers to differ by stage, reject missing expected surfaces, and record each target's source policy as the exact branch or ref the release builds from, for example the pushed integration-branch head for development and the default-branch head after merge for production.
-    Record artifact kind, signing requirement, exact channel or track, submission, promotion, review or manual approval path, actual availability signal, rollout, and rollback or forward-fix.
-    Upload, submission, or approval is not availability. Native recovery may require rollout halt plus a signed forward-fix.
-    For deployable web, API, or hosted backend targets, resolve the deployment platform via AskUserQuestion unless the user or repository already names one, then record one codebase promoted through isolated Cloudflare, Vercel, AWS, self-hosted, or other development and production environments.
-    Local persistence or local-only auth can require backend analysis without a hosted deployable surface and must not trigger a deployment-platform decision.
+    Freeze product scope, routes, content responsibilities, actions, states, trace IDs, brand constraints, accessibility, platform, and performance limits as design inputs.
+    Do not create wireframes, visual directions, design tokens, or a design system in this skill.
+    Hand UI-bearing product inputs to $product-design-builder; it must load $frontend-design before design work and must stop when that dependency is unavailable.
+    Recommend one explicit frontend stack when the product has a browser surface.
+    Run the market-research gap pass by default unless the user declined it, no web tool is available, or the package is a trivial stub, and record the reason for any skip.
+    Every market claim carries a publisher, URL, and retrieval date, or is recorded UNVALIDATED; never invent a competitor, price, funding figure, user count, or market size.
+    Keep always-present measurable Non-Functional Requirements after Functional Requirements and stable Test Obligations after Open Questions.
+    Map every Must functional requirement and applicable NFR to a required TEST row with upstream trace IDs and an observable expected signal.
+    For every deployable web, API, mobile, or desktop surface, record a complete stable surface inventory and provider-neutral development and production release targets, including exact source ref, artifact, signing, channel, release path, availability signal, rollout, and rollback or forward-fix.
+    Upload, submission, or approval is not availability; production availability needs a serving or installable result, and native recovery may require a signed forward-fix.
+    Resolve the deployment platform via AskUserQuestion unless the user or repository already names it, including Cloudflare, Vercel, AWS, or self-hosted development and production targets.
     For a product with a backend, persistent data, or auth requirement, resolve the database category (Relational, Document, Key-value or cache only, or None) and auth strategy (Build custom, Managed third-party provider, Platform-native, or No auth needed) via AskUserQuestion unless the user or repository already names them.
     Then record service topology first: monolith versus named services and monorepo versus polyrepo, followed by backend runtime, database engine, and auth provider as separate layers.
     Validate in staging and never overwrite, move, or archive existing documents without exact user authorization.

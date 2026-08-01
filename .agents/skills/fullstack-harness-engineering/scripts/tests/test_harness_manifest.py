@@ -1233,6 +1233,46 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["required_skills"] = ["frontend-design", "feature-dev"]
         self.assertEqual(validate_plan(plan), [])
 
+    def test_product_design_builder_requires_frontend_design(self) -> None:
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = ["product-design-builder"]
+        self.assert_error_contains(plan, "frontend-design")
+
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = [
+            "product-design-builder",
+            "frontend-design",
+        ]
+        self.assertEqual(validate_plan(plan), [])
+
+        plan = valid_plan()
+        plan["missions"][0]["required_skills"] = ["frontend-design"]
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
+        plan = valid_plan()
+        design_scopes = [
+            "docs/product/wireframes.md",
+            "docs/product/design-system.md",
+            "docs/product/design-system.json",
+        ]
+        mission = plan["missions"][0]
+        mission["write_scope"] = design_scopes
+        mission["tasks"][0]["write_scope"] = [design_scopes[0]]
+        mission["tasks"][1]["write_scope"] = [design_scopes[1]]
+        for node in plan["graph"]["nodes"]:
+            review = node.get("review")
+            if isinstance(review, dict) and review.get("mission_ids") == ["M1"]:
+                review["scope"] = design_scopes
+
+        self.assert_error_contains(plan, "design-source write scope must include both")
+
+        mission["required_skills"] = ["product-design-builder", "frontend-design"]
+        self.assertEqual(validate_plan(plan), [])
+
+        mission["required_skills"] = ["frontend-design"]
+        self.assert_error_contains(plan, "design-source write scope must include both")
+
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = "frontend-design"

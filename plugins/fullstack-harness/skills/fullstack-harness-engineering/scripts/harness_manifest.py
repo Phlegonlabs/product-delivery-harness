@@ -94,6 +94,13 @@ from harness_ui_evidence import (
 )
 
 
+PRODUCT_DESIGN_SOURCE_PATHS = (
+    "docs/product/wireframes.md",
+    "docs/product/design-system.md",
+    "docs/product/design-system.json",
+)
+
+
 def _validated_sha_history(
     errors: list[str], path: str, value: Any
 ) -> set[str]:
@@ -503,7 +510,31 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
                 resource_map[resource["key"]] = resource["access"]
         if not isinstance(mission["worktree_eligible"], bool):
             _add(errors, f"{mission_path}.worktree_eligible", "must be boolean")
-        _strings(errors, f"{mission_path}.required_skills", mission["required_skills"])
+        required_skills = _strings(
+            errors,
+            f"{mission_path}.required_skills",
+            mission["required_skills"],
+        )
+        design_source_scope = any(
+            path_in_scopes(path, mission_write)
+            for path in PRODUCT_DESIGN_SOURCE_PATHS
+        )
+        design_skill_pair = {"product-design-builder", "frontend-design"}
+        if design_source_scope and not design_skill_pair.issubset(required_skills):
+            _add(
+                errors,
+                f"{mission_path}.required_skills",
+                "design-source write scope must include both 'product-design-builder' and 'frontend-design'",
+            )
+        elif (
+            "product-design-builder" in required_skills
+            and "frontend-design" not in required_skills
+        ):
+            _add(
+                errors,
+                f"{mission_path}.required_skills",
+                "must include 'frontend-design' when 'product-design-builder' is required",
+            )
         _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
         for verifier_group in ("worker_verifiers", "integration_verifiers"):
             values = mission[verifier_group]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Design Builder"
+  short_description: "Create wireframes and a frozen design system"
+  default_prompt: "Use $product-design-builder with $frontend-design to turn approved product inputs into wireframes, ask once for my style and visual references, inspect current public references for exactly three product-specific directions with one or two modern options when appropriate, and extract confirmed Adopt / Adapt / Avoid principles before freezing the design system."

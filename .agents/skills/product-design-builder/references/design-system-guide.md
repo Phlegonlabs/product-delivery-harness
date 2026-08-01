@@ -6,11 +6,12 @@ The design system exists so frontend implementation can follow one set of tokens
 
 ## Drafting Order
 
-1. Finish the PRD and structural wireframes.
-2. Run `wireframe-guide.md`'s Visual Direction Gate, including its Reference Image Checkpoint. When the owner supplies images, extract candidate design-system signals, confirm the `Adopt / Adapt / Avoid` interpretation with them, and use only those confirmed principles to form the directions. Do not fix token values or component styling until the human owner selects one consolidated direction, or explicitly authorizes a provisional assumption.
-3. Build `design-system.json` from the selected direction and the real controls, surfaces, repeated compositions, states, and responsive needs in the wireframes.
-4. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
-5. Reconcile the final token, primitive, and product-component names back into every wireframe element inventory and spacing declaration. An unresolved `custom — reason` flag blocks publication.
+1. Load `product-design-builder` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the design system through a fallback path.
+2. Finish the PRD and structural wireframes using the mandatory paired skills.
+3. Run `wireframe-guide.md`'s Visual Direction Gate and `design-reference-guide.md`. Use `frontend-design` to form every product-specific direction. Keep `MR-*`/`S-*` market evidence separate from inspected `REF-*` visual evidence, and use only owner-confirmed `RP-*` principles from owner-supplied or `Check This` sources. Do not fix token values or component styling until the human owner selects one consolidated direction and confirms its contributing principles, or explicitly authorizes a provisional assumption.
+4. Use `frontend-design` to translate the selected direction into `design-system.json` from the real controls, surfaces, repeated compositions, states, and responsive needs in the wireframes.
+5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
+6. Reconcile the final token, primitive, and product-component names back into every wireframe element inventory and spacing declaration. An unresolved `custom — reason` flag blocks publication.
 
 Publish the Markdown and JSON together.
 
@@ -29,6 +30,7 @@ Publish the Markdown and JSON together.
 `design-system.md` adds only:
 
 - a short selected-direction summary;
+- compact selected-direction provenance: applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation;
 - the reason behind token and component choices that are not self-evident;
 - computed color-contrast and type-scale evidence;
 - concise responsive, interaction, and accessibility rules; and
@@ -42,13 +44,16 @@ Record:
 
 - decision status: `selected`, `provisional`, or `assumed`;
 - the human decision owner;
-- the approved source or consolidated direction;
+- the selected or consolidated `VD-*` direction ID;
+- applicable `MR-*` market evidence, or an explicit statement that no valid market evidence supports the visual decision;
+- inspected `REF-*` sources with direct URL or attachment label and retrieval date;
+- confirmed `RP-*` `Adopt / Adapt / Avoid` principles and the owner's confirmation record;
 - one paragraph describing the visual character; and
 - three to five implementation consequences across hierarchy, density, typography, color, surfaces, icons or media, and motion.
 
 Keep only the selected result. Candidate directions and reference-analysis notes remain non-canonical design-stage evidence outside the package.
 
-Reference images influence the design system only through owner-confirmed `Adopt / Adapt / Avoid` principles in the selected direction. Sampled colors, measured spacing, inferred type sizes, and other screenshot pixels do not become final token values. Synthesize accessible, platform-fit tokens from the confirmed principles and validate them with the normal contrast, type-scale, responsive, and state checks.
+Visual references influence the design system only through confirmed `RP-*` `Adopt / Adapt / Avoid` principles in the selected direction. Sampled colors, measured spacing, inferred type sizes, and other screenshot pixels do not become final token values. Synthesize accessible, platform-fit tokens from the confirmed principles and validate them with the normal contrast, type-scale, responsive, and state checks.
 
 Builder approval proves direction conformance, not usability. Product requirements, representative-user evidence, platform convention, and accessibility outrank preference.
 
