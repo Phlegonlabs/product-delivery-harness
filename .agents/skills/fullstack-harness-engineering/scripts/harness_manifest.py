@@ -3167,6 +3167,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"{path}.nested_subagent_policy",
                     "must be omitted for flat dynamic-workflow orchestration",
                 )
+            if (
+                schema_version in {6, 7, 8, 9}
+                and worker["worker_runtime"] == "app_task"
+                and isinstance(runtime, dict)
+                and "nested_subagents" in runtime
+                and nested_policy is None
+            ):
+                _add(
+                    errors,
+                    f"{path}.nested_subagent_policy",
+                    "is required for app_task workers when runtime nested_subagents is recorded",
+                )
             if nested_policy is not None and _keys(
                 errors,
                 f"{path}.nested_subagent_policy",
@@ -3267,7 +3279,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "spawn_subagents",
                         worker["mission_id"],
                         f"worker:{worker['worker_id']}",
-                        require_exact_target=True,
+                        require_exact_target=(schema_version == 10),
                     ):
                         _add(
                             errors,

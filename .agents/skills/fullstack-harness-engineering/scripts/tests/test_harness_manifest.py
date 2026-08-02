@@ -2719,6 +2719,20 @@ class RunValidationTests(unittest.TestCase):
             "legacy RUN v6 keeps its previously valid enabled-role policy",
         )
 
+        legacy_scope["targets"] = ["*"]
+        self.assertEqual(
+            [],
+            validate_run(legacy_app_plan, legacy_app_run),
+            "legacy RUN v6 keeps wildcard nested spawn authorization compatibility",
+        )
+        legacy_scope["targets"] = ["worker:W1"]
+        del legacy_worker["nested_subagent_policy"]
+        self.assert_run_error_contains(
+            legacy_app_plan,
+            legacy_app_run,
+            "is required for app_task workers when runtime nested_subagents is recorded",
+        )
+
         del run["workers"][0]["nested_subagent_policy"]
         self.assertEqual(
             [],
