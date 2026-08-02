@@ -355,6 +355,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         # classification as a manifest field the schema would reject.
         self.assertIn("migration classification unset", contract)
         self.assertIn("not a manifest field", contract)
+        # The validator checks review coverage existence, not review.type
+        # fitness; type appropriateness must stay a judgment stop.
+        self.assertIn("without comparing `review.type` to the write scope", contract)
+        self.assertNotIn("as applicable) covering it", contract)
 
     def test_schema_v5_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")

@@ -191,6 +191,7 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Record that request in the Builder UX Direction decision", references)
         self.assertIn("confirmation pauses, and frozen structure still apply", references)
         self.assertIn("one direction per set instead of three", references)
+        self.assertIn("every count of three in this loop reads as one", references)
         self.assertIn("owner-requested lightweight direction pass", wireframes)
         self.assertIn("which the agent never proposes", wireframes)
         self.assertIn("one direction instead of three", wireframes)
