@@ -2745,6 +2745,17 @@ class RunValidationTests(unittest.TestCase):
             "completion_channel": "agent_result",
         }
 
+        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = ["*"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "requires matching spawn_subagents authorization",
+        )
+        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
+            "worker:W1"
+        ]
+        self.assertEqual([], validate_run(plan, run))
+
         run["authorizations"]["spawn_subagents"] = {
             "authorized": False,
             "source": None,

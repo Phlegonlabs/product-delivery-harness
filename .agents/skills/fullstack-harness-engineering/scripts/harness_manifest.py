@@ -3267,6 +3267,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "spawn_subagents",
                         worker["mission_id"],
                         f"worker:{worker['worker_id']}",
+                        require_exact_target=True,
                     ):
                         _add(
                             errors,
