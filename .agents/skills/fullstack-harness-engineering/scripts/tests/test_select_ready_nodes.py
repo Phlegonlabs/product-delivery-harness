@@ -1807,6 +1807,147 @@ class SelectReadyNodesTests(unittest.TestCase):
         }
         self.assertIn("over_budget", deferred["N-M2"])
 
+    def test_sequential_parent_selection_records_parent_worker_lifecycle(self) -> None:
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        digest = plan_digest(plan)
+        authorize_execution(run, ["M1"], plan=plan, digest=digest)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {
+                "available_worker_slots": 2,
+                "isolation_capacity": 2,
+                "completion_channel_available": True,
+            }
+        )
+        worktree_path = "C:/repo/worktrees/M1"
+        branch_ref = "refs/heads/codex/m1"
+        for action, target in (
+            ("create_local_worktrees", f"worktree:{worktree_path}"),
+            ("create_local_branches", f"branch:{branch_ref}"),
+            ("create_local_commits", f"branch:{branch_ref}"),
+        ):
+            authorize_action(run, action, ["M1"], ["*"])
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        directive = result["dispatchable_nodes"][0]
+        self.assertEqual("runtime_worker", next(node for node in plan["graph"]["nodes"] if node["id"] == "N-M1")["executor"])
+        self.assertEqual("run_parent", directive["launch_kind"])
+        self.assertEqual("parent", directive["worker_runtime"])
+        self.assertEqual("parent_managed_worktree", directive["workspace_mode"])
+        self.assertNotIn("spawn_subagents", directive["required_actions"])
+        self.assertFalse(run["authorizations"]["spawn_subagents"]["authorized"])
+
+        # A launch directive uses the broad action contract; once the parent
+        # allocates the worker, retain exact worktree and branch targets.
+        for action, target in (
+            ("create_local_worktrees", f"worktree:{worktree_path}"),
+            ("create_local_branches", f"branch:{branch_ref}"),
+            ("create_local_commits", f"branch:{branch_ref}"),
+        ):
+            authorize_action(run, action, ["M1"], [target])
+
+        worker_id = "W-M1"
+        lease_id = "LEASE-M1"
+        attempt_id = "ATT-M1-1"
+        run["mission_states"]["M1"].update(
+            {
+                "phase": "worker_running",
+                "lease_id": lease_id,
+                "lease_plan_revision": plan["revision"],
+                "lease_plan_digest_sha256": digest,
+                "worker_id": worker_id,
+                "base_sha": run["integration"]["batch_base_sha"],
+            }
+        )
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": attempt_id,
+                "last_outcome": None,
+                "bound_worker_id": worker_id,
+                "blockers": [],
+            }
+        )
+        run["workers"] = [
+            {
+                "worker_id": worker_id,
+                "mission_id": "M1",
+                "lease_id": lease_id,
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "batch_base_sha": run["integration"]["batch_base_sha"],
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "sequential_parent",
+                    "source": "host",
+                    "model": None,
+                    "reasoning_effort": None,
+                    "option_source": "provider_default",
+                },
+                "task_thread_id": None,
+                "worktree_path": worktree_path,
+                "branch_ref": branch_ref,
+                "report_path": None,
+                "phase": "worker_running",
+                "worker_head_sha": None,
+            }
+        ]
+        run["observed"]["git"]["worktrees"] = [
+            {
+                "path": worktree_path,
+                "branch_ref": branch_ref,
+                "head_sha": None,
+                "managed_by": "parent",
+                "dirty": False,
+            }
+        ]
+
+        self.assertEqual([], validate_run(plan, run))
+
+    def test_sequential_parent_shared_checkout_is_rejected_before_dispatch(self) -> None:
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        authorize_execution(run, ["M1"])
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "shared_checkout",
+                "completion_channel": "agent_result",
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+
+        with self.assertRaises(GraphSelectionError) as raised:
+            select_ready_nodes(plan, run)
+
+        self.assertIn(
+            "sequential_parent requires parent/parent_managed_worktree/agent_result",
+            str(raised.exception),
+        )
+
     def test_dependent_node_stays_deferred_until_its_edge_fires(self) -> None:
         plan = valid_graph_plan()
         plan["graph"]["nodes"][0]["executor"] = "harness_parent"

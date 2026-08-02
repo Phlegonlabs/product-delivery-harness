@@ -397,7 +397,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         },
         "runtime_capabilities": {
             "worker_runtime": "parent",
-            "workspace_mode": "shared_checkout",
+            "workspace_mode": "parent_managed_worktree",
             "completion_channel": "agent_result",
             "max_parallel_workers": 1,
             "runtime_adapter": {
@@ -1839,6 +1839,10 @@ class RunValidationTests(unittest.TestCase):
         root = SCRIPTS_DIR.parent
         plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
         run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        # The current v10 sequential-parent contract requires the parent-owned
+        # isolated worktree mode.  Keep this template-based regression focused
+        # on integration history rather than its legacy shared-checkout value.
+        run["runtime_capabilities"]["workspace_mode"] = "parent_managed_worktree"
         run["integration"]["integration_head_sha"] = SHA_A
         run["integration"]["prior_head_shas"] = [SHA_B, SHA_A]
 
@@ -2276,7 +2280,15 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "sequential_parent requires parent/shared_checkout or parent_managed_worktree/agent_result",
+            "sequential_parent requires parent/parent_managed_worktree/agent_result",
+        )
+
+        run["runtime_capabilities"]["completion_channel"] = "agent_result"
+        run["runtime_capabilities"]["workspace_mode"] = "shared_checkout"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "sequential_parent requires parent/parent_managed_worktree/agent_result",
         )
 
     def test_schema_v6_rejects_malformed_runtime_adapter_without_crashing(self) -> None:
