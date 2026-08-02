@@ -120,11 +120,11 @@ flowchart TB
 
 - Codex host 只載入 `fullstack-harness-codex`，也只執行 `codex` provider 的 PLAN 節點。
 - Claude Code host 只載入 `fullstack-harness-claude-code`，也只執行 `claude_code` provider 的 PLAN 節點。
-- 兩個轉接器都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被回報為因 provider 不符而受阻，留給由對應轉接器主持的執行去處理。
+- 兩個轉接器都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
 
 共用的 script、schema、參考文件與範本仍放在 `fullstack-harness-engineering` 底下；轉接器只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡。
 
-一次執行只有一個 active host。same-repository handoff 只有在 Host A 關閉 wave、且沒有 active 或 proposed wave 後才允許：Host B 保留 PLAN/RUN 與 graph state，重新探測 runtime，並在選取下一波前審查目前的 exact SHA。若需要修復，路由回 Host A 且舊 review 立即失效；除非未來 schema 增加可攜式的儲存庫／狀態身分，否則不支援 cross-machine handoff。
+一次執行只有一個 active host。same-repository handoff 只有在 Host A 關閉 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 後才允許；`active_wave` 物件仍保留在 RUN 中，不能把物件缺失當成交接訊號：Host B 保留 PLAN/RUN 與 graph state，重新探測 runtime，並在選取下一波前審查目前的 exact SHA。若需要修復，路由回 Host A 且舊 review 立即失效；除非未來 schema 增加可攜式的儲存庫／狀態身分，否則不支援 cross-machine handoff。
 
 ## 圖引擎與 Dynamic Workflow
 
@@ -141,11 +141,11 @@ Claude Graph Workflow 會把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 - `mission_write` 要求 `EnterWorktree` 與 mission 的有界寫入契約。
 - `code_review_readonly` 要求精確路徑審查與唯讀結果佐證；它不會移除繼承的工具。
-- `visual_review_readonly` 使用精確的讀取/搜尋允許清單，審查保留下來的截圖或其他既有佐證。任何新的瀏覽器工具都必須先審核並加入設定檔，才能使用。
+- `visual_review_readonly` 使用 host 繼承的工具審查保留下來的截圖或其他既有佐證；新增瀏覽器存取必須先審核並加入設定檔契約，才能使用。
 
 當 Claude Code 回傳真實的 Workflow 執行 ID 時，RUN 狀態可以保留 workflow/task ID、script digest、node group、圖/base 綁定、工具設定檔、狀態，以及可取得的度量。同一 session 內的續跑可以沿用該綁定；跨 session 的復原則從標準的 PLAN/RUN 狀態重新啟動一次新的 workflow 嘗試。
 
-圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Claude Code 不能把節點委派給 Codex，Codex 也不能把節點委派給 Claude Code；兩者之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被記錄為因 provider 不符而受阻，留給由對應轉接器主持的執行去處理。
+圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Claude Code 不能把節點委派給 Codex，Codex 也不能把節點委派給 Claude Code；兩者之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
 
 ## 安裝
 
@@ -281,7 +281,7 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 
 目標 repo 自己的 branch 規則優先。當 repo 未定義其他流程時，mission worktree 從目前預設分支的 SHA 開始，在綁定當前 head 的唯讀 review 通過後整合進這次執行自己的分支；當驗證過的分支推送完成，這次執行就結束了。把它合進預設分支是你自己的步驟。若有修正，必須對新 head 重新 review。
 
-每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要另一個 host 的 provider，會被回報為因 provider 不符而受阻，而不會在這裡執行。
+每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要另一個 host 的 provider，會被 deferred with `runtime_unavailable`，而不會在這裡執行。
 
 平行實作預設沒有固定的小上限；設定中的寫入 worker 上限刻意設得很高，實際的波次是由觀察到的 worker 名額、隔離容量，以及相依已就緒、無衝突的 frontier 大小來界定。每個 worker 都需要隔離的工作區、有界的寫入範圍、一個 verifier，以及明確的授權。Codex nested helpers 是可選的，但 parent/review graph 的 exact-head PASS 仍是強制閘門。Worktree 只有在選出就緒 frontier 之後才會配置。原生的 Claude mission 會進入分派給它的、由 parent 管理的 worktree。Worker 絕不編輯 parent 的 `PLAN.md` 或 `RUN.md`，也不推送、開 PR、合併、部署或移除 worktree。Parent 掌管整合以及每一個落地或生命週期動作。
 

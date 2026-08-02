@@ -120,11 +120,11 @@ flowchart TB
 
 - Codex 宿主只加载 `fullstack-harness-codex`，并且只执行 `codex` 提供方的 PLAN 节点。
 - Claude Code 宿主只加载 `fullstack-harness-claude-code`，并且只执行 `claude_code` 提供方的 PLAN 节点。
-- 两个适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被报告为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
+- 两个适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
 
 共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
 
-一次运行只有一个 active host。same-repository handoff 只有在 Host A 关闭 wave、且没有 active 或 proposed wave 后才允许：Host B 保留 PLAN/RUN 和 graph state，重新探测 runtime，并在选取下一波前审查当前 exact SHA。若需修复，路由回 Host A 且旧 review 立即失效；除非未来 schema 增加可携带的仓库/状态身份，否则不支持 cross-machine handoff。
+一次运行只有一个 active host。same-repository handoff 只有在 Host A 关闭 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 后才允许；`active_wave` 对象仍保留在 RUN 中，不能把对象缺失当作交接信号：Host B 保留 PLAN/RUN 和 graph state，重新探测 runtime，并在选取下一波前审查当前 exact SHA。若需修复，路由回 Host A 且旧 review 立即失效；除非未来 schema 增加可携带的仓库/状态身份，否则不支持 cross-machine handoff。
 
 ## 图工程与动态工作流
 
@@ -141,11 +141,11 @@ Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 - `mission_write` 要求 `EnterWorktree` 和 mission 的有界写入契约。
 - `code_review_readonly` 要求精确路径审查和只读结果证据；它不会移除继承的工具。
-- `visual_review_readonly` 使用精确的读取/搜索白名单，审查保留下来的截图或其他既有证据。任何新的浏览器工具都必须先经过审核并加入画像后才能使用。
+- `visual_review_readonly` 使用宿主继承的工具审查保留下来的截图或其他既有证据；新增浏览器访问必须先审核并加入画像契约后才能使用。
 
 当 Claude Code 返回真实的工作流运行 ID 时，RUN 状态可以保留工作流/任务 ID、脚本摘要、节点分组、图/基点绑定、工具画像、状态和可用指标。同会话续跑可以复用该绑定；跨会话恢复则从规范的 PLAN/RUN 状态开启一次新的工作流尝试。
 
-图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Claude Code 不能把节点委派给 Codex，Codex 也不能把节点委派给 Claude Code；两者之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被记录为“因提供方不匹配而阻塞”，留给由匹配适配器托管的运行去处理。
+图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Claude Code 不能把节点委派给 Codex，Codex 也不能把节点委派给 Claude Code；两者之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
 
 ## 安装
 
@@ -281,7 +281,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支；当验证过的分支推送完成，运行就结束了。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
 
-每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被报告为“因提供方不匹配而阻塞”，而不会在这里执行。
+每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
 
 并行实现默认没有一个小的固定上限；配置的写入工作节点上限设得足够高，实际的波宽转而由观察到的工作节点槽位、隔离容量，以及依赖已就绪、无冲突的前沿大小来限定。每个工作节点都需要一个隔离的工作区、一个有界的写入范围、一个验证器和明确的授权。Codex nested helpers 是可选的，但 parent/review graph 的 exact-head PASS 仍是强制闸门。工作树只在前沿选定之后才分配。原生 Claude 任务会进入分配给它的、父级托管的工作树。工作节点绝不编辑父级的 `PLAN.md` 或 `RUN.md`，也不推送、开 PR、合并、部署或删除工作树。集成以及每一个落地或生命周期动作都由父级负责。
 

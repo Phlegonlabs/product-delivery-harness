@@ -75,9 +75,11 @@ class ReadmeStructureTests(unittest.TestCase):
                     "same-repository",
                     "cross-machine",
                     "active host",
+                    "RUN.active_wave.status",
                     "Host A",
                     "Host B",
                     "exact SHA",
+                    "`runtime_unavailable`",
                     "homogeneous `tool_profile`",
                     "permission-level tool removal",
                 ):
@@ -85,6 +87,10 @@ class ReadmeStructureTests(unittest.TestCase):
                 self.assertRegex(content, r"(?i)(nested codex helpers|codex nested helpers)")
                 self.assertIn("exact-head PASS", content)
                 self.assertNotIn("omits write-capable tools", content)
+                self.assertNotIn("blocked on provider mismatch", content)
+                self.assertNotIn("allowlist", content.lower())
+                self.assertNotIn("白名单", content)
+                self.assertNotIn("允許清單", content)
 
 
 if __name__ == "__main__":

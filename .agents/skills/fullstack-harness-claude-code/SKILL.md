@@ -59,7 +59,7 @@ The workflow coordinates sibling mission agents and remains flat. Mission worker
 
 ## Serialized Same-Repository Host Handoff
 
-A host handoff is a serialized boundary in one repository, not an in-session bridge. Host A must close the active wave before handing off; Host B may start only when `active_wave` and any proposed wave are absent. Preserve the canonical PLAN/RUN and graph state, including `run_id`, `plan_id`, `plan_revision`, `plan_digest_sha256`, `graph_revision`, the integration branch, and the current exact head SHA. Do not reconstruct state from chat or an uncommitted patch.
+A host handoff is a serialized boundary in one repository, not an in-session bridge. Host A must close the active wave before handing off; Host B may start only when `RUN.active_wave.status` is neither `active` nor `proposed`. The `active_wave` object remains part of RUN; do not treat an absent object as proof that handoff is safe. Preserve the canonical PLAN/RUN and graph state, including `run_id`, `plan_id`, `plan_revision`, `plan_digest_sha256`, `graph_revision`, the integration branch, and the current exact head SHA. Do not reconstruct state from chat or an uncommitted patch.
 
 Host B re-probes the current Claude Code runtime and authorization surface, reopens the canonical state, and performs the required exact-head review before selecting a new wave. If that review returns `fix_required`, route the repair back to Host A's existing mission/worktree ownership; the old review is invalid as soon as the repair changes the head, and Host B must review the new exact SHA before continuing. There is no automatic cross-host invocation. Cross-machine handoff is unsupported until a future schema defines portable repository and state identity.
 

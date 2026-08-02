@@ -120,11 +120,11 @@ The shared core owns the one PLAN/RUN control plane. Runtime-specific launch det
 
 - A Codex host loads only `fullstack-harness-codex` and executes only `codex`-provider PLAN nodes.
 - A Claude Code host loads only `fullstack-harness-claude-code` and executes only `claude_code`-provider PLAN nodes.
-- Neither adapter can invoke the other runtime. A ready node whose provider does not match the current host is reported blocked on provider mismatch and left for a run hosted by the matching adapter.
+- Neither adapter can invoke the other runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
 Shared scripts, schemas, references, and templates remain under `fullstack-harness-engineering`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
 
-One run has one active host. A same-repository handoff is allowed only after Host A closes its wave and no active or proposed wave remains: Host B preserves PLAN/RUN and graph state, re-probes its runtime, and reviews the current exact SHA before selecting the next wave. A repair routes back to Host A and invalidates the old review; cross-machine handoff is unsupported until a future schema adds portable repository/state identity.
+One run has one active host. A same-repository handoff is allowed only after Host A closes its wave and `RUN.active_wave.status` is neither `active` nor `proposed`; the `active_wave` object remains in RUN, so its absence is not a handoff signal. Host B preserves PLAN/RUN and graph state, re-probes its runtime, and reviews the current exact SHA before selecting the next wave. A repair routes back to Host A and invalidates the old review; cross-machine handoff is unsupported until a future schema adds portable repository/state identity.
 
 ## Graph engineering and Dynamic Workflows
 
@@ -141,11 +141,11 @@ Claude Graph Workflow batches a mixed frontier into one call per homogeneous `to
 
 - `mission_write` requires `EnterWorktree` and the mission's bounded write contract.
 - `code_review_readonly` requires exact-path review and read-only result evidence; it does not remove inherited tools.
-- `visual_review_readonly` uses the exact read/search allowlist and reviews retained screenshots or other existing evidence. New browser tools must be vetted and added to the profile before use.
+- `visual_review_readonly` reviews retained screenshots or other existing evidence with the inherited host tools; new browser access must be vetted and added to the profile contract before use.
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
-A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
+A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
 ## Install
 
@@ -281,7 +281,7 @@ On Codex, the preferred route is two-level: each selected mission opens a separa
 
 Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA, pass an exact-head read-only review before integration into the run's own branch, and the run ends when that verified branch is pushed. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
 
-Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
+Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is deferred with `runtime_unavailable` instead of being executed here.
 
 Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Nested Codex helpers are optional, but the parent/review graph's exact-head PASS remains mandatory. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
