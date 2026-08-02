@@ -89,9 +89,9 @@ Backend layers compose downward the same way UI layers do, so a task cannot be v
 Rules:
 
 - Every layer above traces to the `ARCH-*` contracts in `architecture.md` — the data model rows for layers 1-2, the API and interface contract rows for layer 3, the auth and permissions section for layer 4, the integrations table for layer 5. A backend task with no `ARCH-*` trace is scope drift.
-- Each `ARCH-*` trace needs a downstream task **and** a verification row. The manifest validator only enforces the task half, so the verification half is the planner's obligation at authoring time — an implemented-but-unverified contract still reaches closeout as an uncovered must-have.
+- Each `ARCH-*` trace needs a downstream task **and** a verification row. `harness_manifest.py` enforces both halves at plan validation — a planned trace whose every carrying task has an empty acceptance matrix fails — so author the verification row with the task instead of discovering the failure at validation time.
 - Auth enforcement lands with or after the contract it protects, never before it. An auth layer written against routes that do not exist yet cannot be verified, and the archetype mission lists in `platform-archetypes.md` are coarse mission groupings, not this task order.
-- A migration task states its classification (`additive` / `destructive`) when it is authored, not later. See `contract-and-traceability.md`'s Stop And Ask condition for a mission reaching integration with `migration_classification` unset.
+- A migration task states its classification (`additive` / `destructive`) when it is authored, not later. The classification is not a manifest field — state it in the task's objective or acceptance matrix. See `contract-and-traceability.md`'s Stop And Ask condition for a migration task reaching integration with its classification unset.
 - Each layer is one or more tasks, never one task spanning two layers — a task that adds a column and the endpoint reading it cannot fail the migration independently.
 - For an existing product, follow the repository's established layering when it differs; this order sequences the same layers for greenfield work.
 

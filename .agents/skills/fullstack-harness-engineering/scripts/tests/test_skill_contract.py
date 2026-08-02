@@ -335,14 +335,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             contract.index("### Validator-Enforced Stops"),
             contract.index("### Judgment Stops"),
         )
+        # Readiness/authorization stops are blocked by the wave selector, not
+        # the manifest validator; the section must name both tools.
+        self.assertIn("select_ready_nodes.py", contract)
+        self.assertIn("No script parses that table", contract)
         # The pair invariant is re-checked downstream, not only by the
         # authoring skill, and a hand-edited half-pair is a stop condition.
-        self.assertIn("check_design_system_pair.py --require-filled", contract)
+        # The command must be runnable (both required args) and read-only.
+        for content in (contract, verification):
+            self.assertIn(
+                "check_design_system_pair.py --markdown <design-system.md>"
+                " --registry <design-system.json> --require-filled",
+                content,
+            )
+            self.assertIn("--write", content)
         self.assertIn("Design-system pair check", verification)
-        self.assertIn("check_design_system_pair.py --require-filled", verification)
         # execution-task-decomposition.md points at this stop condition; keep
-        # the cross-reference from dangling again.
-        self.assertIn("`migration_classification` unset", contract)
+        # the cross-reference from dangling again, and never present the
+        # classification as a manifest field the schema would reject.
+        self.assertIn("migration classification unset", contract)
+        self.assertIn("not a manifest field", contract)
 
     def test_schema_v5_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")

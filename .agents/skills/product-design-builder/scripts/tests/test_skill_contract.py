@@ -189,9 +189,12 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("one direction with one inspected current public reference", references)
         self.assertIn("must not propose or initiate the reduction", references)
         self.assertIn("Record that request in the Builder UX Direction decision", references)
-        self.assertIn("every other rule in this guide still applies", references)
+        self.assertIn("confirmation pauses, and frozen structure still apply", references)
+        self.assertIn("one direction per set instead of three", references)
         self.assertIn("owner-requested lightweight direction pass", wireframes)
         self.assertIn("which the agent never proposes", wireframes)
+        self.assertIn("one direction instead of three", wireframes)
+        self.assertIn("one per set in an owner-requested lightweight pass", skill)
 
     def test_selection_and_reference_revision_keep_tokens_unfixed(self) -> None:
         skill = self.read("SKILL.md")
