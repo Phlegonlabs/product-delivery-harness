@@ -155,6 +155,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("require `spawn_subagents` authorization before the no-production-edit handshake", runbook)
         self.assertNotIn("or an explicitly run-wide `*` target", state)
 
+    def test_execution_intent_covers_route_subset_not_all_nine_actions(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertIn("covers only the subset that the selected route actually uses", state)
+        self.assertIn("outer v10 `app_threads` app-task route excludes `spawn_subagents`", state)
+        self.assertIn("enabled nested policy may request an exact `worker:<id>` grant only after worker allocation", state)
+        for content in (skill, state, runbook):
+            self.assertNotIn("covers all nine together", content)
+            self.assertNotIn("one execution-intent instruction covers all nine", content)
+
     def test_same_repository_host_handoff_is_serialized_and_exact_head_bound(self) -> None:
         state = self.read("references/execution-state-model.md")
         graph = self.read("references/graph-orchestration.md")
