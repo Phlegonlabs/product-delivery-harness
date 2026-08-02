@@ -43,7 +43,7 @@ PLAN owns static nodes, edges, outcomes, attempt limits, and runtime policy. RUN
 
 `System Review And Route` is a parent-only, read-only intake phase and is not a PLAN node or a RUN `graph_state` entry. Before creating PLAN/RUN, loading task-specific skills, selecting an adapter/model, probing worker capability, or launching a worker, the parent reads the request, repository policy, Git state, scope, and upstream inputs and records a direct-versus-plan-backed route. Small work stops on the direct parent path with no PLAN/RUN. Only a large route creates PLAN schema v5 and RUN schema v10 and then enters this typed graph.
 
-If the large route has no usable agent capability, the graph still runs as `sequential_parent`: the parent owns the mission loop and writes one mission at a time, with no worker identity and no `spawn_subagents` action. Prefer a parent-managed worktree; use a shared checkout only as an explicitly recorded one-writer fallback. Never model that parent loop as a fake `runtime_worker` or a delegated child.
+If the large route has no usable agent capability, the graph still runs as `sequential_parent` while each PLAN mission remains `executor: runtime_worker`. RUN records a parent-owned executor/worker binding solely for lease/state validation with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result`; this binding is not a delegated or spawned worker and requires no `spawn_subagents`. The parent writes one mission at a time in the required parent-managed worktree. If that worktree is unavailable or unauthorized, the route blocks rather than writing in `shared_checkout`; keep the mission on its existing runtime-worker executor.
 
 For current PLAN v5 typed graphs, use graph dependency edges as the only cross-mission ordering source. PLAN v4 uses the same graph rule. PLAN v2 and v3 retain the legacy `missions[].depends_on` DAG. Task dependencies remain flat, same-mission, and acyclic.
 
@@ -62,8 +62,8 @@ lifecycle     -> one authorization-ledger action owned by the parent
 Use these executors:
 
 ```text
-runtime_worker  -> Codex, Claude, or another observed worker provider
-harness_parent  -> serialized parent action
+runtime_worker  -> parent, Codex, Claude, or another observed worker provider
+harness_parent  -> serialized parent lifecycle/gate action (not a mission)
 local_command   -> deterministic verifier command
 external_system -> polling or event observation
 human           -> explicit approval or contract decision
