@@ -1,8 +1,10 @@
 # Run: <feature or product slice>
 
-Use this template as `docs/goal/RUN.md` only after the Project Size Gate classifies the work as large or the user explicitly requests managed planning. Small direct work does not instantiate this file. Keep mutable authorization, observed runtime facts, mission/task phases, wave selection, worker state, verification, blockers, and closeout here. Keep static plan definitions in `PLAN.md`.
+Use this template as `docs/goal/RUN.md` only after the parent-only, read-only `System Review And Route` classifies the work as large and routes it into the managed graph (or the user explicitly requests managed planning after that route). Small direct work does not instantiate this file. Keep mutable authorization, observed runtime facts, mission/task phases, wave selection, worker state, verification, blockers, and closeout here. Keep static plan definitions in `PLAN.md`.
 
-For compact large sequential work that intentionally has no `PLAN.md`, use the supported compact RUN-only schema described by `references/execution-state-model.md`; do not copy this PLAN-backed RUN schema v10 manifest and null its PLAN fields. Compact mode does not claim static plan or graph validation and cannot delegate writes, accept execution-time task refinement, or use a selector. Before crossing those boundaries, create and validate a PLAN schema v5 file and a fresh RUN schema v10 file from this template.
+All new managed work uses PLAN schema v5 plus RUN schema v10; do not author a compact RUN-only replacement or copy this manifest while nulling its PLAN fields. Legacy compact RUN-only files remain readable and validatable through the shared compatibility path for migration and closeout, but they cannot authorize new managed execution, enter the current graph, or be extended from this template. A large no-agent route is still PLAN/RUN-backed and uses real `sequential_parent` execution, with the parent as the sole writer and no worker spawn.
+
+The System Review And Route stage completes before this file exists. It is parent-only and read-only: no task-specific skill, adapter/model selection, worker preflight, PLAN/RUN creation, external runtime, or worker launch occurs during that stage.
 
 **Before the first selection, fill in what this template ships as `null`.** `observed.captured_at`, the four `observed.git` fields, and `integration.batch_base_sha` must come from a live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require them — a RUN that leaves them null still reports `PASS` — but `select_ready_nodes.py` will then return empty `dispatchable_nodes`, with every mission node in `deferred_nodes` under `parent_state_unreconciled` or `batch_base_missing`. Check those two keys, not `ready_frontier`: these are dispatch-time reasons, so the frontier can still list the nodes while none of them is launchable. Once `status` is `running`, the Resume Reconciliation Gate defers every node and `ready_frontier` empties as well. A green validator next to empty `dispatchable_nodes` is what an unfilled snapshot looks like, not a planning error.
 
@@ -44,7 +46,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
     },
     "runtime_capabilities": {
       "worker_runtime": "parent",
-      "workspace_mode": "shared_checkout",
+      "workspace_mode": "parent_managed_worktree",
       "completion_channel": "agent_result",
       "max_parallel_workers": 8,
       "runtime_adapter": {
@@ -320,6 +322,8 @@ See `references/execution-state-model.md`'s Runtime Capability Axes for the `wor
 
 When the selected driver is `dynamic_workflow`, use `subagent` + `parent_managed_worktree` + `agent_result`, omit `nested_subagents`, and treat the accepted wave as one flat workflow run. The parent allocates one worktree/branch/lease per mission, then invokes the Claude Code `Workflow` tool with `scriptPath` set to `assets/templates/CLAUDE_DYNAMIC_WORKFLOW.template.js` and the accepted directives supplied as structured `args`. Launch only after `spawn_subagents`, `create_local_worktrees`, `create_local_branches`, and `create_local_commits` cover the selected missions and allocated targets. A workflow cannot wait for human sign-off mid-run; return a refinement request and close the wave when a contract or authorization decision is needed.
 
+When the selected driver is `sequential_parent`, use `worker_runtime: parent` and `completion_channel: agent_result`. The parent executes one mission at a time in its parent-managed worktree (or an explicitly recorded one-writer shared-checkout fallback), keeps the same PLAN/RUN graph and exact-head review/integration gates, and does not request `spawn_subagents`, create a worker identity, or report a delegated launch. This is the required large no-agent path.
+
 `CLAUDE_DYNAMIC_WORKFLOW.template.js` only launches flat mission workers: it has no `node_kind`, no `tool_profile` validation, and no `EnterWorktree` call per node. A wave that mixes mission and review graph nodes, records a `tool_profile` (`mission_write`, `code_review_readonly`, `visual_review_readonly`), or needs each node instructed to call `EnterWorktree` before its own reads/writes must instead use `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js`, passing `tool_profile` and the typed `nodes[]` array (each with `node_kind: "mission"` or `"review"`) as structured `args`. Use the flat script only for single-role, all-mission waves with no read-only review nodes.
 
 Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_plan_digest_sha256`, `base_sha`, and `worker_id`. Each `workers` entry uses this exact shape:
@@ -543,7 +547,7 @@ If Goal mode is used, its prompt may record expected coordination and request au
 | Every mission's write scope is covered by a review-type node (`backend_code`/`frontend_code`/`visual`), independent of `landing.mode` | draft / PASS / BLOCKED / n/a | |
 | Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
 
-For plan-backed work, do not set the run to `running` until all required readiness rows pass, the plan revision/digest is current, `execution_authorized` is true, and every next action has its own authorization. In compact RUN-only mode, the parent may set `plan_readiness: "ready"` and `status: "running"` after the applicable sequential readiness checks pass and execution is explicitly authorized; keep plan identity null and do not claim plan validation, delegation, refinement, or wave selection.
+For plan-backed work, do not set the run to `running` until all required readiness rows pass, the plan revision/digest is current, `execution_authorized` is true, and every next action has its own authorization. Legacy compact RUN-only files may be read and validated for compatibility, but they are not a new authoring route: do not set a fresh run's plan identity to null or use compact state to claim current plan validation, delegation, refinement, or wave selection. Create PLAN-v5/RUN-v10 before managed execution; a large no-agent run remains `sequential_parent` inside that pair.
 
 ## Mission And Task View
 

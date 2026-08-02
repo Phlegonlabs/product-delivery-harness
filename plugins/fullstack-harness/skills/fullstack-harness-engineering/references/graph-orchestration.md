@@ -39,6 +39,12 @@ PLAN graph definition
 
 PLAN owns static nodes, edges, outcomes, attempt limits, and runtime policy. RUN owns node attempts, outcomes, edge traversals, runtime bindings, and evidence. Git and live runtime observations remain separate facts. Do not add another graph database or let a workflow script edit PLAN/RUN.
 
+## System Review And Route Precedes The Graph
+
+`System Review And Route` is a parent-only, read-only intake phase and is not a PLAN node or a RUN `graph_state` entry. Before creating PLAN/RUN, loading task-specific skills, selecting an adapter/model, probing worker capability, or launching a worker, the parent reads the request, repository policy, Git state, scope, and upstream inputs and records a direct-versus-plan-backed route. Small work stops on the direct parent path with no PLAN/RUN. Only a large route creates PLAN schema v5 and RUN schema v10 and then enters this typed graph.
+
+If the large route has no usable agent capability, the graph still runs as `sequential_parent`: the parent owns the mission loop and writes one mission at a time, with no worker identity and no `spawn_subagents` action. Prefer a parent-managed worktree; use a shared checkout only as an explicitly recorded one-writer fallback. Never model that parent loop as a fake `runtime_worker` or a delegated child.
+
 For current PLAN v5 typed graphs, use graph dependency edges as the only cross-mission ordering source. PLAN v4 uses the same graph rule. PLAN v2 and v3 retain the legacy `missions[].depends_on` DAG. Task dependencies remain flat, same-mission, and acyclic.
 
 ## Nodes And Executors
@@ -122,6 +128,12 @@ A route cycle is valid only when:
 Do not add an expression language. Put complex decisions in a verifier node and route on its declared outcome.
 
 Every `runtime_worker` or parent-executed mission declares at least one failure outcome: prefer `retryable_failure`, otherwise use `blocked`. The selector copies that permitted `failure_outcome` into the immutable workflow handoff so a null or failed agent never emits an outcome the PLAN forbids.
+
+## Serialized Same-Repository Host Handoff
+
+Host switching is serialized and same-repository only. It may occur only after the current `active_wave` is closed or superseded; an active wave, live lease, or unobserved writer blocks handoff. Preserve the existing PLAN/RUN manifests, revision/digest, graph state, mission/task evidence, and exact integration/worktree head SHA. The graph does not gain a host-handoff node or a second state store.
+
+Host B validates those preserved identities, re-probes its own runtime and permission snapshot, replaces Host A's observed `runtime_adapter`/capabilities with the fresh snapshot, and then runs the next graph-selected read-only review against the exact SHA. If that review returns `fix_required`, findings return to Host A's original mission/worktree. Any repair commit or other new head invalidates the old review and requires a fresh verifier and exact-head review before integration or another handoff. This is not an in-session bridge or automatic cross-host invocation; cross-machine handoff remains unsupported until a future schema supplies portable workspace identity and evidence transport.
 
 ## Readiness And Outcomes
 
