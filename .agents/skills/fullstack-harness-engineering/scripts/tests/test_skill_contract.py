@@ -107,18 +107,53 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("no `spawn_subagents`", skill)
         self.assertIn("no `spawn_subagents`", state)
         self.assertIn("parent-managed worktree", state)
-        self.assertIn("does not map to `subagent`, `app_task`, or `spawn_subagents`", orchestration)
+        self.assertIn("does not require `spawn_subagents`", orchestration)
+        self.assertIn("blocks when the required parent-managed worktree is unavailable or unauthorized", orchestration)
         self.assertIn("does not require `spawn_subagents`", selector)
         self.assertIn("required large no-agent path", runbook)
 
-    def test_sequential_parent_never_downgrades_to_delegated_shared_checkout(self) -> None:
+    def test_sequential_parent_records_parent_executor_binding_without_shared_fallback(self) -> None:
+        skill = self.read("SKILL.md")
         state = self.read("references/execution-state-model.md")
+        graph = self.read("references/graph-orchestration.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
 
-        self.assertIn("real `sequential_parent` route", state)
-        self.assertIn("Only when the parent-managed worktree is unavailable or unauthorized", state)
-        self.assertIn("one-parent-writer budget", state)
-        self.assertIn("never select `subagent` or another delegated worker to write in that shared checkout", state)
-        self.assertNotIn("normally `parent` or `subagent` with `shared_checkout`", state)
+        for content in (skill, state, graph, selector, runbook, goal):
+            self.assertIn("runtime_worker", content)
+            self.assertIn("parent-owned", content)
+            self.assertIn("parent_managed_worktree", content)
+            self.assertIn("agent_result", content)
+        self.assertIn("parent-owned executor/worker binding solely for lease/state validation", state)
+        self.assertIn("does not require `spawn_subagents`", selector)
+        self.assertIn("route blocks rather than writing in `shared_checkout`", skill)
+        self.assertNotIn("no worker identity", state.lower())
+        self.assertNotIn("no worker record", selector.lower())
+        self.assertNotIn("shared-checkout fallback", runbook.lower())
+        self.assertNotIn("harness_parent", graph[graph.index("If the large route"):graph.index("For current PLAN")])
+
+    def test_v10_nested_policy_is_optional_exact_after_allocation_and_legacy_compatible(self) -> None:
+        state = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (state, runbook, selector, orchestration, goal):
+            self.assertIn("does not require or preauthorize `spawn_subagents`", content)
+            self.assertIn("exact", content.lower())
+        self.assertIn("nested_subagent_policy` is optional", state)
+        self.assertIn("omitted policy or `enabled: false` means no nested launch", state)
+        self.assertIn("exact `worker:<id>` target", state)
+        self.assertIn("run-wide `*` target is not valid for a v10 nested launch", state)
+        self.assertIn("RUN v6 through v9 retain their legacy mandatory nested policy", state)
+        self.assertIn("RUN-v10 app-task nested policy is optional", runbook)
+        self.assertIn("Legacy RUN-v6/v7/v8/v9 app-task policies retain", runbook)
+        self.assertIn("a run-wide wildcard is not valid for v10", orchestration)
+        self.assertNotIn("app-task fan-out includes `spawn_subagents`", selector.lower())
+        self.assertNotIn("require `spawn_subagents` authorization before the no-production-edit handshake", runbook)
+        self.assertNotIn("or an explicitly run-wide `*` target", state)
 
     def test_same_repository_host_handoff_is_serialized_and_exact_head_bound(self) -> None:
         state = self.read("references/execution-state-model.md")
@@ -197,12 +232,14 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
         self.assertIn("select authorized ready nodes", agent)
 
-    def test_nontrivial_app_worker_must_use_nested_subagent(self) -> None:
+    def test_enabled_app_worker_uses_nested_reviewer_and_disabled_uses_parent_review(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
+        self.assertIn("An omitted or disabled v10 policy means no nested launch", worker_goal)
         self.assertIn("spawn at least one and at most `max_children` direct read-only subagents", worker_goal)
-        self.assertIn("A non-trivial mission must complete a post-edit read-only reviewer", runbook)
+        self.assertIn("RUN-v10 app-task nested policy is optional", runbook)
+        self.assertIn("A non-trivial mission with an enabled v10 policy must complete a post-edit read-only reviewer", runbook)
         self.assertIn("require an equivalent parent-owned read-only review before integration", runbook)
 
     def test_frontend_design_has_creation_and_conformance_modes(self) -> None:
