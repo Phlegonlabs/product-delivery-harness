@@ -111,6 +111,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not require `spawn_subagents`", selector)
         self.assertIn("required large no-agent path", runbook)
 
+    def test_sequential_parent_never_downgrades_to_delegated_shared_checkout(self) -> None:
+        state = self.read("references/execution-state-model.md")
+
+        self.assertIn("real `sequential_parent` route", state)
+        self.assertIn("Only when the parent-managed worktree is unavailable or unauthorized", state)
+        self.assertIn("one-parent-writer budget", state)
+        self.assertIn("never select `subagent` or another delegated worker to write in that shared checkout", state)
+        self.assertNotIn("normally `parent` or `subagent` with `shared_checkout`", state)
+
     def test_same_repository_host_handoff_is_serialized_and_exact_head_bound(self) -> None:
         state = self.read("references/execution-state-model.md")
         graph = self.read("references/graph-orchestration.md")
