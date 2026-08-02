@@ -9,7 +9,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
   "harness_plan": {
     "schema_version": 5,
     "plan_id": "PLAN-SYSTEM-FIRST-HARNESS",
-    "revision": 1,
+    "revision": 2,
     "objective": "Make Harness orchestration system-first, preserve exact-head review, and keep delegated workers optional while retaining current schema compatibility.",
     "max_parallel_workers": 8,
     "required_reviews": ["backend_code"],
@@ -100,7 +100,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
       {
         "id": "batch",
         "cwd": ".",
-        "argv": ["python", "scripts/sync_plugin_skills.py", "--check"],
+        "argv": ["python3", "scripts/sync_plugin_skills.py", "--check"],
         "pass_signal": "exit 0"
       }
     ],
@@ -108,7 +108,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
       {
         "id": "final",
         "cwd": ".",
-        "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-v"],
+        "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-v"],
         "pass_signal": "exit 0"
       }
     ],
@@ -326,10 +326,10 @@ This plan implements a parent-only system review stage, a real no-subagent path 
         "required_skills": [],
         "stop_conditions": ["Stop if the parent-only stage becomes a graph node or if legacy manifest validation is removed."],
         "worker_verifiers": [
-          {"id": "m1-contract", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
+          {"id": "m1-contract", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
         ],
         "integration_verifiers": [
-          {"id": "m1-integration", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
+          {"id": "m1-integration", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
         ],
         "tasks": [
           {
@@ -354,7 +354,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
               ".agents/skills/fullstack-harness-engineering/scripts/tests/test_skill_contract.py"
             ],
             "verifiers": [
-              {"id": "m1-t1-contract", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
+              {"id": "m1-t1-contract", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
             ]
           },
           {
@@ -383,7 +383,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
               ".agents/skills/fullstack-harness-engineering/scripts/tests/test_skill_contract.py"
             ],
             "verifiers": [
-              {"id": "m1-t2-contract", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
+              {"id": "m1-t2-contract", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_skill_contract.py", "-v"], "pass_signal": "exit 0"}
             ]
           }
         ]
@@ -409,11 +409,11 @@ This plan implements a parent-only system review stage, a real no-subagent path 
         "required_skills": [],
         "stop_conditions": ["Stop if sequential_parent can dispatch multiple write missions or if exact-head graph review can be bypassed."],
         "worker_verifiers": [
-          {"id": "m2-manifest", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_harness_manifest.py", "-v"], "pass_signal": "exit 0"},
-          {"id": "m2-selector", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_select_ready_nodes.py", "-v"], "pass_signal": "exit 0"}
+          {"id": "m2-manifest", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_harness_manifest.py", "-v"], "pass_signal": "exit 0"},
+          {"id": "m2-selector", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_select_ready_nodes.py", "-v"], "pass_signal": "exit 0"}
         ],
         "integration_verifiers": [
-          {"id": "m2-integration", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_harness_manifest.py", "-v"], "pass_signal": "exit 0"}
+          {"id": "m2-integration", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_harness_manifest.py", "-v"], "pass_signal": "exit 0"}
         ],
         "tasks": [
           {
@@ -437,7 +437,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
               ".agents/skills/fullstack-harness-engineering/scripts/tests/test_select_ready_nodes.py"
             ],
             "verifiers": [
-              {"id": "m2-t1-selector", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_select_ready_nodes.py", "-v"], "pass_signal": "exit 0"}
+              {"id": "m2-t1-selector", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_select_ready_nodes.py", "-v"], "pass_signal": "exit 0"}
             ]
           },
           {
@@ -461,7 +461,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
               ".agents/skills/fullstack-harness-engineering/scripts/tests/test_select_ready_nodes.py"
             ],
             "verifiers": [
-              {"id": "m2-t2-manifest", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_harness_manifest.py", "-v"], "pass_signal": "exit 0"}
+              {"id": "m2-t2-manifest", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_harness_manifest.py", "-v"], "pass_signal": "exit 0"}
             ]
           }
         ]
@@ -492,11 +492,11 @@ This plan implements a parent-only system review stage, a real no-subagent path 
         "required_skills": [],
         "stop_conditions": ["Stop if documentation claims an in-session cross-host bridge or permission-level tool removal."],
         "worker_verifiers": [
-          {"id": "m3-adapters", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_adapter_contract.py", "-v"], "pass_signal": "exit 0"},
-          {"id": "m3-readme", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_readme_structure.py", "-v"], "pass_signal": "exit 0"}
+          {"id": "m3-adapters", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_adapter_contract.py", "-v"], "pass_signal": "exit 0"},
+          {"id": "m3-readme", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_readme_structure.py", "-v"], "pass_signal": "exit 0"}
         ],
         "integration_verifiers": [
-          {"id": "m3-integration", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_adapter_contract.py", "-v"], "pass_signal": "exit 0"}
+          {"id": "m3-integration", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_adapter_contract.py", "-v"], "pass_signal": "exit 0"}
         ],
         "tasks": [
           {
@@ -521,7 +521,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
               ".agents/skills/fullstack-harness-engineering/scripts/tests/test_adapter_contract.py"
             ],
             "verifiers": [
-              {"id": "m3-t1-adapter", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_adapter_contract.py", "-v"], "pass_signal": "exit 0"}
+              {"id": "m3-t1-adapter", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_adapter_contract.py", "-v"], "pass_signal": "exit 0"}
             ]
           },
           {
@@ -545,7 +545,7 @@ This plan implements a parent-only system review stage, a real no-subagent path 
               "README.zh-TW.md"
             ],
             "verifiers": [
-              {"id": "m3-t2-readme", "cwd": ".", "argv": ["python", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_readme_structure.py", "-v"], "pass_signal": "exit 0"}
+              {"id": "m3-t2-readme", "cwd": ".", "argv": ["python3", "-m", "unittest", "discover", "-s", ".agents/skills/fullstack-harness-engineering/scripts/tests", "-p", "test_readme_structure.py", "-v"], "pass_signal": "exit 0"}
             ]
           }
         ]
