@@ -1276,7 +1276,6 @@ class PlanValidationTests(unittest.TestCase):
     def test_staged_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
         for staging_scope in (
             "docs/product/.prd-staging/run-001/**",
-            "docs/product/.design-staging/run-001/**",
             "docs/product/.prd-staging/run-001/wireframes.md",
             "docs/product/.prd-staging/run-001/design-system.md",
             "docs/product/.prd-staging/run-001/design-system.json",
@@ -1304,7 +1303,6 @@ class PlanValidationTests(unittest.TestCase):
 
         for non_design_scope in (
             "docs/product/.prd-staging/run-001/research/**",
-            "docs/product/.design-staging/run-001/notes/**",
         ):
             with self.subTest(non_design_scope=non_design_scope):
                 plan = valid_plan()

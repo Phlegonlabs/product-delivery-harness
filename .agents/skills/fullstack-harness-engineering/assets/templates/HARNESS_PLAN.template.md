@@ -434,13 +434,13 @@ On a greenfield repository, mission M1 scaffolds the workspace and every layer t
 
 | Source | Path / URL | Content SHA-256 / immutable revision | Status | Role / notes |
 |---|---|---|---|---|
-| Product requirements | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Product requirements | <path> | <hash or revision> | draft / frozen / delta_accepted / revision staged / missing / n/a | <notes> |
 | Builder UX Direction | <PRD section, path, or URL> | <hash or revision> | selected / provisional / assumed / conflicting / missing / n/a | <human owner, direction, validation need> |
-| Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
+| Architecture / API / data | <path> | <hash or revision> | draft / frozen / delta_accepted / revision staged / missing / n/a | <notes> |
 | Stack decisions (frontend, backend/data, mobile/desktop) | <path> | <hash or revision> | required / selected / recommended / provisional / missing / n/a | <resolved layers; a still-provisional layer is a stop condition> |
-| Wireframe / flow | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
-| Design system | <design-system.md path> | <hash or revision> | draft / frozen / missing / n/a | <tokens, primitive layers, components, state matrix, guardrails> |
-| Design system (machine) | <design-system.json path> | <hash or revision> | draft / frozen / missing / n/a | <the allowlist check_ui_contract.py reads; freezes with the Markdown> |
+| Wireframe / flow | <path> | <hash or revision> | draft / frozen / delta_accepted / revision staged / missing / n/a | <notes> |
+| Design system | <design-system.md path> | <hash or revision> | draft / frozen / delta_accepted / revision staged / missing / n/a | <tokens, primitive layers, components, state matrix, guardrails> |
+| Design system (machine) | <design-system.json path> | <hash or revision> | draft / frozen / delta_accepted / revision staged / missing / n/a | <the allowlist check_ui_contract.py reads; freezes with the Markdown> |
 | Existing app baseline | <path or URL> | <hash or revision> | captured / missing / n/a | <notes> |
 
 ## Delivery Context
