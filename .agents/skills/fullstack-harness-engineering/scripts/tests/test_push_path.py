@@ -32,10 +32,20 @@ def run_with_push(
     """A minimal RUN carrying one ordinary push grant."""
     if targets is None:
         targets = ["branch:refs/heads/codex/add-search"]
+    scope = {
+        "run_id": "RUN-1",
+        "mission_ids": ["M1"],
+        "targets": targets,
+        "plan_revision": 1,
+        "plan_digest_sha256": DIGEST,
+    }
+    if expires_when == "wave_closed":
+        scope.update({"wave_id": "B01", "batch_base_sha": SHA})
     return {
         "schema_version": 10,
         "run_id": "RUN-1",
         "status": status,
+        "closed_waves": [],
         "plan": {"revision": 1, "digest_sha256": DIGEST},
         "integration": {"branch": branch, "integration_head_sha": SHA},
         "landing": {
@@ -50,13 +60,7 @@ def run_with_push(
                 "source": "user: build it and push the branch",
                 "authorized_head_sha": SHA,
                 "expires_when": expires_when,
-                "scope": {
-                    "run_id": "RUN-1",
-                    "mission_ids": ["M1"],
-                    "targets": targets,
-                    "plan_revision": 1,
-                    "plan_digest_sha256": DIGEST,
-                },
+                "scope": scope,
             }
         },
     }
@@ -174,13 +178,13 @@ class MalformedScopeTests(unittest.TestCase):
     def test_null_active_wave_does_not_crash_a_wave_scoped_grant(self) -> None:
         """The key is present with a null value, which a get() default misses.
 
-        A null wave is not a closed wave, so the grant is still live. What
-        matters is that asking the question returns an answer instead of
-        raising AttributeError out of the validator.
+        A null wave has no current identity to which the grant can bind, so
+        the grant is refused. What matters is that asking the question returns
+        an answer instead of raising AttributeError out of the validator.
         """
         run = run_with_push(expires_when="wave_closed")
         run["active_wave"] = None
-        self.assertTrue(
+        self.assertFalse(
             authorization_covers(
                 run, "push", "M1", "branch:refs/heads/codex/add-search"
             )
@@ -197,7 +201,67 @@ class MalformedScopeTests(unittest.TestCase):
 
     def test_open_wave_still_covers_a_wave_scoped_grant(self) -> None:
         run = run_with_push(expires_when="wave_closed")
-        run["active_wave"] = {"status": "open"}
+        run["active_wave"] = {
+            "wave_id": "B01",
+            "status": "proposed",
+            "batch_base_sha": SHA,
+        }
+        self.assertTrue(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_wave_grant_does_not_replay_into_a_later_wave(self) -> None:
+        run = run_with_push(expires_when="wave_closed")
+        run["active_wave"] = {
+            "wave_id": "B01",
+            "status": "proposed",
+            "batch_base_sha": "c" * 40,
+        }
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+        run["active_wave"].update({"wave_id": "B02", "batch_base_sha": SHA})
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_closed_wave_pair_cannot_be_reopened_or_replayed(self) -> None:
+        run = run_with_push(expires_when="wave_closed")
+        run["active_wave"] = {
+            "wave_id": "B01",
+            "status": "proposed",
+            "batch_base_sha": SHA,
+        }
+        self.assertTrue(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+        run["closed_waves"].append({"wave_id": "B01", "batch_base_sha": SHA})
+        run["active_wave"]["status"] = "closed"
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+        # Re-proposing the same pair must not revive the old grant. A fresh
+        # base identity is a new wave and needs a renewed scope.
+        run["active_wave"]["status"] = "proposed"
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+        run["active_wave"]["batch_base_sha"] = "c" * 40
+        run["authorizations"]["push"]["scope"]["batch_base_sha"] = "c" * 40
         self.assertTrue(
             authorization_covers(
                 run, "push", "M1", "branch:refs/heads/codex/add-search"

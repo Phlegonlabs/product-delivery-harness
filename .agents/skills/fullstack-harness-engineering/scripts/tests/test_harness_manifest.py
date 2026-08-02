@@ -34,7 +34,7 @@ from harness_manifest import (  # noqa: E402
     validate_ui_evidence_files,
     validate_scope_claim,
 )
-from harness_authorization import authorization_covers  # noqa: E402
+from harness_authorization import authorization_covers, execution_covers  # noqa: E402
 from harness_schema import action_target_kind_allowed  # noqa: E402
 
 
@@ -397,7 +397,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         },
         "runtime_capabilities": {
             "worker_runtime": "parent",
-            "workspace_mode": "shared_checkout",
+            "workspace_mode": "parent_managed_worktree",
             "completion_channel": "agent_result",
             "max_parallel_workers": 1,
             "runtime_adapter": {
@@ -474,6 +474,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             "deferred_missions": [],
             "conflict_edges": [],
         },
+        "closed_waves": [],
         "workers": [],
         "review_workers": [],
         "attempt_log": [],
@@ -512,6 +513,42 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
     }
 
 
+def codex_capability_probe(
+    *,
+    app_threads: bool = False,
+    subagents: bool = False,
+    unobserved: set[str] | None = None,
+) -> dict[str, object]:
+    """Return a complete RUN-v10 Codex capability probe for focused tests."""
+    unobserved = unobserved or set()
+    app_capabilities = {
+        "app_project_list",
+        "app_thread_create",
+        "app_thread_read",
+        "app_thread_message",
+        "app_thread_wait",
+        "app_managed_worktree",
+    }
+    subagent_capabilities = {"direct_subagent_spawn", "direct_agent_result"}
+    return {
+        capability: {
+            "status": (
+                "unobserved"
+                if capability in unobserved
+                else "available"
+                if (
+                    app_threads and capability in app_capabilities
+                ) or (
+                    subagents and capability in subagent_capabilities
+                )
+                else "unavailable"
+            ),
+            "evidence": f"test observation: {capability}",
+        }
+        for capability in sorted(app_capabilities | subagent_capabilities)
+    }
+
+
 def legacy_run(plan: dict[str, object], schema_version: int) -> dict[str, object]:
     """Build a RUN whose body, not only version number, matches an old schema."""
     if schema_version not in {5, 6, 7, 8, 9}:
@@ -519,6 +556,7 @@ def legacy_run(plan: dict[str, object], schema_version: int) -> dict[str, object
     run = valid_run(valid_plan())
     digest = plan_digest(plan)
     run["schema_version"] = schema_version
+    run.pop("closed_waves")
     run["plan"] = {
         "id": plan["plan_id"],
         "revision": plan["revision"],
@@ -547,6 +585,7 @@ def legacy_graph_run(
         raise ValueError("legacy graph RUN requires PLAN v4 with RUN v8 or v9")
     run = valid_run(plan)
     run["schema_version"] = schema_version
+    run.pop("closed_waves")
     run.pop("verifier_executions")
     if schema_version == 8:
         run.pop("batch_gate_results")
@@ -1839,6 +1878,10 @@ class RunValidationTests(unittest.TestCase):
         root = SCRIPTS_DIR.parent
         plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
         run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+        # The current v10 sequential-parent contract requires the parent-owned
+        # isolated worktree mode.  Keep this template-based regression focused
+        # on integration history rather than its legacy shared-checkout value.
+        run["runtime_capabilities"]["workspace_mode"] = "parent_managed_worktree"
         run["integration"]["integration_head_sha"] = SHA_A
         run["integration"]["prior_head_shas"] = [SHA_B, SHA_A]
 
@@ -2254,6 +2297,153 @@ class RunValidationTests(unittest.TestCase):
             "dynamic_workflow requires claude_code subagent/parent_managed_worktree/agent_result",
         )
 
+    def test_sequential_parent_accepts_parent_managed_worktree(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+
+        run["runtime_capabilities"]["completion_channel"] = "thread_poll"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "sequential_parent requires parent/parent_managed_worktree/agent_result",
+        )
+
+        run["runtime_capabilities"]["completion_channel"] = "agent_result"
+        run["runtime_capabilities"]["workspace_mode"] = "shared_checkout"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "sequential_parent requires parent/parent_managed_worktree/agent_result",
+        )
+
+    def test_ready_observed_codex_requires_complete_capability_probe(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            detection_source="observed"
+        )
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "capability_snapshot_incomplete",
+        )
+
+        run["plan_readiness"] = "blocked"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "capability_snapshot_incomplete",
+        )
+
+        run["plan_readiness"] = "ready"
+        run["runtime_capabilities"]["runtime_adapter"]["capability_probe"] = (
+            codex_capability_probe(unobserved={"app_thread_create"})
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "capability_snapshot_incomplete",
+        )
+
+    def test_codex_probe_prevents_omitting_available_app_threads(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        adapter = run["runtime_capabilities"]["runtime_adapter"]
+        adapter.update(
+            available_drivers=["sequential_parent"],
+            detection_source="observed",
+            capability_probe=codex_capability_probe(app_threads=True),
+        )
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must exactly match capability_probe in provider priority order: app_threads, sequential_parent",
+        )
+
+    def test_codex_probe_rejects_malformed_status_without_crashing(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        probe = codex_capability_probe()
+        probe["app_thread_create"]["status"] = []
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            detection_source="observed",
+            capability_probe=probe,
+        )
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "app_thread_create.status: has an unsupported value",
+        )
+
+    def test_codex_probe_prevents_claiming_unavailable_app_threads(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            available_drivers=["app_threads", "sequential_parent"],
+            detection_source="observed",
+            capability_probe=codex_capability_probe(),
+        )
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must exactly match capability_probe in provider priority order: sequential_parent",
+        )
+
+    def test_complete_codex_probe_routes_app_threads_before_subagents(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            available_drivers=["app_threads", "subagents", "sequential_parent"],
+            detection_source="observed",
+            capability_probe=codex_capability_probe(
+                app_threads=True,
+                subagents=True,
+            ),
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+        self.assertEqual(
+            "app_threads",
+            route_runtime_driver(run["runtime_capabilities"]),
+        )
+
     def test_schema_v6_rejects_malformed_runtime_adapter_without_crashing(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 6)
@@ -2434,6 +2624,8 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(run=run, plan=plan, fragment="execution_authorization_source")
 
         run["execution_authorization_source"] = "user: explicit prompt"
+        run["status"] = "ready"
+        run["plan_readiness"] = "ready"
         run["execution_authorization_scope"] = {
             "run_id": "RUN-TEST",
             "plan_revision": plan["revision"],
@@ -2448,6 +2640,138 @@ class RunValidationTests(unittest.TestCase):
             "reason": None,
         }
         self.assertEqual(validate_run(plan, run), [])
+
+    def test_wave_execution_grant_is_bound_to_the_current_wave(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1"], status="running")
+        run["active_wave"].update(
+            {
+                "wave_id": "B01",
+                "status": "proposed",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        run["execution_authorization_scope"]["expires_when"] = "wave_closed"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.execution_authorization_scope: missing keys: batch_base_sha, wave_id",
+        )
+        run["execution_authorization_scope"].update(
+            {
+                "expires_when": "wave_closed",
+                "wave_id": "B01",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+        self.assertTrue(execution_covers(run, "M1"))
+
+        run["active_wave"]["wave_id"] = "B02"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "wave_closed scope must match the current active_wave wave_id and batch_base_sha and must not be listed in closed_waves",
+        )
+
+    def test_wave_execution_grant_cannot_replay_after_close_and_reopen(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1"], status="running")
+        run["active_wave"].update(
+            {
+                "wave_id": "B01",
+                "status": "proposed",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        run["execution_authorization_scope"].update(
+            {
+                "expires_when": "wave_closed",
+                "wave_id": "B01",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+        self.assertTrue(execution_covers(run, "M1"))
+
+        # Closing appends a durable tombstone. Re-proposing the same pair is
+        # invalid and the old execution grant remains unusable.
+        run["closed_waves"].append({"wave_id": "B01", "batch_base_sha": SHA_A})
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "proposed or active wave reuses a closed wave identity",
+        )
+        self.assertFalse(execution_covers(run, "M1"))
+
+        # A renewed base identity is a new wave and accepts a fresh scope.
+        run["active_wave"]["batch_base_sha"] = SHA_B
+        run["execution_authorization_scope"]["batch_base_sha"] = SHA_B
+        self.assertEqual(validate_run(plan, run), [])
+        self.assertTrue(execution_covers(run, "M1"))
+
+    def test_closed_wave_requires_identity_and_idle_keeps_the_tombstone(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["active_wave"].update(
+            {
+                "wave_id": None,
+                "status": "closed",
+                "batch_base_sha": None,
+            }
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "closed or superseded wave requires wave_id and batch_base_sha",
+        )
+
+        run["active_wave"].update(
+            {
+                "wave_id": "B01",
+                "status": "closed",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        run["closed_waves"].append({"wave_id": "B01", "batch_base_sha": SHA_A})
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["active_wave"].update(
+            {"wave_id": None, "status": "idle", "batch_base_sha": None}
+        )
+        self.assertEqual(validate_run(plan, run), [])
+        run["active_wave"].update(
+            {"wave_id": "B01", "status": "proposed", "batch_base_sha": SHA_A}
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "proposed or active wave reuses a closed wave identity",
+        )
+
+    def test_draft_run_cannot_authorize_execution(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run.update(
+            {
+                "execution_authorized": True,
+                "execution_authorization_source": "user: execute",
+                "execution_authorization_scope": {
+                    "run_id": run["run_id"],
+                    "plan_revision": run["plan"]["revision"],
+                    "plan_digest_sha256": run["plan"]["digest_sha256"],
+                    "mission_ids": ["M1"],
+                    "expires_when": "run_complete",
+                },
+            }
+        )
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "draft run cannot authorize execution; use ready or running",
+        )
 
 
 
@@ -2467,11 +2791,119 @@ class RunValidationTests(unittest.TestCase):
             "mission_ids": ["M1"],
             "targets": ["branch:codex/test"],
         }
+        run["active_wave"].update(
+            {
+                "wave_id": "B01",
+                "status": "proposed",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        entry["scope"].update({"wave_id": "B01", "batch_base_sha": SHA_A})
         entry["expires_when"] = "wave_closed"
         self.assertEqual(validate_run(plan, run), [])
 
         entry["scope"]["targets"] = ["untyped-target"]
         self.assert_run_error_contains(plan, run, "unsupported target 'untyped-target'")
+
+    def test_action_wave_grant_fails_after_closed_pair_is_reproposed(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        entry = run["authorizations"]["create_local_commits"]
+        entry.update(
+            {
+                "authorized": True,
+                "source": "user: explicit prompt",
+                "expires_when": "wave_closed",
+                "scope": {
+                    "run_id": run["run_id"],
+                    "plan_revision": plan["revision"],
+                    "plan_digest_sha256": plan_digest(plan),
+                    "mission_ids": ["M1"],
+                    "targets": ["branch:codex/test"],
+                    "wave_id": "B01",
+                    "batch_base_sha": SHA_A,
+                },
+            }
+        )
+        run["active_wave"].update(
+            {
+                "wave_id": "B01",
+                "status": "proposed",
+                "batch_base_sha": SHA_A,
+            }
+        )
+        self.assertEqual(validate_run(plan, run), [])
+        self.assertTrue(
+            authorization_covers(run, "create_local_commits", "M1", "branch:codex/test")
+        )
+
+        run["closed_waves"].append({"wave_id": "B01", "batch_base_sha": SHA_A})
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "proposed or active wave reuses a closed wave identity",
+        )
+        self.assertFalse(
+            authorization_covers(run, "create_local_commits", "M1", "branch:codex/test")
+        )
+
+    def test_malformed_closed_wave_history_fails_action_and_execution_coverage(self) -> None:
+        malformed_histories = [
+            [{}],
+            ["bad"],
+            [{"wave_id": "B01", "batch_base_sha": "not-a-sha"}],
+            [{"wave_id": "B01", "batch_base_sha": SHA_A, "extra": True}],
+            [
+                {"wave_id": "B01", "batch_base_sha": SHA_A},
+                {"wave_id": "B01", "batch_base_sha": SHA_A},
+            ],
+        ]
+        for history in malformed_histories:
+            with self.subTest(history=history):
+                plan = valid_plan()
+                run = valid_run(plan)
+                authorize_execution(run, ["M1"], status="running")
+                run["active_wave"].update(
+                    {
+                        "wave_id": "B01",
+                        "status": "proposed",
+                        "batch_base_sha": SHA_A,
+                    }
+                )
+                run["execution_authorization_scope"].update(
+                    {
+                        "expires_when": "wave_closed",
+                        "wave_id": "B01",
+                        "batch_base_sha": SHA_A,
+                    }
+                )
+                entry = run["authorizations"]["create_local_commits"]
+                entry.update(
+                    {
+                        "authorized": True,
+                        "source": "user: explicit prompt",
+                        "expires_when": "wave_closed",
+                        "scope": {
+                            "run_id": run["run_id"],
+                            "plan_revision": plan["revision"],
+                            "plan_digest_sha256": plan_digest(plan),
+                            "mission_ids": ["M1"],
+                            "targets": ["branch:codex/test"],
+                            "wave_id": "B01",
+                            "batch_base_sha": SHA_A,
+                        },
+                    }
+                )
+                run["closed_waves"] = history
+                self.assertFalse(execution_covers(run, "M1"))
+                self.assertFalse(
+                    authorization_covers(
+                        run,
+                        "create_local_commits",
+                        "M1",
+                        "branch:codex/test",
+                    )
+                )
 
     def test_run_schema_rejects_unknown_key(self) -> None:
         plan = valid_plan()
@@ -2552,6 +2984,10 @@ class RunValidationTests(unittest.TestCase):
                     "sequential_parent",
                 ],
                 "detection_source": "observed",
+                "capability_probe": codex_capability_probe(
+                    app_threads=True,
+                    subagents=True,
+                ),
             },
             "nested_subagents": {
                 "available": True,
@@ -2664,6 +3100,9 @@ class RunValidationTests(unittest.TestCase):
         legacy_app_run["runtime_capabilities"] = copy.deepcopy(
             run["runtime_capabilities"]
         )
+        legacy_app_run["runtime_capabilities"]["runtime_adapter"].pop(
+            "capability_probe"
+        )
         legacy_app_run["authorizations"]["spawn_subagents"] = copy.deepcopy(
             run["authorizations"]["spawn_subagents"]
         )
@@ -2694,11 +3133,37 @@ class RunValidationTests(unittest.TestCase):
             "legacy RUN v6 keeps its previously valid enabled-role policy",
         )
 
-        del run["workers"][0]["nested_subagent_policy"]
+        legacy_scope["targets"] = ["*"]
+        self.assertEqual(
+            [],
+            validate_run(legacy_app_plan, legacy_app_run),
+            "legacy RUN v6 keeps wildcard nested spawn authorization compatibility",
+        )
+        legacy_scope["targets"] = ["worker:W1"]
+        del legacy_worker["nested_subagent_policy"]
         self.assert_run_error_contains(
-            plan,
-            run,
+            legacy_app_plan,
+            legacy_app_run,
             "is required for app_task workers when runtime nested_subagents is recorded",
+        )
+
+        del run["workers"][0]["nested_subagent_policy"]
+        self.assertEqual(
+            [],
+            validate_run(plan, run),
+            "an omitted nested policy is the disabled app-task path",
+        )
+        run["workers"][0]["nested_subagent_policy"] = {
+            "enabled": False,
+            "max_children": 0,
+            "allowed_roles": [],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        }
+        self.assertEqual(
+            [],
+            validate_run(plan, run),
+            "an explicitly disabled nested policy needs no spawn grant",
         )
         run["workers"][0]["nested_subagent_policy"] = {
             "enabled": True,
@@ -2707,6 +3172,17 @@ class RunValidationTests(unittest.TestCase):
             "write_policy": "read_only",
             "completion_channel": "agent_result",
         }
+
+        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = ["*"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "requires matching spawn_subagents authorization",
+        )
+        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
+            "worker:W1"
+        ]
+        self.assertEqual([], validate_run(plan, run))
 
         run["authorizations"]["spawn_subagents"] = {
             "authorized": False,

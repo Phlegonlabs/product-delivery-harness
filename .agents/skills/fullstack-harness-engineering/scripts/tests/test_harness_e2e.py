@@ -24,6 +24,7 @@ if str(TESTS_DIR) not in sys.path:
 from manifest_fixtures import manifest_markdown  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_execution,
+    codex_capability_probe,
     legacy_plan,
     legacy_run,
     mark_legacy_complete,
@@ -192,6 +193,10 @@ class HarnessCliE2ETests(unittest.TestCase):
                         "sequential_parent",
                     ],
                     "detection_source": "observed",
+                    "capability_probe": codex_capability_probe(
+                        app_threads=True,
+                        subagents=True,
+                    ),
                 },
                 "nested_subagents": {
                     "available": True,
@@ -354,6 +359,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                 "provider": "codex",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
+                "capability_probe": codex_capability_probe(subagents=True),
             }
             run["observed"]["git"].update(
                 {

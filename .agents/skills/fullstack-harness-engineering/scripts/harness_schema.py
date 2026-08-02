@@ -99,6 +99,10 @@ def action_target_kind_description(action: str) -> str:
 
 
 EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
+# Only these lifecycle states may produce production dispatch directives. A
+# blocked/complete run can retain historical authorization, but must not be
+# resumed by a selector until its parent explicitly transitions it back.
+RUN_DISPATCH_STATUSES = {"ready", "running"}
 NESTED_SUBAGENT_ROLES = {"explorer", "researcher", "reviewer", "tester"}
 PERMISSION_SELECTED_MODES = {
     "ask_for_approval",
@@ -149,6 +153,31 @@ RUNTIME_DRIVERS = {
     "sequential_parent",
 }
 RUNTIME_DETECTION_SOURCES = {"observed", "explicit", "fallback"}
+CAPABILITY_PROBE_STATUSES = {"available", "unavailable", "unobserved"}
+CODEX_CAPABILITY_PROBE_KEYS = (
+    "app_project_list",
+    "app_thread_create",
+    "app_thread_read",
+    "app_thread_message",
+    "app_thread_wait",
+    "app_managed_worktree",
+    "direct_subagent_spawn",
+    "direct_agent_result",
+)
+CODEX_DRIVER_CAPABILITY_REQUIREMENTS = {
+    "app_threads": (
+        "app_project_list",
+        "app_thread_create",
+        "app_thread_read",
+        "app_thread_message",
+        "app_thread_wait",
+        "app_managed_worktree",
+    ),
+    "subagents": (
+        "direct_subagent_spawn",
+        "direct_agent_result",
+    ),
+}
 WORKFLOW_TOOL_PROFILES = {
     "mission_write",
     "code_review_readonly",

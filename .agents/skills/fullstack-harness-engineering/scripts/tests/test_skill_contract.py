@@ -54,6 +54,138 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Small direct work does not instantiate this file", runbook)
         self.assertIn("classify the project as small or large", agent)
 
+    def test_system_review_and_route_is_parent_only_before_managed_work(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        graph = self.read("references/graph-orchestration.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+
+        for content in (skill, state, graph, runbook, goal):
+            self.assertIn("System Review And Route", content)
+            self.assertIn("parent-only", content)
+            self.assertIn("read-only", content)
+        self.assertIn("before loading any task-specific skill", skill)
+        self.assertIn("does not create or edit `PLAN.md`, `RUN.md`", skill)
+        self.assertIn("does not load a task skill", state)
+        self.assertIn("is not a PLAN node", graph)
+        self.assertIn("The System Review And Route stage completes before this file exists", runbook)
+        self.assertIn("before this delegated handoff exists", worker)
+        self.assertLess(skill.index("### System Review And Route"), skill.index("## Adapter Routing"))
+        self.assertLess(skill.index("### System Review And Route"), skill.index("### 2. Plan Large Work"))
+
+    def test_new_managed_work_requires_plan_run_and_legacy_compact_is_read_only(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (skill, state, runbook, goal):
+            self.assertIn("PLAN schema v5", content)
+            self.assertIn("RUN schema v10", content)
+            self.assertIn("legacy compact run-only", content.lower())
+            self.assertIn("read", content.lower())
+        self.assertIn("New managed work never authors a compact RUN-only artifact", skill)
+        self.assertIn("cannot authorize new managed execution", state)
+        self.assertIn("not a new authoring route", runbook)
+        self.assertNotIn("compact large sequential work", runbook.lower())
+        self.assertNotIn("Planning depth: direct | compact RUN", skill)
+
+    def test_large_no_agent_route_is_real_parent_sequential_execution(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (skill, state, selector, orchestration, runbook, goal):
+            self.assertIn("sequential_parent", content)
+            self.assertIn("parent", content)
+            self.assertIn("one mission at a time", content)
+        self.assertIn("no `spawn_subagents`", skill)
+        self.assertIn("no `spawn_subagents`", state)
+        self.assertIn("parent-managed worktree", state)
+        self.assertIn("does not require `spawn_subagents`", orchestration)
+        self.assertIn("blocks when the required parent-managed worktree is unavailable or unauthorized", orchestration)
+        self.assertIn("does not require `spawn_subagents`", selector)
+        self.assertIn("required large no-agent path", runbook)
+
+    def test_sequential_parent_records_parent_executor_binding_without_shared_fallback(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        graph = self.read("references/graph-orchestration.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (skill, state, graph, selector, runbook, goal):
+            self.assertIn("runtime_worker", content)
+            self.assertIn("parent-owned", content)
+            self.assertIn("parent_managed_worktree", content)
+            self.assertIn("agent_result", content)
+        self.assertIn("parent-owned executor/worker binding solely for lease/state validation", state)
+        self.assertIn("does not require `spawn_subagents`", selector)
+        self.assertIn("route blocks rather than writing in `shared_checkout`", skill)
+        self.assertNotIn("no worker identity", state.lower())
+        self.assertNotIn("no worker record", selector.lower())
+        self.assertNotIn("shared-checkout fallback", runbook.lower())
+        self.assertNotIn("harness_parent", graph[graph.index("If the large route"):graph.index("For current PLAN")])
+
+    def test_v10_nested_policy_is_optional_exact_after_allocation_and_legacy_compatible(self) -> None:
+        state = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (state, runbook, selector, orchestration, goal):
+            self.assertIn("does not require or preauthorize `spawn_subagents`", content)
+            self.assertIn("exact", content.lower())
+        self.assertIn("nested_subagent_policy` is optional", state)
+        self.assertIn("omitted policy or `enabled: false` means no nested launch", state)
+        self.assertIn("exact `worker:<id>` target", state)
+        self.assertIn("run-wide `*` target is not valid for a v10 nested launch", state)
+        self.assertIn("RUN v6 through v9 retain their legacy mandatory nested policy", state)
+        self.assertIn("RUN-v10 app-task nested policy is optional", runbook)
+        self.assertIn("Legacy RUN-v6/v7/v8/v9 app-task policies retain", runbook)
+        self.assertIn("a run-wide wildcard is not valid for v10", orchestration)
+        self.assertNotIn("app-task fan-out includes `spawn_subagents`", selector.lower())
+        self.assertNotIn("require `spawn_subagents` authorization before the no-production-edit handshake", runbook)
+        self.assertNotIn("or an explicitly run-wide `*` target", state)
+
+    def test_execution_intent_covers_route_subset_not_all_nine_actions(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+
+        self.assertIn("covers only the subset that the selected route actually uses", state)
+        self.assertIn("outer v10 `app_threads` app-task route excludes `spawn_subagents`", state)
+        self.assertIn("enabled nested policy may request an exact `worker:<id>` grant only after worker allocation", state)
+        for content in (skill, state, runbook):
+            self.assertNotIn("covers all nine together", content)
+            self.assertNotIn("one execution-intent instruction covers all nine", content)
+
+    def test_same_repository_host_handoff_is_serialized_and_exact_head_bound(self) -> None:
+        state = self.read("references/execution-state-model.md")
+        graph = self.read("references/graph-orchestration.md")
+
+        for content in (state, graph):
+            self.assertIn("Serialized Same-Repository Host Handoff", content)
+            self.assertIn("only", content)
+            self.assertIn("active_wave", content)
+            self.assertIn("PLAN/RUN", content)
+            self.assertIn("exact", content.lower())
+            self.assertIn("Host B", content)
+            self.assertIn("re-probe", content)
+            self.assertIn("replaces", content)
+            self.assertIn("fix_required", content)
+            self.assertIn("new head invalidates", content)
+            self.assertIn("cross-machine handoff remains unsupported", content.lower())
+        self.assertIn("not an in-session bridge", state)
+        self.assertIn("not an in-session bridge", graph)
+
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -105,19 +237,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Default Runtime And Wave Policy", skill)
         self.assertIn("proactively inspect the current-session native tool surface", skill)
         self.assertIn("Missing authorization must never make an available driver disappear", skill)
+        self.assertIn("complete per-surface `capability_probe`", skill)
         self.assertIn("Do not cap `max_parallel_workers` at a small fixed number", skill)
         self.assertIn("default immediately after Plan Readiness", state)
+        self.assertIn("capability_snapshot_incomplete", state)
+        self.assertIn("capability_snapshot_incomplete", selector)
+        self.assertIn("full eight-entry `capability_probe`", orchestration)
+        self.assertIn("complete eight-entry `runtime_adapter.capability_probe`", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
         self.assertIn("select authorized ready nodes", agent)
 
-    def test_nontrivial_app_worker_must_use_nested_subagent(self) -> None:
+    def test_enabled_app_worker_uses_nested_reviewer_and_disabled_uses_parent_review(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
+        self.assertIn("An omitted or disabled v10 policy means no nested launch", worker_goal)
         self.assertIn("spawn at least one and at most `max_children` direct read-only subagents", worker_goal)
-        self.assertIn("A non-trivial mission must complete a post-edit read-only reviewer", runbook)
+        self.assertIn("RUN-v10 app-task nested policy is optional", runbook)
+        self.assertIn("A non-trivial mission with an enabled v10 policy must complete a post-edit read-only reviewer", runbook)
         self.assertIn("require an equivalent parent-owned read-only review before integration", runbook)
 
     def test_frontend_design_has_creation_and_conformance_modes(self) -> None:

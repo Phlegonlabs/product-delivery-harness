@@ -49,7 +49,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `architecture.md`, `stack-decisions.md`, `market-research.md` |
 | `product-design-builder` | Product wireframes, visual direction, and the design-system contract. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `wireframes.md`, `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
+| `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and optional task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
 | `manage-cloudflare-worker-deployments` | Automatic per-branch Cloudflare Worker previews, guarded cleanup, and optional manual production bootstrap | Installer, lifecycle script, tests, configuration, and GitHub Actions templates |
 
@@ -120,9 +120,11 @@ The shared core owns the one PLAN/RUN control plane. Runtime-specific launch det
 
 - A Codex host loads only `fullstack-harness-codex` and executes only `codex`-provider PLAN nodes.
 - A Claude Code host loads only `fullstack-harness-claude-code` and executes only `claude_code`-provider PLAN nodes.
-- Neither adapter can invoke the other runtime. A ready node whose provider does not match the current host is reported blocked on provider mismatch and left for a run hosted by the matching adapter.
+- Neither adapter can invoke the other runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
 Shared scripts, schemas, references, and templates remain under `fullstack-harness-engineering`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
+
+One run has one active host. A same-repository handoff is allowed only after Host A closes its wave and `RUN.active_wave.status` is neither `active` nor `proposed`; the `active_wave` object remains in RUN, so its absence is not a handoff signal. Host B preserves PLAN/RUN and graph state, re-probes its runtime, and reviews the current exact SHA before selecting the next wave. A repair routes back to Host A and invalidates the old review; cross-machine handoff is unsupported until a future schema adds portable repository/state identity.
 
 ## Graph engineering and Dynamic Workflows
 
@@ -135,15 +137,15 @@ Interviews and approvals stay outside running workflows because Claude Code Dyna
 
 For engineering, the Harness validates and selects the dependency-ready frontier before creating or requesting worktrees. Native Claude missions use parent-managed worktrees under `.claude/worktrees/`, bind every worker to the exact batch base, and require `EnterWorktree` before repository access. In every route, the parent validates the returned commit and actual Git diff, integrates accepted commits serially, and recomputes the graph frontier.
 
-Claude waves are separated by model, reasoning effort, and tool profile:
+Claude Graph Workflow batches a mixed frontier into one call per homogeneous `tool_profile`; model and reasoning effort may vary inside a group, but a call never mixes write missions with read-only reviews. A tool profile is a label and prompt/result contract, not permission-level tool removal.
 
-- `mission_write` includes `EnterWorktree` and bounded write tools.
-- `code_review_readonly` omits write-capable tools.
-- `visual_review_readonly` uses the exact read/search allowlist and reviews retained screenshots or other existing evidence. New browser tools must be vetted and added to the profile before use.
+- `mission_write` requires `EnterWorktree` and the mission's bounded write contract.
+- `code_review_readonly` requires exact-path review and read-only result evidence; it does not remove inherited tools.
+- `visual_review_readonly` reviews retained screenshots or other existing evidence with the inherited host tools; new browser access must be vetted and added to the profile contract before use.
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
-A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is recorded blocked on provider mismatch and left for a run hosted by the matching adapter.
+A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
 ## Install
 
@@ -171,6 +173,13 @@ Then open a new Codex task or reload Claude Code. Confirm the plugin is visible:
 codex plugin list
 claude plugin list
 ```
+
+### Zero-to-one flow
+
+1. Install one supported host (Codex or Claude Code) and this plugin, then use that host for the run.
+2. Start a fresh host session, confirm the plugin, and invoke `$fullstack-harness-engineering`.
+3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
+4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
 
 ### One-command updater
 
@@ -268,13 +277,13 @@ The Harness records the actual runtime capability instead of assuming one from a
 | Codex app (`fullstack-harness-codex`) | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
 | Claude Code (`fullstack-harness-claude-code`) | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
 
-On Codex, the preferred route is two-level: each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree, then that task runs its own bounded Multi-agent helpers. Coordinator-owned subagents do not replace those top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
+On Codex, the preferred route is two-level: each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree, then that task may run optional bounded Multi-agent helpers. Coordinator-owned subagents do not replace those top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
 Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA, pass an exact-head read-only review before integration into the run's own branch, and the run ends when that verified branch is pushed. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
 
-Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is reported blocked on provider mismatch instead of being executed here.
+Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is deferred with `runtime_unavailable` instead of being executed here.
 
-Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Nested Codex helpers are optional, but the parent/review graph's exact-head PASS remains mandatory. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 

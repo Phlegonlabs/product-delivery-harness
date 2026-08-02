@@ -10,6 +10,18 @@ export const meta = {
 
 const workflowArgs = typeof args === "string" ? JSON.parse(args) : args;
 
+if (!workflowArgs || workflowArgs.multi_agent_authorized !== true) {
+  throw new Error("prd-builder-graph requires explicit args.multi_agent_authorized=true");
+}
+if (workflowArgs.single_agent_only === true || workflowArgs.sequential_only === true) {
+  throw new Error("prd-builder-graph cannot run when single-agent or sequential-only execution is required");
+}
+for (const field of ["single_agent_only", "sequential_only"]) {
+  if (workflowArgs[field] !== undefined && typeof workflowArgs[field] !== "boolean") {
+    throw new Error(`prd-builder-graph requires boolean args.${field} when provided`);
+  }
+}
+
 for (const field of ["run_id", "product_name", "interview_summary"]) {
   if (!workflowArgs || typeof workflowArgs[field] !== "string" || !workflowArgs[field].trim()) {
     throw new Error(`prd-builder-graph requires non-empty args.${field}`);
@@ -225,6 +237,9 @@ const sourceContext = JSON.stringify({
   include_implementation_plan: workflowArgs.include_implementation_plan,
   has_public_marketing_content: workflowArgs.has_public_marketing_content,
   market_research: workflowArgs.market_research,
+  multi_agent_authorized: workflowArgs.multi_agent_authorized,
+  single_agent_only: workflowArgs.single_agent_only || false,
+  sequential_only: workflowArgs.sequential_only || false,
 });
 
 const roles = [

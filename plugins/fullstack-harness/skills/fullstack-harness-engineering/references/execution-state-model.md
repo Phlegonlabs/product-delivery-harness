@@ -2,6 +2,20 @@
 
 Use this reference for long, multi-mission, refined-task, or parallel execution. It defines which artifact owns each kind of state and prevents a worker result from being mistaken for an integrated result.
 
+## System Review And Route
+
+Before any PLAN/RUN artifact, task-specific skill, runtime adapter/model selection, worker preflight, or worker launch, the parent performs one bounded, read-only `System Review And Route`. It reads the user request, repository instructions, current Git state, requested scope, and available upstream product/design inputs, then records a route decision outside managed artifacts:
+
+```text
+Project size: small | large
+Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
+Route: direct | plan-backed graph
+```
+
+The stage is parent-only and cannot create or edit `PLAN.md`, `RUN.md`, `tasks.md`, evidence, branches, worktrees, or other managed state; it does not load a task skill, select a worker/model, invoke an external runtime, or spawn a worker. A small route remains direct and creates no PLAN/RUN. A large route creates the current PLAN schema v5 plus RUN schema v10 and only then enters graph readiness. The stage is not a graph node and must not be represented in `graph_state`.
+
+When no agent capability is available after routing, the large route remains plan-backed and selects `sequential_parent`: the PLAN mission remains `executor: runtime_worker`, while RUN records a parent-owned executor/worker binding solely for lease/state validation (`worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, `completion_channel: agent_result`). This binding is not a delegated or spawned worker and requires no `spawn_subagents`; the parent is the sole mission writer and executes one mission at a time. A parent-managed worktree is required; if it is unavailable or unauthorized, the route blocks rather than writing in `shared_checkout`.
+
 ## Three Authorities
 
 The harness has three distinct authorities. Do not merge them into one table or infer one from another.
@@ -16,7 +30,7 @@ The harness has three distinct authorities. Do not merge them into one table or 
 
 The parent is the only writer of `PLAN.md` and `RUN.md`. Workers return reports and evidence. The parent verifies those reports against observed facts before changing canonical state.
 
-Compact RUN-only work is a deliberately sequential exception: its RUN plan identity fields are `null` and it makes no validated scheduling claim. "Sequential" describes the mission cadence, not the workspace: default it to `subagent` + `parent_managed_worktree`, one mission worktree at a time from the resolved current integration SHA. Require one exact-head read-only review before parent integration, then merge the passing head into the resolved integration branch and run its integration gate. Use `parent` + `shared_checkout` only when worktree creation itself is unavailable or unauthorized. The parent may set compact `plan_readiness` to `ready` after the applicable human readiness checks pass, then set `status` to `running` only with explicit execution authorization.
+New managed work is never authored as compact RUN-only work. Legacy compact RUN-only manifests whose `plan` identity fields are `null` remain readable and validatable for migration and closeout compatibility, but they make no current scheduling claim and cannot authorize new managed execution or enter the PLAN-v5/RUN-v10 graph. When work continues, the parent creates a fresh PLAN schema v5 and RUN schema v10 pair after routing; it does not null the PLAN fields in the current runbook. “Sequential” for a current large run describes the mission cadence: keep the PLAN mission's `executor: runtime_worker`, record the parent-owned executor/worker binding in RUN solely for lease/state validation, and bind it to `worker_runtime: parent`, `parent_managed_worktree`, and `agent_result`. The binding is not a delegated or spawned worker, so no `spawn_subagents` grant is needed; the parent executes one mission at a time. Parent-managed worktrees are required, and an unavailable or unauthorized worktree blocks the route rather than permitting a `shared_checkout` write. Require one exact-head read-only review before parent integration, then merge the passing head into the resolved integration branch and run its integration gate.
 
 Use exact RUN lifecycle values:
 
@@ -194,7 +208,9 @@ delete_branches
 
 `invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization.
 
-Nine of these entries — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` restricted to the resolved integration branch — carry the ordinary development loop. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers all nine together in a single authorization request or checkpoint, recording its `source` under each entry, while the remaining three (`archive_worker_tasks`, `remove_worktrees`, `delete_branches`) and any `push` aimed outside that scope stay independent gates that each need their own authorization moment. Each of the nine still records its own `source`, and `push` still carries exact targets; grouping them only avoids manufacturing separate confirmation pauses.
+Nine possible entries — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` restricted to the resolved integration branch — carry the ordinary development loop. Per `SKILL.md`'s Execution Authorization Gate, one execution-intent instruction covers only the subset that the selected route actually uses, recording its `source` under each covered entry in a single authorization request or checkpoint. The outer v10 `app_threads` app-task route excludes `spawn_subagents` from that pre-allocation subset; an enabled nested policy may request an exact `worker:<id>` grant only after worker allocation, while an omitted or disabled policy launches no nested children. Direct subagent and Dynamic Workflow routes retain their existing `spawn_subagents` requirements, and RUN v6-v9 nested policies retain their mandatory wildcard-compatible legacy behavior. The remaining three (`archive_worker_tasks`, `remove_worktrees`, `delete_branches`) and any `push` aimed outside that scope stay independent gates that each need their own authorization moment. Each covered loop action still records its own `source`, and `push` still carries exact targets; grouping only avoids manufacturing separate confirmation pauses.
+
+For a large `sequential_parent` route, the parent executes the PLAN mission through its `executor: runtime_worker` node, not a delegated worker launcher: leave `spawn_subagents`, `create_user_owned_tasks`, and `create_app_managed_worktrees` unauthorized and unused. RUN records the parent-owned executor/worker binding solely for lease/state validation, with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result`; it is not a spawned worker. The route's parent-owned worktree/branch/commit/integration actions still require their own matching grants, and an unavailable or unauthorized parent-managed worktree blocks rather than downgrades to `shared_checkout`.
 
 One branch guard applies to `push`, and it is the whole guard: the push is refused when the requested target resolves to `main`, or when the run's own `integration.branch` resolves to `main`. It reads only those two values — no evidence field, no contract marker, no repository lookup.
 
@@ -228,7 +244,7 @@ That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest
 
 Targets use action-specific prefixes, and there are only five: `worker:`, `task:`, `worktree:`, `branch:`, and `runtime:`. The kind is part of the action's type, so every action accepts only its own kinds and this is always enforced — there is no per-artifact opt-in. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
 
-`wave_closed` is one-use authorization for the currently recorded wave. When that wave becomes `closed` or `superseded`, set every matching action entry back to `{ "authorized": false, "source": null }` and clear overall execution authorization when it used the same boundary before replacing `active_wave`. Never copy or revive a wave-scoped grant for a later wave; a new wave needs a newly recorded explicit source.
+`wave_closed` is one-use authorization for the currently recorded wave. Its scope must add the immutable `wave_id` and `batch_base_sha`, and both values must equal the current `active_wave` while that wave is `proposed` or `active`. When that wave becomes `closed` or `superseded`, append its `{ "wave_id", "batch_base_sha" }` pair to the v10 RUN's durable `closed_waves` list before replacing or re-proposing `active_wave`. Every matching action entry then returns to `{ "authorized": false, "source": null }`, and overall execution authorization is cleared when it used the same boundary. Never copy or revive a wave-scoped grant for a pair already in `closed_waves`; a new wave needs a newly recorded explicit source and a new identity/base pair. Legacy RUN schemas remain readable without this v10 history field.
 
 A `run_complete`-bounded authorization stays valid evidence at closeout even after its boundary expires — do not erase the record of what was authorized and done just because the run finished.
 
@@ -289,6 +305,25 @@ RUN v10 records observed host capabilities without replacing the three portable 
 
 `provider` is `codex`, `claude_code`, or `generic`. `detection_source` is `observed`, `explicit`, or `fallback`. `available_drivers` contains only capabilities proven in the current surface and always includes `sequential_parent`. The selector applies a fixed route: Codex uses `app_threads`, then `subagents`, then `sequential_parent`; Claude Code uses `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic uses `subagents`, then `sequential_parent`.
 
+RUN v10 adds an optional `runtime_adapter.capability_probe` that is valid only for an observed Codex adapter. It becomes required before such a run enters `ready` or `running`, even if another stale or malformed field still claims readiness is blocked:
+
+```json
+{
+  "capability_probe": {
+    "app_project_list": {"status": "available", "evidence": "tool:codex_app__list_projects"},
+    "app_thread_create": {"status": "available", "evidence": "tool:codex_app__create_thread"},
+    "app_thread_read": {"status": "available", "evidence": "tool:codex_app__read_thread"},
+    "app_thread_message": {"status": "available", "evidence": "tool:codex_app__send_message_to_thread"},
+    "app_thread_wait": {"status": "available", "evidence": "tool:codex_app__wait_threads"},
+    "app_managed_worktree": {"status": "available", "evidence": "create_thread supports a worktree target"},
+    "direct_subagent_spawn": {"status": "available", "evidence": "tool:spawn_agent"},
+    "direct_agent_result": {"status": "available", "evidence": "direct agent-result channel"}
+  }
+}
+```
+
+Every probe entry has exactly `status` and `evidence`; status is `available`, `unavailable`, or `unobserved`, and evidence is non-empty. Ready/running observed Codex execution rejects a missing probe or any `unobserved` entry with `capability_snapshot_incomplete`. All six `app_*` entries being available derives `app_threads`; both `direct_*` entries being available derives `subagents`; `sequential_parent` is always derived. `available_drivers` must equal those derived drivers in Codex priority order. Thus a parent cannot prove the app task/thread surface and then silently record only direct subagents or sequential execution. Blocked historical RUNs may remain readable without the probe, but they must re-probe before resuming.
+
 PLAN v5 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex and Claude Code, while generic providers keep it null. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`. The destination host still validates current model and effort support.
 
 When the parent allocates a PLAN-v5 graph worker in RUN v10, copy a mission binding into `workers[].runtime_binding` or a read-only verifier binding into `review_workers[].runtime_binding`, with provider, driver, source, model, reasoning effort, and option source. A review worker also records node/attempt identity, graph revision, review path, and exact reviewed SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null values through task creation. A Claude Code host passes each node's own model and non-null reasoning effort directly into that node's own `agent()` call inside the Workflow script; one wave may freely mix models and reasoning efforts across nodes since selection happens per spawned agent, not per wave. Never silently replace a rejected model or effort; replan the affected node and increment the PLAN revision.
@@ -297,9 +332,9 @@ For every plan-backed multi-mission run, capture this adapter before the first p
 
 Provider means the host session running the Harness, not every CLI installed on the machine. Observe current-session native tools first: Codex project/thread creation and polling for `app_threads`, Claude Code's `Workflow` tool and supported runtime for `dynamic_workflow`, and current-session child-agent tools for `subagents`. Use `explicit` only when the host surface is opaque; otherwise use `generic` + `fallback`. A binary or plugin version may confirm feature compatibility after provider detection, but it does not select the provider or authorize a launch.
 
-The chosen host driver must match the portable host axes. `app_threads` requires `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` requires `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use `subagent` with a supported shared or parent-managed workspace and direct result/report channel. `sequential_parent` requires `parent` + `shared_checkout` + `agent_result`.
+The chosen host driver must match the portable host axes. `app_threads` requires `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` requires `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use `subagent` with a supported shared or parent-managed workspace and direct result/report channel. `sequential_parent` requires `parent` + `parent_managed_worktree` + `agent_result`; parent-managed worktree creation is mandatory and an unavailable or unauthorized worktree blocks the route. It never implies a delegated or spawned worker.
 
-For a plan-backed graph, every mission node is a write mission and must bind to `parent_managed_worktree` or `app_managed_worktree`; the selector never rewrites `harness_parent` into a shared-checkout write with no required actions. `shared_checkout` is available only to explicitly read-only graph work such as verifier/review nodes. If a write node cannot obtain an eligible isolated worktree and its worktree/branch/commit authorizations, it remains deferred rather than silently downgrading.
+For a plan-backed graph, every mission node remains a write mission with PLAN `executor: runtime_worker` and must bind to `parent_managed_worktree` or `app_managed_worktree`. A `sequential_parent` mission binds the parent-owned RUN executor/worker record to one mission at a time with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation; it is not a delegated or spawned worker and needs no `spawn_subagents`. The selector never rewrites that node into a deterministic parent action or a shared-checkout write. If the required parent-managed worktree and its worktree/branch/commit authorizations cannot be obtained, the route remains deferred or blocked rather than downgrading.
 
 A current PLAN-v5 typed node's `allowed_providers` must include the current host's provider for the node to be selectable at all; there is no other-host adapter to fall back into. A node whose `allowed_providers` excludes the current host provider is deferred with `runtime_unavailable` and reported as needing a run hosted by the matching adapter.
 
@@ -355,15 +390,15 @@ An app task is a root task in its own app-managed worktree and may coordinate di
 }
 ```
 
-`available` is an observed capability, not authorization. A worker may enable this policy only when `spawn_subagents` covers its mission and exact `worker:<id>` target (or an explicitly run-wide `*` target). The harness caps the task-local shape at direct children only and three children per app task even if Codex is configured for more.
+`available` is an observed capability, not authorization. Outer app-task selection and creation does not require or preauthorize `spawn_subagents`. In RUN v10, `nested_subagent_policy` is optional: an omitted policy or `enabled: false` means no nested launch. Only after the parent allocates the app-task worker and observes its child-tool/result capability may it enable the policy, and then `spawn_subagents` must carry the exact `worker:<id>` target; a run-wide `*` target is not valid for a v10 nested launch. The harness caps the task-local shape at direct children only and three children per app task even if Codex is configured for more.
 
-When capability cannot be proven before an app task exists, use a two-stage handshake: launch or continue the task without production edits, ask it to report whether multi-agent tools/direct results are present, record that observation in RUN, then send the explicit enabled or disabled worker policy. Do not leave a known-capable task implicitly disabled merely because capability was unknown at initial allocation.
+When capability cannot be proven before an app task exists, omit the nested policy and launch or continue the outer task without nested children or production edits. After the worker is allocated, ask it to report whether multi-agent tools/direct results are present, record that observation in RUN, then assign an explicit enabled or disabled policy; enabling also requires the exact `worker:<id>` grant described above. Do not preauthorize nested spawning at outer selection, and do not treat an omitted or disabled policy as permission to launch children.
 
 The outer app task remains the mission lease holder and sole writer in its worktree. Children may inspect code, research documentation, analyze tests/logs, or review a proposed diff. They do not receive mission leases, alter the outer wave budget, edit PLAN/RUN, mutate repository or shared runtime state, create tasks/worktrees/branches/commits, integrate, push, or clean up. Their direct `agent_result` is internal to the app task; the outer parent still observes only the app task through `thread_poll`, `report_file`, or `user_relay`.
 
-Each new app-task worker under a RUN that records `runtime_capabilities.nested_subagents` must carry an explicit `nested_subagent_policy` with `enabled`, `max_children`, allowed roles, read-only write policy, and `agent_result` completion. Its WORKER_RESULT records `subagent_activity`: completed child summaries, partial/failure evidence, or a concrete reason that eligible delegation was skipped or unavailable. An enabled integration candidate must include a completed exact-head PASS reviewer even when other child activity is partial; `unavailable` or reviewer-failed activity blocks the result. If the pre-edit capability handshake cannot supply that reviewer, record a disabled policy and route the exact-head review to the parent before integration. This report is worker-supplied evidence, not a substitute for parent-observed Git/runtime facts. Older schema-v2 records that omit both optional nested fields remain backward-compatible.
+Each new app-task worker under a RUN that records `runtime_capabilities.nested_subagents` may carry an explicit `nested_subagent_policy` with `enabled`, `max_children`, allowed roles, read-only write policy, and `agent_result` completion. An omitted policy or `enabled: false` means no nested launch and routes the exact-head review to the parent. An enabled v10 policy is valid only after worker allocation with an exact `spawn_subagents` grant targeting that `worker:<id>`; it must include the `reviewer` role and its WORKER_RESULT records `subagent_activity`: completed child summaries, partial/failure evidence, or a concrete reason that eligible delegation was skipped or unavailable. An enabled integration candidate must include a completed exact-head PASS reviewer even when other child activity is partial; `unavailable` or reviewer-failed activity blocks the result. If the post-allocation capability handshake cannot supply that reviewer, record a disabled policy and route the exact-head review to the parent before integration. This report is worker-supplied evidence, not a substitute for parent-observed Git/runtime facts. Older schema-v2 records that omit both optional nested fields remain backward-compatible.
 
-The mandatory reviewer role, retained `nested_review_evidence`, and pre-integration review transition gate are RUN-v10 rules. RUN v2 through v9 keep their previously valid enabled-role policies and worker-result contract.
+The optional-v10 policy, exact `worker:<id>` grant, mandatory reviewer role when enabled, retained `nested_review_evidence`, and pre-integration review transition gate are RUN-v10 rules. RUN v6 through v9 retain their legacy mandatory nested policy and matching wildcard-compatible spawn authorization and worker-result contract; do not apply that legacy wildcard to v10.
 
 ### Permission boundary
 
@@ -402,7 +437,7 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 |---|---|
 | Runtime available | Chosen `worker_runtime` exists in this session and its authorization entry passes |
 | Workspace available | Chosen `workspace_mode` can be created or observed without overwriting existing work |
-| Write isolation | More than one write mission uses separate eligible worktrees; `shared_checkout` has a write budget of one |
+| Write isolation | Every plan-backed write mission uses an eligible isolated worktree; `shared_checkout` is direct/read-only only and cannot satisfy `sequential_parent` |
 | Completion observable | Chosen `completion_channel` can return a terminal result, blocker, or failure to the parent |
 | Integration observable | Parent can obtain base SHA, worker head SHA, actual changed paths, and verifier evidence |
 | Resource isolation | File scopes and every runtime resource have complete, supported claims |
@@ -411,9 +446,17 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 | Runtime route | Provider and available drivers are observed; the deterministic selected driver matches the declared runtime/workspace/completion axes |
 | Nested delegation bounded | Any enabled app-task child policy is covered by `spawn_subagents`, stays at depth one, uses at most three read-only children, and returns results to the app-task parent |
 
-If any capability, isolation, permission, or completion row is unknown, do not fan out. Observe it first; if it remains unavailable, select a supported sequential combination, normally `parent` or `subagent` with `shared_checkout`, and apply the same verification gates. Missing launch authorization is not an unknown capability: request the exact run-wide launch bundle once and pause rather than rewriting the runtime adapter or silently downgrading.
+If any capability, isolation, permission, or completion row is unknown, do not fan out. Observe it first; if it remains unavailable, select the real `sequential_parent` route with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result`, then apply the same verification gates. Parent-managed worktree creation is required for this route; if it is unavailable or unauthorized, block the route rather than writing in `shared_checkout`. Missing launch authorization is not an unknown capability: request the exact run-wide launch bundle once and pause rather than rewriting the runtime adapter or silently downgrading.
 
 For plan-backed multi-mission execution, the configured write-worker maximum has no default numeric ceiling; per `SKILL.md`'s Default Runtime And Wave Policy the parent sets `max_parallel_workers` generously high and lets observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size do the real bounding. Deterministic mission selection is the default immediately after Plan Readiness and execution authorization; run validation and selection before any production task. The effective wave remains the minimum of that configured maximum, live worker slots, isolated workspaces, dependency-ready nonconflicting missions, and every capability and permission gate above.
+
+## Serialized Same-Repository Host Handoff
+
+Hosts may hand off a large plan-backed run only as a serialized, same-repository operation. The handoff is permitted only when `active_wave` is not `active` (close or supersede the wave first); it never transfers a live lease, hides a worker, or starts a second writer. Preserve the existing PLAN/RUN files, PLAN revision/digest, graph state, mission/task evidence, and exact integration/worktree head SHA. Do not invent a new schema field or a new identity from the handoff.
+
+Host B must validate the preserved PLAN/RUN and exact SHA, then re-probe its own runtime, permission, isolation, and completion capabilities. Replace the old `runtime_adapter`/observed capability snapshot with Host B's fresh snapshot before selecting work or running the next read-only review; do not merge Host A's capability claims into Host B's. Host B uses the same graph and exact-head review gates and may proceed only from a clean, reconciled state.
+
+If Host B's review returns `fix_required`, route the findings back to Host A's original mission/worktree for repair. Any new head invalidates the prior review and requires a fresh verifier and exact-head review before integration or another handoff. This is a serialized file/repository handoff, not an in-session bridge or automatic cross-host invocation. Cross-machine handoff remains unsupported until a future schema defines a portable workspace identity and evidence transport; do not claim that a shared repository path alone provides that bridge.
 
 ## Parent-Owned Wave State
 
@@ -428,6 +471,13 @@ batch_base_sha
 selected_missions
 deferred_missions and reason codes
 ```
+
+RUN schema v10 also carries an append-only `closed_waves` list of
+`{ wave_id, batch_base_sha }` pairs. Append a pair before closing or
+superseding that wave; a proposed or active wave may not reuse a pair already
+listed there. A `wave_closed` grant is valid only when its scope matches the
+current pair and that pair is absent from `closed_waves`. Older RUN schemas do
+not require this field and remain readable.
 
 Each mission lease and worker record repeats the lease ID, plan revision/digest, and batch base so stale results can be rejected without inference. The run-level `runtime_adapter` records provider/driver routing. Worker records name runtime/workspace/completion axes, the selected runtime binding when graph-backed, task/thread identity when applicable, worktree path, branch/ref, optional nested-subagent policy, optional report path, phase, and observed head SHA.
 

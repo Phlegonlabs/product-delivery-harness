@@ -16,6 +16,7 @@ from harness_core import (
 from harness_schema import (
     EXPIRY_BOUNDARIES,
     SHA256_RE,
+    SHA_RE,
     TARGET_RE,
     action_target_kind_allowed,
     action_target_kind_description,
@@ -47,6 +48,7 @@ def _validate_authorization_scope(
     action: bool,
     action_name: str | None = None,
     require_plan_binding: bool = False,
+    expires_when: str | None = None,
 ) -> None:
     required = (
         {"run_id", "mission_ids", "targets"}
@@ -55,6 +57,8 @@ def _validate_authorization_scope(
     )
     if require_plan_binding:
         required.update({"plan_revision", "plan_digest_sha256"})
+    if expires_when == "wave_closed":
+        required.update({"wave_id", "batch_base_sha"})
     if not _keys(errors, path, value, required):
         return
     if not _nonempty_string(value["run_id"]):
@@ -65,6 +69,13 @@ def _validate_authorization_scope(
         digest = value["plan_digest_sha256"]
         if not isinstance(digest, str) or SHA256_RE.fullmatch(digest) is None:
             _add(errors, f"{path}.plan_digest_sha256", "must be a lowercase SHA-256 digest")
+    if expires_when == "wave_closed":
+        if not _nonempty_string(value["wave_id"]):
+            _add(errors, f"{path}.wave_id", "must be a non-empty string")
+        if not isinstance(value["batch_base_sha"], str) or SHA_RE.fullmatch(
+            value["batch_base_sha"]
+        ) is None:
+            _add(errors, f"{path}.batch_base_sha", "must be a full Git SHA")
     _strings(errors, f"{path}.mission_ids", value["mission_ids"], nonempty=True)
     if not action:
         if value["expires_when"] not in EXPIRY_BOUNDARIES:
@@ -187,7 +198,7 @@ def authorization_covers(
         and run.get("status") == "complete"
     )
     return _nonempty_string(entry.get("source")) and (
-        expiry_is_preserved or _authorization_not_expired(run, boundary)
+        expiry_is_preserved or _authorization_not_expired(run, boundary, scope)
     )
 
 
@@ -218,20 +229,94 @@ def execution_covers(
         and run.get("status") == "complete"
     )
     return (mission_id in missions or "*" in missions) and (
-        expiry_is_preserved or _authorization_not_expired(run, boundary)
+        expiry_is_preserved or _authorization_not_expired(run, boundary, scope)
     )
 
 
-def _authorization_not_expired(run: dict[str, Any], boundary: Any) -> bool:
+def _closed_wave_pairs(run: dict[str, Any]) -> set[tuple[str, str]] | None:
+    """Validate and normalize the v10 closed-wave tombstone list.
+
+    Coverage must fail closed independently of ``validate_run``. Otherwise a
+    malformed member (or duplicate) could be ignored here while a matching
+    current pair still appeared live to an execution/action caller.
+    """
+    closed_waves = run.get("closed_waves")
+    if not isinstance(closed_waves, list):
+        return None
+    pairs: set[tuple[str, str]] = set()
+    for item in closed_waves:
+        if not isinstance(item, dict) or set(item) != {"wave_id", "batch_base_sha"}:
+            return None
+        wave_id = item.get("wave_id")
+        batch_base_sha = item.get("batch_base_sha")
+        if (
+            not _nonempty_string(wave_id)
+            or not isinstance(batch_base_sha, str)
+            or SHA_RE.fullmatch(batch_base_sha) is None
+        ):
+            return None
+        pair = (wave_id, batch_base_sha)
+        if pair in pairs:
+            return None
+        pairs.add(pair)
+    return pairs
+
+
+def _wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
+    """Return whether a wave-scoped grant is bound to the live wave identity.
+
+    A wave grant is intentionally tied to both the wave ID and the immutable
+    batch base. ``closed_waves`` is a durable tombstone list: checking only the
+    wave status lets a stale grant become live again when a later RUN update
+    re-proposes the same wave pair.
+    """
+    wave = run.get("active_wave")
+    if run.get("schema_version") != 10:
+        # Legacy RUNs retain their historical status-only expiry semantics.
+        # The pair binding and durable tombstones are v10 additions.
+        return isinstance(wave, dict) and wave.get("status") not in {
+            "closed",
+            "superseded",
+        }
+    if not isinstance(wave, dict) or wave.get("status") not in {"proposed", "active"}:
+        return False
+    if not isinstance(scope, dict) or not _nonempty_string(scope.get("wave_id")):
+        return False
+    wave_id = wave.get("wave_id")
+    batch_base_sha = wave.get("batch_base_sha")
+    if (
+        not _nonempty_string(wave_id)
+        or not isinstance(batch_base_sha, str)
+        or SHA_RE.fullmatch(batch_base_sha) is None
+        or scope.get("wave_id") != wave_id
+        or not isinstance(scope.get("batch_base_sha"), str)
+        or SHA_RE.fullmatch(scope["batch_base_sha"]) is None
+        or scope.get("batch_base_sha") != batch_base_sha
+    ):
+        return False
+
+    # A v10 RUN must carry this list. Fail closed when an older/malformed
+    # object asks for wave-scoped coverage instead of silently treating a
+    # missing history as an empty list.
+    closed_pairs = _closed_wave_pairs(run)
+    if closed_pairs is None:
+        return False
+    return (wave_id, batch_base_sha) not in closed_pairs
+
+
+def wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
+    """Public validation helper for a wave-closed authorization scope."""
+
+    return _wave_scope_matches_current(run, scope)
+
+
+def _authorization_not_expired(
+    run: dict[str, Any], boundary: Any, scope: dict[str, Any] | None = None
+) -> bool:
     if boundary == "explicit_revocation":
         return True
     if boundary == "run_complete":
         return run.get("status") != "complete"
     if boundary == "wave_closed":
-        # `or {}` rather than a get() default: the key is often present as null.
-        wave = run.get("active_wave") or {}
-        return isinstance(wave, dict) and wave.get("status") not in {
-            "closed",
-            "superseded",
-        }
+        return _wave_scope_matches_current(run, scope)
     return False

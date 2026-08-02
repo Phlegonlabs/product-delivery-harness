@@ -64,6 +64,34 @@ class ReadmeStructureTests(unittest.TestCase):
                     english,
                 )
 
+    @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_runtime_handoff_graph_profiles_and_zero_to_one_are_aligned(self) -> None:
+        for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md"):
+            content = (REPO_ROOT / filename).read_text(encoding="utf-8")
+            with self.subTest(readme=filename):
+                for required in (
+                    "Zero-to-one",
+                    "PLAN/RUN",
+                    "same-repository",
+                    "cross-machine",
+                    "active host",
+                    "RUN.active_wave.status",
+                    "Host A",
+                    "Host B",
+                    "exact SHA",
+                    "`runtime_unavailable`",
+                    "homogeneous `tool_profile`",
+                    "permission-level tool removal",
+                ):
+                    self.assertIn(required, content)
+                self.assertRegex(content, r"(?i)(nested codex helpers|codex nested helpers)")
+                self.assertIn("exact-head PASS", content)
+                self.assertNotIn("omits write-capable tools", content)
+                self.assertNotIn("blocked on provider mismatch", content)
+                self.assertNotIn("allowlist", content.lower())
+                self.assertNotIn("白名单", content)
+                self.assertNotIn("允許清單", content)
+
 
 if __name__ == "__main__":
     unittest.main()

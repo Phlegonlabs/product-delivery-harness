@@ -1,12 +1,14 @@
 # Parallel Mission Selection
 
-Use this reference after plan readiness passes and before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions.
+Use this reference after the parent-only `System Review And Route` stage and Plan Readiness pass, before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions. The system review itself is never selected as a graph node and never creates PLAN/RUN state.
 
-The Project Size Gate runs first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted plan and execute it with the sequential parent.
+The Project Size Gate and `System Review And Route` run first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted PLAN/RUN graph and execute it with the real `sequential_parent`. A no-agent route keeps the PLAN mission's `executor: runtime_worker` and records a parent-owned executor/worker binding in RUN solely for lease/state validation; it is not a delegated or spawned worker and does not claim `spawn_subagents`. The parent writes one mission at a time in its required parent-managed worktree.
 
 This file defines the shared scope/resource conflict rules and deterministic write budget. PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes.
 
 For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, set the configured maximum generously high unless the user sets an explicit lower limit, and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number.
+
+On an observed Codex host, Plan Readiness also requires a complete RUN-v10 `capability_probe`. Do not call the selector from a ready/running run while any probe surface is missing or `unobserved`; validation returns `capability_snapshot_incomplete`. Because the validator derives the driver list from the probe, a parent cannot make direct subagents win by omitting proven App Threads.
 
 ## Inputs And Output
 
@@ -17,6 +19,8 @@ The selector reads only canonical machine data. In RUN schema v6 and later, prov
 - Explicit observed-capacity inputs supplied by the parent when they are not already in a fresh RUN snapshot.
 
 It must not parse Markdown tables, inspect UI labels, guess resource ownership, or mutate Git/Codex state.
+
+When routing selects `sequential_parent`, the selector emits at most one mission directive at a time for the existing PLAN `executor: runtime_worker` node. The accepted directive binds RUN to a parent-owned executor/worker record with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation. It does not require `spawn_subagents` or `create_user_owned_tasks`, and it is not a delegated launch. Parent-managed worktree creation is required; if it is unavailable or unauthorized, defer/block the route rather than using `shared_checkout`. Keep the same PLAN/RUN, review, integration, and exact-head gates as delegated execution.
 
 The output is canonical sorted JSON with no timestamps. Its top-level keys are exactly:
 
@@ -47,7 +51,7 @@ A mission is in the ready frontier only when all conditions pass:
 6. Trace, write-scope, verifier, and resource inventory validation passed.
 7. `resource_inventory_complete` is true.
 8. The chosen runtime/workspace/completion capability combination supports the mission; a parallel write mission has `worktree_eligible: true` and an isolated workspace.
-9. Required action-specific authorizations for the proposed launch path are present. App-task fan-out includes `spawn_subagents` because every non-trivial mission thread is expected to use its bounded read-only child policy. Claude Dynamic Workflow and direct subagent fan-out require `spawn_subagents`; isolated workflow writes also require parent-managed worktree, branch, and commit authorization.
+9. Required action-specific authorizations for the proposed launch path are present. Outer app-task fan-out requires its task/worktree/branch/commit actions but does not require or preauthorize `spawn_subagents`; a v10 nested policy is optional and requests an exact `worker:<id>` grant only after worker allocation. Claude Dynamic Workflow and direct subagent fan-out require `spawn_subagents`; isolated workflow writes also require parent-managed worktree, branch, and commit authorization.
 10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
 11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
@@ -152,12 +156,13 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `review_head_unchanged` — a `fix_required` review's source head has not changed.
 - `route_not_activated` — no incoming route edge has activated the node.
 - `runtime_capacity_unavailable` — observed worker slots or isolation capacity are exhausted.
+- `run_status_not_dispatchable` — RUN status is terminal or otherwise not one of the executable `ready`/`running` states.
 - `runtime_unavailable` — the node's allowed providers exclude the current host.
 - `worker_state_unreconciled` — a live worker's worktree, branch, or head does not match observation.
 - `worktree_ineligible` — the plan mission's `worktree_eligible` is not true.
 - `worktree_state_unreconciled` — observed worktree facts are missing, dirty, duplicated, or unmatched.
 - `write_conflict` — the mission conflicts with an already-selected write mission.
-- `workspace_not_isolated` — the workspace mode is `shared_checkout` or the executor is `harness_parent`.
+- `workspace_not_isolated` — a plan-backed write mission has no eligible isolated worktree (including `shared_checkout` or a non-mission executor binding).
 
 Dependency edges determine readiness and topological level; they are not conflict edges among already-ready missions. Unknown facts yield an ineligibility/defer code or a conservative pairwise edge, never an assumed independent pair.
 
@@ -190,7 +195,7 @@ min(
 )
 ```
 
-There is no default numeric ceiling on the configured maximum; set it generously high and let observed worker slots, isolation capacity, and conflict capacity do the actual bounding. Set it lower only when the user or a real runtime limit requires that. `shared_checkout` has workspace isolation capacity one for writes.
+There is no default numeric ceiling on the configured maximum; set it generously high and let observed worker slots, isolation capacity, and conflict capacity do the actual bounding. Set it lower only when the user or a real runtime limit requires that. `shared_checkout` is not an eligible workspace for plan-backed mission writes; direct/read-only inspection remains separately governed.
 
 Then scan candidates in order:
 
@@ -216,7 +221,7 @@ Before using a proposal, the parent re-observes:
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
 
-When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. Use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
+When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. If the System Review And Route selected no-agent execution, use `sequential_parent` directly: do not request `spawn_subagents` or report a delegated launch; when the parent accepts the existing `runtime_worker` mission directive, record its parent-owned executor/worker binding for lease/state validation. Parent-managed worktree creation is required, so an unavailable or unauthorized worktree blocks the route rather than allowing `shared_checkout`. For an agent-capable route, use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
 
 For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
 
@@ -270,4 +275,4 @@ Never reuse the prior wave's independence result. Each merge changes the integra
 
 ## Conservative Fallback
 
-When the selector, runtime, workspace isolation, completion channel, or observed facts are unavailable, keep the same plan and gates but execute one mission at a time. Lack of parallel capability is not a reason to bypass verification or invent state.
+When the selector, runtime, workspace isolation, completion channel, or observed facts are unavailable, keep the same PLAN/RUN graph and gates but execute one mission at a time as the parent when no agent route is available. Lack of parallel capability is not a reason to bypass verification, author compact RUN-only state, or invent a worker spawn.
