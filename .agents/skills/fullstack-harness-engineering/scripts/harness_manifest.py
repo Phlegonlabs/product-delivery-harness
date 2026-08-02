@@ -2628,14 +2628,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, adapter_path, "subagents requires a supported subagent workspace and result channel")
             elif selected_driver == "sequential_parent" and (
                 runtime["worker_runtime"] != "parent"
-                or runtime["workspace_mode"]
-                not in {"shared_checkout", "parent_managed_worktree"}
+                or runtime["workspace_mode"] != "parent_managed_worktree"
                 or runtime["completion_channel"] != "agent_result"
             ):
                 _add(
                     errors,
                     adapter_path,
-                    "sequential_parent requires parent/shared_checkout or parent_managed_worktree/agent_result",
+                    "sequential_parent requires parent/parent_managed_worktree/agent_result",
                 )
             if selected_driver == "dynamic_workflow" and runtime.get("nested_subagents") is not None:
                 _add(
