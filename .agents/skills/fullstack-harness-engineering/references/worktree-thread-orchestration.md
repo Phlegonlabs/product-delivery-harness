@@ -2,6 +2,10 @@
 
 Use this reference when the harness runs multiple missions, delegates to workers, or needs workspace isolation. Read `execution-state-model.md` and `parallel-mission-selection.md` first.
 
+## System Review And Route Comes First
+
+Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage. That stage must not load task-specific skills or an adapter, create PLAN/RUN or other managed artifacts, probe worker capability, or spawn a worker. Small work never reaches this reference. A large route enters the existing PLAN-v5/RUN-v10 graph; a no-agent large route uses the parent-owned `sequential_parent` path below, executes one mission at a time, and is not disguised as a worker launch.
+
 ## Describe Capabilities, Not Product Labels
 
 Record three independent fields for each run or worker:
@@ -38,7 +42,7 @@ claude_code: dynamic_workflow -> subagents -> sequential_parent
 generic: subagents -> sequential_parent
 ```
 
-The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to `parent` + `shared_checkout` + `agent_result`. Do not route from a product label alone; record how the capability was observed and fall back if the selected primitive is missing at launch.
+The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to `parent` + `agent_result`, preferring `parent_managed_worktree` and allowing `shared_checkout` only as an explicit one-writer fallback. It does not map to `subagent`, `app_task`, or `spawn_subagents`. Do not route from a product label alone; record how the capability was observed and fall back if the selected primitive is missing at launch.
 
 Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Codex task tools may be lazy-loaded, so use the current tool-discovery surface to search for project listing, top-level task creation, messaging, and thread waiting before declaring `app_threads` missing. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
@@ -78,7 +82,7 @@ Workers must not edit the parent-owned `PLAN.md` or `RUN.md`, expand their own s
 
 ### Shared checkout
 
-Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate) and for parallel read-only analysis. It is a fallback for plan-backed mission writes, not the default — use it there only when worktree creation is unavailable or unauthorized.
+Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate), parallel read-only analysis, or a large `sequential_parent` route whose parent-managed worktree is unavailable or unauthorized. It is a fallback for plan-backed mission writes, not the default — use it there only with one parent writer and a recorded reason. It never turns parent execution into a spawned worker.
 
 - Allow at most one writer at a time, whether that writer is the parent or a subagent.
 - Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
@@ -86,7 +90,7 @@ Reserve `shared_checkout` for genuinely small direct work (see the Project Size 
 
 ### Parent-managed worktree
 
-Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. Create each worktree from the recorded `batch_base_sha` on the resolved integration branch; under the default model that is the run's own `codex/<short-name>` branch, cut from the recorded current default-branch SHA. The first wave's `batch_base_sha` is the default-branch SHA recorded at run start; each later wave re-anchors its batch base to the current integration head. The primary integration checkout is a merge target, never a direct implementation surface: each mission's worktree branch receives an exact-head read-only review before it may merge there.
+Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. A no-agent `sequential_parent` route uses the same isolated worktree contract while the parent itself writes the mission and serializes the budget at one. Create each worktree from the recorded `batch_base_sha` on the resolved integration branch; under the default model that is the run's own `codex/<short-name>` branch, cut from the recorded current default-branch SHA. The first wave's `batch_base_sha` is the default-branch SHA recorded at run start; each later wave re-anchors its batch base to the current integration head. The primary integration checkout is a merge target, never a direct implementation surface: each mission's worktree branch receives an exact-head read-only review before it may merge there.
 
 - The parent creates every worktree from the same recorded `batch_base_sha`; portable write handoff also requires `create_local_branches` and `create_local_commits`, because the parent integrates a durable committed head rather than an uncommitted patch.
 - The parent records the exact path, branch/ref, lease, ports, databases, fixtures, and external resource claims.

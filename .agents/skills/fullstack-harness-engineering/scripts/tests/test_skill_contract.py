@@ -54,6 +54,91 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Small direct work does not instantiate this file", runbook)
         self.assertIn("classify the project as small or large", agent)
 
+    def test_system_review_and_route_is_parent_only_before_managed_work(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        graph = self.read("references/graph-orchestration.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+
+        for content in (skill, state, graph, runbook, goal):
+            self.assertIn("System Review And Route", content)
+            self.assertIn("parent-only", content)
+            self.assertIn("read-only", content)
+        self.assertIn("before loading any task-specific skill", skill)
+        self.assertIn("does not create or edit `PLAN.md`, `RUN.md`", skill)
+        self.assertIn("does not load a task skill", state)
+        self.assertIn("is not a PLAN node", graph)
+        self.assertIn("The System Review And Route stage completes before this file exists", runbook)
+        self.assertIn("before this delegated handoff exists", worker)
+        self.assertLess(skill.index("### System Review And Route"), skill.index("## Adapter Routing"))
+        self.assertLess(skill.index("### System Review And Route"), skill.index("### 2. Plan Large Work"))
+
+    def test_new_managed_work_requires_plan_run_and_legacy_compact_is_read_only(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (skill, state, runbook, goal):
+            self.assertIn("PLAN schema v5", content)
+            self.assertIn("RUN schema v10", content)
+            self.assertIn("legacy compact run-only", content.lower())
+            self.assertIn("read", content.lower())
+        self.assertIn("New managed work never authors a compact RUN-only artifact", skill)
+        self.assertIn("cannot authorize new managed execution", state)
+        self.assertIn("not a new authoring route", runbook)
+        self.assertNotIn("compact large sequential work", runbook.lower())
+        self.assertNotIn("Planning depth: direct | compact RUN", skill)
+
+    def test_large_no_agent_route_is_real_parent_sequential_execution(self) -> None:
+        skill = self.read("SKILL.md")
+        state = self.read("references/execution-state-model.md")
+        selector = self.read("references/parallel-mission-selection.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        goal = self.read("assets/templates/GOAL.template.md")
+
+        for content in (skill, state, selector, orchestration, runbook, goal):
+            self.assertIn("sequential_parent", content)
+            self.assertIn("parent", content)
+            self.assertIn("one mission at a time", content)
+        self.assertIn("no `spawn_subagents`", skill)
+        self.assertIn("no `spawn_subagents`", state)
+        self.assertIn("parent-managed worktree", state)
+        self.assertIn("does not map to `subagent`, `app_task`, or `spawn_subagents`", orchestration)
+        self.assertIn("does not require `spawn_subagents`", selector)
+        self.assertIn("required large no-agent path", runbook)
+
+    def test_sequential_parent_never_downgrades_to_delegated_shared_checkout(self) -> None:
+        state = self.read("references/execution-state-model.md")
+
+        self.assertIn("real `sequential_parent` route", state)
+        self.assertIn("Only when the parent-managed worktree is unavailable or unauthorized", state)
+        self.assertIn("one-parent-writer budget", state)
+        self.assertIn("never select `subagent` or another delegated worker to write in that shared checkout", state)
+        self.assertNotIn("normally `parent` or `subagent` with `shared_checkout`", state)
+
+    def test_same_repository_host_handoff_is_serialized_and_exact_head_bound(self) -> None:
+        state = self.read("references/execution-state-model.md")
+        graph = self.read("references/graph-orchestration.md")
+
+        for content in (state, graph):
+            self.assertIn("Serialized Same-Repository Host Handoff", content)
+            self.assertIn("only", content)
+            self.assertIn("active_wave", content)
+            self.assertIn("PLAN/RUN", content)
+            self.assertIn("exact", content.lower())
+            self.assertIn("Host B", content)
+            self.assertIn("re-probe", content)
+            self.assertIn("replaces", content)
+            self.assertIn("fix_required", content)
+            self.assertIn("new head invalidates", content)
+            self.assertIn("cross-machine handoff remains unsupported", content.lower())
+        self.assertIn("not an in-session bridge", state)
+        self.assertIn("not an in-session bridge", graph)
+
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

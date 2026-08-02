@@ -1,8 +1,8 @@
 # Parallel Mission Selection
 
-Use this reference after plan readiness passes and before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions.
+Use this reference after the parent-only `System Review And Route` stage and Plan Readiness pass, before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions. The system review itself is never selected as a graph node and never creates PLAN/RUN state.
 
-The Project Size Gate runs first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted plan and execute it with the sequential parent.
+The Project Size Gate and `System Review And Route` run first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted PLAN/RUN graph and execute it with the real `sequential_parent`. A no-agent route is parent-owned execution, not a worker-spawn fallback: the parent writes one mission at a time and does not claim `spawn_subagents`.
 
 This file defines the shared scope/resource conflict rules and deterministic write budget. PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes.
 
@@ -17,6 +17,8 @@ The selector reads only canonical machine data. In RUN schema v6 and later, prov
 - Explicit observed-capacity inputs supplied by the parent when they are not already in a fresh RUN snapshot.
 
 It must not parse Markdown tables, inspect UI labels, guess resource ownership, or mutate Git/Codex state.
+
+When routing selects `sequential_parent`, the selector emits at most one parent-owned mission directive at a time. The directive uses `worker_runtime: parent`, `completion_channel: agent_result`, and a parent-managed worktree when available; it does not require `spawn_subagents`, `create_user_owned_tasks`, or an invented worker identity. A shared checkout is allowed only as an explicitly recorded one-writer fallback. Keep the same PLAN/RUN, review, integration, and exact-head gates as delegated execution.
 
 The output is canonical sorted JSON with no timestamps. Its top-level keys are exactly:
 
@@ -216,7 +218,7 @@ Before using a proposal, the parent re-observes:
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
 
-When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. Use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
+When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. If the System Review And Route selected no-agent execution, use `sequential_parent` directly: do not request `spawn_subagents`, do not create a worker record, and do not report a delegated launch. For an agent-capable route, use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
 
 For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
 
@@ -270,4 +272,4 @@ Never reuse the prior wave's independence result. Each merge changes the integra
 
 ## Conservative Fallback
 
-When the selector, runtime, workspace isolation, completion channel, or observed facts are unavailable, keep the same plan and gates but execute one mission at a time. Lack of parallel capability is not a reason to bypass verification or invent state.
+When the selector, runtime, workspace isolation, completion channel, or observed facts are unavailable, keep the same PLAN/RUN graph and gates but execute one mission at a time as the parent when no agent route is available. Lack of parallel capability is not a reason to bypass verification, author compact RUN-only state, or invent a worker spawn.
