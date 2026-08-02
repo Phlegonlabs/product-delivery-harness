@@ -1,6 +1,14 @@
 interface:
   display_name: "Harness Claude Code Adapter"
   short_description: "Run Harness missions from a Claude Code host"
-  default_prompt: "Use $fullstack-harness-claude-code with the shared Harness core for a Claude Code-hosted large run. Use exact-base Dynamic Workflow worktrees when authorized, keep mission agents flat, and report any ready PLAN node that requires Codex as deferred (runtime_unavailable) instead of attempting to run it."
+  default_prompt: >-
+    Use $fullstack-harness-claude-code with the shared Harness core for a Claude Code-hosted
+    large run. Use exact-base Dynamic Workflow worktrees when authorized, keep mission agents
+    flat, and partition a mixed frontier into homogeneous tool_profile groups before calling
+    one Claude Graph Workflow per group; never mix write missions with read-only reviews in one call.
+    A tool_profile is a prompt/result contract, not permission-level tool removal. Preserve
+    PLAN/RUN and graph state for serialized same-repository handoff only after the active wave
+    closes; the next host must re-probe runtime and re-review the exact SHA. Report any ready
+    PLAN node that requires Codex as deferred (runtime_unavailable) instead of attempting to run it.
 policy:
   allow_implicit_invocation: true

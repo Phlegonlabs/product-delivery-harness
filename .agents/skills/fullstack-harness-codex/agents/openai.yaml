@@ -1,6 +1,17 @@
 interface:
   display_name: "Harness Codex Adapter"
   short_description: "Run Harness missions from a Codex host"
-  default_prompt: "Use $fullstack-harness-codex with the shared Harness core for a Codex-hosted large run. Discover lazy-loaded Codex project/thread tools before declaring app_threads unavailable. Preserve the target repository's branch and integration rules, and prefer one top-level left-sidebar Codex task with its own app-managed worktree from the resolved integration branch per selected mission. Each task runs its own read-only Multi-agent reviewer and must pass exact-head review before parent integration into that branch. A run ends when the verified integration head is pushed to the run's own branch; landing that branch on the default branch is the user's own step and the harness never starts a promotion, with or without approval. Never replace requested top-level tasks with coordinator-owned subagents."
+  default_prompt: >-
+    Use $fullstack-harness-codex with the shared Harness core for a Codex-hosted large run.
+    Discover lazy-loaded Codex project/thread tools before declaring app_threads unavailable.
+    Preserve the target repository's branch and integration rules, and prefer one top-level
+    left-sidebar Codex task with its own app-managed worktree from the resolved integration
+    branch per selected mission. Nested read-only helpers are optional: launch them only when
+    the accepted nested policy and that node's required_actions authorize spawn_subagents.
+    The parent/review graph must still produce a terminal exact-head PASS before integration,
+    even when no nested helper runs. A run ends when the verified integration head is pushed
+    to the run's own branch; landing that branch on the default branch is the user's own step
+    and the harness never starts a promotion, with or without approval. Never replace requested
+    top-level tasks with coordinator-owned subagents.
 policy:
   allow_implicit_invocation: true
