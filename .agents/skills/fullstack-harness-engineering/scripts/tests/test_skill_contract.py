@@ -325,6 +325,25 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Builder approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)
 
+    def test_stop_and_ask_separates_validator_and_judgment_stops(self) -> None:
+        contract = self.read("references/contract-and-traceability.md")
+        verification = self.read("references/verification-gates.md")
+
+        self.assertIn("### Validator-Enforced Stops", contract)
+        self.assertIn("### Judgment Stops", contract)
+        self.assertLess(
+            contract.index("### Validator-Enforced Stops"),
+            contract.index("### Judgment Stops"),
+        )
+        # The pair invariant is re-checked downstream, not only by the
+        # authoring skill, and a hand-edited half-pair is a stop condition.
+        self.assertIn("check_design_system_pair.py --require-filled", contract)
+        self.assertIn("Design-system pair check", verification)
+        self.assertIn("check_design_system_pair.py --require-filled", verification)
+        # execution-task-decomposition.md points at this stop condition; keep
+        # the cross-reference from dangling again.
+        self.assertIn("`migration_classification` unset", contract)
+
     def test_schema_v5_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
