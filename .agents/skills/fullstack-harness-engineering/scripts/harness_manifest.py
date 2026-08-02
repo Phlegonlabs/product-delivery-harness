@@ -2628,10 +2628,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, adapter_path, "subagents requires a supported subagent workspace and result channel")
             elif selected_driver == "sequential_parent" and (
                 runtime["worker_runtime"] != "parent"
-                or runtime["workspace_mode"] != "shared_checkout"
+                or runtime["workspace_mode"]
+                not in {"shared_checkout", "parent_managed_worktree"}
                 or runtime["completion_channel"] != "agent_result"
             ):
-                _add(errors, adapter_path, "sequential_parent requires parent/shared_checkout/agent_result")
+                _add(
+                    errors,
+                    adapter_path,
+                    "sequential_parent requires parent/shared_checkout or parent_managed_worktree/agent_result",
+                )
             if selected_driver == "dynamic_workflow" and runtime.get("nested_subagents") is not None:
                 _add(
                     errors,
@@ -3163,7 +3168,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "must be omitted for flat dynamic-workflow orchestration",
                 )
             if (
-                worker["worker_runtime"] == "app_task"
+                schema_version in {6, 7, 8, 9}
+                and worker["worker_runtime"] == "app_task"
                 and isinstance(runtime, dict)
                 and "nested_subagents" in runtime
                 and nested_policy is None
@@ -3273,6 +3279,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "spawn_subagents",
                         worker["mission_id"],
                         f"worker:{worker['worker_id']}",
+                        require_exact_target=(schema_version == 10),
                     ):
                         _add(
                             errors,

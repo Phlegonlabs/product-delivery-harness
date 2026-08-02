@@ -2254,6 +2254,31 @@ class RunValidationTests(unittest.TestCase):
             "dynamic_workflow requires claude_code subagent/parent_managed_worktree/agent_result",
         )
 
+    def test_sequential_parent_accepts_parent_managed_worktree(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+
+        run["runtime_capabilities"]["completion_channel"] = "thread_poll"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "sequential_parent requires parent/shared_checkout or parent_managed_worktree/agent_result",
+        )
+
     def test_schema_v6_rejects_malformed_runtime_adapter_without_crashing(self) -> None:
         plan = legacy_plan()
         run = legacy_run(plan, 6)
@@ -2694,11 +2719,37 @@ class RunValidationTests(unittest.TestCase):
             "legacy RUN v6 keeps its previously valid enabled-role policy",
         )
 
-        del run["workers"][0]["nested_subagent_policy"]
+        legacy_scope["targets"] = ["*"]
+        self.assertEqual(
+            [],
+            validate_run(legacy_app_plan, legacy_app_run),
+            "legacy RUN v6 keeps wildcard nested spawn authorization compatibility",
+        )
+        legacy_scope["targets"] = ["worker:W1"]
+        del legacy_worker["nested_subagent_policy"]
         self.assert_run_error_contains(
-            plan,
-            run,
+            legacy_app_plan,
+            legacy_app_run,
             "is required for app_task workers when runtime nested_subagents is recorded",
+        )
+
+        del run["workers"][0]["nested_subagent_policy"]
+        self.assertEqual(
+            [],
+            validate_run(plan, run),
+            "an omitted nested policy is the disabled app-task path",
+        )
+        run["workers"][0]["nested_subagent_policy"] = {
+            "enabled": False,
+            "max_children": 0,
+            "allowed_roles": [],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        }
+        self.assertEqual(
+            [],
+            validate_run(plan, run),
+            "an explicitly disabled nested policy needs no spawn grant",
         )
         run["workers"][0]["nested_subagent_policy"] = {
             "enabled": True,
@@ -2707,6 +2758,17 @@ class RunValidationTests(unittest.TestCase):
             "write_policy": "read_only",
             "completion_channel": "agent_result",
         }
+
+        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = ["*"]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "requires matching spawn_subagents authorization",
+        )
+        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
+            "worker:W1"
+        ]
+        self.assertEqual([], validate_run(plan, run))
 
         run["authorizations"]["spawn_subagents"] = {
             "authorized": False,
