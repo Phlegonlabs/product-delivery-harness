@@ -31,7 +31,11 @@ from select_ready_nodes import (  # noqa: E402
     _required_actions,
     select_ready_nodes,
 )
-from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
+from test_graph_orchestration import (  # noqa: E402
+    detach_mission_edges,
+    valid_graph_plan,
+    valid_graph_run,
+)
 from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
@@ -513,8 +517,29 @@ class SelectReadyNodesTests(unittest.TestCase):
         )
 
         runtime.pop("nested_subagents")
-        self.assertIn(
+        self.assertNotIn(
             "spawn_subagents",
+            _required_actions(node, binding, runtime, 10),
+        )
+
+    def test_v10_app_task_does_not_infer_nested_spawn_from_capability(self) -> None:
+        node = {"kind": "mission"}
+        binding = {"driver": "app_threads"}
+        runtime = {
+            "workspace_mode": "app_managed_worktree",
+            "nested_subagents": {
+                "available": True,
+                "allowed_roles": ["reviewer"],
+            },
+        }
+
+        self.assertEqual(
+            [
+                "create_user_owned_tasks",
+                "create_app_managed_worktrees",
+                "create_local_branches",
+                "create_local_commits",
+            ],
             _required_actions(node, binding, runtime, 10),
         )
 
@@ -1721,6 +1746,66 @@ class SelectReadyNodesTests(unittest.TestCase):
         self.assertEqual([], result["dispatchable_nodes"])
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("workspace_not_isolated", deferred["N-M1"])
+
+    def test_sequential_parent_caps_write_and_runtime_budgets_at_one(self) -> None:
+        plan = valid_graph_plan()
+        detach_mission_edges(plan)
+        run = valid_graph_run(plan)
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["active_wave"]["plan_digest_sha256"] = digest
+        authorize_execution(
+            run,
+            ["M1", "M2"],
+            plan=plan,
+            digest=digest,
+        )
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 4,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {
+                "available_worker_slots": 4,
+                "isolation_capacity": 4,
+                "completion_channel_available": True,
+            }
+        )
+        for action in (
+            "create_local_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize_action(run, action, ["M1", "M2"], ["*"])
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        directive = result["dispatchable_nodes"][0]
+        self.assertEqual("run_parent", directive["launch_kind"])
+        self.assertEqual(
+            [
+                "create_local_worktrees",
+                "create_local_branches",
+                "create_local_commits",
+            ],
+            directive["required_actions"],
+        )
+        self.assertNotIn("spawn_subagents", directive["required_actions"])
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in result["deferred_nodes"]
+        }
+        self.assertIn("over_budget", deferred["N-M2"])
 
     def test_dependent_node_stays_deferred_until_its_edge_fires(self) -> None:
         plan = valid_graph_plan()

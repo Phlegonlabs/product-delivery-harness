@@ -470,18 +470,16 @@ def _required_actions(
         actions.append("spawn_subagents")
     elif driver == "app_threads":
         actions.append("create_user_owned_tasks")
+        # RUN-v10 records nested capability separately from the worker's
+        # explicit nested policy.  Capability discovery alone must not grant
+        # or require a child-spawn action; an enabled policy is validated when
+        # its worker result is recorded.  Keep the legacy inference for
+        # pre-v10 runs so their historical action contract remains stable.
         nested = runtime.get("nested_subagents")
-        if not read_only_review:
+        if not read_only_review and schema_version != 10:
             nested_spawn_required = (
                 isinstance(nested, dict)
                 and nested.get("available") is True
-                and (
-                    schema_version != 10
-                    or "reviewer" in set(nested.get("allowed_roles", []))
-                )
-            ) or (
-                schema_version == 10
-                and not isinstance(nested, dict)
             )
             if nested_spawn_required:
                 actions.append("spawn_subagents")
@@ -742,10 +740,13 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
                     "reason_codes": sorted(reasons),
                 }
             )
+    runtime_driver = route_runtime_driver(run["runtime_capabilities"])
     configured_write_budget = min(
         plan["max_parallel_workers"],
         run["runtime_capabilities"]["max_parallel_workers"],
     )
+    if runtime_driver == "sequential_parent":
+        configured_write_budget = min(configured_write_budget, 1)
     isolated_write_budget = min(
         configured_write_budget,
         run["observed"]["runtime"]["available_worker_slots"],
@@ -785,6 +786,8 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
         run["runtime_capabilities"]["max_parallel_workers"],
         run["observed"]["runtime"]["available_worker_slots"],
     )
+    if runtime_driver == "sequential_parent":
+        runtime_budget = min(runtime_budget, 1)
     runtime_count = 0
     dispatchable: list[dict[str, Any]] = []
     for item in authorized_candidates:
