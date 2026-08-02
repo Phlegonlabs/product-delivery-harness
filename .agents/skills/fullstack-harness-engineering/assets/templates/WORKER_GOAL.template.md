@@ -1,6 +1,6 @@
 # Worker Goal: <mission ID> — <objective>
 
-Use this prompt only after the parent validates the canonical PLAN/RUN state, leases one mission, fixes its base SHA, and confirms every required authorization. A worker owns mission implementation only; the parent owns planning, live state, integration, and landing.
+Use this prompt only after the parent completes the parent-only, read-only `System Review And Route`, validates the canonical PLAN/RUN state, leases one delegated mission, fixes its base SHA, and confirms every required authorization. A worker owns mission implementation only; the parent owns routing, planning, live state, integration, and landing. A large no-agent route does not render or launch this prompt: it uses real `sequential_parent` execution, with the parent as sole mission writer and no `spawn_subagents` action.
 
 ```text
 Complete <mission ID> (<objective>) only.
@@ -28,7 +28,7 @@ Coordination:
 Write only within: <mission write_scope>.
 Deny: <mission deny_scope>, parent-owned PLAN.md and RUN.md, frozen contracts, and unrelated files.
 
-Load exactly the skills named in "Skills to load" above — no more, no fewer — before the Launch Checklist below, then verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
+The parent must have completed `System Review And Route` before this delegated handoff exists. Load exactly the skills named in "Skills to load" above — no more, no fewer — before the Launch Checklist below, then verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
 
 When "Skills to load" includes both `product-design-builder` and `frontend-design`, run design creation mode. Use `frontend-design` through `product-design-builder`'s workflow to create or revise only the canonical wireframes and design-system sources in scope, starting from the frozen product inputs and stopping at every required human direction gate. If `frontend-design` is unavailable, stop; do not simulate it or fall back.
 
@@ -228,6 +228,7 @@ Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_fail
 
 ## Launch Checklist
 
+- [ ] Parent-only `System Review And Route` completed before this delegated handoff; current managed work uses PLAN-v5/RUN-v10.
 - [ ] Every skill in "Skills to load" is loaded before the first production edit; "none" needs no action.
 - [ ] Canonical PLAN validates; supplied ID, revision, and digest match RUN.
 - [ ] RUN records `plan_readiness: "ready"` and overall execution authorization.

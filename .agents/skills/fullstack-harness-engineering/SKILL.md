@@ -7,7 +7,7 @@ description: "Classify engineering work as small or large, then plan, execute, v
 
 ## Purpose
 
-Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. A run ends when its verified work is committed and pushed to its own branch. Landing that branch on the default branch is the user's own step, outside this harness.
+Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Every request starts with the parent-only, read-only `System Review And Route` stage; runtime adapters are loaded only after that stage routes large work into the managed graph. A run ends when its verified work is committed and pushed to its own branch. Landing that branch on the default branch is the user's own step, outside this harness.
 
 Keep `prd-builder` and `product-design-builder` as separate upstream skills. `prd-builder` owns `PRD.md`, `architecture.md`, and `stack-decisions.md`; `product-design-builder`, with mandatory `frontend-design`, owns `wireframes.md`, `design-system.md`, and `design-system.json` for a UI-bearing product. Reuse those artifacts instead of duplicating them. Route product, Builder UX Direction, or architecture gaps to `prd-builder`; route wireframe or design-system gaps to `product-design-builder`. An implementation agent invents neither Builder UX Direction nor design sources.
 
@@ -26,9 +26,25 @@ Classify the work as `small` only when all of these are true:
 Everything else is `large`. Judge size by coordination scope and blast radius, not file or line count.
 
 ```text
-small -> direct inspect -> implement -> local verify -> review -> authorized Git actions
-large -> planner -> readiness -> sequential execution or scheduler when parallel work is useful
+System Review And Route (parent-only, read-only; no task skill, PLAN/RUN, adapter, model, or worker)
+  small -> direct inspect -> implement -> local verify -> review -> authorized Git actions
+  large -> planner -> PLAN v5 + RUN v10 -> readiness -> sequential parent or scheduler when parallel work is useful
 ```
+
+### System Review And Route
+
+This is the first phase of every request and is owned by the parent coordinator. It is a bounded, read-only review of the user request, repository instructions, Git state, requested scope, and available upstream product/design inputs. It records the route decision in the conversation or parent checkpoint only; it does not create or edit `PLAN.md`, `RUN.md`, `tasks.md`, evidence, branches, worktrees, or other managed artifacts.
+
+The parent must complete this stage before loading any task-specific skill, selecting a runtime adapter or model, preflighting a worker runtime, creating managed artifacts, or launching a worker. The stage never invokes an external runtime, spawns a worker, or performs a state-changing Git action. It returns at least:
+
+```text
+Project size: small | large
+Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
+Route: direct | plan-backed graph
+Upstream inputs/skills: <what is present, missing, or must be routed upstream>
+```
+
+Only a `large` route may create the existing PLAN-v5/RUN-v10 artifacts and enter graph readiness. A `small` route stays parent-owned and direct, with no PLAN/RUN files. A large route with no usable agent capability selects real `sequential_parent` execution: the parent remains the sole mission writer and runs one mission at a time; it must not manufacture a worker, subagent, app task, or `spawn_subagents` action. The graph starts after this stage; `System Review And Route` is not a PLAN/RUN node.
 
 When small work touches a frontend/UI surface, insert a bounded UI review between local verify and review:
 
@@ -67,6 +83,8 @@ The core is runtime-neutral. Do not load all adapters in one run.
 
 Explicit adapter invocation still begins with this core. The adapters may select shared scripts, templates, and references from this directory; they never create a second PLAN/RUN state model.
 
+If the System Review And Route stage finds no usable agent capability, do not load an adapter merely to imitate delegation. Continue the large plan-backed route with `sequential_parent`: the parent executes one mission at a time, keeps the same PLAN/RUN graph and review gates, and records no worker spawn. This is a runtime choice made after routing, not a new schema or a compact RUN-only mode.
+
 ## Reference Routing
 
 - Read `references/contract-and-traceability.md` for source handoff, contract freeze, trace IDs, permissions, and file placement.
@@ -89,16 +107,16 @@ Explicit adapter invocation still begins with this core. The adapters may select
 ## File Budget
 
 ```text
-small direct work      -> no management files
-large sequential work -> docs/goal/RUN.md + docs/goal/tasks.md
-large multi-mission   -> docs/goal/PLAN.md + docs/goal/RUN.md + docs/goal/tasks.md
+small direct work       -> no management files
+large sequential work  -> docs/goal/PLAN.md + docs/goal/RUN.md + docs/goal/tasks.md
+large multi-mission    -> docs/goal/PLAN.md + docs/goal/RUN.md + docs/goal/tasks.md
 binary UI evidence    -> docs/goal/evidence/** only when artifacts exist
 worktree workers      -> temporary per-mission reports only while integration needs them
 ```
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
 - Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md` is a regenerated mission/task listing view only — it never becomes a second source of truth.
-- A compact `RUN.md` without `PLAN.md` is sequential (one mission at a time, no leases or deterministic wave claim); its workspace default still follows the Default Runtime And Wave Policy below, not `shared_checkout`.
+- New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only `RUN.md` files without `PLAN.md` remain readable and validatable for compatibility and migration, but they cannot authorize new managed execution or enter the current graph; create a fresh PLAN-v5/RUN-v10 pair before continuing managed work.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
 - On first bootstrap of a new target repository, seed a missing root `AGENTS.md` and a missing root `CLAUDE.md` from the same `assets/templates/PROJECT_AGENTS.template.md`. The rules are runtime-neutral, so one template keeps both files from drifting apart. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
@@ -118,12 +136,12 @@ Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and d
 
 Apply this to all large plan-backed work, whether the frontier ever holds more than one ready mission or processes them one at a time:
 
-1. Before the first edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
+1. After `System Review And Route` and before the first edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
 2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear.
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
 4. New plan-backed files use PLAN schema v5 and RUN schema v10, the only pair that graph selection and node-result validation accept. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. The manifest validator still reads older PLAN and RUN files; do not carry their weaker acceptance, source-publication, authorization, continuity, or evidence shapes forward.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order. Before that first selection, record `observed.captured_at` and `observed.git` from a live `git status` / `git rev-parse`, and set `integration.batch_base_sha` to the observed integration head. The validator does not require these — a RUN that leaves them null still reports `PASS` — but the selector then has nothing to launch: every mission and lifecycle node lands in `deferred_nodes` with `parent_state_unreconciled` or `batch_base_missing`, and `dispatchable_nodes` comes back empty. Those two kinds mutate state derived from the parent's current Git position — a mission spawns writers, a lifecycle node pushes or cleans up — so both are gated on it. `verifier`, `approval`, and `external_wait` nodes are not, because they change nothing the snapshot describes. Read those two keys, not `ready_frontier`: these are dispatch-time reasons, so the frontier list can still look full while nothing is dispatchable. Once `status` is `running`, the Resume Reconciliation Gate applies the same unreconciled state to every node and `ready_frontier` empties too. A green validator next to empty `dispatchable_nodes` means the observed snapshot was never filled in, not that the plan is wrong.
-6. First read the target repository's instructions and existing branch model. When they define implementation or integration branches, preserve those exact names and topology. Otherwise the run's own `codex/<short-name>` branch is its integration branch, cut from the recorded current default-branch SHA. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
+6. First read the target repository's instructions and existing branch model. When they define implementation or integration branches, preserve those exact names and topology. Otherwise the run's own `codex/<short-name>` branch is its integration branch, cut from the recorded current default-branch SHA. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. A no-agent route uses `sequential_parent` with the parent as the sole writer and no `spawn_subagents`; prefer a parent-managed worktree and serialize the runtime budget at one. Reserve `shared_checkout` for when worktree creation itself is unavailable or unauthorized, and never run more than one writer in it.
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
 8. There are two landing modes. Ordinary implementation, PRD updates, UI changes, branch, commit, and integration work uses `integration_push`: the verified integration head is pushed to the run's own branch. That push is where an ordinary run ends. Use `local_only` when the run must not touch the remote at all. `integration.branch` must contain the resolved repository branch rather than an assumed name; it is the only branch field, and every push target is built from it.
 
@@ -186,6 +204,7 @@ delete_branches
 - One user instruction may authorize several exact actions, but its source is recorded under every covered key; never replace them with blanket permission.
 - Nine of the twelve actions carry the ordinary development loop: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` **restricted to the resolved integration branch**. One clear execution-intent instruction ("implement this", "build it", "ship it") covers all nine together: record its source under each of their ledger entries in the same authorization request or checkpoint, and do not manufacture separate confirmation pauses for them. They still each get their own ledger entry with its own recorded source, and `push` still carries exact targets — grouping them changes only that a single instruction suffices, not what gets recorded.
 - `create_user_owned_tasks` is grouped for the same reason `spawn_subagents` is: it is the Codex host's worker-launch action. Whether worker launch needs a separate confirmation must not depend on which host the run happens to be on.
+- A large `sequential_parent` route is the explicit no-agent exception: the parent remains the sole mission writer, so it does not request or record `spawn_subagents`, `create_user_owned_tasks`, or `create_app_managed_worktrees` for that route. Do not turn the parent loop into a synthetic worker launch merely because the graph is plan-backed.
 - That grouping is scoped, not general. A `push` whose target is any branch other than the resolved integration branch is not covered and needs its own authorization moment. A `push` is refused outright when the target resolves to `main`, or when the run's own integration branch resolves to `main` — that is the whole branch guard, and it needs no recorded evidence to work.
 - The remaining three actions — `archive_worker_tasks`, `remove_worktrees`, and `delete_branches` — are independent gates. Each needs its own distinct authorization moment and is never swept in by the execution-intent statement.
 - For large, plan-backed work, every RUN-v10 execution and action scope binds the current `run_id`, mission set, PLAN revision, PLAN digest, exact targets where applicable, time, and lifecycle boundary. A plan revision or digest change invalidates the grant rather than silently carrying it forward. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
@@ -220,12 +239,14 @@ A drift from the design system — a raw value, an unregistered variant, a page-
 
 ### 1. Intake And Route
 
+Run `System Review And Route` first as the parent-only, read-only checkpoint described above. Do not load a task-specific skill, create PLAN/RUN, select an adapter/model, preflight worker capability, or spawn a worker while this checkpoint is in progress. Only its `large` result permits the next section's PLAN-backed workflow.
+
 Inspect the repository, applicable instructions, Git state, upstream product/design sources, current behavior, and requested outcome. Record concise decisions for:
 
 ```text
 Project size: small | large
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
-Planning depth: direct | compact RUN | PLAN + RUN
+Planning depth: direct | PLAN + RUN
 Host adapter: none | codex | claude_code
 Workspace: shared_checkout | parent_managed_worktree | app_managed_worktree
 Landing: local_only | integration_push
