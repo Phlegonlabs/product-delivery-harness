@@ -22,7 +22,7 @@ The temporary work graph is one bounded workflow run. It may fan out analysis la
 
 ## Preconditions
 
-A package is "non-trivial" when more than one role in the Graph Model above would produce substantive, non-boilerplate content for it — for example a UI-bearing product spanning more than one screen or archetype, not a single-page trivial stub. "Multi-agent analysis is authorized" means the current session is not restricted to single-agent or sequential-only execution by explicit user instruction, host policy, or permission mode. Both conditions must hold before launching this workflow; when either is false, perform the roles sequentially instead.
+A package is "non-trivial" when more than one role in the Graph Model above would produce substantive, non-boilerplate content for it — for example a UI-bearing product spanning more than one screen or archetype, not a single-page trivial stub. "Multi-agent analysis is authorized" means the parent has an explicit authorization for this workflow run and the current session is not restricted to single-agent or sequential-only execution by explicit user instruction, host policy, or permission mode. Capability or tool availability is evidence only; it never grants authorization. Both conditions must hold before launching this workflow, and the launch arguments must include `args.multi_agent_authorized: true`; when either condition is false, perform the roles sequentially instead.
 
 Before launch, the parent must have:
 
@@ -39,6 +39,7 @@ Before launch, the parent must have:
 - a decision on whether the product has any public-facing marketing, landing, or SEO-relevant page, which gates whether `seo-copy-verifier` runs;
 - an explicit `args.market_research` boolean gating the `market-research` role. Default it to true for a non-trivial package; set it false only when the user declined the pass or the launch profile exposes no web search or fetch tool. The role runs after synthesis, reads the drafted package, and returns findings — it never edits a file, and like every other lane it cannot ask the user anything. Read `market-research-guide.md` before launching it;
 - a `builder_readonly` launch profile, asserted via `args.tool_profile` and honored by the launch configuration, that exposes only Workflow and the required read/search/web tools, with no `Edit`, `Write`, `NotebookEdit`, `Bash`, or other mutating MCP tools.
+- an explicit multi-agent authorization for this workflow run, passed as `args.multi_agent_authorized: true`; reject or do not launch when `args.single_agent_only` or `args.sequential_only` is true. This is a launch gate, not a capability probe.
 
 If the host cannot enforce that read-only tool boundary, use the sequential parent fallback. If a human decision, missing secret, publish approval, destructive action, or scope change is needed, do not launch or continue the workflow. Resolve it in the parent session first.
 
@@ -68,4 +69,4 @@ A workflow result does not authorize file creation, overwrite, archive, or publi
 
 ## Fallback
 
-When Dynamic Workflow is unavailable, the parent performs the same roles sequentially. Do not claim multi-agent verification or workflow resume when that fallback is used.
+When Dynamic Workflow is unavailable, unauthorized, or blocked by a single-agent/sequential-only constraint, the parent performs the same roles sequentially. The market-research role may use a separate single read-only subagent only when the parent has a separate explicit delegation authorization for that exact researcher; otherwise the parent performs it inline. Do not claim multi-agent verification or workflow resume when a fallback is used.

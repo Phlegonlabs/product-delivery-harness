@@ -12,6 +12,8 @@ Set `max_parallel_workers`, `available_worker_slots`, and `isolation_capacity` f
 
 For plan-backed multi-mission execution, replace the generic fallback runtime snapshot before the first production edit. Proactively record every observed driver independently from authorization, set the configured write-worker maximum generously high unless an explicit user or runtime limit applies, and run deterministic selection immediately after Plan Readiness. Resolve the target repository's branch model from its instructions before filling this template. Preserve those branches when defined; otherwise use the template's main-only defaults, where `main` is the default branch and the run's own ephemeral `codex/<short-name>` branch, cut from `main`, is its integration branch. Set `integration.retention` to `persistent` only when repository instructions define a genuine long-lived integration branch. Create mission worktrees from the resolved current integration SHA, require one exact-head read-only review before each integration, and merge passing heads serially into the resolved integration branch. Ordinary PRD, UI, and feature work does not wait for GitHub: it starts `local_only` and moves to `integration_push` once the verified integration head is pushed to the integration branch, recording that head in `landing.pushed_head_sha`. That is where an ordinary run ends — the planned change is made, verified, and pushed. Landing that branch on the default branch is the user's own step, done outside this harness. Do not hide a capability or silently downgrade because authorization is missing. Never run parallel writers in `shared_checkout`.
 
+When replacing the fallback with an observed Codex adapter, also add the complete eight-entry `runtime_adapter.capability_probe` defined in `references/execution-state-model.md`. Do not move the run to `ready` or `running` while a probe entry is missing or `unobserved`. The validator derives `app_threads` and `subagents` from that probe and requires the declared driver list to match, so proven App Threads cannot be silently replaced by direct subagents.
+
 ## Harness Run State
 
 ```json
@@ -245,6 +247,7 @@ For plan-backed multi-mission execution, replace the generic fallback runtime sn
       "deferred_missions": [],
       "conflict_edges": []
     },
+    "closed_waves": [],
     "workers": [],
     "review_workers": [],
     "workflow_runs": [],
@@ -260,7 +263,7 @@ The exact fenced JSON block above is the canonical run state. Scripts read this 
 
 New RUN files always use RUN schema v10 (see `SKILL.md`'s Default Runtime And Wave Policy). Older RUN schemas remain readable; their own recorded `schema_version` decides which fields apply.
 
-RUN schema v10 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes that exact action. Every authorized execution scope and action scope binds `run_id`, current `plan_revision`, current `plan_digest_sha256`, mission IDs, and the lifecycle boundary; action scopes also bind exact targets. A PLAN revision or digest change invalidates the grant. Each action accepts one target kind: `runtime:` for `invoke_external_runtime`, `worker:` for `spawn_subagents`, `task:` for `create_user_owned_tasks` and `archive_worker_tasks`, `worktree:` for the two worktree-creation actions and `remove_worktrees`, and `branch:` for `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, and `delete_branches`. `push` also records `authorized_head_sha` and cannot use a `*` target.
+RUN schema v10 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes that exact action. Every authorized execution scope and action scope binds `run_id`, current `plan_revision`, current `plan_digest_sha256`, mission IDs, and the lifecycle boundary; action scopes also bind exact targets. A `wave_closed` scope additionally binds the current `active_wave.wave_id` and `active_wave.batch_base_sha`; those values must be renewed for every wave. Append each closed or superseded pair to the durable `closed_waves` list before re-proposing anything, and never reuse a pair already listed there. A PLAN revision or digest change invalidates the grant. Each action accepts one target kind: `runtime:` for `invoke_external_runtime`, `worker:` for `spawn_subagents`, `task:` for `create_user_owned_tasks` and `archive_worker_tasks`, `worktree:` for the two worktree-creation actions and `remove_worktrees`, and `branch:` for `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, and `delete_branches`. `push` also records `authorized_head_sha` and cannot use a `*` target.
 
 `graph_state` is the canonical routing record for PLAN-v5 nodes and edges. Initialize one state for every declared node and edge. For pre-integration review, `fix_required` returns to the original mission task/thread and its existing worktree; after the focused verifier passes on a changed head, re-arm the same review node with a new attempt ID. Do not create a repair mission or replacement worktree for this loop. Post-integration review may traverse a bounded repair route. That repair mission receives its own direct singleton exact-head review before integration, then returns to the post-integration review before a deterministic final gate. Every retry preserves prior evidence and rechecks authorization.
 
@@ -546,6 +549,7 @@ If Goal mode is used, its prompt may record expected coordination and request au
 | Worker, exact-head pre-integration review, mission-integration, batch, and final E2E gates exist; E2E command, current-head check, evidence, environment, and smoke disposition are named | draft / PASS / BLOCKED | |
 | Every mission's write scope is covered by a review-type node (`backend_code`/`frontend_code`/`visual`), independent of `landing.mode` | draft / PASS / BLOCKED / n/a | |
 | Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
+| Observed Codex capability probe is complete and matches the declared driver priority | draft / PASS / BLOCKED / n/a | |
 
 For plan-backed work, do not set the run to `running` until all required readiness rows pass, the plan revision/digest is current, `execution_authorized` is true, and every next action has its own authorization. Legacy compact RUN-only files may be read and validated for compatibility, but they are not a new authoring route: do not set a fresh run's plan identity to null or use compact state to claim current plan validation, delegation, refinement, or wave selection. Create PLAN-v5/RUN-v10 before managed execution; a large no-agent run remains `sequential_parent` inside that pair.
 

@@ -244,7 +244,7 @@ That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest
 
 Targets use action-specific prefixes, and there are only five: `worker:`, `task:`, `worktree:`, `branch:`, and `runtime:`. The kind is part of the action's type, so every action accepts only its own kinds and this is always enforced — there is no per-artifact opt-in. `expires_when` is `wave_closed`, `run_complete`, or `explicit_revocation` and is evaluated against current RUN state. Use `"*"` only for a dimension the user explicitly authorized run-wide. A selector/coordinator treats missing, expired, or nonmatching scope as unauthorized; authorization is never a global boolean inferred for every mission or target.
 
-`wave_closed` is one-use authorization for the currently recorded wave. When that wave becomes `closed` or `superseded`, set every matching action entry back to `{ "authorized": false, "source": null }` and clear overall execution authorization when it used the same boundary before replacing `active_wave`. Never copy or revive a wave-scoped grant for a later wave; a new wave needs a newly recorded explicit source.
+`wave_closed` is one-use authorization for the currently recorded wave. Its scope must add the immutable `wave_id` and `batch_base_sha`, and both values must equal the current `active_wave` while that wave is `proposed` or `active`. When that wave becomes `closed` or `superseded`, append its `{ "wave_id", "batch_base_sha" }` pair to the v10 RUN's durable `closed_waves` list before replacing or re-proposing `active_wave`. Every matching action entry then returns to `{ "authorized": false, "source": null }`, and overall execution authorization is cleared when it used the same boundary. Never copy or revive a wave-scoped grant for a pair already in `closed_waves`; a new wave needs a newly recorded explicit source and a new identity/base pair. Legacy RUN schemas remain readable without this v10 history field.
 
 A `run_complete`-bounded authorization stays valid evidence at closeout even after its boundary expires — do not erase the record of what was authorized and done just because the run finished.
 
@@ -304,6 +304,25 @@ RUN v10 records observed host capabilities without replacing the three portable 
 ```
 
 `provider` is `codex`, `claude_code`, or `generic`. `detection_source` is `observed`, `explicit`, or `fallback`. `available_drivers` contains only capabilities proven in the current surface and always includes `sequential_parent`. The selector applies a fixed route: Codex uses `app_threads`, then `subagents`, then `sequential_parent`; Claude Code uses `dynamic_workflow`, then `subagents`, then `sequential_parent`; generic uses `subagents`, then `sequential_parent`.
+
+RUN v10 adds an optional `runtime_adapter.capability_probe` that is valid only for an observed Codex adapter. It becomes required before such a run enters `ready` or `running`, even if another stale or malformed field still claims readiness is blocked:
+
+```json
+{
+  "capability_probe": {
+    "app_project_list": {"status": "available", "evidence": "tool:codex_app__list_projects"},
+    "app_thread_create": {"status": "available", "evidence": "tool:codex_app__create_thread"},
+    "app_thread_read": {"status": "available", "evidence": "tool:codex_app__read_thread"},
+    "app_thread_message": {"status": "available", "evidence": "tool:codex_app__send_message_to_thread"},
+    "app_thread_wait": {"status": "available", "evidence": "tool:codex_app__wait_threads"},
+    "app_managed_worktree": {"status": "available", "evidence": "create_thread supports a worktree target"},
+    "direct_subagent_spawn": {"status": "available", "evidence": "tool:spawn_agent"},
+    "direct_agent_result": {"status": "available", "evidence": "direct agent-result channel"}
+  }
+}
+```
+
+Every probe entry has exactly `status` and `evidence`; status is `available`, `unavailable`, or `unobserved`, and evidence is non-empty. Ready/running observed Codex execution rejects a missing probe or any `unobserved` entry with `capability_snapshot_incomplete`. All six `app_*` entries being available derives `app_threads`; both `direct_*` entries being available derives `subagents`; `sequential_parent` is always derived. `available_drivers` must equal those derived drivers in Codex priority order. Thus a parent cannot prove the app task/thread surface and then silently record only direct subagents or sequential execution. Blocked historical RUNs may remain readable without the probe, but they must re-probe before resuming.
 
 PLAN v5 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex and Claude Code, while generic providers keep it null. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`. The destination host still validates current model and effort support.
 
@@ -452,6 +471,13 @@ batch_base_sha
 selected_missions
 deferred_missions and reason codes
 ```
+
+RUN schema v10 also carries an append-only `closed_waves` list of
+`{ wave_id, batch_base_sha }` pairs. Append a pair before closing or
+superseding that wave; a proposed or active wave may not reuse a pair already
+listed there. A `wave_closed` grant is valid only when its scope matches the
+current pair and that pair is absent from `closed_waves`. Older RUN schemas do
+not require this field and remain readable.
 
 Each mission lease and worker record repeats the lease ID, plan revision/digest, and batch base so stale results can be rejected without inference. The run-level `runtime_adapter` records provider/driver routing. Worker records name runtime/workspace/completion axes, the selected runtime binding when graph-backed, task/thread identity when applicable, worktree path, branch/ref, optional nested-subagent policy, optional report path, phase, and observed head SHA.
 

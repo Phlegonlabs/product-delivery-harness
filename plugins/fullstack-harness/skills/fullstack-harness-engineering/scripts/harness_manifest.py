@@ -11,6 +11,9 @@ from typing import Any
 
 from harness_schema import (
     AUTHORIZATION_KEYS,
+    CAPABILITY_PROBE_STATUSES,
+    CODEX_CAPABILITY_PROBE_KEYS,
+    CODEX_DRIVER_CAPABILITY_REQUIREMENTS,
     EXPIRY_BOUNDARIES,
     GATE_VALUES,
     HEAD_BOUND_AUTHORIZATION_ACTIONS,
@@ -25,6 +28,7 @@ from harness_schema import (
     PERMISSION_SELECTED_MODES,
     PERMISSION_STATUSES,
     PLAN_HEADING,
+    RUN_DISPATCH_STATUSES,
     RUN_HEADING,
     RUNTIME_DETECTION_SOURCES,
     RUNTIME_DRIVER_PRIORITY,
@@ -80,6 +84,7 @@ from harness_authorization import (
     _validate_authorization_scope,
     authorization_covers,
     execution_covers,
+    wave_scope_matches_current,
 )
 from harness_graph import (
     _cycle_nodes,
@@ -2173,7 +2178,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
         run_keys.add("landing")
     if schema_version == 10:
-        run_keys.add("verifier_executions")
+        run_keys.update({"verifier_executions", "closed_waves"})
     if schema_version in {9, 10}:
         run_keys.update({"batch_gate_results", "final_gate_results", "ui_evidence"})
     if schema_version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
@@ -2195,6 +2200,22 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.run_id", "must be a non-empty string")
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
         _add(errors, "run.status", "has an unsupported value")
+    elif run["status"] == "draft" and run["execution_authorized"] is True:
+        _add(
+            errors,
+            "run.status",
+            "draft run cannot authorize execution; use ready or running",
+        )
+    elif (
+        run["status"] in RUN_DISPATCH_STATUSES
+        and run["execution_authorized"] is True
+        and run["plan_readiness"] != "ready"
+    ):
+        _add(
+            errors,
+            "run.plan_readiness",
+            "authorized ready/running run must have ready plan_readiness",
+        )
     if run["intent"] not in {
         "plan-only",
         "plan-then-stop",
@@ -2301,6 +2322,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             run["execution_authorization_scope"],
             action=False,
             require_plan_binding=(schema_version == 10),
+            expires_when=(
+                run["execution_authorization_scope"].get("expires_when")
+                if isinstance(run["execution_authorization_scope"], dict)
+                and schema_version == 10
+                else None
+            ),
         )
         if isinstance(run["execution_authorization_scope"], dict):
             execution_scope = run["execution_authorization_scope"]
@@ -2311,6 +2338,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, "run.execution_authorization_scope.plan_revision", "must match run.plan.revision")
                 if execution_scope.get("plan_digest_sha256") != run.get("plan", {}).get("digest_sha256"):
                     _add(errors, "run.execution_authorization_scope.plan_digest_sha256", "must match run.plan.digest_sha256")
+            if schema_version == 10 and (
+                execution_scope.get("expires_when") == "wave_closed"
+                and not wave_scope_matches_current(run, execution_scope)
+            ):
+                _add(
+                    errors,
+                    "run.execution_authorization_scope",
+                    "wave_closed scope must match the current active_wave wave_id and batch_base_sha and must not be listed in closed_waves",
+                )
     else:
         _optional_string(
             errors, "run.execution_authorization_source", run["execution_authorization_source"]
@@ -2369,6 +2405,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         action=True,
                         action_name=action,
                         require_plan_binding=(schema_version == 10),
+                        expires_when=(
+                            entry.get("expires_when")
+                            if schema_version == 10
+                            else None
+                        ),
                     )
                     if isinstance(entry["scope"], dict):
                         action_scope = entry["scope"]
@@ -2379,6 +2420,15 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                                 _add(errors, f"{path}.scope.plan_revision", "must match run.plan.revision")
                             if action_scope.get("plan_digest_sha256") != run.get("plan", {}).get("digest_sha256"):
                                 _add(errors, f"{path}.scope.plan_digest_sha256", "must match run.plan.digest_sha256")
+                        if schema_version == 10 and (
+                            entry.get("expires_when") == "wave_closed"
+                            and not wave_scope_matches_current(run, action_scope)
+                        ):
+                            _add(
+                                errors,
+                                f"{path}.scope",
+                                "wave_closed scope must match the current active_wave wave_id and batch_base_sha and must not be listed in closed_waves",
+                            )
                     if entry["expires_when"] not in EXPIRY_BOUNDARIES:
                         _add(
                             errors,
@@ -2565,6 +2615,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "available_drivers",
                 "detection_source",
             },
+            {"capability_probe"} if schema_version == 10 else set(),
         ):
             provider = adapter["provider"]
             provider_valid = isinstance(provider, str) and provider in RUNTIME_PROVIDERS
@@ -2600,6 +2651,77 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             detection_source = adapter["detection_source"]
             if not isinstance(detection_source, str) or detection_source not in RUNTIME_DETECTION_SOURCES:
                 _add(errors, f"{adapter_path}.detection_source", "has an unsupported value")
+
+            capability_probe = adapter.get("capability_probe")
+            probe_path = f"{adapter_path}.capability_probe"
+            probe_statuses: dict[str, str] = {}
+            probe_complete = False
+            if capability_probe is not None:
+                if provider != "codex":
+                    _add(errors, probe_path, "is supported only for the codex provider")
+                if detection_source != "observed":
+                    _add(errors, probe_path, "requires detection_source observed")
+                if _keys(
+                    errors,
+                    probe_path,
+                    capability_probe,
+                    CODEX_CAPABILITY_PROBE_KEYS,
+                ):
+                    probe_complete = True
+                    for capability in CODEX_CAPABILITY_PROBE_KEYS:
+                        observation = capability_probe[capability]
+                        observation_path = f"{probe_path}.{capability}"
+                        if not _keys(
+                            errors,
+                            observation_path,
+                            observation,
+                            {"status", "evidence"},
+                        ):
+                            probe_complete = False
+                            continue
+                        status = observation["status"]
+                        evidence = observation["evidence"]
+                        if not isinstance(status, str) or status not in CAPABILITY_PROBE_STATUSES:
+                            _add(errors, f"{observation_path}.status", "has an unsupported value")
+                            probe_complete = False
+                        else:
+                            probe_statuses[capability] = status
+                            if status == "unobserved":
+                                probe_complete = False
+                        if not _nonempty_string(evidence):
+                            _add(errors, f"{observation_path}.evidence", "must be a non-empty string")
+                            probe_complete = False
+
+                    if len(probe_statuses) == len(CODEX_CAPABILITY_PROBE_KEYS):
+                        derived_drivers = [
+                            driver
+                            for driver in RUNTIME_DRIVER_PRIORITY["codex"]
+                            if driver == "sequential_parent"
+                            or all(
+                                probe_statuses.get(capability) == "available"
+                                for capability in CODEX_DRIVER_CAPABILITY_REQUIREMENTS[driver]
+                            )
+                        ]
+                        if drivers != derived_drivers:
+                            _add(
+                                errors,
+                                f"{adapter_path}.available_drivers",
+                                "capability_snapshot_mismatch: must exactly match capability_probe in provider priority order: "
+                                + ", ".join(derived_drivers),
+                            )
+
+            probe_required = (
+                schema_version == 10
+                and provider == "codex"
+                and detection_source == "observed"
+                and run.get("status") in RUN_DISPATCH_STATUSES
+            )
+            if probe_required and not probe_complete:
+                _add(
+                    errors,
+                    probe_path,
+                    "capability_snapshot_incomplete: ready/running observed Codex execution requires every probe status to be available or unavailable with evidence",
+                )
 
             selected_driver = route_runtime_driver(runtime)
             if selected_driver == "app_threads" and (
@@ -2964,6 +3086,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             ):
                 _add(errors, f"{path}.refinement_request", "must be null or an object")
 
+    closed_pairs: set[tuple[str, str]] = set()
+    if schema_version == 10:
+        closed_waves = run["closed_waves"]
+        if not isinstance(closed_waves, list):
+            _add(errors, "run.closed_waves", "must be a list")
+        else:
+            for index, item in enumerate(closed_waves):
+                path = f"run.closed_waves[{index}]"
+                if not _keys(errors, path, item, {"wave_id", "batch_base_sha"}):
+                    continue
+                wave_id = item["wave_id"]
+                batch_base_sha = item["batch_base_sha"]
+                if not _nonempty_string(wave_id):
+                    _add(errors, f"{path}.wave_id", "must be a non-empty string")
+                if not is_full_sha(batch_base_sha):
+                    _add(errors, f"{path}.batch_base_sha", "must be a full Git SHA")
+                if _nonempty_string(wave_id) and is_full_sha(batch_base_sha):
+                    pair = (wave_id, batch_base_sha)
+                    if pair in closed_pairs:
+                        _add(errors, path, "duplicates a closed wave identity")
+                    closed_pairs.add(pair)
+
     wave = run["active_wave"]
     wave_keys = {
         "wave_id",
@@ -2976,13 +3120,48 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "conflict_edges",
     }
     if _keys(errors, "run.active_wave", wave, wave_keys):
-        _optional_string(errors, "run.active_wave.wave_id", wave["wave_id"])
-        if wave["status"] not in {"idle", "proposed", "active", "closed", "superseded"}:
+        wave_id = wave["wave_id"]
+        status = wave["status"]
+        batch_base_sha = wave["batch_base_sha"]
+        _optional_string(errors, "run.active_wave.wave_id", wave_id)
+        if status not in {"idle", "proposed", "active", "closed", "superseded"}:
             _add(errors, "run.active_wave.status", "has an unsupported value")
         if not _is_int(wave["plan_revision"]) or wave["plan_revision"] < 1:
             _add(errors, "run.active_wave.plan_revision", "must be positive integer")
         _optional_sha(errors, "run.active_wave.plan_digest_sha256", wave["plan_digest_sha256"])
-        _optional_sha(errors, "run.active_wave.batch_base_sha", wave["batch_base_sha"])
+        _optional_sha(errors, "run.active_wave.batch_base_sha", batch_base_sha)
+        if schema_version == 10:
+            current_pair = (
+                (wave_id, batch_base_sha)
+                if _nonempty_string(wave_id) and is_full_sha(batch_base_sha)
+                else None
+            )
+            if status in {"proposed", "active"}:
+                if current_pair is None:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "proposed or active wave requires wave_id and batch_base_sha",
+                    )
+                elif current_pair in closed_pairs:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "proposed or active wave reuses a closed wave identity; choose a new wave_id or batch_base_sha",
+                    )
+            elif status in {"closed", "superseded"}:
+                if current_pair is None:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "closed or superseded wave requires wave_id and batch_base_sha",
+                    )
+                elif current_pair not in closed_pairs:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "closed or superseded wave must be recorded in closed_waves",
+                    )
         for mission_id in _strings(errors, "run.active_wave.selected_missions", wave["selected_missions"]):
             if mission_id not in mission_ids:
                 _add(errors, "run.active_wave.selected_missions", f"unknown mission {mission_id!r}")

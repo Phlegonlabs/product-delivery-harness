@@ -69,6 +69,8 @@ python3 /path/to/skill/scripts/install.py \
 ```
 
 Never use `--overwrite` without first reviewing the exact existing files and preserving user changes.
+`--apply` uses POSIX no-follow directory-descriptor writes; on hosts without an equivalent
+primitive it fails closed without writing. Dry-run remains available on every host.
 
 The installer creates:
 
@@ -110,7 +112,14 @@ When production is authorized:
 6. Validate with Wrangler's dry-run or check command supported by the repository.
 7. Trigger `Cloudflare production Worker` manually and enter `deploy-production`.
 
-Do not automatically trigger this workflow on a default-branch push. The first production deployment remains an explicit action. Treat the Wrangler configuration as the source of truth and regenerate Worker binding types after changing environments when the project uses generated types.
+The production workflow must run only when manually dispatched from the repository's
+default branch. Keep a job-level guard that compares `github.ref` with
+`refs/heads/${{ github.event.repository.default_branch }}` and check out the event's
+trusted `github.sha`, rather than an arbitrary dispatch ref. Do not automatically
+trigger this workflow on a default-branch push. The first production deployment
+remains an explicit action. Treat the Wrangler configuration as the source of truth
+and regenerate Worker binding types after changing environments when the project uses
+generated types.
 
 ## Configure GitHub
 
@@ -119,6 +128,7 @@ Create:
 - Actions secret `CLOUDFLARE_API_TOKEN`.
 - Actions variable `CLOUDFLARE_ACCOUNT_ID`.
 - GitHub Environment `production` or the configured equivalent when installing the production workflow.
+- Restrict that GitHub Environment's deployment branch/tag policy to the repository's default branch.
 
 Scope the token to the intended account and minimum required resources. Add read permissions for bound D1, R2, KV, or other resources only when Wrangler must validate them during deployment.
 

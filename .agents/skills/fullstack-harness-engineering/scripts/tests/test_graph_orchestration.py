@@ -33,6 +33,7 @@ from select_ready_nodes import (  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
+    codex_capability_probe,
     legacy_graph_plan,
     legacy_graph_run,
     mark_legacy_complete,
@@ -1221,6 +1222,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "codex",
             "available_drivers": ["sequential_parent"],
             "detection_source": "observed",
+            "capability_probe": codex_capability_probe(),
         }
         for action in (
             "spawn_subagents",

@@ -22,7 +22,7 @@ from harness_manifest import (
     validate_plan,
     validate_run,
 )
-from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS
+from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS, RUN_DISPATCH_STATUSES
 
 
 class GraphSelectionError(ValueError):
@@ -310,6 +310,8 @@ def _logical_reasons(
     )
     if run.get("plan_readiness") != "ready":
         reasons.add("plan_not_ready")
+    if run.get("status") not in RUN_DISPATCH_STATUSES:
+        reasons.add("run_status_not_dispatchable")
     if run.get("execution_authorized") is not True:
         reasons.add("execution_not_authorized")
     if (

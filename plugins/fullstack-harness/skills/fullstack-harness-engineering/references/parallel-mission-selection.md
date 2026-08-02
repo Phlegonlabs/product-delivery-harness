@@ -8,6 +8,8 @@ This file defines the shared scope/resource conflict rules and deterministic wri
 
 For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, set the configured maximum generously high unless the user sets an explicit lower limit, and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number.
 
+On an observed Codex host, Plan Readiness also requires a complete RUN-v10 `capability_probe`. Do not call the selector from a ready/running run while any probe surface is missing or `unobserved`; validation returns `capability_snapshot_incomplete`. Because the validator derives the driver list from the probe, a parent cannot make direct subagents win by omitting proven App Threads.
+
 ## Inputs And Output
 
 The selector reads only canonical machine data. In RUN schema v6 and later, provider routing comes from `runtime_capabilities.runtime_adapter`:
@@ -154,6 +156,7 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `review_head_unchanged` — a `fix_required` review's source head has not changed.
 - `route_not_activated` — no incoming route edge has activated the node.
 - `runtime_capacity_unavailable` — observed worker slots or isolation capacity are exhausted.
+- `run_status_not_dispatchable` — RUN status is terminal or otherwise not one of the executable `ready`/`running` states.
 - `runtime_unavailable` — the node's allowed providers exclude the current host.
 - `worker_state_unreconciled` — a live worker's worktree, branch, or head does not match observation.
 - `worktree_ineligible` — the plan mission's `worktree_eligible` is not true.

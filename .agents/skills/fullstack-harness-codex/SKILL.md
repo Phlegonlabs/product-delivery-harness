@@ -21,6 +21,8 @@ Before the first edit or worker launch, inspect the current Codex session:
 
 Codex app task tools may be discoverable but not loaded into the initial tool list. Before recording `app_threads` as unavailable, search the current Codex tool surface for project listing, top-level task/thread creation, follow-up messaging, and bounded thread waiting. A direct subagent is not a substitute for a user-owned top-level Codex task: the task has its own conversation in the left sidebar and its own app-managed worktree.
 
+For a RUN-v10 adapter with `provider: codex` and `detection_source: observed`, record the machine-validatable `capability_probe` before Plan Readiness. Probe all eight surfaces independently: `app_project_list`, `app_thread_create`, `app_thread_read`, `app_thread_message`, `app_thread_wait`, `app_managed_worktree`, `direct_subagent_spawn`, and `direct_agent_result`. Each entry has exactly `status` (`available`, `unavailable`, or `unobserved`) plus non-empty `evidence`. A ready/running run may contain no `unobserved` entry. The validator derives `app_threads` only when all six app surfaces are available and `subagents` only when both direct-agent surfaces are available, then requires `available_drivers` to match that result in Codex priority order. If App Threads is proven, omitting it is a blocking `capability_snapshot_mismatch`, not a permitted downgrade.
+
 Record observations under `runtime_adapter` independently from authorization. Choose the strongest observed and authorized route:
 
 ```text

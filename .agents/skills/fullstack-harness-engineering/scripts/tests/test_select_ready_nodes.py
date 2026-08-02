@@ -39,6 +39,7 @@ from test_graph_orchestration import (  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
+    codex_capability_probe,
     retained_gate_execution,
 )
 
@@ -197,6 +198,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
                 "provider": "codex",
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
+                "capability_probe": codex_capability_probe(subagents=True),
             },
             "permission_boundary": {
                 "selected_mode": "ask_for_approval",
@@ -442,6 +444,10 @@ def configure_enabled_nested_app_task(
                     "sequential_parent",
                 ],
                 "detection_source": "observed",
+                "capability_probe": codex_capability_probe(
+                    app_threads=True,
+                    subagents=True,
+                ),
             },
             "nested_subagents": {
                 "available": True,
@@ -494,6 +500,39 @@ def configure_enabled_nested_app_task(
 
 
 class SelectReadyNodesTests(unittest.TestCase):
+    def test_non_executable_run_statuses_never_dispatch_nodes(self) -> None:
+        plan = valid_graph_plan()
+
+        draft = valid_graph_run(plan)
+        blocked = valid_graph_run(plan)
+        authorize_execution(blocked, ["M1", "M2"], status="blocked")
+
+        for status, run in (("draft", draft), ("blocked", blocked)):
+            result = select_ready_nodes(plan, run)
+            self.assertEqual([], result["dispatchable_nodes"], status)
+            self.assertTrue(
+                all(
+                    "run_status_not_dispatchable" in item["reason_codes"]
+                    for item in result["deferred_nodes"]
+                ),
+                (status, result["deferred_nodes"]),
+            )
+
+        # A valid complete RUN is terminal and normally has no ready graph
+        # nodes. Keep this selector regression independent of closeout fixture
+        # construction so the lifecycle guard itself remains covered.
+        complete = copy.deepcopy(blocked)
+        complete["status"] = "complete"
+        with patch("select_ready_nodes.validate_run", return_value=[]):
+            result = select_ready_nodes(plan, complete)
+        self.assertEqual([], result["dispatchable_nodes"])
+        self.assertTrue(
+            all(
+                "run_status_not_dispatchable" in item["reason_codes"]
+                for item in result["deferred_nodes"]
+            )
+        )
+
     def test_legacy_app_task_requires_spawn_without_reviewer_role(
         self,
     ) -> None:
@@ -699,6 +738,10 @@ class SelectReadyNodesTests(unittest.TestCase):
                         "sequential_parent",
                     ],
                     "detection_source": "observed",
+                    "capability_probe": codex_capability_probe(
+                        app_threads=True,
+                        subagents=True,
+                    ),
                 },
                 "nested_subagents": {
                     "available": True,
@@ -1770,6 +1813,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
+                    "capability_probe": codex_capability_probe(),
                 },
             }
         )
@@ -1822,6 +1866,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
+                    "capability_probe": codex_capability_probe(),
                 },
             }
         )
@@ -1936,6 +1981,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "provider": "codex",
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
+                    "capability_probe": codex_capability_probe(),
                 },
             }
         )

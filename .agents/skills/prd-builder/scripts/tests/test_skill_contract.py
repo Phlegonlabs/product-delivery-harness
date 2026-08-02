@@ -134,6 +134,7 @@ async function agent(_prompt, options) {
             "include_implementation_plan": False,
             "market_research": True,
             "tool_profile": "builder_readonly",
+            "multi_agent_authorized": True,
             "builder_ux_direction": "Guided, balanced-density native workflow.",
             "mobile_desktop_platform": "native iOS",
         }
@@ -666,6 +667,40 @@ async function agent(_prompt, options) {
         self.assertTrue(disabled["ok"])
         self.assertIsNone(disabled["research"])
         self.assertEqual("candidate_ready", disabled["status"])
+
+    def test_market_research_delegation_requires_explicit_authorization(self) -> None:
+        skill = self.read("SKILL.md")
+        dynamic = self.read("references/dynamic-workflow.md")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+
+        self.assertIn("a single read-only subagent only when the parent has a separate explicit subagent/delegation authorization", skill)
+        self.assertIn("no delegation authorization is present", skill)
+        self.assertIn("args.multi_agent_authorized: true", dynamic)
+        self.assertIn("single read-only subagent only when the parent has a separate explicit delegation authorization", dynamic)
+        self.assertIn('requires explicit args.multi_agent_authorized=true', workflow)
+        self.assertIn('workflowArgs.single_agent_only === true || workflowArgs.sequential_only === true', workflow)
+
+        unauthorized = self.base_workflow_args()
+        unauthorized["multi_agent_authorized"] = False
+        result = self.run_workflow(unauthorized)
+        self.assertFalse(result["ok"])
+        self.assertIn("requires explicit args.multi_agent_authorized=true", result["error"])
+
+    def test_dynamic_workflow_rejects_single_agent_or_sequential_only_constraints(self) -> None:
+        for constraint in ("single_agent_only", "sequential_only"):
+            workflow_args = self.base_workflow_args()
+            workflow_args[constraint] = True
+            result = self.run_workflow(workflow_args)
+            self.assertFalse(result["ok"])
+            self.assertIn("cannot run when single-agent or sequential-only execution is required", result["error"])
+
+    def test_dynamic_workflow_rejects_non_boolean_execution_constraints(self) -> None:
+        for constraint in ("single_agent_only", "sequential_only"):
+            workflow_args = self.base_workflow_args()
+            workflow_args[constraint] = "false"
+            result = self.run_workflow(workflow_args)
+            self.assertFalse(result["ok"])
+            self.assertIn(f"requires boolean args.{constraint} when provided", result["error"])
 
     def test_market_research_never_blocks_the_package(self) -> None:
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
