@@ -325,6 +325,41 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Builder approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)
 
+    def test_stop_and_ask_separates_validator_and_judgment_stops(self) -> None:
+        contract = self.read("references/contract-and-traceability.md")
+        verification = self.read("references/verification-gates.md")
+
+        self.assertIn("### Validator-Enforced Stops", contract)
+        self.assertIn("### Judgment Stops", contract)
+        self.assertLess(
+            contract.index("### Validator-Enforced Stops"),
+            contract.index("### Judgment Stops"),
+        )
+        # Readiness/authorization stops are blocked by the wave selector, not
+        # the manifest validator; the section must name both tools.
+        self.assertIn("select_ready_nodes.py", contract)
+        self.assertIn("No script parses that table", contract)
+        # The pair invariant is re-checked downstream, not only by the
+        # authoring skill, and a hand-edited half-pair is a stop condition.
+        # The command must be runnable (both required args) and read-only.
+        for content in (contract, verification):
+            self.assertIn(
+                "check_design_system_pair.py --markdown <design-system.md>"
+                " --registry <design-system.json> --require-filled",
+                content,
+            )
+            self.assertIn("--write", content)
+        self.assertIn("Design-system pair check", verification)
+        # execution-task-decomposition.md points at this stop condition; keep
+        # the cross-reference from dangling again, and never present the
+        # classification as a manifest field the schema would reject.
+        self.assertIn("migration classification unset", contract)
+        self.assertIn("not a manifest field", contract)
+        # The validator checks review coverage existence, not review.type
+        # fitness; type appropriateness must stay a judgment stop.
+        self.assertIn("without comparing `review.type` to the write scope", contract)
+        self.assertNotIn("as applicable) covering it", contract)
+
     def test_schema_v5_graph_is_first_class(self) -> None:
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
