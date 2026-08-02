@@ -178,6 +178,21 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Do not add a fourth", wireframes)
         self.assertIn("not a fixed catalog entry or `modern-minimal` default", wireframes)
 
+    def test_lightweight_direction_pass_is_owner_initiated_only(self) -> None:
+        skill = self.read("SKILL.md")
+        wireframes = self.read("references/wireframe-guide.md")
+        references = self.read("references/design-reference-guide.md")
+
+        self.assertIn("lightweight direction pass", skill)
+        self.assertIn("never initiate that reduction yourself", skill)
+        self.assertIn("Lightweight exception", references)
+        self.assertIn("one direction with one inspected current public reference", references)
+        self.assertIn("must not propose or initiate the reduction", references)
+        self.assertIn("Record that request in the Builder UX Direction decision", references)
+        self.assertIn("every other rule in this guide still applies", references)
+        self.assertIn("owner-requested lightweight direction pass", wireframes)
+        self.assertIn("which the agent never proposes", wireframes)
+
     def test_selection_and_reference_revision_keep_tokens_unfixed(self) -> None:
         skill = self.read("SKILL.md")
         references = self.read("references/design-reference-guide.md")

@@ -97,6 +97,8 @@ After the combined Style And Reference Intake is resolved:
 4. Include one contemporary/modern reference-informed direction by default. Include a second only when owner preference, product constraints, and valid evidence support a materially different modern treatment. Keep the remaining direction deliberately contrasting.
 5. If the owner rejects modern or product, platform, accessibility, or brand constraints make it unsuitable, explain the exception instead of forcing it.
 
+Lightweight exception: the human owner may explicitly request a lightweight direction pass — one direction with one inspected current public reference — when the surface is small, such as a single-screen internal tool. Record that request in the Builder UX Direction decision. The agent must not propose or initiate the reduction, and every other rule in this guide still applies: inspection, `REF-*`/`RP-*` records, confirmation pauses, and frozen structure. In a lightweight pass, each revision round produces one direction per set instead of three.
+
 Modern/contemporary is an evidence-backed quality lane, not a fixed style name or synonym for `modern-minimal`. Every direction must include its ID, modernity classification, preference fit, applicable `MR-*`/`S-*` evidence, clearly labeled inference, `REF-*` sources with direct URL and retrieval date, observed design mechanics, proposed `RP-*` items resolving to those inspected sources, tradeoff, and avoid list. When valid market evidence is absent, say so and never call the directions market-supported.
 
 ## Selection And Revision Loop
