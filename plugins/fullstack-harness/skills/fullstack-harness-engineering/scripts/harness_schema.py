@@ -134,7 +134,7 @@ UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # `push` is the only action bound to an exact head SHA: it publishes one verified
 # commit. Every other action either mutates local state or cleans it up.
 HEAD_BOUND_AUTHORIZATION_ACTIONS = {"push"}
-RUNTIME_PROVIDERS = {"codex", "claude_code", "generic"}
+RUNTIME_PROVIDERS = {"codex", "claude_code", "pi", "generic"}
 RUNTIME_REASONING_EFFORTS = {
     "none",
     "minimal",
@@ -190,6 +190,7 @@ WORKFLOW_RUN_DRIVERS_BY_PROVIDER = {
 RUNTIME_DRIVER_PRIORITY = {
     "codex": ("app_threads", "subagents", "sequential_parent"),
     "claude_code": ("dynamic_workflow", "subagents", "sequential_parent"),
+    "pi": ("subagents", "sequential_parent"),
     "generic": ("subagents", "sequential_parent"),
 }
 GRAPH_NODE_KINDS = {"mission", "verifier", "approval", "external_wait", "lifecycle"}

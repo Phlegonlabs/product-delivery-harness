@@ -13,8 +13,8 @@ Use the smallest reliable proof first:
 4. Complete at least one read-only review on each exact worktree head before integration.
 5. Run the mission integration surface after serial integration into the resolved integration branch.
 6. Run only real cross-mission checks at the batch gate.
-7. Converge runtime code review and repairs on an exact head.
-8. Run broad regression, browser E2E, and visual/UI checks on the final current head.
+7. After serial integration, run fresh parent-dispatched reviewers on the exact unified head and converge their repairs.
+8. Fix the candidate SHA, then run one planned broad regression, browser E2E, and visual/UI validation suite on that head.
 9. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
 10. If deterministic checks are impossible, use structured review and name residual risk.
 ```
@@ -39,7 +39,7 @@ Worktree pre-integration review gate:
 
 - Runs after worker checks and before the parent merges that mission head.
 - Binds at least one independent read-only review to the exact current worktree head and records the reviewer, decision, findings, and evidence.
-- In a Codex app task, the task's own Multi-agent reviewer performs this round when its enabled policy permits `reviewer`. If that policy is disabled, or a graph-backed direct worker has no nested policy, the parent runs an equivalent read-only review and records a terminal `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head.
+- The parent dispatches the reviewer as a read-only sibling and records a terminal `review_workers[]` PASS whose preintegration-stage review node covers the mission and whose `reviewed_sha` equals the current worktree head. The mission worker never creates its own reviewer.
 - Requires zero unresolved blocking findings. Any repair changes the head, invalidates the prior review, and requires a fresh round.
 - Is the only gate that may transition a mission from `worker_passed` to `integrating`.
 
@@ -55,10 +55,18 @@ Batch integration gate:
 - Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
+Fresh integration review gate:
+
+- Starts only after all covered mission heads have integrated serially into one integration branch.
+- Uses new parent-dispatched read-only reviewer attempts on the exact `integration_head_sha`; mission writers and pre-integration outcomes cannot be reused.
+- May fan out independent reviewers by risk. None may delegate.
+- Routes blocking findings to a bounded repair mission. Any repair changes the candidate and invalidates every earlier integration-stage PASS.
+
 Final/current-head gate:
 
-- Runs broad regression, browser E2E, and visual/UI evidence only after local code-review and repair loops converge.
+- Runs the one planned broad regression, browser E2E, and visual/UI validation suite only after fresh integration review and repair loops converge.
 - Binds every PASS to the exact integration head. Any later code or configuration change invalidates the affected proof.
+- Focused task, worker, and integration checks are not this broad suite. If the broad suite fails or a repair changes the candidate, establish and review a new candidate before rerunning it; do not claim an exactly-once history when the candidate changed.
 - Delivery ends on this local evidence. The harness never waits for remote CI or remote review.
 - In `integration_push` mode, push only the final verified candidate — the exact head this gate passed on.
 

@@ -808,7 +808,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, self.run, result)
         self.assertIn("invalid_value", error_codes(errors))
 
-    def test_enabled_nested_policy_requires_and_validates_activity(self) -> None:
+    def test_v10_forbids_nested_activity_and_legacy_contract_remains_readable(self) -> None:
         run = copy.deepcopy(self.run)
         run["schema_version"] = 10
         run["execution_authorization_scope"].update(
@@ -872,80 +872,6 @@ class ValidateWorkerResultTests(unittest.TestCase):
             "expires_when": "run_complete",
         }
 
-        errors = validate(self.plan, run, copy.deepcopy(self.result))
-        self.assertIn("missing_field", error_codes(errors))
-
-        unavailable = copy.deepcopy(self.result)
-        unavailable["subagent_activity"] = {
-            "status": "unavailable",
-            "skip_reason": "the child runtime stopped before review",
-            "children": [],
-        }
-        self.assertIn("missing_review", error_codes(validate(self.plan, run, unavailable)))
-
-        partial = copy.deepcopy(self.result)
-        partial["subagent_activity"] = {
-            "status": "partial",
-            "skip_reason": "the reviewer failed before returning a decision",
-            "children": [
-                {
-                    "agent_id": "A1",
-                    "role": "reviewer",
-                    "task": "Review the proposed behavior and tests.",
-                    "status": "failed",
-                    "summary": "The reviewer stopped before producing a decision.",
-                    "evidence_paths": [],
-                    "reviewed_sha": partial["head_sha"],
-                    "decision": "fix_required",
-                }
-            ],
-        }
-        self.assertIn("missing_review", error_codes(validate(self.plan, run, partial)))
-
-        explorer_only = copy.deepcopy(self.result)
-        explorer_only["subagent_activity"] = {
-            "status": "completed",
-            "skip_reason": None,
-            "children": [
-                {
-                    "agent_id": "A1",
-                    "role": "explorer",
-                    "task": "Trace the affected request path.",
-                    "status": "completed",
-                    "summary": "The change is isolated to the planned module.",
-                    "evidence_paths": ["src/m1/file.py"],
-                }
-            ],
-        }
-        self.assertIn("missing_review", error_codes(validate(self.plan, run, explorer_only)))
-
-        for schema_version in range(2, 10):
-            legacy_run = copy.deepcopy(run)
-            legacy_run["schema_version"] = schema_version
-            self.assertNotIn(
-                "missing_review",
-                error_codes(validate(self.plan, legacy_run, explorer_only)),
-                f"RUN v{schema_version} must retain its worker-result contract",
-            )
-
-        legacy_reviewer = copy.deepcopy(explorer_only)
-        legacy_reviewer["subagent_activity"]["children"][0]["role"] = "reviewer"
-        legacy_reviewer["subagent_activity"]["children"][0][
-            "task"
-        ] = "Review the proposed behavior and tests."
-        for schema_version in range(2, 10):
-            legacy_run = copy.deepcopy(run)
-            legacy_run["schema_version"] = schema_version
-            self.assertNotIn(
-                "missing_field",
-                error_codes(validate(self.plan, legacy_run, legacy_reviewer)),
-                f"RUN v{schema_version} reviewer children keep their legacy shape",
-            )
-        self.assertIn(
-            "missing_field",
-            error_codes(validate(self.plan, run, legacy_reviewer)),
-        )
-
         result = copy.deepcopy(self.result)
         result["subagent_activity"] = {
             "status": "completed",
@@ -971,13 +897,29 @@ class ValidateWorkerResultTests(unittest.TestCase):
                 },
             ],
         }
-        self.assertEqual(validate(self.plan, run, result), [])
+        v10_codes = error_codes(validate(self.plan, run, result))
+        self.assertIn("nested_delegation_forbidden", v10_codes)
 
-        stale_review = copy.deepcopy(result)
-        stale_review["subagent_activity"]["children"][1]["reviewed_sha"] = "c" * 40
-        stale_errors = error_codes(validate(self.plan, run, stale_review))
-        self.assertIn("stale_binding", stale_errors)
-        self.assertIn("missing_review", stale_errors)
+        legacy_run = copy.deepcopy(run)
+        legacy_run["schema_version"] = 9
+        self.assertNotIn(
+            "nested_delegation_forbidden",
+            error_codes(validate(self.plan, legacy_run, result)),
+        )
+
+        worker["nested_subagent_policy"] = {
+            "enabled": False,
+            "max_children": 0,
+            "allowed_roles": [],
+            "write_policy": "read_only",
+            "completion_channel": "agent_result",
+        }
+        result["subagent_activity"] = {
+            "status": "not_applicable",
+            "skip_reason": "flat parent-owned topology",
+            "children": [],
+        }
+        self.assertEqual(validate(self.plan, run, result), [])
 
     def test_disabled_nested_policy_defers_parent_review_to_integration(self) -> None:
         plan = copy.deepcopy(self.plan)
@@ -1016,7 +958,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
             )["execution_key"]
         result["subagent_activity"] = {
             "status": "not_applicable",
-            "skip_reason": "the capability handshake disabled nested subagents",
+            "skip_reason": "flat parent-owned topology",
             "children": [],
         }
 

@@ -132,6 +132,7 @@ def _preintegration_review_source_ready(
         or node.get("kind") != "verifier"
         or node.get("executor") != "runtime_worker"
         or not isinstance(review, dict)
+        or review.get("stage", "preintegration") != "preintegration"
         or len(review.get("mission_ids", [])) != 1
         or not isinstance(source_node, dict)
         or source_node.get("kind") != "mission"
@@ -345,6 +346,24 @@ def _logical_reasons(
 
     if route_matched is False:
         reasons.add("route_not_activated")
+
+    review = node.get("review")
+    if (
+        node.get("kind") == "verifier"
+        and isinstance(review, dict)
+        and review.get("stage", "preintegration") == "integration"
+    ):
+        mission_states = run.get("mission_states", {})
+        if (
+            not isinstance(mission_states, dict)
+            or any(
+                not isinstance(mission_states.get(mission_id), dict)
+                or mission_states[mission_id].get("phase") != "integrated"
+                for mission_id in review.get("mission_ids", [])
+            )
+            or not run.get("integration", {}).get("integration_head_sha")
+        ):
+            reasons.add("integration_not_unified")
 
     if node["kind"] == "mission":
         mission_state = run["mission_states"][node["ref"]]

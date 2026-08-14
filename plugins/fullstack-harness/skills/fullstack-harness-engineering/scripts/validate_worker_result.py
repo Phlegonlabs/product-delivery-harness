@@ -715,6 +715,17 @@ def validate_worker_result_data(
     nested_policy = (
         worker.get("nested_subagent_policy") if isinstance(worker, dict) else None
     )
+    if (
+        run.get("schema_version") == 10
+        and isinstance(nested_policy, dict)
+        and nested_policy.get("enabled") is True
+    ):
+        _issue(
+            errors,
+            "nested_delegation_forbidden",
+            "harness_run.workers.nested_subagent_policy.enabled",
+            "RUN-v10 workers cannot delegate to child agents",
+        )
     if isinstance(nested_policy, dict) and "subagent_activity" not in result:
         _issue(
             errors,
@@ -723,6 +734,17 @@ def validate_worker_result_data(
             "is required because the worker records a nested-subagent policy",
         )
     if "subagent_activity" in result:
+        if (
+            run.get("schema_version") == 10
+            and isinstance(result.get("subagent_activity"), dict)
+            and result["subagent_activity"].get("status") != "not_applicable"
+        ):
+            _issue(
+                errors,
+                "nested_delegation_forbidden",
+                "worker_result.subagent_activity.status",
+                "must be not_applicable for the flat RUN-v10 topology",
+            )
         _validate_subagent_activity(
             result.get("subagent_activity"),
             policy=nested_policy if isinstance(nested_policy, dict) else None,

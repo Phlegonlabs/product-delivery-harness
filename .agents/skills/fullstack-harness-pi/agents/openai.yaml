@@ -1,0 +1,6 @@
+interface:
+  display_name: "Full Stack Harness: Pi"
+  short_description: "Run Harness plans through Pi subagents"
+  default_prompt: "Use $fullstack-harness-pi with the shared Harness core to run a Pi-hosted plan through the installed Pi role and model configuration. Keep all explorers, writers, and reviewers as parent-owned siblings; give every writer a clean exact-base worktree and explicit file ownership; review the unified integration head with fresh reviewer runs before one broad final validation."
+policy:
+  allow_implicit_invocation: true

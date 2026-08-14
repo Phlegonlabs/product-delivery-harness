@@ -49,8 +49,9 @@ The skills can be used independently. You do not need to run the entire pipeline
 | `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `architecture.md`, `stack-decisions.md`, `market-research.md` |
 | `product-design-builder` | Product wireframes, visual direction, and the design-system contract. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `wireframes.md`, `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work, `RUN.md`, or `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Top-level Codex tasks, one app-managed worktree per mission, and optional task-local read-only Multi-agent helpers | Runtime launch directives and worker results |
+| `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
+| `fullstack-harness-pi` | Pi subagent roles with Pi-owned model and fallback selection in parent-managed worktrees | Runtime launch directives, resolved-role/model evidence, and worker results |
 | `manage-cloudflare-worker-deployments` | Automatic per-branch Cloudflare Worker previews, guarded cleanup, and optional manual production bootstrap | Installer, lifecycle script, tests, configuration, and GitHub Actions templates |
 
 The delivery core makes one size decision before it invokes managed orchestration:
@@ -69,7 +70,7 @@ flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
   PRD --> Design["product-design-builder + frontend-design\nWireframes and design system"]
   Design --> Harness["fullstack-harness-engineering\nShared delivery core"]
-  Harness --> Runtime["One host adapter\nCodex or Claude Code"]
+  Harness --> Runtime["One host adapter\nCodex, Claude Code, or Pi"]
   Runtime --> Evidence["Local tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
@@ -96,7 +97,7 @@ flowchart TB
   Size -->|large| Plan["PLAN v5 + RUN v10<br/>frozen contracts, authorization ledger"]
   Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
   Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
-  Frontier --> Host["One host adapter: codex or claude_code<br/>no cross-host fallback"]
+  Frontier --> Host["One host adapter: codex, claude_code, or pi<br/>no cross-host fallback"]
   Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
@@ -120,7 +121,8 @@ The shared core owns the one PLAN/RUN control plane. Runtime-specific launch det
 
 - A Codex host loads only `fullstack-harness-codex` and executes only `codex`-provider PLAN nodes.
 - A Claude Code host loads only `fullstack-harness-claude-code` and executes only `claude_code`-provider PLAN nodes.
-- Neither adapter can invoke the other runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
+- A Pi host loads only `fullstack-harness-pi`, executes only `pi`-provider PLAN nodes, and leaves role/model/fallback selection to Pi's installed configuration.
+- No adapter can invoke another runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
 Shared scripts, schemas, references, and templates remain under `fullstack-harness-engineering`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
 
@@ -145,7 +147,7 @@ Claude Graph Workflow batches a mixed frontier into one call per homogeneous `to
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
 
-A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Claude Code cannot delegate a node to Codex, and Codex cannot delegate a node to Claude Code; there is no cross-host bridge. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
+A graph node's `allowed_providers` must include the host that is actually running the Harness before that node can be selected. Codex, Claude Code, and Pi cannot delegate a node to one another; there is no cross-host bridge. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
 ## Install
 
@@ -240,7 +242,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 
 ## Typical prompts
 
-Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name.
+Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `fullstack-harness-pi` by name.
 
 ```text
 Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, release targets, and test obligations.
@@ -263,12 +265,16 @@ Use $fullstack-harness-engineering to implement this plan and push the verified 
 ```
 
 ```text
+Use fullstack-harness-engineering with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+```
+
+```text
 Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.
 
-## Codex and Claude Code execution
+## Codex, Claude Code, and Pi execution
 
 The Harness records the actual runtime capability instead of assuming one from an installed CLI.
 
@@ -276,14 +282,15 @@ The Harness records the actual runtime capability instead of assuming one from a
 | --- | --- | --- |
 | Codex app (`fullstack-harness-codex`) | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
 | Claude Code (`fullstack-harness-claude-code`) | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
+| Pi (`fullstack-harness-pi`) | Installed Pi roles in parent-managed worktrees, with Pi selecting configured models and fallbacks | One sequential parent |
 
-On Codex, the preferred route is two-level: each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree, then that task may run optional bounded Multi-agent helpers. Coordinator-owned subagents do not replace those top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
+On Codex, each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree. The Harness parent separately dispatches any read-only explorer or reviewer as a sibling; a mission task never creates child agents. Coordinator-owned direct subagents do not replace requested top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
 Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA, pass an exact-head read-only review before integration into the run's own branch, and the run ends when that verified branch is pushed. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
 
-Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires the other host's provider is deferred with `runtime_unavailable` instead of being executed here.
+Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
 
-Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. Every worker needs an isolated workspace, a bounded write scope, a verifier, and explicit authorization. Nested Codex helpers are optional, but the parent/review graph's exact-head PASS remains mandatory. Worktrees are allocated only after ready-frontier selection. Native Claude missions enter their assigned parent-managed worktree. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. One independently testable goal maps to one mission. Every writer gets explicit file ownership and a separate clean exact-base worktree. Shared APIs, schemas, and types freeze before dependent writers fan out. Explorers, writers, and reviewers are parent-dispatched siblings; workers and reviewers never delegate. After exact-head mission review, the parent integrates passing heads serially, starts fresh reviewers on the unified integration head, and then runs one broad final validation on the fixed candidate SHA. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 

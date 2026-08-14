@@ -84,8 +84,9 @@ class ReadmeStructureTests(unittest.TestCase):
                     "permission-level tool removal",
                 ):
                     self.assertIn(required, content)
-                self.assertRegex(content, r"(?i)(nested codex helpers|codex nested helpers)")
-                self.assertIn("exact-head PASS", content)
+                self.assertIn("fresh reviewers", content)
+                self.assertRegex(content, r"(?i)(never delegate|不能再次分派|不能再次分派)")
+                self.assertRegex(content, r"(?i)exact-head[^\n]*review")
                 self.assertNotIn("omits write-capable tools", content)
                 self.assertNotIn("blocked on provider mismatch", content)
                 self.assertNotIn("allowlist", content.lower())

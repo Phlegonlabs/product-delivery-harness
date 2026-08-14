@@ -2274,6 +2274,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review = node.get("review")
             if not isinstance(review, dict):
                 continue
+            if schema_version == 10 and review.get("stage", "preintegration") != "preintegration":
+                continue
             review_mission_ids = review.get("mission_ids") or []
             if schema_version == 10:
                 if (
@@ -3375,6 +3377,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.nested_subagent_policy.enabled",
                         "must be boolean",
                     )
+                if schema_version == 10 and nested_policy["enabled"] is True:
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.enabled",
+                        "must be false because RUN-v10 forbids worker-owned delegation",
+                    )
                 if nested_policy["write_policy"] != "read_only":
                     _add(
                         errors,
@@ -3642,6 +3650,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if isinstance(node, dict) and isinstance(node.get("review"), dict)
                     else set()
                 )
+                review_stage = (
+                    node.get("review", {}).get("stage", "preintegration")
+                    if isinstance(node, dict)
+                    and isinstance(node.get("review"), dict)
+                    else "preintegration"
+                )
+                if (
+                    schema_version == 10
+                    and review_stage == "integration"
+                    and isinstance(workers, list)
+                    and worker.get("worker_id")
+                    in {
+                        mission_worker.get("worker_id")
+                        for mission_worker in workers
+                        if isinstance(mission_worker, dict)
+                    }
+                ):
+                    _add(
+                        errors,
+                        f"{path}.worker_id",
+                        "integration-stage review must use a fresh reviewer, not a mission writer",
+                    )
                 mission_state_items = (
                     mission_states.items()
                     if isinstance(mission_states, dict)
@@ -3658,6 +3688,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if isinstance(edge, dict)
                     and edge.get("kind") == "dependency"
                     and edge.get("to") == worker["node_id"]
+                    and review_stage == "preintegration"
                     and len(
                         (review_nodes.get(worker["node_id"]) or {})
                         .get("review", {})
@@ -3897,6 +3928,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 and edge.get("kind") == "dependency"
                 and edge.get("from") in integrating_mission_node_ids
                 and edge.get("to") in review_nodes
+                and review_nodes[edge["to"]]
+                .get("review", {})
+                .get("stage", "preintegration")
+                == "preintegration"
                 and len(
                     review_nodes[edge["to"]]
                     .get("review", {})

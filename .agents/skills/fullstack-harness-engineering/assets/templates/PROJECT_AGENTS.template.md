@@ -2,6 +2,11 @@
 
 This template's main-only branch model — `main` as the default branch, an ephemeral `codex/<short-name>` run branch for the work — is the default for a new repository. If the repository already defines another branch model, keep that existing governance and replace the default names below; never overwrite conflicting repository instructions.
 
+## Runtime Boundary
+
+- This file contains shared repository governance. Codex and Pi load it as their native project context; the generated `CLAUDE.md` imports it for Claude Code.
+- Keep runtime-specific worker roles, model selection, subagent behavior, and launch flags in the matching Full-Stack Harness adapter. Never copy Codex, Claude Code, or Pi mechanics into another runtime's worker.
+
 ## Core Development Principles
 
 ### Keep It Simple (KISS / YAGNI)
@@ -49,10 +54,15 @@ This template's main-only branch model — `main` as the default branch, an ephe
 
 ## Branch Model
 
+- Map one independently testable goal to one mission. Tasks inside that mission stay sequential under one writer.
+- Give every writer an explicit file-ownership scope and a separate worktree. Workers and reviewers never delegate; the Harness parent dispatches every explorer, writer, and reviewer as a sibling.
+- Freeze and integrate shared APIs, schemas, and types before starting dependent write missions in parallel.
 - Cut the run branch `codex/<short-name>` from the current default branch, then create every implementation worktree from the current resolved integration-branch SHA.
+- Before dispatch, verify each worktree has the expected repository, branch/ref, exact base HEAD, and a clean status.
 - Never edit, commit, or merge on the default branch, and never push to it. Cutting a branch from it is fine; writing to it is not.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
+- After serial integration, use fresh read-only reviewers on the exact unified integration SHA, then run one broad final validation on the fixed candidate SHA.
 - The run ends when that verified integration head is pushed to the run branch. Landing the run branch on the default branch is the user's own step, done outside this harness.
 - Later work cuts a fresh run branch from the then-current default branch.
 

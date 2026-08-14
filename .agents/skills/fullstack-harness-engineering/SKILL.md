@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-engineering
-description: "Classify engineering work as small or large, then plan, execute, verify, and integrate it under explicit action authorization. This is the lightweight shared Full Stack Harness core: it owns PLAN/RUN state, traceability, scheduling contracts, local verification, and integration. Load exactly one sibling runtime adapter for Codex or Claude Code only when runtime-specific orchestration is needed."
+description: "Classify engineering work as small or large, then plan, execute, verify, and integrate it under explicit action authorization. This is the lightweight shared Full Stack Harness core: it owns PLAN/RUN state, traceability, scheduling contracts, local verification, and integration. Load exactly one sibling runtime adapter for Codex, Claude Code, or Pi only when runtime-specific orchestration is needed."
 ---
 
 # Full-Stack Harness Engineering
@@ -80,10 +80,25 @@ The core is runtime-neutral. Do not load all adapters in one run.
 1. For small sequential work, load no runtime adapter unless a runtime-specific action is actually required.
 2. For large orchestration in a Codex host, read `../fullstack-harness-codex/SKILL.md`. Do not also read the Claude Code adapter; the Codex adapter is host-native only and executes exclusively nodes whose `allowed_providers` includes `codex`.
 3. For large orchestration in a Claude Code host, read `../fullstack-harness-claude-code/SKILL.md`. Do not also read the Codex adapter; the Claude Code adapter is host-native only and executes exclusively nodes whose `allowed_providers` includes `claude_code`.
+4. For large orchestration in a Pi host, read `../fullstack-harness-pi/SKILL.md`. Do not also read the Codex or Claude Code adapter; the Pi adapter executes exclusively nodes whose `allowed_providers` includes `pi` and preserves Pi's installed role/model routing.
 
 Explicit adapter invocation still begins with this core. The adapters may select shared scripts, templates, and references from this directory; they never create a second PLAN/RUN state model.
 
 If the System Review And Route stage finds no usable agent capability, do not load an adapter merely to imitate delegation. Continue the large plan-backed route with `sequential_parent`: keep each PLAN mission's `executor: runtime_worker`, record the parent-owned executor/worker binding in RUN solely for lease/state validation, and bind it to `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result`. The binding is not a delegated or spawned worker, so the route does not request `spawn_subagents`; the parent executes one mission at a time under the same PLAN/RUN graph and review gates. If the required parent-managed worktree is unavailable or unauthorized, block the route rather than writing in `shared_checkout`. This is a runtime choice made after routing, not a new schema or a compact RUN-only mode.
+
+## Repository Context Contract
+
+During `System Review And Route`, discover and read the effective repository instruction chain from the target root through the selected checkout or worktree. Record both the shared project context and the active host's native overlay in the parent checkpoint; this read-only stage never creates or edits them.
+
+- Existing context files are user-owned authority. Never overwrite, merge, normalize, or silently copy an established `AGENTS.md`, `CLAUDE.md`, or `AGENTS.override.md`.
+- On an authorized first bootstrap, run `scripts/configure_project_context.py --root <target-root>`. It additively creates only a missing `AGENTS.md` from `assets/templates/PROJECT_AGENTS.template.md` and only a missing `CLAUDE.md` from `assets/templates/PROJECT_CLAUDE.template.md`. The generated files are intentionally different: `AGENTS.md` is shared Codex/Pi repository governance, while `CLAUDE.md` is a Claude Code overlay that imports `AGENTS.md`. When one or both files already exist, preserve them byte-for-byte.
+- Codex workers receive the effective `AGENTS.override.md`/`AGENTS.md` chain plus the Codex adapter contract; do not inject `CLAUDE.md` as Codex worker instructions.
+- Claude Code workers receive the effective `CLAUDE.md` chain plus shared `AGENTS.md` governance. A generated `CLAUDE.md` imports `AGENTS.md`; when an established `CLAUDE.md` does not, the worker handoff names both paths explicitly.
+- Pi workers use Pi's native per-directory priority (`AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`) and receive the Pi adapter's role/model/subagent contract. When `AGENTS.md` exists, do not also inject `CLAUDE.md` into Pi.
+- Read both established root files during planning to detect conflicts. Runtime additions may differ, but conflicting safety, branch, scope, authorization, or verification rules are a blocking input conflict; do not choose the more convenient file.
+- Every delegated worker receives its runtime provider, its host-specific ordered context paths, and its adapter-specific launch contract in `WORKER_GOAL.template.md`, then reads those paths before any repository action.
+- Keep automatic context discovery enabled. Do not launch a worker with `--no-context-files`, `-nc`, or an equivalent host option that suppresses repository instructions.
+- A nested directory's context file or `AGENTS.override.md` may narrow the worker further. It never widens the mission write scope, action authorization, or Harness safety gates.
 
 ## Reference Routing
 
@@ -119,13 +134,14 @@ worktree workers      -> temporary per-mission reports only while integration ne
 - New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only `RUN.md` files without `PLAN.md` remain readable and validatable for compatibility and migration, but they cannot authorize new managed execution or enter the current graph; create a fresh PLAN-v5/RUN-v10 pair before continuing managed work.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
-- On first bootstrap of a new target repository, seed a missing root `AGENTS.md` and a missing root `CLAUDE.md` from the same `assets/templates/PROJECT_AGENTS.template.md`. The rules are runtime-neutral, so one template keeps both files from drifting apart. Skip either file that already exists; never overwrite an established root `AGENTS.md` or `CLAUDE.md`.
+- On first bootstrap of a new target repository, configure the missing root `AGENTS.md` and `CLAUDE.md` from their separate host-specific templates through `scripts/configure_project_context.py` under the Repository Context Contract. Never write either file during read-only review and never overwrite an established root context file.
 - On that same first bootstrap, also seed a missing CI workflow from `assets/templates/PROJECT_CI.template.yml`. Skip it if it already exists; never overwrite established CI configuration.
 
 ## Shared Validation Tools
 
 - `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head.
 - `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it accepts no older graph schema.
+- `scripts/configure_project_context.py` additively configures root `AGENTS.md` and `CLAUDE.md` from separate templates; it never overwrites an existing context file, and `--check` is read-only.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, or final gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
@@ -145,6 +161,21 @@ Apply this to all large plan-backed work, whether the frontier ever holds more t
 7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
 8. There are two landing modes. Ordinary implementation, PRD updates, UI changes, branch, commit, and integration work uses `integration_push`: the verified integration head is pushed to the run's own branch. That push is where an ordinary run ends. Use `local_only` when the run must not touch the remote at all. `integration.branch` must contain the resolved repository branch rather than an assumed name; it is the only branch field, and every push target is built from it.
 
+## Default Mission Topology
+
+Apply this flat, parent-owned topology to every new large run:
+
+1. Map one independently testable goal to one mission. A mission may contain several ordered tasks, but its tasks run sequentially under one writer and one file-ownership boundary. Do not split one goal across concurrent writers.
+2. The parent may fan out bounded read-only exploration before implementation. Explorers report to the parent and never spawn or delegate further.
+3. Give every write mission one explicit `write_scope`; that scope is the worker's file ownership. Every writer uses its own parent-allocated worktree. No two active writers share a checkout, branch, file ownership, or exclusive runtime resource.
+4. Freeze shared APIs, schemas, and types before parallel implementation. When the shared contract itself needs edits, complete, review, and integrate that prerequisite mission first. Cut dependent mission worktrees from the resulting clean integration SHA.
+5. Create every worktree from the exact recorded `batch_base_sha`. Before dispatch, verify the repository, branch/ref, HEAD, and `git status --porcelain` in that worktree. A wrong base, reused branch, or dirty checkout blocks launch.
+6. Workers implement only their owned mission and never create another agent, task, branch, or worktree. All explorers, writers, and reviewers are parent-dispatched siblings.
+7. Require the existing exact-head pre-integration review for each mission, then integrate passing mission heads serially into one integration branch. After the final mission integration, launch fresh parent-owned read-only reviewers against the exact unified integration SHA. A mission writer cannot review its own integration result. Review findings route to a repair mission and repeat the affected review cycle.
+8. Use focused task, worker, and integration checks while work is changing. After the fresh integration reviewers pass and the candidate SHA is fixed, run one planned broad final validation suite against that exact SHA. If a repair changes the candidate or the suite fails, the prior result is stale; establish a new candidate before running the broad suite again.
+
+The parent alone owns dispatch, leases, PLAN/RUN state, integration, and lifecycle actions. Workers and reviewers never delegate, even when their host exposes child-agent tools.
+
 ## Default Branch Policy
 
 Apply this policy to the target repository where the skill runs only when its own instructions do not already define the implementation and integration branches. Target-repository governance wins; never replace an existing authorized flow with this one.
@@ -153,12 +184,14 @@ Each run cuts its own `codex/<short-name>` branch from the current default branc
 
 ```text
 current default-branch SHA
+-> freeze and integrate shared contracts first, when needed
 -> one independent worktree per selected mission
 -> worker checks
 -> at least one exact-head read-only review
 -> repair and fresh review when needed
 -> authorized serial integration into the run branch
--> mission, batch, and final gates on the integration head
+-> fresh parent-dispatched reviewers on the unified integration head
+-> one broad final validation on the fixed candidate SHA
 -> push the run branch       (covered by the execution-intent instruction)
 -> the run is complete
 ```
@@ -204,14 +237,14 @@ delete_branches
 - One user instruction may authorize several exact actions, but its source is recorded under every covered key; never replace them with blanket permission.
 - Nine of the twelve actions carry the ordinary development loop for routes that use them: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` **restricted to the resolved integration branch**. One clear execution-intent instruction ("implement this", "build it", "ship it") covers the applicable actions together: record its source under each covered ledger entry in the same authorization request or checkpoint, and do not manufacture separate confirmation pauses for them. They still each get their own ledger entry with its own recorded source, and `push` still carries exact targets — grouping them changes only that a single instruction suffices, not what gets recorded.
 - `create_user_owned_tasks` is grouped for the same reason `spawn_subagents` is: it is the Codex host's worker-launch action. Whether worker launch needs a separate confirmation must not depend on which host the run happens to be on.
-- Outer app-task selection uses `create_user_owned_tasks` and its outer worktree/branch/commit actions without requiring or preauthorizing `spawn_subagents`; an enabled RUN-v10 nested policy requests an exact `worker:<id>` grant only after that worker is allocated, while omitted or disabled policy means no nested launch.
+- Outer app-task selection uses `create_user_owned_tasks` and its outer worktree/branch/commit actions without requiring or preauthorizing `spawn_subagents`. RUN-v10 forbids enabled nested delegation; parent-dispatched sibling workers and reviewers use the parent's exact top-level launch grants.
 - A large `sequential_parent` route is the explicit no-agent path: the parent remains the sole mission writer and does not request or record `spawn_subagents`, `create_user_owned_tasks`, or `create_app_managed_worktrees` for that route. RUN still records the parent-owned executor/worker binding for lease/state validation; it is not a delegated worker launch. Do not use `shared_checkout` for this route; if the required parent-managed worktree cannot be created or authorized, block it.
 - That grouping is scoped, not general. A `push` whose target is any branch other than the resolved integration branch is not covered and needs its own authorization moment. A `push` is refused outright when the target resolves to `main`, or when the run's own integration branch resolves to `main` — that is the whole branch guard, and it needs no recorded evidence to work.
 - The remaining three actions — `archive_worker_tasks`, `remove_worktrees`, and `delete_branches` — are independent gates. Each needs its own distinct authorization moment and is never swept in by the execution-intent statement.
 - For large, plan-backed work, every RUN-v10 execution and action scope binds the current `run_id`, mission set, PLAN revision, PLAN digest, exact targets where applicable, time, and lifecycle boundary. A plan revision or digest change invalidates the grant rather than silently carrying it forward. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
 - `invoke_external_runtime` does not replace spawn, workspace, branch, commit, or integration authorization.
 - Archival, worktree removal, and branch deletion are independent boundaries.
-- Workers never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, or clean up.
+- Workers and reviewers never delegate. They also never edit parent-owned PLAN/RUN state, expand their own scope, integrate, push, or clean up.
 
 ## UI Implementation Contract
 
@@ -280,7 +313,7 @@ For small work, use one parent writer and the smallest relevant checks. For larg
 
 When a design-source worker loads `product-design-builder` and `frontend-design`, its launch prompt must state creation mode, the frozen product inputs, the allowed design-source write scope, and the human direction gates. When a UI implementation worker loads only `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe screen, `design-system.md`, and `design-system.json` inputs. A generic instruction to "make it distinctive" is not a valid handoff in either mode.
 
-The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and confirms a read-only pre-integration review PASS on that exact head. An enabled task-local reviewer records its exact-head PASS in WORKER_RESULT; after validation, the parent retains that completed reviewer child in the worker's canonical `nested_review_evidence`, which must still match the mission head before integration. A disabled task-local policy, or a graph-backed direct worker with no nested policy, may validate first so its downstream review node becomes selectable, but the mission cannot transition to `integrating` until the parent records a terminal `review_workers[]` PASS covering that mission and worktree head. A review worker may bind only mission worktree or integrated SHAs declared by its own review node, plus the current integration head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into the resolved integration branch, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. Never accept a report merely because the runtime says it completed.
+The parent independently observes the worker head and changed files, validates the result, checks actual scope and commit ancestry, and dispatches a read-only pre-integration reviewer on that exact head. The mission cannot transition to `integrating` until the parent records a terminal `review_workers[]` PASS covering that mission and worktree head. A review worker may bind only mission worktree or integrated SHAs declared by its own review node, plus the current integration head. If the review finds a defect, repair inside the mission worktree and review the new head again. The parent then integrates passing heads serially into the resolved integration branch, runs the required post-merge integration gate, updates canonical RUN state, and recomputes the frontier. After the unified integration head is fixed, the parent dispatches fresh integration-stage reviewers before the one broad final validation. Never accept a report merely because the runtime says it completed.
 
 ### 5. Verify Local-First
 

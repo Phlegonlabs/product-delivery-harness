@@ -49,8 +49,9 @@
 | `prd-builder` | 产品探索、需求、Builder UX Direction 输入、架构、技术栈决策、发布目标、测试义务，以及草稿完成后的市场调研补缺 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 产品线框图、视觉方向与设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `wireframes.md`、`design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的工作树，以及可选的任务级只读 Multi-agent 辅助 | 运行时启动指令和工作节点结果 |
+| `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的 worktree，以及由 parent 派发的同级 reviewers | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
+| `fullstack-harness-pi` | 在父级托管工作树中使用 Pi 子代理角色，并由 Pi 选择模型和回退方案 | 运行时启动指令、实际角色/模型证据和工作节点结果 |
 | `manage-cloudflare-worker-deployments` | 自动为每个分支创建 Cloudflare Worker 预览、受保护的清理流程，以及可选的手动生产环境初始部署 | 安装器、生命周期脚本、测试、配置和 GitHub Actions 模板 |
 
 交付核心在调用托管编排之前，会先做一个规模判定：
@@ -69,7 +70,7 @@ flowchart LR
   Idea["产品想法或变更请求"] --> PRD["prd-builder\n产品与技术定义"]
   PRD --> Design["product-design-builder + frontend-design\n线框图与设计系统"]
   Design --> Harness["fullstack-harness-engineering\n共享交付核心"]
-  Harness --> Runtime["单一宿主适配器\nCodex 或 Claude Code"]
+  Harness --> Runtime["单一宿主适配器\nCodex、Claude Code 或 Pi"]
   Runtime --> Evidence["本地测试与 UI 证据"]
   Evidence --> Push["推送到这次运行自己的分支\n合进默认分支是你自己的步骤"]
 ```
@@ -96,7 +97,7 @@ flowchart TB
   Size -->|large| Plan["PLAN v5 + RUN v10<br/>frozen contracts, authorization ledger"]
   Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
   Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
-  Frontier --> Host["One host adapter: codex or claude_code<br/>no cross-host fallback"]
+  Frontier --> Host["One host adapter: codex, claude_code, or pi<br/>no cross-host fallback"]
   Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
@@ -120,7 +121,8 @@ flowchart TB
 
 - Codex 宿主只加载 `fullstack-harness-codex`，并且只执行 `codex` 提供方的 PLAN 节点。
 - Claude Code 宿主只加载 `fullstack-harness-claude-code`，并且只执行 `claude_code` 提供方的 PLAN 节点。
-- 两个适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
+- Pi 宿主只加载 `fullstack-harness-pi`，只执行 `pi` 提供方的 PLAN 节点，并沿用 Pi 已安装的角色、模型和回退设置。
+- 任何适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
 
 共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
 
@@ -145,7 +147,7 @@ Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 当 Claude Code 返回真实的工作流运行 ID 时，RUN 状态可以保留工作流/任务 ID、脚本摘要、节点分组、图/基点绑定、工具画像、状态和可用指标。同会话续跑可以复用该绑定；跨会话恢复则从规范的 PLAN/RUN 状态开启一次新的工作流尝试。
 
-图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Claude Code 不能把节点委派给 Codex，Codex 也不能把节点委派给 Claude Code；两者之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
+图节点的 `allowed_providers` 必须包含真正在运行 Harness 的宿主，该节点才能被选中。Codex、Claude Code 和 Pi 不能互相委派节点；它们之间没有跨宿主桥接。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
 
 ## 安装
 
@@ -240,7 +242,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 
 ## 常见提示词
 
-Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。
+Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `fullstack-harness-pi`。
 
 ```text
 Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, release targets, and test obligations.
@@ -263,12 +265,16 @@ Use $fullstack-harness-engineering to implement this plan and push the verified 
 ```
 
 ```text
+Use fullstack-harness-engineering with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+```
+
+```text
 Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、移除工作树和删除分支都是彼此独立的动作。Harness 不会开 PR、不会合并、也不会部署——这些步骤由你自己完成。
 
-## Codex 与 Claude Code 执行
+## Codex、Claude Code 与 Pi 执行
 
 Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去假定一个。
 
@@ -276,14 +282,15 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 | --- | --- | --- |
 | Codex 应用（`fullstack-harness-codex`） | 在隔离的、应用托管的工作树中运行应用任务 | 直接子代理，然后退到单一顺序父级 |
 | Claude Code（`fullstack-harness-claude-code`） | 采用精确基点、父级托管的 `.claude/worktrees/` 工作树的动态工作流 | 直接子代理，然后退到单一顺序父级 |
+| Pi（`fullstack-harness-pi`） | 在父级托管工作树中使用已安装的 Pi 角色，并由 Pi 选择模型和回退方案 | 单一顺序父级 |
 
-在 Codex 中，首选路线分为两层：每个选中的 mission 先在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管工作树；然后由该任务按需运行可选的、有界 Multi-agent 辅助。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
+在 Codex 中，每个选中的 mission 都会在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管 worktree。任何只读 explorer 或 reviewer 都由 Harness parent 另行作为同级节点派发；mission 任务不能创建子代理。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
 目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支；当验证过的分支推送完成，运行就结束了。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
 
-每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要另一宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
+每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要其他宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
 
-并行实现默认没有一个小的固定上限；配置的写入工作节点上限设得足够高，实际的波宽转而由观察到的工作节点槽位、隔离容量，以及依赖已就绪、无冲突的前沿大小来限定。每个工作节点都需要一个隔离的工作区、一个有界的写入范围、一个验证器和明确的授权。Codex nested helpers 是可选的，但 parent/review graph 的 exact-head PASS 仍是强制闸门。工作树只在前沿选定之后才分配。原生 Claude 任务会进入分配给它的、父级托管的工作树。工作节点绝不编辑父级的 `PLAN.md` 或 `RUN.md`，也不推送、开 PR、合并、部署或删除工作树。集成以及每一个落地或生命周期动作都由父级负责。
+并行实现默认没有一个小的固定上限；配置的写入工作节点上限设得足够高，实际的波宽由观察到的工作节点槽位、隔离容量，以及依赖已就绪、无冲突的前沿大小限定。一个可独立验证的目标对应一个 mission。每个写入节点都有明确的文件 ownership 和独立、干净、固定基线的 worktree。共享 API、schema 和类型必须先冻结，再开始依赖它们的并行写入。探索、写入和评审节点都由 parent 作为同级节点派发；工作节点和评审节点都不能再次分派。每个 mission 通过 exact-head 评审后，由 parent 串行整合；统一整合完成后再启动 fresh reviewers，最后只对固定候选 SHA 运行一次完整验证。工作节点绝不编辑父级的 `PLAN.md` 或 `RUN.md`，也不推送、开 PR、合并、部署或删除 worktree。集成以及每一个落地或生命周期动作都由父级负责。
 
 ## 仓库结构
 

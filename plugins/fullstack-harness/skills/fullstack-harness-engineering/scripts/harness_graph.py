@@ -158,7 +158,17 @@ def _validate_graph(
                         review_path,
                         review,
                         {"type", "mission_ids", "scope", "required_evidence"},
+                        {"stage"},
                     ):
+                        if review.get("stage", "preintegration") not in {
+                            "preintegration",
+                            "integration",
+                        }:
+                            _add(
+                                errors,
+                                f"{review_path}.stage",
+                                "must be preintegration or integration",
+                            )
                         if not isinstance(review["type"], str) or review["type"] not in RUNTIME_REVIEW_TYPES:
                             _add(errors, f"{review_path}.type", "has an unsupported review type")
                         review_missions = _strings(
@@ -308,6 +318,12 @@ def _validate_graph(
                             model = options["model"]
                             if model is not None and not is_safe_model_token(model):
                                 _add(errors, f"{option_path}.model", "must be null or a safe model token")
+                            if provider == "pi" and model is not None:
+                                _add(
+                                    errors,
+                                    f"{option_path}.model",
+                                    "must be null because Pi role configuration owns model selection",
+                                )
                             effort = options["reasoning_effort"]
                             if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
                                 _add(

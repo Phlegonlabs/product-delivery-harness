@@ -31,6 +31,7 @@ from select_ready_nodes import (  # noqa: E402
     _required_actions,
     select_ready_nodes,
 )
+from verifier_runtime import execution_key_from_document  # noqa: E402
 from test_graph_orchestration import (  # noqa: E402
     detach_mission_edges,
     valid_graph_plan,
@@ -320,7 +321,7 @@ def fanout_preintegration_review_state(
     pass_route = next(
         edge
         for edge in plan["graph"]["edges"]
-        if edge["id"] == "E-FRONTEND-FINAL-GATE"
+        if edge["id"] == "E-FRONTEND-VISUAL-REVIEW"
     )
     for suffix in ("SECOND", "THIRD"):
         review_node_id = f"N-FRONTEND-REVIEW-{suffix}"
@@ -353,7 +354,7 @@ def fanout_preintegration_review_state(
         run["graph_state"]["edge_states"][
             additional_pass_route["id"]
         ] = copy.deepcopy(
-            run["graph_state"]["edge_states"]["E-FRONTEND-FINAL-GATE"]
+            run["graph_state"]["edge_states"]["E-FRONTEND-VISUAL-REVIEW"]
         )
 
     digest = plan_digest(plan)
@@ -425,11 +426,9 @@ def exact_head_review_worker(
     }
 
 
-def configure_enabled_nested_app_task(
+def configure_flat_app_task(
     plan: dict[str, object],
     run: dict[str, object],
-    *,
-    include_evidence: bool,
 ) -> dict[str, object]:
     run["runtime_capabilities"].update(
         {
@@ -472,9 +471,9 @@ def configure_enabled_nested_app_task(
             "completion_channel": "thread_poll",
             "task_thread_id": "THREAD-M1",
             "nested_subagent_policy": {
-                "enabled": True,
-                "max_children": 1,
-                "allowed_roles": ["reviewer"],
+                "enabled": False,
+                "max_children": 0,
+                "allowed_roles": [],
                 "write_policy": "read_only",
                 "completion_channel": "agent_result",
             },
@@ -482,24 +481,86 @@ def configure_enabled_nested_app_task(
     )
     worker["runtime_binding"]["driver"] = "app_threads"
     retain_current_worker_state(plan, run, managed_by="app")
-    run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
-        "worker:W-M1"
-    ]
-    if include_evidence:
-        worker["nested_review_evidence"] = {
-            "agent_id": "A-REVIEW-M1",
-            "role": "reviewer",
-            "task": "Review the exact proposed mission head.",
-            "status": "completed",
-            "summary": "No blocking findings.",
-            "evidence_paths": ["evidence/review-m1.json"],
-            "reviewed_sha": "b" * 40,
-            "decision": "PASS",
-        }
     return worker
 
 
 class SelectReadyNodesTests(unittest.TestCase):
+    def test_integration_stage_review_waits_for_unified_integration(self) -> None:
+        plan, run = current_preintegration_review_state()
+        review_node = next(
+            node for node in plan["graph"]["nodes"]
+            if node["id"] == "N-VISUAL-REVIEW"
+        )
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {"phase": "succeeded", "last_outcome": "pass"}
+        )
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {"phase": "succeeded", "last_outcome": "pass"}
+        )
+
+        before = _logical_reasons(review_node, plan, run, *_incoming(plan))
+        self.assertIn("integration_not_unified", before)
+
+        run["mission_states"]["M1"]["phase"] = "integrated"
+        run["mission_states"]["M1"]["integrated_sha"] = "c" * 40
+        run["integration"]["integration_head_sha"] = "c" * 40
+        after = _logical_reasons(review_node, plan, run, *_incoming(plan))
+        self.assertNotIn("integration_not_unified", after)
+
+    def test_integration_stage_review_requires_a_fresh_reviewer_identity(self) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {"phase": "succeeded", "last_outcome": "pass"}
+        )
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-PRE",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-PRE",
+            }
+        )
+        pre_review = exact_head_review_worker(
+            node_id="N-FRONTEND-REVIEW",
+            worker_id="RW-PRE",
+            attempt_id="ATT-PRE",
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        run["mission_states"]["M1"].update(
+            {"phase": "integrated", "integration_gate": "PASS", "integrated_sha": "c" * 40}
+        )
+        run["integration"]["integration_head_sha"] = "c" * 40
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-INTEGRATION",
+                "last_outcome": "pass",
+                "bound_worker_id": "W-M1",
+            }
+        )
+        integration_review = exact_head_review_worker(
+            node_id="N-VISUAL-REVIEW",
+            worker_id="W-M1",
+            attempt_id="ATT-INTEGRATION",
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        integration_review["reviewed_sha"] = "c" * 40
+        integration_review["review_path"] = "C:/repo"
+        run["review_workers"] = [pre_review, integration_review]
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("must use a fresh reviewer" in error for error in errors),
+            errors,
+        )
+
     def test_non_executable_run_statuses_never_dispatch_nodes(self) -> None:
         plan = valid_graph_plan()
 
@@ -1329,6 +1390,24 @@ class SelectReadyNodesTests(unittest.TestCase):
         nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
         # Two missions makes this a batch review, not a direct singleton one.
         nodes[node_id]["review"]["mission_ids"] = ["M1", "M3"]
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
+        for authorization in run["authorizations"].values():
+            scope = authorization.get("scope") if isinstance(authorization, dict) else None
+            if isinstance(scope, dict) and "plan_digest_sha256" in scope:
+                scope["plan_digest_sha256"] = digest
+        run["mission_states"]["M1"]["lease_plan_digest_sha256"] = digest
+        run["workers"][0]["plan_digest_sha256"] = digest
+        for execution in run.get("verifier_executions", []):
+            context = execution.get("context") if isinstance(execution, dict) else None
+            if isinstance(context, dict):
+                context["plan_digest_sha256"] = digest
+            key_document = execution.get("key_document") if isinstance(execution, dict) else None
+            if isinstance(key_document, dict):
+                key_document["plan_digest_sha256"] = digest
+                execution["execution_key"] = execution_key_from_document(key_document)
+                execution["evidence_key"] = execution["execution_key"]
         run["graph_state"]["node_states"][node_id].update(
             {
                 "phase": "succeeded",
@@ -1507,8 +1586,8 @@ class SelectReadyNodesTests(unittest.TestCase):
                 "blockers": [],
             }
         )
-        # E-VISUAL-CLOSEOUT declares on_outcomes ["pass"].
-        run["graph_state"]["edge_states"]["E-VISUAL-CLOSEOUT"].update(
+        # E-VISUAL-FINAL-GATE declares on_outcomes ["pass"].
+        run["graph_state"]["edge_states"]["E-VISUAL-FINAL-GATE"].update(
             {"status": "traversed", "traversals": 1, "source_attempt_id": "ATT-VISUAL-1"}
         )
 
@@ -1628,42 +1707,32 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
-    def test_current_enabled_nested_policy_requires_retained_review_evidence(
+    def test_v10_flat_app_task_requires_parent_owned_preintegration_review(
         self,
     ) -> None:
         plan, run = current_preintegration_review_state()
-        worker = configure_enabled_nested_app_task(
-            plan, run, include_evidence=False
+        worker = configure_flat_app_task(plan, run)
+        worker["nested_subagent_policy"].update(
+            {"enabled": True, "max_children": 1, "allowed_roles": ["reviewer"]}
+        )
+        self.assertTrue(
+            any(
+                "RUN-v10 forbids worker-owned delegation" in error
+                for error in validate_run(plan, run)
+            )
+        )
+        worker["nested_subagent_policy"].update(
+            {"enabled": False, "max_children": 0, "allowed_roles": []}
         )
         run["mission_states"]["M1"]["phase"] = "integrating"
 
         errors = validate_run(plan, run)
         self.assertTrue(
             any(
-                "requires retained task-local exact-head PASS review evidence"
+                "every planned pre-integration review node"
                 in error
                 for error in errors
             )
-        )
-
-        worker["nested_review_evidence"] = {
-            "agent_id": "A-REVIEW-M1",
-            "role": "reviewer",
-            "task": "Review the exact proposed mission head.",
-            "status": "completed",
-            "summary": "No blocking findings.",
-            "evidence_paths": ["evidence/review-m1.json"],
-            "reviewed_sha": "b" * 40,
-            "decision": "PASS",
-        }
-
-        planned_review_errors = validate_run(plan, run)
-        self.assertTrue(
-            any(
-                "every planned pre-integration review node" in error
-                for error in planned_review_errors
-            ),
-            planned_review_errors,
         )
 
         run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
@@ -1689,25 +1758,6 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
-        worker["nested_review_evidence"]["reviewed_sha"] = None
-        worker["worker_head_sha"] = None
-        run["mission_states"]["M1"]["head_sha"] = None
-        null_sha_errors = validate_run(plan, run)
-        self.assertTrue(
-            any(
-                "nested_review_evidence.reviewed_sha: must be a full lowercase Git SHA"
-                in error
-                for error in null_sha_errors
-            )
-        )
-        self.assertTrue(
-            any(
-                "requires retained task-local exact-head PASS review evidence"
-                in error
-                for error in null_sha_errors
-            )
-        )
-
     def test_integration_rejects_a_worker_from_another_mission(self) -> None:
         plan, run = current_preintegration_review_state()
         run["workers"][0]["mission_id"] = "M3"
@@ -1724,11 +1774,11 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
-    def test_nested_review_fanout_accepts_distinct_sibling_reviewers(
+    def test_parent_review_fanout_accepts_distinct_sibling_reviewers(
         self,
     ) -> None:
         plan, run, digest = fanout_preintegration_review_state()
-        configure_enabled_nested_app_task(plan, run, include_evidence=True)
+        configure_flat_app_task(plan, run)
         run["mission_states"]["M1"]["phase"] = "integrating"
         review_specs = (
             ("N-FRONTEND-REVIEW", "A-REVIEW-M1", "ATT-REVIEW-FIRST"),
@@ -1769,6 +1819,11 @@ class SelectReadyNodesTests(unittest.TestCase):
         self.assertEqual([], validate_run(plan, run))
 
         run["review_workers"][0]["outcome"] = "fix_required"
+        run["review_workers"][0]["findings"] = ["src/example/app.ts:1 blocking issue"]
+        self.assertEqual([], validate_run(plan, run))
+
+        run["review_workers"][1]["outcome"] = "fix_required"
+        run["review_workers"][1]["findings"] = ["src/example/app.ts:2 second blocking issue"]
         errors = validate_run(plan, run)
         self.assertTrue(
             any(

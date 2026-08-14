@@ -34,6 +34,7 @@ class AdapterContractTests(unittest.TestCase):
     def test_allowed_providers_alone_controls_current_host_eligibility(self) -> None:
         codex = self.read_sibling_skill("fullstack-harness-codex")
         claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        pi = self.read_sibling_skill("fullstack-harness-pi")
         research = self.read("references/orchestration-research-notes.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
 
@@ -46,12 +47,20 @@ class AdapterContractTests(unittest.TestCase):
             claude,
         )
         self.assertIn(
+            "A PLAN node is selectable here when its `allowed_providers` includes `pi`",
+            pi,
+        )
+        self.assertIn(
             "`preferred_provider` is advisory ordering among allowed hosts; it never blocks the current Codex host",
             codex,
         )
         self.assertIn(
             "`preferred_provider` is advisory ordering among allowed hosts; it never blocks the current Claude Code host",
             claude,
+        )
+        self.assertIn(
+            "`preferred_provider` is advisory ordering among allowed hosts; it never blocks the current Pi host",
+            pi,
         )
         for content in (research, orchestration):
             self.assertIn(
@@ -62,65 +71,71 @@ class AdapterContractTests(unittest.TestCase):
                 "`preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host",
                 content,
             )
-        for content in (codex, claude, research, orchestration):
+        for content in (codex, claude, pi, research, orchestration):
             self.assertNotIn("required or preferred provider", content)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
-    def test_codex_nested_helpers_are_optional_but_exact_head_review_is_mandatory(self) -> None:
+    def test_codex_uses_flat_parent_owned_delegation(self) -> None:
         codex = self.read_sibling_skill("fullstack-harness-codex")
         prompt = self.read_agent_prompt("fullstack-harness-codex")
 
-        self.assertIn("Nested Read-Only Helpers (Optional)", codex)
-        self.assertIn("Nested helpers are optional", codex)
-        self.assertIn("optional at the policy level", codex)
-        self.assertIn("An omitted or disabled `nested_subagent_policy` runs with no helper", codex)
-        self.assertIn("must launch its task-local reviewer child", codex)
-        self.assertIn("other helper lanes remain optional", codex)
-        self.assertIn("An omitted or disabled policy means no helper", codex)
-        self.assertIn("enabled policy with an unavailable or partial helper", codex)
-        self.assertIn("blocks the mission", codex)
-        self.assertIn("not a fallback for that enabled-policy obligation", codex)
-        self.assertIn("terminal graph review remains mandatory in every case", codex)
+        self.assertIn("Flat Parent-Owned Delegation", codex)
+        self.assertIn("No worker or reviewer spawns another agent", codex)
+        self.assertIn("sibling nodes dispatched by the Harness parent", codex)
+        self.assertIn("fresh read-only reviewers", codex)
+        self.assertIn("exact unified integration SHA", codex)
+        self.assertIn("one planned broad final validation", codex)
         self.assertIn("dispatchable_nodes[].required_actions", codex)
-        self.assertIn("Outer app-task nodes follow that directive exactly", codex)
-        self.assertIn("separately verify an exact `spawn_subagents` grant", codex)
-        self.assertIn("grant covering the `worker:<id>` target", codex)
-        self.assertNotIn("run-wide `*`", codex)
-        self.assertNotIn("explicitly run-wide", codex)
-        self.assertIn("selector's outer `required_actions` does not grow", codex)
-        self.assertIn("terminal `review_workers[]` PASS", codex)
-        self.assertIn("absence of a nested helper never lowers the gate", codex)
-        self.assertNotIn("Every non-trivial app-task mission gets", codex)
-        self.assertNotIn("Each task runs its own read-only Multi-agent reviewer", prompt)
-        self.assertIn("Nested read-only helpers are optional", prompt)
-        self.assertIn("optional at the policy level", prompt)
-        self.assertIn("omit or disable the policy to run with no helper", prompt)
-        self.assertIn("must launch its reviewer child", prompt)
-        self.assertIn("other helper lanes remain optional", prompt)
-        self.assertIn("outer task follows its required_actions exactly", prompt)
-        self.assertIn("immediately before a child launch", prompt)
-        self.assertIn("policy is disabled", prompt)
-        self.assertIn("terminal exact-head PASS", prompt)
+        self.assertIn("RUN-v10 forbids task-local child agents", codex)
+        self.assertIn("clean before launch", prompt)
+        self.assertIn("workers and reviewers never create child agents", prompt)
+        self.assertIn("fresh reviewers of the unified integration head", prompt)
+        self.assertIn("one broad final validation", prompt)
         self.assertIn("Never replace requested top-level tasks", prompt)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_launch_and_review_actions_follow_each_dispatchable_node(self) -> None:
         codex = self.read_sibling_skill("fullstack-harness-codex")
         claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        pi = self.read_sibling_skill("fullstack-harness-pi")
 
         self.assertIn("dispatchable_nodes[].required_actions", codex)
         self.assertIn("dispatchable_nodes[].required_actions", claude)
+        self.assertIn("dispatchable_nodes[].required_actions", pi)
         self.assertIn("Never infer extra authorization", claude)
+        self.assertIn("Never infer extra authorization", pi)
 
         self.assertIn("an app-thread review needs `create_user_owned_tasks`", codex)
         self.assertIn("a direct-subagent review needs `spawn_subagents`", codex)
         self.assertNotIn("a read-only review node's required actions are only", codex)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
+    def test_every_adapter_preserves_host_specific_context_discovery(self) -> None:
+        codex = self.read_sibling_skill("fullstack-harness-codex")
+        claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        pi = self.read_sibling_skill("fullstack-harness-pi")
+
+        self.assertIn("Codex worker contract", codex)
+        self.assertIn("`AGENTS.override.md`/`AGENTS.md` repository context paths", codex)
+        self.assertIn("do not inject `CLAUDE.md` as Codex instructions", codex)
+        self.assertIn("`AGENTS.md` context discovery enabled", codex)
+
+        self.assertIn("Claude Code worker contract", claude)
+        self.assertIn("effective `CLAUDE.md` repository context paths", claude)
+        self.assertIn("shared `AGENTS.md` governance paths", claude)
+        self.assertIn("Do not apply Codex or Pi worker mechanics", claude)
+
+        self.assertIn("Pi worker contract", pi)
+        self.assertIn("`AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`", pi)
+        self.assertIn("when `AGENTS.md` exists do not also inject `CLAUDE.md`", pi)
+        self.assertIn("Pi context discovery enabled", pi)
+
+    @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_same_repository_handoff_is_serialized_and_cross_machine_is_unsupported(self) -> None:
         for name, host in (
             ("fullstack-harness-codex", "Codex"),
             ("fullstack-harness-claude-code", "Claude Code"),
+            ("fullstack-harness-pi", "Pi"),
         ):
             content = self.read_sibling_skill(name)
             with self.subTest(adapter=name):
@@ -135,6 +150,25 @@ class AdapterContractTests(unittest.TestCase):
                 self.assertIn("the old review is invalid", content)
                 self.assertIn("Cross-machine handoff is unsupported until a future schema", content)
                 self.assertIn("not an in-session bridge", content)
+
+    @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
+    def test_pi_preserves_installed_role_and_model_routing(self) -> None:
+        pi = self.read_sibling_skill("fullstack-harness-pi")
+        prompt = self.read_agent_prompt("fullstack-harness-pi")
+
+        self.assertIn("Pi owns role-to-model selection", pi)
+        self.assertIn('`{"model": null, "reasoning_effort": null}`', pi)
+        self.assertIn("`frontend_designer` role", pi)
+        self.assertIn("`worker` role", pi)
+        self.assertIn("`reviewer` role", pi)
+        self.assertIn("actual resolved role, model, fallback, run id", pi)
+        self.assertIn("Forked subagent context requires a persisted Pi parent session", pi)
+        self.assertIn("With `--no-session`, launch a fresh child context instead", pi)
+        self.assertIn("never pass `--no-context-files` or `-nc`", pi)
+        self.assertIn("Pi's effective per-directory context selection", pi)
+        self.assertIn("One mission has one writer", pi)
+        self.assertIn("A Pi child must not delegate again", pi)
+        self.assertIn("installed Pi role and model configuration", prompt)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_claude_graph_workflow_splits_mixed_frontiers_by_tool_profile(self) -> None:

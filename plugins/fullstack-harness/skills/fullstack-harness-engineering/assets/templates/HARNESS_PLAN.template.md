@@ -112,6 +112,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             }
           },
           "review": {
+            "stage": "preintegration",
             "type": "frontend_code",
             "mission_ids": ["M1"],
             "scope": ["src/example/**"],
@@ -143,8 +144,9 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             }
           },
           "review": {
+            "stage": "integration",
             "type": "visual",
-            "mission_ids": ["M1", "M3"],
+            "mission_ids": ["M1"],
             "scope": ["src/example/**"],
             "required_evidence": ["reviewed_sha", "required-breakpoint screenshots", "visual findings and decision"]
           }
@@ -181,6 +183,7 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
             }
           },
           "review": {
+            "stage": "preintegration",
             "type": "frontend_code",
             "mission_ids": ["M3"],
             "scope": ["src/example/**"],
@@ -207,17 +210,17 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "max_traversals": null
         },
         {
-          "id": "E-FRONTEND-FINAL-GATE",
+          "id": "E-FRONTEND-VISUAL-REVIEW",
           "kind": "route",
           "from": "N-FRONTEND-REVIEW",
-          "to": "N-FINAL-GATE",
+          "to": "N-VISUAL-REVIEW",
           "on_outcomes": ["pass"],
-          "max_traversals": null
+          "max_traversals": 2
         },
         {
-          "id": "E-FINAL-VISUAL-REVIEW",
+          "id": "E-M1-VISUAL-REVIEW",
           "kind": "dependency",
-          "from": "N-FINAL-GATE",
+          "from": "N-M1",
           "to": "N-VISUAL-REVIEW",
           "on_outcomes": ["pass"],
           "max_traversals": null
@@ -247,9 +250,17 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
           "max_traversals": 2
         },
         {
-          "id": "E-VISUAL-CLOSEOUT",
+          "id": "E-VISUAL-FINAL-GATE",
           "kind": "route",
           "from": "N-VISUAL-REVIEW",
+          "to": "N-FINAL-GATE",
+          "on_outcomes": ["pass"],
+          "max_traversals": null
+        },
+        {
+          "id": "E-FINAL-CLOSEOUT",
+          "kind": "dependency",
+          "from": "N-FINAL-GATE",
           "to": "N-CLOSEOUT-GATE",
           "on_outcomes": ["pass"],
           "max_traversals": null
@@ -398,13 +409,13 @@ Use this template as `docs/goal/PLAN.md` only for long, multi-mission, high-risk
 
 The exact fenced JSON block above is the canonical plan. Scripts read this block only. New plans use PLAN schema v5. The graph is the canonical source for mission dependencies and routing. Older PLAN schemas remain readable; their recorded schema decides which fields apply. Keep the JSON valid, increment `revision` after an accepted semantic plan or graph change, and calculate the run's digest with the normalization algorithm in `references/execution-state-model.md`. Reordering set-like arrays alone does not require a revision. Markdown tables later in this document are non-canonical human views.
 
-For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning and keep Claude Code `sonnet` with `high` reasoning as the availability fallback. Choose review effort by risk: routine deterministic `backend_code`, `frontend_code`, and visual reviews use `medium`; reserve `xhigh` for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment. The run's final review — the final synthesis pass over the integration head — is not routine: it uses Codex `gpt-5.6-sol` with `xhigh` reasoning by default (Claude Code `sonnet` with `xhigh` on a `claude_code` host), not as an exception. This UI-bearing example applies the frontend model override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
+For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning and keep Claude Code `sonnet` with `high` reasoning as the availability fallback. Choose review effort by risk: routine deterministic `backend_code`, `frontend_code`, and visual reviews use `medium`; reserve `xhigh` for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment. The run's final review — the final synthesis pass over the integration head — is not routine: it uses Codex `gpt-5.6-sol` with `xhigh` reasoning by default (Claude Code `sonnet` with `xhigh` on a `claude_code` host), not as an exception. This UI-bearing example applies the frontend model override below. Plan Mode may replace either option per node using the mission-selection policy. Codex and Claude Code accept a model plus a runtime-supported reasoning effort; the destination runtime still validates the exact pair at launch. A Pi node lists `pi` in `allowed_providers` but omits its provider option, or keeps both values null, so Pi's installed role/model configuration remains authoritative. Keep effort `null` when the provider default is intentional. Omit `provider_options` to use runtime defaults. Options may name only providers listed in `allowed_providers`; changing them is a semantic plan revision.
 
 Every PLAN-v5 source binds the published input with `content_sha256`, `source_revision`, or both. A path or URL alone is not a freeze. `staged_revision` records a proposed accepted delta while the published source fields remain canonical; it is not an executable publication. A ready or executable RUN requires every source to be `frozen` or `delta_accepted` and forbids product staging locations. Publish the accepted revision to the canonical source location, move its hash/revision into the published fields, clear `staged_revision`, then increment the PLAN revision and recompute the digest.
 
 For frontend/UI implementation, use Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet`, with `high` reasoning for the implementation node and `medium` for routine `frontend_code`/visual-review nodes unless the recorded review risk justifies a higher effort. Reserve any stronger pinned Claude model — whichever premium model opened the current session — for the parent's own coordination and planning, never for a delegated node by default. These role-specific options replace the generic fallback on those nodes.
 
-For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions. If UI is present, place a `visual` review after integration. Each review node must name the missions and repository scope it reviews and bind to one exact reviewed SHA in RUN. A pre-integration review covers one mission; `fix_required` returns to that mission's original task, thread, and worktree, and `max_attempts` bounds review of each changed head. A post-integration or batch review may route `fix_required` to a bounded repair node based on the reviewed integration head. Combine reviews only when the scope is genuinely single-surface and record why.
+For full-stack work, plan separate `frontend_code` and `backend_code` runtime-worker verifier nodes after their matching missions and mark them `stage: "preintegration"`. Add fresh `stage: "integration"` reviewer nodes after serial integration; if UI is present, include a visual reviewer there. Each review node must name the missions and repository scope it reviews and bind to one exact reviewed SHA in RUN. A pre-integration review covers one mission; `fix_required` returns to that mission's original task, thread, and worktree, and `max_attempts` bounds review of each changed head. An integration-stage review uses a fresh reviewer identity and may route `fix_required` to a bounded repair node based on the reviewed integration head. Route its PASS to the one broad final validation gate. Combine reviews only when the scope is genuinely single-surface and record why.
 
 List every applicable review type in `required_reviews`. PLAN validation rejects a required type without a matching runtime-worker verifier node. Use an empty list only when the work has no frontend, backend, or visual review surface; explain that applicability decision in the human review map.
 

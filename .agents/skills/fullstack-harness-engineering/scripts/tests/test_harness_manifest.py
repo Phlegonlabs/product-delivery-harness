@@ -1584,6 +1584,21 @@ class PlanValidationTests(unittest.TestCase):
 
 
 class RunValidationTests(unittest.TestCase):
+    def test_integration_stage_review_does_not_replace_preintegration_coverage(self) -> None:
+        plan = valid_plan()
+        for node in plan["graph"]["nodes"]:
+            review = node.get("review") if isinstance(node, dict) else None
+            if isinstance(review, dict) and review.get("mission_ids") == ["M1"]:
+                review["stage"] = "integration"
+        run = valid_run(plan)
+        authorize_execution(run, ["M1"])
+
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "no direct singleton pre-integration review node: M1",
+        )
+
     def assert_run_error_contains(
         self, plan: dict[str, object], run: dict[str, object], fragment: str
     ) -> None:
@@ -2277,6 +2292,32 @@ class RunValidationTests(unittest.TestCase):
             "must be omitted for flat dynamic-workflow orchestration",
         )
 
+    def test_schema_v10_routes_pi_subagents(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"] = {
+            "worker_runtime": "subagent",
+            "workspace_mode": "parent_managed_worktree",
+            "completion_channel": "agent_result",
+            "max_parallel_workers": 2,
+            "runtime_adapter": {
+                "provider": "pi",
+                "available_drivers": ["subagents", "sequential_parent"],
+                "detection_source": "observed",
+            },
+            "platform_lifecycle": {
+                "owner": "parent",
+                "automatic_retention_cleanup_possible": False,
+                "durable_branch_required_before_unique_work": True,
+            },
+        }
+
+        self.assertEqual([], validate_run(plan, run))
+        self.assertEqual(
+            "subagents",
+            route_runtime_driver(run["runtime_capabilities"]),
+        )
+
 
 
     def test_schema_v6_rejects_provider_driver_and_axis_mismatches(self) -> None:
@@ -2966,7 +3007,7 @@ class RunValidationTests(unittest.TestCase):
         }
         self.assert_run_error_contains(plan, run, "is required for named_profile")
 
-    def test_app_task_accepts_authorized_bounded_nested_subagents(self) -> None:
+    def test_v10_app_task_forbids_nested_delegation_but_legacy_remains_readable(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
         digest = plan_digest(plan)
@@ -3092,7 +3133,11 @@ class RunValidationTests(unittest.TestCase):
             ["M1"],
             ["branch:refs/heads/codex/app-m1"],
         )
-        self.assertEqual(validate_run(plan, run), [])
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must be false because RUN-v10 forbids worker-owned delegation",
+        )
 
         legacy_app_plan = legacy_plan()
         legacy_app_run = legacy_run(legacy_app_plan, 6)
@@ -3160,38 +3205,14 @@ class RunValidationTests(unittest.TestCase):
             "write_policy": "read_only",
             "completion_channel": "agent_result",
         }
-        self.assertEqual(
-            [],
-            validate_run(plan, run),
-            "an explicitly disabled nested policy needs no spawn grant",
-        )
-        run["workers"][0]["nested_subagent_policy"] = {
-            "enabled": True,
-            "max_children": 3,
-            "allowed_roles": ["explorer", "reviewer", "tester"],
-            "write_policy": "read_only",
-            "completion_channel": "agent_result",
-        }
-
-        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = ["*"]
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "requires matching spawn_subagents authorization",
-        )
-        run["authorizations"]["spawn_subagents"]["scope"]["targets"] = [
-            "worker:W1"
-        ]
-        self.assertEqual([], validate_run(plan, run))
-
         run["authorizations"]["spawn_subagents"] = {
             "authorized": False,
             "source": None,
         }
-        self.assert_run_error_contains(
-            plan,
-            run,
-            "requires matching spawn_subagents authorization",
+        self.assertEqual(
+            [],
+            validate_run(plan, run),
+            "an explicitly disabled nested policy needs no spawn grant",
         )
 
 

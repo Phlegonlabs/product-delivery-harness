@@ -51,7 +51,7 @@ A mission is in the ready frontier only when all conditions pass:
 6. Trace, write-scope, verifier, and resource inventory validation passed.
 7. `resource_inventory_complete` is true.
 8. The chosen runtime/workspace/completion capability combination supports the mission; a parallel write mission has `worktree_eligible: true` and an isolated workspace.
-9. Required action-specific authorizations for the proposed launch path are present. Outer app-task fan-out requires its task/worktree/branch/commit actions but does not require or preauthorize `spawn_subagents`; a v10 nested policy is optional and requests an exact `worker:<id>` grant only after worker allocation. Claude Dynamic Workflow and direct subagent fan-out require `spawn_subagents`; isolated workflow writes also require parent-managed worktree, branch, and commit authorization.
+9. Required action-specific authorizations for the proposed launch path are present. Outer app-task fan-out requires its task/worktree/branch/commit actions but excludes `spawn_subagents` because RUN-v10 workers never delegate. Claude Dynamic Workflow and direct parent-owned sibling agents require top-level `spawn_subagents`; isolated workflow writes also require parent-managed worktree, branch, and commit authorization.
 10. The inherited permission boundary is observed and already covers linked-worktree Git metadata, temp/cache, outbound network, local/private bindings, and required sockets.
 11. No human approval, secret, service, contract decision, or destructive action remains unresolved.
 
