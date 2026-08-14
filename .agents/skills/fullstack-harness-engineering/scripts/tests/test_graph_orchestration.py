@@ -457,6 +457,18 @@ def authorize_recorded_worker(
 
 
 class GraphManifestTests(unittest.TestCase):
+    def test_review_stage_accepts_only_preintegration_or_integration(self) -> None:
+        plan = valid_plan()
+        review = next(
+            node for node in plan["graph"]["nodes"]
+            if node.get("review") is not None
+        )
+        review["review"]["stage"] = "after_everything"
+
+        self.assertTrue(
+            any("must be preintegration or integration" in error for error in validate_plan(plan))
+        )
+
 
 
 
@@ -875,6 +887,44 @@ class GraphManifestTests(unittest.TestCase):
         }
         node["runtime"]["allowed_providers"].append("generic")
         self.assertTrue(any("supports selectable effort" in error for error in validate_plan(plan)))
+
+    def test_pi_provider_uses_subagents_with_host_owned_model_routing(self) -> None:
+        plan = valid_graph_plan()
+        node = plan["graph"]["nodes"][0]
+        node["runtime"]["preferred_provider"] = "pi"
+        node["runtime"]["allowed_providers"].append("pi")
+        node["runtime"]["provider_options"] = {
+            "pi": {"model": None, "reasoning_effort": None}
+        }
+        self.assertEqual([], validate_plan(plan))
+
+        runtime = valid_graph_run(plan)["runtime_capabilities"]
+        runtime.update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+            }
+        )
+        runtime["runtime_adapter"].update(
+            {
+                "provider": "pi",
+                "available_drivers": ["subagents", "sequential_parent"],
+                "detection_source": "observed",
+            }
+        )
+        binding = _runtime_binding(node, runtime)
+        self.assertEqual("pi", binding["provider"])
+        self.assertEqual("subagents", binding["driver"])
+        self.assertIsNone(binding["model"])
+        self.assertIsNone(binding["reasoning_effort"])
+        self.assertEqual("plan_provider_options", binding["option_source"])
+
+        node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = "high"
+        self.assertTrue(any("supports selectable effort" in error for error in validate_plan(plan)))
+        node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = None
+        node["runtime"]["provider_options"]["pi"]["model"] = "gpt-5.6-sol"
+        self.assertTrue(any("Pi role configuration owns model selection" in error for error in validate_plan(plan)))
 
     def test_run_worker_binding_must_match_plan_provider_options(self) -> None:
         plan = valid_graph_plan()

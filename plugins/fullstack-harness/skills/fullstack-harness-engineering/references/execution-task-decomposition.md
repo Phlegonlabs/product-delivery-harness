@@ -49,7 +49,7 @@ A task's own module crossing the project's File Size Limit (see the seeded root 
 
 `acceptance_matrix` is a canonical list on the PLAN task object. Updating it is a plan revision even when the task is not split.
 
-The parallel write unit is always a mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker.
+The parallel write unit is always a mission, and one independently testable goal maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
 
 ## UI Build Order
 

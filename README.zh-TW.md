@@ -49,8 +49,9 @@
 | `prd-builder` | 產品探索、需求、Builder UX Direction 輸入、架構、技術選型、發佈目標、測試義務，以及草稿完成後的市場研究補缺 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 產品線框圖、視覺方向與設計系統契約。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `wireframes.md`、`design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手、`RUN.md`，或 `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及可選的任務級唯讀 Multi-agent 輔助 | 執行環境啟動指令與 worker 結果 |
+| `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及由 parent 派發的同層 reviewers | 執行環境啟動指令與 worker 結果 |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow 與由 parent 管理的 worktree | 執行環境啟動指令與 worker 結果 |
+| `fullstack-harness-pi` | 在 parent 管理的 worktree 中使用 Pi subagent 角色，並由 Pi 選擇模型與 fallback | 執行環境啟動指令、實際角色／模型佐證與 worker 結果 |
 | `manage-cloudflare-worker-deployments` | 自動為每個分支建立 Cloudflare Worker 預覽、受保護的清理流程，以及可選的手動正式環境初始部署 | 安裝器、生命週期腳本、測試、設定與 GitHub Actions 範本 |
 
 交付核心在啟動受管編排之前，會先做一個規模決策：
@@ -69,7 +70,7 @@ flowchart LR
   Idea["產品構想或變更需求"] --> PRD["prd-builder\n產品與技術定義"]
   PRD --> Design["product-design-builder + frontend-design\n線框圖與設計系統"]
   Design --> Harness["fullstack-harness-engineering\n共用交付核心"]
-  Harness --> Runtime["單一 host 轉接器\nCodex 或 Claude Code"]
+  Harness --> Runtime["單一 host 轉接器\nCodex、Claude Code 或 Pi"]
   Runtime --> Evidence["本機測試與 UI 佐證"]
   Evidence --> Push["推送到這次執行自己的分支\n合進預設分支是你自己的步驟"]
 ```
@@ -96,7 +97,7 @@ flowchart TB
   Size -->|large| Plan["PLAN v5 + RUN v10<br/>frozen contracts, authorization ledger"]
   Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
   Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
-  Frontier --> Host["One host adapter: codex or claude_code<br/>no cross-host fallback"]
+  Frontier --> Host["One host adapter: codex, claude_code, or pi<br/>no cross-host fallback"]
   Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
@@ -120,7 +121,8 @@ flowchart TB
 
 - Codex host 只載入 `fullstack-harness-codex`，也只執行 `codex` provider 的 PLAN 節點。
 - Claude Code host 只載入 `fullstack-harness-claude-code`，也只執行 `claude_code` provider 的 PLAN 節點。
-- 兩個轉接器都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
+- Pi host 只載入 `fullstack-harness-pi`，也只執行 `pi` provider 的 PLAN 節點，並沿用 Pi 已安裝的角色、模型與 fallback 設定。
+- 任何轉接器都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
 
 共用的 script、schema、參考文件與範本仍放在 `fullstack-harness-engineering` 底下；轉接器只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡。
 
@@ -145,7 +147,7 @@ Claude Graph Workflow 會把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 當 Claude Code 回傳真實的 Workflow 執行 ID 時，RUN 狀態可以保留 workflow/task ID、script digest、node group、圖/base 綁定、工具設定檔、狀態，以及可取得的度量。同一 session 內的續跑可以沿用該綁定；跨 session 的復原則從標準的 PLAN/RUN 狀態重新啟動一次新的 workflow 嘗試。
 
-圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Claude Code 不能把節點委派給 Codex，Codex 也不能把節點委派給 Claude Code；兩者之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
+圖節點的 `allowed_providers` 必須包含實際在執行 Harness 的 host，該節點才能被選取。Codex、Claude Code 與 Pi 不能彼此委派節點；它們之間沒有跨 host 的橋接。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應轉接器主持的執行去處理。
 
 ## 安裝
 
@@ -240,7 +242,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 
 ## 常見提示詞
 
-Codex 接受下列的 `$skill-name` 寫法。在 Claude Code 中，請呼叫已安裝、帶命名空間的技能，例如 `/fullstack-harness:prd-builder`，或直接用名稱指定。
+Codex 接受下列的 `$skill-name` 寫法。在 Claude Code 中，請呼叫已安裝、帶命名空間的技能，例如 `/fullstack-harness:prd-builder`，或直接用名稱指定。在 Pi 中，可以使用自動找到的 project skill，或用 `--skill` 傳入技能目錄，再直接指定 `fullstack-harness-pi`。
 
 ```text
 Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, release targets, and test obligations.
@@ -263,12 +265,16 @@ Use $fullstack-harness-engineering to implement this plan and push the verified 
 ```
 
 ```text
+Use fullstack-harness-engineering with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+```
+
+```text
 Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 若要進行多任務交付，請在需求中說清楚預期的本機與遠端結果。建立分支、提交、整合、儲存庫設定、推送、移除 worktree 與刪除分支，都是各自獨立的動作。Harness 不會開 PR、不會合併、也不會部署——這些步驟由你自己完成。
 
-## Codex 與 Claude Code 的執行
+## Codex、Claude Code 與 Pi 的執行
 
 Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI 去假設一個。
 
@@ -276,14 +282,15 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 | --- | --- | --- |
 | Codex app（`fullstack-harness-codex`） | 在隔離、由 app 管理的 worktree 中執行 app 任務 | 直接使用 subagent，再退到單一循序的 parent |
 | Claude Code（`fullstack-harness-claude-code`） | 使用對齊 base、由 parent 管理的 `.claude/worktrees/` worktree 執行 Dynamic Workflow | 直接使用 subagent，再退到單一循序的 parent |
+| Pi（`fullstack-harness-pi`） | 在 parent 管理的 worktree 中使用已安裝的 Pi 角色，並由 Pi 選擇模型與 fallback | 單一循序的 parent |
 
-在 Codex 中，偏好的路線分成兩層：每個選中的 mission 先在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree；接著由該任務按需執行可選的、有界 Multi-agent 輔助。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
+在 Codex 中，每個選中的 mission 都會在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree。任何唯讀 explorer 或 reviewer 都由 Harness parent 另行作為同層節點派發；mission 任務不能建立子代理。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
 
 目標 repo 自己的 branch 規則優先。當 repo 未定義其他流程時，mission worktree 從目前預設分支的 SHA 開始，在綁定當前 head 的唯讀 review 通過後整合進這次執行自己的分支；當驗證過的分支推送完成，這次執行就結束了。把它合進預設分支是你自己的步驟。若有修正，必須對新 head 重新 review。
 
-每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要另一個 host 的 provider，會被 deferred with `runtime_unavailable`，而不會在這裡執行。
+每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要其他 host 的 provider，會被 deferred with `runtime_unavailable`，而不會在這裡執行。
 
-平行實作預設沒有固定的小上限；設定中的寫入 worker 上限刻意設得很高，實際的波次是由觀察到的 worker 名額、隔離容量，以及相依已就緒、無衝突的 frontier 大小來界定。每個 worker 都需要隔離的工作區、有界的寫入範圍、一個 verifier，以及明確的授權。Codex nested helpers 是可選的，但 parent/review graph 的 exact-head PASS 仍是強制閘門。Worktree 只有在選出就緒 frontier 之後才會配置。原生的 Claude mission 會進入分派給它的、由 parent 管理的 worktree。Worker 絕不編輯 parent 的 `PLAN.md` 或 `RUN.md`，也不推送、開 PR、合併、部署或移除 worktree。Parent 掌管整合以及每一個落地或生命週期動作。
+平行實作預設沒有固定的小上限；設定中的寫入 worker 上限刻意設得很高，實際波次由觀察到的 worker 名額、隔離容量，以及相依已就緒、無衝突的 frontier 大小界定。一個可獨立驗證的目標對應一個 mission。每個 writer 都有明確的檔案 ownership，以及獨立、乾淨、固定基線的 worktree。共享 API、schema 與型別必須先凍結，再開始依賴它們的平行寫入。探索、寫入與 reviewer 都由 parent 作為同層節點派發；worker 與 reviewer 都不能再次分派。每個 mission 通過 exact-head review 後，由 parent 串行整合；統一整合完成後再啟動 fresh reviewers，最後只對固定候選 SHA 執行一次完整驗證。Worker 絕不編輯 parent 的 `PLAN.md` 或 `RUN.md`，也不推送、開 PR、合併、部署或移除 worktree。Parent 掌管整合以及每一個落地或生命週期動作。
 
 ## 儲存庫結構
 

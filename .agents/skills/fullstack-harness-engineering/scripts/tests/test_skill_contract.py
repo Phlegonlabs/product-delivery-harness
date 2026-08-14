@@ -24,6 +24,23 @@ REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 
 
 class FullstackHarnessSkillContractTests(unittest.TestCase):
+    def test_default_mission_topology_is_flat_isolated_and_integration_reviewed(self) -> None:
+        skill = self.read("SKILL.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+        project = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("## Default Mission Topology", skill)
+        self.assertIn("Map one independently testable goal to one mission", skill)
+        self.assertIn("bounded read-only exploration", skill)
+        self.assertIn("one explicit `write_scope`", skill)
+        self.assertIn("Freeze shared APIs, schemas, and types", skill)
+        self.assertIn("`git status --porcelain`", skill)
+        self.assertIn("fresh parent-owned read-only reviewers", skill)
+        self.assertIn("one planned broad final validation suite", skill)
+        self.assertIn("Workers and reviewers never delegate", skill)
+        self.assertIn("## No Nested Delegation", worker)
+        self.assertIn("explicit file-ownership scope", project)
+
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
@@ -133,27 +150,22 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("shared-checkout fallback", runbook.lower())
         self.assertNotIn("harness_parent", graph[graph.index("If the large route"):graph.index("For current PLAN")])
 
-    def test_v10_nested_policy_is_optional_exact_after_allocation_and_legacy_compatible(self) -> None:
+    def test_v10_forbids_nested_delegation_and_keeps_legacy_readable(self) -> None:
         state = self.read("references/execution-state-model.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         selector = self.read("references/parallel-mission-selection.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
         goal = self.read("assets/templates/GOAL.template.md")
 
-        for content in (state, runbook, selector, orchestration, goal):
-            self.assertIn("does not require or preauthorize `spawn_subagents`", content)
-            self.assertIn("exact", content.lower())
-        self.assertIn("nested_subagent_policy` is optional", state)
-        self.assertIn("omitted policy or `enabled: false` means no nested launch", state)
-        self.assertIn("exact `worker:<id>` target", state)
-        self.assertIn("run-wide `*` target is not valid for a v10 nested launch", state)
-        self.assertIn("RUN v6 through v9 retain their legacy mandatory nested policy", state)
-        self.assertIn("RUN-v10 app-task nested policy is optional", runbook)
-        self.assertIn("Legacy RUN-v6/v7/v8/v9 app-task policies retain", runbook)
-        self.assertIn("a run-wide wildcard is not valid for v10", orchestration)
+        for content in (state, runbook, orchestration):
+            self.assertIn("RUN-v10", content)
+            self.assertIn("parent", content.lower())
+        self.assertIn("accepts only an omitted `nested_subagent_policy` or one with `enabled: false`", state)
+        self.assertIn("RUN v6 through v9 retain their legacy nested-policy compatibility", state)
+        self.assertIn("RUN-v10 workers never delegate", runbook)
+        self.assertIn("Workers and reviewers never spawn or delegate further", orchestration)
         self.assertNotIn("app-task fan-out includes `spawn_subagents`", selector.lower())
-        self.assertNotIn("require `spawn_subagents` authorization before the no-production-edit handshake", runbook)
-        self.assertNotIn("or an explicitly run-wide `*` target", state)
+        self.assertNotIn("enabled v10 policy", state.lower())
 
     def test_execution_intent_covers_route_subset_not_all_nine_actions(self) -> None:
         skill = self.read("SKILL.md")
@@ -162,7 +174,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("covers only the subset that the selected route actually uses", state)
         self.assertIn("outer v10 `app_threads` app-task route excludes `spawn_subagents`", state)
-        self.assertIn("enabled nested policy may request an exact `worker:<id>` grant only after worker allocation", state)
+        self.assertIn("app-task workers never delegate", state)
+        self.assertIn("Parent-dispatched direct sibling workers and reviewers", state)
         for content in (skill, state, runbook):
             self.assertNotIn("covers all nine together", content)
             self.assertNotIn("one execution-intent instruction covers all nine", content)
@@ -219,7 +232,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("own conversation in the left sidebar", skill)
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
         self.assertIn("one top-level worktree task/thread per mission", orchestration)
-        self.assertIn("each sibling task runs its own independent Multi-agent set", orchestration)
+        self.assertIn("Read-only explorers and reviewers are parent-dispatched siblings", orchestration)
+        self.assertIn("never children of a mission task", orchestration)
         self.assertIn("direct subagent of the coordinator is not equivalent", selector)
         self.assertIn("one top-level left-sidebar task", goal)
         self.assertIn("Never replace requested top-level tasks", agent)
@@ -249,15 +263,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
         self.assertIn("select authorized ready nodes", agent)
 
-    def test_enabled_app_worker_uses_nested_reviewer_and_disabled_uses_parent_review(self) -> None:
+    def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn("An omitted or disabled v10 policy means no nested launch", worker_goal)
-        self.assertIn("spawn at least one and at most `max_children` direct read-only subagents", worker_goal)
-        self.assertIn("RUN-v10 app-task nested policy is optional", runbook)
-        self.assertIn("A non-trivial mission with an enabled v10 policy must complete a post-edit read-only reviewer", runbook)
-        self.assertIn("require an equivalent parent-owned read-only review before integration", runbook)
+        self.assertIn("## No Nested Delegation", worker_goal)
+        self.assertIn("Do not spawn, create, or delegate to another agent", worker_goal)
+        self.assertIn("All explorers, writers, and reviewers are parent-dispatched siblings", worker_goal)
+        self.assertIn("RUN-v10 workers never delegate", runbook)
+        self.assertIn("all reviews are parent-dispatched graph nodes", runbook)
 
     def test_frontend_design_has_creation_and_conformance_modes(self) -> None:
         skill = self.read("SKILL.md")
@@ -313,7 +327,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("Keep all 12 schema-v10 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
-        self.assertIn("one top-level left-sidebar task with its own app-managed worktree", goal)
+        self.assertIn("one top-level left-sidebar task with its own clean exact-base app-managed worktree", goal)
 
     def test_run_template_matches_the_integration_push_default(self) -> None:
         """The template has to describe the landing model SKILL.md now defaults to.
@@ -601,14 +615,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_bootstrap_seeds_agents_and_claude_governance_templates(self) -> None:
         skill = self.read("SKILL.md")
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
+        worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
+        configurator = self.read("scripts/configure_project_context.py")
 
         self.assertIn("PROJECT_AGENTS.template.md", skill)
-        self.assertNotIn("PROJECT_CLAUDE.template.md", skill)
-        self.assertIn("seed a missing root `AGENTS.md`", skill)
-        self.assertIn("a missing root `CLAUDE.md`", skill)
-        self.assertIn("Skip either file that already exists", skill)
-        self.assertIn("never overwrite an established root `AGENTS.md` or `CLAUDE.md`", skill)
+        self.assertIn("PROJECT_CLAUDE.template.md", skill)
+        self.assertIn("## Repository Context Contract", skill)
+        self.assertIn("scripts/configure_project_context.py --root <target-root>", skill)
+        self.assertIn("generated files are intentionally different", skill)
+        self.assertIn("Pi's native per-directory priority", skill)
+        self.assertIn("Never overwrite, merge, normalize, or silently copy", skill)
+        self.assertIn("Host-specific repository context:", worker_goal)
+        self.assertIn("Runtime-specific worker contract:", worker_goal)
+        self.assertIn("Do not disable automatic context discovery", worker_goal)
+        self.assertIn('path.open("xb")', configurator)
+        self.assertIn("## Runtime Boundary", project_agents)
+        self.assertIn("Codex and Pi load it as their native project context", project_agents)
         self.assertIn("## Core Development Principles", project_agents)
+        self.assertIn("@AGENTS.md", project_claude)
+        self.assertIn("## Claude Code Runtime Boundary", project_claude)
 
 
 if __name__ == "__main__":

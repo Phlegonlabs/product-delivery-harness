@@ -102,7 +102,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         repair_review = nodes["N-VISUAL-REPAIR-CODE-REVIEW"]
         repair_to_code_review = edges["E-VISUAL-REPAIR-CODE-REVIEW"]
         repair_to_review = edges["E-VISUAL-REPAIR-REREVIEW"]
-        review_to_final = edges["E-VISUAL-CLOSEOUT"]
+        review_to_final = edges["E-VISUAL-FINAL-GATE"]
         self.assertEqual(["M3"], repair_review["review"]["mission_ids"])
         self.assertEqual("frontend_code", repair_review["review"]["type"])
         self.assertEqual("N-VISUAL-REPAIR", repair_to_code_review["from"])
@@ -120,6 +120,9 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertEqual(2, review_to_repair["max_traversals"])
         self.assertEqual(2, repair_to_review["max_traversals"])
         self.assertEqual(["pass"], review_to_final["on_outcomes"])
+        self.assertEqual("integration", nodes["N-VISUAL-REVIEW"]["review"]["stage"])
+        self.assertEqual("N-FINAL-GATE", review_to_final["to"])
+        self.assertEqual("N-CLOSEOUT-GATE", edges["E-FINAL-CLOSEOUT"]["to"])
         self.assertIn(
             nodes["N-CLOSEOUT-GATE"]["executor"],
             {"harness_parent", "local_command"},

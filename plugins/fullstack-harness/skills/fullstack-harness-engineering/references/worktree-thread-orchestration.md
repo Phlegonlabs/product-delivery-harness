@@ -29,7 +29,7 @@ If a requested combination is unsupported, downgrade to sequential parent execut
 RUN v10 records the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
 
 ```text
-provider: codex | claude_code | generic
+provider: codex | claude_code | pi | generic
 available_drivers: app_threads | dynamic_workflow | subagents | sequential_parent
 detection_source: observed | explicit | fallback
 ```
@@ -44,7 +44,7 @@ generic: subagents -> sequential_parent
 
 The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to the existing PLAN `runtime_worker` mission plus a parent-owned RUN binding of `parent` + `parent_managed_worktree` + `agent_result` solely for lease/state validation. It is not a delegated or spawned worker, does not require `spawn_subagents`, and blocks when the required parent-managed worktree is unavailable or unauthorized; `shared_checkout` is not a fallback for this route. Do not route from a product label alone; record how the capability was observed and block if the selected primitive is missing at launch.
 
-Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. Codex task tools may be lazy-loaded, so use the current tool-discovery surface to search for project listing, top-level task creation, messaging, and thread waiting before declaring `app_threads` missing. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
+Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. In Pi, the installed subagent workflow must also return a terminal child result before `subagents` is recorded. Codex task tools may be lazy-loaded, so use the current tool-discovery surface to search for project listing, top-level task creation, messaging, and thread waiting before declaring `app_threads` missing. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
 For RUN-v10 observed Codex execution, write the full eight-entry `capability_probe` described by `execution-state-model.md`; do not summarize several surfaces into one claim. `app_threads` is derived only from available project listing, thread creation/read/message/wait, and app-managed-worktree support. Direct `subagents` is derived separately from spawn and result support. Before a ready/running run validates, every surface must be `available` or `unavailable` with evidence, and `available_drivers` must exactly match the derived Codex priority list. Missing, `unobserved`, under-reported, or over-claimed snapshots block execution.
 
@@ -75,7 +75,7 @@ A worker owns one mission lease only:
 
 - its assigned workspace and allowed mission write scope;
 - task-level implementation, verification, and authorized task commits;
-- bounded read-only child delegation when its recorded nested-subagent policy is enabled and authorized;
+- no child delegation; request any independent explorer or reviewer from the parent;
 - a structured result or `REFINEMENT_REQUEST` returned through the declared completion channel.
 
 Workers must not edit the parent-owned `PLAN.md` or `RUN.md`, expand their own scope, or pull, rebase, merge, push, or clean up unless that exact action is separately authorized and assigned. Nothing prevents the write at the filesystem level; it is detected on the way back, when `validate_worker_result.py` rejects a parent-owned path in `changed_files` as `parent_owned_file`. That detection depends on the parent passing the real observed diff, not the worker's own claim.
@@ -112,7 +112,7 @@ For user-owned Codex app tasks:
 - Managed worktrees may begin detached. If durable commits or handoff are required, create an authorized branch or durable ref early; do not leave unique work reachable only from a detached checkout.
 - Do not launch app-managed write fan-out unless branch and commit creation are authorized. Otherwise use sequential parent execution; this protocol does not depend on extracting an uncommitted patch from a managed worktree.
 - Use the repository's supported ignored-file inclusion mechanism, such as `.worktreeinclude`, only for necessary local files and never to copy tracked files or secrets without permission.
-- Treat the app task itself as the sole writer in its managed worktree. Direct subagents may assist only under the bounded read-only policy below; a second writer requires a separately planned outer mission and isolated worktree, not an informal nested child.
+- Treat the app task itself as the sole writer in its managed worktree. Any explorer or reviewer is a separately parent-dispatched read-only sibling; a second writer requires a separately planned mission and isolated worktree.
 - Preflight the selected permission mode before task creation. A linked worktree's `.git` file points to metadata in the original repository's Git common directory, which may sit outside the app worktree sandbox; branch creation and commits can therefore prompt even when source edits are inside the worktree. Package caches, system temp, local dev ports, private-network bindings, and Unix sockets are separate surfaces that must also fit the selected boundary.
 - Record the effective permission boundary in RUN. Subagents inherit the app task's active mode, and app tasks inherit the parent mode chosen before launch. `Approve for me` changes eligible prompt review but does not widen the sandbox. A later config/composer change does not retroactively update already-running tasks.
 
@@ -120,29 +120,19 @@ The platform controls managed-worktree retention. `remove_worktrees: false` prev
 
 True event-driven cross-task completion requires a runtime integration that exposes task/thread events, such as Codex App Server notifications. Otherwise use `thread_poll`, `report_file`, or `user_relay` and state that limitation explicitly.
 
-## Nested Subagents Inside An App Task
+## Flat Parent-Owned Agent Topology
 
-This is a two-level coordination shape, not another mission wave:
+Use one coordination level:
 
 ```text
-outer coordinator -> app task / mission writer -> read-only direct subagents
+Harness parent -> read-only explorers | mission writers | read-only reviewers
 ```
 
-The outer app-task selection does not require or preauthorize `spawn_subagents`. Enable nested children only after the app-task worker is allocated and all of these are true:
+Workers and reviewers never spawn or delegate further. RUN-v10 therefore accepts only an omitted or disabled `nested_subagent_policy`. If an app task would benefit from another independent view, it reports that need and waits; the parent may dispatch a bounded read-only sibling under its own authorization and budget.
 
-- the outer worker uses `worker_runtime: app_task`;
-- current runtime observation proves multi-agent tools and a direct result channel are available inside that task;
-- RUN records an enabled `nested_subagent_policy`, and v10 `spawn_subagents` covers the exact allocated `worker:<id>` target (a run-wide wildcard is not valid for v10; RUN v6-v9 retain their legacy wildcard compatibility);
-- RUN gives the worker an enabled `nested_subagent_policy` capped at depth one and at most three children;
-- each child assignment is independent, bounded, read-only, and useful enough to offset coordination cost.
+Every write mission has one worker, one explicit `write_scope` ownership boundary, and one clean exact-base worktree. Before launch, the parent verifies repository identity, branch/ref, HEAD equal to `batch_base_sha`, and empty `git status --porcelain`. Shared API, schema, and type edits are a prerequisite mission: freeze, review, and integrate them before cutting dependent worktrees.
 
-Before its first production edit, a non-trivial app task with this policy evaluates four lanes: codebase exploration, documentation/API research, test/log analysis, and independent review. Run eligible exploration, research, and test-plan/contract review before writing. A child that reviews the proposed diff runs after implementation but before the mission result and must bind its decision to the exact current worktree head. Exploration, research, and test-analysis lanes may be skipped when they add no independent value, but the post-edit reviewer is mandatory for an enabled non-trivial task. If the mission is trivial or no child slot/tool or safe reviewer lane is available, the WORKER_RESULT records that reason and the parent performs an equivalent read-only review before integration. Since this exploration, research, test-analysis, and diff-review work is bounded, read-only discovery, each child takes the fast, inexpensive model tier from `graph-orchestration.md`'s Runtime Binding point 6 — the host's fastest/cheapest model (a delegated Claude Code child set to `haiku`, not `sonnet`) with `low` or `medium` reasoning effort — unless the parent mission's own risk classification (security-sensitive, migration, difficult-correctness, or another point-2-level high-risk surface) keeps its children at the parent's own model tier to match its quality bar for that specific mission.
-
-If the outer coordinator cannot observe child-tool availability until the app task exists, omit `runtime_capabilities.nested_subagents` and perform a no-production-edit capability handshake after worker allocation; the outer task was selected without `spawn_subagents`. The task reports tool/result availability, the coordinator records `runtime_capabilities.nested_subagents`, assigns an explicit enabled or disabled worker policy, and only then releases implementation. This avoids silently treating “not yet observed” as “unavailable.” A recorded `available: false`, an omitted policy, or an available capability without the `reviewer` role selects the disabled parent-review path and does not require `spawn_subagents` authorization. Once enabled, the worker cannot pass without a completed exact-head PASS reviewer and the exact `worker:<id>` grant; a later `partial` or `unavailable` activity record is blocking rather than a fallback. A disabled policy instead routes the exact-head review to the parent before integration.
-
-The app task gives every child a concrete question, read/deny scope, expected evidence, required summary, and an explicit instruction not to spawn or delegate further; waits for all requested child results; reconciles disagreements itself; and remains responsible for implementation and verification. Children never edit files or PLAN/RUN, run mutating generators or shared-state services/tests, create worktrees/branches/tasks/commits, or perform integration, push, or lifecycle actions. If a child discovers code that must be changed, it reports the evidence to the app task rather than editing.
-
-Nested children do not appear as PLAN missions, receive leases, consume the outer harness write-worker budget, or report directly to the outer coordinator. The app task includes their IDs, roles, tasks, status, summaries, and evidence paths in `subagent_activity`; the outer coordinator validates the mission result and actual Git state as usual.
+After exact-head pre-integration reviews pass, the parent integrates mission heads serially. Only then does it dispatch fresh reviewers against the exact unified integration SHA. Those reviewers are not mission writers and do not reuse pre-integration outcomes. A passing fresh review fixes the candidate SHA for one broad final validation; a repair changes the candidate and invalidates the earlier result.
 
 ## Launch Preconditions
 
@@ -155,7 +145,9 @@ plan readiness and execution authorization are true
 the exact spawn/worktree/branch/commit actions are authorized
 integration branch/ref and immutable batch_base_sha are observed
 parent dirty files are attributed and do not overlap mission scopes
+each new mission worktree has the expected repository/branch/base and a clean status
 mission/task dependency DAGs are acyclic
+shared APIs, schemas, and types are frozen before dependent write fan-out
 resource_inventory_complete is true for every candidate
 write/deny scopes use the supported grammar
 runtime slots and isolation capacity are known
@@ -213,9 +205,9 @@ When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`,
 
 - A non-empty selector result is an instruction for the parent to act, not a final report. Never leave a `dispatchable_nodes` entry unlaunched without a recorded reason.
 - Use one top-level worktree task/thread per mission, created from the recorded integration branch/ref. Each task owns its own app-managed worktree and appears as an independent conversation in the Codex left sidebar. Coordinator-owned subagents do not satisfy this boundary. Record the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.
-- Nested read-only children belong to the task that spawned them; each sibling task runs its own independent Multi-agent set. A missing current-head review is an integration blocker, not a successful single-agent downgrade.
+- Read-only explorers and reviewers are parent-dispatched siblings, never children of a mission task. A missing current-head review is an integration blocker.
 - Only a mission's own direct pre-integration review may bind to that mission's worktree head. A review covering several missions is a batch review and must bind to an integrated head.
-- If the app lacks any required project, thread-create, thread-read, thread-message, worktree, or nested-agent capability, leave the affected directive unlaunched and record the exact capability gap. Fall back to the sequential parent only when the user did not explicitly require independent left-sidebar tasks. When that outer topology was requested, stop and report the missing capability instead of substituting coordinator-owned subagents or sequential execution. Never claim that writing a worker record created a real task.
+- If the app lacks any required project, thread-create, thread-read, thread-message, or worktree capability, leave the affected directive unlaunched and record the exact capability gap. Fall back to the sequential parent only when the user did not explicitly require independent left-sidebar tasks. When that outer topology was requested, stop and report the missing capability instead of substituting coordinator-owned subagents or sequential execution. Never claim that writing a worker record created a real task.
 
 ## Worker Handoff
 
@@ -228,7 +220,7 @@ batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
 runtime provider and selected driver
 required_skills (the mission's skill list, verbatim, or "none")
-enabled nested-subagent policy or an explicit disabled policy
+omitted or explicitly disabled nested-subagent policy; RUN-v10 never enables it
 allowed and denied paths
 declared serialized/runtime resources
 task order and verifier argv/cwd

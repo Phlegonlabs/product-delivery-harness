@@ -24,7 +24,7 @@ When replacing the fallback with an observed Codex adapter, also add the complet
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "b7782fcf2371adf5eeff03e4ba570959df8316b3788ba80912a69954b962a397"
+      "digest_sha256": "f23ffd77a9abbb4bf8c89ae654823c00cfcf4cee755bca64daea938b06a7aaeb"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -65,14 +65,6 @@ When replacing the fallback with an observed Codex adapter, also add the complet
         "local_binding": "unknown",
         "worker_inheritance": "unknown",
         "status": "unknown"
-      },
-      "nested_subagents": {
-        "available": false,
-        "max_depth": 1,
-        "max_children_per_worker": 3,
-        "allowed_roles": ["explorer", "researcher", "reviewer", "tester"],
-        "write_policy": "read_only",
-        "completion_channel": "agent_result"
       },
       "platform_lifecycle": {
         "owner": "parent",
@@ -181,12 +173,13 @@ When replacing the fallback with an observed Codex adapter, also add the complet
       },
       "edge_states": {
         "E-M1-FRONTEND-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
-        "E-FRONTEND-FINAL-GATE": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
-        "E-FINAL-VISUAL-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-FRONTEND-VISUAL-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-M1-VISUAL-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-VISUAL-REVIEW-REPAIR": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-VISUAL-REPAIR-CODE-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-VISUAL-REPAIR-REREVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
-        "E-VISUAL-CLOSEOUT": {"status": "dormant", "traversals": 0, "source_attempt_id": null}
+        "E-VISUAL-FINAL-GATE": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-FINAL-CLOSEOUT": {"status": "dormant", "traversals": 0, "source_attempt_id": null}
       }
     },
     "mission_states": {
@@ -301,7 +294,7 @@ An authorized action may add `scope` and `expires_when` beside `authorized`/`sou
 }
 ```
 
-An execution-intent instruction such as "build it" or "implement this" covers the nine loop actions for routes that use them — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, the two worktree-creation actions, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` to the resolved integration branch. Outer app-task selection does not preauthorize `spawn_subagents`; RUN-v10 nested spawning is optional and, when enabled after worker allocation, uses an exact `worker:<id>` target. Nothing more is needed for that push. `archive_worker_tasks`, `remove_worktrees`, and `delete_branches` stay separate.
+An execution-intent instruction such as "build it" or "implement this" covers the nine loop actions for routes that use them — `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, the two worktree-creation actions, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` to the resolved integration branch. Outer app-task workers never delegate, so that route excludes `spawn_subagents`; parent-dispatched direct sibling workers or reviewers use the parent's top-level grant. Nothing more is needed for that push. `archive_worker_tasks`, `remove_worktrees`, and `delete_branches` stay separate.
 
 `execution_authorization_scope` at the top of the RUN is a different shape from the per-action `scope` above, and copying the action shape is the usual mistake. It carries `expires_when` **inside** the object and takes **no** `targets` key:
 
@@ -317,7 +310,7 @@ An execution-intent instruction such as "build it" or "implement this" covers th
 
 See `references/execution-state-model.md`'s Authorization Action Ledger for the exact target encoding, the `expires_when` values and their `wave_closed` reset, and which read-only analysis the parent may perform before a launch-bound wave adds its own authorization requirements.
 
-For automatic app-task fan-out, the selector emits one `dispatchable_nodes` entry per selected mission. Outer selection does not require or preauthorize `spawn_subagents`. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If the user requested left-sidebar tasks and project lookup, thread creation, worktree setup, follow-up messaging, or polling is unavailable, leave the worker unlaunched and report the blocked topology; never silently replace it with coordinator-owned subagents or sequential parent implementation. If that topology was not requested, a sequential parent route requires its parent-owned `runtime_worker` binding and parent-managed worktree, and blocks when that worktree is unavailable or unauthorized. When the capability handshake proves nested-agent capability unavailable, omit or assign a disabled task-local policy and require an equivalent parent-owned read-only review before integration. An enabled v10 nested policy requests an exact `spawn_subagents` target only after its worker is allocated.
+For automatic app-task fan-out, the selector emits one `dispatchable_nodes` entry per selected mission. Outer selection does not require or preauthorize `spawn_subagents` because the app task cannot delegate. After accepting the wave, the parent allocates workers, leases, and branches/refs; verifies the explicit pre-allocation `*` grant for app-assigned task/worktree identities and every already-known target under `create_user_owned_tasks`, `create_app_managed_worktrees`, `create_local_branches`, and `create_local_commits`; verifies each worktree's repository, branch/ref, exact base, and clean status; creates one real Codex worktree thread per directive; and writes the returned thread/client identity into `workers[].task_thread_id`. The directive itself is neither authorization nor proof of launch. If the user requested left-sidebar tasks and project lookup, thread creation, worktree setup, follow-up messaging, or polling is unavailable, leave the worker unlaunched and report the blocked topology; never silently replace it with coordinator-owned subagents or sequential parent implementation. If that topology was not requested, a sequential parent route requires its parent-owned `runtime_worker` binding and parent-managed worktree, and blocks when that worktree is unavailable or unauthorized. The parent dispatches every independent explorer and reviewer as a sibling graph node.
 
 For graph workers, copy the selector's complete `runtime_binding` into the allocated mission `workers[]` record or read-only verifier `review_workers[]` record. A review worker also binds node ID, attempt ID, graph revision, review path, and the exact current integrated SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null `model` and `reasoning_effort` as task creation `model` and `thinking`; omit null values so the host default remains explicit. For Claude Code, pass each node's own `model` (and non-null `reasoning_effort` as `effort`) into that node's own `agent()` call inside the Dynamic Workflow script; a single wave may mix models and reasoning efforts freely since each node's call carries its own. The destination host validates the exact pair at launch.
 
@@ -350,14 +343,6 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
     "reasoning_effort": "high",
     "option_source": "plan_provider_options"
   },
-  "nested_subagent_policy": {
-    "enabled": false,
-    "max_children": 0,
-    "allowed_roles": [],
-    "write_policy": "read_only",
-    "completion_channel": "agent_result"
-  },
-  "nested_review_evidence": null,
   "task_thread_id": null,
   "worktree_path": "<path or null>",
   "branch_ref": "<branch/ref or null>",
@@ -369,7 +354,7 @@ Every non-null mission lease binds `lease_id`, `lease_plan_revision`, `lease_pla
 
 Leave model and effort null unless the user explicitly selected them in the PLAN provider options. During allocation, `worktree_path` and `branch_ref` may be null. Fill them only after the runtime returns and the parent independently verifies them. `worker_head_sha` stays null until the parent verifies the reported commit.
 
-Omit `nested_subagent_policy` entirely when the routed driver is `dynamic_workflow`; it applies only to `app_task` workers, and leaving it in the shape above is rejected as "must be omitted for flat dynamic-workflow orchestration".
+RUN-v10 workers never delegate. Omit `nested_subagent_policy`, or record it explicitly with `enabled: false`, `max_children: 0`, empty roles, `read_only`, and `agent_result` when an app-task surface needs an explicit capability record. An enabled policy is invalid. Keep `nested_review_evidence` null or omitted; all reviews are parent-dispatched graph nodes.
 
 Worker phases are `leased`, `worker_running`, `worker_passed`, `blocked`, `worker_failed`, and `superseded`. An `attempt_log` entry records `attempt_id`, nullable `mission_id`, `task_id` and `lease_id`, `kind`, `result`, and an `evidence` array. A final-gate or closeout-gate attempt belongs to no mission, so its `mission_id` is null rather than attributed to an arbitrary one. Keep observations such as timestamps inside RUN for audit only; selection output remains timestamp-free.
 
@@ -439,7 +424,7 @@ Graph RUN schemas v8 through v10 may include `workflow_runs` to bind canonical n
 
 Tool profiles are `mission_write`, `code_review_readonly`, and `visual_review_readonly`. These profiles are carried only by `assets/templates/CLAUDE_GRAPH_WORKFLOW.template.js` (see above), not by the flat `CLAUDE_DYNAMIC_WORKFLOW.template.js`. A profile selects which node kinds the wave admits and which instructions go into each prompt; it is not a tool allowlist, and neither script applies one. Group Claude Graph Workflow nodes by tool profile only; model and reasoning effort travel with each node's own `agent()` call, so one wave may mix them freely. Mission and review waves require `EnterWorktree` so each worker enters its exact assigned checkout before repository reads. Both review prompts instruct read-only behavior; that is prompt text plus result validation, not a permission boundary. Visual review consumes retained screenshots or other existing evidence until a read-only browser tool is explicitly vetted.
 
-RUN-v10 app-task nested policy is optional. When enabled, use `max_children` from 1 to 3, require `reviewer`, and use a non-empty subset of the runtime `allowed_roles`; enable it only after the app-task worker is allocated and an exact `spawn_subagents` grant targets `worker:<id>`, never a run-wide wildcard. An omitted or disabled policy launches no nested children and routes the exact-head review to the parent. Legacy RUN-v6/v7/v8/v9 app-task policies retain their mandatory declared roles and wildcard-compatible spawn authorization, even when `reviewer` is absent. The app task stays the only writer. A non-trivial mission with an enabled v10 policy must complete a post-edit read-only reviewer bound to its exact current head and record that reviewer in WORKER_RESULT; exploration, research, and test-analysis lanes remain optional. An enabled worker cannot pass with `partial` or `unavailable` activity unless it still contains a completed exact-head PASS reviewer. After validating WORKER_RESULT, copy that completed reviewer child into the worker's `nested_review_evidence`; retain its agent ID, role, task, status, summary, evidence paths, reviewed SHA, and PASS decision. RUN validation requires that canonical record to match the mission and worker head before `integrating`. Before RUN-v10 execution authorization, every writable mission must have a direct dependency to a runtime review node whose `mission_ids` contains only that mission and whose `allowed_outcomes` includes `pass`; a multi-mission batch review cannot replace it. When several direct pre-integration review nodes cover the same mission, they use distinct review-worker IDs; at least one current `worker_passed` PASS record must match the retained task-local reviewer agent. If capability is initially unknown, select and allocate the outer app task without nested launch or `spawn_subagents` preauthorization; perform the no-production-edit handshake after worker allocation, then assign the explicit enabled or disabled policy and request the exact worker grant only if enabling. If that handshake proves the child runtime or reviewer lane unavailable, assign a disabled policy before implementation and record the reason. A disabled-policy worker result, or a graph-backed direct worker with no nested policy, may first validate and make its downstream review node selectable. Before the mission transitions to `integrating`, run the equivalent parent-owned read-only review and retain a `worker_passed` `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head. Every retained current or historical review attempt must bind its `reviewed_sha` to a current eligible head or an explicit mission `prior_head_shas` entry; a retained `fix_required` batch review may instead bind to an explicit integration `prior_head_shas` entry. A review node may use worktree or integrated SHAs only from its declared `mission_ids`; the current integration head remains a valid batch review target. Trivial disabled-policy missions use the same parent-review path. Older schema-v2 RUN files may omit both optional nested fields; RUN-v10 keeps its nested policy optional, while enabled worker passes retain `nested_review_evidence`.
+RUN-v10 workers never delegate. Omit `nested_subagent_policy`, or set it explicitly to disabled with zero children and empty roles; an enabled policy is invalid. Legacy RUN-v6/v7/v8/v9 app-task policies retain their historical validation behavior only. Before RUN-v10 execution authorization, every writable mission must have a direct dependency to a preintegration-stage runtime review node whose `mission_ids` contains only that mission and whose `allowed_outcomes` includes `pass`; a multi-mission or integration-stage review cannot replace it. When several direct pre-integration review nodes cover the same mission, they use distinct review-worker IDs and must satisfy the configured reconciliation rule. Before the mission transitions to `integrating`, the parent runs the read-only review and retains a `worker_passed` `review_workers[]` PASS whose review node covers the mission and whose `reviewed_sha` equals the current worktree head. Every retained current or historical review attempt must bind its `reviewed_sha` to a current eligible head or an explicit mission `prior_head_shas` entry; a retained `fix_required` integration review may instead bind to an explicit integration `prior_head_shas` entry. After serial mission integration, integration-stage review nodes use fresh reviewer identities and bind to the exact current integration head. Only after those reviewers pass does the one broad final validation run on the fixed candidate SHA.
 
 Use these exact array entry shapes:
 
