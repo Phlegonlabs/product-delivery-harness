@@ -9,7 +9,7 @@ Classify every visual source before planning or implementation:
 - **Design inspiration** is non-canonical evidence. It can influence implementation only after `product-design-builder` extracts owner-confirmed principles and freezes their consequences into `wireframes.md`, `design-system.md`, and `design-system.json`. A URL, screenshot, Figma frame, or market-research source is not implementation authority merely because it exists.
 - **Page-faithful target** is an explicit user requirement for visual conformance. Treat it as binding only after the user requests faithful matching and the readable source version, route, states, responsive scope, and acceptance tolerance are frozen. Preserve it as version-bound acceptance evidence; do not silently broaden one target to other routes.
 
-`design-system.md` and `design-system.json` are binding together, and implementation works from that pair plus the route's screen entry in `wireframes.md` — see `SKILL.md`'s UI Implementation Contract. `product-design-builder` must normalize either accepted source type into that frozen contract before code changes begin.
+`design-system.md` and `design-system.json` are binding together, and implementation works from that pair plus the route's screen entry in `wireframes.md` — see `ui-implementation-contract.md`. `product-design-builder` must normalize either accepted source type into that frozen contract before code changes begin.
 
 A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply its new visual direction, token, variant, component, motion pattern, or structure directly. Return it to `product-design-builder`, normalize and freeze the accepted change, then resume against the revised design system.
 
@@ -69,7 +69,7 @@ Use this only when the user explicitly provides page-faithful targets for differ
 | /dashboard | Figma frame <id> | <version or content hash> | mobile/tablet/desktop | loading/empty/error/ready | <named tolerance and allowed deviations> | cards/table/filter | API-002 | screenshot + journey |
 ```
 
-For a required UI surface, `screenshot + journey` means a retained screenshot for every listed breakpoint-by-state combination, plus journey/console/network evidence where applicable. Record the screenshot path, hash, and integration head in current RUN-v10 state. Older RUN-v9 UI evidence remains readable.
+For a required UI surface, `screenshot + journey` means a retained screenshot for every listed breakpoint-by-state combination, plus journey/console/network evidence where applicable. In RUN-v10, read the artifact bytes from the recorded accepted Git commit/ref, safely decode those bytes, then compare `artifact_sha256`; record the screenshot path, hash, and integration head in current RUN state. Uncommitted or mutated working-tree screenshots cannot satisfy v10. Older RUN-v9 UI evidence remains readable and keeps its working-tree binding.
 
 States to consider:
 

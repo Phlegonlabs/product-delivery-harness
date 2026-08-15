@@ -7,7 +7,7 @@ description: "Classify engineering work as small or large, then plan, execute, v
 
 ## Purpose
 
-Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Every request starts with the parent-only, read-only `System Review And Route` stage; runtime adapters are loaded only after that stage routes large work into the managed graph. A run ends when its verified work is committed and pushed to its own branch. Landing that branch on the default branch is the user's own step, outside this harness.
+Keep the common delivery contract small: classify the work, freeze the necessary inputs, plan only when coordination needs it, execute under exact authorization, verify locally, and integrate safely. Every request starts with the parent-only, read-only `System Review And Route` stage; runtime adapters are loaded only after that stage routes large work into the managed graph. A run starts `local_only` and ends after its authorized local work by default; only an explicit remote outcome moves it to `integration_push` on its own branch. Landing that branch on the default branch is the user's own step, outside this harness.
 
 Keep `prd-builder` and `product-design-builder` as separate upstream skills. `prd-builder` owns `PRD.md`, `architecture.md`, and `stack-decisions.md`; `product-design-builder`, with mandatory `frontend-design`, owns `wireframes.md`, `design-system.md`, and `design-system.json` for a UI-bearing product. Reuse those artifacts instead of duplicating them. Route product, Builder UX Direction, or architecture gaps to `prd-builder`; route wireframe or design-system gaps to `product-design-builder`. An implementation agent invents neither Builder UX Direction nor design sources.
 
@@ -41,6 +41,7 @@ The parent must complete this stage before loading any task-specific skill, sele
 Project size: small | large
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
+Execution route (derived after selection): direct | managed_sequential | parallel_graph
 Upstream inputs/skills: <what is present, missing, or must be routed upstream>
 ```
 
@@ -54,7 +55,7 @@ When small work touches a frontend/UI surface, insert a bounded UI review betwee
 
 - Small work creates no PLAN/RUN files, performs no scheduler or worker-capability scan, launches no subagent by default, and does not preflight an external runtime.
 - When small work touches a frontend/UI surface, run one bounded critique-repair-recheck cycle before the final review: when a rendered view or screenshot exists, critique the product's responsive verification set against its `design-system.md` (or the anti-slop guardrails in `../product-design-builder/references/design-system-guide.md` when this product has no design system), repair the single highest-impact failure, and recheck; otherwise fall back to a text-only review of the actual markup/styles against the same guardrails and record that no visual-verification claim is made. Do not retry the same failed approach more than twice; after two repair attempts, stop and report the remaining gap to the user instead of looping further.
-- Small UI work obeys the UI Implementation Contract below exactly as large work does. It creates no PLAN/RUN file, so `design-system.json`, the route's screen entry in `wireframes.md`, and the exact user instruction are what bound it.
+- Small UI work obeys the UI Implementation Contract reference exactly as large work does. It creates no PLAN/RUN file, so `design-system.json`, the route's screen entry in `wireframes.md`, and the exact user instruction are what bound it.
 - Large work enters the workflow below. Planning does not imply parallel execution.
 - Enable scheduler fan-out only when there are at least two dependency-ready, nonconflicting missions and every isolation, capacity, permission, and action gate passes.
 - A ready node is executable here only when its `allowed_providers` includes the current host adapter's provider; a declared `preferred_provider` affects only which allowed provider is chosen, it does not gate executability by itself. There is no cross-host fallback: a node whose `allowed_providers` excludes the running host is not executable here. Unless the user explicitly acknowledged that deferral at Plan Readiness as a run on another host, a node no planned host can execute is a blocking readiness gap (see Pass Plan Readiness), not a routine deferral.
@@ -113,7 +114,7 @@ During `System Review And Route`, discover and read the effective repository ins
 - Read `references/commit-convention.md` before a harness-managed commit.
 - Read `references/orchestration-research-notes.md` for the underlying Codex/Claude Code orchestration capability facts and version gates behind this skill's guidance.
 - Use `assets/templates/HARNESS_PLAN.template.md` for `PLAN.md` and `assets/templates/MISSION_RUNBOOK.template.md` for `RUN.md`. Load another template only for its named expansion:
-  - `assets/templates/TASKS.template.md` for `tasks.md`, the human-readable mission/task listing view. Create it in the same step that creates `RUN.md` and regenerate it from `RUN.md` whenever mission or task state changes; it stays non-canonical.
+  - `assets/templates/TASKS.template.md` for `tasks.md`, the optional human-readable mission/task listing view. Create it on demand when a human view is useful and regenerate it from `RUN.md` whenever mission or task state changes; it stays non-canonical.
   - `assets/templates/GOAL.template.md` for a standalone copy-ready goal prompt when a workflow needs one without creating `RUN.md`.
   - `assets/templates/WORKER_GOAL.template.md` for a mission worker's frozen launch prompt.
   - `assets/templates/E2E_VERIFICATION.template.md` only as a standalone expansion of `RUN.md`'s verification matrix when it becomes too large to scan inline.
@@ -123,14 +124,14 @@ During `System Review And Route`, discover and read the effective repository ins
 
 ```text
 small direct work       -> no management files
-large sequential work  -> docs/goal/PLAN.md + docs/goal/RUN.md + docs/goal/tasks.md
-large multi-mission    -> docs/goal/PLAN.md + docs/goal/RUN.md + docs/goal/tasks.md
+large managed sequential -> docs/goal/PLAN.md + docs/goal/RUN.md; tasks.md on demand
+large parallel graph    -> docs/goal/PLAN.md + docs/goal/RUN.md; tasks.md on demand
 binary UI evidence    -> docs/goal/evidence/** only when artifacts exist
 worktree workers      -> temporary per-mission reports only while integration needs them
 ```
 
 - Do not create empty directories, duplicate source documents, or one file per concern.
-- Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md` is a regenerated mission/task listing view only — it never becomes a second source of truth.
+- Keep checkpoint, task state, verification, attempts, evidence, blockers, and closeout in `RUN.md`. `tasks.md` is an on-demand regenerated mission/task listing view only — it never becomes a second source of truth.
 - New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only `RUN.md` files without `PLAN.md` remain readable and validatable for compatibility and migration, but they cannot authorize new managed execution or enter the current graph; create a fresh PLAN-v5/RUN-v10 pair before continuing managed work.
 - Put one canonical fenced JSON manifest in each harness artifact. Markdown tables are human views; update the manifest first.
 - Use an established repository planning convention instead of adding `docs/goal/` when one exists.
@@ -139,27 +140,27 @@ worktree workers      -> temporary per-mission reports only while integration ne
 
 ## Shared Validation Tools
 
-- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head.
-- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it accepts no older graph schema.
+- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head. Its current PLAN-v5/RUN-v10 path enters strict pair validation before compatibility dispatch. When `--repo-root` is supplied, current PLAN-v5 sources are bound to in-root bytes (or the recorded immutable `source_revision`); URLs are never fetched.
+- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it accepts no older graph schema, optionally binds current PLAN-v5 sources when given `--repo-root`, and reports a derived `execution_route` without persisting it.
 - `scripts/configure_project_context.py` additively configures root `AGENTS.md` and `CLAUDE.md` from separate templates; it never overwrites an existing context file, and `--check` is read-only.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, or final gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
 
-Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. Every script is read-only and never mutates Git, PLAN, RUN, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
+Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. For RUN-v10, read the screenshot blob from its recorded accepted Git `head_sha`, decode those bytes, then compare `artifact_sha256`; RUN-v9 retains working-tree compatibility. Every script is read-only and never mutates Git, PLAN, RUN, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
 
 ## Default Runtime And Wave Policy
 
 Apply this to all large plan-backed work, whether the frontier ever holds more than one ready mission or processes them one at a time:
 
 1. After `System Review And Route` and before the first edit or launch, proactively inspect the current-session native tool surface, permission boundary, worker slots, isolation, completion channel, Git state, and runtime resources.
-2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear. RUN-v10 observed Codex readiness also requires the complete per-surface `capability_probe`; the validator derives `app_threads` and `subagents` from it and blocks any omission, unsupported claim, or `unobserved` surface before ready/running execution.
+2. Record observed capabilities under `runtime_adapter` independently from authorization. Missing authorization must never make an available driver disappear. A RUN-v10 Codex route that may select two writers requires the complete per-surface `capability_probe`; a provably sequential route (one mission, configured/effective write budget one, or `sequential_parent`) records only the facts needed to prove its selected driver. The validator derives `app_threads` and `subagents` from a complete probe and blocks any omission, unsupported claim, or `unobserved` required surface before ready/running execution.
 3. Do not cap `max_parallel_workers` at a small fixed number. Select every dependency-ready, nonconflicting mission the current frontier contains; `references/parallel-mission-selection.md`'s effective-budget formula (`min(configured maximum, observed worker slots, isolation capacity, conflict capacity)`) is what actually bounds the wave, driven by real observed capacity and the size of the mutually nonconflicting set, not by an arbitrary starting number. Set `max_parallel_workers` generously high unless the user or observed capacity sets an explicit lower limit.
 4. New plan-backed files use PLAN schema v5 and RUN schema v10, the only pair that graph selection and node-result validation accept. PLAN provider policy chooses providers, provider-specific model options, and reasoning effort; the selected host adapter maps those choices to its launch surface without silent substitution. The manifest validator still reads older PLAN and RUN files; do not carry their weaker acceptance, source-publication, authorization, continuity, or evidence shapes forward.
 5. Immediately after Plan Readiness, validate PLAN/RUN and select every dependency-ready, nonconflicting node the effective-budget formula allows, in deterministic order. Before that first selection, record `observed.captured_at` and `observed.git` from a live `git status` / `git rev-parse`, and set `integration.batch_base_sha` to the observed integration head. The validator does not require these — a RUN that leaves them null still reports `PASS` — but the selector then has nothing to launch: every mission and lifecycle node lands in `deferred_nodes` with `parent_state_unreconciled` or `batch_base_missing`, and `dispatchable_nodes` comes back empty. Those two kinds mutate state derived from the parent's current Git position — a mission spawns writers, a lifecycle node pushes or cleans up — so both are gated on it. `verifier`, `approval`, and `external_wait` nodes are not, because they change nothing the snapshot describes. Read those two keys, not `ready_frontier`: these are dispatch-time reasons, so the frontier list can still look full while nothing is dispatchable. Once `status` is `running`, the Resume Reconciliation Gate applies the same unreconciled state to every node and `ready_frontier` empties too. A green validator next to empty `dispatchable_nodes` means the observed snapshot was never filled in, not that the plan is wrong.
 6. First read the target repository's instructions and existing branch model. When they define implementation or integration branches, preserve those exact names and topology. Otherwise the run's own `codex/<short-name>` branch is its integration branch, cut from the recorded current default-branch SHA. Default every mission, even when only one is ever ready at a time, to its own worktree created from the recorded current integration SHA. The primary integration checkout is a merge target, never a direct implementation surface. Before any mission head is integrated, require at least one read-only review round bound to that exact worktree head; a repair changes the head and requires a fresh review. Only review-passing heads may merge serially into the resolved integration branch. A no-agent route uses `sequential_parent` with the parent as the sole writer and no `spawn_subagents`; its PLAN mission stays `executor: runtime_worker` and its RUN parent-owned executor/worker binding uses `worker_runtime: parent`, `parent_managed_worktree`, and `agent_result` solely for lease/state validation. Parent-managed worktrees are required; if worktree creation is unavailable or unauthorized, block the route rather than writing in `shared_checkout`.
-7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier.
-8. There are two landing modes. Ordinary implementation, PRD updates, UI changes, branch, commit, and integration work uses `integration_push`: the verified integration head is pushed to the run's own branch. That push is where an ordinary run ends. Use `local_only` when the run must not touch the remote at all. `integration.branch` must contain the resolved repository branch rather than an assumed name; it is the only branch field, and every push target is built from it.
+7. Do not silently downgrade because authorization is missing. Request the exact missing execution bundle once, pause at that boundary, record the answer, then recompute the frontier. A managed-sequential route does not claim fan-out, require a `tasks.md` view, invent a cross-mission batch gate for one mission, or inventory unused parallel drivers; it still proves the selected runtime driver and keeps isolated writer, authorization, scope/head, and review gates.
+8. There are two landing modes. New runs default to `local_only`: implementation, PRD updates, UI changes, branch, commit, and local integration finish with verified local evidence. Only an explicit remote outcome, with `push` authorized for the exact resolved integration branch and current head, moves the run to `integration_push`; that push is where the remote run ends. `integration.branch` must contain the resolved repository branch rather than an assumed name; it is the only branch field, and every push target is built from it.
 
 ## Default Mission Topology
 
@@ -192,15 +193,15 @@ current default-branch SHA
 -> authorized serial integration into the run branch
 -> fresh parent-dispatched reviewers on the unified integration head
 -> one broad final validation on the fixed candidate SHA
--> push the run branch       (covered by the execution-intent instruction)
--> the run is complete
+-> if explicitly requested, authorize and push the run branch
+-> the run is complete locally or at that push
 ```
 
-The ordinary loop runs end to end without stopping: work happens in mission worktrees cut from the recorded integration head (the default-branch SHA at run start), integrates into the run's own branch, and the push that publishes that branch is part of ordinary execution rather than a separate confirmation. A run is complete when its planned PRD, UI, architecture, or implementation change is made, verified, and pushed.
+The local loop runs end to end without touching the remote by default: work happens in mission worktrees cut from the recorded integration head (the default-branch SHA at run start), integrates into the run's own branch, and records verified local evidence. If the user separately requests a remote outcome, the parent records explicit remote intent plus an exact branch/head push grant and publishes that branch. A run is complete locally or at that authorized push.
 
 Landing the pushed branch on the default branch is outside this harness. The user does it themselves. The harness opens no pull request, merges nothing, and deploys nothing, so none of that appears in PLAN, RUN, or the ledger. Report the pushed branch and its head SHA and stop there.
 
-`push` is refused for a `branch:main` target and for a run whose own integration branch resolves to `main`. That is the one branch rule the harness enforces; everything else about branch naming comes from the target repository.
+`push` requires explicit remote intent, exactly one target equal to the resolved integration branch, and `authorized_head_sha` equal to the current integration head. It is refused for a `branch:main` target or a run whose integration branch resolves to `main`; when `observed.git.default_branch` is available, that resolved default branch is refused too. A current RUN-v10 push fails closed when default-branch identity is unknown, without blocking unrelated local execution.
 
 Under this default model, never make ordinary feature, PRD, or UI edits directly on the default branch, and never integrate a mission worktree into it locally. Each run starts from the then-current default branch, including immediately after a previous run landed.
 
@@ -235,11 +236,11 @@ delete_branches
 ```
 
 - One user instruction may authorize several exact actions, but its source is recorded under every covered key; never replace them with blanket permission.
-- Nine of the twelve actions carry the ordinary development loop for routes that use them: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, and `push` **restricted to the resolved integration branch**. One clear execution-intent instruction ("implement this", "build it", "ship it") covers the applicable actions together: record its source under each covered ledger entry in the same authorization request or checkpoint, and do not manufacture separate confirmation pauses for them. They still each get their own ledger entry with its own recorded source, and `push` still carries exact targets — grouping them changes only that a single instruction suffices, not what gets recorded.
+- Execution intent such as "implement this", "build it", "fix it", or "refactor it" covers only the applicable local route actions: runtime/workspace setup, branch creation, commits, and local integration. It does not authorize `push`. A separate explicit remote instruction such as "push" or "publish" must authorize `push` for exactly one resolved integration branch and the current head. Record every covered action under its own ledger key with its own source; preserve all 12 keys and leave unused entries false.
 - `create_user_owned_tasks` is grouped for the same reason `spawn_subagents` is: it is the Codex host's worker-launch action. Whether worker launch needs a separate confirmation must not depend on which host the run happens to be on.
 - Outer app-task selection uses `create_user_owned_tasks` and its outer worktree/branch/commit actions without requiring or preauthorizing `spawn_subagents`. RUN-v10 forbids enabled nested delegation; parent-dispatched sibling workers and reviewers use the parent's exact top-level launch grants.
 - A large `sequential_parent` route is the explicit no-agent path: the parent remains the sole mission writer and does not request or record `spawn_subagents`, `create_user_owned_tasks`, or `create_app_managed_worktrees` for that route. RUN still records the parent-owned executor/worker binding for lease/state validation; it is not a delegated worker launch. Do not use `shared_checkout` for this route; if the required parent-managed worktree cannot be created or authorized, block it.
-- That grouping is scoped, not general. A `push` whose target is any branch other than the resolved integration branch is not covered and needs its own authorization moment. A `push` is refused outright when the target resolves to `main`, or when the run's own integration branch resolves to `main` — that is the whole branch guard, and it needs no recorded evidence to work.
+- That grouping is scoped, not general. A `push` whose target is any branch other than the resolved integration branch is not covered and needs its own authorization moment. A `push` is refused outright when the target or integration branch resolves to `main`, when an observed default branch resolves to the target, or when current v10 default-branch identity is unknown. Local execution remains available while that remote fact is missing.
 - The remaining three actions — `archive_worker_tasks`, `remove_worktrees`, and `delete_branches` — are independent gates. Each needs its own distinct authorization moment and is never swept in by the execution-intent statement.
 - For large, plan-backed work, every RUN-v10 execution and action scope binds the current `run_id`, mission set, PLAN revision, PLAN digest, exact targets where applicable, time, and lifecycle boundary. A plan revision or digest change invalidates the grant rather than silently carrying it forward. Small work creates no RUN file (see Project Size Gate); there, each grant is bounded instead by the exact user instruction that covers that specific action and target — never inferred from an adjacent instruction or a prior small-work grant.
 - `invoke_external_runtime` does not replace spawn, workspace, branch, commit, or integration authorization.
@@ -248,26 +249,7 @@ delete_branches
 
 ## UI Implementation Contract
 
-When the product has a design system, a route's structure comes from `wireframes.md` and its visual layer comes from `design-system.md` plus `design-system.json`. The route is composed, not freely designed: the design system is a closed set the implementation picks from.
-
-The frozen design system is the default implementation source. If the mission's explicitly planned `required_skills` includes `frontend-design`, the worker still follows every rule below in frontend-design conformance mode. The skill changes execution craft, not the contract or its precedence.
-
-Every mission that writes UI code:
-
-1. Reads `design-system.json` and the route's screen entry in `wireframes.md` before writing anything, and implements from them. Resolve the route by matching it against each screen's `Route(s):` line; a route no screen claims is a blocker (see `references/contract-and-traceability.md`'s Stop And Ask Conditions), and so is a route two screens claim.
-
-    Those two files are the complete input. There is no mockup, screenshot, Figma frame, or exploration HTML in the normal path, and none is required: `wireframes.md` supplies the structure and `design-system.json` supplies every visual value the structure needs. A mission does not wait for a visual artifact, ask for one, or treat its absence as missing input. When a visual source does exist it is handled through `references/design-input-updates.md`, never a precondition: design inspiration is non-canonical evidence until `product-design-builder` freezes its accepted principles, while a page-faithful target is binding only after the user explicitly requests faithful conformance and its route, states, responsive scope, and tolerance are frozen.
-2. Invents no visual value. Color, spacing, radius, font size, duration, easing, and distance come from tokens; primitive props come from the design system's closed variant sets. `gap="4"` and `size="md"`, never `gap="13px"` or an arbitrary utility class.
-3. Reimplements no control or surface. A route composes the design system's primitives and product components, and references its registered motion variants only.
-4. Follows the wireframe's structure: region responsibilities, section order, actions, exact wording or display contracts, and the labeled style direction for each visually important region.
-5. Completes the states the wireframe's screen entry declares, using `design-system.json`'s `stateMatrix` as the checklist — ready, loading, empty, error, disabled, permission denied, stale, expired, long content, reduced motion, mobile reflow — with any inapplicable state explicitly marked `n/a`. Shipping the ready state alone does not close the task.
-6. Stops and reports when the route needs a token, primitive, variant, motion variant, or component that `design-system.json` does not list. A missing entry is a contract change, not a task-local fix: it goes back to the design source as a delta, gets frozen, and returns through `references/design-input-updates.md`. An implementation mission never writes `design-system.md` or `design-system.json` — those are frozen contract sources, so editing them mid-task invalidates the PLAN digest and every in-flight lease, including its own.
-7. Runs the project's UI contract check with this skill's `scripts/check_ui_contract.py`, reading `design-system.json` as the allowlist. It reports five rules: raw color and dimension values outside the declared `tokenSources`, inline layout styles, page-local control and surface styling outside the declared `primitiveSources`, and call-site motion values. Run it against the product's real source. A filtered `--rule` run reports only the rules it was given, so its exit code is not a contract-clean signal. Wiring this check and the remaining guardrails (responsive and state verification) into the project's verify command and CI is harness work.
-8. Runs the visual check across the responsive verification set `design-system.json` carries — its `viewports` for a web target or its `sizeClasses` for a native or desktop target, in normal and reduced motion, and records the evidence per `references/verification-gates.md`. Read the set from the JSON; do not carry a default set in this skill, and never substitute web pixel breakpoints for a native platform's own model.
-
-The contract check covers what a source scan can see. It does not prove a route used the right primitive, kept the wireframe's region responsibilities, or covered its states — those are review and evidence gates, not scanner rules. A clean check is a floor, not a pass.
-
-A drift from the design system — a raw value, an unregistered variant, a page-local control, a skipped state — is a contract violation, not a style preference. Handle it exactly like any other contract violation here: stop at a safe boundary, report it, and fix the contract or the code. Do not accept the drift because the page looks acceptable, and do not let a passing functional test stand in for the contract check.
+When a mission writes UI code, load `references/ui-implementation-contract.md` before implementation or UI review. It carries the detailed frozen-wireframe, design-system, `stateMatrix`, `viewports`, `sizeClasses`, responsive, conformance, and contract-check rules for both small and large routes. The harness does not carry its own default responsive set; do not carry a default set in this skill; read the set from the design system reference. The core route stays concise: a missing design entry is a design-input delta, creation mode still requires `product-design-builder` plus `frontend-design`, and implementation-mode `frontend-design` is allowed only after the user explicitly selects the new or high-impact visual surface; a page-faithful target is binding only after the user explicitly requests faithful conformance. UI safety routing and exact authorization never weaken when this reference is loaded.
 
 ## Workflow
 
@@ -281,7 +263,7 @@ Inspect the repository, applicable instructions, Git state, upstream product/des
 Project size: small | large
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Planning depth: direct | PLAN + RUN
-Host adapter: none | codex | claude_code
+Host adapter: none | codex | claude_code | pi | generic
 Workspace: shared_checkout | parent_managed_worktree | app_managed_worktree
 Landing: local_only | integration_push
 Verification: focused local | integration | final local
@@ -309,7 +291,7 @@ For `plan-then-stop`, stop after readiness. For execution intent, request only t
 
 ### 4. Execute And Integrate
 
-For small work, use one parent writer and the smallest relevant checks. For large work, select the ready frontier, then follow the chosen runtime adapter. Bind every worker to an immutable base, write/deny scope, resources, tasks, verifiers, permission boundary, and completion channel. A worker writing UI code is also bound by the UI Implementation Contract above; carry it into the worker's launch prompt with the rest of its scope.
+For small work, use one parent writer and the smallest relevant checks. For large work, select the ready frontier, then follow the chosen runtime adapter. The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more; this route label is separate from the selected runtime driver. Bind every worker to an immutable base, write/deny scope, resources, tasks, verifiers, permission boundary, and completion channel. A worker writing UI code is also bound by the UI Implementation Contract reference; carry it into the worker's launch prompt with the rest of its scope.
 
 When a design-source worker loads `product-design-builder` and `frontend-design`, its launch prompt must state creation mode, the frozen product inputs, the allowed design-source write scope, and the human direction gates. When a UI implementation worker loads only `frontend-design`, its launch prompt must state the conformance boundary and name the frozen wireframe screen, `design-system.md`, and `design-system.json` inputs. A generic instruction to "make it distinctive" is not a valid handoff in either mode.
 
@@ -336,6 +318,6 @@ Local-only work stops after its authorized worktree commits are reviewed and int
 
 A local-only run completes when authorized local mutations are finished, all applicable local gates pass on the integration head, no blocker remains, and RUN records evidence, changed files, commits, and residual risk.
 
-An `integration_push` run completes when the verified integration head reaches the run's own branch and RUN records that branch, the pushed head SHA, and the local evidence behind it. The pushed head SHA is a parent-attested record: the validators check it for internal consistency and against the local branch head, but the push itself is observed by the parent, not provable by the scripts. It does not wait for a PR, for CI, or for a deploy.
+An `integration_push` run completes when the verified integration head reaches the run's own branch and RUN records that branch, the pushed head SHA, and the local evidence behind it. The pushed head SHA is a parent-attested record: the validators check it for internal consistency and against the local branch head, but the push itself is observed by the parent, not provable by the scripts. `local_only` is the default and completes with the same verified local evidence without remote contact. Neither mode waits for a PR, for CI, or for a deploy.
 
 Finish by checking final Git status, reporting what changed, what was verified, the branch and head SHA that were pushed, and every intentionally unexecuted lifecycle action. Never claim a push, archival, or cleanup action that did not happen.

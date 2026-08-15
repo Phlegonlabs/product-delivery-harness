@@ -13,6 +13,7 @@ from harness_manifest import (
     load_plan,
     load_run,
     plan_digest,
+    validate_current_plan_run,
     validate_plan,
     validate_run,
 )
@@ -43,12 +44,15 @@ STATUS_OUTCOMES = {
 def validate_node_result(
     plan: dict[str, Any], run: dict[str, Any], result: Any
 ) -> list[str]:
-    errors = [*validate_plan(plan), *validate_run(plan, run)]
+    errors = validate_current_plan_run(plan, run)
     if errors:
+        schema_pair = (
+            plan.get("schema_version") if isinstance(plan, dict) else None,
+            run.get("schema_version") if isinstance(run, dict) else None,
+        )
+        if schema_pair != (5, 10):
+            return ["node result validation requires PLAN v5 with RUN v10"]
         return sorted(set(errors))
-    schema_pair = (plan.get("schema_version"), run.get("schema_version"))
-    if schema_pair != (5, 10):
-        return ["node result validation requires PLAN v5 with RUN v10"]
     if not isinstance(result, dict):
         return ["node_result must contain the exact typed graph result fields"]
     if set(result) != RESULT_KEYS:
@@ -141,6 +145,17 @@ def validate_node_result(
                     errors.append("node_result.worker_result.reviewed_sha: does not match the review worker")
                 if not isinstance(review_result["findings"], list):
                     errors.append("node_result.worker_result.findings: must be a list")
+                elif review_result["findings"] and result["outcome"] == "pass":
+                    errors.append(
+                        "node_result.worker_result.findings: current PASS review result must not contain findings"
+                    )
+                elif review_result["findings"] and result["outcome"] not in {
+                    "fix_required",
+                    "blocked",
+                }:
+                    errors.append(
+                        "node_result.worker_result.findings: current review findings require a fix_required or blocked outcome"
+                    )
                 if not isinstance(review_result["evidence_summary"], str) or not review_result[
                     "evidence_summary"
                 ]:

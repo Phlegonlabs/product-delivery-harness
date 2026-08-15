@@ -65,30 +65,14 @@ const subagentActivitySchema = {
   type: "object",
   required: ["status", "skip_reason", "children"],
   properties: {
-    status: { enum: ["completed", "partial", "unavailable", "not_applicable"] },
-    skip_reason: { type: ["string", "null"] },
+    // RUN-v10 is flat: every current worker reports this shape and no child
+    // entries. Legacy v6-v9 manifests are validated by the compatibility path.
+    status: { enum: ["not_applicable"] },
+    skip_reason: { type: "string" },
     children: {
       type: "array",
-      items: {
-        type: "object",
-        required: [
-          "agent_id",
-          "role",
-          "task",
-          "status",
-          "summary",
-          "evidence_paths",
-        ],
-        properties: {
-          agent_id: { type: "string" },
-          role: { type: "string" },
-          task: { type: "string" },
-          status: { enum: ["completed", "failed", "stopped"] },
-          summary: { type: "string" },
-          evidence_paths: stringArray,
-        },
-        additionalProperties: false,
-      },
+      maxItems: 0,
+      items: {},
     },
   },
   additionalProperties: false,

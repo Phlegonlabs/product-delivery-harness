@@ -1780,6 +1780,17 @@ class GraphManifestTests(unittest.TestCase):
         with_findings["review_workers"][0]["findings"] = ["missing null check on line 42"]
         self.assertEqual([], validate_run(plan, with_findings))
 
+        current_pass_with_findings = copy.deepcopy(run)
+        current_pass_with_findings["review_workers"][0]["findings"] = [
+            "informational note without a severity field"
+        ]
+        self.assertTrue(
+            any(
+                "current PASS review result must not contain findings" in error
+                for error in validate_run(plan, current_pass_with_findings)
+            )
+        )
+
     def test_multiple_reviewers_on_same_node_keep_independent_outcomes(self) -> None:
         plan = valid_graph_plan()
         review = self._frontend_review_node()
@@ -1834,9 +1845,8 @@ class GraphManifestTests(unittest.TestCase):
         }
         run["review_workers"] = [passing_reviewer, dissenting_reviewer]
 
-        # Majority-pass reconciliation lets the parent record an overall
-        # "pass" even though one reviewer independently found fix_required;
-        # both reviewers' own verdicts remain on the record unmodified.
+        # A superseded dissent remains historical evidence and does not block
+        # the current passing attempt.
         self.assertEqual([], validate_run(plan, run))
         self.assertEqual(
             "pass", run["graph_state"]["node_states"][review["id"]]["last_outcome"]

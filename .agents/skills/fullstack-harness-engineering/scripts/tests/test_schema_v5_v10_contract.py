@@ -63,12 +63,14 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn('"trace_ids": [', plan)
         self.assertIn('"criterion":', plan)
         self.assertIn("Publish the accepted revision to the canonical source location", plan)
+        self.assertIn("immutable bytes", plan)
+        self.assertIn("URLs are never fetched", plan)
 
 
 
 
 
-    def test_review_repair_review_graph_is_bounded(self) -> None:
+    def test_neutral_single_mission_managed_sequential_graph(self) -> None:
         plan = self.canonical_manifest(
             "assets/templates/HARNESS_PLAN.template.md", "harness_plan"
         )
@@ -76,57 +78,33 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         edges = {edge["id"]: edge for edge in plan["graph"]["edges"]}
         missions = {mission["id"]: mission for mission in plan["missions"]}
 
-        frontend = nodes["N-FRONTEND-REVIEW"]
-        self.assertEqual(["M1"], frontend["review"]["mission_ids"])
-        self.assertEqual(2, frontend["max_attempts"])
-        self.assertNotIn("N-M1-REPAIR", nodes)
-        self.assertNotIn("M2", missions)
-        self.assertFalse(
-            any(
-                edge["from"] == "N-FRONTEND-REVIEW"
-                and edge["on_outcomes"] == ["fix_required"]
-                for edge in edges.values()
+        self.assertEqual(["M1"], list(missions))
+        self.assertEqual(1, plan["max_parallel_workers"])
+        self.assertEqual([], plan["batch_verifiers"])
+        self.assertEqual("mission", nodes["N-M1"]["kind"])
+        self.assertEqual("preintegration", nodes["N-M1-REVIEW"]["review"]["stage"])
+        self.assertEqual(["M1"], nodes["N-M1-REVIEW"]["review"]["mission_ids"])
+        self.assertEqual("backend_code", nodes["N-M1-REVIEW"]["review"]["type"])
+        for node_id in ("N-M1", "N-M1-REVIEW"):
+            runtime = nodes[node_id]["runtime"]
+            self.assertIsNone(runtime["preferred_provider"])
+            self.assertEqual(
+                {"codex", "claude_code", "pi", "generic"},
+                set(runtime["allowed_providers"]),
             )
-        )
-
-        repair = nodes["N-VISUAL-REPAIR"]
-        mission = missions["M3"]
-        self.assertEqual("mission", repair["kind"])
-        self.assertEqual("runtime_worker", repair["executor"])
-        self.assertEqual("M3", repair["ref"])
-        self.assertTrue(mission["write_scope"])
-        self.assertTrue(mission["tasks"][0]["acceptance_matrix"])
-        self.assertTrue(mission["worker_verifiers"])
-        self.assertTrue(mission["integration_verifiers"])
-        review_to_repair = edges["E-VISUAL-REVIEW-REPAIR"]
-        repair_review = nodes["N-VISUAL-REPAIR-CODE-REVIEW"]
-        repair_to_code_review = edges["E-VISUAL-REPAIR-CODE-REVIEW"]
-        repair_to_review = edges["E-VISUAL-REPAIR-REREVIEW"]
-        review_to_final = edges["E-VISUAL-FINAL-GATE"]
-        self.assertEqual(["M3"], repair_review["review"]["mission_ids"])
-        self.assertEqual("frontend_code", repair_review["review"]["type"])
-        self.assertEqual("N-VISUAL-REPAIR", repair_to_code_review["from"])
-        self.assertEqual(
-            "N-VISUAL-REPAIR-CODE-REVIEW",
-            repair_to_code_review["to"],
-        )
-        self.assertEqual("dependency", repair_to_code_review["kind"])
-        self.assertEqual(
-            "N-VISUAL-REPAIR-CODE-REVIEW",
-            repair_to_review["from"],
-        )
-        self.assertEqual(["fix_required"], review_to_repair["on_outcomes"])
-        self.assertEqual(["pass"], repair_to_review["on_outcomes"])
-        self.assertEqual(2, review_to_repair["max_traversals"])
-        self.assertEqual(2, repair_to_review["max_traversals"])
-        self.assertEqual(["pass"], review_to_final["on_outcomes"])
-        self.assertEqual("integration", nodes["N-VISUAL-REVIEW"]["review"]["stage"])
-        self.assertEqual("N-FINAL-GATE", review_to_final["to"])
+            self.assertEqual(
+                {"model": None, "reasoning_effort": None},
+                runtime["provider_options"]["pi"],
+            )
+            self.assertEqual(
+                {"model": None, "reasoning_effort": None},
+                runtime["provider_options"]["generic"],
+            )
+        self.assertEqual("N-M1-REVIEW", edges["E-M1-REVIEW"]["to"])
+        self.assertEqual("N-FINAL-GATE", edges["E-M1-REVIEW-FINAL"]["to"])
         self.assertEqual("N-CLOSEOUT-GATE", edges["E-FINAL-CLOSEOUT"]["to"])
-        self.assertIn(
-            nodes["N-CLOSEOUT-GATE"]["executor"],
-            {"harness_parent", "local_command"},
-        )
+        self.assertNotIn("execution_route", plan)
+        self.assertTrue(missions["M1"]["tasks"][0]["acceptance_matrix"])
 
 
 
@@ -138,6 +116,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("Pillow is imported lazily", skill)
         self.assertIn("targeted UI-evidence decoding error", skill)
         self.assertIn("without preventing non-UI CLIs from starting", skill)
+        self.assertIn("accepted Git `head_sha`", skill)
         self.assertIn("PLAN v5", readme)
         self.assertIn("RUN v10", readme)
         self.assertIn("`design-system.md`, `design-system.json`", readme)

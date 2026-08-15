@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -184,9 +185,13 @@ def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
 
 
 def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, object]]:
-    root = SCRIPTS_DIR.parent
-    plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
-    run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+    fixture_root = TESTS_DIR / "fixtures"
+    plan = json.loads(
+        (fixture_root / "legacy_ui_template_plan.json").read_text(encoding="utf-8")
+    )["harness_plan"]
+    run = json.loads(
+        (fixture_root / "legacy_ui_template_run.json").read_text(encoding="utf-8")
+    )["harness_run"]
     digest = plan_digest(plan)
     authorize_execution(run, ["M1"], status="ready", plan=plan, digest=digest)
     run["runtime_capabilities"].update(
@@ -561,6 +566,113 @@ class SelectReadyNodesTests(unittest.TestCase):
             errors,
         )
 
+    def _integration_stage_dissent_state(self) -> tuple[dict[str, object], dict[str, object]]:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        run["mission_states"]["M1"].update(
+            {"phase": "integrated", "integration_gate": "PASS", "integrated_sha": "c" * 40}
+        )
+        run["integration"]["integration_head_sha"] = "c" * 40
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-INTEGRATION-DISSENT",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-INTEGRATION-DISSENT",
+            }
+        )
+        dissent = exact_head_review_worker(
+            node_id="N-VISUAL-REVIEW",
+            worker_id="RW-INTEGRATION-DISSENT",
+            attempt_id="ATT-INTEGRATION-DISSENT",
+            digest=digest,
+            plan=plan,
+            run=run,
+            outcome="fix_required",
+        )
+        dissent["reviewed_sha"] = "c" * 40
+        dissent["review_path"] = "C:/repo"
+        dissent["phase"] = "worker_passed"
+        run["review_workers"] = [dissent]
+        return plan, run
+
+    def test_integration_stage_current_dissent_blocks_validation_and_route(self) -> None:
+        plan, run = self._integration_stage_dissent_state()
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("current review node result must match" in error for error in errors),
+            errors,
+        )
+        review_node = next(
+            node for node in plan["graph"]["nodes"] if node["id"] == "N-VISUAL-REVIEW"
+        )
+        with patch("select_ready_nodes.validate_current_plan_run", return_value=[]):
+            reasons = _logical_reasons(review_node, plan, run, *_incoming(plan))
+        self.assertIn("review_result_dissent", reasons)
+
+    def test_preintegration_current_pass_findings_block_validation_and_route(self) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        review_node = next(
+            node for node in plan["graph"]["nodes"] if node["id"] == "N-FRONTEND-REVIEW"
+        )
+        run["graph_state"]["node_states"][review_node["id"]].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-PRE-FINDINGS",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-PRE-FINDINGS",
+            }
+        )
+        review_worker = exact_head_review_worker(
+            node_id=review_node["id"],
+            worker_id="RW-PRE-FINDINGS",
+            attempt_id="ATT-PRE-FINDINGS",
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        review_worker["findings"] = ["informational note without a severity field"]
+        run["review_workers"] = [review_worker]
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("current PASS review result must not contain findings" in error for error in errors),
+            errors,
+        )
+        downstream_node = next(
+            node for node in plan["graph"]["nodes"] if node["id"] == "N-VISUAL-REVIEW"
+        )
+        with patch("select_ready_nodes.validate_current_plan_run", return_value=[]):
+            reasons = _logical_reasons(downstream_node, plan, run, *_incoming(plan))
+        self.assertIn("route_not_activated", reasons)
+
+    def test_complete_run_cannot_close_with_current_integration_dissent(self) -> None:
+        plan, run = self._integration_stage_dissent_state()
+        run["status"] = "complete"
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("current review node result must match" in error for error in errors),
+            errors,
+        )
+
+    def test_complete_run_cannot_close_with_current_pass_findings(self) -> None:
+        plan, run = self._integration_stage_dissent_state()
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["last_outcome"] = "pass"
+        run["review_workers"][0]["outcome"] = "pass"
+        run["review_workers"][0]["findings"] = ["informational note without a severity field"]
+        run["status"] = "complete"
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("current PASS review result must not contain findings" in error for error in errors),
+            errors,
+        )
+
     def test_non_executable_run_statuses_never_dispatch_nodes(self) -> None:
         plan = valid_graph_plan()
 
@@ -584,7 +696,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         # construction so the lifecycle guard itself remains covered.
         complete = copy.deepcopy(blocked)
         complete["status"] = "complete"
-        with patch("select_ready_nodes.validate_run", return_value=[]):
+        with patch("select_ready_nodes.validate_current_plan_run", return_value=[]):
             result = select_ready_nodes(plan, complete)
         self.assertEqual([], result["dispatchable_nodes"])
         self.assertTrue(
@@ -953,7 +1065,7 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         errors = validate_run(plan, run)
         self.assertTrue(
-            any("strict majority" in error for error in errors),
+            any("every planned pre-integration review node" in error for error in errors),
             errors,
         )
 
@@ -1076,7 +1188,14 @@ class SelectReadyNodesTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_repaired_head_rearms_every_stale_preintegration_review(
         self,
@@ -1820,7 +1939,14 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         run["review_workers"][0]["outcome"] = "fix_required"
         run["review_workers"][0]["findings"] = ["src/example/app.ts:1 blocking issue"]
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
 
         run["review_workers"][1]["outcome"] = "fix_required"
         run["review_workers"][1]["findings"] = ["src/example/app.ts:2 second blocking issue"]
@@ -1844,6 +1970,70 @@ class SelectReadyNodesTests(unittest.TestCase):
         self.assertEqual([], result["dispatchable_nodes"])
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("workspace_not_isolated", deferred["N-M1"])
+
+    def _authorized_conflict_free_pair(self) -> tuple[dict[str, object], dict[str, object]]:
+        plan = valid_graph_plan()
+        detach_mission_edges(plan)
+        plan["max_parallel_workers"] = 2
+        run = valid_graph_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["subagents", "sequential_parent"],
+                    "detection_source": "observed",
+                    "capability_probe": codex_capability_probe(subagents=True),
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {
+                "available_worker_slots": 2,
+                "isolation_capacity": 2,
+                "completion_channel_available": True,
+            }
+        )
+        for action in (
+            "spawn_subagents",
+            "create_local_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            authorize_action(run, action, ["M1", "M2"], ["*"])
+        return plan, run
+
+    def test_authorized_conflict_free_pair_selects_two_parallel_directives(self) -> None:
+        plan, run = self._authorized_conflict_free_pair()
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual("parallel_graph", result["execution_route"])
+        self.assertEqual(
+            ["N-M1", "N-M2"],
+            [item["node_id"] for item in result["dispatchable_nodes"]],
+        )
+        self.assertEqual(
+            {"N-M1", "N-M2"},
+            {item["node_id"] for item in result["dispatchable_nodes"]},
+        )
+
+    def test_effective_write_budget_one_selects_one_managed_directive(self) -> None:
+        plan, run = self._authorized_conflict_free_pair()
+        run["runtime_capabilities"]["max_parallel_workers"] = 1
+        run["observed"]["runtime"]["available_worker_slots"] = 1
+        run["observed"]["runtime"]["isolation_capacity"] = 1
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual("managed_sequential", result["execution_route"])
+        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("over_budget", deferred["N-M2"])
 
     def test_sequential_parent_caps_write_and_runtime_budgets_at_one(self) -> None:
         plan = valid_graph_plan()

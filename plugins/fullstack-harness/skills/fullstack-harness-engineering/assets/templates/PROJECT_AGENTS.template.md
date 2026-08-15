@@ -63,19 +63,19 @@ This template's main-only branch model — `main` as the default branch, an ephe
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
 - After serial integration, use fresh read-only reviewers on the exact unified integration SHA, then run one broad final validation on the fixed candidate SHA.
-- The run ends when that verified integration head is pushed to the run branch. Landing the run branch on the default branch is the user's own step, done outside this harness.
+- The run defaults to verified local completion; only an explicit remote outcome pushes the verified integration head to the run branch. Landing the run branch on the default branch is the user's own step, done outside this harness.
 - Later work cuts a fresh run branch from the then-current default branch.
 
 ## Action Authorization
 
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. The ledger covers external runtime invocation, subagents, user-owned tasks, worktrees, local branches, local commits, local integration, push, task archival, worktree removal, and branch deletion. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
-- Ordinary plan-backed work starts `local_only` on the resolved integration branch and moves to `integration_push` when that verified head is pushed. The run is complete there; it does not wait for GitHub.
+- Ordinary plan-backed work starts and normally ends `local_only` on the resolved integration branch; a separate explicit remote outcome may move it to `integration_push` when that verified head is pushed. The run is complete there; it does not wait for GitHub.
 - With matching `create_local_branches` authorization, work on `codex/<short-name>`.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
 - Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved integration branch.
 - Run `<verification-command>` and `<e2e-command>`, then review the complete diff before push.
 - Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual smoke only for a materially different environment or an uncovered visual/external-integration risk.
-- With matching `push` authorization, push only the verified resolved integration branch. A push whose target resolves to `main` is refused, and so is any push from a run whose integration branch resolves to `main`.
+- With matching explicit remote intent and `push` authorization, push only the verified resolved integration branch and current head. A current v10 push also requires one exact branch target and known `observed.git.default_branch`; a target, integration branch, or observed default branch resolving to `main` is refused.
 - Remove only an authorized clean linked worktree, then delete only the authorized local worker branch. Never remove the primary checkout, and never delete the run branch the user still has to read.
 - Task archival, worktree removal, and branch deletion remain separate ledger actions even when several are approved in one explicit readiness statement.
 

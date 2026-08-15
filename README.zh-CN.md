@@ -11,12 +11,12 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.3.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
 
-私有技能市场，用于借助 Codex 或 Claude Code 把产品想法或变更需求变成一条经过验证的交付流程。
+私有技能市场，用于借助 Codex、Claude Code 或 Pi 把产品想法或变更需求变成一条经过验证的交付流程。
 
 它不是提示词集合。这个插件把产品定义、视觉设计和工程执行拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
 
@@ -40,7 +40,7 @@
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
-- **运行到推送为止。** Harness 负责提交并推送这次运行自己的分支。把它合进默认分支是你自己的步骤。
+- **默认只在本地完成。** Harness 负责提交并验证本地结果；只有明确的远程意图才会授权推送这次运行自己的分支。把它合进默认分支是你自己的步骤。
 
 ## 包含哪些内容
 
@@ -48,7 +48,7 @@
 | --- | --- | --- |
 | `prd-builder` | 产品探索、需求、Builder UX Direction 输入、架构、技术栈决策、发布目标、测试义务，以及草稿完成后的市场调研补缺 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 产品线框图、视觉方向与设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `wireframes.md`、`design-system.md`、`design-system.json` |
-| `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作、`RUN.md`，或 `PLAN.md` + `RUN.md` |
+| `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的 worktree，以及由 parent 派发的同级 reviewers | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-pi` | 在父级托管工作树中使用 Pi 子代理角色，并由 Pi 选择模型和回退方案 | 运行时启动指令、实际角色/模型证据和工作节点结果 |
@@ -57,9 +57,9 @@
 交付核心在调用托管编排之前，会先做一个规模判定：
 
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
-- 大型工作进入托管规划。它可以用 `RUN.md` 完成一次顺序交付，或者用 `PLAN.md` 和 `RUN.md` 处理多个任务并实现可持久的移交。
-- 只有当一个大型计划中至少有两个彼此独立、可立即执行的任务时，调度器才会开始扇出。此时核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
-- 工作不需要等待远程 CI。当验证过的集成 head 推送到这次运行自己的分支时，运行就结束了。
+- 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；`tasks.md` 只是按需生成的人类视图，不是必需状态。
+- 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
+- 工作不需要等待远程 CI。运行通常以验证过的本地证据结束；只有明确的远程结果才会把验证过的集成 head 推送到这次运行自己的分支。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
 
@@ -84,11 +84,11 @@ Harness 是围绕明确的边界构建的：
 1. 检查当前项目，识别需要完成的工作。
 2. 冻结相关的契约、来源、范围和验证步骤。
 3. 当任务大到需要时，在动手实现之前先规划依赖关系。
-4. 只有当工作彼此独立、相互隔离且获得明确授权时，才使用并行工作节点。
-5. 验证任务结果、集成、相关的 UI 流程，以及最终的差异（diff）。
-6. 默认带着验证过的本地证据停下，除非明确要求远程结果；届时在精确的推送授权下，把这次运行自己的分支推送上去。开 PR、合并和部署都是你在 Harness 之外自己做的步骤。
+4. 只有当至少两个安全写入 mission 实际被选中、工作彼此独立且相互隔离，并且每个动作都获得明确授权时，才使用并行工作节点；受管顺序路线仍要证明隔离 writer、scope/head 和 review gates。
+5. 验证任务结果、集成、相关的 UI 流程，以及最终的差异（diff）。单 mission 不会凭空增加跨 mission batch gate。
+6. 默认带着验证过的本地证据停下。如果明确要求远程结果，只有在明确远程意图以及精确的分支/head 推送授权下，才推送这次运行自己的分支。开 PR、合并和部署都是你在 Harness 之外自己做的步骤。
 
-对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、移除工作树或删除分支。
+对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、移除工作树或删除分支。RUN-v10 的推送还需要明确的远程意图、唯一的集成分支目标和当前 head 授权；如果默认分支身份未知，推送会安全失败，但不会阻止无关的本地执行。
 
 ```mermaid
 flowchart TB
@@ -102,13 +102,13 @@ flowchart TB
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
   Review -->|fix_required| Work
-  Integrate --> Gates["Integration, batch, E2E and UI evidence gates"]
+  Integrate --> Gates["适用的 integration、E2E 和 UI evidence gates"]
   Gates -->|fix_required| Repair["Bounded repair route"]
   Repair --> Rereview["Re-review on the new head"]
   Rereview --> Gates
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"push requested and authorized?"}
+  Local --> Remote{"explicit remote outcome and exact push grant?"}
   Remote -->|no| Done["Stop with verified local evidence"]
   Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
   Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
@@ -151,7 +151,7 @@ Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 ## 安装
 
-这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且安装了 Codex、Claude Code，或两者。
+这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且至少安装一个受支持的宿主：Codex、Claude Code 或 Pi。
 
 ```bash
 gh auth login
@@ -178,7 +178,7 @@ claude plugin list
 
 ### Zero-to-one 流程（从零开始）
 
-1. 安装一个受支持的宿主（Codex 或 Claude Code）和本插件，并用该宿主运行本次交付。
+1. 安装一个受支持的宿主（Codex、Claude Code 或 Pi）和本插件，并用该宿主运行本次交付。
 2. 开启新的宿主会话，确认插件可见，然后调用 `$fullstack-harness-engineering`。
 3. 让规模闸决定直接工作还是 PLAN/RUN；小型工作不要预先创建工作节点。
 4. 大型运行一次只保留一个 active host，并在 same-repository handoff 前关闭和审查每个 wave。
@@ -286,7 +286,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 在 Codex 中，每个选中的 mission 都会在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管 worktree。任何只读 explorer 或 reviewer 都由 Harness parent 另行作为同级节点派发；mission 任务不能创建子代理。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
-目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支；当验证过的分支推送完成，运行就结束了。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
+目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支。运行默认以验证过的本地结果完成；只有明确远程结果并取得精确分支/head 授权后才推送该分支。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
 
 每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要其他宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
 

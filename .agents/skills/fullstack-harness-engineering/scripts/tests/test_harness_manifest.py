@@ -7,6 +7,7 @@ import copy
 import hashlib
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -1245,6 +1246,15 @@ class PlanValidationTests(unittest.TestCase):
         self.assertEqual(validate_plan(plan), [])
         self.assertEqual(topological_levels(plan), {"M1": 0, "M2": 1})
 
+    def test_shape_validator_keeps_batch_verifiers_nonempty_by_default(self) -> None:
+        plan = valid_plan()
+        plan["batch_verifiers"] = []
+        self.assert_error_contains(plan, "plan.batch_verifiers: must be a non-empty list")
+        self.assertIn(
+            "plan.batch_verifiers: must be a non-empty list",
+            validate_plan(plan),
+        )
+
     def test_planned_trace_needs_a_verification_row_not_just_a_task(self) -> None:
         # contract-and-traceability.md requires every must-have trace to have a
         # downstream task AND a verification row. Task coverage alone let an
@@ -1616,6 +1626,39 @@ class RunValidationTests(unittest.TestCase):
         run["plan"]["digest_sha256"] = "0" * 64
         self.assert_run_error_contains(plan, run, "does not match semantic PLAN digest")
 
+    def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["observed"]["git"]["default_branch"] = "refs/heads/trunk"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["observed"]["git"]["default_branch"] = 42
+        self.assert_run_error_contains(plan, run, "default_branch")
+
+    def test_v10_push_authorization_requires_explicit_remote_intent(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user: implement the approved plan",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must explicitly request a remote push",
+        )
+
 
     def test_integration_retention_accepts_known_values_only(self) -> None:
         plan = valid_plan()
@@ -1664,6 +1707,16 @@ class RunValidationTests(unittest.TestCase):
         mark_complete(plan, run)
 
         self.assertEqual(validate_run(plan, run), [])
+
+        run["review_workers"][0]["findings"] = [
+            "informational note without a severity field"
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "current PASS review result must not contain findings",
+        )
+        run["review_workers"][0]["findings"] = []
 
         run["batch_gate_results"][0].update(
             {"status": "planned", "head_sha": None, "evidence": []}
@@ -2199,12 +2252,58 @@ class RunValidationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            accepted_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = accepted_sha
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
             evidence = root / "docs" / "goal" / "evidence" / "dashboard-desktop-loaded.png"
             self.assertTrue(
-                any("does not exist" in error for error in validate_ui_evidence_files(run, root))
+                any("accepted Git commit" in error for error in validate_ui_evidence_files(run, root))
             )
             evidence.parent.mkdir(parents=True)
             evidence.write_bytes(contents)
+            subprocess.run(["git", "add", "docs"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "accept screenshot"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            accepted_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = accepted_sha
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
             self.assertEqual(validate_ui_evidence_files(run, root), [])
             run["ui_evidence"][0]["artifact_sha256"] = "d" * 64
             self.assertTrue(
@@ -2217,7 +2316,7 @@ class RunValidationTests(unittest.TestCase):
             ).hexdigest()
             self.assertTrue(
                 any(
-                    "cannot be decoded" in error
+                    "sha256 does not match" in error
                     for error in validate_ui_evidence_files(run, root)
                 )
             )
@@ -2371,12 +2470,25 @@ class RunValidationTests(unittest.TestCase):
             "sequential_parent requires parent/parent_managed_worktree/agent_result",
         )
 
-    def test_ready_observed_codex_requires_complete_capability_probe(self) -> None:
+    def test_ready_parallel_codex_requires_complete_capability_probe(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
         authorize_execution(run, ["M1", "M2"], status="ready")
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            detection_source="observed"
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["subagents", "sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 2, "isolation_capacity": 2}
         )
 
         self.assert_run_error_contains(
@@ -2401,6 +2513,29 @@ class RunValidationTests(unittest.TestCase):
             run,
             "capability_snapshot_incomplete",
         )
+
+    def test_ready_sequential_codex_does_not_require_parallel_probe_inventory(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 1,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 1, "isolation_capacity": 1}
+        )
+
+        self.assertEqual([], validate_run(plan, run))
 
     def test_codex_probe_prevents_omitting_available_app_threads(self) -> None:
         plan = valid_plan()

@@ -172,10 +172,12 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn("covers only the subset that the selected route actually uses", state)
+        self.assertIn("only the applicable local entries", state)
         self.assertIn("outer v10 `app_threads` app-task route excludes `spawn_subagents`", state)
         self.assertIn("app-task workers never delegate", state)
         self.assertIn("Parent-dispatched direct sibling workers and reviewers", state)
+        self.assertIn("does not authorize `push`", skill)
+        self.assertIn("separate explicit remote instruction", runbook)
         for content in (skill, state, runbook):
             self.assertNotIn("covers all nine together", content)
             self.assertNotIn("one execution-intent instruction covers all nine", content)
@@ -252,16 +254,20 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("proactively inspect the current-session native tool surface", skill)
         self.assertIn("Missing authorization must never make an available driver disappear", skill)
         self.assertIn("complete per-surface `capability_probe`", skill)
+        self.assertIn("provably sequential route", skill)
         self.assertIn("Do not cap `max_parallel_workers` at a small fixed number", skill)
         self.assertIn("default immediately after Plan Readiness", state)
         self.assertIn("capability_snapshot_incomplete", state)
         self.assertIn("capability_snapshot_incomplete", selector)
         self.assertIn("full eight-entry `capability_probe`", orchestration)
-        self.assertIn("complete eight-entry `runtime_adapter.capability_probe`", runbook)
+        self.assertIn("may omit unused surfaces", orchestration)
+        self.assertIn("may select two writers", runbook)
+        self.assertIn("provably sequential route records only", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
         self.assertIn("select authorized ready nodes", agent)
+        self.assertIn("Host adapter: none | codex | claude_code | pi | generic", skill)
 
     def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
@@ -329,21 +335,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("one top-level left-sidebar task with its own clean exact-base app-managed worktree", goal)
 
-    def test_run_template_matches_the_integration_push_default(self) -> None:
-        """The template has to describe the landing model SKILL.md now defaults to.
-
-        A RUN authored from a template that still says ordinary work stays
-        local_only would silently follow the old flow and never record the
-        development push.
-        """
+    def test_run_template_matches_the_local_only_default(self) -> None:
+        """The template must keep remote publication behind explicit intent."""
         skill = self.read("SKILL.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn("uses `integration_push`", skill)
+        self.assertIn("default to `local_only`", skill)
         self.assertIn("integration_push", runbook)
         self.assertIn("landing.pushed_head_sha", runbook)
-        self.assertNotIn("Ordinary PRD, UI, and feature work stays `local_only`", runbook)
-        self.assertNotIn('New RUN files default to `mode: "local_only"`.', runbook)
+        self.assertIn("separate remote intent", runbook)
+        self.assertIn('New RUN files start at `mode: "local_only"`', runbook)
 
 
 
@@ -549,7 +550,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         selector = self.read("scripts/select_ready_nodes.py")
 
         self.assertIn('"provider_options"', plan)
-        self.assertIn('"preferred_provider": "claude_code"', plan)
+        self.assertIn('"preferred_provider": null', plan)
+        self.assertIn('"allowed_providers": ["codex", "claude_code", "pi", "generic"]', plan)
+        self.assertIn('"pi": {"model": null, "reasoning_effort": null}', plan)
+        self.assertIn('"generic": {"model": null, "reasoning_effort": null}', plan)
         # A delegated Claude Code node never defaults above sonnet: the pinned
         # top-tier model is reserved for the parent's own coordination/planning,
         # not assigned to any worker/review node by default.

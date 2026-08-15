@@ -22,6 +22,27 @@ class ManifestError(ValueError):
     """Raised when a canonical manifest cannot be extracted or decoded."""
 
 
+def classify_execution_route(
+    *,
+    direct: bool = False,
+    managed_artifacts: bool = False,
+    selected_safe_write_missions: int = 0,
+) -> str:
+    """Classify the execution topology without selecting a transport driver.
+
+    Direct work wins before managed artifacts are considered.  Once a managed
+    PLAN/RUN route exists, the route is sequential until at least two safe write
+    missions are actually selected.  ``runtime_driver`` remains an independent
+    host-transport fact and is deliberately not consulted here.
+    """
+
+    if direct or not managed_artifacts:
+        return "direct"
+    if selected_safe_write_missions >= 2:
+        return "parallel_graph"
+    return "managed_sequential"
+
+
 def route_runtime_driver(runtime: dict[str, Any]) -> str:
     """Select one deterministic execution driver from observed capabilities."""
 

@@ -1,7 +1,7 @@
 {
   "name": "fullstack-harness",
   "version": "0.3.0",
-  "description": "Plan full-stack delivery with lightweight Codex, Claude Code, and GitHub adapters.",
+  "description": "Plan full-stack delivery with lightweight Codex, Claude Code, and Pi adapters.",
   "author": {
     "name": "Phlegonlabs",
     "url": "https://github.com/Phlegonlabs"
@@ -19,7 +19,7 @@
   "interface": {
     "displayName": "Full Stack Harness",
     "shortDescription": "Plan and run full-stack delivery workflows",
-    "longDescription": "Keeps shared delivery planning small, then loads only the Codex, Claude Code, or GitHub landing adapter required by the requested outcome.",
+    "longDescription": "Keeps shared delivery planning small, then loads only the Codex, Claude Code, or Pi runtime adapter required by the requested outcome.",
     "developerName": "Phlegonlabs",
     "category": "Engineering",
     "capabilities": [

@@ -19,6 +19,8 @@ Use the smallest reliable proof first:
 10. If deterministic checks are impossible, use structured review and name residual risk.
 ```
 
+For RUN-v10 screenshot evidence, the order is immutable Git blob read, safe byte-based decode, then `artifact_sha256` comparison. RUN-v9 keeps its historical working-tree check.
+
 ## Gate Levels
 
 Task gate:
@@ -268,8 +270,8 @@ Final PASS requires:
 - Closeout runs `scripts/validate_harness_plan.py --design-system <path to design-system.json>` whenever a design system is a contract source, so its `stateMatrix` and responsive set are cross-checked against the PLAN's UI surfaces. Without it, required screenshot coverage is derived from the PLAN's own state list, and a PLAN that declares `ready` alone reaches a PASS closeout with one state of eleven.
 - Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Every skipped gate is justified.
-- Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. A required row's screenshot or other evidence artifact changing after being marked PASS (a working-tree diff to an already-recorded evidence file) invalidates that recorded PASS until a fresh evidence-capture attempt reruns and re-binds it to the current head.
-- Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; accepted non-file evidence applies only to gates that do not require screenshots.
+- Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. RUN-v10 re-reads the accepted Git blob at the recorded head, so a working-tree mutation cannot replace or satisfy that evidence; RUN-v9 keeps its historical working-tree invalidation behavior.
+- Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; for RUN-v10, existence and decoding are checked in the accepted Git commit/ref rather than the working tree. Accepted non-file evidence applies only to gates that do not require screenshots.
 - Baseline and skipped-check justifications are recorded when relevant.
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
 - Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.

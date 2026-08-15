@@ -1,0 +1,319 @@
+{
+  "harness_run": {
+    "schema_version": 10,
+    "run_id": "RUN-<stable-id>",
+    "plan": {
+      "id": "PLAN-<stable-id>",
+      "revision": 1,
+      "digest_sha256": "4b6f5ab8198769acaf8abff03812630441b6f0c5cac3028f62260a62a886190a"
+    },
+    "status": "draft",
+    "intent": "plan-only",
+    "plan_readiness": "draft",
+    "execution_authorized": false,
+    "execution_authorization_source": null,
+    "execution_authorization_scope": null,
+    "authorizations": {
+      "invoke_external_runtime": {
+        "authorized": false,
+        "source": null
+      },
+      "spawn_subagents": {
+        "authorized": false,
+        "source": null
+      },
+      "create_user_owned_tasks": {
+        "authorized": false,
+        "source": null
+      },
+      "create_local_worktrees": {
+        "authorized": false,
+        "source": null
+      },
+      "create_app_managed_worktrees": {
+        "authorized": false,
+        "source": null
+      },
+      "create_local_branches": {
+        "authorized": false,
+        "source": null
+      },
+      "create_local_commits": {
+        "authorized": false,
+        "source": null
+      },
+      "integrate_locally": {
+        "authorized": false,
+        "source": null
+      },
+      "push": {
+        "authorized": false,
+        "source": null
+      },
+      "archive_worker_tasks": {
+        "authorized": false,
+        "source": null
+      },
+      "remove_worktrees": {
+        "authorized": false,
+        "source": null
+      },
+      "delete_branches": {
+        "authorized": false,
+        "source": null
+      }
+    },
+    "runtime_capabilities": {
+      "worker_runtime": "parent",
+      "workspace_mode": "parent_managed_worktree",
+      "completion_channel": "agent_result",
+      "max_parallel_workers": 8,
+      "runtime_adapter": {
+        "provider": "generic",
+        "available_drivers": [
+          "sequential_parent"
+        ],
+        "detection_source": "fallback"
+      },
+      "permission_boundary": {
+        "selected_mode": "unknown",
+        "profile_name": null,
+        "approval_policy": "unknown",
+        "filesystem_scope": "unknown",
+        "network_scope": "unknown",
+        "local_binding": "unknown",
+        "worker_inheritance": "unknown",
+        "status": "unknown"
+      },
+      "platform_lifecycle": {
+        "owner": "parent",
+        "automatic_retention_cleanup_possible": false,
+        "durable_branch_required_before_unique_work": true
+      }
+    },
+    "observed": {
+      "captured_at": null,
+      "git": {
+        "parent_worktree_path": null,
+        "parent_branch": null,
+        "parent_head_sha": null,
+        "parent_dirty": null,
+        "default_branch": null,
+        "worktrees": []
+      },
+      "runtime": {
+        "available_worker_slots": 8,
+        "isolation_capacity": 8,
+        "completion_channel_available": true
+      }
+    },
+    "integration": {
+      "branch": "refs/heads/codex/<short-name>",
+      "retention": "ephemeral",
+      "batch_base_sha": null,
+      "integration_head_sha": null,
+      "prior_head_shas": []
+    },
+    "batch_gate_results": [
+      {
+        "id": "batch-cross-mission",
+        "status": "planned",
+        "head_sha": null,
+        "evidence": []
+      }
+    ],
+    "final_gate_results": [
+      {
+        "id": "e2e-primary-journey",
+        "status": "planned",
+        "head_sha": null,
+        "evidence": []
+      },
+      {
+        "id": "final-closeout",
+        "status": "planned",
+        "head_sha": null,
+        "evidence": []
+      }
+    ],
+    "ui_evidence": [],
+    "landing": {
+      "mode": "local_only",
+      "remote": "origin",
+      "pushed_head_sha": null,
+      "continuity": {
+        "status": "planned",
+        "branch_ref": "refs/heads/codex/<short-name>",
+        "head_sha": null,
+        "reason": "Keep the reviewed run branch so the user can read it and land it"
+      }
+    },
+    "graph_state": {
+      "graph_revision": 1,
+      "node_states": {
+        "N-M1": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-FRONTEND-REVIEW": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-FINAL-GATE": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-VISUAL-REVIEW": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-VISUAL-REPAIR": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-VISUAL-REPAIR-CODE-REVIEW": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        },
+        "N-CLOSEOUT-GATE": {
+          "phase": "dormant",
+          "attempts": 0,
+          "last_attempt_id": null,
+          "last_outcome": null,
+          "bound_worker_id": null,
+          "blockers": []
+        }
+      },
+      "edge_states": {
+        "E-M1-FRONTEND-REVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-FRONTEND-VISUAL-REVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-M1-VISUAL-REVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-REVIEW-REPAIR": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-REPAIR-CODE-REVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-REPAIR-REREVIEW": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-VISUAL-FINAL-GATE": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        },
+        "E-FINAL-CLOSEOUT": {
+          "status": "dormant",
+          "traversals": 0,
+          "source_attempt_id": null
+        }
+      }
+    },
+    "mission_states": {
+      "M1": {
+        "phase": "queued",
+        "lease_id": null,
+        "lease_plan_revision": null,
+        "lease_plan_digest_sha256": null,
+        "worker_id": null,
+        "base_sha": null,
+        "head_sha": null,
+        "prior_head_shas": [],
+        "integration_gate": "planned",
+        "integrated_sha": null,
+        "blockers": [],
+        "report_path": null
+      },
+      "M3": {
+        "phase": "queued",
+        "lease_id": null,
+        "lease_plan_revision": null,
+        "lease_plan_digest_sha256": null,
+        "worker_id": null,
+        "base_sha": null,
+        "head_sha": null,
+        "prior_head_shas": [],
+        "integration_gate": "planned",
+        "integrated_sha": null,
+        "blockers": [],
+        "report_path": null
+      }
+    },
+    "task_states": {
+      "M1/T01": {
+        "phase": "queued",
+        "attempts": 0,
+        "commit_sha": null,
+        "verifier_status": "planned",
+        "blockers": [],
+        "refinement_request": null
+      },
+      "M3/T01": {
+        "phase": "queued",
+        "attempts": 0,
+        "commit_sha": null,
+        "verifier_status": "planned",
+        "blockers": [],
+        "refinement_request": null
+      }
+    },
+    "active_wave": {
+      "wave_id": null,
+      "status": "idle",
+      "plan_revision": 1,
+      "plan_digest_sha256": null,
+      "batch_base_sha": null,
+      "selected_missions": [],
+      "deferred_missions": [],
+      "conflict_edges": []
+    },
+    "closed_waves": [],
+    "workers": [],
+    "review_workers": [],
+    "workflow_runs": [],
+    "verifier_executions": [],
+    "attempt_log": []
+  }
+}

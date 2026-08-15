@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from harness_core import (
@@ -21,6 +22,110 @@ from harness_schema import (
     action_target_kind_allowed,
     action_target_kind_description,
 )
+
+
+_REMOTE_ACTION_RE = re.compile(r"\b(?:push|publish)\b", re.IGNORECASE)
+_REMOTE_ACTION_WORDS = r"(?:push(?:ing)?|publish(?:ing)?)"
+_NEGATED_OR_FORBIDDEN_REMOTE_RE = re.compile(
+    rf"(?:"
+    rf"\b(?:do\s+not|don't|dont|never|without|no|not|cannot|can't|cant|"
+    rf"won't|wouldn't|shouldn't|not\s+permitted|not\s+allowed)\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
+    rf"|\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
+    rf"[^.!?\n]{{0,120}}\b(?:forbidden|prohibited|disallowed|unauthorized|"
+    rf"not\s+authorized|not\s+approved|not\s+requested)\b"
+    rf")",
+    re.IGNORECASE,
+)
+# Conditional/descriptive nouns do not grant a remote action.  In particular,
+# ``permission is needed to publish`` and ``publish after approval`` describe
+# a gate rather than authorizing the action.  Requests are handled separately
+# so the positive verb in ``request a publish`` remains usable.
+_CONDITIONAL_REMOTE_NOUN_RE = re.compile(
+    rf"(?:"
+    rf"\b(?:approval|permission|authorization|consent|clearance|access|"
+    rf"ability|option|condition|requirement)\b[^.!?\n]{{0,120}}"
+    rf"\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|\b(?:{_REMOTE_ACTION_WORDS})\b[^.!?\n]{{0,120}}"
+    rf"\b(?:approval|permission|authorization|consent|clearance|access|"
+    rf"ability|option|condition|requirement)\b"
+    rf"|\b(?:the|a|an|this|that|your|their|our|my)\s+request\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|\brequest\b\s+(?:is|are|was|were|pending|required|needed|"
+    rf"awaiting)\b[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf")",
+    re.IGNORECASE,
+)
+_CONDITIONAL_REMOTE_RE = re.compile(
+    rf"(?:"
+    rf"\b(?:if|when|unless|after|before|once|until|provided|pending|"
+    rf"subject\s+to)\b[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|\b(?:{_REMOTE_ACTION_WORDS})\b[^.!?\n]{{0,120}}"
+    rf"\b(?:if|when|unless|after|before|once|until|provided|pending|"
+    rf"required|needed|subject\s+to)\b"
+    rf")",
+    re.IGNORECASE,
+)
+# A bare noun such as ``the push endpoint`` or ``remote API`` is not an
+# instruction.  Imperatives may appear at the start of a source statement or
+# after a short conjunction, which covers common ``implement and push``
+# wording without treating arbitrary prose as permission.
+_PUSH_PUBLISH_IMPERATIVE_RE = re.compile(
+    r"(?:^|[:;,]|\b(?:and|then|please)\s+)\s*(?:push|publish)\b",
+    re.IGNORECASE,
+)
+_NON_IMPERATIVE_REMOTE_RE = re.compile(
+    r"\b(?:push|publish)\b(?:\s+\w+){0,4}\s+"
+    r"\b(?:is|are|was|were|endpoint|api|access|permission|status|available|allowed|enabled|disabled)\b",
+    re.IGNORECASE,
+)
+# Only positive authorize/approve/request verbs are attestations.  Nouns such
+# as ``approval`` and ``permission`` are intentionally absent.  Inflected
+# forms are accepted when a subject makes them verbs; the imperative branch
+# accepts concise ``approve the push`` / ``request a publish`` statements.
+_REMOTE_AUTHORIZATION_VERBS = (
+    r"(?:authori[sz](?:e|es|ed|ing)|approv(?:e|es|ed|ing)|"
+    r"request(?:s|ed|ing)?)"
+)
+_REMOTE_AUTHORIZATION_BASE_VERBS = r"(?:authori[sz]e|approve|request)"
+_PUSH_PUBLISH_ATTESTATION_RE = re.compile(
+    rf"(?:"
+    rf"(?:^|[:;,]|\b(?:I|we|you|user|human|parent)\s+)\s*"
+    rf"(?:hereby\s+)?{_REMOTE_AUTHORIZATION_VERBS}\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|(?:^|[:;,]|\b(?:and|then|please)\s+)\s*"
+    rf"{_REMOTE_AUTHORIZATION_BASE_VERBS}\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf")",
+    re.IGNORECASE,
+)
+
+
+def is_explicit_remote_intent(source: Any) -> bool:
+    """Return whether ``source`` is an unambiguous push authorization.
+
+    Remote nouns (``remote``/``ship``), API descriptions, and ordinary local
+    implementation prose are not intent.  A source must contain a push or
+    publish imperative, or an explicit positive authorize/approve/request
+    verb.  Any negated, forbidden, or conditional remote statement poisons the
+    whole source so a later positive-looking phrase cannot turn a refusal into
+    permission.
+    """
+
+    if not isinstance(source, str) or not source.strip():
+        return False
+    statement = " ".join(source.split())
+    if (
+        _NEGATED_OR_FORBIDDEN_REMOTE_RE.search(statement)
+        or _CONDITIONAL_REMOTE_NOUN_RE.search(statement)
+        or _CONDITIONAL_REMOTE_RE.search(statement)
+        or _NON_IMPERATIVE_REMOTE_RE.search(statement)
+    ):
+        return False
+    return bool(
+        _PUSH_PUBLISH_IMPERATIVE_RE.search(statement)
+        or _PUSH_PUBLISH_ATTESTATION_RE.search(statement)
+    )
 
 
 def _is_main_branch_target(target: Any) -> bool:
@@ -117,6 +222,81 @@ def _scope_matches_plan(run: dict[str, Any], scope: dict[str, Any]) -> bool:
     )
 
 
+def observed_default_branch(run: dict[str, Any]) -> str | None:
+    """Return an observed default branch when one was captured.
+
+    ``observed.git.default_branch`` is the canonical optional location.  The
+    two legacy-shaped aliases are read defensively so a parent handoff from an
+    older tool can still be interpreted without a schema migration.
+    """
+
+    observed = run.get("observed")
+    if not isinstance(observed, dict):
+        return None
+    git = observed.get("git")
+    candidates = (
+        (git, "default_branch"),
+        (git, "default_branch_ref"),
+        (observed, "default_branch"),
+        (observed, "default_branch_ref"),
+    )
+    for container, key in candidates:
+        if isinstance(container, dict) and _nonempty_string(container.get(key)):
+            return container[key]
+    return None
+
+
+def _target_branch(target: Any) -> str | None:
+    if not isinstance(target, str) or not target.startswith("branch:"):
+        return None
+    return _normalized_branch(target.split(":", 1)[1])
+
+
+def _v10_push_is_current_and_safe(
+    run: dict[str, Any], entry: dict[str, Any], target: str | None
+) -> bool:
+    """Require a current, exact, non-default branch push in RUN-v10."""
+
+    integration_branch = _integration_branch(run)
+    requested_branch = _target_branch(target)
+    if integration_branch is None or requested_branch is None:
+        return False
+    resolved_integration = _normalized_branch(integration_branch)
+    if resolved_integration is None or requested_branch != resolved_integration:
+        return False
+
+    default_branch = observed_default_branch(run)
+    # A current push must fail closed when the repository's default branch is
+    # unknown.  This gate is intentionally scoped to push; local actions remain
+    # usable while the parent gathers the optional observation.
+    if default_branch is None:
+        return False
+    normalized_default = _normalized_branch(default_branch)
+    if normalized_default is None or resolved_integration == normalized_default:
+        return False
+
+    scope = entry.get("scope")
+    targets = scope.get("targets") if isinstance(scope, dict) else None
+    if not isinstance(targets, list) or len(targets) != 1:
+        return False
+    scoped_branch = _target_branch(targets[0])
+    if scoped_branch != resolved_integration:
+        return False
+
+    authorized_head = entry.get("authorized_head_sha")
+    integration = run.get("integration")
+    current_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not isinstance(authorized_head, str) or SHA_RE.fullmatch(authorized_head) is None:
+        return False
+    if not isinstance(current_head, str) or SHA_RE.fullmatch(current_head) is None:
+        return False
+    return authorized_head == current_head
+
+
 def _covers_target(targets: Any, target: str | None) -> bool:
     """Whether an exact target is listed, comparing branch refs by identity."""
 
@@ -179,6 +359,20 @@ def authorization_covers(
         or (isinstance(targets, list) and any(_is_main_branch_target(t) for t in targets))
     ):
         return False
+    historical_completed_push = (
+        action == "push"
+        and preserve_completed_run_expiry
+        and run.get("status") == "complete"
+        and entry.get("expires_when") == "run_complete"
+    )
+    if action == "push" and run.get("schema_version") == 10:
+        # A completed RUN may retain a run_complete grant as historical
+        # evidence, but that expiry exception never relaxes remote intent or
+        # the current exact branch/default/head safety gates.
+        if not is_explicit_remote_intent(entry.get("source")):
+            return False
+        if not _v10_push_is_current_and_safe(run, entry, target):
+            return False
     checked_targets = targets
     if require_exact_target:
         if target is None or not isinstance(targets, list):

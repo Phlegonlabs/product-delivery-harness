@@ -9,6 +9,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+from harness_core import classify_execution_route
 from harness_manifest import (
     ManifestError,
     authorization_covers,
@@ -19,6 +20,7 @@ from harness_manifest import (
     plan_digest,
     resolve_runtime_options,
     route_runtime_driver,
+    validate_current_plan_run,
     validate_plan,
     validate_run,
 )
@@ -216,6 +218,76 @@ def _preintegration_review_head_matches_current(
     return prior_review.get("reviewed_sha") == current_head
 
 
+def _current_review_result_matches_worker(
+    node: dict[str, Any], run: dict[str, Any]
+) -> bool | None:
+    """Check the current runtime-review node against its bound worker result.
+
+    Historical/superseded worker records are deliberately ignored.  Only the
+    worker identified by the current node's attempt and binding may authorize a
+    route, and a non-pass finding cannot be represented as a node PASS.
+    """
+
+    if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
+        return None
+    review = node.get("review")
+    review_stage = review.get("stage", "preintegration") if isinstance(review, dict) else "preintegration"
+    if review_stage not in {"preintegration", "integration"}:
+        return None
+    raw_graph_state = run.get("graph_state")
+    node_states = (
+        raw_graph_state.get("node_states")
+        if isinstance(raw_graph_state, dict)
+        else None
+    )
+    state = node_states.get(node.get("id")) if isinstance(node_states, dict) else None
+    if not isinstance(state, dict) or state.get("attempts", 0) < 1:
+        return None
+    phase = state.get("phase")
+    if phase not in {"running", "succeeded", "failed", "blocked"}:
+        return None
+    worker_id = state.get("bound_worker_id")
+    attempt_id = state.get("last_attempt_id")
+    if not isinstance(worker_id, str) or not worker_id or not isinstance(attempt_id, str) or not attempt_id:
+        # A failed/blocked review may be between attempts while its bounded
+        # repair route re-arms the same node.  There is no current worker result
+        # to reconcile in that state.  Pre-integration records also retain the
+        # historical parent-side result shape with no bound review worker; only
+        # an actual current binding is checked here.
+        if review_stage == "preintegration":
+            return None
+        if state.get("phase") in {"failed", "blocked"} and state.get(
+            "last_outcome"
+        ) in {"fix_required", "blocked", "retryable_failure", "contract_gap"}:
+            return None
+        return False
+    review_workers = run.get("review_workers")
+    current_worker = next(
+        (
+            worker
+            for worker in (review_workers if isinstance(review_workers, list) else [])
+            if isinstance(worker, dict)
+            and worker.get("node_id") == node.get("id")
+            and worker.get("worker_id") == worker_id
+            and worker.get("attempt_id") == attempt_id
+        ),
+        None,
+    )
+    if not isinstance(current_worker, dict):
+        return False
+    outcome = current_worker.get("outcome")
+    if outcome != state.get("last_outcome"):
+        return False
+    findings = current_worker.get("findings")
+    if not isinstance(findings, list):
+        return False
+    if outcome == "pass":
+        return not findings
+    if findings:
+        return outcome in {"fix_required", "blocked"}
+    return True
+
+
 def _incoming_route_matched(
     node: dict[str, Any],
     run: dict[str, Any],
@@ -240,9 +312,14 @@ def _incoming_route_matched(
         source = node_states[edge["from"]]
         edge_state = edge_states[edge["id"]]
         bound = edge["max_traversals"]
+        source_node = nodes_by_id.get(edge["from"])
         if (
             source["last_outcome"] in edge["on_outcomes"]
             and source["phase"] in {"succeeded", "failed", "blocked"}
+            and (
+                not isinstance(source_node, dict)
+                or _current_review_result_matches_worker(source_node, run) is not False
+            )
             and (bound is None or edge_state["traversals"] < bound)
         ):
             return True
@@ -297,6 +374,8 @@ def _logical_reasons(
     route_matched = _incoming_route_matched(
         node, run, dependencies, routes, node_states, nodes_by_id
     )
+    if _current_review_result_matches_worker(node, run) is False:
+        reasons.add("review_result_dissent")
     # A post-integration review that returned fix_required parks in `failed`.
     # Once its bounded repair route completes and routes back, the review has to
     # run again on the new head, so it re-arms here the same way a stale
@@ -686,18 +765,23 @@ def _directive(
     return directive
 
 
-def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
-    plan_errors = validate_plan(plan)
-    if plan_errors:
-        raise _validation_error("PLAN", plan_errors)
-    run_errors = validate_run(plan, run)
-    if run_errors:
-        raise _validation_error("RUN", run_errors)
-    schema_pair = (plan.get("schema_version"), run.get("schema_version"))
-    if schema_pair != (5, 10):
-        raise GraphSelectionError(
-            "typed graph selection requires PLAN v5 with RUN v10"
+def select_ready_nodes(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    validation_errors = validate_current_plan_run(plan, run, repo_root=repo_root)
+    if validation_errors:
+        schema_pair = (
+            plan.get("schema_version") if isinstance(plan, dict) else None,
+            run.get("schema_version") if isinstance(run, dict) else None,
         )
+        if schema_pair != (5, 10):
+            raise GraphSelectionError(
+                "typed graph selection requires PLAN v5 with RUN v10"
+            )
+        raise _validation_error("PLAN/RUN", validation_errors)
 
     dependencies, routes = _incoming(plan)
     levels = _node_levels(plan)
@@ -822,11 +906,18 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
             runtime_count += 1
         dispatchable.append(_directive(node, item["binding"], run))
 
+    execution_route = classify_execution_route(
+        managed_artifacts=True,
+        selected_safe_write_missions=sum(
+            1 for directive in dispatchable if directive["kind"] == "mission"
+        ),
+    )
     return {
         "plan_id": plan["plan_id"],
         "plan_revision": plan["revision"],
         "plan_digest_sha256": plan_digest(plan),
         "graph_revision": run["graph_state"]["graph_revision"],
+        "execution_route": execution_route,
         "ready_frontier": [item["node"]["id"] for item in logical_ready],
         "dispatchable_nodes": dispatchable,
         "deferred_nodes": sorted(deferred, key=lambda item: item["node_id"]),
@@ -840,13 +931,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--plan", required=True, type=Path)
     parser.add_argument("--run", required=True, type=Path)
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Optional repository root used to bind PLAN-v5 sources",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = select_ready_nodes(load_plan(args.plan), load_run(args.run))
+        result = select_ready_nodes(
+            load_plan(args.plan), load_run(args.run), repo_root=args.repo_root
+        )
     except (ManifestError, OSError, GraphSelectionError) as exc:
         print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True, indent=2))
         return 2

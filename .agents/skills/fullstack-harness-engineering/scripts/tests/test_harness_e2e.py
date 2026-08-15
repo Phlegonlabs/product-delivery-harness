@@ -56,7 +56,7 @@ class HarnessCliE2ETests(unittest.TestCase):
             "--run",
             str(run_path),
         ]
-        if script == "validate_harness_plan.py":
+        if script in {"validate_harness_plan.py", "select_ready_nodes.py"}:
             command.extend(["--repo-root", str(plan_path.parent)])
         return subprocess.run(
             command,
@@ -68,12 +68,34 @@ class HarnessCliE2ETests(unittest.TestCase):
     def validate_and_select(
         self, plan: dict[str, object], run: dict[str, object]
     ) -> dict[str, object]:
-        plan_text = manifest_markdown(
-            "## Harness Plan Manifest", "harness_plan", plan
-        )
-
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            for source in plan["sources"]:
+                location = source["location"]
+                if "://" in location:
+                    continue
+                contents = f"{source['id']} frozen source\n".encode()
+                source_path = root / location
+                source_path.parent.mkdir(parents=True, exist_ok=True)
+                source_path.write_bytes(contents)
+                source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+            digest = plan_digest(plan)
+            run["plan"]["digest_sha256"] = digest
+
+            def refresh_plan_bindings(value: object) -> None:
+                if isinstance(value, dict):
+                    if "plan_digest_sha256" in value:
+                        value["plan_digest_sha256"] = digest
+                    for child in value.values():
+                        refresh_plan_bindings(child)
+                elif isinstance(value, list):
+                    for child in value:
+                        refresh_plan_bindings(child)
+
+            refresh_plan_bindings(run)
+            plan_text = manifest_markdown(
+                "## Harness Plan Manifest", "harness_plan", plan
+            )
             self.git(root, "init")
             self.git(root, "config", "user.name", "Harness Test")
             self.git(root, "config", "user.email", "harness@example.invalid")
