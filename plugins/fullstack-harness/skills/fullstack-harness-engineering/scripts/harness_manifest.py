@@ -170,7 +170,7 @@ def validate_plan_sources(
         if not isinstance(source, dict):
             continue
         location = source.get("location")
-        if not _nonempty_string(location):
+        if not isinstance(location, str) or not _nonempty_string(location):
             continue
         location = location.strip()
         source_revision = source.get("source_revision")
@@ -223,6 +223,8 @@ def validate_plan_sources(
 
         immutable_descriptor = f"--repo-root {root}"
         if has_revision:
+            if not isinstance(source_revision, str):
+                continue
             revision = source_revision.strip()
             if any(character.isspace() for character in revision):
                 _add(

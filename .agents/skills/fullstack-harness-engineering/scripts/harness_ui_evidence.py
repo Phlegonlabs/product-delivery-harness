@@ -446,7 +446,7 @@ def validate_ui_evidence_files(
         artifact_bytes: bytes | None = None
         if schema_version == 10:
             head_sha = item.get("head_sha")
-            if not is_full_sha(head_sha):
+            if not isinstance(head_sha, str) or not is_full_sha(head_sha):
                 _add(
                     errors,
                     path,
@@ -504,7 +504,7 @@ def validate_integration_head_against_git(
     path = "run.integration.integration_head_sha"
     errors: list[str] = []
     branch = integration.get("branch")
-    if not _nonempty_string(branch):
+    if not isinstance(branch, str) or not _nonempty_string(branch):
         _add(errors, path, "could not be verified against live Git: run.integration.branch is not set")
         return sorted(set(errors))
     try:
