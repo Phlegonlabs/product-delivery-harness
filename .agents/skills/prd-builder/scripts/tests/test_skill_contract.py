@@ -19,7 +19,7 @@ class PrdBuilderSkillContractTests(unittest.TestCase):
         if node is None:
             self.skipTest("Node.js is required for workflow behavior tests")
         workflow_path = SKILL_ROOT / "assets/templates/CLAUDE_PRD_WORKFLOW.template.js"
-        runner = r'''
+        runner = r"""
 const fs = require("fs");
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const source = fs.readFileSync(process.argv[1], "utf8").replace(
@@ -79,7 +79,7 @@ async function agent(_prompt, options) {
     process.stdout.write(JSON.stringify({ ok: false, error: error.message }));
   }
 })();
-'''
+"""
         completed = subprocess.run(
             [node, "-e", runner, str(workflow_path)],
             input=json.dumps(workflow_args),
@@ -126,8 +126,20 @@ async function agent(_prompt, options) {
             "hosted_deployable": False,
             "deployable_surfaces": ["ios-app"],
             "release_targets": [
-                self.release_target("ios-development", "ios-app", "TestFlight", "development", "integration branch head"),
-                self.release_target("ios-production", "ios-app", "App Store", "production", "default branch head"),
+                self.release_target(
+                    "ios-development",
+                    "ios-app",
+                    "TestFlight",
+                    "development",
+                    "integration branch head",
+                ),
+                self.release_target(
+                    "ios-production",
+                    "ios-app",
+                    "App Store",
+                    "production",
+                    "default branch head",
+                ),
             ],
             "has_public_marketing_content": False,
             "include_implementation_plan": False,
@@ -144,16 +156,23 @@ async function agent(_prompt, options) {
 
         self.assertIn("references/frontend-stack-selection.md", skill)
         self.assertIn("recommend one explicit stack", skill)
-        self.assertIn("recommendation is not misrepresented as a fixed requirement", skill)
+        self.assertIn(
+            "recommendation is not misrepresented as a fixed requirement", skill
+        )
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
         self.assertIn("when the product has a browser surface", agent)
 
     def test_completed_prd_offers_opt_in_harness_handoff(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn("ask whether the user wants to run `fullstack-harness-engineering` next", skill)
+        self.assertIn(
+            "ask whether the user wants to run `fullstack-harness-engineering` next",
+            skill,
+        )
         self.assertIn("Do not invoke another skill without an explicit yes", skill)
-        self.assertIn("do not offer the handoff while the PRD workflow is incomplete", skill)
+        self.assertIn(
+            "do not offer the handoff while the PRD workflow is incomplete", skill
+        )
         self.assertIn("record that gap before offering the Harness", skill)
 
     def test_ui_design_is_delegated_to_the_mandatory_paired_skills(self) -> None:
@@ -166,8 +185,13 @@ async function agent(_prompt, options) {
             self.assertIn("frontend-design", content)
         self.assertIn("must load `frontend-design` before any design work", skill)
         self.assertIn("do not author its wireframes or design system here", skill)
-        self.assertIn("Do not create wireframes, visual directions, design tokens, or a design system", agent)
-        self.assertIn("Those contracts belong only to `product-design-builder`", contract)
+        self.assertIn(
+            "Do not create wireframes, visual directions, design tokens, or a design system",
+            agent,
+        )
+        self.assertIn(
+            "Those contracts belong only to `product-design-builder`", contract
+        )
         self.assertNotIn("Visual Direction Gate in `wireframe-guide.md`", contract)
         self.assertNotIn("Optional `frontend-design`", contract)
 
@@ -178,10 +202,21 @@ async function agent(_prompt, options) {
         research = skill.index("13. Run the market-research gap pass")
         design = skill.index("14. For a UI-bearing product")
         self.assertLess(research, design)
-        self.assertIn("`market-research.md` and its `MR-*` evidence when produced", skill)
-        self.assertIn("asks the human owner once for style preferences and visual references", skill)
-        self.assertIn("recommends exactly three product-specific, current-reference-informed directions", skill)
-        self.assertIn("may call a direction market-supported only when valid `MR-*` evidence applies", skill)
+        self.assertIn(
+            "`market-research.md` and its `MR-*` evidence when produced", skill
+        )
+        self.assertIn(
+            "asks the human owner once for style preferences and visual references",
+            skill,
+        )
+        self.assertIn(
+            "recommends exactly three product-specific, current-reference-informed directions",
+            skill,
+        )
+        self.assertIn(
+            "may call a direction market-supported only when valid `MR-*` evidence applies",
+            skill,
+        )
         self.assertIn("a market-research URL is not visual evidence", skill)
         self.assertIn("`design inspiration` or `page-faithful target`", skill)
         self.assertIn("do not infer faithful-copy intent", contract)
@@ -221,7 +256,10 @@ async function agent(_prompt, options) {
 
         self.assertIn("content-led, interaction-led", interview)
         self.assertIn("rendering needs", interview)
-        self.assertIn("For products with a browser frontend, frontend technology layers", architecture)
+        self.assertIn(
+            "For products with a browser frontend, frontend technology layers",
+            architecture,
+        )
         self.assertIn("official-source verification date", architecture)
 
     def test_platform_is_resolved_via_askuserquestion_not_defaulted(self) -> None:
@@ -234,13 +272,18 @@ async function agent(_prompt, options) {
         self.assertNotIn("default the deployment platform to Cloudflare", skill)
         self.assertNotIn("## Default Cloudflare Release Pattern", architecture)
         self.assertNotIn("organization default", agent)
-        self.assertIn("resolve the deployment platform explicitly via the interview's platform `AskUserQuestion` step", skill)
+        self.assertIn(
+            "resolve the deployment platform explicitly via the interview's platform `AskUserQuestion` step",
+            skill,
+        )
         self.assertIn("## Development-to-Production Release Pattern", architecture)
         self.assertIn("never default to one silently", architecture)
         self.assertIn("AskUserQuestion", agent)
         self.assertIn("one repository and one codebase", architecture)
         self.assertIn("separately named development and production Workers", frontend)
-        self.assertIn("The pushed integration-branch head after current-head CI", contract)
+        self.assertIn(
+            "The pushed integration-branch head after current-head CI", contract
+        )
         self.assertIn("The default-branch head after development PASS", contract)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
@@ -251,7 +294,9 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
 
-        self.assertIn("Bullets marked `(AskUserQuestion)` are a closed, enumerable set", interview)
+        self.assertIn(
+            "Bullets marked `(AskUserQuestion)` are a closed, enumerable set", interview
+        )
         for marked_bullet in (
             "or a hybrid? (AskUserQuestion)",
             "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion",
@@ -267,7 +312,9 @@ async function agent(_prompt, options) {
             "start the closed questions only after every applicable segment has a reply",
             interview,
         )
-        self.assertNotIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
+        self.assertNotIn(
+            "Immediately follow it with the `AskUserQuestion` batch(es)", skill
+        )
         self.assertNotIn("immediately after the free-text interview message", interview)
 
     def test_open_ended_interview_has_three_adaptive_segments(self) -> None:
@@ -319,14 +366,22 @@ async function agent(_prompt, options) {
         self.assertIn("references/backend-stack-selection.md", architecture)
         for content in (skill, architecture, contract):
             self.assertIn("backend, persistent data, or auth requirement", content)
-        self.assertIn("database category (Relational, Document, Key-value or cache only, or None)", agent)
+        self.assertIn(
+            "database category (Relational, Document, Key-value or cache only, or None)",
+            agent,
+        )
         self.assertIn(
             "auth strategy (Build custom, Managed third-party provider, Platform-native, or No auth needed)",
             agent,
         )
-        self.assertIn("via AskUserQuestion unless the user or repository already names them", agent)
+        self.assertIn(
+            "via AskUserQuestion unless the user or repository already names them",
+            agent,
+        )
 
-    def test_backend_selection_guide_separates_layers_and_product_patterns(self) -> None:
+    def test_backend_selection_guide_separates_layers_and_product_patterns(
+        self,
+    ) -> None:
         guide = self.read("references/backend-stack-selection.md")
 
         for heading in (
@@ -342,7 +397,13 @@ async function agent(_prompt, options) {
             self.assertIn(heading, guide)
         self.assertIn("Database category", guide)
         self.assertIn("Auth strategy", guide)
-        for option in ("Relational", "Document", "key-value or cache only", "Build custom", "managed third-party"):
+        for option in (
+            "Relational",
+            "Document",
+            "key-value or cache only",
+            "Build custom",
+            "managed third-party",
+        ):
             self.assertIn(option, guide)
 
     def test_isolated_development_is_seeded_with_mock_content_data(self) -> None:
@@ -352,10 +413,19 @@ async function agent(_prompt, options) {
         for content in (architecture, backend):
             self.assertIn("Isolation does not mean development stays empty", content)
             self.assertIn("explicitly authorizes and scopes", content)
-        self.assertIn("seed the development environment with representative mock/sample data", architecture)
+        self.assertIn(
+            "seed the development environment with representative mock/sample data",
+            architecture,
+        )
         self.assertIn("seed development with representative mock/sample data", backend)
-        self.assertIn("Do not let a development environment access production customer data", architecture)
-        self.assertIn("Never let development access production customer data or live sessions.", backend)
+        self.assertIn(
+            "Do not let a development environment access production customer data",
+            architecture,
+        )
+        self.assertIn(
+            "Never let development access production customer data or live sessions.",
+            backend,
+        )
 
     def test_output_contract_adds_backend_and_data_technology_decision(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -363,9 +433,14 @@ async function agent(_prompt, options) {
         self.assertIn("## Backend and Data Technology Decision", contract)
         self.assertIn("### Data Entity to Store Mapping", contract)
         self.assertIn("### Platform and Vendor Compatibility Verification", contract)
-        self.assertIn("database category and auth strategy trace back to the interview's", contract)
+        self.assertIn(
+            "database category and auth strategy trace back to the interview's",
+            contract,
+        )
 
-    def test_interview_marks_backend_and_auth_questions_for_askuserquestion(self) -> None:
+    def test_interview_marks_backend_and_auth_questions_for_askuserquestion(
+        self,
+    ) -> None:
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
 
@@ -380,18 +455,29 @@ async function agent(_prompt, options) {
     def test_skill_gates_the_backend_askuserquestion_call(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn("auth-strategy pair only when the product provably has no backend", skill)
-        self.assertIn("Skip the whole call only when none of its questions apply.", skill)
-        self.assertIn("Do not silently pick a database category or auth strategy on the user's behalf.", skill)
+        self.assertIn(
+            "auth-strategy pair only when the product provably has no backend", skill
+        )
+        self.assertIn(
+            "Skip the whole call only when none of its questions apply.", skill
+        )
+        self.assertIn(
+            "Do not silently pick a database category or auth strategy on the user's behalf.",
+            skill,
+        )
 
-    def test_archetype_dependent_questions_come_after_the_archetype_answer(self) -> None:
+    def test_archetype_dependent_questions_come_after_the_archetype_answer(
+        self,
+    ) -> None:
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
 
         self.assertIn("Keep the deployment platform out of this call", skill)
         self.assertIn("depend on step 4's archetype answer", skill)
         self.assertIn("see Workflow step 6, after the archetype is known", skill)
-        self.assertIn("The closed-set questions fit three `AskUserQuestion` calls", interview)
+        self.assertIn(
+            "The closed-set questions fit three `AskUserQuestion` calls", interview
+        )
         self.assertIn("Never ask a call-3 question in call 1", interview)
         for slotted_bullet in (
             "React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, in call 3",
@@ -400,7 +486,10 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(slotted_bullet, interview)
         self.assertIn("first to drop when the closed-set budget is full", interview)
-        self.assertIn("Deployment platform, database category, and auth strategy never drop", interview)
+        self.assertIn(
+            "Deployment platform, database category, and auth strategy never drop",
+            interview,
+        )
 
     def test_trace_ids_and_publish_approval_are_explicit(self) -> None:
         skill = self.read("SKILL.md")
@@ -413,10 +502,15 @@ async function agent(_prompt, options) {
         self.assertIn("`product-design-builder`", contract)
         self.assertIn("`UI-*`", contract)
         self.assertIn("| TEST ID | Test Type", contract)
-        self.assertIn("Passing validation does not authorize an overwrite, move, or archive", lifecycle)
+        self.assertIn(
+            "Passing validation does not authorize an overwrite, move, or archive",
+            lifecycle,
+        )
         self.assertIn("keep the staged package", lifecycle)
         self.assertIn("ask one explicit yes/no publication question", skill)
-        self.assertIn("execute the approved publish and archive moves in the same run", skill)
+        self.assertIn(
+            "execute the approved publish and archive moves in the same run", skill
+        )
 
     def test_prd_contract_requires_measurable_nfrs_and_test_obligations(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -448,9 +542,17 @@ async function agent(_prompt, options) {
             "| TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |",
             contract,
         )
-        self.assertIn("units, tested population or traffic shape, measurement window, and percentile", contract)
-        self.assertIn("non-applicable categories are explicitly `N/A` with a reason", contract)
-        self.assertIn("Every `Must` functional requirement and every applicable non-functional requirement", contract)
+        self.assertIn(
+            "units, tested population or traffic shape, measurement window, and percentile",
+            contract,
+        )
+        self.assertIn(
+            "non-applicable categories are explicitly `N/A` with a reason", contract
+        )
+        self.assertIn(
+            "Every `Must` functional requirement and every applicable non-functional requirement",
+            contract,
+        )
         self.assertIn("at least one `TEST-*` row marked `Required: Yes`", contract)
         self.assertIn("Keep `## Non-Functional Requirements` in every `PRD.md`", skill)
         self.assertIn("Keep `## Test Obligations` in every `PRD.md`", skill)
@@ -464,12 +566,23 @@ async function agent(_prompt, options) {
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         self.assertIn("Reuse the canonical `TEST-*` IDs from `PRD.md`", contract)
-        self.assertIn("must not create anonymous replacements or duplicate TEST identities", skill)
-        self.assertIn("Preserve existing `TEST-*` IDs for unchanged obligations", interview)
+        self.assertIn(
+            "must not create anonymous replacements or duplicate TEST identities", skill
+        )
+        self.assertIn(
+            "Preserve existing `TEST-*` IDs for unchanged obligations", interview
+        )
         self.assertIn("mint new TEST IDs only for newly uncovered obligations", skill)
-        self.assertIn("new TEST IDs cover only obligations that were previously uncovered", contract)
-        self.assertIn("reuse those TEST IDs rather than creating anonymous replacements", workflow)
-        self.assertIn("every Must functional requirement and every applicable NFR", workflow)
+        self.assertIn(
+            "new TEST IDs cover only obligations that were previously uncovered",
+            contract,
+        )
+        self.assertIn(
+            "reuse those TEST IDs rather than creating anonymous replacements", workflow
+        )
+        self.assertIn(
+            "every Must functional requirement and every applicable NFR", workflow
+        )
 
     def test_stack_rows_record_per_layer_status_and_cited_authority(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -489,7 +602,9 @@ async function agent(_prompt, options) {
         self.assertIn("A section may mix statuses", contract)
         self.assertIn("Authority is not another status label", contract)
         for guide in (frontend, backend, mobile):
-            self.assertIn("Assign status per layer; one section may mix statuses", guide)
+            self.assertIn(
+                "Assign status per layer; one section may mix statuses", guide
+            )
             self.assertIn("Authority is the cited source, not a status label", guide)
             self.assertIn("Selection, status, cited authority/evidence", guide)
 
@@ -501,14 +616,25 @@ async function agent(_prompt, options) {
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
         agent = self.read_agent_prompt()
 
-        backend_section = contract[contract.index("## Backend and Data Technology Decision") :]
+        backend_section = contract[
+            contract.index("## Backend and Data Technology Decision") :
+        ]
         self.assertLess(
             backend_section.index("| Service topology |"),
             backend_section.index("| Backend runtime / framework |"),
         )
-        layers = backend[backend.index("## First Separate the Layers") : backend.index("## Service Topology Decision")]
-        self.assertLess(layers.index("| Service topology |"), layers.index("| Backend runtime / framework |"))
-        self.assertIn("backend technology layers in this order: service topology", architecture)
+        layers = backend[
+            backend.index("## First Separate the Layers") : backend.index(
+                "## Service Topology Decision"
+            )
+        ]
+        self.assertLess(
+            layers.index("| Service topology |"),
+            layers.index("| Backend runtime / framework |"),
+        )
+        self.assertIn(
+            "backend technology layers in this order: service topology", architecture
+        )
         self.assertIn("Record service topology first", skill)
         self.assertIn("Decide service topology first", workflow)
         self.assertIn("record service topology first", agent)
@@ -540,15 +666,31 @@ async function agent(_prompt, options) {
             "Rollback / forward-fix",
         ):
             self.assertIn(field, contract)
-        self.assertIn("complete inventory of expected deployable web, API, mobile, or desktop surfaces", interview)
-        self.assertIn("For every deployable web, API, mobile, or desktop surface", skill)
-        self.assertIn("For every deployable web, API, mobile, or desktop surface", agent)
-        self.assertIn("at least one `development` target and one `production` target", contract)
+        self.assertIn(
+            "complete inventory of expected deployable web, API, mobile, or desktop surfaces",
+            interview,
+        )
+        self.assertIn(
+            "For every deployable web, API, mobile, or desktop surface", skill
+        )
+        self.assertIn(
+            "For every deployable web, API, mobile, or desktop surface", agent
+        )
+        self.assertIn(
+            "at least one `development` target and one `production` target", contract
+        )
         self.assertIn("Expected deployable surfaces:", contract)
         self.assertIn("- Surface: [Stable expected surface ID]", contract)
-        self.assertIn("- Provider: [Stage-specific hosting, store, or distribution provider]", contract)
-        self.assertIn("Different providers by stage are valid for the same surface", contract)
-        self.assertIn("Preserve stable release target IDs for unchanged targets", interview)
+        self.assertIn(
+            "- Provider: [Stage-specific hosting, store, or distribution provider]",
+            contract,
+        )
+        self.assertIn(
+            "Different providers by stage are valid for the same surface", contract
+        )
+        self.assertIn(
+            "Preserve stable release target IDs for unchanged targets", interview
+        )
         self.assertIn("stable release target IDs from the prior package", contract)
 
     def test_release_availability_and_native_recovery_are_explicit(self) -> None:
@@ -562,17 +704,28 @@ async function agent(_prompt, options) {
         for content in (skill, interview, architecture, contract, workflow, agent):
             self.assertIn("not availability", content.lower())
             self.assertIn("forward-fix", content.lower())
-        self.assertIn("Do not use this two-row hosted-environment table for native", contract)
+        self.assertIn(
+            "Do not use this two-row hosted-environment table for native", contract
+        )
         self.assertIn("Do not force TestFlight, Play tracks", architecture)
-        self.assertIn("never force native targets into the hosted two-row environment table", workflow)
+        self.assertIn(
+            "never force native targets into the hosted two-row environment table",
+            workflow,
+        )
         self.assertIn("actually installable or downloadable", contract)
         self.assertIn("halting a phased or staged rollout", contract)
 
     def test_workflow_requires_stable_release_targets_for_each_stage(self) -> None:
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
-        self.assertIn('throw new Error("prd-builder-graph requires boolean args.deployable");', workflow)
-        self.assertIn('throw new Error("prd-builder-graph requires args.release_targets as an array");', workflow)
+        self.assertIn(
+            'throw new Error("prd-builder-graph requires boolean args.deployable");',
+            workflow,
+        )
+        self.assertIn(
+            'throw new Error("prd-builder-graph requires args.release_targets as an array");',
+            workflow,
+        )
         for field in (
             '"id"',
             '"surface"',
@@ -590,9 +743,14 @@ async function agent(_prompt, options) {
             self.assertIn(field, workflow)
         self.assertIn("requires unique release target ID", workflow)
         self.assertIn("requires unique deployable surface", workflow)
-        self.assertIn("requires development and production release targets for expected surface", workflow)
+        self.assertIn(
+            "requires development and production release targets for expected surface",
+            workflow,
+        )
         self.assertIn("uses unexpected surface", workflow)
-        self.assertIn("deployable_surfaces: workflowArgs.deployable_surfaces,", workflow)
+        self.assertIn(
+            "deployable_surfaces: workflowArgs.deployable_surfaces,", workflow
+        )
         self.assertIn("release_targets: workflowArgs.release_targets,", workflow)
         self.assertIn("preserve the supplied stable release target IDs", workflow)
         self.assertIn("Upload or submission is not availability", workflow)
@@ -605,7 +763,13 @@ async function agent(_prompt, options) {
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
         for content in (interview, architecture, contract, frontend, workflow):
-            for retired in ("PLAN-v5", "pr_head", "integration_head`", "production_head", "merged_main"):
+            for retired in (
+                "PLAN-v5",
+                "pr_head",
+                "integration_head`",
+                "production_head",
+                "merged_main",
+            ):
                 self.assertNotIn(retired, content)
         for content in (interview, architecture, contract, workflow):
             self.assertIn("branch or ref", content)
@@ -662,8 +826,20 @@ async function agent(_prompt, options) {
                 "deployment_platform": "development=Cloudflare; production=AWS",
                 "deployable_surfaces": ["web-app"],
                 "release_targets": [
-                    self.release_target("web-development", "web-app", "Cloudflare", "development", "integration branch head"),
-                    self.release_target("web-production", "web-app", "AWS", "production", "default branch head"),
+                    self.release_target(
+                        "web-development",
+                        "web-app",
+                        "Cloudflare",
+                        "development",
+                        "integration branch head",
+                    ),
+                    self.release_target(
+                        "web-production",
+                        "web-app",
+                        "AWS",
+                        "production",
+                        "default branch head",
+                    ),
                 ],
             }
         )
@@ -703,26 +879,42 @@ async function agent(_prompt, options) {
         dynamic = self.read("references/dynamic-workflow.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
-        self.assertIn("a single read-only subagent only when the parent has a separate explicit subagent/delegation authorization", skill)
+        self.assertIn(
+            "a single read-only subagent only when the parent has a separate explicit subagent/delegation authorization",
+            skill,
+        )
         self.assertIn("no delegation authorization is present", skill)
         self.assertIn("args.multi_agent_authorized: true", dynamic)
-        self.assertIn("single read-only subagent only when the parent has a separate explicit delegation authorization", dynamic)
-        self.assertIn('requires explicit args.multi_agent_authorized=true', workflow)
-        self.assertIn('workflowArgs.single_agent_only === true || workflowArgs.sequential_only === true', workflow)
+        self.assertIn(
+            "single read-only subagent only when the parent has a separate explicit delegation authorization",
+            dynamic,
+        )
+        self.assertIn("requires explicit args.multi_agent_authorized=true", workflow)
+        self.assertIn(
+            "workflowArgs.single_agent_only === true || workflowArgs.sequential_only === true",
+            workflow,
+        )
 
         unauthorized = self.base_workflow_args()
         unauthorized["multi_agent_authorized"] = False
         result = self.run_workflow(unauthorized)
         self.assertFalse(result["ok"])
-        self.assertIn("requires explicit args.multi_agent_authorized=true", result["error"])
+        self.assertIn(
+            "requires explicit args.multi_agent_authorized=true", result["error"]
+        )
 
-    def test_dynamic_workflow_rejects_single_agent_or_sequential_only_constraints(self) -> None:
+    def test_dynamic_workflow_rejects_single_agent_or_sequential_only_constraints(
+        self,
+    ) -> None:
         for constraint in ("single_agent_only", "sequential_only"):
             workflow_args = self.base_workflow_args()
             workflow_args[constraint] = True
             result = self.run_workflow(workflow_args)
             self.assertFalse(result["ok"])
-            self.assertIn("cannot run when single-agent or sequential-only execution is required", result["error"])
+            self.assertIn(
+                "cannot run when single-agent or sequential-only execution is required",
+                result["error"],
+            )
 
     def test_dynamic_workflow_rejects_non_boolean_execution_constraints(self) -> None:
         for constraint in ("single_agent_only", "sequential_only"):
@@ -730,15 +922,25 @@ async function agent(_prompt, options) {
             workflow_args[constraint] = "false"
             result = self.run_workflow(workflow_args)
             self.assertFalse(result["ok"])
-            self.assertIn(f"requires boolean args.{constraint} when provided", result["error"])
+            self.assertIn(
+                f"requires boolean args.{constraint} when provided", result["error"]
+            )
 
     def test_market_research_never_blocks_the_package(self) -> None:
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
-        status_expression = workflow[workflow.index("status: lanes.some") : workflow.index("lanes,\n  draft,")]
+        status_expression = workflow[
+            workflow.index("status: lanes.some") : workflow.index("lanes,\n  draft,")
+        ]
         self.assertNotIn("research", status_expression)
-        self.assertIn('unresolved: ["The market-research workflow agent returned no result', workflow)
-        self.assertIn('evidence: [rawResearch ? "workflow-role-mismatch" : "workflow-agent-null"]', workflow)
+        self.assertIn(
+            'unresolved: ["The market-research workflow agent returned no result',
+            workflow,
+        )
+        self.assertIn(
+            'evidence: [rawResearch ? "workflow-role-mismatch" : "workflow-agent-null"]',
+            workflow,
+        )
 
     def test_market_research_role_forbids_fabricated_evidence(self) -> None:
         skill = self.read("SKILL.md")
@@ -751,12 +953,16 @@ async function agent(_prompt, options) {
             self.assertIn("UNVALIDATED", content)
         self.assertIn("## Source Rules", guide)
         self.assertIn("Never state an unsourced claim as fact", guide)
-        self.assertIn("Do not invent competitor names, pricing, funding, user counts", guide)
+        self.assertIn(
+            "Do not invent competitor names, pricing, funding, user counts", guide
+        )
         self.assertIn("| `sourced` |", guide)
         self.assertIn("| `reported` |", guide)
         self.assertIn("## Blocked Path", guide)
         self.assertIn("publisher, URL, and retrieval date", workflow)
-        self.assertIn("Do not present vendor marketing copy as verified capability", workflow)
+        self.assertIn(
+            "Do not present vendor marketing copy as verified capability", workflow
+        )
         self.assertIn("never invent a competitor, price, or market figure", skill)
         self.assertIn("| market-research |", dynamic)
         self.assertIn("it never blocks the package on its own", dynamic)
@@ -769,10 +975,21 @@ async function agent(_prompt, options) {
         self.assertIn("references/market-research-guide.md", skill)
         self.assertIn("`MR-*` for market-research findings", skill)
         self.assertIn("## `market-research.md`", contract)
-        self.assertIn("| MR ID | Finding | Lands in | Recommended change | Confidence | Sources |", contract)
-        self.assertIn("| Source ID | Publisher | Title | URL | Retrieved | Type |", contract)
-        self.assertIn("`docs/product/market-research.md` when the market-research gap pass produced it", lifecycle)
-        self.assertIn("is also this package's own artifact, not the general \"research\"", lifecycle)
+        self.assertIn(
+            "| MR ID | Finding | Lands in | Recommended change | Confidence | Sources |",
+            contract,
+        )
+        self.assertIn(
+            "| Source ID | Publisher | Title | URL | Retrieved | Type |", contract
+        )
+        self.assertIn(
+            "`docs/product/market-research.md` when the market-research gap pass produced it",
+            lifecycle,
+        )
+        self.assertIn(
+            'is also this package\'s own artifact, not the general "research"',
+            lifecycle,
+        )
         self.assertIn("do not archive a prior `market-research.md` at all", lifecycle)
         self.assertIn("the market context is unvalidated", contract)
 
@@ -793,23 +1010,40 @@ async function agent(_prompt, options) {
         self.assertIn("workflow-agent-null", workflow)
         self.assertIn("workflow-role-mismatch", workflow)
         self.assertIn("builder_readonly", workflow)
-        self.assertIn("`builder_readonly` launch profile, asserted via `args.tool_profile`", guide)
-        self.assertIn("Read only. Do not edit, create, move, or publish files", workflow)
+        self.assertIn(
+            "`builder_readonly` launch profile, asserted via `args.tool_profile`", guide
+        )
+        self.assertIn(
+            "Read only. Do not edit, create, move, or publish files", workflow
+        )
         self.assertIn("## Harness Handoff Signals", contract)
         self.assertIn("not a canonical Harness PLAN or RUN graph", contract)
 
     def test_workflow_lanes_receive_resolved_platform_and_ux_direction(self) -> None:
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
 
-        self.assertIn('throw new Error("prd-builder-graph requires boolean args.ui_bearing");', workflow)
-        self.assertIn("requires non-empty args.builder_ux_direction for a ui_bearing product", workflow)
-        self.assertIn('throw new Error("prd-builder-graph requires boolean args.hosted_deployable");', workflow)
+        self.assertIn(
+            'throw new Error("prd-builder-graph requires boolean args.ui_bearing");',
+            workflow,
+        )
+        self.assertIn(
+            "requires non-empty args.builder_ux_direction for a ui_bearing product",
+            workflow,
+        )
+        self.assertIn(
+            'throw new Error("prd-builder-graph requires boolean args.hosted_deployable");',
+            workflow,
+        )
         self.assertIn(
             "requires non-empty args.deployment_platform for a hosted deployable web, API, or backend surface",
             workflow,
         )
-        self.assertNotIn("workflowArgs.browser_frontend || workflowArgs.has_backend", workflow)
-        self.assertIn("deployment_platform: workflowArgs.deployment_platform || null,", workflow)
+        self.assertNotIn(
+            "workflowArgs.browser_frontend || workflowArgs.has_backend", workflow
+        )
+        self.assertIn(
+            "deployment_platform: workflowArgs.deployment_platform || null,", workflow
+        )
         self.assertIn("hosted_deployable: workflowArgs.hosted_deployable,", workflow)
         self.assertIn("ui_bearing: workflowArgs.ui_bearing,", workflow)
         self.assertIn("never substitute or invent a platform or provider", workflow)
@@ -817,9 +1051,15 @@ async function agent(_prompt, options) {
     def test_lifecycle_keeps_the_package_in_docs_product_not_flat_docs(self) -> None:
         lifecycle = self.read("references/artifact-lifecycle.md")
 
-        self.assertIn("Never publish PRD artifacts at the repository root or flat in `docs/` by default.", lifecycle)
+        self.assertIn(
+            "Never publish PRD artifacts at the repository root or flat in `docs/` by default.",
+            lifecycle,
+        )
         self.assertIn("They belong in `docs/product/`.", lifecycle)
-        self.assertIn("in `docs/product/`, the repository root, or a legacy flat `docs/` directory", lifecycle)
+        self.assertIn(
+            "in `docs/product/`, the repository root, or a legacy flat `docs/` directory",
+            lifecycle,
+        )
         self.assertNotIn("or under `docs/product/` by default", lifecycle)
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
@@ -827,15 +1067,22 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
-        self.assertIn("A UI-bearing product skips the design handoff only when the user explicitly overrides it", skill)
-        self.assertIn("may skip the handoff only under an explicit user override", contract)
+        self.assertIn(
+            "A UI-bearing product skips the design handoff only when the user explicitly overrides it",
+            skill,
+        )
+        self.assertIn(
+            "may skip the handoff only under an explicit user override", contract
+        )
 
     def test_call_three_drop_order_drops_exactly_one_question(self) -> None:
         interview = self.read("references/interview-guide.md")
         skill = self.read("SKILL.md")
 
         self.assertIn("four-question cap means exactly one question drops", interview)
-        self.assertIn("No archetype combination produces a sixth call-3 question", interview)
+        self.assertIn(
+            "No archetype combination produces a sixth call-3 question", interview
+        )
         self.assertIn("five against a four-question cap drops exactly one", skill)
 
 
