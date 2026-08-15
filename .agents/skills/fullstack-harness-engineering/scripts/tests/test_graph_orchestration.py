@@ -1834,9 +1834,8 @@ class GraphManifestTests(unittest.TestCase):
         }
         run["review_workers"] = [passing_reviewer, dissenting_reviewer]
 
-        # Majority-pass reconciliation lets the parent record an overall
-        # "pass" even though one reviewer independently found fix_required;
-        # both reviewers' own verdicts remain on the record unmodified.
+        # A superseded dissent remains historical evidence and does not block
+        # the current passing attempt.
         self.assertEqual([], validate_run(plan, run))
         self.assertEqual(
             "pass", run["graph_state"]["node_states"][review["id"]]["last_outcome"]

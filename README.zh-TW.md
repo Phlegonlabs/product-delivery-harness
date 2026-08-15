@@ -40,7 +40,7 @@
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
-- **跑到推送為止。** Harness 負責 commit 並推送這次執行自己的分支。把它合進預設分支是你自己的步驟。
+- **預設只在本機完成。** Harness 負責 commit 並驗證本機結果；只有明確的遠端意圖才會授權推送這次執行自己的分支。把它合進預設分支是你自己的步驟。
 
 ## 包含的內容
 
@@ -59,7 +59,7 @@
 - 小型工作維持直接動手，預設不啟用 planner、scheduler、PLAN/RUN、subagent，也不做外部執行環境的預檢。
 - 大型工作進入受管規劃。它可以用 `RUN.md` 走循序交付，或用 `PLAN.md` 加 `RUN.md` 處理多任務與可持久的交棒。
 - 只有在大型計畫至少有兩個彼此獨立、已就緒的任務時，scheduler 才會開始扇出。核心接著只載入一個 host 轉接器；只有在選定路線需要時，才對外部執行環境做預檢。
-- 工作不需要等待遠端 CI。當驗證過的整合 head 推送到這次執行自己的分支時，這次執行就結束了。
+- 工作不需要等待遠端 CI。執行通常以驗證過的本機佐證結束；只有明確的遠端結果才會把驗證過的整合 head 推送到這次執行自己的分支。
 
 規模指的是協調範圍與影響半徑，而不是原始的檔案或行數。如果小型工作長大了，Harness 會保留已完成的部分，只針對剩下的部分重新規劃。
 
@@ -86,9 +86,9 @@ Harness 是圍繞明確的邊界所打造的：
 3. 當任務大到需要時，先規劃相依關係，再開始實作。
 4. 只有在工作彼此獨立、隔離且經過明確授權時，才使用平行 worker。
 5. 驗證任務結果、整合、相關的 UI 流程，以及最終的 diff。
-6. 除非有人要求遠端結果，否則帶著驗證過的本機佐證停下；要遠端時，在精確的推送授權下，把這次執行自己的分支推送上去。開 PR、合併與部署都是你在 Harness 之外自己做的步驟。
+6. 預設帶著驗證過的本機佐證停下。若明確要求遠端結果，只有在明確遠端意圖以及精確的分支/head 推送授權下，才推送這次執行自己的分支。開 PR、合併與部署都是你在 Harness 之外自己做的步驟。
 
-對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。
+對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。RUN-v10 的推送還需要明確的遠端意圖、唯一的整合分支目標與目前 head 授權；若預設分支身分未知，推送會安全失敗，但不會阻止無關的本機執行。
 
 ```mermaid
 flowchart TB
@@ -108,7 +108,7 @@ flowchart TB
   Rereview --> Gates
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"push requested and authorized?"}
+  Local --> Remote{"explicit remote outcome and exact push grant?"
   Remote -->|no| Done["Stop with verified local evidence"]
   Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
   Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
@@ -286,7 +286,7 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 
 在 Codex 中，每個選中的 mission 都會在左側欄開一個獨立的 top-level conversation，並綁定自己的 app-managed worktree。任何唯讀 explorer 或 reviewer 都由 Harness parent 另行作為同層節點派發；mission 任務不能建立子代理。Coordinator 直接建立的 subagent 不能取代這些 top-level 任務。若 project/thread 工具一開始尚未載入，轉接器會先從目前的 Codex 工具介面找出它們，再考慮退回方案。當使用者明確要求這個結構時，缺少 thread 能力是 blocker，不能把工作縮回同一個 conversation。
 
-目標 repo 自己的 branch 規則優先。當 repo 未定義其他流程時，mission worktree 從目前預設分支的 SHA 開始，在綁定當前 head 的唯讀 review 通過後整合進這次執行自己的分支；當驗證過的分支推送完成，這次執行就結束了。把它合進預設分支是你自己的步驟。若有修正，必須對新 head 重新 review。
+目標 repo 自己的 branch 規則優先。當 repo 未定義其他流程時，mission worktree 從目前預設分支的 SHA 開始，在綁定當前 head 的唯讀 review 通過後整合進這次執行自己的分支。執行預設以驗證過的本機結果完成；只有明確遠端結果並取得精確 branch/head 授權後才推送該分支。把它合進預設分支是你自己的步驟。若有修正，必須對新 head 重新 review。
 
 每個轉接器只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要其他 host 的 provider，會被 deferred with `runtime_unavailable`，而不會在這裡執行。
 

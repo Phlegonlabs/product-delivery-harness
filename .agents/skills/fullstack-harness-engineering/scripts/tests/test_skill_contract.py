@@ -172,10 +172,12 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn("covers only the subset that the selected route actually uses", state)
+        self.assertIn("only the applicable local entries", state)
         self.assertIn("outer v10 `app_threads` app-task route excludes `spawn_subagents`", state)
         self.assertIn("app-task workers never delegate", state)
         self.assertIn("Parent-dispatched direct sibling workers and reviewers", state)
+        self.assertIn("does not authorize `push`", skill)
+        self.assertIn("separate explicit remote instruction", runbook)
         for content in (skill, state, runbook):
             self.assertNotIn("covers all nine together", content)
             self.assertNotIn("one execution-intent instruction covers all nine", content)
@@ -329,21 +331,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("one top-level left-sidebar task with its own clean exact-base app-managed worktree", goal)
 
-    def test_run_template_matches_the_integration_push_default(self) -> None:
-        """The template has to describe the landing model SKILL.md now defaults to.
-
-        A RUN authored from a template that still says ordinary work stays
-        local_only would silently follow the old flow and never record the
-        development push.
-        """
+    def test_run_template_matches_the_local_only_default(self) -> None:
+        """The template must keep remote publication behind explicit intent."""
         skill = self.read("SKILL.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn("uses `integration_push`", skill)
+        self.assertIn("default to `local_only`", skill)
         self.assertIn("integration_push", runbook)
         self.assertIn("landing.pushed_head_sha", runbook)
-        self.assertNotIn("Ordinary PRD, UI, and feature work stays `local_only`", runbook)
-        self.assertNotIn('New RUN files default to `mode: "local_only"`.', runbook)
+        self.assertIn("separate remote intent", runbook)
+        self.assertIn('New RUN files start at `mode: "local_only"`', runbook)
 
 
 

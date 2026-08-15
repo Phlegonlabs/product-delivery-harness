@@ -726,7 +726,14 @@ def validate_worker_result_data(
             "harness_run.workers.nested_subagent_policy.enabled",
             "RUN-v10 workers cannot delegate to child agents",
         )
-    if isinstance(nested_policy, dict) and "subagent_activity" not in result:
+    if run.get("schema_version") == 10 and "subagent_activity" not in result:
+        _issue(
+            errors,
+            "missing_field",
+            "worker_result.subagent_activity",
+            "RUN-v10 worker results must report flat not_applicable activity",
+        )
+    elif isinstance(nested_policy, dict) and "subagent_activity" not in result:
         _issue(
             errors,
             "missing_field",
@@ -749,7 +756,7 @@ def validate_worker_result_data(
             result.get("subagent_activity"),
             policy=nested_policy if isinstance(nested_policy, dict) else None,
             expected_head_sha=head_sha,
-            require_reviewer=run.get("schema_version") == 10,
+            require_reviewer=False,
             errors=errors,
         )
     worker_id = mission_state.get("worker_id")

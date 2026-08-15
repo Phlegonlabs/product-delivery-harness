@@ -40,7 +40,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
 - **Capability is not permission.** A runtime may be able to push or clean up, but each action still needs exact authorization.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
-- **The run ends at the push.** The harness commits and pushes the run's own branch. Landing it on the default branch is yours to do.
+- **Local-only is the default.** The harness commits and verifies locally; only an explicit remote outcome authorizes pushing the run's own branch. Landing it on the default branch is yours to do.
 
 ## What is included
 
@@ -59,7 +59,7 @@ The delivery core makes one size decision before it invokes managed orchestratio
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
 - Large work enters managed planning. It may use `RUN.md` for a sequential delivery or `PLAN.md` and `RUN.md` for multiple missions and durable handoff.
 - Scheduler fan-out starts only when a large plan has at least two independent ready missions. The core then loads exactly one host adapter; external runtimes are preflighted only when a selected route needs them.
-- Work never waits for remote CI. A run finishes when its verified integration head is pushed to the run's own branch.
+- Work never waits for remote CI. A run normally finishes with verified local evidence; only an explicit remote outcome moves it to pushing the verified integration head to the run's own branch.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
@@ -86,9 +86,9 @@ The Harness is built around explicit boundaries:
 3. Plan dependencies before starting implementation when the task is large enough to need it.
 4. Use parallel workers only when the work is independent, isolated, and explicitly authorized.
 5. Verify task results, integrations, UI journeys where relevant, and the final diff.
-6. Stop with verified local evidence unless a remote outcome is requested; then push the run's own branch with exact push authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
+6. Stop with verified local evidence by default. If a remote outcome is explicitly requested, push the run's own branch only with exact remote intent plus branch/head authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
 
-For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion.
+For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v10 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
 
 ```mermaid
 flowchart TB
@@ -108,7 +108,7 @@ flowchart TB
   Rereview --> Gates
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
-  Local --> Remote{"push requested and authorized?"}
+  Local --> Remote{"explicit remote outcome and exact push grant?"}
   Remote -->|no| Done["Stop with verified local evidence"]
   Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
   Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
@@ -286,7 +286,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 On Codex, each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree. The Harness parent separately dispatches any read-only explorer or reviewer as a sibling; a mission task never creates child agents. Coordinator-owned direct subagents do not replace requested top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
-Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA, pass an exact-head read-only review before integration into the run's own branch, and the run ends when that verified branch is pushed. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
+Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA and pass an exact-head read-only review before local integration into the run's own branch. The run defaults to verified local completion; an explicit remote outcome with an exact branch/head grant may push that branch. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
 
 Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
 

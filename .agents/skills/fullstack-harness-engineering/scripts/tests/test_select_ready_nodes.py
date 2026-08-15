@@ -953,7 +953,7 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         errors = validate_run(plan, run)
         self.assertTrue(
-            any("strict majority" in error for error in errors),
+            any("every planned pre-integration review node" in error for error in errors),
             errors,
         )
 
@@ -1076,7 +1076,14 @@ class SelectReadyNodesTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
 
     def test_repaired_head_rearms_every_stale_preintegration_review(
         self,
@@ -1820,7 +1827,14 @@ class SelectReadyNodesTests(unittest.TestCase):
 
         run["review_workers"][0]["outcome"] = "fix_required"
         run["review_workers"][0]["findings"] = ["src/example/app.ts:1 blocking issue"]
-        self.assertEqual([], validate_run(plan, run))
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any(
+                "every planned pre-integration review node" in error
+                for error in errors
+            ),
+            errors,
+        )
 
         run["review_workers"][1]["outcome"] = "fix_required"
         run["review_workers"][1]["findings"] = ["src/example/app.ts:2 second blocking issue"]

@@ -808,6 +808,45 @@ class ValidateWorkerResultTests(unittest.TestCase):
         errors = validate(self.plan, self.run, result)
         self.assertIn("invalid_value", error_codes(errors))
 
+    def test_v10_worker_result_requires_flat_not_applicable_activity(self) -> None:
+        run = copy.deepcopy(self.run)
+        run["schema_version"] = 10
+        run["execution_authorization_scope"].update(
+            {
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+            }
+        )
+        run["authorizations"]["create_local_commits"]["scope"].update(
+            {
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+            }
+        )
+        result = copy.deepcopy(self.result)
+        missing = error_codes(validate(self.plan, run, result))
+        self.assertIn("missing_field", missing)
+
+        result["subagent_activity"] = {
+            "status": "not_applicable",
+            "skip_reason": "flat parent-owned topology",
+            "children": [
+                {
+                    "agent_id": "A1",
+                    "role": "explorer",
+                    "task": "Inspect the request path.",
+                    "status": "completed",
+                    "summary": "The path is understood.",
+                    "evidence_paths": ["src/m1/file.py"],
+                }
+            ],
+        }
+        invalid_children = error_codes(validate(self.plan, run, result))
+        self.assertIn("invalid_value", invalid_children)
+
+        result["subagent_activity"]["children"] = []
+        self.assertEqual(validate(self.plan, run, result), [])
+
     def test_v10_forbids_nested_activity_and_legacy_contract_remains_readable(self) -> None:
         run = copy.deepcopy(self.run)
         run["schema_version"] = 10

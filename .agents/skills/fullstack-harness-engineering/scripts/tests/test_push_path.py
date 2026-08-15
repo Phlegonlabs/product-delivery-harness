@@ -47,6 +47,7 @@ def run_with_push(
         "status": status,
         "closed_waves": [],
         "plan": {"revision": 1, "digest_sha256": DIGEST},
+        "observed": {"git": {"default_branch": "refs/heads/main"}},
         "integration": {"branch": branch, "integration_head_sha": SHA},
         "landing": {
             "mode": "integration_push",
@@ -67,12 +68,75 @@ def run_with_push(
 
 
 class OrdinaryPushPathTests(unittest.TestCase):
-    def test_one_execution_intent_grant_covers_the_work_branch_push(self) -> None:
-        """No branch-protection evidence and no second instruction required."""
+    def test_explicit_remote_intent_covers_the_work_branch_push(self) -> None:
         run = run_with_push()
         self.assertTrue(
             authorization_covers(
                 run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_local_execution_intent_does_not_cover_push(self) -> None:
+        run = run_with_push()
+        run["authorizations"]["push"]["source"] = "user: implement the approved plan"
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_push_requires_the_resolved_integration_branch(self) -> None:
+        run = run_with_push(
+            targets=["branch:refs/heads/codex/other"]
+        )
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/other"
+            )
+        )
+
+    def test_push_fails_closed_when_default_branch_is_unknown(self) -> None:
+        run = run_with_push()
+        del run["observed"]
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_push_rejects_an_observed_non_main_default_branch(self) -> None:
+        run = run_with_push(
+            branch="refs/heads/release",
+            targets=["branch:refs/heads/release"],
+        )
+        run["observed"]["git"]["default_branch"] = "refs/heads/release"
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/release"
+            )
+        )
+
+    def test_local_action_is_not_blocked_by_unknown_default_branch(self) -> None:
+        run = run_with_push()
+        del run["observed"]
+        run["authorizations"]["create_local_commits"] = {
+            "authorized": True,
+            "source": "user: implement the approved plan",
+            "scope": {
+                "run_id": "RUN-1",
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/codex/add-search"],
+                "plan_revision": 1,
+                "plan_digest_sha256": DIGEST,
+            },
+            "expires_when": "explicit_revocation",
+        }
+        self.assertTrue(
+            authorization_covers(
+                run,
+                "create_local_commits",
+                "M1",
+                "branch:refs/heads/codex/add-search",
             )
         )
 
@@ -96,6 +160,20 @@ class OrdinaryPushPathTests(unittest.TestCase):
         self.assertFalse(
             authorization_covers(
                 run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_completed_push_preserves_historical_evidence(self) -> None:
+        run = run_with_push(status="complete")
+        del run["observed"]
+        run["authorizations"]["push"]["source"] = "user: build it"
+        self.assertTrue(
+            authorization_covers(
+                run,
+                "push",
+                "M1",
+                "branch:refs/heads/codex/add-search",
+                preserve_completed_run_expiry=True,
             )
         )
 

@@ -1616,6 +1616,39 @@ class RunValidationTests(unittest.TestCase):
         run["plan"]["digest_sha256"] = "0" * 64
         self.assert_run_error_contains(plan, run, "does not match semantic PLAN digest")
 
+    def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["observed"]["git"]["default_branch"] = "refs/heads/trunk"
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["observed"]["git"]["default_branch"] = 42
+        self.assert_run_error_contains(plan, run, "default_branch")
+
+    def test_v10_push_authorization_requires_explicit_remote_intent(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user: implement the approved plan",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/codex/test"],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "must explicitly request a remote push",
+        )
+
 
     def test_integration_retention_accepts_known_values_only(self) -> None:
         plan = valid_plan()

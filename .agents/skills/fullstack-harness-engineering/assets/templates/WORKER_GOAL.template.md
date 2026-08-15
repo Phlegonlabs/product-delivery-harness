@@ -208,7 +208,7 @@ A graph-backed run returns this alongside WORKER_RESULT. The key set is exact â€
     "evidence_paths": [],
     "subagent_activity": {
       "status": "not_applicable",
-      "skip_reason": "nested subagents were not enabled for this worker",
+      "skip_reason": "flat parent-owned topology; child agents are not applicable",
       "children": []
     },
     "blockers": [],
@@ -220,7 +220,7 @@ A graph-backed run returns this alongside WORKER_RESULT. The key set is exact â€
 
 Use the same worker-result payload for `agent_result`, `thread_poll`, `report_file`, or `user_relay`. For `report_file`, place this exact heading and fenced JSON in the parent-supplied temporary report path; Markdown prose outside the manifest is non-canonical.
 
-`subagent_activity.status` is `completed`, `partial`, `unavailable`, or `not_applicable`. `completed` requires one or more child entries. `partial` records every completed/failed/stopped child and the remaining risk. `unavailable` and `not_applicable` require a concrete `skip_reason`. Each child entry contains `agent_id`, functional `role`, bounded `task`, `status` (`completed`, `failed`, or `stopped`), a concise `summary`, and `evidence_paths`. A reviewer entry additionally contains `reviewed_sha` equal to the exact current `worker_result.head_sha` and `decision` set to `PASS` or `fix_required`; only a completed exact-head `PASS` satisfies the review gate. When the worker's nested policy is enabled, omitting `subagent_activity` or returning without that completed reviewer is invalid.
+For current RUN-v10, `subagent_activity` is always `status: "not_applicable"`, a concrete `skip_reason`, and an empty `children` list. Workers and reviewers never create child agents; the parent dispatches every explorer and reviewer as a sibling graph node. Legacy RUN-v6 through v9 results retain their historical nested-policy validation only, and must not be copied into a new RUN-v10 handoff.
 
 Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_failed`. A mission-level `worker_passed` result lists every executable non-superseded task in `task_results`; after validating reachability and evidence, the parent advances those task states to `mission_recorded`. A blocked/failed result sets `current_task_id` and preserves completed task results. A passing result is an integration candidate only; it is not proof of scope compliance, conflict freedom, integration-gate success, or completion.
 
@@ -235,7 +235,7 @@ Worker and task-result statuses are `worker_passed`, `blocked`, and `worker_fail
 - [ ] Mission is `leased` at the fixed base SHA and its dependencies are already integrated.
 - [ ] The selected runtime, workspace, completion channel, and required authorizations match the launch method.
 - [ ] The recorded provider capability snapshot routes to the declared driver; Claude Dynamic Workflow workers use flat orchestration and do not delegate.
-- [ ] The nested policy is disabled or is authorized, read-only, depth-one, capped at three direct children, and reported in `subagent_activity`; a non-trivial enabled app task completed a post-edit review on its exact current worktree head.
+- [ ] RUN-v10 `subagent_activity` is `not_applicable` with a concrete flat-topology reason and empty `children`; any explorer or reviewer is parent-dispatched as a sibling.
 - [ ] Any isolated write handoff has authorized branch and commit creation; otherwise this mission uses sequential parent execution.
 - [ ] Write/deny scopes and typed resource inventory are complete and non-conflicting.
 - [ ] Worktree/branch behavior follows the selected workspace rule.
