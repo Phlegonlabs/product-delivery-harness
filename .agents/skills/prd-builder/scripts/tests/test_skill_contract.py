@@ -1,12 +1,8 @@
 import json
-import shlex
 import shutil
 import subprocess
-import sys
-import tempfile
 import unittest
 from pathlib import Path
-
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 
@@ -14,6 +10,9 @@ SKILL_ROOT = Path(__file__).resolve().parents[2]
 class PrdBuilderSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
+
+    def read_agent_prompt(self) -> str:
+        return " ".join(self.read("agents/openai.yaml").split())
 
     def run_workflow(self, workflow_args: dict) -> dict:
         node = shutil.which("node")
@@ -141,7 +140,7 @@ async function agent(_prompt, options) {
 
     def test_skill_routes_browser_products_to_frontend_selection(self) -> None:
         skill = self.read("SKILL.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         self.assertIn("references/frontend-stack-selection.md", skill)
         self.assertIn("recommend one explicit stack", skill)
@@ -160,7 +159,7 @@ async function agent(_prompt, options) {
     def test_ui_design_is_delegated_to_the_mandatory_paired_skills(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         for content in (skill, contract, agent):
             self.assertIn("product-design-builder", content)
@@ -230,7 +229,7 @@ async function agent(_prompt, options) {
         architecture = self.read("references/architecture-playbook.md")
         frontend = self.read("references/frontend-stack-selection.md")
         contract = self.read("references/output-contract.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         self.assertNotIn("default the deployment platform to Cloudflare", skill)
         self.assertNotIn("## Default Cloudflare Release Pattern", architecture)
@@ -261,29 +260,60 @@ async function agent(_prompt, options) {
             self.assertIn(marked_bullet, interview)
         self.assertNotIn("existing brand reference. (AskUserQuestion", interview)
         self.assertIn(
-            "end the turn and wait for the user's reply before any `AskUserQuestion` call",
+            "Do not call `AskUserQuestion` during any free-text segment",
             skill,
         )
         self.assertIn(
-            "Do not call `AskUserQuestion` in the same turn as the free-text interview",
-            skill,
-        )
-        self.assertIn(
-            "End the free-text turn, wait for the user's reply, and only then resolve",
+            "start the closed questions only after every applicable segment has a reply",
             interview,
         )
         self.assertNotIn("Immediately follow it with the `AskUserQuestion` batch(es)", skill)
         self.assertNotIn("immediately after the free-text interview message", interview)
-        self.assertIn(
-            "goal, users/roles, workflows, data/integrations, business rules, delivery constraints, success metrics, confirmation/recovery",
-            skill,
+
+    def test_open_ended_interview_has_three_adaptive_segments(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+        agent = self.read_agent_prompt()
+        headings = (
+            "### Segment 1 — Product and users",
+            "### Segment 2 — Workflows, data, and rules",
+            "### Segment 3 — Delivery, success, and risk",
         )
+
+        self.assertIn("three bounded free-text turns", skill)
+        self.assertIn("exactly three planned free-text turns", interview)
+        self.assertIn("three bounded free-text turns", agent)
+        self.assertEqual(3, sum(interview.count(heading) for heading in headings))
+        self.assertLess(interview.index(headings[0]), interview.index(headings[1]))
+        self.assertLess(interview.index(headings[1]), interview.index(headings[2]))
+        user_facing = interview.split("## Segmented Free-Text Sequence", 1)[1].split(
+            "## Question Routing Reference", 1
+        )[0]
+        self.assertNotIn("(AskUserQuestion)", user_facing)
+        segments = user_facing.split("### Segment ")[1:]
+        self.assertEqual(3, len(segments))
+        for segment in segments:
+            prompts = [
+                line
+                for line in segment.split("Capture internally:", 1)[0].splitlines()
+                if line.startswith("- ")
+            ]
+            self.assertGreaterEqual(len(prompts), 2)
+            self.assertLessEqual(len(prompts), 4)
+            for prompt in prompts:
+                self.assertLessEqual(len(prompt), 160)
+        self.assertIn("Ask only one segment per turn", interview)
+        self.assertIn("remove prompts", interview)
+        self.assertIn("run only the segments touched or reopened", interview)
+        self.assertIn("one compact targeted free-text follow-up", interview)
+        self.assertIn("Begin the closed `AskUserQuestion` phase only after", interview)
+        self.assertNotIn("ask one organized free-text interview message", skill.lower())
 
     def test_skill_routes_backend_products_to_backend_selection(self) -> None:
         skill = self.read("SKILL.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         self.assertIn("references/backend-stack-selection.md", skill)
         self.assertIn("references/backend-stack-selection.md", architecture)
@@ -392,7 +422,7 @@ async function agent(_prompt, options) {
         contract = self.read("references/output-contract.md")
         skill = self.read("SKILL.md")
         interview = self.read("references/interview-guide.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         self.assertLess(
             contract.index("## Functional Requirements"),
@@ -469,7 +499,7 @@ async function agent(_prompt, options) {
         architecture = self.read("references/architecture-playbook.md")
         skill = self.read("SKILL.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         backend_section = contract[contract.index("## Backend and Data Technology Decision") :]
         self.assertLess(
@@ -492,7 +522,7 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         self.assertIn("## Provider-Neutral Release Target Pattern", architecture)
         self.assertIn("## Release Targets", contract)
@@ -527,7 +557,7 @@ async function agent(_prompt, options) {
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
         workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
-        agent = self.read("agents/openai.yaml")
+        agent = self.read_agent_prompt()
 
         for content in (skill, interview, architecture, contract, workflow, agent):
             self.assertIn("not availability", content.lower())
