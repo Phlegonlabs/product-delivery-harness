@@ -14,6 +14,8 @@ from harness_manifest import (
     load_run,
     plan_digest,
     validate_current_plan_run,
+    validate_plan,
+    validate_run,
 )
 
 

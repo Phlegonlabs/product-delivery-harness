@@ -63,6 +63,8 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn('"trace_ids": [', plan)
         self.assertIn('"criterion":', plan)
         self.assertIn("Publish the accepted revision to the canonical source location", plan)
+        self.assertIn("immutable bytes", plan)
+        self.assertIn("URLs are never fetched", plan)
 
 
 
@@ -99,6 +101,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("Pillow is imported lazily", skill)
         self.assertIn("targeted UI-evidence decoding error", skill)
         self.assertIn("without preventing non-UI CLIs from starting", skill)
+        self.assertIn("accepted Git `head_sha`", skill)
         self.assertIn("PLAN v5", readme)
         self.assertIn("RUN v10", readme)
         self.assertIn("`design-system.md`, `design-system.json`", readme)

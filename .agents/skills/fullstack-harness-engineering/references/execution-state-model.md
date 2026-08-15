@@ -70,6 +70,8 @@ Verifier declarations are data, not shell prose. Each verifier records at least 
 
 A worker-supplied hash is only a claim, even when it is 64 lowercase hexadecimal characters. The parent retains each `verifier_runtime.py` result, including verifier ID, immutable context, key document, exact head, status, exit result, and execution key. Worker-result validation recomputes the key from the retained key document and requires the reported verifier ID, status, and evidence key to match that parent-retained result exactly. Missing, forged, stale-context, wrong-head, or mismatched results fail closed.
 
+When the CLI is given `--repo-root`, current PLAN-v5 local sources are resolved inside that root and checked against their frozen bytes; a supplied `source_revision` is read from that immutable Git revision. URLs are not fetched and need an immutable revision or a local frozen snapshot. For RUN-v10 UI evidence, the verifier reads the artifact blob from the recorded accepted Git commit/ref, decodes those bytes, and only then compares `artifact_sha256`; RUN-v9 retains working-tree compatibility.
+
 Derived artifacts must bind all three values:
 
 ```text

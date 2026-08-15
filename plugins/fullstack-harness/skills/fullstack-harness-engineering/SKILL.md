@@ -140,14 +140,14 @@ worktree workers      -> temporary per-mission reports only while integration ne
 
 ## Shared Validation Tools
 
-- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head. Its current PLAN-v5/RUN-v10 path enters strict pair validation before compatibility dispatch.
-- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it accepts no older graph schema and reports a derived `execution_route` without persisting it.
+- `scripts/validate_harness_plan.py` validates PLAN/RUN shape, traceability, DAGs, authorization, digest consistency, closeout, RUN-v10 retained evidence, and cross-checks `integration_head_sha` against the live Git branch head. Its current PLAN-v5/RUN-v10 path enters strict pair validation before compatibility dispatch. When `--repo-root` is supplied, current PLAN-v5 sources are bound to in-root bytes (or the recorded immutable `source_revision`); URLs are never fetched.
+- `scripts/select_ready_nodes.py` selects the typed PLAN-v5/RUN-v10 frontier and provider-neutral launch directives; it accepts no older graph schema, optionally binds current PLAN-v5 sources when given `--repo-root`, and reports a derived `execution_route` without persisting it.
 - `scripts/configure_project_context.py` additively configures root `AGENTS.md` and `CLAUDE.md` from separate templates; it never overwrites an existing context file, and `--check` is read-only.
 - `scripts/select_verifiers.py` applies `selection.mode: "changed_files"` to parent-observed changed files and never weakens integration, batch, or final gates.
 - `scripts/verifier_runtime.py` may reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, the command is cache-safe, every immutable input matches, and the explicit cache root is repository-external.
 - `scripts/validate_node_result.py` and `scripts/validate_worker_result.py` validate returned identity, scope, Git facts, and verifier evidence before integration.
 
-Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. Every script is read-only and never mutates Git, PLAN, RUN, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
+Non-UI validation, selection, and CLI startup paths are Python-stdlib-only and deterministic. Pillow is imported lazily only when a verifier must decode binary UI evidence; if it is unavailable, report a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. For RUN-v10, read the screenshot blob from its recorded accepted Git `head_sha`, decode those bytes, then compare `artifact_sha256`; RUN-v9 retains working-tree compatibility. Every script is read-only and never mutates Git, PLAN, RUN, tasks, or worktrees. Runtime bridges are documented only in the matching adapter.
 
 ## Default Runtime And Wave Policy
 

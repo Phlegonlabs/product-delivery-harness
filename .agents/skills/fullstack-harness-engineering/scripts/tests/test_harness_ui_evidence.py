@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import subprocess
 import sys
@@ -70,7 +71,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                 ),
             ):
                 errors = subject.validate_ui_evidence_files(
-                    evidence_run(root, artifact, 10), root
+                    evidence_run(root, artifact, 9), root
                 )
         self.assertTrue(any("requires Pillow" in error for error in errors), errors)
         # A missing Pillow install is an environment gap, not evidence corruption:
@@ -103,9 +104,6 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
     def test_schema_v9_accepts_real_png_jpeg_and_webp_images(self) -> None:
         self.assert_real_formats_accepted(9)
 
-    def test_schema_v10_accepts_real_png_jpeg_and_webp_images(self) -> None:
-        self.assert_real_formats_accepted(10)
-
     def test_rejects_png_signature_followed_by_garbage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -115,7 +113,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                 b"\x89PNG\r\n\x1a\nthis is not a decoded image",
             )
             errors = subject.validate_ui_evidence_files(
-                evidence_run(root, artifact, 10), root
+                evidence_run(root, artifact, 9), root
             )
         self.assertTrue(any("cannot be decoded" in error for error in errors), errors)
 
@@ -127,7 +125,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
             Image.new("RGB", (10, 10), "green").save(artifact, format="PNG")
             artifact.write_bytes(artifact.read_bytes()[:20])
             errors = subject.validate_ui_evidence_files(
-                evidence_run(root, artifact, 10), root
+                evidence_run(root, artifact, 9), root
             )
         self.assertTrue(any("cannot be decoded" in error for error in errors), errors)
 
@@ -138,7 +136,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
             artifact.parent.mkdir(parents=True)
             Image.new("RGB", (3, 2), "red").save(artifact, format="JPEG")
             errors = subject.validate_ui_evidence_files(
-                evidence_run(root, artifact, 10), root
+                evidence_run(root, artifact, 9), root
             )
         self.assertTrue(any("decoded format JPEG" in error for error in errors), errors)
 
@@ -162,7 +160,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifact = write_artifact(root, "zero-dimension.png", b"placeholder")
-            run = evidence_run(root, artifact, 10)
+            run = evidence_run(root, artifact, 9)
             with mock.patch.object(
                 subject.Image,
                 "open",
@@ -172,11 +170,74 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
         self.assertTrue(any("non-zero dimensions" in error for error in errors), errors)
 
 
+class UiEvidenceGitBindingTests(unittest.TestCase):
+    @staticmethod
+    def git(root: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"git {' '.join(args)} failed:\\n{result.stdout}\\n{result.stderr}"
+            )
+        return result.stdout.strip()
+
+    def init_git(self, root: Path) -> None:
+        self.git(root, "init")
+        self.git(root, "config", "user.name", "Harness Test")
+        self.git(root, "config", "user.email", "harness@example.invalid")
+
+    def test_schema_v10_reads_artifact_from_accepted_commit_not_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.init_git(root)
+            original = io.BytesIO()
+            Image.new("RGB", (3, 2), "blue").save(original, format="PNG")
+            artifact = write_artifact(root, "accepted.png", original.getvalue())
+            self.git(root, "add", "docs")
+            self.git(root, "commit", "-m", "accepted screenshot")
+            accepted_sha = self.git(root, "rev-parse", "HEAD")
+            run = evidence_run(root, artifact, 10)
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
+
+            mutated = io.BytesIO()
+            Image.new("RGB", (3, 2), "red").save(mutated, format="PNG")
+            artifact.write_bytes(mutated.getvalue())
+
+            self.assertEqual([], subject.validate_ui_evidence_files(run, root))
+
+            run["ui_evidence"][0]["artifact_sha256"] = hashlib.sha256(
+                mutated.getvalue()
+            ).hexdigest()
+            errors = subject.validate_ui_evidence_files(run, root)
+            self.assertTrue(any("sha256 does not match artifact_sha256" in error for error in errors), errors)
+
+    def test_schema_v10_rejects_worktree_only_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.init_git(root)
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            self.git(root, "add", "README.md")
+            self.git(root, "commit", "-m", "base")
+            accepted_sha = self.git(root, "rev-parse", "HEAD")
+            artifact = write_artifact(root, "uncommitted.png", b"not in commit")
+            run = evidence_run(root, artifact, 10)
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
+
+            errors = subject.validate_ui_evidence_files(run, root)
+
+        self.assertTrue(any("accepted Git commit" in error for error in errors), errors)
+
+
 class IntegrationHeadGitCrossCheckTests(unittest.TestCase):
     def test_repo_root_that_is_not_a_git_checkout_reports_a_distinct_cause(self) -> None:
-        # --repo-root defaults to "." (validate_harness_plan.py), so running the
-        # validator from the wrong working directory must not look like an
-        # ordinary rev-parse failure (e.g. an unknown branch) on a real checkout.
+        # The CLI uses the current directory for legacy live-Git checks when
+        # --repo-root is omitted, so a wrong working directory must not look like
+        # an ordinary rev-parse failure (e.g. an unknown branch) on a real checkout.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)  # deliberately never `git init`-ed
             run = {

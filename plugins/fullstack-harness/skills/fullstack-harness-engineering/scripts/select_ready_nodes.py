@@ -9,10 +9,10 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+from harness_core import classify_execution_route
 from harness_manifest import (
     ManifestError,
     authorization_covers,
-    classify_execution_route,
     execution_covers,
     load_plan,
     load_run,
@@ -688,8 +688,13 @@ def _directive(
     return directive
 
 
-def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
-    validation_errors = validate_current_plan_run(plan, run)
+def select_ready_nodes(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    validation_errors = validate_current_plan_run(plan, run, repo_root=repo_root)
     if validation_errors:
         schema_pair = (
             plan.get("schema_version") if isinstance(plan, dict) else None,
@@ -849,13 +854,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--plan", required=True, type=Path)
     parser.add_argument("--run", required=True, type=Path)
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Optional repository root used to bind PLAN-v5 sources",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = select_ready_nodes(load_plan(args.plan), load_run(args.run))
+        result = select_ready_nodes(
+            load_plan(args.plan), load_run(args.run), repo_root=args.repo_root
+        )
     except (ManifestError, OSError, GraphSelectionError) as exc:
         print(json.dumps({"status": "ERROR", "errors": [str(exc)]}, sort_keys=True, indent=2))
         return 2

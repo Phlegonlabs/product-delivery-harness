@@ -7,6 +7,7 @@ import copy
 import hashlib
 import io
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -2232,12 +2233,58 @@ class RunValidationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            accepted_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = accepted_sha
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
             evidence = root / "docs" / "goal" / "evidence" / "dashboard-desktop-loaded.png"
             self.assertTrue(
-                any("does not exist" in error for error in validate_ui_evidence_files(run, root))
+                any("accepted Git commit" in error for error in validate_ui_evidence_files(run, root))
             )
             evidence.parent.mkdir(parents=True)
             evidence.write_bytes(contents)
+            subprocess.run(["git", "add", "docs"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "accept screenshot"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            accepted_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            run["integration"]["integration_head_sha"] = accepted_sha
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
             self.assertEqual(validate_ui_evidence_files(run, root), [])
             run["ui_evidence"][0]["artifact_sha256"] = "d" * 64
             self.assertTrue(
@@ -2250,7 +2297,7 @@ class RunValidationTests(unittest.TestCase):
             ).hexdigest()
             self.assertTrue(
                 any(
-                    "cannot be decoded" in error
+                    "sha256 does not match" in error
                     for error in validate_ui_evidence_files(run, root)
                 )
             )

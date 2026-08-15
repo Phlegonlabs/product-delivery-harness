@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -18,6 +19,7 @@ if str(TESTS_DIR) not in sys.path:
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from harness_manifest import plan_digest  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from manifest_fixtures import manifest_markdown  # noqa: E402
 
@@ -38,10 +40,15 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         plan_path: Path,
         run_path: Path | None,
         design_system: Path | None = None,
+        repo_root: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         command = [sys.executable, str(SCRIPTS_DIR / "validate_harness_plan.py"), "--plan", str(plan_path)]
         if run_path is not None:
-            command.extend(["--run", str(run_path), "--repo-root", str(plan_path.parent)])
+            command.extend(["--run", str(run_path)])
+        if repo_root is None and run_path is not None:
+            repo_root = plan_path.parent
+        if repo_root is not None:
+            command.extend(["--repo-root", str(repo_root)])
         if design_system is not None:
             command.extend(["--design-system", str(design_system)])
         return subprocess.run(command, check=False, capture_output=True, text=True)
@@ -91,6 +98,14 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 cwd=root, check=True, capture_output=True, text=True,
             ).stdout.strip()
             run["integration"]["integration_head_sha"] = head_sha
+            for source in plan["sources"]:
+                location = source["location"]
+                contents = f"{source['id']} frozen source\n".encode()
+                source_path = root / location
+                source_path.parent.mkdir(parents=True, exist_ok=True)
+                source_path.write_bytes(contents)
+                source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+            run["plan"]["digest_sha256"] = plan_digest(plan)
 
             plan_path = root / "PLAN.md"
             run_path = root / "RUN.md"
@@ -124,6 +139,23 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("PASS", json.loads(result.stdout)["status"])
+
+    def test_repo_root_binds_current_plan_sources_when_requested(self) -> None:
+        plan = valid_plan()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+
+            result = self.run_cli(plan_path, None, repo_root=root)
+
+        self.assertEqual(1, result.returncode)
+        payload = json.loads(result.stdout)
+        self.assertEqual("FAIL", payload["status"])
+        self.assertTrue(any("does not exist under --repo-root" in error for error in payload["errors"]))
 
     def test_invalid_plan_reports_fail_with_exit_code_one(self) -> None:
         plan = valid_plan()

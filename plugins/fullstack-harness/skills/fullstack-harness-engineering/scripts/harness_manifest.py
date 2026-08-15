@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from harness_schema import (
@@ -116,6 +118,164 @@ PRODUCT_DESIGN_SOURCE_KINDS = {
     "design system",
     "design system machine",
 }
+
+
+def _read_git_source_blob(
+    root: Path, revision: str, relative_path: str
+) -> tuple[bytes | None, str | None]:
+    """Read one frozen source blob without consulting the working tree."""
+
+    try:
+        result = subprocess.run(
+            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{relative_path}"],
+            cwd=root,
+            capture_output=True,
+            text=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, str(exc)
+    if result.returncode != 0:
+        reason = result.stderr.decode("utf-8", errors="replace").lower()
+        if "not a git repository" in reason:
+            return None, "--repo-root is not a Git checkout"
+        return None, f"immutable Git blob unavailable for {revision}:{relative_path}"
+    return result.stdout, None
+
+
+def validate_plan_sources(
+    plan: dict[str, Any], repo_root: str | Path
+) -> list[str]:
+    """Bind current PLAN-v5 sources to bytes available under ``repo_root``.
+
+    Local sources are read from the repository snapshot, or from the immutable
+    Git revision recorded by ``source_revision``. External URLs are never
+    fetched; they must carry an immutable revision because no local bytes are
+    available for verification.
+    """
+
+    if not isinstance(plan, dict) or plan.get("schema_version") != 5:
+        return []
+    errors: list[str] = []
+    try:
+        root = Path(repo_root).resolve()
+    except (OSError, TypeError, ValueError) as exc:
+        return [f"plan.sources: cannot resolve --repo-root {repo_root!r} ({exc})"]
+    sources = plan.get("sources")
+    if not isinstance(sources, list):
+        return []
+
+    for index, source in enumerate(sources):
+        path = f"plan.sources[{index}]"
+        if not isinstance(source, dict):
+            continue
+        location = source.get("location")
+        if not _nonempty_string(location):
+            continue
+        location = location.strip()
+        source_revision = source.get("source_revision")
+        has_revision = _nonempty_string(source_revision)
+        content_sha = source.get("content_sha256")
+        has_valid_hash = (
+            isinstance(content_sha, str) and SHA256_RE.fullmatch(content_sha) is not None
+        )
+
+        if "://" in location:
+            if not has_revision:
+                _add(
+                    errors,
+                    f"{path}.location",
+                    "external source is not fetched; provide an immutable source_revision "
+                    "or a local frozen snapshot",
+                )
+            continue
+
+        if (
+            location.startswith(("/", "\\"))
+            or bool(PureWindowsPath(location).drive)
+            or "\\" in location
+        ):
+            _add(
+                errors,
+                f"{path}.location",
+                "must be a repository-relative POSIX path under --repo-root",
+            )
+            continue
+
+        try:
+            source_path = (root / location).resolve()
+        except OSError as exc:
+            _add(
+                errors,
+                f"{path}.location",
+                f"cannot resolve under --repo-root {root}: {location} ({exc})",
+            )
+            continue
+        try:
+            relative_path = source_path.relative_to(root).as_posix()
+        except ValueError:
+            _add(
+                errors,
+                f"{path}.location",
+                f"resolves outside --repo-root {root}: {location}",
+            )
+            continue
+
+        immutable_descriptor = f"--repo-root {root}"
+        if has_revision:
+            revision = source_revision.strip()
+            if any(character.isspace() for character in revision):
+                _add(
+                    errors,
+                    f"{path}.source_revision",
+                    "must be an immutable revision without whitespace",
+                )
+                continue
+            contents, reason = _read_git_source_blob(root, revision, relative_path)
+            immutable_descriptor = f"source_revision {revision!r}"
+            if contents is None:
+                detail = reason or "git show could not read the blob"
+                if "not a git checkout" in detail.lower():
+                    detail = (
+                        f"--repo-root {root} is not a Git checkout "
+                        "(pass the correct --repo-root)"
+                    )
+                _add(
+                    errors,
+                    path,
+                    f"source {location!r} is missing at immutable {immutable_descriptor} "
+                    f"({detail})",
+                )
+                continue
+        else:
+            if not source_path.is_file():
+                _add(
+                    errors,
+                    f"{path}.location",
+                    f"source does not exist under --repo-root {root}: {location}",
+                )
+                continue
+            try:
+                contents = source_path.read_bytes()
+            except OSError as exc:
+                _add(
+                    errors,
+                    f"{path}.location",
+                    f"source cannot be read under --repo-root {root}: {location} ({exc})",
+                )
+                continue
+
+        if has_valid_hash:
+            actual = hashlib.sha256(contents).hexdigest()
+            if actual != content_sha:
+                _add(
+                    errors,
+                    f"{path}.content_sha256",
+                    f"does not match immutable bytes from {immutable_descriptor} "
+                    f"(expected {content_sha}, actual {actual})",
+                )
+
+    return sorted(set(errors))
 
 
 def _validated_sha_history(
@@ -233,8 +393,15 @@ def _scope_includes_product_design_source(
     return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_DESIGN_SOURCE_FILENAMES
 
 
-def validate_plan(plan: dict[str, Any]) -> list[str]:
-    """Return deterministic validation errors for a harness_plan object."""
+def validate_plan(
+    plan: dict[str, Any], *, repo_root: str | Path | None = None
+) -> list[str]:
+    """Return deterministic validation errors for a harness_plan object.
+
+    The optional repository binding is intentionally opt-in. Legacy callers
+    and the public shape-only validator retain their historical behavior when
+    ``repo_root`` is omitted.
+    """
 
     errors: list[str] = []
     top_keys = {
@@ -842,6 +1009,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
             )
 
     _validate_global_verifier_ids(errors, plan)
+    if plan.get("schema_version") == 5 and repo_root is not None:
+        errors.extend(validate_plan_sources(plan, repo_root))
     return sorted(set(errors))
 
 
@@ -4311,7 +4480,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
 
 def validate_current_plan_run(
-    plan: dict[str, Any], run: dict[str, Any]
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    repo_root: str | Path | None = None,
 ) -> list[str]:
     """Validate only the current PLAN-v5/RUN-v10 pair.
 
@@ -4326,7 +4498,12 @@ def validate_current_plan_run(
         return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
     if (plan.get("schema_version"), run.get("schema_version")) != (5, 10):
         return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
-    errors = [*validate_plan(plan), *validate_run(plan, run)]
+    plan_errors = (
+        validate_plan(plan)
+        if repo_root is None
+        else validate_plan(plan, repo_root=repo_root)
+    )
+    errors = [*plan_errors, *validate_run(plan, run)]
     # A single-mission managed route has no cross-mission batch gate. Keep the
     # compatibility validator's historical non-empty rule intact while the
     # current entrypoint derives this safe no-batch shape explicitly.

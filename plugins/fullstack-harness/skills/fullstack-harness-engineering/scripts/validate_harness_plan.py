@@ -27,8 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", help="Optional path to plan-backed RUN.md")
     parser.add_argument(
         "--repo-root",
-        default=".",
-        help="Repository root used to verify schema-v9 screenshot artifacts",
+        help="Optional repository root used to bind PLAN-v5 sources and verify UI artifacts",
     )
     parser.add_argument(
         "--design-system",
@@ -46,14 +45,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.run:
             run = load_run(args.run)
             if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
-                errors = validate_current_plan_run(plan, run)
+                errors = validate_current_plan_run(
+                    plan, run, repo_root=args.repo_root
+                )
             else:
                 # Preserve the compatibility CLI for historical manifests;
                 # current PLAN/RUN execution is strict before this dispatch.
-                errors = validate_plan(plan)
+                errors = validate_plan(plan, repo_root=args.repo_root)
                 run_errors = validate_run(plan, run)
         else:
-            errors = validate_plan(plan)
+            errors = validate_plan(plan, repo_root=args.repo_root)
         if args.design_system:
             errors.extend(validate_ui_surface_design_coverage(plan, args.design_system))
         elif any(
@@ -71,8 +72,9 @@ def main(argv: list[str] | None = None) -> int:
                 "--design-system so state and responsive coverage are cross-checked"
             )
         if run is not None:
-            run_errors.extend(validate_ui_evidence_files(run, args.repo_root))
-            run_errors.extend(validate_integration_head_against_git(run, args.repo_root))
+            repo_root = args.repo_root or "."
+            run_errors.extend(validate_ui_evidence_files(run, repo_root))
+            run_errors.extend(validate_integration_head_against_git(run, repo_root))
     except (OSError, ManifestError) as exc:
         sys.stdout.write(
             canonical_json({"errors": [str(exc)], "status": "ERROR"})

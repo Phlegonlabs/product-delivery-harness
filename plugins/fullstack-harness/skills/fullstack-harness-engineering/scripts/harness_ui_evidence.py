@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import math
 import re
@@ -77,7 +78,10 @@ def _image_module() -> Any:
     return Image
 
 
-def _ui_image_decode_error(path: Path) -> str | None:
+def _ui_image_decode_error(contents: bytes, artifact_path: str | Path) -> str | None:
+    """Decode image bytes without reopening a mutable working-tree path."""
+
+    path = Path(artifact_path)
     expected_format = _UI_IMAGE_FORMATS[path.suffix.lower()]
     try:
         image_module = _image_module()
@@ -87,11 +91,11 @@ def _ui_image_decode_error(path: Path) -> str | None:
         # so an operator (and the gate reason) can tell the two apart.
         return str(exc)
     try:
-        with image_module.open(path) as image:
+        with image_module.open(io.BytesIO(contents)) as image:
             decoded_format = image.format
             dimensions = image.size
             image.verify()
-        with image_module.open(path) as image:
+        with image_module.open(io.BytesIO(contents)) as image:
             image.load()
     except Exception as exc:
         return f"cannot be decoded as an image ({exc})"
@@ -103,6 +107,35 @@ def _ui_image_decode_error(path: Path) -> str | None:
     if dimensions[0] <= 0 or dimensions[1] <= 0:
         return "decoded image must have non-zero dimensions"
     return None
+
+
+def _read_git_artifact_blob(
+    root: Path, revision: str, artifact_path: str
+) -> tuple[bytes | None, str | None]:
+    """Read an accepted UI artifact from one Git commit/ref, never the worktree."""
+
+    try:
+        result = subprocess.run(
+            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{artifact_path}"],
+            cwd=root,
+            capture_output=True,
+            text=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, str(exc)
+    if result.returncode != 0:
+        reason = result.stderr.decode("utf-8", errors="replace").lower()
+        if "not a git repository" in reason:
+            return None, (
+                f"--repo-root {root} is not a Git checkout "
+                "(pass the correct --repo-root)"
+            )
+        return None, (
+            f"accepted Git commit/ref {revision!r} does not contain a readable "
+            f"artifact blob at {artifact_path}"
+        )
+    return result.stdout, None
 
 
 def _validate_ui_evidence(
@@ -186,6 +219,14 @@ def _validate_ui_evidence(
         ):
             _add(errors, f"{path}.artifact_sha256", "must be a lowercase SHA-256")
         _optional_sha(errors, f"{path}.head_sha", item["head_sha"])
+        if run.get("schema_version") == 10 and item["status"] != "PASS" and not is_full_sha(
+            item["head_sha"]
+        ):
+            _add(
+                errors,
+                path,
+                "RUN-v10 UI evidence requires a recorded accepted Git commit/ref in head_sha",
+            )
         if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
         elif item["status"] == "PASS":
@@ -381,9 +422,16 @@ def validate_ui_surface_design_coverage(
 def validate_ui_evidence_files(
     run: dict[str, Any], repo_root: str | Path
 ) -> list[str]:
-    """Verify schema-v9/v10 screenshot files and hashes without mutating the workspace."""
+    """Verify screenshot bytes and hashes for RUN-v9/v10.
 
-    if run.get("schema_version") not in {9, 10} or not isinstance(
+    RUN-v9 retains its historical working-tree binding. RUN-v10 reads the
+    artifact blob from each row's accepted ``head_sha`` first, then decodes and
+    hashes those immutable bytes; a working-tree-only or mutated screenshot is
+    never accepted for the current evidence contract.
+    """
+
+    schema_version = run.get("schema_version")
+    if schema_version not in {9, 10} or not isinstance(
         run.get("ui_evidence"), list
     ):
         return []
@@ -395,17 +443,48 @@ def validate_ui_evidence_files(
         ):
             continue
         path = f"run.ui_evidence[{index}].artifact_path"
-        artifact = (root / item["artifact_path"]).resolve()
-        if not artifact.is_relative_to(root):
-            _add(errors, path, "resolves outside the repository root")
-        elif not artifact.is_file():
-            _add(errors, path, f"does not exist: {item['artifact_path']}")
-        elif artifact.stat().st_size == 0:
+        artifact_bytes: bytes | None = None
+        if schema_version == 10:
+            head_sha = item.get("head_sha")
+            if not is_full_sha(head_sha):
+                _add(
+                    errors,
+                    path,
+                    "RUN-v10 evidence requires a recorded accepted Git commit/ref in head_sha",
+                )
+                continue
+            artifact_bytes, reason = _read_git_artifact_blob(
+                root, head_sha, item["artifact_path"]
+            )
+            if artifact_bytes is None:
+                _add(
+                    errors,
+                    path,
+                    f"artifact does not exist in accepted Git commit/ref {head_sha!r}: "
+                    f"{reason or 'git show could not read the blob'}",
+                )
+                continue
+        else:
+            artifact = (root / item["artifact_path"]).resolve()
+            if not artifact.is_relative_to(root):
+                _add(errors, path, "resolves outside the repository root")
+                continue
+            if not artifact.is_file():
+                _add(errors, path, f"does not exist: {item['artifact_path']}")
+                continue
+            try:
+                artifact_bytes = artifact.read_bytes()
+            except OSError as exc:
+                _add(errors, path, f"cannot read artifact: {exc}")
+                continue
+
+        if not artifact_bytes:
             _add(errors, path, "must not be empty")
-        elif image_error := _ui_image_decode_error(artifact):
+            continue
+        if image_error := _ui_image_decode_error(artifact_bytes, item["artifact_path"]):
             _add(errors, path, image_error)
         elif _nonempty_string(item.get("artifact_sha256")):
-            actual = hashlib.sha256(artifact.read_bytes()).hexdigest()
+            actual = hashlib.sha256(artifact_bytes).hexdigest()
             if actual != item["artifact_sha256"]:
                 _add(errors, path, "sha256 does not match artifact_sha256")
     return sorted(set(errors))
