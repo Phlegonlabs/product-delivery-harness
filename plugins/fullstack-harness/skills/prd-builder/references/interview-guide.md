@@ -2,9 +2,9 @@
 
 Ask a full product interview before drafting artifacts unless the user explicitly permits assumptions or asks to skip discovery. Keep the interview concise, grouped, and practical.
 
-Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include them as open questions in the free-text interview and do not show them immediately after posting that interview. End the free-text turn, wait for the user's reply, and only then resolve the remaining applicable decisions with Claude Code's `AskUserQuestion` tool. Everything else stays free text, since it is too product-specific or too action-specific to enumerate.
+Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include them in the free-text segments. Ask one free-text segment per turn, wait for its reply, and start the closed questions only after every applicable segment has a reply and the final coverage check passes. Everything else stays free text because it is too product-specific or action-specific to enumerate.
 
-The closed-set questions fit three `AskUserQuestion` calls of at most four questions each. Start them only after the user replies to the free-text interview, in this order:
+The closed-set questions fit three `AskUserQuestion` calls of at most four questions each. Start them only after the segmented free-text sequence is complete, in this order:
 
 1. The decisions that depend on no other answer: product archetype and validation depth.
 2. For a UI-bearing product, the four closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, and preferred layout/interaction pattern.
@@ -19,9 +19,51 @@ Every call-3 question carries a skip rule, so a real run asks fewer than four. O
 
 Deployment platform, database category, and auth strategy never drop. Each has no documented default to fall back on, and guessing one silently freezes the wrong environment contract into `architecture.md`, or the wrong store or identity boundary into `stack-decisions.md`.
 
-## Interview Structure
+## Segmented Free-Text Sequence
 
-Ask only questions that are not already answered.
+For a fresh package, use exactly three planned free-text turns. Ask only one segment per turn, end the turn, and wait for the reply. Before sending the next segment, remove prompts that the user's request, repository, existing package, or earlier replies already answer or make inapplicable. If a reply answers a later segment early, carry it forward instead of repeating it.
+
+The short prompts below are the user-facing interview. Do not paste the longer **Question Routing Reference** as a questionnaire; use it only to interpret answers, detect gaps, and prepare concise follow-ups. Segment 1 must tell the user that applicable multiple-choice decisions follow after the open-ended sequence. No `AskUserQuestion` call may interrupt these segments.
+
+In enhancement mode, run only the segments touched or reopened by the requested delta. Preserve every unaffected answer and decision without reconfirming it. A segment with no unresolved prompt is skipped; it does not require an empty turn.
+
+### Segment 1 — Product and users
+
+Ask the unresolved parts of these short prompts:
+
+- What problem should this product solve, for whom, and what outcome would make it successful?
+- Which people or organizations use, buy, administer, approve, or observe it, and what access differences matter?
+- Where, when, and on which devices or channels will they use it? Mention accessibility, localization, or offline needs that matter.
+
+Capture internally: goal, buyer, users, roles, permissions, use context, channels, accessibility, localization, offline expectations, and known brand or policy constraints. Do not ask the closed product-archetype question here.
+
+### Segment 2 — Workflows, data, and rules
+
+Ask the unresolved parts of these short prompts:
+
+- Walk through the most important workflows: what starts each one, the key steps, and the successful end state.
+- What data does each workflow use or change, and which systems, APIs, files, messages, payments, or databases connect to it?
+- Which business rules, approvals, calculations, limits, audit needs, or forbidden outcomes govern the workflows?
+- Which actions need confirmation, progress feedback, undo, recovery, or human intervention, and which screens or notifications support them?
+
+Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, business rules, compliance boundaries, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, and Builder UX closed dimensions for `AskUserQuestion`.
+
+### Segment 3 — Delivery, success, and risk
+
+Ask the unresolved parts of these short prompts:
+
+- What belongs in v1, what is explicitly out, and what timeline, milestone, team, stack, hosting, or existing-system constraint matters?
+- What must be released for development and production, through which channels, and what proves each release is actually available and recoverable?
+- Which launch metrics, measurable quality targets, and release-blocking tests define success?
+- Which risks, unknowns, observability needs, background work, or operational concerns should be investigated first?
+
+Capture internally: scope and non-goals; architecture constraints; expected deployable surfaces; stable development and production targets; source refs; artifacts and signing; channels; release gates; availability signals; rollout and recovery; success metrics; measurable NFRs; test obligations; risks; observability; audit; jobs; and queues. Ask concise targeted follow-ups rather than exposing this entire capture list to the user.
+
+After segment 3, compare the aggregate answers with **Completeness Criteria**. If a material item is still missing and the user did not authorize assumptions, ask one compact targeted free-text follow-up containing only the missing items. This follow-up is an exception, not a fourth planned segment. Begin the closed `AskUserQuestion` phase only after the coverage check passes.
+
+## Question Routing Reference
+
+Ask only questions that are not already answered. Route unresolved details into the three short segments above or into the closed-question phase; do not emit this section as one long interview message.
 
 1. Product goal
    - What problem should this solve?
@@ -83,9 +125,9 @@ Ask only questions that are not already answered.
    - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.
    - What rollout controls apply, and what is the real recovery path? For native stores and signed installers, identify when recovery means halting a staged rollout and shipping a signed forward-fix rather than claiming an instant rollback.
 10. Success and validation
-   - Which metrics define launch success?
-   - Which observable test obligations must pass before release? Identify the functional or non-functional requirement each obligation proves, its test type, and its literal or measurable expected signal. The PRD assigns stable `TEST-*` IDs during synthesis.
-   - What risks or unknowns should the team investigate first?
+    - Which metrics define launch success?
+    - Which observable test obligations must pass before release? Identify the functional or non-functional requirement each obligation proves, its test type, and its literal or measurable expected signal. The PRD assigns stable `TEST-*` IDs during synthesis.
+    - What risks or unknowns should the team investigate first?
 
 ## Completeness Criteria
 
