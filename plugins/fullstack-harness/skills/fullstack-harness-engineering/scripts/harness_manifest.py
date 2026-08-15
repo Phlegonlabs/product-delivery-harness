@@ -233,6 +233,16 @@ def validate_plan_sources(
                     "must be an immutable revision without whitespace",
                 )
                 continue
+            # Repository-local Git reads must be pinned to an object ID.  Apart
+            # from making the evidence immutable, rejecting symbolic refs
+            # before invoking Git keeps the revision argument option-safe.
+            if not is_full_sha(revision):
+                _add(
+                    errors,
+                    f"{path}.source_revision",
+                    "repo-local source_revision must be a full lowercase Git SHA; symbolic HEAD and branch refs are not allowed",
+                )
+                continue
             contents, reason = _read_git_source_blob(root, revision, relative_path)
             immutable_descriptor = f"source_revision {revision!r}"
             if contents is None:
@@ -393,6 +403,18 @@ def _scope_includes_product_design_source(
     if tree_scope:
         return len(tail) <= 1
     return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_DESIGN_SOURCE_FILENAMES
+
+
+def _is_single_mission_v5_without_batch_verifiers(plan: Any) -> bool:
+    """Return whether PLAN-v5 has the intentional no-batch singleton shape."""
+
+    return (
+        isinstance(plan, dict)
+        and plan.get("schema_version") == 5
+        and isinstance(plan.get("missions"), list)
+        and len(plan["missions"]) == 1
+        and plan.get("batch_verifiers") == []
+    )
 
 
 def validate_plan(
@@ -623,8 +645,11 @@ def validate_plan(
                 _add(errors, f"{path}.impact", "must be high, medium, or low")
 
     declared_verifier_ids: set[str] = set()
+    singleton_no_batch = _is_single_mission_v5_without_batch_verifiers(plan)
     for group in ("batch_verifiers", "final_gates"):
-        if not isinstance(plan[group], list) or not plan[group]:
+        if not isinstance(plan[group], list) or (
+            not plan[group] and not (group == "batch_verifiers" and singleton_no_batch)
+        ):
             _add(errors, f"plan.{group}", "must be a non-empty list")
         else:
             ids: set[str] = set()
@@ -2317,6 +2342,47 @@ def _validate_v10_execution_records(
                 )
 
 
+def _codex_probe_requires_parallel_inventory(
+    plan: dict[str, Any], run: dict[str, Any], runtime: dict[str, Any]
+) -> bool:
+    """Return whether Codex may select two writers in this RUN.
+
+    A single mission, a configured budget of one, observed capacity of one, or
+    the sequential-parent driver is provably sequential and does not need the
+    unrelated six app-thread plus two direct-subagent surface inventory.  A
+    ready run that can select two writers still needs the complete probe.
+    """
+
+    missions = plan.get("missions")
+    writer_count = sum(
+        1
+        for mission in (missions if isinstance(missions, list) else [])
+        if isinstance(mission, dict)
+        and isinstance(mission.get("write_scope"), list)
+        and mission.get("write_scope")
+    )
+    if writer_count < 2:
+        return False
+    configured_values = (
+        plan.get("max_parallel_workers"),
+        runtime.get("max_parallel_workers"),
+    )
+    if any(not _is_int(value) for value in configured_values):
+        return True
+    configured_budget = min(configured_values)
+    if configured_budget <= 1 or route_runtime_driver(runtime) == "sequential_parent":
+        return False
+    observed = run.get("observed")
+    observed_runtime = observed.get("runtime") if isinstance(observed, dict) else None
+    if not isinstance(observed_runtime, dict):
+        return True
+    slots = observed_runtime.get("available_worker_slots")
+    isolation = observed_runtime.get("isolation_capacity")
+    if not _is_int(slots) or not _is_int(isolation):
+        return True
+    return min(configured_budget, slots, isolation) >= 2
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -2856,23 +2922,50 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if not isinstance(detection_source, str) or detection_source not in RUNTIME_DETECTION_SOURCES:
                 _add(errors, f"{adapter_path}.detection_source", "has an unsupported value")
 
+            selected_driver = route_runtime_driver(runtime)
+            probe_required = (
+                schema_version == 10
+                and provider == "codex"
+                and detection_source == "observed"
+                and run.get("status") in RUN_DISPATCH_STATUSES
+            )
+            parallel_probe_required = probe_required and _codex_probe_requires_parallel_inventory(
+                plan, run, runtime
+            )
             capability_probe = adapter.get("capability_probe")
             probe_path = f"{adapter_path}.capability_probe"
             probe_statuses: dict[str, str] = {}
-            probe_complete = False
+            probe_complete = selected_driver == "sequential_parent" and not parallel_probe_required
+            selected_capabilities = set(
+                CODEX_DRIVER_CAPABILITY_REQUIREMENTS.get(selected_driver, ())
+            )
             if capability_probe is not None:
                 if provider != "codex":
                     _add(errors, probe_path, "is supported only for the codex provider")
                 if detection_source != "observed":
                     _add(errors, probe_path, "requires detection_source observed")
-                if _keys(
-                    errors,
-                    probe_path,
-                    capability_probe,
-                    CODEX_CAPABILITY_PROBE_KEYS,
-                ):
+                probe_keys = set(CODEX_CAPABILITY_PROBE_KEYS)
+                if parallel_probe_required:
+                    probe_shape_valid = _keys(
+                        errors,
+                        probe_path,
+                        capability_probe,
+                        CODEX_CAPABILITY_PROBE_KEYS,
+                    )
+                else:
+                    # A sequential route may record only the facts needed to
+                    # prove a non-parent selected driver.  Extra surfaces are
+                    # still checked when supplied, but they are not required.
+                    probe_shape_valid = _keys(
+                        errors,
+                        probe_path,
+                        capability_probe,
+                        selected_capabilities,
+                        probe_keys - selected_capabilities,
+                    )
+                if probe_shape_valid:
                     probe_complete = True
-                    for capability in CODEX_CAPABILITY_PROBE_KEYS:
+                    for capability in capability_probe:
                         observation = capability_probe[capability]
                         observation_path = f"{probe_path}.{capability}"
                         if not _keys(
@@ -2890,7 +2983,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             probe_complete = False
                         else:
                             probe_statuses[capability] = status
-                            if status == "unobserved":
+                            if (
+                                (parallel_probe_required and status == "unobserved")
+                                or (
+                                    capability in selected_capabilities
+                                    and status != "available"
+                                )
+                            ):
                                 probe_complete = False
                         if not _nonempty_string(evidence):
                             _add(errors, f"{observation_path}.evidence", "must be a non-empty string")
@@ -2914,20 +3013,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                                 + ", ".join(derived_drivers),
                             )
 
-            probe_required = (
-                schema_version == 10
-                and provider == "codex"
-                and detection_source == "observed"
-                and run.get("status") in RUN_DISPATCH_STATUSES
-            )
             if probe_required and not probe_complete:
+                detail = (
+                    "every probe status to be available or unavailable with evidence"
+                    if parallel_probe_required
+                    else "the selected Codex driver through capability facts"
+                )
                 _add(
                     errors,
                     probe_path,
-                    "capability_snapshot_incomplete: ready/running observed Codex execution requires every probe status to be available or unavailable with evidence",
+                    "capability_snapshot_incomplete: ready/running observed Codex execution requires "
+                    + detail,
                 )
-
-            selected_driver = route_runtime_driver(runtime)
             if selected_driver == "app_threads" and (
                 provider != "codex"
                 or runtime["worker_runtime"] != "app_task"
@@ -4061,6 +4158,71 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.runtime_binding.option_source",
                             "must identify the matching PLAN option source",
                         )
+
+        # The graph node state and its current bound integration-stage review
+        # worker are one decision.  Historical workers remain readable, but a
+        # current integration worker may not dissent from (or be absent behind)
+        # the node result that can route integration and closeout.  Legacy
+        # pre-integration worker records retain their aggregate-node semantics.
+        raw_graph_state = run.get("graph_state")
+        graph_node_states = (
+            raw_graph_state.get("node_states")
+            if isinstance(raw_graph_state, dict)
+            else None
+        )
+        current_review_worker_by_binding = {
+            (
+                worker.get("node_id"),
+                worker.get("attempt_id"),
+                worker.get("worker_id"),
+            ): worker
+            for worker in (review_workers if isinstance(review_workers, list) else [])
+            if isinstance(worker, dict)
+        }
+        for review_node_id, review_node in review_nodes.items():
+            review_stage = (
+                review_node.get("review", {}).get("stage", "preintegration")
+                if isinstance(review_node.get("review"), dict)
+                else "preintegration"
+            )
+            if schema_version != 10 or review_stage != "integration":
+                continue
+            state = (
+                graph_node_states.get(review_node_id)
+                if isinstance(graph_node_states, dict)
+                else None
+            )
+            if not isinstance(state, dict) or state.get("phase") not in {
+                "succeeded",
+                "failed",
+                "blocked",
+            }:
+                continue
+            current_worker = current_review_worker_by_binding.get(
+                (review_node_id, state.get("last_attempt_id"), state.get("bound_worker_id"))
+            )
+            if not _nonempty_string(state.get("bound_worker_id")) or current_worker is None:
+                _add(
+                    errors,
+                    f"run.graph_state.node_states.{review_node_id}",
+                    "current review node result requires its bound review_worker outcome and findings",
+                )
+                continue
+            if current_worker.get("outcome") != state.get("last_outcome"):
+                _add(
+                    errors,
+                    f"run.graph_state.node_states.{review_node_id}",
+                    "current review node result must match the bound review_worker outcome and findings",
+                )
+            if current_worker.get("outcome") != "pass" and not (
+                isinstance(current_worker.get("findings"), list)
+                and current_worker.get("findings")
+            ):
+                _add(
+                    errors,
+                    f"run.review_workers.{review_node_id}.findings",
+                    "current non-pass review result requires findings",
+                )
         workers_by_id = (
             {
                 worker.get("worker_id"): worker
@@ -4505,21 +4667,7 @@ def validate_current_plan_run(
         if repo_root is None
         else validate_plan(plan, repo_root=repo_root)
     )
-    errors = [*plan_errors, *validate_run(plan, run)]
-    # A single-mission managed route has no cross-mission batch gate. Keep the
-    # compatibility validator's historical non-empty rule intact while the
-    # current entrypoint derives this safe no-batch shape explicitly.
-    if (
-        isinstance(plan.get("missions"), list)
-        and len(plan["missions"]) == 1
-        and plan.get("batch_verifiers") == []
-    ):
-        errors = [
-            error
-            for error in errors
-            if error != "plan.batch_verifiers: must be a non-empty list"
-        ]
-    return sorted(set(errors))
+    return sorted(set([*plan_errors, *validate_run(plan, run)]))
 
 
 # Keep a descriptive alias for callers that name the pair rather than the

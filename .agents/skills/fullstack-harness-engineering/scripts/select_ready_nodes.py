@@ -218,6 +218,66 @@ def _preintegration_review_head_matches_current(
     return prior_review.get("reviewed_sha") == current_head
 
 
+def _current_review_result_matches_worker(
+    node: dict[str, Any], run: dict[str, Any]
+) -> bool | None:
+    """Check the current runtime-review node against its bound worker result.
+
+    Historical/superseded worker records are deliberately ignored.  Only the
+    worker identified by the current node's attempt and binding may authorize a
+    route, and a non-pass finding cannot be represented as a node PASS.
+    """
+
+    if node.get("kind") != "verifier" or node.get("executor") != "runtime_worker":
+        return None
+    review = node.get("review")
+    review_stage = review.get("stage", "preintegration") if isinstance(review, dict) else "preintegration"
+    if review_stage != "integration":
+        return None
+    raw_graph_state = run.get("graph_state")
+    node_states = (
+        raw_graph_state.get("node_states")
+        if isinstance(raw_graph_state, dict)
+        else None
+    )
+    state = node_states.get(node.get("id")) if isinstance(node_states, dict) else None
+    if not isinstance(state, dict) or state.get("attempts", 0) < 1:
+        return None
+    phase = state.get("phase")
+    if phase not in {"running", "succeeded", "failed", "blocked"}:
+        return None
+    worker_id = state.get("bound_worker_id")
+    attempt_id = state.get("last_attempt_id")
+    if not isinstance(worker_id, str) or not worker_id or not isinstance(attempt_id, str) or not attempt_id:
+        # Integration-stage routes must have a durable current review binding;
+        # validate_run reports the malformed record and selector reconciliation
+        # fails closed before any route can authorize a transition.
+        return False
+    review_workers = run.get("review_workers")
+    current_worker = next(
+        (
+            worker
+            for worker in (review_workers if isinstance(review_workers, list) else [])
+            if isinstance(worker, dict)
+            and worker.get("node_id") == node.get("id")
+            and worker.get("worker_id") == worker_id
+            and worker.get("attempt_id") == attempt_id
+        ),
+        None,
+    )
+    if not isinstance(current_worker, dict):
+        return False
+    outcome = current_worker.get("outcome")
+    if outcome != state.get("last_outcome"):
+        return False
+    if outcome != "pass" and not (
+        isinstance(current_worker.get("findings"), list)
+        and current_worker.get("findings")
+    ):
+        return False
+    return True
+
+
 def _incoming_route_matched(
     node: dict[str, Any],
     run: dict[str, Any],
@@ -242,9 +302,14 @@ def _incoming_route_matched(
         source = node_states[edge["from"]]
         edge_state = edge_states[edge["id"]]
         bound = edge["max_traversals"]
+        source_node = nodes_by_id.get(edge["from"])
         if (
             source["last_outcome"] in edge["on_outcomes"]
             and source["phase"] in {"succeeded", "failed", "blocked"}
+            and (
+                not isinstance(source_node, dict)
+                or _current_review_result_matches_worker(source_node, run) is not False
+            )
             and (bound is None or edge_state["traversals"] < bound)
         ):
             return True
@@ -299,6 +364,8 @@ def _logical_reasons(
     route_matched = _incoming_route_matched(
         node, run, dependencies, routes, node_states, nodes_by_id
     )
+    if _current_review_result_matches_worker(node, run) is False:
+        reasons.add("review_result_dissent")
     # A post-integration review that returned fix_required parks in `failed`.
     # Once its bounded repair route completes and routes back, the review has to
     # run again on the new head, so it re-arms here the same way a stale

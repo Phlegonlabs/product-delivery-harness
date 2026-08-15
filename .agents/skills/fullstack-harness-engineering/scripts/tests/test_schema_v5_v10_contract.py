@@ -85,6 +85,21 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertEqual("preintegration", nodes["N-M1-REVIEW"]["review"]["stage"])
         self.assertEqual(["M1"], nodes["N-M1-REVIEW"]["review"]["mission_ids"])
         self.assertEqual("backend_code", nodes["N-M1-REVIEW"]["review"]["type"])
+        for node_id in ("N-M1", "N-M1-REVIEW"):
+            runtime = nodes[node_id]["runtime"]
+            self.assertIsNone(runtime["preferred_provider"])
+            self.assertEqual(
+                {"codex", "claude_code", "pi", "generic"},
+                set(runtime["allowed_providers"]),
+            )
+            self.assertEqual(
+                {"model": None, "reasoning_effort": None},
+                runtime["provider_options"]["pi"],
+            )
+            self.assertEqual(
+                {"model": None, "reasoning_effort": None},
+                runtime["provider_options"]["generic"],
+            )
         self.assertEqual("N-M1-REVIEW", edges["E-M1-REVIEW"]["to"])
         self.assertEqual("N-FINAL-GATE", edges["E-M1-REVIEW-FINAL"]["to"])
         self.assertEqual("N-CLOSEOUT-GATE", edges["E-FINAL-CLOSEOUT"]["to"])

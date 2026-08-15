@@ -1246,6 +1246,15 @@ class PlanValidationTests(unittest.TestCase):
         self.assertEqual(validate_plan(plan), [])
         self.assertEqual(topological_levels(plan), {"M1": 0, "M2": 1})
 
+    def test_shape_validator_keeps_batch_verifiers_nonempty_by_default(self) -> None:
+        plan = valid_plan()
+        plan["batch_verifiers"] = []
+        self.assert_error_contains(plan, "plan.batch_verifiers: must be a non-empty list")
+        self.assertIn(
+            "plan.batch_verifiers: must be a non-empty list",
+            validate_plan(plan),
+        )
+
     def test_planned_trace_needs_a_verification_row_not_just_a_task(self) -> None:
         # contract-and-traceability.md requires every must-have trace to have a
         # downstream task AND a verification row. Task coverage alone let an
@@ -2451,12 +2460,25 @@ class RunValidationTests(unittest.TestCase):
             "sequential_parent requires parent/parent_managed_worktree/agent_result",
         )
 
-    def test_ready_observed_codex_requires_complete_capability_probe(self) -> None:
+    def test_ready_parallel_codex_requires_complete_capability_probe(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
         authorize_execution(run, ["M1", "M2"], status="ready")
-        run["runtime_capabilities"]["runtime_adapter"].update(
-            detection_source="observed"
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 2,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["subagents", "sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 2, "isolation_capacity": 2}
         )
 
         self.assert_run_error_contains(
@@ -2481,6 +2503,29 @@ class RunValidationTests(unittest.TestCase):
             run,
             "capability_snapshot_incomplete",
         )
+
+    def test_ready_sequential_codex_does_not_require_parallel_probe_inventory(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        authorize_execution(run, ["M1", "M2"], status="ready")
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "parent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "max_parallel_workers": 1,
+                "runtime_adapter": {
+                    "provider": "codex",
+                    "available_drivers": ["sequential_parent"],
+                    "detection_source": "observed",
+                },
+            }
+        )
+        run["observed"]["runtime"].update(
+            {"available_worker_slots": 1, "isolation_capacity": 1}
+        )
+
+        self.assertEqual([], validate_run(plan, run))
 
     def test_codex_probe_prevents_omitting_available_app_threads(self) -> None:
         plan = valid_plan()

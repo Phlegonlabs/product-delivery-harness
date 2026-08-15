@@ -6,7 +6,7 @@ All new managed work uses PLAN schema v5 plus RUN schema v10 (RUN-v10). Older RU
 
 The System Review And Route stage completes before this file exists. It is parent-only and read-only: no task-specific skill, adapter/model selection, worker preflight, PLAN/RUN creation, external runtime, or worker launch occurs during that stage.
 
-Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. On an observed Codex route, record the complete eight-entry `runtime_adapter.capability_probe` before a ready/running run. Never run parallel writers in `shared_checkout`.
+Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. On an observed Codex route that may select two writers, record the complete eight-entry `runtime_adapter.capability_probe`; a provably sequential route records only the facts needed to prove its selected driver. Never run parallel writers in `shared_checkout`.
 
 A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony: no fan-out claim, no mandatory `tasks.md` view, no true cross-mission batch gate for one mission, and no inventory of unused parallel drivers. It still proves the selected `runtime_driver`, uses an isolated writer, checks authorization and exact scope/head bindings, and requires the same exact-head review and final gates. Two or more selected safe writers produce `parallel_graph`; this derived route is separate from the runtime transport driver and is never persisted as a PLAN/RUN schema field. New RUN files start at `mode: "local_only"`; only an explicit remote outcome moves to `integration_push`.
 
@@ -20,7 +20,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "b9c6bf6ef090b781f820e6899b23711b8e3252d505f723a43890ee4a22b72399"
+      "digest_sha256": "f3c417f2e8f4174e24feae541691977625b560e6f9fd60f8089bfa8162b95011"
     },
     "status": "draft",
     "intent": "plan-only",

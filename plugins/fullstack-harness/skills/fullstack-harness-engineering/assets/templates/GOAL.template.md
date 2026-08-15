@@ -8,7 +8,7 @@ Before using any task-specific skill or managed workflow, the parent must comple
 /goal Prepare the complete delivery path for <measurable outcome> using <canonical source paths> as the source of truth.
 
 Expected coordination:
-- runtime provider: codex | claude_code | generic
+- runtime provider: codex | claude_code | pi | generic
 - available drivers: <observed list including sequential_parent>
 - selected driver: app_threads | dynamic_workflow | subagents | sequential_parent
 - worker_runtime: parent | subagent | app_task

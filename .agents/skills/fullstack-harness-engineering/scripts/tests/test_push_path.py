@@ -16,7 +16,10 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from harness_authorization import authorization_covers  # noqa: E402
+from harness_authorization import (  # noqa: E402
+    authorization_covers,
+    is_explicit_remote_intent,
+)
 
 SHA = "a" * 40
 DIGEST = "b" * 64
@@ -163,10 +166,22 @@ class OrdinaryPushPathTests(unittest.TestCase):
             )
         )
 
-    def test_completed_push_preserves_historical_evidence(self) -> None:
-        run = run_with_push(status="complete")
+    def test_completed_push_does_not_bypass_current_safety(self) -> None:
+        run = run_with_push(status="complete", expires_when="run_complete")
         del run["observed"]
         run["authorizations"]["push"]["source"] = "user: build it"
+        self.assertFalse(
+            authorization_covers(
+                run,
+                "push",
+                "M1",
+                "branch:refs/heads/codex/add-search",
+                preserve_completed_run_expiry=True,
+            )
+        )
+
+    def test_completed_push_preserves_safe_run_complete_evidence(self) -> None:
+        run = run_with_push(status="complete", expires_when="run_complete")
         self.assertTrue(
             authorization_covers(
                 run,
@@ -176,6 +191,59 @@ class OrdinaryPushPathTests(unittest.TestCase):
                 preserve_completed_run_expiry=True,
             )
         )
+
+    def test_completed_push_requires_every_current_safety_fact(self) -> None:
+        cases = []
+
+        missing_default = run_with_push(status="complete", expires_when="run_complete")
+        del missing_default["observed"]
+        cases.append(missing_default)
+
+        wrong_target = run_with_push(status="complete", expires_when="run_complete")
+        cases.append(wrong_target)
+        wrong_target["authorizations"]["push"]["scope"]["targets"] = [
+            "branch:refs/heads/codex/other"
+        ]
+
+        stale_head = run_with_push(status="complete", expires_when="run_complete")
+        stale_head["authorizations"]["push"]["authorized_head_sha"] = "c" * 40
+        cases.append(stale_head)
+
+        for run in cases:
+            with self.subTest(run=run):
+                self.assertFalse(
+                    authorization_covers(
+                        run,
+                        "push",
+                        "M1",
+                        "branch:refs/heads/codex/add-search",
+                        preserve_completed_run_expiry=True,
+                    )
+                )
+
+    def test_push_intent_parser_rejects_ambiguous_or_forbidden_prose(self) -> None:
+        for source in (
+            "describe the remote API for branch metadata",
+            "push forbidden by repository policy",
+            "do not touch remote state",
+            "this is not authorizing a push",
+            "the push endpoint is available",
+            "ship the branch",
+        ):
+            with self.subTest(source=source):
+                self.assertFalse(is_explicit_remote_intent(source))
+
+    def test_push_intent_parser_accepts_only_explicit_action_attestations(self) -> None:
+        for source in (
+            "push the verified branch",
+            "implement and push the verified branch",
+            "publish the accepted branch",
+            "I authorize you to push the branch",
+            "approve the push",
+            "request a publish",
+        ):
+            with self.subTest(source=source):
+                self.assertTrue(is_explicit_remote_intent(source))
 
     def test_stale_head_binding_is_refused(self) -> None:
         run = run_with_push()

@@ -24,29 +24,63 @@ from harness_schema import (
 )
 
 
-_REMOTE_INTENT_RE = re.compile(r"\b(push|publish|remote|ship)\b", re.IGNORECASE)
-_NEGATED_REMOTE_INTENT_RE = re.compile(
-    r"(?:\b(?:do\s+not|don't|dont|never|without|no|not)\s+)$",
+_REMOTE_ACTION_RE = re.compile(r"\b(?:push|publish)\b", re.IGNORECASE)
+_REMOTE_ACTION_WORDS = r"(?:push(?:ing)?|publish(?:ing)?)"
+_NEGATED_OR_FORBIDDEN_REMOTE_RE = re.compile(
+    rf"(?:"
+    rf"\b(?:do\s+not|don't|dont|never|without|no|not)\b"
+    rf"[^.!?;\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
+    rf"|\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
+    rf"[^.!?;\n]{{0,120}}\b(?:forbidden|prohibited|disallowed|unauthorized|"
+    rf"not\s+authorized|not\s+approved|not\s+requested)\b"
+    rf")",
+    re.IGNORECASE,
+)
+# A bare noun such as ``the push endpoint`` or ``remote API`` is not an
+# instruction.  Imperatives may appear at the start of a source statement or
+# after a short conjunction, which covers common ``implement and push``
+# wording without treating arbitrary prose as permission.
+_PUSH_PUBLISH_IMPERATIVE_RE = re.compile(
+    r"(?:^|[:;,]|\b(?:and|then|to|please|must|should)\s+)\s*(?:push|publish)\b",
+    re.IGNORECASE,
+)
+_NON_IMPERATIVE_REMOTE_RE = re.compile(
+    r"\b(?:push|publish)\b(?:\s+\w+){0,4}\s+"
+    r"\b(?:is|are|was|were|endpoint|api|access|permission|status|available|allowed|enabled|disabled)\b",
+    re.IGNORECASE,
+)
+_PUSH_PUBLISH_ATTESTATION_RE = re.compile(
+    r"(?:\b(?:authori[sz](?:e|ed|es|ation|ing)|approv(?:e|ed|es|al|ing)|"
+    r"request(?:ed|s|ing)?|permission|approval)\b"
+    r"[^.!?;\n]{0,120}\b(?:push|publish)\b"
+    r"|\b(?:push|publish)\b[^.!?;\n]{0,120}\b(?:authorized|authorised|"
+    r"approved|requested)\b)",
     re.IGNORECASE,
 )
 
 
 def is_explicit_remote_intent(source: Any) -> bool:
-    """Return whether an authorization source explicitly requests remote work.
+    """Return whether ``source`` is an unambiguous push authorization.
 
-    Local execution verbs such as ``implement`` or ``build`` must not silently
-    authorize a push.  The source remains a human-readable reference rather
-    than a new schema field, so accept the small set of explicit remote terms
-    while rejecting their common negated forms.
+    Remote nouns (``remote``/``ship``), API descriptions, and ordinary local
+    implementation prose are not intent.  A source must contain a push or
+    publish imperative, or an explicit authorize/approve/request attestation.
+    Any negated or forbidden remote statement poisons the whole source so a
+    later positive-looking phrase cannot turn a refusal into permission.
     """
 
     if not isinstance(source, str) or not source.strip():
         return False
-    for match in _REMOTE_INTENT_RE.finditer(source):
-        prefix = source[: match.start()]
-        if not _NEGATED_REMOTE_INTENT_RE.search(prefix):
-            return True
-    return False
+    statement = " ".join(source.split())
+    if (
+        _NEGATED_OR_FORBIDDEN_REMOTE_RE.search(statement)
+        or _NON_IMPERATIVE_REMOTE_RE.search(statement)
+    ):
+        return False
+    return bool(
+        _PUSH_PUBLISH_IMPERATIVE_RE.search(statement)
+        or _PUSH_PUBLISH_ATTESTATION_RE.search(statement)
+    )
 
 
 def _is_main_branch_target(target: Any) -> bool:
@@ -284,8 +318,12 @@ def authorization_covers(
         action == "push"
         and preserve_completed_run_expiry
         and run.get("status") == "complete"
+        and entry.get("expires_when") == "run_complete"
     )
-    if action == "push" and run.get("schema_version") == 10 and not historical_completed_push:
+    if action == "push" and run.get("schema_version") == 10:
+        # A completed RUN may retain a run_complete grant as historical
+        # evidence, but that expiry exception never relaxes remote intent or
+        # the current exact branch/default/head safety gates.
         if not is_explicit_remote_intent(entry.get("source")):
             return False
         if not _v10_push_is_current_and_safe(run, entry, target):

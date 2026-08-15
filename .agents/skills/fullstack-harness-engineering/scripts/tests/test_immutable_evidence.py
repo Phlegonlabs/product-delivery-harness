@@ -125,8 +125,71 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
             plan["sources"][0]["source_revision"] = revision
             self.refresh_digest(plan, run)
 
+            # Move the symbolic branch after the source was frozen.  The full
+            # object ID remains immutable and must still read the first blob.
+            subprocess.run(
+                ["git", "branch", "freeze", revision],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            (root / "docs/product/prd.md").write_bytes(b"branch moved\n")
+            subprocess.run(["git", "add", "docs"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "move source branch"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "branch", "-f", "freeze", "HEAD"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
             (root / "docs/product/prd.md").write_bytes(b"mutated working tree\n")
             self.assertEqual([], validate_current_plan_run(plan, run, repo_root=root))
+
+    def test_repo_local_symbolic_source_revisions_are_rejected(self) -> None:
+        plan, run = self.bound_plan_and_run()
+        prd = b"frozen prd\n"
+        architecture = b"frozen architecture\n"
+        self.bind_hashes(plan, prd=prd, architecture=architecture)
+        plan["sources"][0]["content_sha256"] = None
+        self.refresh_digest(plan, run)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_sources(root, prd=prd, architecture=architecture)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.name", "Harness Test"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.email", "harness@example.invalid"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(["git", "add", "docs"], cwd=root, check=True, capture_output=True)
+            subprocess.run(
+                ["git", "commit", "-m", "freeze sources"],
+                cwd=root,
+                check=True,
+                capture_output=True,
+            )
+            for symbolic in ("HEAD", "freeze"):
+                with self.subTest(symbolic=symbolic):
+                    plan["sources"][0]["source_revision"] = symbolic
+                    self.refresh_digest(plan, run)
+                    errors = validate_current_plan_run(plan, run, repo_root=root)
+                    self.assertTrue(
+                        any("repo-local source_revision must be a full" in error for error in errors),
+                        errors,
+                    )
 
     def test_external_sources_are_not_fetched_without_an_immutable_revision(self) -> None:
         plan, run = self.bound_plan_and_run()

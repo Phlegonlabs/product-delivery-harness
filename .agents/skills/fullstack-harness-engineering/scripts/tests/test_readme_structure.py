@@ -65,6 +65,18 @@ class ReadmeStructureTests(unittest.TestCase):
                 )
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_readme_outputs_have_no_standalone_run_and_mermaid_braces_close(self) -> None:
+        for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md"):
+            content = (REPO_ROOT / filename).read_text(encoding="utf-8")
+            with self.subTest(readme=filename):
+                for line in content.splitlines():
+                    if line.startswith("|") and line.count("|") >= 4:
+                        output_cell = line.split("|")[-2]
+                        self.assertNotRegex(output_cell, r"(?:^|,\s*)`RUN\.md`(?:\s*,|$)")
+                for block in re.findall(r"```mermaid\n(.*?)```", content, flags=re.DOTALL):
+                    self.assertEqual(block.count("{"), block.count("}"), "unbalanced Mermaid braces")
+
+    @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_runtime_handoff_graph_profiles_and_zero_to_one_are_aligned(self) -> None:
         for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md"):
             content = (REPO_ROOT / filename).read_text(encoding="utf-8")

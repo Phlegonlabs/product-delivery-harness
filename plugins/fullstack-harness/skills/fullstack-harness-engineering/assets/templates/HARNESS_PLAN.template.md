@@ -72,11 +72,13 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
           "allowed_outcomes": ["pass", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
-            "preferred_provider": "codex",
-            "allowed_providers": ["codex", "claude_code"],
+            "preferred_provider": null,
+            "allowed_providers": ["codex", "claude_code", "pi", "generic"],
             "provider_options": {
               "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
-              "claude_code": {"model": "sonnet", "reasoning_effort": "high"}
+              "claude_code": {"model": "sonnet", "reasoning_effort": "high"},
+              "pi": {"model": null, "reasoning_effort": null},
+              "generic": {"model": null, "reasoning_effort": null}
             }
           }
         },
@@ -88,11 +90,13 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
           "allowed_outcomes": ["pass", "fix_required", "retryable_failure", "blocked", "contract_gap"],
           "max_attempts": 2,
           "runtime": {
-            "preferred_provider": "codex",
-            "allowed_providers": ["codex", "claude_code"],
+            "preferred_provider": null,
+            "allowed_providers": ["codex", "claude_code", "pi", "generic"],
             "provider_options": {
               "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
-              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"}
+              "claude_code": {"model": "sonnet", "reasoning_effort": "medium"},
+              "pi": {"model": null, "reasoning_effort": null},
+              "generic": {"model": null, "reasoning_effort": null}
             }
           },
           "review": {
@@ -225,11 +229,11 @@ The exact fenced JSON block is the canonical plan. New plans use PLAN schema v5.
 
 The single-mission example deliberately leaves `batch_verifiers` empty: a one-mission managed route has no true cross-mission batch gate. It still proves the selected runtime driver, allocates an isolated writer, checks exact authorization and scope/head bindings, runs the direct singleton pre-integration review, and closes through final gates. If two or more safe write missions are selected, the selector reports `parallel_graph` and the plan may declare real cross-mission checks.
 
-For each `runtime_worker` node, Plan Mode chooses the allowed and preferred provider first, then may set provider-specific launch options under `provider_options`. The selected runtime adapter remains host-native and separate from the selector's `execution_route`. A large route with no usable agent capability uses `sequential_parent`: the PLAN mission stays `executor: runtime_worker`, while RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation.
+For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null and list every supported host (`codex`, `claude_code`, `pi`, and `generic`) under `allowed_providers`; provider-specific launch options remain under `provider_options`. The selected runtime adapter remains host-native and separate from the selector's `execution_route`. A large route with no usable agent capability uses `sequential_parent`: the PLAN mission stays `executor: runtime_worker`, while RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation.
 
 Every PLAN-v5 source binds the published input with `content_sha256`, `source_revision`, or both. When `validate_harness_plan.py --repo-root` is supplied, repo-relative sources must resolve inside that root and their `content_sha256` is checked against immutable bytes; `source_revision` makes the checker read the Git blob at that revision. URLs are never fetched, so an external source needs an immutable revision or a local frozen snapshot. `staged_revision` records a proposed accepted delta while the published source fields remain canonical; it is not an executable publication. A ready or executable RUN requires every source to be `frozen` or `delta_accepted` and forbids product staging locations. Publish the accepted revision to the canonical source location, move its hash/revision into the published fields, clear `staged_revision`, then increment the PLAN revision and recompute the digest.
 
-Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set `"preferred_provider": "claude_code"` when the host route requires it. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node; stronger models remain reserved for the parent's own coordination and planning. Raise the final review to `xhigh` only when its gate warrants it.
+Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set a non-null `preferred_provider` only when an explicit host preference is part of the plan; otherwise keep it null so the same canonical graph routes on every supported host. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node; Pi and generic providers keep model and reasoning values null, and stronger models remain reserved for the parent's own coordination and planning. Raise the final review to `xhigh` only when its gate warrants it.
 
 For UI work, load `references/ui-implementation-contract.md` only when the mission writes UI or a UI review needs the detailed contract. Creation mode requires `product-design-builder` and `frontend-design`; implementation-mode `frontend-design` is used only when the user explicitly selected it for the new or high-impact visual surface and then runs in frontend-design conformance mode. A missing entry is a proposed design-input delta, not a local exception. The creation mode and conformance mode are distinct; do not bypass the frozen source pair. Run the broad final regression and browser/UI checks after exact-SHA code review and repair loops converge.
 

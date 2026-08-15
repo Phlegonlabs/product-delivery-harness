@@ -140,6 +140,15 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("PASS", json.loads(result.stdout)["status"])
 
+    def test_canonical_single_mission_plan_only_validation_allows_no_batch_gate(self) -> None:
+        plan_path = SCRIPTS_DIR.parent / "assets" / "templates" / "HARNESS_PLAN.template.md"
+        result = self.run_cli(plan_path, None)
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual("PASS", payload["status"])
+        self.assertEqual([], payload["errors"])
+
     def test_repo_root_binds_current_plan_sources_when_requested(self) -> None:
         plan = valid_plan()
         with tempfile.TemporaryDirectory() as directory:

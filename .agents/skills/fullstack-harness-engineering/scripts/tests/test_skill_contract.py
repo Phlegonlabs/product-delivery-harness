@@ -254,16 +254,20 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("proactively inspect the current-session native tool surface", skill)
         self.assertIn("Missing authorization must never make an available driver disappear", skill)
         self.assertIn("complete per-surface `capability_probe`", skill)
+        self.assertIn("provably sequential route", skill)
         self.assertIn("Do not cap `max_parallel_workers` at a small fixed number", skill)
         self.assertIn("default immediately after Plan Readiness", state)
         self.assertIn("capability_snapshot_incomplete", state)
         self.assertIn("capability_snapshot_incomplete", selector)
         self.assertIn("full eight-entry `capability_probe`", orchestration)
-        self.assertIn("complete eight-entry `runtime_adapter.capability_probe`", runbook)
+        self.assertIn("may omit unused surfaces", orchestration)
+        self.assertIn("may select two writers", runbook)
+        self.assertIn("provably sequential route records only", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
         self.assertIn("select authorized ready nodes", agent)
+        self.assertIn("Host adapter: none | codex | claude_code | pi | generic", skill)
 
     def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
@@ -546,7 +550,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         selector = self.read("scripts/select_ready_nodes.py")
 
         self.assertIn('"provider_options"', plan)
-        self.assertIn('"preferred_provider": "claude_code"', plan)
+        self.assertIn('"preferred_provider": null', plan)
+        self.assertIn('"allowed_providers": ["codex", "claude_code", "pi", "generic"]', plan)
+        self.assertIn('"pi": {"model": null, "reasoning_effort": null}', plan)
+        self.assertIn('"generic": {"model": null, "reasoning_effort": null}', plan)
         # A delegated Claude Code node never defaults above sonnet: the pinned
         # top-tier model is reserved for the parent's own coordination/planning,
         # not assigned to any worker/review node by default.
