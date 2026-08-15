@@ -12,6 +12,7 @@ from typing import Any
 from harness_manifest import (
     ManifestError,
     authorization_covers,
+    classify_execution_route,
     execution_covers,
     load_plan,
     load_run,
@@ -19,6 +20,7 @@ from harness_manifest import (
     plan_digest,
     resolve_runtime_options,
     route_runtime_driver,
+    validate_current_plan_run,
     validate_plan,
     validate_run,
 )
@@ -687,17 +689,17 @@ def _directive(
 
 
 def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
-    plan_errors = validate_plan(plan)
-    if plan_errors:
-        raise _validation_error("PLAN", plan_errors)
-    run_errors = validate_run(plan, run)
-    if run_errors:
-        raise _validation_error("RUN", run_errors)
-    schema_pair = (plan.get("schema_version"), run.get("schema_version"))
-    if schema_pair != (5, 10):
-        raise GraphSelectionError(
-            "typed graph selection requires PLAN v5 with RUN v10"
+    validation_errors = validate_current_plan_run(plan, run)
+    if validation_errors:
+        schema_pair = (
+            plan.get("schema_version") if isinstance(plan, dict) else None,
+            run.get("schema_version") if isinstance(run, dict) else None,
         )
+        if schema_pair != (5, 10):
+            raise GraphSelectionError(
+                "typed graph selection requires PLAN v5 with RUN v10"
+            )
+        raise _validation_error("PLAN/RUN", validation_errors)
 
     dependencies, routes = _incoming(plan)
     levels = _node_levels(plan)
@@ -822,11 +824,18 @@ def select_ready_nodes(plan: dict[str, Any], run: dict[str, Any]) -> dict[str, A
             runtime_count += 1
         dispatchable.append(_directive(node, item["binding"], run))
 
+    execution_route = classify_execution_route(
+        managed_artifacts=True,
+        selected_safe_write_missions=sum(
+            1 for directive in dispatchable if directive["kind"] == "mission"
+        ),
+    )
     return {
         "plan_id": plan["plan_id"],
         "plan_revision": plan["revision"],
         "plan_digest_sha256": plan_digest(plan),
         "graph_revision": run["graph_state"]["graph_revision"],
+        "execution_route": execution_route,
         "ready_frontier": [item["node"]["id"] for item in logical_ready],
         "dispatchable_nodes": dispatchable,
         "deferred_nodes": sorted(deferred, key=lambda item: item["node_id"]),

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -184,9 +185,13 @@ def authorized_parent_run(plan: dict[str, object]) -> dict[str, object]:
 
 
 def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, object]]:
-    root = SCRIPTS_DIR.parent
-    plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
-    run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
+    fixture_root = TESTS_DIR / "fixtures"
+    plan = json.loads(
+        (fixture_root / "legacy_ui_template_plan.json").read_text(encoding="utf-8")
+    )["harness_plan"]
+    run = json.loads(
+        (fixture_root / "legacy_ui_template_run.json").read_text(encoding="utf-8")
+    )["harness_run"]
     digest = plan_digest(plan)
     authorize_execution(run, ["M1"], status="ready", plan=plan, digest=digest)
     run["runtime_capabilities"].update(
@@ -584,7 +589,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         # construction so the lifecycle guard itself remains covered.
         complete = copy.deepcopy(blocked)
         complete["status"] = "complete"
-        with patch("select_ready_nodes.validate_run", return_value=[]):
+        with patch("select_ready_nodes.validate_current_plan_run", return_value=[]):
             result = select_ready_nodes(plan, complete)
         self.assertEqual([], result["dispatchable_nodes"])
         self.assertTrue(

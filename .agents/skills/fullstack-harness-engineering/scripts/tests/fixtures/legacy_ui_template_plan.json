@@ -1,0 +1,642 @@
+{
+  "harness_plan": {
+    "schema_version": 5,
+    "plan_id": "PLAN-<stable-id>",
+    "revision": 1,
+    "objective": "<one measurable outcome and stopping condition>",
+    "max_parallel_workers": 8,
+    "required_reviews": [
+      "frontend_code",
+      "visual"
+    ],
+    "sources": [
+      {
+        "id": "SRC-001",
+        "kind": "prd",
+        "location": "<repo-relative path or URL>",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "<immutable published upstream revision, or null>",
+        "staged_revision": null,
+        "notes": "<role or concise notes>"
+      }
+    ],
+    "traces": [
+      {
+        "id": "PRD-001",
+        "source_ids": [
+          "SRC-001"
+        ],
+        "priority": "must",
+        "requirement": "<requirement>",
+        "disposition": "planned",
+        "rationale": null
+      }
+    ],
+    "ui_surfaces": [
+      {
+        "id": "UI-001",
+        "trace_ids": [
+          "PRD-001"
+        ],
+        "route": "<route or screen>",
+        "breakpoints": [
+          "<copy the complete viewports or sizeClasses set from design-system.json>"
+        ],
+        "states": [
+          "<copy the complete stateMatrix from design-system.json, preserving order>"
+        ],
+        "evidence_gate": "required"
+      }
+    ],
+    "risks": [
+      {
+        "id": "RISK-001",
+        "description": "<risk>",
+        "impact": "high",
+        "mitigation": "<mitigation>",
+        "stop_condition": "<condition that stops execution>"
+      }
+    ],
+    "batch_verifiers": [
+      {
+        "id": "batch-cross-mission",
+        "cwd": ".",
+        "argv": [
+          "<runner>",
+          "<batch-argument>"
+        ],
+        "pass_signal": "<literal pass signal>"
+      }
+    ],
+    "final_gates": [
+      {
+        "id": "e2e-primary-journey",
+        "cwd": ".",
+        "argv": [
+          "<runner>",
+          "<e2e-argument>"
+        ],
+        "pass_signal": "<literal pass signal>"
+      },
+      {
+        "id": "final-closeout",
+        "cwd": ".",
+        "argv": [
+          "<runner>",
+          "<final-closeout-argument>"
+        ],
+        "pass_signal": "<literal pass signal>"
+      }
+    ],
+    "graph": {
+      "entry_nodes": [
+        "N-M1"
+      ],
+      "nodes": [
+        {
+          "id": "N-M1",
+          "kind": "mission",
+          "ref": "M1",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "high"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "high"
+              }
+            }
+          }
+        },
+        {
+          "id": "N-FRONTEND-REVIEW",
+          "kind": "verifier",
+          "ref": "batch-cross-mission",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "fix_required",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "medium"
+              }
+            }
+          },
+          "review": {
+            "stage": "preintegration",
+            "type": "frontend_code",
+            "mission_ids": [
+              "M1"
+            ],
+            "scope": [
+              "src/example/**"
+            ],
+            "required_evidence": [
+              "reviewed_sha",
+              "path-and-line findings",
+              "pass or fix_required decision"
+            ]
+          }
+        },
+        {
+          "id": "N-FINAL-GATE",
+          "kind": "verifier",
+          "ref": "e2e-primary-journey",
+          "executor": "local_command",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": null
+        },
+        {
+          "id": "N-VISUAL-REVIEW",
+          "kind": "verifier",
+          "ref": "e2e-primary-journey",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "fix_required",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "medium"
+              }
+            }
+          },
+          "review": {
+            "stage": "integration",
+            "type": "visual",
+            "mission_ids": [
+              "M1"
+            ],
+            "scope": [
+              "src/example/**"
+            ],
+            "required_evidence": [
+              "reviewed_sha",
+              "required-breakpoint screenshots",
+              "visual findings and decision"
+            ]
+          }
+        },
+        {
+          "id": "N-VISUAL-REPAIR",
+          "kind": "mission",
+          "ref": "M3",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "high"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "high"
+              }
+            }
+          }
+        },
+        {
+          "id": "N-VISUAL-REPAIR-CODE-REVIEW",
+          "kind": "verifier",
+          "ref": "batch-cross-mission",
+          "executor": "runtime_worker",
+          "allowed_outcomes": [
+            "pass",
+            "fix_required",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": {
+            "preferred_provider": "claude_code",
+            "allowed_providers": [
+              "codex",
+              "claude_code"
+            ],
+            "provider_options": {
+              "codex": {
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium"
+              },
+              "claude_code": {
+                "model": "sonnet",
+                "reasoning_effort": "medium"
+              }
+            }
+          },
+          "review": {
+            "stage": "preintegration",
+            "type": "frontend_code",
+            "mission_ids": [
+              "M3"
+            ],
+            "scope": [
+              "src/example/**"
+            ],
+            "required_evidence": [
+              "reviewed_sha",
+              "path-and-line findings",
+              "pass or fix_required decision"
+            ]
+          }
+        },
+        {
+          "id": "N-CLOSEOUT-GATE",
+          "kind": "verifier",
+          "ref": "final-closeout",
+          "executor": "local_command",
+          "allowed_outcomes": [
+            "pass",
+            "retryable_failure",
+            "blocked",
+            "contract_gap"
+          ],
+          "max_attempts": 2,
+          "runtime": null
+        }
+      ],
+      "edges": [
+        {
+          "id": "E-M1-FRONTEND-REVIEW",
+          "kind": "dependency",
+          "from": "N-M1",
+          "to": "N-FRONTEND-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-FRONTEND-VISUAL-REVIEW",
+          "kind": "route",
+          "from": "N-FRONTEND-REVIEW",
+          "to": "N-VISUAL-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-M1-VISUAL-REVIEW",
+          "kind": "dependency",
+          "from": "N-M1",
+          "to": "N-VISUAL-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-VISUAL-REVIEW-REPAIR",
+          "kind": "route",
+          "from": "N-VISUAL-REVIEW",
+          "to": "N-VISUAL-REPAIR",
+          "on_outcomes": [
+            "fix_required"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-VISUAL-REPAIR-CODE-REVIEW",
+          "kind": "dependency",
+          "from": "N-VISUAL-REPAIR",
+          "to": "N-VISUAL-REPAIR-CODE-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-VISUAL-REPAIR-REREVIEW",
+          "kind": "route",
+          "from": "N-VISUAL-REPAIR-CODE-REVIEW",
+          "to": "N-VISUAL-REVIEW",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": 2
+        },
+        {
+          "id": "E-VISUAL-FINAL-GATE",
+          "kind": "route",
+          "from": "N-VISUAL-REVIEW",
+          "to": "N-FINAL-GATE",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        },
+        {
+          "id": "E-FINAL-CLOSEOUT",
+          "kind": "dependency",
+          "from": "N-FINAL-GATE",
+          "to": "N-CLOSEOUT-GATE",
+          "on_outcomes": [
+            "pass"
+          ],
+          "max_traversals": null
+        }
+      ]
+    },
+    "missions": [
+      {
+        "id": "M1",
+        "alias": "<short stable label>",
+        "objective": "<vertical mission outcome>",
+        "priority": 100,
+        "merge_rank": 10,
+        "trace_ids": [
+          "PRD-001"
+        ],
+        "write_scope": [
+          "src/example/**"
+        ],
+        "deny_scope": [
+          "docs/goal/PLAN.md",
+          "docs/goal/RUN.md"
+        ],
+        "resource_inventory_complete": true,
+        "serialized_resources": [],
+        "runtime_resources": [
+          {
+            "key": "service:example-http",
+            "access": "exclusive"
+          }
+        ],
+        "worktree_eligible": true,
+        "required_skills": [],
+        "stop_conditions": [
+          "<mission-specific stop condition>"
+        ],
+        "worker_verifiers": [
+          {
+            "id": "mission-focused",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<mission-argument>"
+            ],
+            "pass_signal": "exit 0",
+            "selection": {
+              "mode": "changed_files",
+              "scopes": [
+                "src/example/**"
+              ]
+            },
+            "cache": {
+              "mode": "session_exact",
+              "environment_keys": [
+                "CI"
+              ]
+            }
+          }
+        ],
+        "integration_verifiers": [
+          {
+            "id": "mission-integration",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<integration-argument>"
+            ],
+            "pass_signal": "<literal pass signal>"
+          }
+        ],
+        "tasks": [
+          {
+            "id": "M1/T01",
+            "alias": "<short stable task label>",
+            "objective": "<independently verifiable outcome>",
+            "acceptance_matrix": [
+              {
+                "test_id": "TEST-M1-T01-001",
+                "trace_ids": [
+                  "PRD-001"
+                ],
+                "criterion": "<observable scenario or assertion that stays inside this task>"
+              }
+            ],
+            "trace_ids": [
+              "PRD-001"
+            ],
+            "depends_on": [],
+            "parent_task": null,
+            "legacy_task_ids": [],
+            "replaced_by": [],
+            "split_reason": null,
+            "refinement_generation": 0,
+            "write_scope": [
+              "src/example/**"
+            ],
+            "verifiers": [
+              {
+                "id": "task-focused",
+                "cwd": ".",
+                "argv": [
+                  "<runner>",
+                  "<task-argument>"
+                ],
+                "pass_signal": "exit 0",
+                "selection": {
+                  "mode": "changed_files",
+                  "scopes": [
+                    "src/example/**"
+                  ]
+                },
+                "cache": {
+                  "mode": "session_exact",
+                  "environment_keys": [
+                    "CI"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "M3",
+        "alias": "visual-review-repair",
+        "objective": "Apply only accepted visual review findings, regenerate affected evidence, and return the changed head through the same visual review.",
+        "priority": 80,
+        "merge_rank": 30,
+        "trace_ids": [
+          "PRD-001"
+        ],
+        "write_scope": [
+          "src/example/**",
+          "docs/goal/evidence/**"
+        ],
+        "deny_scope": [
+          "docs/goal/PLAN.md",
+          "docs/goal/RUN.md"
+        ],
+        "resource_inventory_complete": true,
+        "serialized_resources": [],
+        "runtime_resources": [
+          {
+            "key": "service:example-http",
+            "access": "exclusive"
+          }
+        ],
+        "worktree_eligible": true,
+        "required_skills": [],
+        "stop_conditions": [
+          "Stop if a visual finding requires a design-contract change instead of an in-scope implementation repair."
+        ],
+        "worker_verifiers": [
+          {
+            "id": "visual-repair-focused",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<visual-repair-argument>"
+            ],
+            "pass_signal": "exit 0",
+            "selection": {
+              "mode": "changed_files",
+              "scopes": [
+                "src/example/**",
+                "docs/goal/evidence/**"
+              ]
+            },
+            "cache": {
+              "mode": "session_exact",
+              "environment_keys": [
+                "CI"
+              ]
+            }
+          }
+        ],
+        "integration_verifiers": [
+          {
+            "id": "visual-repair-integration",
+            "cwd": ".",
+            "argv": [
+              "<runner>",
+              "<visual-repair-integration-argument>"
+            ],
+            "pass_signal": "<literal pass signal>"
+          }
+        ],
+        "tasks": [
+          {
+            "id": "M3/T01",
+            "alias": "apply-visual-review-findings",
+            "objective": "Repair the accepted in-scope visual findings and refresh every affected screenshot artifact.",
+            "acceptance_matrix": [
+              {
+                "test_id": "TEST-M3-T01-001",
+                "trace_ids": [
+                  "PRD-001"
+                ],
+                "criterion": "Every accepted blocking visual finding is resolved and affected evidence is recaptured for the repaired head."
+              }
+            ],
+            "trace_ids": [
+              "PRD-001"
+            ],
+            "depends_on": [],
+            "parent_task": null,
+            "legacy_task_ids": [],
+            "replaced_by": [],
+            "split_reason": null,
+            "refinement_generation": 0,
+            "write_scope": [
+              "src/example/**",
+              "docs/goal/evidence/**"
+            ],
+            "verifiers": [
+              {
+                "id": "visual-repair-task",
+                "cwd": ".",
+                "argv": [
+                  "<runner>",
+                  "<visual-repair-task-argument>"
+                ],
+                "pass_signal": "exit 0",
+                "selection": {
+                  "mode": "changed_files",
+                  "scopes": [
+                    "src/example/**",
+                    "docs/goal/evidence/**"
+                  ]
+                },
+                "cache": {
+                  "mode": "session_exact",
+                  "environment_keys": [
+                    "CI"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

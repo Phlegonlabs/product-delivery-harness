@@ -23,6 +23,7 @@ from harness_manifest import (
     parent_owned_path,
     path_in_scopes,
     plan_digest,
+    validate_current_plan_run,
     validate_scope_claim,
     validate_plan,
     validate_run,
@@ -608,6 +609,11 @@ def validate_worker_result_data(
     """Return deterministic validation issues for one integration candidate."""
 
     errors: list[dict[str, str]] = []
+    if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+        for message in validate_current_plan_run(plan, run):
+            _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
+        if errors:
+            return _sorted_errors(errors)
     _check_exact_fields(
         result,
         WORKER_RESULT_FIELDS,
@@ -726,7 +732,14 @@ def validate_worker_result_data(
             "harness_run.workers.nested_subagent_policy.enabled",
             "RUN-v10 workers cannot delegate to child agents",
         )
-    if isinstance(nested_policy, dict) and "subagent_activity" not in result:
+    if run.get("schema_version") == 10 and "subagent_activity" not in result:
+        _issue(
+            errors,
+            "missing_field",
+            "worker_result.subagent_activity",
+            "RUN-v10 worker results must report flat not_applicable activity",
+        )
+    elif isinstance(nested_policy, dict) and "subagent_activity" not in result:
         _issue(
             errors,
             "missing_field",
@@ -749,7 +762,7 @@ def validate_worker_result_data(
             result.get("subagent_activity"),
             policy=nested_policy if isinstance(nested_policy, dict) else None,
             expected_head_sha=head_sha,
-            require_reviewer=run.get("schema_version") == 10,
+            require_reviewer=False,
             errors=errors,
         )
     worker_id = mission_state.get("worker_id")
@@ -1106,10 +1119,16 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(_result_document("FAIL", errors), sort_keys=True, separators=(",", ":")))
         return 1
 
-    for message in validate_plan(plan):
-        _issue(errors, "invalid_plan", "harness_plan", message)
-    for message in validate_run(plan, run):
-        _issue(errors, "invalid_run", "harness_run", message)
+    if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+        for message in validate_current_plan_run(plan, run):
+            _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
+    else:
+        # The CLI keeps the historical result protocol readable for migration;
+        # only the current pair takes the strict entrypoint above.
+        for message in validate_plan(plan):
+            _issue(errors, "invalid_plan", "harness_plan", message)
+        for message in validate_run(plan, run):
+            _issue(errors, "invalid_run", "harness_run", message)
     if not errors:
         errors.extend(
             validate_worker_result_data(

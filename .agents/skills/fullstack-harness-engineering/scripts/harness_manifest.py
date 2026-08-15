@@ -4308,3 +4308,41 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
 
     return sorted(set(errors))
+
+
+def validate_current_plan_run(
+    plan: dict[str, Any], run: dict[str, Any]
+) -> list[str]:
+    """Validate only the current PLAN-v5/RUN-v10 pair.
+
+    The version-pair check intentionally runs before the compatibility-aware
+    validators. Callers on the current execution path therefore cannot
+    accidentally dispatch a legacy shape through the broad validator while
+    ``validate_plan`` and ``validate_run`` remain available for migration and
+    characterization of older manifests.
+    """
+
+    if not isinstance(plan, dict) or not isinstance(run, dict):
+        return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
+    if (plan.get("schema_version"), run.get("schema_version")) != (5, 10):
+        return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
+    errors = [*validate_plan(plan), *validate_run(plan, run)]
+    # A single-mission managed route has no cross-mission batch gate. Keep the
+    # compatibility validator's historical non-empty rule intact while the
+    # current entrypoint derives this safe no-batch shape explicitly.
+    if (
+        isinstance(plan.get("missions"), list)
+        and len(plan["missions"]) == 1
+        and plan.get("batch_verifiers") == []
+    ):
+        errors = [
+            error
+            for error in errors
+            if error != "plan.batch_verifiers: must be a non-empty list"
+        ]
+    return sorted(set(errors))
+
+
+# Keep a descriptive alias for callers that name the pair rather than the
+# persisted files. Both names intentionally share the same strict entrypoint.
+validate_current_manifests = validate_current_plan_run

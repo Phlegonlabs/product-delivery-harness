@@ -2,11 +2,11 @@
 
 Use this reference after the parent-only `System Review And Route` stage and Plan Readiness pass, before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions. The system review itself is never selected as a graph node and never creates PLAN/RUN state.
 
-The Project Size Gate and `System Review And Route` run first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted PLAN/RUN graph and execute it with the real `sequential_parent`. A no-agent route keeps the PLAN mission's `executor: runtime_worker` and records a parent-owned executor/worker binding in RUN solely for lease/state validation; it is not a delegated or spawned worker and does not claim `spawn_subagents`. The parent writes one mission at a time in its required parent-managed worktree.
+The Project Size Gate and `System Review And Route` run first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted PLAN/RUN graph and execute the derived `managed_sequential` route with its selected runtime driver. A no-agent route uses `sequential_parent`, keeps the PLAN mission's `executor: runtime_worker`, and records a parent-owned executor/worker binding in RUN solely for lease/state validation; it is not a delegated or spawned worker and does not claim `spawn_subagents`. The parent writes one mission at a time in its required parent-managed worktree.
 
-This file defines the shared scope/resource conflict rules and deterministic write budget. PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes.
+This file defines the shared scope/resource conflict rules and deterministic write budget. PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes. For a managed-sequential route, never run parallel writers in `shared_checkout`; the selected driver and isolated writer remain explicit.
 
-For every execution-authorized plan-backed multi-mission run, selection is the default post-readiness action, not an optional optimization the parent may skip. Proactively detect runtime capabilities before readiness, set the configured maximum generously high unless the user sets an explicit lower limit, and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number.
+For every execution-authorized managed run, selection is the default post-readiness action, not an optional optimization the parent may skip. Prove the chosen runtime driver before readiness and run the selector before any production task. The selected wave contains every dependency-ready, nonconflicting mission the effective budget allows — it shrinks only when live capacity, isolation, dependencies, conflicts, resources, permissions, or authorization actually require it, never because of an arbitrary starting number. The selector reports `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more; this derived route is separate from `runtime_driver`. A one-mission managed route makes no fan-out claim, does not require a tasks view, does not invent a cross-mission batch gate, and does not inventory unused parallel drivers, while retaining isolated writer, authorization, scope/head, and review gates.
 
 On an observed Codex host, Plan Readiness also requires a complete RUN-v10 `capability_probe`. Do not call the selector from a ready/running run while any probe surface is missing or `unobserved`; validation returns `capability_snapshot_incomplete`. Because the validator derives the driver list from the probe, a parent cannot make direct subagents win by omitting proven App Threads.
 
@@ -29,6 +29,7 @@ plan_id
 plan_revision
 plan_digest_sha256
 graph_revision
+execution_route
 ready_frontier
 dispatchable_nodes
 deferred_nodes

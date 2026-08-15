@@ -17,7 +17,8 @@ Coordination:
 - runtime_provider: codex | claude_code | pi | generic
 - Host-specific repository context: <Codex: effective AGENTS chain; Claude: shared AGENTS plus effective CLAUDE chain; Pi: the one file selected per directory by Pi priority>
 - Runtime-specific worker contract: <matching Codex, Claude Code, or Pi adapter instructions>
-- runtime_driver: app_threads | dynamic_workflow | subagents | sequential_parent
+- execution_route (selector-derived): direct | managed_sequential | parallel_graph
+- runtime_driver (transport): app_threads | dynamic_workflow | subagents | sequential_parent
 - worker_runtime: parent | subagent | app_task
 - workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
 - completion_channel: agent_result | thread_poll | report_file | user_relay
@@ -30,7 +31,7 @@ Coordination:
 Write only within: <mission write_scope>.
 Deny: <mission deny_scope>, parent-owned PLAN.md and RUN.md, frozen contracts, and unrelated files.
 
-The parent must have completed `System Review And Route` before this delegated handoff exists. Enter the assigned worktree and read every ordered path in "Host-specific repository context" before any repository action. Apply only the matching "Runtime-specific worker contract"; never borrow another host's model, role, context, or launch mechanics. Do not disable automatic context discovery. Load exactly the skills named in "Skills to load" above — no more, no fewer — before the Launch Checklist below, then verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
+The parent must have completed `System Review And Route` before this delegated handoff exists. A `managed_sequential` route is not a fan-out claim; it still carries the isolated writer, authorization, scope/head, and review gates. Enter the assigned worktree and read every ordered path in "Host-specific repository context" before any repository action. Apply only the matching "Runtime-specific worker contract"; never borrow another host's model, role, context, or launch mechanics. Do not disable automatic context discovery. Load exactly the skills named in "Skills to load" above — no more, no fewer — before the Launch Checklist below, then verify the supplied plan revision/digest, lease, base SHA, workspace, resource claims, permission boundary, and action authorizations are current. Confirm linked-worktree Git metadata, temp/cache paths, outbound network, local/private bindings, and required sockets fit the inherited boundary. Stop if any value is missing, stale, contradictory, outside the supported scope grammar, or would require an unresolved approval during unattended execution.
 
 When "Skills to load" includes both `product-design-builder` and `frontend-design`, run design creation mode. Use `frontend-design` through `product-design-builder`'s workflow to create or revise only the canonical wireframes and design-system sources in scope, starting from the frozen product inputs and stopping at every required human direction gate. If `frontend-design` is unavailable, stop; do not simulate it or fall back.
 

@@ -84,6 +84,7 @@ from harness_authorization import (
     _validate_authorization_scope,
     authorization_covers,
     execution_covers,
+    is_explicit_remote_intent,
     wave_scope_matches_current,
 )
 from harness_graph import (
@@ -2437,6 +2438,30 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.expires_when",
                             "must be wave_closed, run_complete, or explicit_revocation",
                         )
+                if (
+                    schema_version == 10
+                    and action == "push"
+                    and entry["authorized"]
+                    and run.get("status") != "complete"
+                ):
+                    if not is_explicit_remote_intent(entry.get("source")):
+                        _add(
+                            errors,
+                            f"{path}.source",
+                            "must explicitly request a remote push; local execution intent is insufficient",
+                        )
+                    push_scope = entry.get("scope")
+                    push_targets = (
+                        push_scope.get("targets")
+                        if isinstance(push_scope, dict)
+                        else None
+                    )
+                    if not isinstance(push_targets, list) or len(push_targets) != 1:
+                        _add(
+                            errors,
+                            f"{path}.scope.targets",
+                            "RUN-v10 push authorization requires one exact branch target",
+                        )
                 if schema_version == 10 and action in HEAD_BOUND_AUTHORIZATION_ACTIONS:
                     authorized_head = entry.get("authorized_head_sha")
                     if not is_full_sha(authorized_head):
@@ -2496,7 +2521,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _nonempty_string(landing_branch)
             and bool(push_mission_ids)
             and all(
-                authorization_covers(run, "push", mission_id, push_target)
+                authorization_covers(
+                    run,
+                    "push",
+                    mission_id,
+                    push_target,
+                    preserve_completed_run_expiry=run.get("status") == "complete",
+                )
                 for mission_id in push_mission_ids
             )
             and (
@@ -2911,7 +2942,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         }
         if schema_version in {5, 6, 7, 8, 9, 10}:
             observed_git_keys.add("parent_worktree_path")
-        if _keys(errors, "run.observed.git", git, observed_git_keys):
+        if _keys(
+            errors,
+            "run.observed.git",
+            git,
+            observed_git_keys,
+            {"default_branch"},
+        ):
             if schema_version in {5, 6, 7, 8, 9, 10}:
                 _optional_string(
                     errors,
@@ -2919,6 +2956,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     git["parent_worktree_path"],
                 )
             _optional_string(errors, "run.observed.git.parent_branch", git["parent_branch"])
+            _optional_string(errors, "run.observed.git.default_branch", git.get("default_branch"))
             _optional_sha(errors, "run.observed.git.parent_head_sha", git["parent_head_sha"])
             if git["parent_dirty"] is not None and not isinstance(git["parent_dirty"], bool):
                 _add(errors, "run.observed.git.parent_dirty", "must be null or boolean")
@@ -3958,32 +3996,27 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if isinstance(node_state, dict)
             }
             current_review_workers = {
-                review_node_id: next(
-                    (
-                        review_worker
-                        for review_worker in (
-                            review_workers
-                            if isinstance(review_workers, list)
-                            else []
-                        )
-                        if isinstance(review_worker, dict)
-                        and review_worker.get("node_id") == review_node_id
-                        and review_worker.get("worker_id")
-                        == review_node_states.get(review_node_id, {}).get(
-                            "bound_worker_id"
-                        )
-                        and review_worker.get("attempt_id")
-                        == review_node_states.get(review_node_id, {}).get(
-                            "last_attempt_id"
-                        )
-                        and review_worker.get("reviewed_sha") == head_sha
-                        and review_worker.get("worker_runtime")
-                        in {"parent", "subagent", "app_task"}
-                        and review_worker.get("phase") == "worker_passed"
-                        and review_worker.get("outcome") is not None
-                    ),
-                    None,
-                )
+                review_node_id: [
+                    review_worker
+                    for review_worker in (
+                        review_workers if isinstance(review_workers, list) else []
+                    )
+                    if isinstance(review_worker, dict)
+                    and review_worker.get("node_id") == review_node_id
+                    and review_worker.get("worker_id")
+                    == review_node_states.get(review_node_id, {}).get(
+                        "bound_worker_id"
+                    )
+                    and review_worker.get("attempt_id")
+                    == review_node_states.get(review_node_id, {}).get(
+                        "last_attempt_id"
+                    )
+                    and review_worker.get("reviewed_sha") == head_sha
+                    and review_worker.get("worker_runtime")
+                    in {"parent", "subagent", "app_task"}
+                    and review_worker.get("phase") == "worker_passed"
+                    and review_worker.get("outcome") is not None
+                ]
                 for review_node_id in preintegration_review_ids
             }
             has_parent_review = (
@@ -3995,10 +4028,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "last_outcome"
                     )
                     == "pass"
-                    and isinstance(
-                        current_review_workers.get(review_node_id),
-                        dict,
-                    )
+                    and current_review_workers.get(review_node_id)
                     for review_node_id in preintegration_review_ids
                 )
                 and (
@@ -4009,24 +4039,24 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             review_worker.get("worker_id")
                             == mission_worker_nested_review_evidence.get("agent_id")
                             and review_worker.get("outcome") == "pass"
-                            for review_worker in current_review_workers.values()
-                            if isinstance(review_worker, dict)
+                            for review_workers_for_node in current_review_workers.values()
+                            for review_worker in review_workers_for_node
                         )
                     )
                 )
-                and sum(
-                    current_review_workers[review_node_id].get("outcome")
-                    == "pass"
+                and all(
+                    all(
+                        review_worker.get("outcome") == "pass"
+                        for review_worker in current_review_workers[review_node_id]
+                    )
                     for review_node_id in preintegration_review_ids
                 )
-                * 2
-                > len(preintegration_review_ids)
             )
             if not has_parent_review:
                 _add(
                     errors,
                     f"run.mission_states.{mission_id}.integration_gate",
-                    "transition to integrating requires every planned pre-integration review node to retain a current-head reconciled PASS and a strict majority of exact-head reviewer PASS outcomes",
+                    "transition to integrating requires every planned pre-integration review node and current-head review worker to retain an exact-head PASS",
                 )
 
     if not isinstance(run["attempt_log"], list):
@@ -4278,3 +4308,41 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
 
     return sorted(set(errors))
+
+
+def validate_current_plan_run(
+    plan: dict[str, Any], run: dict[str, Any]
+) -> list[str]:
+    """Validate only the current PLAN-v5/RUN-v10 pair.
+
+    The version-pair check intentionally runs before the compatibility-aware
+    validators. Callers on the current execution path therefore cannot
+    accidentally dispatch a legacy shape through the broad validator while
+    ``validate_plan`` and ``validate_run`` remain available for migration and
+    characterization of older manifests.
+    """
+
+    if not isinstance(plan, dict) or not isinstance(run, dict):
+        return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
+    if (plan.get("schema_version"), run.get("schema_version")) != (5, 10):
+        return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
+    errors = [*validate_plan(plan), *validate_run(plan, run)]
+    # A single-mission managed route has no cross-mission batch gate. Keep the
+    # compatibility validator's historical non-empty rule intact while the
+    # current entrypoint derives this safe no-batch shape explicitly.
+    if (
+        isinstance(plan.get("missions"), list)
+        and len(plan["missions"]) == 1
+        and plan.get("batch_verifiers") == []
+    ):
+        errors = [
+            error
+            for error in errors
+            if error != "plan.batch_verifiers: must be a non-empty list"
+        ]
+    return sorted(set(errors))
+
+
+# Keep a descriptive alias for callers that name the pair rather than the
+# persisted files. Both names intentionally share the same strict entrypoint.
+validate_current_manifests = validate_current_plan_run

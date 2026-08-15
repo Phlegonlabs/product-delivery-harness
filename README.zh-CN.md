@@ -11,12 +11,12 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.3.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
 
-私有技能市场，用于借助 Codex 或 Claude Code 把产品想法或变更需求变成一条经过验证的交付流程。
+私有技能市场，用于借助 Codex、Claude Code 或 Pi 把产品想法或变更需求变成一条经过验证的交付流程。
 
 它不是提示词集合。这个插件把产品定义、视觉设计和工程执行拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
 
@@ -57,8 +57,8 @@
 交付核心在调用托管编排之前，会先做一个规模判定：
 
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
-- 大型工作进入托管规划。它可以用 `RUN.md` 完成一次顺序交付，或者用 `PLAN.md` 和 `RUN.md` 处理多个任务并实现可持久的移交。
-- 只有当一个大型计划中至少有两个彼此独立、可立即执行的任务时，调度器才会开始扇出。此时核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
+- 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；`tasks.md` 只是按需生成的人类视图，不是必需状态。
+- 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
 - 工作不需要等待远程 CI。运行通常以验证过的本地证据结束；只有明确的远程结果才会把验证过的集成 head 推送到这次运行自己的分支。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
@@ -84,8 +84,8 @@ Harness 是围绕明确的边界构建的：
 1. 检查当前项目，识别需要完成的工作。
 2. 冻结相关的契约、来源、范围和验证步骤。
 3. 当任务大到需要时，在动手实现之前先规划依赖关系。
-4. 只有当工作彼此独立、相互隔离且获得明确授权时，才使用并行工作节点。
-5. 验证任务结果、集成、相关的 UI 流程，以及最终的差异（diff）。
+4. 只有当至少两个安全写入 mission 实际被选中、工作彼此独立且相互隔离，并且每个动作都获得明确授权时，才使用并行工作节点；受管顺序路线仍要证明隔离 writer、scope/head 和 review gates。
+5. 验证任务结果、集成、相关的 UI 流程，以及最终的差异（diff）。单 mission 不会凭空增加跨 mission batch gate。
 6. 默认带着验证过的本地证据停下。如果明确要求远程结果，只有在明确远程意图以及精确的分支/head 推送授权下，才推送这次运行自己的分支。开 PR、合并和部署都是你在 Harness 之外自己做的步骤。
 
 对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、移除工作树或删除分支。RUN-v10 的推送还需要明确的远程意图、唯一的集成分支目标和当前 head 授权；如果默认分支身份未知，推送会安全失败，但不会阻止无关的本地执行。
@@ -102,7 +102,7 @@ flowchart TB
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
   Review -->|fix_required| Work
-  Integrate --> Gates["Integration, batch, E2E and UI evidence gates"]
+  Integrate --> Gates["适用的 integration、E2E 和 UI evidence gates"]
   Gates -->|fix_required| Repair["Bounded repair route"]
   Repair --> Rereview["Re-review on the new head"]
   Rereview --> Gates
@@ -151,7 +151,7 @@ Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 ## 安装
 
-这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且安装了 Codex、Claude Code，或两者。
+这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且至少安装一个受支持的宿主：Codex、Claude Code 或 Pi。
 
 ```bash
 gh auth login
@@ -178,7 +178,7 @@ claude plugin list
 
 ### Zero-to-one 流程（从零开始）
 
-1. 安装一个受支持的宿主（Codex 或 Claude Code）和本插件，并用该宿主运行本次交付。
+1. 安装一个受支持的宿主（Codex、Claude Code 或 Pi）和本插件，并用该宿主运行本次交付。
 2. 开启新的宿主会话，确认插件可见，然后调用 `$fullstack-harness-engineering`。
 3. 让规模闸决定直接工作还是 PLAN/RUN；小型工作不要预先创建工作节点。
 4. 大型运行一次只保留一个 active host，并在 same-repository handoff 前关闭和审查每个 wave。

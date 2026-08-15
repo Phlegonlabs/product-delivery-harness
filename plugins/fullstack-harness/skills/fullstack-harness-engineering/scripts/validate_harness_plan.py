@@ -12,6 +12,7 @@ from harness_manifest import (
     load_plan,
     load_run,
     plan_digest,
+    validate_current_plan_run,
     validate_integration_head_against_git,
     validate_plan,
     validate_run,
@@ -39,7 +40,20 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         plan = load_plan(args.plan)
-        errors = validate_plan(plan)
+        errors: list[str] = []
+        run_errors: list[str] = []
+        run = None
+        if args.run:
+            run = load_run(args.run)
+            if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+                errors = validate_current_plan_run(plan, run)
+            else:
+                # Preserve the compatibility CLI for historical manifests;
+                # current PLAN/RUN execution is strict before this dispatch.
+                errors = validate_plan(plan)
+                run_errors = validate_run(plan, run)
+        else:
+            errors = validate_plan(plan)
         if args.design_system:
             errors.extend(validate_ui_surface_design_coverage(plan, args.design_system))
         elif any(
@@ -56,10 +70,7 @@ def main(argv: list[str] | None = None) -> int:
                 "plan.sources: a frozen design-system.json contract source requires "
                 "--design-system so state and responsive coverage are cross-checked"
             )
-        run_errors: list[str] = []
-        if args.run:
-            run = load_run(args.run)
-            run_errors = validate_run(plan, run)
+        if run is not None:
             run_errors.extend(validate_ui_evidence_files(run, args.repo_root))
             run_errors.extend(validate_integration_head_against_git(run, args.repo_root))
     except (OSError, ManifestError) as exc:

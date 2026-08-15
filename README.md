@@ -11,12 +11,12 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.2.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.3.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
 
-Private skill marketplace for turning a product idea or change request into a verified delivery flow with Codex or Claude Code.
+Private skill marketplace for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, or Pi.
 
 It is not a prompt collection. The plugin separates product definition, visual design, and engineering execution so each stage has one source of truth, a bounded handoff, and its own verification.
 
@@ -57,8 +57,8 @@ The skills can be used independently. You do not need to run the entire pipeline
 The delivery core makes one size decision before it invokes managed orchestration:
 
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
-- Large work enters managed planning. It may use `RUN.md` for a sequential delivery or `PLAN.md` and `RUN.md` for multiple missions and durable handoff.
-- Scheduler fan-out starts only when a large plan has at least two independent ready missions. The core then loads exactly one host adapter; external runtimes are preflighted only when a selected route needs them.
+- Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; `tasks.md` is an on-demand human view, not required state.
+- The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core then loads exactly one host adapter; external runtimes are preflighted only when a selected route needs them.
 - Work never waits for remote CI. A run normally finishes with verified local evidence; only an explicit remote outcome moves it to pushing the verified integration head to the run's own branch.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
@@ -84,8 +84,8 @@ The Harness is built around explicit boundaries:
 1. Inspect the current project and identify the required work.
 2. Freeze the relevant contracts, sources, scope, and verification steps.
 3. Plan dependencies before starting implementation when the task is large enough to need it.
-4. Use parallel workers only when the work is independent, isolated, and explicitly authorized.
-5. Verify task results, integrations, UI journeys where relevant, and the final diff.
+4. Use parallel workers only when at least two safe write missions are actually selected, the work is independent and isolated, and every action is explicitly authorized; managed-sequential still proves its isolated writer, scope/head, and review gates.
+5. Verify task results, integrations, UI journeys where relevant, and the final diff. A single mission has no invented cross-mission batch gate.
 6. Stop with verified local evidence by default. If a remote outcome is explicitly requested, push the run's own branch only with exact remote intent plus branch/head authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v10 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
@@ -102,7 +102,7 @@ flowchart TB
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
   Review -->|fix_required| Work
-  Integrate --> Gates["Integration, batch, E2E and UI evidence gates"]
+  Integrate --> Gates["Applicable integration, E2E and UI evidence gates"]
   Gates -->|fix_required| Repair["Bounded repair route"]
   Repair --> Rereview["Re-review on the new head"]
   Rereview --> Gates
@@ -151,7 +151,7 @@ A graph node's `allowed_providers` must include the host that is actually runnin
 
 ## Install
 
-This is a private GitHub marketplace. You need access to `Phlegonlabs/fullstack-goal-dev`, GitHub CLI authentication, and either Codex, Claude Code, or both.
+This is a private GitHub marketplace. You need access to `Phlegonlabs/fullstack-goal-dev`, GitHub CLI authentication, and at least one supported host: Codex, Claude Code, or Pi.
 
 ```bash
 gh auth login
@@ -178,7 +178,7 @@ claude plugin list
 
 ### Zero-to-one flow
 
-1. Install one supported host (Codex or Claude Code) and this plugin, then use that host for the run.
+1. Install one supported host (Codex, Claude Code, or Pi) and this plugin, then use that host for the run.
 2. Start a fresh host session, confirm the plugin, and invoke `$fullstack-harness-engineering`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
