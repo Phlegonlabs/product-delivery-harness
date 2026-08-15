@@ -5,7 +5,7 @@
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "f23ffd77a9abbb4bf8c89ae654823c00cfcf4cee755bca64daea938b06a7aaeb"
+      "digest_sha256": "4b6f5ab8198769acaf8abff03812630441b6f0c5cac3028f62260a62a886190a"
     },
     "status": "draft",
     "intent": "plan-only",

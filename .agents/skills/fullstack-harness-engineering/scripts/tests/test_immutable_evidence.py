@@ -90,7 +90,16 @@ class CurrentPlanSourceBindingTests(unittest.TestCase):
         architecture = b"frozen architecture\n"
         plan, run = self.bound_plan_and_run()
         self.bind_hashes(plan, prd=committed, architecture=architecture)
-        self.refresh_digest(plan, run)
+        plan["sources"][0]["content_sha256"] = None
+        for symbolic in ("HEAD", "freeze"):
+            with self.subTest(symbolic=symbolic, repo_root=None):
+                plan["sources"][0]["source_revision"] = symbolic
+                self.refresh_digest(plan, run)
+                errors = validate_current_plan_run(plan, run)
+                self.assertTrue(
+                    any("repo-local source_revision must be a full" in error for error in errors),
+                    errors,
+                )
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

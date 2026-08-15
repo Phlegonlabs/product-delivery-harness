@@ -1708,6 +1708,16 @@ class RunValidationTests(unittest.TestCase):
 
         self.assertEqual(validate_run(plan, run), [])
 
+        run["review_workers"][0]["findings"] = [
+            "informational note without a severity field"
+        ]
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "current PASS review result must not contain findings",
+        )
+        run["review_workers"][0]["findings"] = []
+
         run["batch_gate_results"][0].update(
             {"status": "planned", "head_sha": None, "evidence": []}
         )

@@ -28,11 +28,41 @@ _REMOTE_ACTION_RE = re.compile(r"\b(?:push|publish)\b", re.IGNORECASE)
 _REMOTE_ACTION_WORDS = r"(?:push(?:ing)?|publish(?:ing)?)"
 _NEGATED_OR_FORBIDDEN_REMOTE_RE = re.compile(
     rf"(?:"
-    rf"\b(?:do\s+not|don't|dont|never|without|no|not)\b"
-    rf"[^.!?;\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
+    rf"\b(?:do\s+not|don't|dont|never|without|no|not|cannot|can't|cant|"
+    rf"won't|wouldn't|shouldn't|not\s+permitted|not\s+allowed)\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
     rf"|\b(?:{_REMOTE_ACTION_WORDS}|remote)\b"
-    rf"[^.!?;\n]{{0,120}}\b(?:forbidden|prohibited|disallowed|unauthorized|"
+    rf"[^.!?\n]{{0,120}}\b(?:forbidden|prohibited|disallowed|unauthorized|"
     rf"not\s+authorized|not\s+approved|not\s+requested)\b"
+    rf")",
+    re.IGNORECASE,
+)
+# Conditional/descriptive nouns do not grant a remote action.  In particular,
+# ``permission is needed to publish`` and ``publish after approval`` describe
+# a gate rather than authorizing the action.  Requests are handled separately
+# so the positive verb in ``request a publish`` remains usable.
+_CONDITIONAL_REMOTE_NOUN_RE = re.compile(
+    rf"(?:"
+    rf"\b(?:approval|permission|authorization|consent|clearance|access|"
+    rf"ability|option|condition|requirement)\b[^.!?\n]{{0,120}}"
+    rf"\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|\b(?:{_REMOTE_ACTION_WORDS})\b[^.!?\n]{{0,120}}"
+    rf"\b(?:approval|permission|authorization|consent|clearance|access|"
+    rf"ability|option|condition|requirement)\b"
+    rf"|\b(?:the|a|an|this|that|your|their|our|my)\s+request\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|\brequest\b\s+(?:is|are|was|were|pending|required|needed|"
+    rf"awaiting)\b[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf")",
+    re.IGNORECASE,
+)
+_CONDITIONAL_REMOTE_RE = re.compile(
+    rf"(?:"
+    rf"\b(?:if|when|unless|after|before|once|until|provided|pending|"
+    rf"subject\s+to)\b[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|\b(?:{_REMOTE_ACTION_WORDS})\b[^.!?\n]{{0,120}}"
+    rf"\b(?:if|when|unless|after|before|once|until|provided|pending|"
+    rf"required|needed|subject\s+to)\b"
     rf")",
     re.IGNORECASE,
 )
@@ -41,7 +71,7 @@ _NEGATED_OR_FORBIDDEN_REMOTE_RE = re.compile(
 # after a short conjunction, which covers common ``implement and push``
 # wording without treating arbitrary prose as permission.
 _PUSH_PUBLISH_IMPERATIVE_RE = re.compile(
-    r"(?:^|[:;,]|\b(?:and|then|to|please|must|should)\s+)\s*(?:push|publish)\b",
+    r"(?:^|[:;,]|\b(?:and|then|please)\s+)\s*(?:push|publish)\b",
     re.IGNORECASE,
 )
 _NON_IMPERATIVE_REMOTE_RE = re.compile(
@@ -49,12 +79,24 @@ _NON_IMPERATIVE_REMOTE_RE = re.compile(
     r"\b(?:is|are|was|were|endpoint|api|access|permission|status|available|allowed|enabled|disabled)\b",
     re.IGNORECASE,
 )
+# Only positive authorize/approve/request verbs are attestations.  Nouns such
+# as ``approval`` and ``permission`` are intentionally absent.  Inflected
+# forms are accepted when a subject makes them verbs; the imperative branch
+# accepts concise ``approve the push`` / ``request a publish`` statements.
+_REMOTE_AUTHORIZATION_VERBS = (
+    r"(?:authori[sz](?:e|es|ed|ing)|approv(?:e|es|ed|ing)|"
+    r"request(?:s|ed|ing)?)"
+)
+_REMOTE_AUTHORIZATION_BASE_VERBS = r"(?:authori[sz]e|approve|request)"
 _PUSH_PUBLISH_ATTESTATION_RE = re.compile(
-    r"(?:\b(?:authori[sz](?:e|ed|es|ation|ing)|approv(?:e|ed|es|al|ing)|"
-    r"request(?:ed|s|ing)?|permission|approval)\b"
-    r"[^.!?;\n]{0,120}\b(?:push|publish)\b"
-    r"|\b(?:push|publish)\b[^.!?;\n]{0,120}\b(?:authorized|authorised|"
-    r"approved|requested)\b)",
+    rf"(?:"
+    rf"(?:^|[:;,]|\b(?:I|we|you|user|human|parent)\s+)\s*"
+    rf"(?:hereby\s+)?{_REMOTE_AUTHORIZATION_VERBS}\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf"|(?:^|[:;,]|\b(?:and|then|please)\s+)\s*"
+    rf"{_REMOTE_AUTHORIZATION_BASE_VERBS}\b"
+    rf"[^.!?\n]{{0,120}}\b(?:{_REMOTE_ACTION_WORDS})\b"
+    rf")",
     re.IGNORECASE,
 )
 
@@ -64,9 +106,10 @@ def is_explicit_remote_intent(source: Any) -> bool:
 
     Remote nouns (``remote``/``ship``), API descriptions, and ordinary local
     implementation prose are not intent.  A source must contain a push or
-    publish imperative, or an explicit authorize/approve/request attestation.
-    Any negated or forbidden remote statement poisons the whole source so a
-    later positive-looking phrase cannot turn a refusal into permission.
+    publish imperative, or an explicit positive authorize/approve/request
+    verb.  Any negated, forbidden, or conditional remote statement poisons the
+    whole source so a later positive-looking phrase cannot turn a refusal into
+    permission.
     """
 
     if not isinstance(source, str) or not source.strip():
@@ -74,6 +117,8 @@ def is_explicit_remote_intent(source: Any) -> bool:
     statement = " ".join(source.split())
     if (
         _NEGATED_OR_FORBIDDEN_REMOTE_RE.search(statement)
+        or _CONDITIONAL_REMOTE_NOUN_RE.search(statement)
+        or _CONDITIONAL_REMOTE_RE.search(statement)
         or _NON_IMPERATIVE_REMOTE_RE.search(statement)
     ):
         return False

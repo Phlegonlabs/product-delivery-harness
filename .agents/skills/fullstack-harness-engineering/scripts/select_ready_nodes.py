@@ -232,7 +232,7 @@ def _current_review_result_matches_worker(
         return None
     review = node.get("review")
     review_stage = review.get("stage", "preintegration") if isinstance(review, dict) else "preintegration"
-    if review_stage != "integration":
+    if review_stage not in {"preintegration", "integration"}:
         return None
     raw_graph_state = run.get("graph_state")
     node_states = (
@@ -249,9 +249,17 @@ def _current_review_result_matches_worker(
     worker_id = state.get("bound_worker_id")
     attempt_id = state.get("last_attempt_id")
     if not isinstance(worker_id, str) or not worker_id or not isinstance(attempt_id, str) or not attempt_id:
-        # Integration-stage routes must have a durable current review binding;
-        # validate_run reports the malformed record and selector reconciliation
-        # fails closed before any route can authorize a transition.
+        # A failed/blocked review may be between attempts while its bounded
+        # repair route re-arms the same node.  There is no current worker result
+        # to reconcile in that state.  Pre-integration records also retain the
+        # historical parent-side result shape with no bound review worker; only
+        # an actual current binding is checked here.
+        if review_stage == "preintegration":
+            return None
+        if state.get("phase") in {"failed", "blocked"} and state.get(
+            "last_outcome"
+        ) in {"fix_required", "blocked", "retryable_failure", "contract_gap"}:
+            return None
         return False
     review_workers = run.get("review_workers")
     current_worker = next(
@@ -270,11 +278,13 @@ def _current_review_result_matches_worker(
     outcome = current_worker.get("outcome")
     if outcome != state.get("last_outcome"):
         return False
-    if outcome != "pass" and not (
-        isinstance(current_worker.get("findings"), list)
-        and current_worker.get("findings")
-    ):
+    findings = current_worker.get("findings")
+    if not isinstance(findings, list):
         return False
+    if outcome == "pass":
+        return not findings
+    if findings:
+        return outcome in {"fix_required", "blocked"}
     return True
 
 

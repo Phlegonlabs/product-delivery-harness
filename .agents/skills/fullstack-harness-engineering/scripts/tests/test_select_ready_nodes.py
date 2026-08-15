@@ -612,6 +612,44 @@ class SelectReadyNodesTests(unittest.TestCase):
             reasons = _logical_reasons(review_node, plan, run, *_incoming(plan))
         self.assertIn("review_result_dissent", reasons)
 
+    def test_preintegration_current_pass_findings_block_validation_and_route(self) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        review_node = next(
+            node for node in plan["graph"]["nodes"] if node["id"] == "N-FRONTEND-REVIEW"
+        )
+        run["graph_state"]["node_states"][review_node["id"]].update(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-PRE-FINDINGS",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-PRE-FINDINGS",
+            }
+        )
+        review_worker = exact_head_review_worker(
+            node_id=review_node["id"],
+            worker_id="RW-PRE-FINDINGS",
+            attempt_id="ATT-PRE-FINDINGS",
+            digest=digest,
+            plan=plan,
+            run=run,
+        )
+        review_worker["findings"] = ["informational note without a severity field"]
+        run["review_workers"] = [review_worker]
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("current PASS review result must not contain findings" in error for error in errors),
+            errors,
+        )
+        downstream_node = next(
+            node for node in plan["graph"]["nodes"] if node["id"] == "N-VISUAL-REVIEW"
+        )
+        with patch("select_ready_nodes.validate_current_plan_run", return_value=[]):
+            reasons = _logical_reasons(downstream_node, plan, run, *_incoming(plan))
+        self.assertIn("route_not_activated", reasons)
+
     def test_complete_run_cannot_close_with_current_integration_dissent(self) -> None:
         plan, run = self._integration_stage_dissent_state()
         run["status"] = "complete"
@@ -619,6 +657,19 @@ class SelectReadyNodesTests(unittest.TestCase):
         errors = validate_run(plan, run)
         self.assertTrue(
             any("current review node result must match" in error for error in errors),
+            errors,
+        )
+
+    def test_complete_run_cannot_close_with_current_pass_findings(self) -> None:
+        plan, run = self._integration_stage_dissent_state()
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["last_outcome"] = "pass"
+        run["review_workers"][0]["outcome"] = "pass"
+        run["review_workers"][0]["findings"] = ["informational note without a severity field"]
+        run["status"] = "complete"
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("current PASS review result must not contain findings" in error for error in errors),
             errors,
         )
 

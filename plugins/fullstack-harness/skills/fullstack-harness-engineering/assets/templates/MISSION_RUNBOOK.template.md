@@ -20,7 +20,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "f3c417f2e8f4174e24feae541691977625b560e6f9fd60f8089bfa8162b95011"
+      "digest_sha256": "07d67418b7d28f36269e01222af4bcb9ca91f3591d95a8d195b2057a69485daf"
     },
     "status": "draft",
     "intent": "plan-only",

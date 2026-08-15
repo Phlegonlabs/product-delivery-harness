@@ -515,6 +515,18 @@ def validate_plan(
                     _add(errors, f"{path}.content_sha256", "must be null or a lowercase SHA-256 digest")
                 if source_revision is not None and not _nonempty_string(source_revision):
                     _add(errors, f"{path}.source_revision", "must be null or a non-empty immutable revision")
+                if (
+                    schema_version == 5
+                    and _nonempty_string(source_revision)
+                    and isinstance(source["location"], str)
+                    and "://" not in source["location"]
+                    and not is_full_sha(source_revision)
+                ):
+                    _add(
+                        errors,
+                        f"{path}.source_revision",
+                        "repo-local source_revision must be a full lowercase Git SHA; symbolic HEAD and branch refs are not allowed",
+                    )
                 if content_sha is None and source_revision is None:
                     _add(
                         errors,
@@ -2363,13 +2375,16 @@ def _codex_probe_requires_parallel_inventory(
     )
     if writer_count < 2:
         return False
-    configured_values = (
-        plan.get("max_parallel_workers"),
-        runtime.get("max_parallel_workers"),
-    )
-    if any(not _is_int(value) for value in configured_values):
+    configured_plan_budget = plan.get("max_parallel_workers")
+    configured_runtime_budget = runtime.get("max_parallel_workers")
+    if (
+        not isinstance(configured_plan_budget, int)
+        or isinstance(configured_plan_budget, bool)
+        or not isinstance(configured_runtime_budget, int)
+        or isinstance(configured_runtime_budget, bool)
+    ):
         return True
-    configured_budget = min(configured_values)
+    configured_budget = min(configured_plan_budget, configured_runtime_budget)
     if configured_budget <= 1 or route_runtime_driver(runtime) == "sequential_parent":
         return False
     observed = run.get("observed")
@@ -2378,7 +2393,12 @@ def _codex_probe_requires_parallel_inventory(
         return True
     slots = observed_runtime.get("available_worker_slots")
     isolation = observed_runtime.get("isolation_capacity")
-    if not _is_int(slots) or not _is_int(isolation):
+    if (
+        not isinstance(slots, int)
+        or isinstance(slots, bool)
+        or not isinstance(isolation, int)
+        or isinstance(isolation, bool)
+    ):
         return True
     return min(configured_budget, slots, isolation) >= 2
 
@@ -4043,6 +4063,26 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     worker["node_id"], {}
                 )
                 state = raw_state if isinstance(raw_state, dict) else {}
+                is_current_review_worker = (
+                    schema_version == 10
+                    and review_stage in {"preintegration", "integration"}
+                    and state.get("phase") in {"running", "succeeded", "failed", "blocked"}
+                    and state.get("last_attempt_id") == worker["attempt_id"]
+                    and state.get("bound_worker_id") == worker["worker_id"]
+                )
+                if is_current_review_worker and findings:
+                    if outcome == "pass":
+                        _add(
+                            errors,
+                            f"{path}.findings",
+                            "current PASS review result must not contain findings",
+                        )
+                    elif outcome not in {"fix_required", "blocked"}:
+                        _add(
+                            errors,
+                            f"{path}.findings",
+                            "current review findings require a fix_required or blocked outcome",
+                        )
                 current_reviewable_shas = {
                     sha
                     for sha in (

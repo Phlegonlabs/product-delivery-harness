@@ -1780,6 +1780,17 @@ class GraphManifestTests(unittest.TestCase):
         with_findings["review_workers"][0]["findings"] = ["missing null check on line 42"]
         self.assertEqual([], validate_run(plan, with_findings))
 
+        current_pass_with_findings = copy.deepcopy(run)
+        current_pass_with_findings["review_workers"][0]["findings"] = [
+            "informational note without a severity field"
+        ]
+        self.assertTrue(
+            any(
+                "current PASS review result must not contain findings" in error
+                for error in validate_run(plan, current_pass_with_findings)
+            )
+        )
+
     def test_multiple_reviewers_on_same_node_keep_independent_outcomes(self) -> None:
         plan = valid_graph_plan()
         review = self._frontend_review_node()

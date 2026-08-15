@@ -145,6 +145,17 @@ def validate_node_result(
                     errors.append("node_result.worker_result.reviewed_sha: does not match the review worker")
                 if not isinstance(review_result["findings"], list):
                     errors.append("node_result.worker_result.findings: must be a list")
+                elif review_result["findings"] and result["outcome"] == "pass":
+                    errors.append(
+                        "node_result.worker_result.findings: current PASS review result must not contain findings"
+                    )
+                elif review_result["findings"] and result["outcome"] not in {
+                    "fix_required",
+                    "blocked",
+                }:
+                    errors.append(
+                        "node_result.worker_result.findings: current review findings require a fix_required or blocked outcome"
+                    )
                 if not isinstance(review_result["evidence_summary"], str) or not review_result[
                     "evidence_summary"
                 ]:

@@ -85,6 +85,77 @@ class ValidateNodeResultTests(unittest.TestCase):
 
         self.assertTrue(any("active attempt" in error for error in errors))
 
+    def test_current_pass_review_result_rejects_findings_without_severity(self) -> None:
+        plan = valid_graph_plan()
+        run = valid_graph_run(plan)
+        digest = plan_digest(plan)
+        authorize_execution(run, ["M1"], status="running", plan=plan, digest=digest)
+        review_node = next(
+            node for node in plan["graph"]["nodes"] if node["id"] == "N-REVIEW-M1"
+        )
+        run["integration"]["integration_head_sha"] = "a" * 40
+        run["graph_state"]["node_states"][review_node["id"]].update(
+            {
+                "phase": "running",
+                "attempts": 1,
+                "last_attempt_id": "ATT-REVIEW-M1-1",
+                "bound_worker_id": "RW-REVIEW-M1-1",
+            }
+        )
+        run["review_workers"] = [
+            {
+                "worker_id": "RW-REVIEW-M1-1",
+                "node_id": review_node["id"],
+                "attempt_id": "ATT-REVIEW-M1-1",
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "graph_revision": run["graph_state"]["graph_revision"],
+                "reviewed_sha": "a" * 40,
+                "review_path": "C:/repo/review",
+                "worker_runtime": "subagent",
+                "completion_channel": "agent_result",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "subagents",
+                    "source": "host",
+                    "model": None,
+                    "reasoning_effort": None,
+                    "option_source": "provider_default",
+                },
+                "task_thread_id": None,
+                "report_path": None,
+                "phase": "worker_running",
+                "outcome": None,
+                "findings": [],
+            }
+        ]
+        result = {
+            "run_id": run["run_id"],
+            "node_id": review_node["id"],
+            "attempt_id": "ATT-REVIEW-M1-1",
+            "plan_id": plan["plan_id"],
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "graph_revision": run["graph_state"]["graph_revision"],
+            "batch_base_sha": run["integration"]["batch_base_sha"],
+            "status": "succeeded",
+            "outcome": "pass",
+            "worker_result": {
+                "reviewed_sha": "a" * 40,
+                "findings": ["informational note without a severity field"],
+                "evidence_summary": "The review returned a finding.",
+            },
+            "refinement_request": None,
+            "evidence_paths": ["review.json"],
+        }
+
+        errors = validate_node_result(plan, run, result)
+
+        self.assertTrue(
+            any("current PASS review result must not contain findings" in error for error in errors),
+            errors,
+        )
+
     def test_schema_mismatch_reports_the_required_versions(self) -> None:
         # Structural validation normally rejects the pair first. Stub it so
         # this test guards validate_node_result's own schema gate.

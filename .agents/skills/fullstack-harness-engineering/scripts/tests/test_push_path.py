@@ -229,6 +229,14 @@ class OrdinaryPushPathTests(unittest.TestCase):
             "this is not authorizing a push",
             "the push endpoint is available",
             "ship the branch",
+            "approval is required before the push",
+            "permission is needed to publish",
+            "authorization is pending before publishing",
+            "publish after permission is granted",
+            "the request to publish is pending",
+            "I request permission to push the branch",
+            "publish when approved",
+            "push after the checks pass",
         ):
             with self.subTest(source=source):
                 self.assertFalse(is_explicit_remote_intent(source))
@@ -237,8 +245,11 @@ class OrdinaryPushPathTests(unittest.TestCase):
         for source in (
             "push the verified branch",
             "implement and push the verified branch",
+            "please publish the accepted branch",
             "publish the accepted branch",
             "I authorize you to push the branch",
+            "I approve the push",
+            "I request a publish",
             "approve the push",
             "request a publish",
         ):

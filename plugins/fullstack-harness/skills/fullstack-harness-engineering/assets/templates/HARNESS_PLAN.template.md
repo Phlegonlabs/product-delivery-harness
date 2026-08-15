@@ -21,7 +21,7 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "owner": "<human or team>",
         "status": "frozen",
         "content_sha256": null,
-        "source_revision": "<immutable published upstream revision, or null>",
+        "source_revision": "0000000000000000000000000000000000000000",
         "staged_revision": null,
         "notes": "<role or concise notes>"
       }
