@@ -37,6 +37,19 @@ Page-faithful target: version-bound screenshot, Figma frame, mockup, handoff spe
 Existing app baseline: current route behavior, screenshots, traces, metrics, source implementation
 ```
 
+## Repository Design Reference Discovery
+
+During `System Review And Route` for UI-bearing work, recursively inspect the repository's conventional `docs/design/` folder when it exists and any other design folder the user explicitly names. Also include an obvious design image encountered during the normal bounded scope scan. Do not start a broad repository-wide image crawl when those locations are absent.
+
+Treat readable `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif`, and `.svg` files in those locations as candidate design inspiration. For each candidate:
+
+1. Record the exact repository-relative path and SHA-256 content hash in the parent checkpoint or plan intake notes.
+2. Open and inspect the source before claiming any visible mechanic. Mark unreadable or ambiguous files as blocked instead of inferring their contents.
+3. Classify it as design inspiration unless the user separately and explicitly requests page-faithful matching for a named route, state set, responsive scope, source version, and tolerance.
+4. Route it to `product-design-builder` for `REF-*` inspection and owner-confirmed `RP-*` `Adopt / Adapt / Avoid` principles. Only the accepted, frozen consequences may shape implementation.
+
+Do not treat general assets, logos, README covers, test snapshots, `docs/goal/evidence/`, dependency caches, generated output, or build artifacts as design references merely because they are images. Include one only when the user identifies it as a design source or its in-scope design purpose is explicit. Keep discovered files in place; do not copy, move, rename, or publish them into the product package. No discovered image is code-side authority, and the absence of `docs/design/` is not a blocker.
+
 ## Delta Record
 
 Every accepted change should be captured as a delta row:

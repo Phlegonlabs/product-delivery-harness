@@ -175,15 +175,16 @@ async function agent(_prompt, options) {
         )
         self.assertIn("record that gap before offering the Harness", skill)
 
-    def test_ui_design_is_delegated_to_the_mandatory_paired_skills(self) -> None:
+    def test_ui_design_is_delegated_to_the_mandatory_design_skills(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         agent = self.read_agent_prompt()
 
         for content in (skill, contract, agent):
             self.assertIn("product-design-builder", content)
+            self.assertIn("impeccable", content)
             self.assertIn("frontend-design", content)
-        self.assertIn("must load `frontend-design` before any design work", skill)
+        self.assertIn("must load `impeccable` and `frontend-design` before any design work", skill)
         self.assertIn("do not author its wireframes or design system here", skill)
         self.assertIn(
             "Do not create wireframes, visual directions, design tokens, or a design system",
@@ -210,7 +211,7 @@ async function agent(_prompt, options) {
             skill,
         )
         self.assertIn(
-            "recommends exactly three product-specific, current-reference-informed directions",
+            "normalizes exactly three product-specific, current-reference-informed directions",
             skill,
         )
         self.assertIn(
@@ -222,7 +223,7 @@ async function agent(_prompt, options) {
         self.assertIn("do not infer faithful-copy intent", contract)
         self.assertIn("complete the market-research gap pass first", contract)
         interview = self.read("references/interview-guide.md")
-        self.assertIn("recommends exactly three product-specific directions", interview)
+        self.assertIn("normalizes exactly three product-specific directions", interview)
         self.assertNotIn("or four when a real product tension justifies it", interview)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:

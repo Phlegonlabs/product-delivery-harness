@@ -1,6 +1,6 @@
 ---
 name: product-design-builder
-description: Create or refine implementation-ready product wireframes and a frozen design-system contract (`wireframes.md`, `design-system.md`, and `design-system.json`) from an existing PRD, product brief, or approved requirements. Use for UI wireframes, screen flows, visual directions, current public design-reference discovery, image/screenshot/URL/Figma/named-product design extraction, design systems, design tokens, UI primitives, product-component contracts, responsive/state matrices, or design-input deltas. This skill requires the separate `frontend-design` skill for every wireframe and design-system creation or revision; it must not fall back to an unaided design path.
+description: Create or refine implementation-ready product wireframes and a frozen design-system contract (`wireframes.md`, `design-system.md`, and `design-system.json`) from an existing PRD, product brief, or approved requirements. Use for UI wireframes, screen flows, visual directions, current public design-reference discovery, image/screenshot/URL/Figma/named-product design extraction, design systems, design tokens, UI primitives, product-component contracts, responsive/state matrices, or design-input deltas. This skill requires the separate `frontend-design` and `impeccable` skills for every wireframe and design-system creation or revision; it must not fall back to an unaided design path.
 ---
 
 # Product Design Builder
@@ -15,18 +15,18 @@ Turn approved product intent into three binding UI sources:
 
 Keep product scope in `PRD.md`. Do not implement production UI code or create Harness PLAN/RUN state.
 
-## Mandatory Frontend Design Gate
+## Mandatory Design Skills Gate
 
 Before creating or revising any wireframe, visual direction, token, primitive, component, motion rule, or responsive rule:
 
-1. Confirm that the installed skill with exact frontmatter name `frontend-design` is available in the current session.
-2. Load `frontend-design` together with this skill and apply its design-thinking, differentiation, typography, color, composition, motion, and anti-generic-UI discipline throughout the work.
-3. State that both skills are active before producing design output. Do not claim `frontend-design` participation from a prior session, a package name, or remembered guidance.
-4. If `frontend-design` is unavailable or cannot be loaded, stop and report the missing dependency. Do not draft, revise, or validate the design artifacts through a fallback path.
+1. Confirm that the installed skills with exact frontmatter names `frontend-design` and `impeccable` are available in the current session.
+2. Load both skills with this skill. Use `impeccable` through `references/impeccable-concept-generation.md` for surface-mode and concept-world generation, and use `frontend-design` for hierarchy, differentiation, typography, color, composition, motion, and anti-generic-UI craft.
+3. State that all three skills are active before producing design output. Do not claim participation from a prior session, a package name, or remembered guidance.
+4. If `frontend-design` or `impeccable` is unavailable or cannot be loaded, stop and report the missing dependency. Do not draft, revise, or validate the design artifacts through a fallback path.
 
-For a Harness mission, `required_skills` must contain both `product-design-builder` and `frontend-design`. A worker loads exactly that pair before the launch checklist. In this creation mode, `frontend-design` may choose and develop the product-specific direction inside the approved product, platform, accessibility, and Builder UX constraints. This is distinct from Harness UI implementation conformance mode, where `frontend-design` must obey an already frozen package.
+For a Harness mission, `required_skills` must contain `product-design-builder`, `frontend-design`, and `impeccable`. A worker loads exactly that trio before the launch checklist. In creation mode, Impeccable generates and challenges concept worlds, `frontend-design` develops their visual craft, and this skill owns evidence, normalization, human gates, and the canonical design set. This is distinct from Harness UI implementation conformance mode, where `frontend-design` must obey an already frozen package and `impeccable` is not loaded.
 
-Using `frontend-design` does not require preview code. Apply the skill to the documents directly. Create HTML, Figma, image, or code previews only when the user explicitly asks for that extra artifact, and keep them non-canonical and outside the staged or published package.
+Using the design skills does not require preview code. Apply them to the documents directly. Create HTML, Figma, image, or code previews only when the user explicitly asks for that extra artifact, and keep them non-canonical and outside the staged or published package.
 
 ## Inputs And Ownership
 
@@ -37,7 +37,8 @@ Read the current sources in full before asking questions or drafting:
 - `market-research.md` and the `MR-*` citations in `PRD.md` when research exists, or the recorded skipped/blocked status when it does not;
 - `architecture.md` and `stack-decisions.md` when they constrain platform, rendering, accessibility, performance, or component sources;
 - existing `wireframes.md`, `design-system.md`, and `design-system.json` for an enhancement or delta; and
-- any approved reference images, screenshots, brand rules, or page-specific design inputs.
+- any approved reference images, screenshots, brand rules, or page-specific design inputs; and
+- repository-discovered design-image candidates, especially readable files under `docs/design/`, passed by the Harness as non-canonical design inspiration with their repository-relative paths and content hashes.
 
 If a required source is named but missing or unreadable, stop and request its path or contents. A statement that an approved source exists is not a substitute for reading it.
 
@@ -47,13 +48,13 @@ Product scope or architecture gaps return to `prd-builder` or the named product 
 
 ## Workflow
 
-1. Pass the Mandatory Frontend Design Gate.
+1. Pass the Mandatory Design Skills Gate.
 2. Read `references/wireframe-guide.md`, then verify its Builder UX Direction Gate with the human product/design decision owner before drafting. Every `assumed` answer requires that owner's explicit authorization. If the recorded decision is missing or incomplete, return a bounded update to `prd-builder` or the named product owner and wait; do not edit `PRD.md` here. Freeze the accepted direction with the product scope, routes, platform, content responsibilities, actions, states, traces, accessibility constraints, and performance limits.
 3. Use `frontend-design` to reason about purposeful hierarchy, task-fit layout, differentiation, responsive behavior, and interaction intent. Draft low-fidelity ASCII wireframes and Mermaid flows. Keep palette, typeface, token values, surface styling, and detailed motion unfixed at this stage.
 4. Run the wireframe quality pass in `references/output-contract.md`. Resolve generic regions, missing routes, incomplete states, unexplained boxes, and unbounded content before visual exploration.
-5. Read `references/design-reference-guide.md`, build the bounded Market Design Evidence Brief, then run `references/wireframe-guide.md`'s combined Style And Reference Intake. Ask the human owner for the desired character, disliked patterns, and any images, URLs, Figma views, named products, or brand references in one turn. End the turn and wait; do not recommend a direction in the same turn.
-6. After the owner replies, inspect every supplied reference using `references/design-reference-guide.md`. Return `Adopt / Adapt / Avoid` principles and wait for confirmation before using owner-supplied signals. Never infer details from an unreadable or inaccessible source.
-7. Use `frontend-design` to form exactly three materially different product-specific directions. Find and inspect one current public visual reference for every direction and a second only when it adds a distinct useful mechanic. Include one contemporary/modern direction by default and a second only when preference, product constraints, and valid evidence support a materially different option. Preserve the same representative screens, structure, content responsibilities, states, and trace IDs. Keep `MR-*`/`S-*` market evidence separate from `REF-*` visual evidence, label inferences, and never describe a direction as market-supported without valid market evidence. If the human owner has explicitly requested a lightweight direction pass per `references/design-reference-guide.md`, form one direction with one inspected reference instead; never initiate that reduction yourself.
+5. Read `references/design-reference-guide.md` and `references/impeccable-concept-generation.md`, build the bounded Market Design Evidence Brief, then run `references/wireframe-guide.md`'s combined Style And Reference Intake. Ask the human owner for the desired character, disliked patterns, and any images, URLs, Figma views, named products, or brand references in one turn. End the turn and wait; do not recommend a direction in the same turn.
+6. After the owner replies, inspect every supplied or repository-discovered reference using `references/design-reference-guide.md`. Treat repository-discovered images like owner-supplied design inspiration: return `Adopt / Adapt / Avoid` principles and wait for confirmation before using their signals. Never infer details from an unreadable or inaccessible source, and never treat repository presence as a page-faithful request.
+7. Use `impeccable` through `references/impeccable-concept-generation.md` to classify surface mode, generate concept worlds, and run the challenger pass. Then use `frontend-design` and `design-reference-guide.md` to normalize the result into exactly three materially different product-specific directions. Find and inspect one current public visual reference for every direction and a second only when it adds a distinct useful mechanic. Include one contemporary/modern direction by default and a second only when preference, product constraints, and valid evidence support a materially different option. Preserve the same representative screens, structure, content responsibilities, states, and trace IDs. Keep `MR-*`/`S-*` market evidence separate from `REF-*` visual evidence, label inferences, and never describe a direction as market-supported without valid market evidence. If the human owner has explicitly requested a lightweight direction pass per `references/design-reference-guide.md`, form one direction with one inspected reference instead; never initiate that reduction yourself.
 8. Let the human owner select, reject, mix, or inspect another reference. `Reject`-all and `Check This` produce a versioned revised set of exactly three directions (one per set in an owner-requested lightweight pass) after the required feedback or principle-confirmation pause. Do not fix tokens or components until one direction and its contributing `RP-*` principles are explicitly confirmed, or the user explicitly authorizes a provisional assumption.
 9. Read `references/design-system-guide.md`. Use `frontend-design` to translate the selected direction into the smallest complete implementation contract required by the real wireframes.
 10. Build `design-system.json`, write the short rationale in `design-system.md`, and reconcile final token, primitive, and product-component names back into every wireframe inventory and spacing declaration.
