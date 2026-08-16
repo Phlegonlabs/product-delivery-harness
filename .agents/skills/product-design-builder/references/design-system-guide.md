@@ -6,9 +6,9 @@ The design system exists so frontend implementation can follow one set of tokens
 
 ## Drafting Order
 
-1. Load `product-design-builder` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the design system through a fallback path.
-2. Finish the PRD and structural wireframes using the mandatory paired skills.
-3. Run `wireframe-guide.md`'s Visual Direction Gate and `design-reference-guide.md`. Use `frontend-design` to form every product-specific direction. Keep `MR-*`/`S-*` market evidence separate from inspected `REF-*` visual evidence, and use only owner-confirmed `RP-*` principles from owner-supplied or `Check This` sources. Do not fix token values or component styling until the human owner selects one consolidated direction and confirms its contributing principles, or explicitly authorizes a provisional assumption.
+1. Load `product-design-builder`, `impeccable`, and `frontend-design` together. If either dependency is unavailable, stop instead of creating or revising the design system through a fallback path.
+2. Finish the PRD and structural wireframes using the mandatory design-skill trio.
+3. Run `wireframe-guide.md`'s Visual Direction Gate, `impeccable-concept-generation.md`, and `design-reference-guide.md`. Use `impeccable` to generate and challenge concept worlds and `frontend-design` to form every product-specific visual direction. Keep `MR-*`/`S-*` market evidence separate from inspected `REF-*` visual evidence, and use only owner-confirmed `RP-*` principles from owner-supplied or `Check This` sources. Do not fix token values or component styling until the human owner selects one consolidated direction and confirms its contributing principles, or explicitly authorizes a provisional assumption.
 4. Use `frontend-design` to translate the selected direction into `design-system.json` from the real controls, surfaces, repeated compositions, states, and responsive needs in the wireframes.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
 6. Reconcile the final token, primitive, and product-component names back into every wireframe element inventory and spacing declaration. An unresolved `custom — reason` flag blocks publication.
@@ -45,6 +45,7 @@ Record:
 - decision status: `selected`, `provisional`, or `assumed`;
 - the human decision owner;
 - the selected or consolidated `VD-*` direction ID;
+- the representative surface mode, concept thesis, and named visual world produced by the Impeccable bridge;
 - applicable `MR-*` market evidence, or an explicit statement that no valid market evidence supports the visual decision;
 - inspected `REF-*` sources with direct URL or attachment label and retrieval date;
 - confirmed `RP-*` `Adopt / Adapt / Avoid` principles and the owner's confirmation record;

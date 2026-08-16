@@ -794,21 +794,24 @@ def validate_plan(
             )
             for scope in mission_write
         )
-        design_skill_pair = {"product-design-builder", "frontend-design"}
-        if design_source_scope and not design_skill_pair.issubset(required_skills):
+        design_skill_trio = {
+            "product-design-builder",
+            "impeccable",
+            "frontend-design",
+        }
+        if design_source_scope and not design_skill_trio.issubset(required_skills):
             _add(
                 errors,
                 f"{mission_path}.required_skills",
-                "design-source write scope must include both 'product-design-builder' and 'frontend-design'",
+                "design-source write scope must include 'product-design-builder', 'impeccable', and 'frontend-design'",
             )
-        elif (
-            "product-design-builder" in required_skills
-            and "frontend-design" not in required_skills
+        elif "product-design-builder" in required_skills and not design_skill_trio.issubset(
+            required_skills
         ):
             _add(
                 errors,
                 f"{mission_path}.required_skills",
-                "must include 'frontend-design' when 'product-design-builder' is required",
+                "must include 'impeccable' and 'frontend-design' when 'product-design-builder' is required",
             )
         _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
         for verifier_group in ("worker_verifiers", "integration_verifiers"):

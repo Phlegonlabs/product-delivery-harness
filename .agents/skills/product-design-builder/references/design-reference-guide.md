@@ -91,7 +91,7 @@ End the turn and wait for the human owner to confirm or correct the principles. 
 
 After the combined Style And Reference Intake is resolved:
 
-1. Draft product-specific direction hypotheses from the frozen wireframes, Visual Preference Brief, Builder UX Direction, and valid market evidence.
+1. Run `impeccable-concept-generation.md` from the frozen wireframes, Visual Preference Brief, Builder UX Direction, and valid market evidence. Normalize its surface-mode, concept-world, and challenger results into product-specific direction hypotheses.
 2. Find and inspect one primary current public reference for every direction. Add a second only when it demonstrates a different useful mechanic.
 3. Present exactly three materially different directions with IDs `VD-R1-01` through `VD-R1-03`. Do not add a fourth.
 4. Include one contemporary/modern reference-informed direction by default. Include a second only when owner preference, product constraints, and valid evidence support a materially different modern treatment. Keep the remaining direction deliberately contrasting.

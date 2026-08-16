@@ -1282,14 +1282,16 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["required_skills"] = ["frontend-design", "feature-dev"]
         self.assertEqual(validate_plan(plan), [])
 
-    def test_product_design_builder_requires_frontend_design(self) -> None:
+    def test_product_design_builder_requires_creation_skill_trio(self) -> None:
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = ["product-design-builder"]
+        self.assert_error_contains(plan, "impeccable")
         self.assert_error_contains(plan, "frontend-design")
 
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = [
             "product-design-builder",
+            "impeccable",
             "frontend-design",
         ]
         self.assertEqual(validate_plan(plan), [])
@@ -1298,7 +1300,7 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["required_skills"] = ["frontend-design"]
         self.assertEqual(validate_plan(plan), [])
 
-    def test_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
+    def test_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
         plan = valid_plan()
         design_scopes = [
             "docs/product/wireframes.md",
@@ -1314,15 +1316,19 @@ class PlanValidationTests(unittest.TestCase):
             if isinstance(review, dict) and review.get("mission_ids") == ["M1"]:
                 review["scope"] = design_scopes
 
-        self.assert_error_contains(plan, "design-source write scope must include both")
+        self.assert_error_contains(plan, "design-source write scope must include")
 
-        mission["required_skills"] = ["product-design-builder", "frontend-design"]
+        mission["required_skills"] = [
+            "product-design-builder",
+            "impeccable",
+            "frontend-design",
+        ]
         self.assertEqual(validate_plan(plan), [])
 
         mission["required_skills"] = ["frontend-design"]
-        self.assert_error_contains(plan, "design-source write scope must include both")
+        self.assert_error_contains(plan, "design-source write scope must include")
 
-    def test_staged_design_source_write_scope_requires_the_exact_skill_pair(self) -> None:
+    def test_staged_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
         for staging_scope in (
             "docs/product/.prd-staging/run-001/**",
             "docs/product/.prd-staging/run-001/wireframes.md",
@@ -1335,11 +1341,12 @@ class PlanValidationTests(unittest.TestCase):
                 mission["write_scope"].append(staging_scope)
 
                 self.assert_error_contains(
-                    plan, "design-source write scope must include both"
+                    plan, "design-source write scope must include"
                 )
 
                 mission["required_skills"] = [
                     "product-design-builder",
+                    "impeccable",
                     "frontend-design",
                 ]
                 self.assertEqual(validate_plan(plan), [])
@@ -1358,7 +1365,7 @@ class PlanValidationTests(unittest.TestCase):
                 plan["missions"][0]["write_scope"].append(non_design_scope)
                 self.assertEqual(validate_plan(plan), [])
 
-    def test_registered_custom_design_sources_require_the_exact_skill_pair(self) -> None:
+    def test_registered_custom_design_sources_require_the_exact_skill_trio(self) -> None:
         plan = valid_plan()
         plan["sources"].extend(
             [
@@ -1402,9 +1409,13 @@ class PlanValidationTests(unittest.TestCase):
             ["specs/custom/**", "alternate-product-path/**"]
         )
 
-        self.assert_error_contains(plan, "design-source write scope must include both")
+        self.assert_error_contains(plan, "design-source write scope must include")
 
-        mission["required_skills"] = ["product-design-builder", "frontend-design"]
+        mission["required_skills"] = [
+            "product-design-builder",
+            "impeccable",
+            "frontend-design",
+        ]
         self.assertEqual(validate_plan(plan), [])
 
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:

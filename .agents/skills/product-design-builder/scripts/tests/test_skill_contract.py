@@ -9,7 +9,7 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
-    def test_frontend_design_is_a_fail_closed_dependency(self) -> None:
+    def test_design_skills_are_fail_closed_dependencies(self) -> None:
         skill = self.read("SKILL.md")
         wireframes = self.read("references/wireframe-guide.md")
         design_system = self.read("references/design-system-guide.md")
@@ -17,21 +17,22 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
 
         for content in (skill, wireframes, design_system, agent):
             self.assertIn("frontend-design", content)
-        self.assertIn("## Mandatory Frontend Design Gate", skill)
-        self.assertIn("If `frontend-design` is unavailable or cannot be loaded, stop", skill)
+            self.assertIn("impeccable", content)
+        self.assertIn("## Mandatory Design Skills Gate", skill)
+        self.assertIn("If `frontend-design` or `impeccable` is unavailable or cannot be loaded, stop", skill)
         self.assertIn("Do not draft, revise, or validate", skill)
-        self.assertIn("If `frontend-design` is unavailable, stop", wireframes)
-        self.assertIn("If `frontend-design` is unavailable, stop", design_system)
+        self.assertIn("If either skill is unavailable, stop", wireframes)
+        self.assertIn("If either dependency is unavailable, stop", design_system)
         self.assertNotIn("optional `frontend-design`", skill)
         self.assertNotIn("fallback design path is allowed", skill)
 
-    def test_frontend_design_gate_precedes_every_design_step(self) -> None:
+    def test_design_skills_gate_precedes_every_design_step(self) -> None:
         skill = self.read("SKILL.md")
 
-        gate = skill.index("## Mandatory Frontend Design Gate")
+        gate = skill.index("## Mandatory Design Skills Gate")
         workflow = skill.index("## Workflow")
         self.assertLess(gate, workflow)
-        self.assertIn("1. Pass the Mandatory Frontend Design Gate.", skill)
+        self.assertIn("1. Pass the Mandatory Design Skills Gate.", skill)
         self.assertIn(
             "Before creating or revising any wireframe, visual direction, token, primitive, component, motion rule, or responsive rule",
             skill,
@@ -91,12 +92,31 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("label every resulting design implication as an inference", wireframes)
         self.assertIn("Do not claim that a recommendation is market-research-backed", wireframes)
 
-    def test_creation_mode_requires_the_exact_skill_pair(self) -> None:
+    def test_creation_mode_requires_the_exact_skill_trio(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn("`required_skills` must contain both `product-design-builder` and `frontend-design`", skill)
+        self.assertIn("`required_skills` must contain `product-design-builder`, `frontend-design`, and `impeccable`", skill)
         self.assertIn("This is distinct from Harness UI implementation conformance mode", skill)
         self.assertIn("creation mode", skill)
+
+    def test_impeccable_generation_is_bounded_by_canonical_sources(self) -> None:
+        skill = self.read("SKILL.md")
+        bridge = self.read("references/impeccable-concept-generation.md")
+        wireframes = self.read("references/wireframe-guide.md")
+        design_system = self.read("references/design-system-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("references/impeccable-concept-generation.md", skill)
+        self.assertIn("surface-mode, cultural-world, and challenger pass", wireframes)
+        self.assertIn("Do not create `PRODUCT.md`, `DESIGN.md`, `.impeccable/`", bridge)
+        self.assertIn("Do not run `concept-seed.mjs` directly here", bridge)
+        self.assertIn("Normalize the result into exactly three materially distinct", bridge)
+        self.assertIn("Every presented direction still needs its own inspected current public `REF-*` source", bridge)
+        self.assertIn("`safer` register", bridge)
+        self.assertIn("`bolder` register", bridge)
+        for marker in ("surface mode", "concept thesis", "named visual world"):
+            self.assertIn(marker, design_system)
+            self.assertIn(marker, contract)
 
     def test_design_artifacts_have_one_owner_and_one_lifecycle(self) -> None:
         skill = self.read("SKILL.md")

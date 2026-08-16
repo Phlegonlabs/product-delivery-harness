@@ -26,7 +26,7 @@ Do not include high-fidelity styling, raw token values, candidate-direction hist
 
 Include only:
 
-- selected-direction status, owner, summary, and implementation consequences;
+- selected-direction status, owner, representative surface mode, concept thesis, named visual world, summary, and implementation consequences;
 - selected `VD-*` direction provenance with applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation;
 - short rationale for non-obvious token and component choices;
 - computed contrast and type-scale evidence;
@@ -57,7 +57,8 @@ Keep it the sole structured authority for:
 
 ## Final Quality Check
 
-- `frontend-design` was loaded with `product-design-builder` for every creation or revision step.
+- `impeccable` and `frontend-design` were loaded with `product-design-builder` for every creation or revision step.
+- Every direction set records a surface mode and concept-generation route from `impeccable-concept-generation.md`; no duplicate `PRODUCT.md`, `DESIGN.md`, or `.impeccable/` authority was created.
 - The human owner selected one consolidated direction, or explicitly authorized a provisional assumption.
 - Every presented direction used one inspected current public `REF-*` source and at most one additional source that contributed a distinct useful mechanic.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.

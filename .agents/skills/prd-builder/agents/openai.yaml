@@ -19,8 +19,8 @@ interface:
     accessibility, platform, and performance limits as design inputs. Do not
     create wireframes, visual directions, design tokens, or a design system in
     this skill. Hand UI-bearing product inputs to $product-design-builder; it
-    must load $frontend-design before design work and must stop when that
-    dependency is unavailable. Recommend one explicit frontend stack when the
+    must load $impeccable and $frontend-design before design work and must stop
+    when either dependency is unavailable. Recommend one explicit frontend stack when the
     product has a browser surface. Run the market-research gap pass by default
     unless the user declined it, no web tool is available, or the package is a
     trivial stub, and record the reason for any skip. Every market claim

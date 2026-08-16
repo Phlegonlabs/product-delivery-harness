@@ -18,7 +18,7 @@ Verification: commands, E2E journey, evidence paths, acceptance thresholds
 Write scope: allowed paths, read-only paths, destructive-action approval gates
 ```
 
-Low-fidelity wireframes remain the product authority for structure and flow. An upstream `frontend-design` visual-direction candidate is non-canonical until `product-design-builder` normalizes it into the frozen design set above. Harness implementation consumes those frozen sources, not the candidate prototype.
+Low-fidelity wireframes remain the product authority for structure and flow. Upstream `impeccable` concept-generation results and `frontend-design` visual-direction candidates are non-canonical until `product-design-builder` normalizes them into the frozen design set above. Harness implementation consumes those frozen sources, not the candidate prototype.
 
 For large work, including parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
@@ -159,7 +159,7 @@ The validators block these. Fix the plan or run state; do not work around them:
 - The canonical plan/run manifest is missing, invalid, stale, or inconsistent with the proposed wave.
 - A mission's write scope has no preintegration-stage review node covering it. Enforced at execution authorization rather than plan validation, so an upgraded v3 projection stays a valid PLAN — it simply cannot execute until its review nodes are authored. On a RUN-v10 run, coverage counts only a review node whose `review.mission_ids` contains exactly that one mission and which has a direct dependency edge from that mission's node — a multi-mission or integration-stage review cannot stand in for it. After all mission heads integrate, fresh integration-stage reviewers cover the unified head; `required_reviews` staying empty never means the run ships without review.
 - A planned trace has a downstream task but no verification row: a planned trace whose every carrying task has an empty `acceptance_matrix` fails plan validation. An implemented-but-unverified contract does not pass as covered.
-- A mission's `required_skills` names `product-design-builder` without `frontend-design`, or a design-source write scope omits that skill pair.
+- A mission's `required_skills` names any incomplete subset of `product-design-builder`, `impeccable`, and `frontend-design`, or a design-source write scope omits that skill trio.
 
 ### Judgment Stops
 
@@ -171,7 +171,7 @@ Stop before implementation when:
 - Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.
 - The design system contradicts the wireframe in a user-visible way.
 - `design-system.md` and `design-system.json` are both present but fail `product-design-builder`'s pair checker, run read-only from the repository root: `scripts/check_design_system_pair.py --markdown <design-system.md> --registry <design-system.json> --require-filled`. Never run it with `--write` from the harness — that edits a frozen source. A failing pair means the two files no longer agree — usually a hand edit to one after publication. Route the fix through `design-input-updates.md`; do not guess which file is right or implement against half a contract.
-- `frontend-design` cannot be loaded for a mission that requires it. Creation mode is blocked; it does not fall back.
+- `impeccable` or `frontend-design` cannot be loaded for a creation-mode mission that requires it. Creation mode is blocked; it does not fall back.
 - A UI implementation mission lists `frontend-design` without an explicit user selection for that new or high-impact visual surface, or its handoff asks the skill to choose a new direction instead of conforming to the frozen package.
 - An in-scope route has no screen entry in `wireframes.md`, or a route needs a token, primitive, variant, component, or motion variant that `design-system.json` does not list. Ask for the missing screen or design-system entry; do not improvise the route or pass a raw value at the call site.
 - The design system is written for a different platform than the resolved target — for example web pixel `viewports` and web-family icons handed off for a native iOS/Android/Flutter/desktop mission, or the reverse. Confirm with the user; do not silently implement against the mismatch or guess the intended platform. `verification-gates.md`'s "Capture Mechanism By Platform" separately decides the UI evidence capture mechanism after implementation.
