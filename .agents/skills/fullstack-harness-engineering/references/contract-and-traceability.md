@@ -57,6 +57,8 @@ For plan-backed work, the PLAN JSON `sources` array is canonical; the table is i
 
 If an external source is unavailable, ask for screenshots, exports, or written specs before claiming design-faithful implementation.
 
+For UI-bearing work, the initial source review also checks the repository's conventional `docs/design/` folder when present, any design folder the user names, and obvious design images encountered in the normal bounded scope scan. Inventory readable candidates by repository-relative path and SHA-256, but keep them non-canonical until `product-design-builder` inspects them and the owner confirms the resulting `REF-*` / `RP-*` principles. Repository presence alone never makes an image a page-faithful target. Follow `design-input-updates.md` for file types, exclusions, blocked inspection, and the handoff boundary.
+
 ## Document Folder Handoff
 
 When the user provides a document folder path, inspect that folder before drafting harness artifacts. Treat files in the folder as upstream sources and register recognized inputs in the source map. This is commonly `docs/product/` when `prd-builder` published there, but the harness does not assume a fixed path — take whatever folder the user names.
@@ -71,6 +73,7 @@ wireframes.md
 implementation-plan.md
 design-system.md
 design-system.json
+docs/design/
 screenshots/
 figma-refs.md
 ```

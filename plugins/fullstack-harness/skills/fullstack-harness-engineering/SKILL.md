@@ -35,6 +35,8 @@ System Review And Route (parent-only, read-only; no task skill, PLAN/RUN, adapte
 
 This is the first phase of every request and is owned by the parent coordinator. It is a bounded, read-only review of the user request, repository instructions, Git state, requested scope, and available upstream product/design inputs. It records the route decision in the conversation or parent checkpoint only; it does not create or edit `PLAN.md`, `RUN.md`, `tasks.md`, evidence, branches, worktrees, or other managed artifacts.
 
+For UI-bearing work, this bounded review also inspects readable design-image candidates under the repository's conventional `docs/design/` folder when it exists, plus any other design folder the user names. Include obvious design images encountered during the normal scope scan, but do not turn this into a repository-wide asset crawl. Treat every discovered image as candidate design inspiration, not implementation authority or a page-faithful target. Record its repository-relative path and content hash, then route it through `references/design-input-updates.md` and `product-design-builder` for inspection and owner-confirmed `REF-*` / `RP-*` consequences before implementation uses it.
+
 The parent must complete this stage before loading any task-specific skill, selecting a runtime adapter or model, preflighting a worker runtime, creating managed artifacts, or launching a worker. The stage never invokes an external runtime, spawns a worker, or performs a state-changing Git action. It returns at least:
 
 ```text
@@ -257,7 +259,7 @@ When a mission writes UI code, load `references/ui-implementation-contract.md` b
 
 Run `System Review And Route` first as the parent-only, read-only checkpoint described above. Do not load a task-specific skill, create PLAN/RUN, select an adapter/model, preflight worker capability, or spawn a worker while this checkpoint is in progress. Only its `large` result permits the next section's PLAN-backed workflow.
 
-Inspect the repository, applicable instructions, Git state, upstream product/design sources, current behavior, and requested outcome. Record concise decisions for:
+Inspect the repository, applicable instructions, Git state, upstream product/design sources, current behavior, and requested outcome. For UI-bearing work, include the bounded repository design-reference discovery above and record whether `docs/design/`, a user-named design folder, or an obvious in-scope design image supplied any candidates. Record concise decisions for:
 
 ```text
 Project size: small | large

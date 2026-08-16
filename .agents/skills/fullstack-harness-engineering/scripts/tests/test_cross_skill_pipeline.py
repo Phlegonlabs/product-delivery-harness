@@ -132,6 +132,29 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("never invoke them automatically", references)
         self.assertIn("design inspiration never enters this matrix", design_updates.lower())
 
+    def test_repository_design_images_enter_the_reference_confirmation_flow(self) -> None:
+        product_design = self.read("product-design-builder/SKILL.md")
+        harness = self.read("fullstack-harness-engineering/SKILL.md")
+        contract = self.read(
+            "fullstack-harness-engineering/references/contract-and-traceability.md"
+        )
+        design_updates = self.read(
+            "fullstack-harness-engineering/references/design-input-updates.md"
+        )
+
+        for content in (product_design, harness, contract, design_updates):
+            self.assertIn("docs/design/", content)
+            self.assertIn("repository-relative path", content)
+        self.assertIn("candidate design inspiration", harness)
+        self.assertIn("SHA-256 content hash", design_updates)
+        self.assertIn("docs/goal/evidence/", design_updates)
+        self.assertIn("owner-confirmed `RP-*`", design_updates)
+        self.assertIn("repository-discovered reference", product_design)
+        self.assertIn(
+            "never treat repository presence as a page-faithful request",
+            product_design,
+        )
+
     def test_frontend_review_binds_to_the_host_provider_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(
