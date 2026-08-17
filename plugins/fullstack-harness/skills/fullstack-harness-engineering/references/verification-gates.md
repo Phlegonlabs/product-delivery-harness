@@ -120,6 +120,8 @@ Changed-file selection is allowed only for task and worker verifiers. The declar
 
 The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
 
+Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v10 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
+
 Every applicable declared verifier runs through `verifier_runtime.py`'s `run_verifier()`, cache configured or not; its returned `execution_key` is the worker result's reported `evidence`. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
 
 A local verifier may declare:

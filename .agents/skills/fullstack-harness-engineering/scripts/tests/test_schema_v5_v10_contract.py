@@ -110,13 +110,13 @@ class SchemaV5V10ContractTests(unittest.TestCase):
 
 
     def test_lazy_pillow_and_readme_current_outputs_are_documented(self) -> None:
-        skill = self.read("SKILL.md")
+        verification = self.read("references/verification-gates.md")
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
-        self.assertIn("Pillow is imported lazily", skill)
-        self.assertIn("targeted UI-evidence decoding error", skill)
-        self.assertIn("without preventing non-UI CLIs from starting", skill)
-        self.assertIn("accepted Git `head_sha`", skill)
+        self.assertIn("Pillow is imported lazily", verification)
+        self.assertIn("targeted UI-evidence decoding error", verification)
+        self.assertIn("without preventing non-UI CLIs from starting", verification)
+        self.assertIn("accepted Git `head_sha`", verification)
         self.assertIn("PLAN v5", readme)
         self.assertIn("RUN v10", readme)
         self.assertIn("`design-system.md`, `design-system.json`", readme)
