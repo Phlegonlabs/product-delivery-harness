@@ -640,6 +640,33 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("@AGENTS.md", project_claude)
         self.assertIn("## Claude Code Runtime Boundary", project_claude)
 
+    def test_branch_names_are_explicit_and_have_no_harness_prefix(self) -> None:
+        policy_paths = (
+            "SKILL.md",
+            "agents/openai.yaml",
+            "references/execution-state-model.md",
+            "references/verification-gates.md",
+            "references/worktree-thread-orchestration.md",
+            "assets/templates/GOAL.template.md",
+            "assets/templates/MISSION_RUNBOOK.template.md",
+            "assets/templates/PROJECT_AGENTS.template.md",
+        )
+        for path in policy_paths:
+            with self.subTest(path=path):
+                content = self.read(path)
+                self.assertNotIn("codex/<short-name>", content)
+
+        skill = self.read("SKILL.md")
+        project = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        ci = self.read("assets/templates/PROJECT_CI.template.yml")
+        codex_adapter = self.read_sibling_skill("fullstack-harness-codex")
+
+        for content in (skill, project, codex_adapter):
+            self.assertIn("never add a fixed prefix", content.lower())
+        self.assertIn("ask before branch creation", skill.lower())
+        self.assertIn("- '**'", ci)
+        self.assertNotIn("codex/**", ci)
+
 
 if __name__ == "__main__":
     unittest.main()

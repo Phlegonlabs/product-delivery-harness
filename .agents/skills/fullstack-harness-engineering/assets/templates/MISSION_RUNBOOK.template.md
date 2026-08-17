@@ -85,7 +85,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
       }
     },
     "integration": {
-      "branch": "refs/heads/codex/<short-name>",
+      "branch": "refs/heads/<exact-run-branch>",
       "retention": "ephemeral",
       "batch_base_sha": null,
       "integration_head_sha": null,
@@ -103,7 +103,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
       "pushed_head_sha": null,
       "continuity": {
         "status": "planned",
-        "branch_ref": "refs/heads/codex/<short-name>",
+        "branch_ref": "refs/heads/<exact-run-branch>",
         "head_sha": null,
         "reason": "Keep the reviewed run branch so the user can read it and land it"
       }

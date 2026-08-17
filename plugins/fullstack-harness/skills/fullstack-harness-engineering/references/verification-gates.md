@@ -47,7 +47,7 @@ Worktree pre-integration review gate:
 
 Mission integration gate:
 
-- Runs after reviewed work lands on the resolved integration branch — the run's own `codex/<short-name>` branch under the default model.
+- Runs after reviewed work lands on the exact non-default integration branch resolved from repository governance or the user's instruction.
 - Runs that mission's declared `integration_verifiers` on the integrated head.
 - Is the only gate that may transition a mission to `integrated` after the parent confirms the integrated SHA is reachable from the current integration head.
 

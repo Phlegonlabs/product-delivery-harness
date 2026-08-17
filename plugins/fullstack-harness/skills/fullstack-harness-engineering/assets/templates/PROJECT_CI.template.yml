@@ -5,9 +5,8 @@ on:
   merge_group:
   push:
     branches:
-      - <base-branch>
-      # A harness run ends by pushing its work branch, so verify that push too.
-      - 'codex/**'
+      # Do not assume a run-branch prefix; verify every pushed branch.
+      - '**'
 
 permissions:
   contents: read
