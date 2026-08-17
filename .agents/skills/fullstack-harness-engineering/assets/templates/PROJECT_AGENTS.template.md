@@ -1,6 +1,6 @@
 # Project Rules
 
-This template's main-only branch model — `main` as the default branch, an ephemeral `codex/<short-name>` run branch for the work — is the default for a new repository. If the repository already defines another branch model, keep that existing governance and replace the default names below; never overwrite conflicting repository instructions.
+This template uses `main` as the default branch but does not prescribe a run-branch prefix. If the repository already defines another branch model, keep that existing governance and replace the default name below; never overwrite conflicting repository instructions.
 
 ## Runtime Boundary
 
@@ -57,7 +57,8 @@ This template's main-only branch model — `main` as the default branch, an ephe
 - Map one independently testable goal to one mission. Tasks inside that mission stay sequential under one writer.
 - Give every writer an explicit file-ownership scope and a separate worktree. Workers and reviewers never delegate; the Harness parent dispatches every explorer, writer, and reviewer as a sibling.
 - Freeze and integrate shared APIs, schemas, and types before starting dependent write missions in parallel.
-- Cut the run branch `codex/<short-name>` from the current default branch, then create every implementation worktree from the current resolved integration-branch SHA.
+- Resolve the complete non-default run-branch name from repository governance or the user's instruction. If neither source names it, ask before branch creation; never add a fixed prefix or invent a branch name.
+- Cut that resolved run branch from the current default branch, then create every implementation worktree from the current resolved integration-branch SHA.
 - Before dispatch, verify each worktree has the expected repository, branch/ref, exact base HEAD, and a clean status.
 - Never edit, commit, or merge on the default branch, and never push to it. Cutting a branch from it is fine; writing to it is not.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
@@ -70,7 +71,7 @@ This template's main-only branch model — `main` as the default branch, an ephe
 
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. The ledger covers external runtime invocation, subagents, user-owned tasks, worktrees, local branches, local commits, local integration, push, task archival, worktree removal, and branch deletion. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
 - Ordinary plan-backed work starts and normally ends `local_only` on the resolved integration branch; a separate explicit remote outcome may move it to `integration_push` when that verified head is pushed. The run is complete there; it does not wait for GitHub.
-- With matching `create_local_branches` authorization, work on `codex/<short-name>`.
+- With matching `create_local_branches` authorization, work on the exact resolved non-default run branch.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
 - Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved integration branch.
 - Run `<verification-command>` and `<e2e-command>`, then review the complete diff before push.
