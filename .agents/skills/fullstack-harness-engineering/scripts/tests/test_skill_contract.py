@@ -31,15 +31,39 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("## Default Mission Topology", skill)
         self.assertIn("Map one independently testable goal to one mission", skill)
+        self.assertIn("one bounded worker slice", skill)
+        self.assertIn("10-20 minutes", skill)
+        self.assertIn("75% wall-time reduction", skill)
+        self.assertIn("85% as the stretch target", skill)
         self.assertIn("bounded read-only exploration", skill)
         self.assertIn("one explicit `write_scope`", skill)
         self.assertIn("Freeze shared APIs, schemas, and types", skill)
         self.assertIn("`git status --porcelain`", skill)
-        self.assertIn("fresh parent-owned read-only reviewers", skill)
+        self.assertIn("one planned parent-owned read-only reviewer", skill)
+        self.assertIn("at most one repair-and-re-review cycle", skill)
+        self.assertIn("do not dispatch another same-scope review", skill)
+        self.assertIn("do not attach the full PLAN/RUN", skill)
         self.assertIn("one planned broad final validation suite", skill)
         self.assertIn("Workers and reviewers never delegate", skill)
         self.assertIn("## No Nested Delegation", worker)
         self.assertIn("explicit file-ownership scope", project)
+
+    def test_runtime_performance_contract_is_machine_measured_and_safety_preserving(self) -> None:
+        performance = self.read("references/runtime-performance.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        verifier = self.read("scripts/verifier_runtime.py")
+
+        self.assertIn("minimum target is 75%", performance)
+        self.assertIn("stretch target is 85%", performance)
+        self.assertIn("context capsule", performance)
+        self.assertIn("cursor wait", performance)
+        self.assertIn("read-only pre-integration review", performance)
+        self.assertIn("execution.parallel_safe", performance)
+        self.assertIn("never weakens authorization", performance)
+        self.assertIn('"runtime_metrics"', runbook)
+        self.assertIn('"minimum": 75', runbook)
+        self.assertIn('"stretch": 85', runbook)
+        self.assertIn("BATCH_PROTOCOL", verifier)
 
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
@@ -348,6 +372,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"lease_id"', workflow)
         self.assertIn('"task_results"', workflow)
         self.assertIn('"REFINEMENT_REQUEST"', workflow)
+        self.assertIn("capsule_sha256", workflow)
+        self.assertIn("complete live task", workflow)
 
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
@@ -555,6 +581,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"workflow_runs"', run)
         self.assertIn("mission_write", run)
         self.assertIn("EnterWorktree", workflow)
+        self.assertIn("capsule_sha256", workflow)
+        self.assertIn("complete live task", workflow)
 
     def test_plan_provider_options_bind_worker_models(self) -> None:
         skill = "\n".join(
@@ -573,8 +601,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"provider_options"', plan)
         self.assertIn('"preferred_provider": null', plan)
         self.assertIn('"allowed_providers": ["codex", "claude_code", "pi", "generic"]', plan)
-        self.assertIn('"pi": {"model": null, "reasoning_effort": null}', plan)
+        self.assertIn('"pi": {"model": null, "reasoning_effort": "high"}', plan)
+        self.assertIn('"pi": {"model": null, "reasoning_effort": "medium"}', plan)
         self.assertIn('"generic": {"model": null, "reasoning_effort": null}', plan)
+        self.assertIn("10-20 minutes", plan)
         # A delegated Claude Code node never defaults above sonnet: the pinned
         # top-tier model is reserved for the parent's own coordination/planning,
         # not assigned to any worker/review node by default.

@@ -469,6 +469,21 @@ class GraphManifestTests(unittest.TestCase):
             any("must be preintegration or integration" in error for error in validate_plan(plan))
         )
 
+    def test_runtime_review_allows_at_most_two_attempts(self) -> None:
+        plan = valid_plan()
+        review = next(
+            node for node in plan["graph"]["nodes"]
+            if node.get("review") is not None
+        )
+        review["max_attempts"] = 3
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any("runtime review allows at most 2 attempts" in error for error in errors),
+            errors,
+        )
+
 
 
 
@@ -894,7 +909,7 @@ class GraphManifestTests(unittest.TestCase):
         node["runtime"]["preferred_provider"] = "pi"
         node["runtime"]["allowed_providers"].append("pi")
         node["runtime"]["provider_options"] = {
-            "pi": {"model": None, "reasoning_effort": None}
+            "pi": {"model": None, "reasoning_effort": "high"}
         }
         self.assertEqual([], validate_plan(plan))
 
@@ -917,12 +932,13 @@ class GraphManifestTests(unittest.TestCase):
         self.assertEqual("pi", binding["provider"])
         self.assertEqual("subagents", binding["driver"])
         self.assertIsNone(binding["model"])
-        self.assertIsNone(binding["reasoning_effort"])
+        self.assertEqual("high", binding["reasoning_effort"])
         self.assertEqual("plan_provider_options", binding["option_source"])
 
-        node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = "high"
-        self.assertTrue(any("supports selectable effort" in error for error in validate_plan(plan)))
-        node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = None
+        node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = "unsupported"
+        self.assertTrue(any("supported reasoning effort" in error for error in validate_plan(plan)))
+        node["runtime"]["provider_options"]["pi"]["reasoning_effort"] = "medium"
+        self.assertEqual([], validate_plan(plan))
         node["runtime"]["provider_options"]["pi"]["model"] = "gpt-5.6-sol"
         self.assertTrue(any("Pi role configuration owns model selection" in error for error in validate_plan(plan)))
 
@@ -983,6 +999,65 @@ class GraphManifestTests(unittest.TestCase):
         self.assertTrue(
             any("must match the matching PLAN provider option" in error for error in validate_run(plan, run))
         )
+
+    def test_pi_run_worker_binding_accepts_plan_reasoning_effort(self) -> None:
+        plan = valid_graph_plan()
+        node = plan["graph"]["nodes"][0]
+        node["runtime"]["preferred_provider"] = "pi"
+        node["runtime"]["allowed_providers"].append("pi")
+        node["runtime"]["provider_options"] = {
+            "pi": {"model": None, "reasoning_effort": "high"}
+        }
+        run = valid_graph_run(plan)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            {
+                "provider": "pi",
+                "available_drivers": ["subagents", "sequential_parent"],
+                "detection_source": "observed",
+            }
+        )
+        worker = {
+            "worker_id": "W-M1-PI",
+            "mission_id": "M1",
+            "lease_id": "LEASE-M1-PI",
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": plan_digest(plan),
+            "batch_base_sha": "a" * 40,
+            "worker_runtime": "subagent",
+            "workspace_mode": "parent_managed_worktree",
+            "completion_channel": "agent_result",
+            "runtime_binding": {
+                "provider": "pi",
+                "driver": "subagents",
+                "source": "host",
+                "model": None,
+                "reasoning_effort": "high",
+                "option_source": "plan_provider_options",
+            },
+            "task_thread_id": "pi-run-m1",
+            "worktree_path": "C:/repo/worktrees/M1",
+            "branch_ref": "refs/heads/codex/m1",
+            "report_path": None,
+            "phase": "leased",
+            "worker_head_sha": None,
+        }
+        run["workers"].append(worker)
+        authorize_recorded_worker(run, worker)
+        authorize_action(
+            run,
+            "spawn_subagents",
+            ["M1"],
+            ["worker:W-M1-PI"],
+        )
+
+        self.assertEqual([], validate_run(plan, run))
 
     def test_codex_worker_runtime_binding_rejects_non_host_source(self) -> None:
         # The guarded external-Codex-agent driver/source pair is gone: a

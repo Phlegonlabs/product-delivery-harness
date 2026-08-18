@@ -36,6 +36,12 @@ from select_verifiers import (
 from verifier_runtime import PROTOCOL as VERIFIER_PROTOCOL, execution_key_from_document
 
 
+SUPPORTED_VERIFIER_PROTOCOLS = {
+    "harness-verifier-execution-v1",
+    VERIFIER_PROTOCOL,
+}
+
+
 WORKER_RESULT_FIELDS = {
     "type",
     "run_id",
@@ -443,7 +449,8 @@ def _retained_verifier_results(
             _issue(errors, "retained_verifier_mismatch", f"{path}.verifier_id", "must identify the verifier")
             continue
         retained[verifier_id] = item
-        if item.get("protocol") != VERIFIER_PROTOCOL:
+        protocol = item.get("protocol")
+        if protocol not in SUPPORTED_VERIFIER_PROTOCOLS:
             _issue(errors, "retained_verifier_mismatch", f"{path}.protocol", "does not match verifier runtime protocol")
         key_document = item.get("key_document")
         execution_key = item.get("execution_key")
@@ -461,7 +468,7 @@ def _retained_verifier_results(
                 f"{path}.execution_key",
                 "does not match the retained key document",
             )
-        elif key_document.get("protocol") != VERIFIER_PROTOCOL:
+        elif key_document.get("protocol") != protocol:
             _issue(
                 errors,
                 "retained_verifier_mismatch",
@@ -533,25 +540,25 @@ def _retained_verifier_results(
                         "must reference the exact retained mission/task/lease attempt",
                     )
             if isinstance(key_document, dict):
+                key_context_fields = [
+                    "run_id",
+                    "plan_revision",
+                    "plan_digest_sha256",
+                    "graph_revision",
+                    "batch_base_sha",
+                    "head_sha",
+                    "trust_domain",
+                    "checkout_role",
+                    "checkout_dirty",
+                    "cache_safe",
+                ]
+                if protocol == "harness-verifier-execution-v1":
+                    key_context_fields.extend(
+                        ["layer", "mission_id", "task_id", "attempt_id", "lease_id"]
+                    )
                 key_context = {
                     field: key_document.get(field)
-                    for field in (
-                        "run_id",
-                        "plan_revision",
-                        "plan_digest_sha256",
-                        "graph_revision",
-                        "batch_base_sha",
-                        "head_sha",
-                        "trust_domain",
-                        "checkout_role",
-                        "checkout_dirty",
-                        "cache_safe",
-                        "layer",
-                        "mission_id",
-                        "task_id",
-                        "attempt_id",
-                        "lease_id",
-                    )
+                    for field in key_context_fields
                 }
                 retained_context = {field: context.get(field) for field in key_context}
                 changed_digest = hashlib.sha256(
@@ -579,7 +586,10 @@ def _retained_verifier_results(
             or normalized.get("pass_signal") != declaration.get("pass_signal")
             or normalized.get("cache") != declared_cache
             or not isinstance(key_document, dict)
-            or key_document.get("verifier_id") != verifier_id
+            or (
+                protocol == "harness-verifier-execution-v1"
+                and key_document.get("verifier_id") != verifier_id
+            )
             or key_document.get("cwd") != normalized.get("cwd")
             or key_document.get("argv") != normalized.get("argv")
             or key_document.get("pass_signal") != normalized.get("pass_signal")

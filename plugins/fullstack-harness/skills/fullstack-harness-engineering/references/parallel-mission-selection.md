@@ -250,12 +250,12 @@ Current Claude Code can support nested subagents, but current RUN-v10 deliberate
 
 ## Batch Integration And Recompute
 
-One wave lifecycle has a fixed order, and no other order works: the selector dispatches no node while `run.active_wave.status` is `active` — any node that reaches dispatch-stage evaluation, including read-only review nodes, is deferred with `blocker_present` — and worker-result validation accepts a result only while its wave is active. So:
+One wave lifecycle has a fixed mutation order. Worker-result validation accepts a result only while its wave is active. The selector still blocks new writers and every integration/lifecycle mutation while `run.active_wave.status` is `active`, but it may stream a dependency-ready, read-only pre-integration review for one selected mission that has already reached `worker_passed`. So:
 
 1. Launch the selected workers.
-2. Validate every selected mission's worker result against the still-active wave.
-3. Close the wave: once all selected missions' worker results are validated, the parent transitions the wave out of `active`. No node dispatches while a wave is active.
-4. Re-run selection; the review nodes now dispatch. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.
+2. Validate each selected mission's worker result against the still-active wave. As each mission reaches `worker_passed`, re-run selection and dispatch its ready read-only pre-integration review while sibling workers continue.
+3. Close the wave once all selected missions' worker results are validated. A streamed review may already be terminal, but no mission integrates before this transition.
+4. Re-run selection and dispatch any remaining review nodes. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.
 5. Integrate the passing missions serially in declared merge order (steps below).
 6. Run the batch gates, then recompute.
 
@@ -263,7 +263,7 @@ The parent integrates one worker-passed mission at a time in declared merge orde
 
 1. Confirm worker base/head ancestry and head stability.
 2. Recompute actual changed paths and reject scope escape or parent-owned files.
-3. Require the read-only review PASS from the post-close selector pass above: at least one review bound to the exact current worktree head. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`.
+3. Require a read-only review PASS bound to the exact current worktree head. It may come from the streamed active-wave review or a post-close selector pass. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`.
 4. Integrate into the resolved integration branch only when `integrate_locally` is authorized.
 5. Run the affected mission's integration verifiers after its integration.
 6. Mark it `integrated` only after the gate passes and record `integrated_sha`.

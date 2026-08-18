@@ -1495,6 +1495,30 @@ class PlanValidationTests(unittest.TestCase):
         worker_plan["missions"][0]["worker_verifiers"][0]["cache"] = cache
         self.assertEqual(validate_plan(worker_plan), [])
 
+    def test_verifier_parallel_execution_metadata_is_resource_bounded(self) -> None:
+        plan = valid_plan()
+        verifier = plan["missions"][0]["worker_verifiers"][0]
+        verifier["execution"] = {
+            "parallel_safe": True,
+            "resources": [
+                {"key": "database:test", "access": "shared_read"},
+                {"key": "port:4173", "access": "exclusive"},
+            ],
+        }
+        self.assertEqual(validate_plan(plan), [])
+
+        duplicate = copy.deepcopy(plan)
+        duplicate["missions"][0]["worker_verifiers"][0]["execution"]["resources"].append(
+            {"key": "port:4173", "access": "shared_read"}
+        )
+        self.assert_error_contains(duplicate, "must be unique")
+
+        invalid_access = copy.deepcopy(plan)
+        invalid_access["missions"][0]["worker_verifiers"][0]["execution"]["resources"][0][
+            "access"
+        ] = "write"
+        self.assert_error_contains(invalid_access, "must be shared_read or exclusive")
+
 
 
 
@@ -1636,6 +1660,36 @@ class RunValidationTests(unittest.TestCase):
 
         run["plan"]["digest_sha256"] = "0" * 64
         self.assert_run_error_contains(plan, run, "does not match semantic PLAN digest")
+
+    def test_v2_verifier_execution_omits_logical_gate_attribution(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        execution = run["verifier_executions"][0]
+        execution["protocol"] = "harness-verifier-execution-v2"
+        key_document = execution["key_document"]
+        key_document["protocol"] = "harness-verifier-execution-v2"
+        for key in (
+            "verifier_id",
+            "layer",
+            "mission_id",
+            "task_id",
+            "attempt_id",
+            "lease_id",
+        ):
+            key_document.pop(key)
+        execution_key = hashlib.sha256(
+            json.dumps(
+                key_document,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        execution["execution_key"] = execution_key
+        execution["evidence_key"] = execution_key
+
+        self.assertEqual(validate_run(plan, run), [])
 
     def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
         plan = valid_plan()
@@ -3097,6 +3151,38 @@ class RunValidationTests(unittest.TestCase):
         run = valid_run(plan)
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
+
+    def test_runtime_metrics_accept_machine_events_and_reject_invalid_counts(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_metrics"] = {
+            "target_reduction_percent": {"minimum": 75, "stretch": 85},
+            "baseline_wall_time_ms": 1000,
+            "run_wall_time_ms": None,
+            "critical_path_ms": None,
+            "events": [
+                {
+                    "event_id": "E-001",
+                    "provider": "codex",
+                    "node_id": "N-M1",
+                    "attempt_id": "A-001",
+                    "phase": "dispatch",
+                    "status": "complete",
+                    "started_at": "2026-08-18T00:00:00Z",
+                    "completed_at": "2026-08-18T00:00:01Z",
+                    "duration_ms": 1000,
+                    "wait_ms": 0,
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "cached_input_tokens": 80,
+                    "context_bytes": 4096,
+                }
+            ],
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["runtime_metrics"]["events"][0]["cached_input_tokens"] = 101
+        self.assert_run_error_contains(plan, run, "must not exceed input_tokens")
 
     def test_non_graph_schema_v9_rejects_workflow_runs(self) -> None:
         plan = legacy_plan()

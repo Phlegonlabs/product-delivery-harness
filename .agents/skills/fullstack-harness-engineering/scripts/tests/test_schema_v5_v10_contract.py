@@ -85,6 +85,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertEqual("preintegration", nodes["N-M1-REVIEW"]["review"]["stage"])
         self.assertEqual(["M1"], nodes["N-M1-REVIEW"]["review"]["mission_ids"])
         self.assertEqual("backend_code", nodes["N-M1-REVIEW"]["review"]["type"])
+        expected_pi_effort = {"N-M1": "high", "N-M1-REVIEW": "medium"}
         for node_id in ("N-M1", "N-M1-REVIEW"):
             runtime = nodes[node_id]["runtime"]
             self.assertIsNone(runtime["preferred_provider"])
@@ -93,7 +94,7 @@ class SchemaV5V10ContractTests(unittest.TestCase):
                 set(runtime["allowed_providers"]),
             )
             self.assertEqual(
-                {"model": None, "reasoning_effort": None},
+                {"model": None, "reasoning_effort": expected_pi_effort[node_id]},
                 runtime["provider_options"]["pi"],
             )
             self.assertEqual(

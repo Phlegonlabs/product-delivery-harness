@@ -22,30 +22,32 @@ Observe the current Pi session and record the result under `runtime_adapter` ind
 
 ## Preserve Pi Routing
 
-Pi owns role-to-model selection. Preserve installed agent definitions, model scope, reasoning, and fallback order.
+Pi owns role-to-model and fallback selection. Preserve installed agent definitions, model scope, and fallback order; PLAN may lower or raise reasoning effort per node without replacing the role's configured primary model.
 
-- Omit `provider_options.pi` or use `{"model": null, "reasoning_effort": null}`.
+- Keep `provider_options.pi.model` null. Set `reasoning_effort` per node when the plan has a latency tier; null preserves the installed role default.
 - Frontend/UI implementation uses the installed `frontend_designer` role.
 - Backend, data, infrastructure, and general implementation use `worker`.
 - Exact-head read-only review uses `reviewer`.
 - `scout` and `researcher` are bounded read-only lanes.
-- Record the actual resolved role, model, fallback, run id, and terminal status. Never invent a missing role or silently pin a Harness model.
+- Use `medium` for bounded discovery, mechanical repair, and routine deterministic review; `high` for general implementation and risk-bearing mission review; and `xhigh` only for a justified high-risk or unified final synthesis. `max` and `ultra` require an explicit user choice or recorded exceptional risk.
+- At launch, resolve the installed role's primary model and fallback order, keep that base routing, and apply the non-null PLAN effort through Pi's per-run thinking suffix. If the installed provider rejects the effort, block and revise the node; never silently fall back to a stronger effort.
+- Record the actual resolved role, model, effort, fallback, run id, and terminal status. Never invent a missing role or silently pin a Harness model.
 
 ## Dispatch
 
 Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra authorization.
 
 1. Allocate lease, authorized branch, and exact-base parent-managed worktree. Verify repository, branch/ref, HEAD, and clean `git status --porcelain`.
-2. Render `WORKER_GOAL.template.md` with the node, scope, skills, verifier, permission boundary, result-contract path, Pi worker contract, and Pi's effective per-directory context selection: `AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`. Keep Pi context discovery enabled; never pass `--no-context-files` or `-nc`. When `AGENTS.md` exists do not also inject `CLAUDE.md`.
-3. Launch the installed role with a stable key and the assigned worktree as `cwd`. Forked subagent context requires a persisted Pi parent session. With `--no-session`, launch a fresh child context instead.
+2. Render `WORKER_GOAL.template.md` as a self-contained bounded packet with the current mission slice, exact scope, skills, verifier, permission boundary, result-contract path, context capsule digest and byte count, ordered source digests, Pi worker contract, and Pi's effective per-directory context selection: `AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`. Refer to PLAN/RUN by identity and path instead of copying either manifest. Keep Pi context discovery enabled; never pass `--no-context-files` or `-nc`. When `AGENTS.md` exists do not also inject `CLAUDE.md`.
+3. Launch `worker`, `frontend_designer`, `reviewer`, `scout`, and `researcher` with explicit `context: "fresh"`, a stable key, and the assigned worktree as `cwd`. Fork only an `oracle` when inherited decision history is essential and record that reason. A mission must fit one bounded 10-20 minute fresh-child slice; split it before readiness when it does not.
 4. One mission has one writer. Parallel writes require separate worktrees and non-overlapping scopes.
 5. A Pi child must not delegate again. It returns the shared result contract; the parent validates live Git facts.
-6. Wait for every asynchronous run to reach a terminal state before closing the wave. A missing process plus a dirty or advanced worktree is interrupted evidence, not `worker_running` proof.
-7. Dispatch `reviewer` against each returned exact head. After serial integration, dispatch fresh `reviewer` runs against the exact unified integration SHA, then run one planned broad final validation.
+6. Subscribe or block on terminal child/status events instead of fixed-interval polling. Process each terminal result immediately and stream its ready pre-integration review while sibling workers continue; close the wave only after every selected worker result is validated. Before the host deadline, request a checkpoint after the current tool returns when a slice is not converging; do not use timeout as the checkpoint. A missing process plus a dirty or advanced worktree is interrupted evidence, not `worker_running` proof.
+7. Dispatch one fresh `reviewer` per applicable surface against each returned exact head. Give it only the exact SHA, scoped diff/paths, applicable acceptance rows, required evidence, and unresolved findings; refer to PLAN/RUN by path and identity instead of copying their full manifests. Allow only one repair re-review. After serial integration, dispatch only the planned fresh `reviewer` runs against the exact unified integration SHA; that unified-head pass is the final synthesis, so do not add another same-scope review while the SHA is unchanged. Then run one planned broad final validation.
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`. This adapter adds no alternate state or handoff rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md`. Record Pi queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules.
 
 ## Failure
 

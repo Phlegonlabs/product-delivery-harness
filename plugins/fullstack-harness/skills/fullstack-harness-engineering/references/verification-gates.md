@@ -54,6 +54,7 @@ Mission integration gate:
 Batch integration gate:
 
 - Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
+- Groups independent local-command verifiers only when each opts into `execution.parallel_safe` and their typed resource claims do not conflict. Use `scripts/verifier_runtime.py` batch mode; unmarked or conflicting verifiers stay serial.
 - Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
@@ -61,8 +62,8 @@ Fresh integration review gate:
 
 - Starts only after all covered mission heads have integrated serially into one integration branch.
 - Uses new parent-dispatched read-only reviewer attempts on the exact `integration_head_sha`; mission writers and pre-integration outcomes cannot be reused.
-- May fan out independent reviewers by risk. None may delegate.
-- Routes blocking findings to a bounded repair mission. Any repair changes the candidate and invalidates every earlier integration-stage PASS.
+- Uses one reviewer per applicable surface by default. Same-surface fan-out requires an explicit user request or a recorded high-impact risk. None may delegate.
+- Returns all blocking findings in one bounded pass and routes one deduplicated finding set to a bounded repair mission. Runtime review permits only the initial review and one repair re-review. Any repair changes the candidate and invalidates every earlier integration-stage PASS.
 
 Final/current-head gate:
 
@@ -141,7 +142,7 @@ A local verifier may declare:
 
 `session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`. The parent must also mark the command deterministic and local, supply a clean checkout, and place the session cache in a repository-external path. The execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, executable identity, OS/architecture, pass signal, and selected environment-value digests.
 
-Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Verifier IDs are not in the execution key, so two gates may cite one exact execution while each keeps its own PASS record and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
+Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Logical attribution — verifier ID, layer, mission, task, attempt, and lease — is not in the execution key, so equivalent opted-in task and worker gates may cite one exact execution while each keeps its own PASS record, context, and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
 
 ## Automated E2E And Smoke Reuse
 

@@ -397,7 +397,7 @@ def _validate_verifier(
     cache_allowed: bool = True,
 ) -> None:
     required = {"id", "cwd", "argv", "pass_signal"}
-    optional = {"selection", "cache"}
+    optional = {"selection", "cache", "execution"}
     if not _keys(errors, path, value, required, optional):
         return
     for key in ("id", "cwd", "pass_signal"):
@@ -453,6 +453,35 @@ def _validate_verifier(
                 _add(errors, cache_path, "session_exact is not allowed for this verifier")
             if mode == "session_exact" and value.get("pass_signal") != "exit 0":
                 _add(errors, f"{path}.pass_signal", "session_exact requires the literal pass signal exit 0")
+
+    execution = value.get("execution")
+    if execution is not None:
+        execution_path = f"{path}.execution"
+        if _keys(errors, execution_path, execution, {"parallel_safe", "resources"}):
+            if not isinstance(execution["parallel_safe"], bool):
+                _add(errors, f"{execution_path}.parallel_safe", "must be boolean")
+            resources = execution["resources"]
+            if not isinstance(resources, list):
+                _add(errors, f"{execution_path}.resources", "must be a list")
+            else:
+                resource_keys: set[str] = set()
+                for index, resource in enumerate(resources):
+                    resource_path = f"{execution_path}.resources[{index}]"
+                    if not _keys(errors, resource_path, resource, {"key", "access"}):
+                        continue
+                    key = resource["key"]
+                    if not _nonempty_string(key):
+                        _add(errors, f"{resource_path}.key", "must be a non-empty string")
+                    elif key in resource_keys:
+                        _add(errors, f"{resource_path}.key", "must be unique")
+                    else:
+                        resource_keys.add(key)
+                    if resource["access"] not in {"shared_read", "exclusive"}:
+                        _add(
+                            errors,
+                            f"{resource_path}.access",
+                            "must be shared_read or exclusive",
+                        )
 
 
 def _optional_string(errors: list[str], path: str, value: Any) -> None:

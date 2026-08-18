@@ -288,6 +288,31 @@ def _current_review_result_matches_worker(
     return True
 
 
+def _active_wave_allows_streaming_review(
+    node: dict[str, Any], run: dict[str, Any]
+) -> bool:
+    active_wave = run.get("active_wave")
+    review = node.get("review")
+    if (
+        not isinstance(active_wave, dict)
+        or active_wave.get("status") != "active"
+        or run.get("schema_version") != 10
+        or node.get("kind") != "verifier"
+        or node.get("executor") != "runtime_worker"
+        or not isinstance(review, dict)
+        or review.get("stage", "preintegration") != "preintegration"
+        or len(review.get("mission_ids", [])) != 1
+    ):
+        return False
+    mission_id = review["mission_ids"][0]
+    mission_state = run.get("mission_states", {}).get(mission_id)
+    return (
+        mission_id in active_wave.get("selected_missions", [])
+        and isinstance(mission_state, dict)
+        and mission_state.get("phase") == "worker_passed"
+    )
+
+
 def _incoming_route_matched(
     node: dict[str, Any],
     run: dict[str, Any],
@@ -607,7 +632,10 @@ def _dispatch_reasons(
     reasons: set[str] = set()
     runtime = run["runtime_capabilities"]
     observed_runtime = run["observed"]["runtime"]
-    if run.get("active_wave", {}).get("status") == "active":
+    if (
+        run.get("active_wave", {}).get("status") == "active"
+        and not _active_wave_allows_streaming_review(node, run)
+    ):
         reasons.add("blocker_present")
     permission = runtime.get("permission_boundary")
     if permission is not None and permission.get("status") != "ready":

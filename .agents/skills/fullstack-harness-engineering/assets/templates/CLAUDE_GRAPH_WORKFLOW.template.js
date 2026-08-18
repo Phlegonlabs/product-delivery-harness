@@ -111,10 +111,10 @@ const fallbackResult = (node) => ({
 
 const results = await pipeline(workflowArgs.nodes, async (node) => {
   const missionFields = [
-    "node_id", "attempt_id", "mission_id", "lease_id", "branch_ref", "worktree_path", "failure_outcome", "worker_prompt", "model",
+    "node_id", "attempt_id", "mission_id", "lease_id", "branch_ref", "worktree_path", "failure_outcome", "worker_prompt", "capsule_sha256", "context_bytes", "model",
   ];
   const reviewFields = [
-    "node_id", "attempt_id", "review_id", "review_type", "reviewed_sha", "review_path", "review_scope", "required_evidence", "failure_outcome", "worker_prompt", "model",
+    "node_id", "attempt_id", "review_id", "review_type", "reviewed_sha", "review_path", "review_scope", "required_evidence", "failure_outcome", "worker_prompt", "capsule_sha256", "context_bytes", "model",
   ];
   const requiredFields = node.node_kind === "mission" ? missionFields : reviewFields;
   if (!["mission", "review"].includes(node.node_kind)) {
@@ -145,6 +145,7 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
       `- Review scope: ${node.review_scope.join(", ")}.\n` +
       `- Required evidence: ${node.required_evidence.join(", ")}.\n` +
       `- This is read-only. Do not edit files, create commits or branches, run mutating tools, or delegate.\n` +
+      `- Report every blocking finding you can establish in this pass; do not stop after the first finding or repeat the same root cause.\n` +
       `- Put the reviewed SHA, findings, and evidence summary inside worker_result.\n`;
 
   const phaseName = node.node_kind === "mission" ? "Execute" : "Review";
@@ -157,6 +158,7 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
       binding +
       `- Plan ${workflowArgs.plan_id} revision ${workflowArgs.plan_revision}; graph revision ${workflowArgs.graph_revision}.\n` +
       `- Plan digest: ${workflowArgs.plan_digest_sha256}; batch base: ${workflowArgs.batch_base_sha}.\n` +
+      `- Fresh context capsule: ${node.capsule_sha256}; ${node.context_bytes} bytes. Treat this prompt as the complete live task and do not reconstruct the parent transcript.\n` +
       `- Do not wait for user input. Use contract_gap with a refinement_request when a decision is needed.\n` +
       `- Return only one node_result object accepted by the supplied schema.`,
     {

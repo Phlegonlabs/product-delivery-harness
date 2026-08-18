@@ -118,7 +118,7 @@ For user-owned Codex app tasks:
 
 The platform controls managed-worktree retention. `remove_worktrees: false` prevents Harness-initiated removal; it cannot override platform lifecycle or automatic retention cleanup. Preserve failed or cancelled worktrees and commits for diagnosis. Never reset or delete them automatically.
 
-True event-driven cross-task completion requires a runtime integration that exposes task/thread events, such as Codex App Server notifications. Otherwise use `thread_poll`, `report_file`, or `user_relay` and state that limitation explicitly.
+Prefer event-driven cross-task completion when the runtime exposes task/thread events, such as Codex App Server notifications, or a cursor-based wait surface. `thread_poll` remains the stable RUN channel label for both cursor waits and its repeated-read fallback. When no event/wait surface exists, use bounded repeated inspection, `report_file`, or `user_relay` and record that limitation and wait time explicitly.
 
 ## Flat Parent-Owned Agent Topology
 
@@ -201,7 +201,7 @@ Claude Code currently supports nested subagents, but this schema-v6-through-v9 r
 
 ## Launch Selected Codex App Threads
 
-When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, `../../fullstack-harness-codex/SKILL.md` owns the current launch procedure: project resolution, grant rechecks, prompt construction, task creation, bounded polling, the read-only review, and the correction loop. Read the adapter for those mechanics. This section keeps only the topology rules the procedure must preserve, which do not change with schema version.
+When the accepted wave uses `app_task` + `app_managed_worktree` + `thread_poll`, `../../fullstack-harness-codex/SKILL.md` owns the current launch procedure: project resolution, grant rechecks, prompt construction, task creation, event/cursor waiting, the read-only review, and the correction loop. Read the adapter for those mechanics. This section keeps only the topology rules the procedure must preserve, which do not change with schema version.
 
 - A non-empty selector result is an instruction for the parent to act, not a final report. Never leave a `dispatchable_nodes` entry unlaunched without a recorded reason.
 - Use one top-level worktree task/thread per mission, created from the recorded integration branch/ref. Each task owns its own app-managed worktree and appears as an independent conversation in the Codex left sidebar. Coordinator-owned subagents do not satisfy this boundary. Record the returned thread ID or the queued client-thread ID; never invent an identity from the mission ID.

@@ -20,7 +20,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "07d67418b7d28f36269e01222af4bcb9ca91f3591d95a8d195b2057a69485daf"
+      "digest_sha256": "6187e71bca54f1184e4a4987d3f5198e4bb52a743e8fa569236e54737089679f"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -163,6 +163,16 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "review_workers": [],
     "workflow_runs": [],
     "verifier_executions": [],
+    "runtime_metrics": {
+      "target_reduction_percent": {
+        "minimum": 75,
+        "stretch": 85
+      },
+      "baseline_wall_time_ms": null,
+      "run_wall_time_ms": null,
+      "critical_path_ms": null,
+      "events": []
+    },
     "attempt_log": []
   }
 }

@@ -211,11 +211,13 @@ const results = await pipeline(workflowArgs.missions, (mission) => {
     !mission.lease_id ||
     !mission.branch_ref ||
     !mission.worker_prompt ||
+    !mission.capsule_sha256 ||
+    !mission.context_bytes ||
     !mission.worktree_path ||
     !mission.model
   ) {
     throw new Error(
-      "each mission requires mission_id, lease_id, branch_ref, worker_prompt, worktree_path, and model",
+      "each mission requires mission_id, lease_id, branch_ref, worker_prompt, capsule_sha256, context_bytes, worktree_path, and model",
     );
   }
 
@@ -229,6 +231,7 @@ const results = await pipeline(workflowArgs.missions, (mission) => {
       `- Plan: ${workflowArgs.plan_id} revision ${workflowArgs.plan_revision}.\n` +
       `- Plan digest: ${workflowArgs.plan_digest_sha256}.\n` +
       `- Batch base: ${workflowArgs.batch_base_sha}.\n` +
+      `- Fresh context capsule: ${mission.capsule_sha256}; ${mission.context_bytes} bytes. Treat this prompt as the complete live task and do not reconstruct the parent transcript.\n` +
       `- Before any read, write, or shell action, enter the existing worktree at ${mission.worktree_path}.\n` +
       `- Do not create another worktree or write in the parent checkout; return blocked if the binding fails.\n` +
       `- Do not edit PLAN.md or RUN.md.\n` +

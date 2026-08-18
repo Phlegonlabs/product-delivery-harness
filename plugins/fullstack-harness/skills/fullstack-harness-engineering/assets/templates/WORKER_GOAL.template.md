@@ -9,6 +9,7 @@ Identity:
 - PLAN: <path>; ID <id>; revision <revision>; digest <sha256>
 - RUN snapshot: <path or payload>
 - Mission/tasks: <IDs>
+- Runtime slice: one bounded mission slice; target 10-20 minutes including focused verification
 - Lease: <lease-id>
 - Batch base: <full SHA>
 
@@ -19,6 +20,9 @@ Runtime:
 - Worktree and branch/ref: <exact values>
 - Host-specific repository context: <ordered paths>
 - Runtime-specific worker contract: <matching adapter contract>
+- Context handoff: <fresh bounded packet or host-native task context>
+- Context capsule: SHA-256 <digest>; <byte count> bytes; stable prefix plus mission delta
+- Context sources: <ordered paths with content digests>
 - Result contract: <absolute or readable path to references/worker-result-contract.md>
 - Permission boundary: <mode/profile, filesystem/network/bindings, approval policy>
 - Resource claims: <typed keys and access>
@@ -37,9 +41,10 @@ Acceptance:
 ## Launch
 
 1. Enter the assigned worktree. Read the ordered repository context and only the named skills. Keep automatic context discovery enabled.
-2. Verify repository, branch/ref, base SHA, clean starting state, plan digest, lease, scope, resources, permission boundary, and authorizations. Stop on a missing, stale, or contradictory value.
-3. Apply only the matching host contract. Do not borrow another host's model, role, context, or launch mechanics.
-4. Confirm required temp/cache paths, network, local bindings, and sockets fit the inherited boundary.
+2. Treat this handoff as the complete live task. Do not reconstruct or continue the parent conversation; open PLAN/RUN only when the packet names a specific field that cannot be supplied directly.
+3. Verify repository, branch/ref, base SHA, clean starting state, plan digest, lease, scope, resources, permission boundary, and authorizations. Stop on a missing, stale, or contradictory value.
+4. Apply only the matching host contract. Do not borrow another host's model, role, context, or launch mechanics.
+5. Confirm required temp/cache paths, network, local bindings, and sockets fit the inherited boundary.
 
 ## Work
 
@@ -47,6 +52,7 @@ Acceptance:
 - Never edit PLAN/RUN, create another worker/task/branch/worktree/lease, or delegate.
 - Do not pull, rebase, merge, integrate, push, archive, remove a worktree, or delete a branch.
 - Create commits only when `create_local_commits` is authorized. Each task commit names one task; the last commit equals the reported head.
+- If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
 
 For design creation mode, load `product-design-builder`, `impeccable`, and `frontend-design` together and stop at required human gates.

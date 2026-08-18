@@ -8,8 +8,11 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -17,10 +20,12 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from verifier_runtime import (  # noqa: E402
+    BATCH_PROTOCOL,
     CACHE_BANNED_LAYERS,
     PROTOCOL,
     VerifierRuntimeError,
     build_execution_key,
+    run_verifier_batch,
     run_verifier,
 )
 
@@ -107,23 +112,25 @@ class VerifierRuntimeTests(unittest.TestCase):
     def read_count(self, counter: Path) -> int:
         return int(counter.read_text(encoding="utf-8"))
 
-    def test_exact_pass_reuses_only_the_same_verifier_declaration(self) -> None:
+    def test_exact_pass_reuses_equivalent_task_and_worker_declarations(self) -> None:
         counter = self.root / "counter.txt"
+        task_context = cacheable_context()
+        task_context.update(
+            {
+                "layer": "task",
+                "task_id": "M1/T01",
+                "attempt_id": "ATT-TASK-1",
+                "lease_id": "LEASE-TASK-1",
+            }
+        )
         first = run_verifier(
-            verifier(counter),
-            cacheable_context(),
+            verifier(counter, identifier="task-focused"),
+            task_context,
             checkout_root=self.checkout,
             cache_root=self.cache,
             environment=self.environment,
         )
-        second = run_verifier(
-            verifier(counter),
-            cacheable_context(),
-            checkout_root=self.checkout,
-            cache_root=self.cache,
-            environment=self.environment,
-        )
-        relabeled = run_verifier(
+        worker = run_verifier(
             verifier(counter, identifier="mission-focused"),
             cacheable_context(),
             checkout_root=self.checkout,
@@ -132,12 +139,14 @@ class VerifierRuntimeTests(unittest.TestCase):
         )
         self.assertEqual(first["status"], "PASS")
         self.assertEqual(first["cache_status"], "stored")
-        self.assertEqual(second["cache_status"], "reused")
-        self.assertEqual(first["execution_key"], second["execution_key"])
-        self.assertEqual(relabeled["verifier_id"], "mission-focused")
-        self.assertNotEqual(first["execution_key"], relabeled["execution_key"])
-        self.assertEqual(relabeled["cache_status"], "stored")
-        self.assertEqual(self.read_count(counter), 2)
+        self.assertEqual(worker["cache_status"], "reused")
+        self.assertEqual(first["execution_key"], worker["execution_key"])
+        self.assertEqual(worker["verifier_id"], "mission-focused")
+        self.assertEqual(worker["context"]["layer"], "worker")
+        self.assertNotIn("verifier_id", worker["key_document"])
+        self.assertNotIn("layer", worker["key_document"])
+        self.assertNotIn("attempt_id", worker["key_document"])
+        self.assertEqual(self.read_count(counter), 1)
 
     def test_exact_key_invalidates_on_every_immutable_input_axis(self) -> None:
         variants = []
@@ -426,6 +435,94 @@ class VerifierRuntimeTests(unittest.TestCase):
             key_document["executable_identity"]["size"],
             (mission / "probe.sh").stat().st_size,
         )
+
+    def batch_job(
+        self,
+        job_id: str,
+        *,
+        parallel_safe: bool = True,
+        resources: list[dict[str, str]] | None = None,
+        include_execution: bool = True,
+    ) -> dict[str, object]:
+        candidate = {
+            "id": job_id,
+            "cwd": ".",
+            "argv": [sys.executable, "-c", "raise SystemExit(0)"],
+            "pass_signal": "exit 0",
+        }
+        if include_execution:
+            candidate["execution"] = {
+                "parallel_safe": parallel_safe,
+                "resources": [] if resources is None else resources,
+            }
+        return {
+            "job_id": job_id,
+            "verifier": candidate,
+            "context": {},
+            "checkout_root": str(self.checkout),
+            "cache_root": None,
+            "timeout_seconds": 5,
+        }
+
+    def test_parallel_batch_runs_independent_opted_in_verifiers_together(self) -> None:
+        lock = threading.Lock()
+        active = 0
+        peak = 0
+
+        def fake_run(*args: object, **kwargs: object) -> dict[str, object]:
+            nonlocal active, peak
+            with lock:
+                active += 1
+                peak = max(peak, active)
+            time.sleep(0.05)
+            with lock:
+                active -= 1
+            return {"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}}
+
+        with patch("verifier_runtime.run_verifier", side_effect=fake_run):
+            result = run_verifier_batch(
+                [self.batch_job("V2"), self.batch_job("V1")],
+                max_parallel=2,
+            )
+
+        self.assertEqual(result["protocol"], BATCH_PROTOCOL)
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["metrics"]["waves"], 1)
+        self.assertEqual(result["metrics"]["max_parallel"], 2)
+        self.assertEqual(peak, 2)
+        self.assertEqual([item["job_id"] for item in result["results"]], ["V1", "V2"])
+
+    def test_parallel_batch_serializes_exclusive_resource_conflicts(self) -> None:
+        resource = [{"key": "database:test", "access": "exclusive"}]
+        with patch(
+            "verifier_runtime.run_verifier",
+            return_value={"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}},
+        ):
+            result = run_verifier_batch(
+                [
+                    self.batch_job("V1", resources=resource),
+                    self.batch_job("V2", resources=resource),
+                ],
+                max_parallel=2,
+            )
+
+        self.assertEqual(result["metrics"]["waves"], 2)
+        self.assertEqual(result["metrics"]["max_parallel"], 1)
+
+    def test_parallel_batch_serializes_unmarked_verifiers(self) -> None:
+        with patch(
+            "verifier_runtime.run_verifier",
+            return_value={"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}},
+        ):
+            result = run_verifier_batch(
+                [
+                    self.batch_job("V1", include_execution=False),
+                    self.batch_job("V2"),
+                ],
+                max_parallel=2,
+            )
+
+        self.assertEqual(result["metrics"]["waves"], 2)
 
 
 if __name__ == "__main__":

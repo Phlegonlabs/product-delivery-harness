@@ -1405,6 +1405,119 @@ def _validate_workflow_runs(
                 _add(errors, path, "complete RUN cannot retain a running workflow")
 
 
+def _validate_runtime_metrics(errors: list[str], run: dict[str, Any]) -> None:
+    value = run.get("runtime_metrics")
+    if value is None:
+        return
+    required = {
+        "target_reduction_percent",
+        "baseline_wall_time_ms",
+        "run_wall_time_ms",
+        "critical_path_ms",
+        "events",
+    }
+    if not _keys(errors, "run.runtime_metrics", value, required):
+        return
+
+    target = value["target_reduction_percent"]
+    if _keys(
+        errors,
+        "run.runtime_metrics.target_reduction_percent",
+        target,
+        {"minimum", "stretch"},
+    ):
+        minimum = target["minimum"]
+        stretch = target["stretch"]
+        if not _is_int(minimum) or not 0 <= minimum <= 100:
+            _add(
+                errors,
+                "run.runtime_metrics.target_reduction_percent.minimum",
+                "must be an integer from 0 through 100",
+            )
+        if not _is_int(stretch) or not 0 <= stretch <= 100:
+            _add(
+                errors,
+                "run.runtime_metrics.target_reduction_percent.stretch",
+                "must be an integer from 0 through 100",
+            )
+        if _is_int(minimum) and _is_int(stretch) and minimum > stretch:
+            _add(
+                errors,
+                "run.runtime_metrics.target_reduction_percent",
+                "minimum must not exceed stretch",
+            )
+
+    for key in ("baseline_wall_time_ms", "run_wall_time_ms", "critical_path_ms"):
+        metric = value[key]
+        if metric is not None and (not _is_int(metric) or metric < 0):
+            _add(
+                errors,
+                f"run.runtime_metrics.{key}",
+                "must be null or a non-negative integer",
+            )
+
+    events = value["events"]
+    if not isinstance(events, list):
+        _add(errors, "run.runtime_metrics.events", "must be an append-only list")
+        return
+    event_ids: set[str] = set()
+    event_fields = {
+        "event_id",
+        "provider",
+        "node_id",
+        "attempt_id",
+        "phase",
+        "status",
+        "started_at",
+        "completed_at",
+        "duration_ms",
+        "wait_ms",
+        "input_tokens",
+        "output_tokens",
+        "cached_input_tokens",
+        "context_bytes",
+    }
+    statuses = {"queued", "running", "complete", "failed", "blocked", "cancelled"}
+    for index, event in enumerate(events):
+        path = f"run.runtime_metrics.events[{index}]"
+        if not _keys(errors, path, event, event_fields):
+            continue
+        event_id = event["event_id"]
+        if not _nonempty_string(event_id):
+            _add(errors, f"{path}.event_id", "must be a non-empty string")
+        elif event_id in event_ids:
+            _add(errors, f"{path}.event_id", "must be unique")
+        else:
+            event_ids.add(event_id)
+        if event["provider"] not in RUNTIME_PROVIDERS:
+            _add(errors, f"{path}.provider", "has an unsupported value")
+        for key in ("node_id", "attempt_id", "started_at", "completed_at"):
+            _optional_string(errors, f"{path}.{key}", event[key])
+        if not _nonempty_string(event["phase"]):
+            _add(errors, f"{path}.phase", "must be a non-empty string")
+        if event["status"] not in statuses:
+            _add(errors, f"{path}.status", "has an unsupported value")
+        for key in (
+            "duration_ms",
+            "wait_ms",
+            "input_tokens",
+            "output_tokens",
+            "cached_input_tokens",
+            "context_bytes",
+        ):
+            metric = event[key]
+            if metric is not None and (not _is_int(metric) or metric < 0):
+                _add(
+                    errors,
+                    f"{path}.{key}",
+                    "must be null or a non-negative integer",
+                )
+        cached = event["cached_input_tokens"]
+        input_tokens = event["input_tokens"]
+        if _is_int(cached) and _is_int(input_tokens) and cached > input_tokens:
+            _add(errors, f"{path}.cached_input_tokens", "must not exceed input_tokens")
+
+
 def _verifier_owners(
     plan: dict[str, Any],
 ) -> dict[str, tuple[str, str | None, str | None, dict[str, Any]]]:
@@ -1585,7 +1698,10 @@ def _validate_verifier_executions(
             else:
                 bound_worker = matching_workers[0]
         protocol = item["protocol"]
-        if protocol != "harness-verifier-execution-v1":
+        if protocol not in {
+            "harness-verifier-execution-v1",
+            "harness-verifier-execution-v2",
+        }:
             _add(errors, f"{path}.protocol", "has an unsupported value")
         execution_key = item["execution_key"]
         if not isinstance(execution_key, str) or SHA256_RE.fullmatch(execution_key) is None:
@@ -1595,12 +1711,6 @@ def _validate_verifier_executions(
         key_document = item["key_document"]
         key_document_keys = {
             "protocol",
-            "verifier_id",
-            "layer",
-            "mission_id",
-            "task_id",
-            "attempt_id",
-            "lease_id",
             "run_id",
             "plan_revision",
             "plan_digest_sha256",
@@ -1621,6 +1731,17 @@ def _validate_verifier_executions(
             "executable_identity",
             "environment_digests",
         }
+        if protocol == "harness-verifier-execution-v1":
+            key_document_keys.update(
+                {
+                    "verifier_id",
+                    "layer",
+                    "mission_id",
+                    "task_id",
+                    "attempt_id",
+                    "lease_id",
+                }
+            )
         if _keys(errors, f"{path}.key_document", key_document, key_document_keys):
             encoded = json.dumps(
                 key_document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -1629,16 +1750,17 @@ def _validate_verifier_executions(
                 _add(errors, f"{path}.execution_key", "must match key_document")
             if key_document["protocol"] != protocol:
                 _add(errors, f"{path}.key_document.protocol", "must match protocol")
-            for key in (
-                "verifier_id",
-                "layer",
-                "mission_id",
-                "task_id",
-                "attempt_id",
-                "lease_id",
-            ):
-                if key_document[key] != item[key]:
-                    _add(errors, f"{path}.key_document.{key}", f"must match {key}")
+            if protocol == "harness-verifier-execution-v1":
+                for key in (
+                    "verifier_id",
+                    "layer",
+                    "mission_id",
+                    "task_id",
+                    "attempt_id",
+                    "lease_id",
+                ):
+                    if key_document[key] != item[key]:
+                        _add(errors, f"{path}.key_document.{key}", f"must match {key}")
             if not isinstance(key_document["checkout_dirty"], bool):
                 _add(errors, f"{path}.key_document.checkout_dirty", "must be boolean")
             if not isinstance(key_document["cache_safe"], bool):
@@ -1925,7 +2047,7 @@ def _validate_verifier_executions(
             if not isinstance(context["cache_safe"], bool):
                 _add(errors, f"{path}.context.cache_safe", "must be boolean")
             if isinstance(key_document, dict):
-                for key in (
+                key_context_fields = [
                     "run_id",
                     "plan_revision",
                     "plan_digest_sha256",
@@ -1936,12 +2058,12 @@ def _validate_verifier_executions(
                     "checkout_role",
                     "checkout_dirty",
                     "cache_safe",
-                    "layer",
-                    "mission_id",
-                    "task_id",
-                    "attempt_id",
-                    "lease_id",
-                ):
+                ]
+                if protocol == "harness-verifier-execution-v1":
+                    key_context_fields.extend(
+                        ["layer", "mission_id", "task_id", "attempt_id", "lease_id"]
+                    )
+                for key in key_context_fields:
                     if key_document.get(key) != context[key]:
                         _add(errors, f"{path}.key_document.{key}", "must match context")
                 changed_digest = hashlib.sha256(
@@ -2455,6 +2577,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     optional_run_keys: set[str] = set()
     if graph_run:
         optional_run_keys.add("workflow_runs")
+    if schema_version == 10:
+        optional_run_keys.add("runtime_metrics")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     if not _nonempty_string(run["run_id"]):
@@ -3623,7 +3747,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.runtime_binding.reasoning_effort",
                         "must be null or a supported reasoning effort",
                     )
-                if runtime_binding["provider"] not in {"codex", "claude_code"} and effort is not None:
+                if runtime_binding["provider"] not in {"codex", "claude_code", "pi"} and effort is not None:
                     _add(
                         errors,
                         f"{path}.runtime_binding.reasoning_effort",
@@ -4459,6 +4583,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _strings(errors, f"{path}.evidence", attempt["evidence"])
 
     if schema_version == 10:
+        _validate_runtime_metrics(errors, run)
         _validate_verifier_executions(errors, plan, run)
         _validate_v10_execution_records(errors, plan, run)
 

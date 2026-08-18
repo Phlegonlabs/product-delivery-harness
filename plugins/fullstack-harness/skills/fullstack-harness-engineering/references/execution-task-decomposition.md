@@ -51,6 +51,18 @@ A task's own module crossing the project's File Size Limit (see the seeded root 
 
 The parallel write unit is always a mission, and one independently testable goal maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
 
+## Runtime Slice Gate
+
+The default performance target is one bounded worker execution per mission, with implementation and focused verification normally completing in 10-20 minutes. Pi uses a fresh child; other hosts use their matching isolated task context. Treat this as a planning SLO, not a hard process timer and not an authorization shortcut.
+
+- Keep tasks as sequential checkpoints inside that bounded mission slice. A task still needs one deliverable, scope, trace, and verifier; a list of acceptance cases is not extra work units.
+- Before readiness, split a proposed mission when its frozen work is expected to exceed the slice, span independent deliverables, or require unrelated verifier families. Create dependency edges between the smaller missions and freeze shared contracts first.
+- Do not use a 30-minute host timeout as task decomposition. If execution shows that the slice estimate was wrong, stop before beginning the next independent mutation and return `REFINEMENT_REQUEST`; preserve the current head and evidence.
+- A worker timeout is interrupted evidence, not a successful checkpoint. The parent may resume only after validating the worktree and deciding whether the remaining work still fits the same mission.
+- Record the estimate and actual elapsed phase timestamps in the human PLAN/RUN view. They are telemetry, not machine authorization and do not change PLAN/RUN schema.
+
+This slice gate supports the 60% runtime-reduction target by shortening child contexts and failure recovery. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
+
 ## UI Build Order
 
 When the product has a design system, its primitive layers decide task order. Each layer composes only the layers above it, so a task cannot be verified before the layer it depends on exists:

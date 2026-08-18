@@ -20,7 +20,7 @@ For RUN-v10, record each surface under `runtime_adapter` as `available`, `unavai
 Prefer the strongest observed and authorized route:
 
 ```text
-app_task + app_managed_worktree + thread_poll
+app_task + app_managed_worktree + cursor_wait
 -> direct subagents with parent-owned isolation
 -> sequential_parent
 ```
@@ -48,24 +48,25 @@ Use each `dispatchable_nodes[].required_actions` exactly.
 
 1. Resolve the current Codex project once.
 2. Allocate lease, identity, exact-base app-managed worktree, and authorized branch/ref. Verify repository, HEAD, branch/ref, and clean `git status --porcelain`.
-3. Render `WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v10 forbids task-local child agents.
+3. Render `WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Include the bounded context capsule digest, byte count, and ordered source digests. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v10 forbids task-local child agents.
 4. Create one top-level left-sidebar app task per selected mission. Do not replace a requested app task with a coordinator subagent.
-5. Poll with bounded backoff: 15 seconds, doubling to five minutes. After 30 minutes without status change, record a stalled attempt and stop polling that task.
-6. Observe live Git head, diff, scope, commits, and ancestry. Validate the result before the core's exact-head review and integration sequence.
+5. Treat every top-level app task as fresh bounded context. For direct sibling agents, explicitly start fresh and pass only the capsule; never fork the parent conversation.
+6. Prefer App Server status subscription or cursor-based `wait_threads`. Use one bounded wait for 1-8 tasks with each task's last cursor, process the first terminal or needs-attention result, then wait again with updated cursors. Do not repeatedly read unchanged tasks. Use bounded polling only when no wait/event surface exists, and record its wait time and fallback reason in `runtime_metrics`.
+7. Observe live Git head, diff, scope, commits, and ancestry. Validate each terminal result immediately so its pre-integration review may overlap remaining workers; integration still waits for wave close.
 
 Do not stop after printing a non-empty app-task wave; consume every accepted dispatch entry.
 
 ### Read-only reviews
 
-A review app task needs `create_user_owned_tasks`; a direct-subagent review needs `spawn_subagents`. It needs no write worktree, branch, or commit grant. Bind it to one exact SHA, record its outcome, and invalidate the PASS when that SHA changes.
+A review app task needs `create_user_owned_tasks`; a direct-subagent review needs `spawn_subagents`. It needs no write worktree, branch, or commit grant. Start it with fresh bounded context, bind it to one exact SHA, and give it only the scoped diff/paths, applicable acceptance rows, required evidence, and unresolved findings; refer to PLAN/RUN by path and identity instead of copying both manifests. Record its outcome, and invalidate the PASS when that SHA changes.
 
 ## Flat Parent-Owned Delegation
 
-Codex explorers, mission workers, and reviewers are sibling nodes dispatched by the Harness parent. No worker or reviewer spawns another agent. After serial integration, dispatch fresh read-only reviewers against the exact unified integration SHA, then run one planned broad final validation on the fixed candidate.
+Codex explorers, mission workers, and reviewers are sibling nodes dispatched by the Harness parent. No worker or reviewer spawns another agent. Use one reviewer per applicable surface by default and allow only one repair re-review. After serial integration, dispatch only the planned fresh read-only reviewers against the exact unified integration SHA; that unified-head pass is the final synthesis, so do not add another same-scope review while the SHA is unchanged. Then run one planned broad final validation on the fixed candidate.
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`. This adapter adds no alternate state or handoff rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md`. Record Codex queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules.
 
 ## Provider Boundary
 

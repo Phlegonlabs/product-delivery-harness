@@ -152,6 +152,16 @@ def _validate_graph(
                     _add(errors, f"{node_path}.executor", "verifier has an incompatible executor")
                 review = node.get("review")
                 if executor == "runtime_worker":
+                    if (
+                        require_bounded_review_repair
+                        and _is_int(node["max_attempts"])
+                        and node["max_attempts"] > 2
+                    ):
+                        _add(
+                            errors,
+                            f"{node_path}.max_attempts",
+                            "runtime review allows at most 2 attempts",
+                        )
                     review_path = f"{node_path}.review"
                     if _keys(
                         errors,
@@ -331,7 +341,7 @@ def _validate_graph(
                                     f"{option_path}.reasoning_effort",
                                     "must be null or a supported reasoning effort",
                                 )
-                            if provider not in {"codex", "claude_code"} and effort is not None:
+                            if provider not in {"codex", "claude_code", "pi"} and effort is not None:
                                 _add(
                                     errors,
                                     f"{option_path}.reasoning_effort",

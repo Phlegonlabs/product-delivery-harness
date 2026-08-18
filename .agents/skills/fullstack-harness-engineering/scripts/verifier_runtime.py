@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Execute local verifiers with optional session-only exact-input reuse."""
+"""Execute local verifiers singly or in resource-safe batches."""
 
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -17,7 +18,8 @@ from typing import Any, Mapping
 from select_verifiers import VerifierSelectionError, normalize_changed_files
 
 
-PROTOCOL = "harness-verifier-execution-v1"
+PROTOCOL = "harness-verifier-execution-v2"
+BATCH_PROTOCOL = "harness-verifier-batch-v1"
 # PLAN validation already refuses session_exact for these layers
 # (harness_core.py's cache_allowed=False, enforced via harness_manifest.py).
 # That is unreachable through a validated PLAN, but a direct run_verifier call
@@ -50,6 +52,14 @@ CONTEXT_FIELDS = {
     "task_id",
     "attempt_id",
     "lease_id",
+}
+BATCH_JOB_FIELDS = {
+    "job_id",
+    "verifier",
+    "context",
+    "checkout_root",
+    "cache_root",
+    "timeout_seconds",
 }
 
 
@@ -134,6 +144,42 @@ def _environment_digests(
     return {
         key: _sha256_bytes(environment.get(key, "").encode("utf-8"))
         for key in sorted(keys)
+    }
+
+
+def _execution_policy(verifier: dict[str, Any]) -> dict[str, Any]:
+    value = verifier.get("execution")
+    if value is None:
+        return {"parallel_safe": False, "resources": []}
+    if not isinstance(value, dict) or set(value) != {"parallel_safe", "resources"}:
+        raise VerifierRuntimeError(
+            "verifier.execution must contain exactly parallel_safe and resources"
+        )
+    if not isinstance(value["parallel_safe"], bool):
+        raise VerifierRuntimeError("verifier.execution.parallel_safe must be boolean")
+    resources = value["resources"]
+    if not isinstance(resources, list):
+        raise VerifierRuntimeError("verifier.execution.resources must be an array")
+    normalized_resources: list[dict[str, str]] = []
+    resource_keys: set[str] = set()
+    for resource in resources:
+        if not isinstance(resource, dict) or set(resource) != {"key", "access"}:
+            raise VerifierRuntimeError(
+                "each verifier.execution resource must contain exactly key and access"
+            )
+        key = _require_string(resource["key"], "verifier.execution.resources[].key")
+        if key in resource_keys:
+            raise VerifierRuntimeError("verifier.execution resource keys must be unique")
+        resource_keys.add(key)
+        access = resource["access"]
+        if access not in {"shared_read", "exclusive"}:
+            raise VerifierRuntimeError(
+                "verifier.execution resource access must be shared_read or exclusive"
+            )
+        normalized_resources.append({"key": key, "access": access})
+    return {
+        "parallel_safe": value["parallel_safe"],
+        "resources": sorted(normalized_resources, key=lambda item: item["key"]),
     }
 
 
@@ -224,6 +270,7 @@ def _validated_inputs(
     cwd = _resolve_cwd(checkout_root, declared_cwd)
     executable = _resolve_executable(argv[0], cwd, environment)
     identity = executable_identity(executable)
+    execution = _execution_policy(verifier)
 
     cache = verifier.get("cache")
     if cache is None:
@@ -251,6 +298,8 @@ def _validated_inputs(
         "pass_signal": pass_signal,
         "cache": cache,
     }
+    if verifier.get("execution") is not None:
+        normalized_verifier["execution"] = execution
     normalized_context = {**context, "changed_files": changed_files}
     return cwd, argv, normalized_verifier, {
         "context": normalized_context,
@@ -285,14 +334,12 @@ def build_execution_key(
 def _key_document(
     normalized_verifier: dict[str, Any], key_inputs: dict[str, Any]
 ) -> tuple[str, dict[str, Any]]:
+    # Logical gate labels belong to retained evidence, not execution identity.
+    # Omitting verifier/layer/mission/task/attempt/lease attribution lets an
+    # equivalent opted-in task and worker check reuse one exact execution while
+    # each gate still records its own verifier ID and context in the result.
     key_document = {
         "protocol": PROTOCOL,
-        "verifier_id": normalized_verifier["id"],
-        "layer": key_inputs["context"]["layer"],
-        "mission_id": key_inputs["context"]["mission_id"],
-        "task_id": key_inputs["context"]["task_id"],
-        "attempt_id": key_inputs["context"]["attempt_id"],
-        "lease_id": key_inputs["context"]["lease_id"],
         "run_id": key_inputs["context"]["run_id"],
         "plan_revision": key_inputs["context"]["plan_revision"],
         "plan_digest_sha256": key_inputs["context"]["plan_digest_sha256"],
@@ -498,9 +545,135 @@ def run_verifier(
     }
 
 
+def _execution_policies_conflict(
+    left: dict[str, Any], right: dict[str, Any]
+) -> bool:
+    if not left["parallel_safe"] or not right["parallel_safe"]:
+        return True
+    left_resources = {item["key"]: item["access"] for item in left["resources"]}
+    right_resources = {item["key"]: item["access"] for item in right["resources"]}
+    return any(
+        "exclusive" in {left_resources[key], right_resources[key]}
+        for key in set(left_resources) & set(right_resources)
+    )
+
+
+def run_verifier_batch(
+    jobs: list[dict[str, Any]],
+    *,
+    max_parallel: int,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Execute explicitly parallel-safe verifier jobs in deterministic waves."""
+
+    if not isinstance(jobs, list) or not jobs:
+        raise VerifierRuntimeError("jobs must be a non-empty array")
+    if (
+        not isinstance(max_parallel, int)
+        or isinstance(max_parallel, bool)
+        or max_parallel <= 0
+    ):
+        raise VerifierRuntimeError("max_parallel must be a positive integer")
+
+    prepared: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    job_ids: set[str] = set()
+    for job in jobs:
+        if not isinstance(job, dict) or set(job) != BATCH_JOB_FIELDS:
+            raise VerifierRuntimeError(
+                "each job must contain exactly job_id, verifier, context, checkout_root, "
+                "cache_root, and timeout_seconds"
+            )
+        job_id = _require_string(job["job_id"], "job.job_id")
+        if job_id in job_ids:
+            raise VerifierRuntimeError("job.job_id must be unique")
+        job_ids.add(job_id)
+        if not isinstance(job["verifier"], dict):
+            raise VerifierRuntimeError("job.verifier must be an object")
+        if not isinstance(job["context"], dict):
+            raise VerifierRuntimeError("job.context must be an object")
+        checkout_root = _require_string(job["checkout_root"], "job.checkout_root")
+        if job["cache_root"] is not None:
+            _require_string(job["cache_root"], "job.cache_root")
+        timeout_seconds = job["timeout_seconds"]
+        if (
+            not isinstance(timeout_seconds, (int, float))
+            or isinstance(timeout_seconds, bool)
+            or timeout_seconds <= 0
+        ):
+            raise VerifierRuntimeError("job.timeout_seconds must be positive")
+        prepared.append(
+            (
+                job_id,
+                {**job, "checkout_root": checkout_root},
+                _execution_policy(job["verifier"]),
+            )
+        )
+
+    waves: list[list[tuple[str, dict[str, Any], dict[str, Any]]]] = []
+    for prepared_job in sorted(prepared, key=lambda item: item[0]):
+        for wave in waves:
+            if len(wave) < max_parallel and all(
+                not _execution_policies_conflict(prepared_job[2], existing[2])
+                for existing in wave
+            ):
+                wave.append(prepared_job)
+                break
+        else:
+            waves.append([prepared_job])
+
+    def execute(job: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return run_verifier(
+                job["verifier"],
+                job["context"],
+                checkout_root=Path(job["checkout_root"]),
+                cache_root=(
+                    Path(job["cache_root"])
+                    if job["cache_root"] is not None
+                    else None
+                ),
+                timeout_seconds=float(job["timeout_seconds"]),
+                environment=environment,
+            )
+        except (OSError, ValueError, VerifierRuntimeError) as exc:
+            return {"protocol": PROTOCOL, "status": "ERROR", "errors": [str(exc)]}
+
+    started = time.perf_counter()
+    results_by_id: dict[str, dict[str, Any]] = {}
+    for wave in waves:
+        with ThreadPoolExecutor(max_workers=len(wave)) as executor:
+            futures = {
+                executor.submit(execute, job): job_id for job_id, job, _ in wave
+            }
+            for future in as_completed(futures):
+                results_by_id[futures[future]] = future.result()
+    duration_ms = max(0, round((time.perf_counter() - started) * 1000))
+    results = [
+        {"job_id": job_id, "result": results_by_id[job_id]}
+        for job_id in sorted(results_by_id)
+    ]
+    passed = all(item["result"].get("status") == "PASS" for item in results)
+    return {
+        "protocol": BATCH_PROTOCOL,
+        "status": "PASS" if passed else "FAIL",
+        "results": results,
+        "metrics": {
+            "duration_ms": duration_ms,
+            "waves": len(waves),
+            "max_parallel": max(len(wave) for wave in waves),
+            "executed": sum(
+                item["result"].get("metrics", {}).get("executed", 0) for item in results
+            ),
+            "reused": sum(
+                item["result"].get("metrics", {}).get("reused", 0) for item in results
+            ),
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run one local verifier with optional exact-input session reuse."
+        description="Run one local verifier or one resource-safe verifier batch."
     )
     parser.add_argument("--request", required=True, type=Path)
     return parser
@@ -512,17 +685,23 @@ def main(argv: list[str] | None = None) -> int:
         request = json.loads(args.request.read_text(encoding="utf-8"))
         if not isinstance(request, dict):
             raise VerifierRuntimeError("request must be a JSON object")
-        result = run_verifier(
-            request["verifier"],
-            request["context"],
-            checkout_root=Path(request["checkout_root"]),
-            cache_root=(
-                Path(request["cache_root"])
-                if request.get("cache_root") is not None
-                else None
-            ),
-            timeout_seconds=float(request.get("timeout_seconds", 120.0)),
-        )
+        if "jobs" in request:
+            result = run_verifier_batch(
+                request["jobs"],
+                max_parallel=request.get("max_parallel", 1),
+            )
+        else:
+            result = run_verifier(
+                request["verifier"],
+                request["context"],
+                checkout_root=Path(request["checkout_root"]),
+                cache_root=(
+                    Path(request["cache_root"])
+                    if request.get("cache_root") is not None
+                    else None
+                ),
+                timeout_seconds=float(request.get("timeout_seconds", 120.0)),
+            )
     except (KeyError, OSError, ValueError, VerifierRuntimeError) as exc:
         print(
             json.dumps(
