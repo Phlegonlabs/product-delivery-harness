@@ -69,7 +69,13 @@ if ($UpdateHostRuntimes) {
 if (Get-Command codex -ErrorAction SilentlyContinue) {
     $codexMarketplaces = Get-JsonItems (Invoke-Checked codex plugin marketplace list --json | ConvertFrom-Json) "marketplaces"
     if ($codexMarketplaces.name -contains $Marketplace) {
-        Invoke-Checked codex plugin marketplace upgrade $Marketplace
+        $codexMarketplace = @($codexMarketplaces | Where-Object { $_.name -eq $Marketplace })[0]
+        if ($null -ne $codexMarketplace.marketplaceSource) {
+            Invoke-Checked codex plugin marketplace upgrade $Marketplace
+        }
+        else {
+            Write-Host "Codex marketplace is local; using its current checkout."
+        }
     }
     else {
         Invoke-Checked codex plugin marketplace add $Repository --ref $Ref
@@ -83,7 +89,13 @@ else {
 if (Get-Command claude -ErrorAction SilentlyContinue) {
     $claudeMarketplaces = Get-JsonItems (Invoke-Checked claude plugin marketplace list --json | ConvertFrom-Json) "marketplaces"
     if ($claudeMarketplaces.name -contains $Marketplace) {
-        Invoke-Checked claude plugin marketplace update $Marketplace
+        $claudeMarketplace = @($claudeMarketplaces | Where-Object { $_.name -eq $Marketplace })[0]
+        if ($claudeMarketplace.source -eq "directory") {
+            Write-Host "Claude marketplace is local; using its current checkout."
+        }
+        else {
+            Invoke-Checked claude plugin marketplace update $Marketplace
+        }
     }
     else {
         Invoke-Checked claude plugin marketplace add $ClaudeMarketplaceSource --scope user

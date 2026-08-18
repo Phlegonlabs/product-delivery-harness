@@ -79,6 +79,8 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertIn("Invoke-Checked codex update", updater)
         self.assertIn("Invoke-Checked claude update", updater)
         self.assertIn("Invoke-Checked pi update --self --no-approve", updater)
+        self.assertIn("Codex marketplace is local; using its current checkout.", updater)
+        self.assertIn("Claude marketplace is local; using its current checkout.", updater)
         self.assertIn("Invoke-Checked pi install $PiSource --no-approve", updater)
         self.assertIn("Standalone Pi Harness skills can shadow", updater)
         self.assertIn("Move-Item -LiteralPath $destinationSkill", updater)
