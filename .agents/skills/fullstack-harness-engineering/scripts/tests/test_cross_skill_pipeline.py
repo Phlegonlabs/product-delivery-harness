@@ -72,10 +72,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "fullstack-harness-engineering/references/contract-and-traceability.md"
         )
 
-        # Exactly-one-of is the rule on both sides; a default set in the harness
-        # is what this pins against.
+        # Exactly-one-of is the rule on both sides. The core skill routes to the
+        # detailed contract instead of repeating the responsive-set rule.
         self.assertIn("exactly one responsive verification set", design)
-        self.assertIn("do not carry a default set in this skill", harness_skill)
+        self.assertIn("references/contract-and-traceability.md", harness_skill)
         self.assertIn("The harness does not carry its own default set", harness)
 
     def test_the_retired_middle_skill_is_gone_from_every_contract(self) -> None:
@@ -104,6 +104,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
         wireframes = self.read("product-design-builder/references/wireframe-guide.md")
         references = self.read("product-design-builder/references/design-reference-guide.md")
         harness = self.read("fullstack-harness-engineering/SKILL.md")
+        ui_contract = self.read(
+            "fullstack-harness-engineering/references/ui-implementation-contract.md"
+        )
         design_updates = self.read(
             "fullstack-harness-engineering/references/design-input-updates.md"
         )
@@ -118,18 +121,21 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         self.assertIn("The gate is required; optional preview tooling is not", wireframes)
         self.assertIn("The published design system records the selected direction ID", wireframes)
-        self.assertIn("The normal UI handoff is", harness)
-        self.assertIn("mandatory `impeccable` and `frontend-design` creation mode", harness)
+        self.assertIn("references/ui-implementation-contract.md", harness)
+        self.assertIn(
+            "`product-design-builder`, `impeccable`, and `frontend-design` in creation mode",
+            ui_contract,
+        )
         self.assertIn("## Mandatory Design Skills Gate", product_design)
         self.assertIn("`product-design-builder`, `frontend-design`, and `impeccable`", product_design)
         self.assertIn("impeccable-concept-generation.md", product_design)
-        self.assertIn("frontend-design conformance mode", harness)
-        self.assertIn("missing contract entry returns as a design-input delta", harness)
+        self.assertIn("frontend-design conformance mode", ui_contract)
+        self.assertIn("missing contract entry returns to `product-design-builder`", ui_contract)
         self.assertIn("frontend-design conformance mode", worker_goal)
         self.assertIn("Design inspiration", design_updates)
         self.assertIn("Page-faithful target", design_updates)
         self.assertIn("non-canonical evidence", design_updates)
-        self.assertIn("user explicitly requests faithful conformance", harness)
+        self.assertIn("user explicitly requests faithful conformance", ui_contract)
         self.assertIn("never invoke them automatically", references)
         self.assertIn("design inspiration never enters this matrix", design_updates.lower())
 
@@ -145,8 +151,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
         for content in (product_design, harness, contract, design_updates):
             self.assertIn("docs/design/", content)
+        for content in (product_design, contract, design_updates):
             self.assertIn("repository-relative path", content)
-        self.assertIn("candidate design inspiration", harness)
+        self.assertIn("references/design-input-updates.md", harness)
+        self.assertIn("candidate design inspiration", design_updates)
         self.assertIn("SHA-256 content hash", design_updates)
         self.assertIn("docs/goal/evidence/", design_updates)
         self.assertIn("owner-confirmed `RP-*`", design_updates)

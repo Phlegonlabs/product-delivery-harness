@@ -69,7 +69,27 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("two-way project-size gate", research)
         self.assertIn("Small work never reaches this selector", selector)
         self.assertIn("Small direct work does not instantiate this file", runbook)
-        self.assertIn("classify the project as small or large", agent)
+        self.assertIn("lightest safe direct or PLAN-v5/RUN-v10 delivery path", agent)
+        self.assertIn("A high file count", skill)
+        self.assertIn("does not make work `large` by itself", skill)
+
+    def test_progressive_disclosure_keeps_routine_context_bounded(self) -> None:
+        core = self.read("SKILL.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+        result_contract = self.read("references/worker-result-contract.md")
+        adapters = (
+            self.read_sibling_skill("fullstack-harness-codex"),
+            self.read_sibling_skill("fullstack-harness-claude-code"),
+            self.read_sibling_skill("fullstack-harness-pi"),
+        )
+
+        self.assertLess(len(core.split()), 3500)
+        self.assertLess(len(worker.split()), 1200)
+        for adapter in adapters:
+            self.assertLess(len(adapter.split()), 1400)
+            self.assertIn("This adapter adds no alternate state or handoff rules", adapter)
+        self.assertIn("Read this reference only while rendering or validating", result_contract)
+        self.assertIn("Result contract:", worker)
 
     def test_system_review_and_route_is_parent_only_before_managed_work(self) -> None:
         skill = self.read("SKILL.md")
@@ -84,7 +104,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("parent-only", content)
             self.assertIn("read-only", content)
         self.assertIn("before loading any task-specific skill", skill)
-        self.assertIn("does not create or edit `PLAN.md`, `RUN.md`", skill)
+        self.assertIn("Do not create or edit `PLAN.md`, `RUN.md`", skill)
         self.assertIn("does not load a task skill", state)
         self.assertIn("is not a PLAN node", graph)
         self.assertIn("The System Review And Route stage completes before this file exists", runbook)
@@ -197,7 +217,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("replaces", content)
             self.assertIn("fix_required", content)
             self.assertIn("new head invalidates", content)
-            self.assertIn("cross-machine handoff remains unsupported", content.lower())
+            self.assertIn("cross-machine handoff", content.lower())
+            self.assertIn("unsupported", content.lower())
         self.assertIn("not an in-session bridge", state)
         self.assertIn("not an in-session bridge", graph)
 
@@ -229,18 +250,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         agent = self.read_sibling_agent("fullstack-harness-codex")
 
         self.assertIn("Do not stop after printing a non-empty app-task wave", skill)
-        self.assertIn("consume every `dispatchable_nodes` entry", skill)
-        self.assertIn("search the current Codex tool surface", skill)
-        self.assertIn("own conversation in the left sidebar", skill)
+        self.assertIn("consume every accepted dispatch entry", skill)
+        self.assertIn("Search the current Codex tool surface", skill)
+        self.assertIn("top-level left-sidebar app task", skill)
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
         self.assertIn("one top-level worktree task/thread per mission", orchestration)
         self.assertIn("Read-only explorers and reviewers are parent-dispatched siblings", orchestration)
         self.assertIn("never children of a mission task", orchestration)
         self.assertIn("direct subagent of the coordinator is not equivalent", selector)
         self.assertIn("one top-level left-sidebar task", goal)
-        self.assertIn("Never replace requested top-level tasks", agent)
-        self.assertIn("do not replace it with direct subagents or sequential parent execution", skill)
-        self.assertIn("Codex-hosted large run", agent)
+        self.assertIn("probe app-task and subagent surfaces", agent)
+        self.assertIn("Never replace explicitly requested independent app tasks", skill)
+        self.assertIn("Codex-hosted managed run", agent)
 
     def test_plan_backed_runs_detect_then_select_full_frontier(self) -> None:
         skill = self.read("SKILL.md")
@@ -251,7 +272,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         agent = self.read("agents/openai.yaml")
 
         self.assertIn("## Default Runtime And Wave Policy", skill)
-        self.assertIn("proactively inspect the current-session native tool surface", skill)
+        self.assertIn("Proactively inspect the current-session native tool surface", skill)
         self.assertIn("Missing authorization must never make an available driver disappear", skill)
         self.assertIn("complete per-surface `capability_probe`", skill)
         self.assertIn("provably sequential route", skill)
@@ -266,7 +287,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
-        self.assertIn("select authorized ready nodes", agent)
+        self.assertIn("lightest safe direct or PLAN-v5/RUN-v10 delivery path", agent)
         self.assertIn("Host adapter: none | codex | claude_code | pi | generic", skill)
 
     def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
@@ -474,7 +495,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         for content in (skill, contract, updates, verification, plan_template, runbook, e2e_template, goal):
             self.assertIn("Builder UX Direction", content)
-        self.assertIn("Every must-have `UX-*` trace", skill)
+        self.assertIn("every must-have `UX-*` trace", skill)
         self.assertIn("## UX Direction And Usability Evidence", verification)
         self.assertIn("Builder approval proves only direction conformance", verification)
         self.assertIn("## UX Evidence", runbook)
@@ -563,10 +584,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"reasoning_effort": "high"', plan)
         self.assertIn("Plan Mode chooses", graph)
         self.assertIn("provider-specific model options", skill)
-        self.assertIn("prefer Codex `gpt-5.6-terra` with `high` reasoning", skill)
+        self.assertIn("general and backend implementation: Codex `gpt-5.6-terra`, `high`", skill)
         self.assertIn("prefer Codex `gpt-5.6-terra` with `high` reasoning", plan)
-        self.assertIn("routine deterministic `backend_code` review uses Codex `gpt-5.6-terra` with `medium`", skill)
-        self.assertIn("routine `frontend_code`, `backend_code`, and visual review use `sonnet`", skill)
+        self.assertIn("routine deterministic `backend_code` review: Codex `gpt-5.6-terra`, `medium`", skill)
+        self.assertIn("routine frontend, backend, visual, and integration review: `sonnet`, `medium`", skill)
         self.assertIn("reserve", skill.lower())
         # The premium Claude model name is illustrative, not normative, so it is
         # deliberately not pinned here: pinning `claude-opus-4-8` in three files
@@ -609,7 +630,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"batch_gate_results"', runbook)
         self.assertIn('"final_gate_results"', runbook)
         self.assertIn('"ui_evidence"', runbook)
-        self.assertIn("New plan-backed files use PLAN schema v5 and RUN schema v10", skill)
+        self.assertIn("New managed work uses PLAN schema v5 and RUN schema v10", skill)
         self.assertIn("complete` is an execution closeout state", state)
         for content in (skill, verification, runbook):
             self.assertIn("breakpoint-by-state", content)
@@ -632,7 +653,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Never overwrite, merge, normalize, or silently copy", skill)
         self.assertIn("Host-specific repository context:", worker_goal)
         self.assertIn("Runtime-specific worker contract:", worker_goal)
-        self.assertIn("Do not disable automatic context discovery", worker_goal)
+        self.assertIn("Keep automatic context discovery enabled", worker_goal)
         self.assertIn('path.open("xb")', configurator)
         self.assertIn("## Runtime Boundary", project_agents)
         self.assertIn("Codex and Pi load it as their native project context", project_agents)
@@ -661,8 +682,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         ci = self.read("assets/templates/PROJECT_CI.template.yml")
         codex_adapter = self.read_sibling_skill("fullstack-harness-codex")
 
-        for content in (skill, project, codex_adapter):
+        for content in (skill, project):
             self.assertIn("never add a fixed prefix", content.lower())
+        self.assertIn("does not own shared state", codex_adapter)
         self.assertIn("ask before branch creation", skill.lower())
         self.assertIn("- '**'", ci)
         self.assertNotIn("codex/**", ci)

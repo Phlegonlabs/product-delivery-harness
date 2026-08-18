@@ -87,11 +87,9 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("one planned broad final validation", codex)
         self.assertIn("dispatchable_nodes[].required_actions", codex)
         self.assertIn("RUN-v10 forbids task-local child agents", codex)
-        self.assertIn("clean before launch", prompt)
-        self.assertIn("workers and reviewers never create child agents", prompt)
-        self.assertIn("fresh reviewers of the unified integration head", prompt)
-        self.assertIn("one broad final validation", prompt)
-        self.assertIn("Never replace requested top-level tasks", prompt)
+        self.assertIn("probe app-task and subagent surfaces", prompt)
+        self.assertIn("keep all workers and reviewers flat and parent-owned", prompt)
+        self.assertIn("Never replace explicitly requested independent app tasks", codex)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_launch_and_review_actions_follow_each_dispatchable_node(self) -> None:
@@ -105,7 +103,7 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("Never infer extra authorization", claude)
         self.assertIn("Never infer extra authorization", pi)
 
-        self.assertIn("an app-thread review needs `create_user_owned_tasks`", codex)
+        self.assertIn("A review app task needs `create_user_owned_tasks`", codex)
         self.assertIn("a direct-subagent review needs `spawn_subagents`", codex)
         self.assertNotIn("a read-only review node's required actions are only", codex)
 
@@ -116,7 +114,7 @@ class AdapterContractTests(unittest.TestCase):
         pi = self.read_sibling_skill("fullstack-harness-pi")
 
         self.assertIn("Codex worker contract", codex)
-        self.assertIn("`AGENTS.override.md`/`AGENTS.md` repository context paths", codex)
+        self.assertIn("`AGENTS.override.md` / `AGENTS.md` repository context paths", codex)
         self.assertIn("do not inject `CLAUDE.md` as Codex instructions", codex)
         self.assertIn("`AGENTS.md` context discovery enabled", codex)
 
@@ -127,29 +125,34 @@ class AdapterContractTests(unittest.TestCase):
 
         self.assertIn("Pi worker contract", pi)
         self.assertIn("`AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`", pi)
-        self.assertIn("when `AGENTS.md` exists do not also inject `CLAUDE.md`", pi)
+        self.assertIn("When `AGENTS.md` exists do not also inject `CLAUDE.md`", pi)
         self.assertIn("Pi context discovery enabled", pi)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_same_repository_handoff_is_serialized_and_cross_machine_is_unsupported(self) -> None:
-        for name, host in (
-            ("fullstack-harness-codex", "Codex"),
-            ("fullstack-harness-claude-code", "Claude Code"),
-            ("fullstack-harness-pi", "Pi"),
+        state = self.read("references/execution-state-model.md")
+        self.assertIn("Serialized Same-Repository Host Handoff", state)
+        self.assertIn("Host A must close the active wave", state)
+        self.assertIn("`RUN.active_wave.status` is neither `active` nor `proposed`", state)
+        self.assertIn("The `active_wave` object remains part of RUN", state)
+        self.assertIn("canonical PLAN/RUN and graph state", state)
+        self.assertIn("current exact head SHA", state)
+        self.assertIn("then re-probe its own runtime", state)
+        self.assertIn("If Host B's review returns `fix_required`", state)
+        self.assertIn("the old review is invalid", state.lower())
+        self.assertIn("Cross-machine handoff is unsupported until a future schema", state)
+        self.assertIn("not an in-session bridge", state)
+
+        for name in (
+            "fullstack-harness-codex",
+            "fullstack-harness-claude-code",
+            "fullstack-harness-pi",
         ):
             content = self.read_sibling_skill(name)
             with self.subTest(adapter=name):
                 self.assertIn("Serialized Same-Repository Host Handoff", content)
-                self.assertIn("Host A must close the active wave", content)
-                self.assertIn("`RUN.active_wave.status` is neither `active` nor `proposed`", content)
-                self.assertIn("The `active_wave` object remains part of RUN", content)
-                self.assertIn("canonical PLAN/RUN and graph state", content)
-                self.assertIn("current exact head SHA", content)
-                self.assertIn(f"Host B re-probes the current {host} runtime", content)
-                self.assertIn("If that review returns `fix_required`", content)
-                self.assertIn("the old review is invalid", content)
-                self.assertIn("Cross-machine handoff is unsupported until a future schema", content)
-                self.assertIn("not an in-session bridge", content)
+                self.assertIn("references/execution-state-model.md", content)
+                self.assertIn("This adapter adds no alternate state or handoff rules", content)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_pi_preserves_installed_role_and_model_routing(self) -> None:
@@ -159,8 +162,8 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("Pi owns role-to-model selection", pi)
         self.assertIn('`{"model": null, "reasoning_effort": null}`', pi)
         self.assertIn("`frontend_designer` role", pi)
-        self.assertIn("`worker` role", pi)
-        self.assertIn("`reviewer` role", pi)
+        self.assertIn("general implementation use `worker`", pi)
+        self.assertIn("read-only review uses `reviewer`", pi)
         self.assertIn("actual resolved role, model, fallback, run id", pi)
         self.assertIn("Forked subagent context requires a persisted Pi parent session", pi)
         self.assertIn("With `--no-session`, launch a fresh child context instead", pi)
@@ -168,7 +171,7 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("Pi's effective per-directory context selection", pi)
         self.assertIn("One mission has one writer", pi)
         self.assertIn("A Pi child must not delegate again", pi)
-        self.assertIn("installed Pi role and model configuration", prompt)
+        self.assertIn("preserve Pi's installed role and model routing", prompt)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_claude_graph_workflow_splits_mixed_frontiers_by_tool_profile(self) -> None:
@@ -177,12 +180,11 @@ class AdapterContractTests(unittest.TestCase):
 
         self.assertIn("homogeneous `tool_profile`", claude)
         self.assertIn("Each group gets its own bounded call", claude)
-        self.assertIn("never put a `mission_write` node beside a `code_review_readonly`", claude)
-        self.assertIn("Do not mix tool profiles", claude)
+        self.assertIn("Never put a `mission_write` node beside a `code_review_readonly`", claude)
+        self.assertIn("homogeneous `tool_profile` groups", claude)
         self.assertIn("permission-level tool removal", claude)
         self.assertNotIn("omits write-capable tools", claude)
-        self.assertIn("homogeneous tool_profile groups", prompt)
-        self.assertIn("never mix write missions with read-only reviews in one call", prompt)
+        self.assertIn("group nodes by tool profile", prompt)
 
 
 if __name__ == "__main__":

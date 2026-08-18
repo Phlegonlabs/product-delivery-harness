@@ -1,18 +1,6 @@
 interface:
   display_name: "Harness Codex Adapter"
   short_description: "Run Harness missions from a Codex host"
-  default_prompt: >-
-    Use $fullstack-harness-codex with the shared Harness core for a Codex-hosted large run.
-    Discover lazy-loaded Codex project/thread tools before declaring app_threads unavailable.
-    Preserve the target repository's branch and integration rules, and prefer one top-level
-    left-sidebar Codex task with its own app-managed worktree from the resolved integration
-    branch per selected mission. Give every writer explicit file ownership and verify its exact-base
-    worktree is clean before launch. Keep delegation flat: workers and reviewers never create child agents;
-    the parent dispatches read-only explorers, mission writers, exact-head pre-integration reviewers,
-    and fresh reviewers of the unified integration head as siblings. After fresh integration review passes,
-    run one broad final validation against the fixed candidate SHA. A run ends when the verified integration head is pushed to
-    the run's own branch; landing that branch on the default branch is the user's own step and
-    the harness never starts a promotion, with or without approval. Never replace requested top-level tasks
-    with coordinator-owned subagents.
+  default_prompt: "Use $fullstack-harness-codex after the shared core selects a Codex-hosted managed run; probe app-task and subagent surfaces, launch only exact authorized nodes, and keep all workers and reviewers flat and parent-owned."
 policy:
   allow_implicit_invocation: true

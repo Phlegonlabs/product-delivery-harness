@@ -448,11 +448,11 @@ For plan-backed multi-mission execution, the configured write-worker maximum has
 
 ## Serialized Same-Repository Host Handoff
 
-Hosts may hand off a large plan-backed run only as a serialized, same-repository operation. The handoff is permitted only when `active_wave` is not `active` (close or supersede the wave first); it never transfers a live lease, hides a worker, or starts a second writer. Preserve the existing PLAN/RUN files, PLAN revision/digest, graph state, mission/task evidence, and exact integration/worktree head SHA. Do not invent a new schema field or a new identity from the handoff.
+Hosts may hand off a large plan-backed run only as a serialized, same-repository operation. Host A must close the active wave: `RUN.active_wave.status` is neither `active` nor `proposed`. The `active_wave` object remains part of RUN; an absent object is not proof that handoff is safe. The handoff never transfers a live lease, hides a worker, or starts a second writer. Preserve the canonical PLAN/RUN and graph state, mission/task evidence, and current exact head SHA. Do not invent a new schema field or identity from the handoff.
 
 Host B must validate the preserved PLAN/RUN and exact SHA, then re-probe its own runtime, permission, isolation, and completion capabilities. Replace the old `runtime_adapter`/observed capability snapshot with Host B's fresh snapshot before selecting work or running the next read-only review; do not merge Host A's capability claims into Host B's. Host B uses the same graph and exact-head review gates and may proceed only from a clean, reconciled state.
 
-If Host B's review returns `fix_required`, route the findings back to Host A's original mission/worktree for repair. Any new head invalidates the prior review and requires a fresh verifier and exact-head review before integration or another handoff. This is a serialized file/repository handoff, not an in-session bridge or automatic cross-host invocation. Cross-machine handoff remains unsupported until a future schema defines a portable workspace identity and evidence transport; do not claim that a shared repository path alone provides that bridge.
+If Host B's review returns `fix_required`, route the findings back to Host A's original mission/worktree for repair. The old review is invalid; any new head invalidates the prior review and requires a fresh verifier and exact-head review before integration or another handoff. This is a serialized file/repository handoff, not an in-session bridge or automatic cross-host invocation. Cross-machine handoff is unsupported until a future schema defines a portable workspace identity and evidence transport; do not claim that a shared repository path alone provides that bridge.
 
 ## Parent-Owned Wave State
 
