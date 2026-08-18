@@ -641,6 +641,22 @@ def _dispatch_reasons(
     if permission is not None and permission.get("status") != "ready":
         reasons.add("permission_boundary_not_ready")
     if node["executor"] == "runtime_worker":
+        version_gate = runtime.get("runtime_adapter", {}).get("version_gate")
+        if version_gate is None and run.get("schema_version") == 10:
+            reasons.add("runtime_version_unobserved")
+        elif isinstance(version_gate, dict):
+            version_status = version_gate.get("status")
+            if version_status == "unobserved":
+                reasons.add("runtime_version_unobserved")
+            elif version_status == "upgrade_required":
+                reasons.add("runtime_upgrade_required")
+            elif version_status == "restart_required":
+                reasons.add("runtime_restart_required")
+            elif (
+                version_status == "compatible_old"
+                and run.get("active_wave", {}).get("status") != "active"
+            ):
+                reasons.add("runtime_upgrade_pending")
         # Deferral reasons are not short-circuited elsewhere in this module (see
         # _logical_reasons), so a missing binding does not return early either:
         # doing so hid every other applicable reason (e.g. action_not_authorized)

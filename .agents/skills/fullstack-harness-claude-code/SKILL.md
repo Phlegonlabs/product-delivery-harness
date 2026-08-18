@@ -15,6 +15,8 @@ A PLAN node is selectable here when its `allowed_providers` includes `claude_cod
 
 Observe Workflow, direct Agent tools, `EnterWorktree`, permission mode, slots, completion channel, tool-profile enforcement, and model/effort support. Record the result under `runtime_adapter` independently from authorization.
 
+Record the normalized Claude Code host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `../fullstack-harness-engineering/references/runtime-upgrades.md`. Dynamic Workflow requires Claude Code 2.1.154 or later. A `compatible_old` session may finish its already-active wave but cannot start the next wave. After a host or plugin update, mark `restart_required`, run `/reload-plugins` or restart Claude Code, and re-probe from the fresh session; never hot-upgrade a Workflow.
+
 Prefer:
 
 ```text
@@ -53,7 +55,7 @@ The workflow contains flat parent-owned siblings. Workers and reviewers do not d
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md`. Record Claude queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Claude queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Provider Boundary
 

@@ -370,6 +370,17 @@ def legacy_graph_plan() -> dict[str, object]:
 
 
 
+def current_version_gate() -> dict[str, object]:
+    return {
+        "host_version": "test-current",
+        "minimum_host_version": None,
+        "harness_version": "0.6.0",
+        "required_harness_version": "0.6.0",
+        "status": "current",
+        "evidence": "test fixture observed the current runtime and Harness release",
+    }
+
+
 def valid_run(plan: dict[str, object]) -> dict[str, object]:
     digest = plan_digest(plan)
     mission_ids = [item["id"] for item in plan["missions"]]
@@ -405,6 +416,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
                 "provider": "codex",
                 "available_drivers": ["sequential_parent"],
                 "detection_source": "fallback",
+                "version_gate": current_version_gate(),
             },
             "platform_lifecycle": {
                 "owner": "parent",
@@ -576,6 +588,8 @@ def legacy_run(plan: dict[str, object], schema_version: int) -> dict[str, object
         run.pop("ui_evidence")
     if schema_version == 5:
         run["runtime_capabilities"].pop("runtime_adapter")
+    else:
+        run["runtime_capabilities"]["runtime_adapter"].pop("version_gate", None)
     return run
 
 
@@ -586,6 +600,7 @@ def legacy_graph_run(
         raise ValueError("legacy graph RUN requires PLAN v4 with RUN v8 or v9")
     run = valid_run(plan)
     run["schema_version"] = schema_version
+    run["runtime_capabilities"]["runtime_adapter"].pop("version_gate", None)
     run.pop("closed_waves")
     run.pop("verifier_executions")
     if schema_version == 8:
@@ -2718,6 +2733,33 @@ class RunValidationTests(unittest.TestCase):
             plan,
             run,
             "run.runtime_capabilities.runtime_adapter: unknown keys: external_runtimes",
+        )
+
+    def test_runtime_version_gate_validates_status_and_evidence(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+
+        gate["status"] = "silently_upgrade"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter.version_gate.status: has an unsupported value",
+        )
+
+        gate["status"] = []
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter.version_gate.status: has an unsupported value",
+        )
+
+        gate["status"] = "upgrade_required"
+        gate["evidence"] = ""
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter.version_gate.evidence: must be a non-empty string",
         )
 
     def test_worker_runtime_binding_source_must_equal_host(self) -> None:

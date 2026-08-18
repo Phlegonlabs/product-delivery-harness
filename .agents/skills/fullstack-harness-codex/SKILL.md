@@ -17,6 +17,8 @@ Before the first launch, observe all eight Codex surfaces: `app_project_list`, `
 
 For RUN-v10, record each surface under `runtime_adapter` as `available`, `unavailable`, or `unobserved` with evidence. Ready/running state contains no required `unobserved` surface. Derive `app_threads` only from all six app surfaces and `subagents` only from both direct-agent surfaces.
 
+Record the observable Codex host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `../fullstack-harness-engineering/references/runtime-upgrades.md`. A `compatible_old` task may finish its already-active wave but cannot start the next wave. After a Codex or Harness update, mark `restart_required` and open a fresh top-level task before re-probing; never assume an existing task reloads changed runtime or skill files.
+
 Prefer the strongest observed and authorized route:
 
 ```text
@@ -66,7 +68,7 @@ Codex explorers, mission workers, and reviewers are sibling nodes dispatched by 
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md`. Record Codex queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Codex queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Provider Boundary
 

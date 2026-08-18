@@ -36,8 +36,9 @@ from harness_schema import (
     RUNTIME_DRIVER_PRIORITY,
     RUNTIME_DRIVERS,
     RUNTIME_PROVIDERS,
-    RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
+    RUNTIME_REASONING_EFFORTS,
+    RUNTIME_VERSION_STATUSES,
     SHA256_RE,
     SHA_RE,
     SUPPORTED_RUN_SCHEMA_VERSIONS,
@@ -3032,7 +3033,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "available_drivers",
                 "detection_source",
             },
-            {"capability_probe"} if schema_version == 10 else set(),
+            {"capability_probe", "version_gate"} if schema_version == 10 else set(),
         ):
             provider = adapter["provider"]
             provider_valid = isinstance(provider, str) and provider in RUNTIME_PROVIDERS
@@ -3068,6 +3069,42 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             detection_source = adapter["detection_source"]
             if not isinstance(detection_source, str) or detection_source not in RUNTIME_DETECTION_SOURCES:
                 _add(errors, f"{adapter_path}.detection_source", "has an unsupported value")
+
+            version_gate = adapter.get("version_gate")
+            version_path = f"{adapter_path}.version_gate"
+            if version_gate is not None and _keys(
+                errors,
+                version_path,
+                version_gate,
+                {
+                    "host_version",
+                    "minimum_host_version",
+                    "harness_version",
+                    "required_harness_version",
+                    "status",
+                    "evidence",
+                },
+            ):
+                for field in (
+                    "host_version",
+                    "minimum_host_version",
+                    "harness_version",
+                    "required_harness_version",
+                ):
+                    value = version_gate[field]
+                    if value is not None and not _nonempty_string(value):
+                        _add(
+                            errors,
+                            f"{version_path}.{field}",
+                            "must be null or a non-empty string",
+                        )
+                if (
+                    not isinstance(version_gate["status"], str)
+                    or version_gate["status"] not in RUNTIME_VERSION_STATUSES
+                ):
+                    _add(errors, f"{version_path}.status", "has an unsupported value")
+                if not _nonempty_string(version_gate["evidence"]):
+                    _add(errors, f"{version_path}.evidence", "must be a non-empty string")
 
             selected_driver = route_runtime_driver(runtime)
             probe_required = (

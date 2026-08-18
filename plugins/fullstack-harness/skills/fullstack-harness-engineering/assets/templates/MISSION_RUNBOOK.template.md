@@ -50,7 +50,15 @@ A managed-sequential route is selected when fewer than two safe write missions a
       "runtime_adapter": {
         "provider": "generic",
         "available_drivers": ["sequential_parent"],
-        "detection_source": "fallback"
+        "detection_source": "fallback",
+        "version_gate": {
+          "host_version": null,
+          "minimum_host_version": null,
+          "harness_version": null,
+          "required_harness_version": "0.6.0",
+          "status": "unobserved",
+          "evidence": "Runtime and Harness versions have not been observed yet"
+        }
       },
       "permission_boundary": {
         "selected_mode": "unknown",

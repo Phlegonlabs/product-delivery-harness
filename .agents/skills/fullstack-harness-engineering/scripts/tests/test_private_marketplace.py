@@ -61,10 +61,27 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertEqual(codex["version"], claude["version"])
         self.assertEqual(codex["version"], marketplace["metadata"]["version"])
         self.assertEqual(codex["version"], marketplace_plugin["version"])
-        self.assertEqual(codex["version"], "0.5.0")
+        self.assertEqual(codex["version"], "0.6.0")
         self.assertEqual(marketplace_plugin["source"], "./plugins/fullstack-harness")
 
+        pi_package = self.load_json("package.json")
+        self.assertEqual(pi_package["version"], codex["version"])
+        self.assertEqual(pi_package["type"], "commonjs")
+        self.assertEqual(pi_package["pi"]["skills"], ["./.agents/skills"])
 
+    def test_updater_covers_all_hosts_without_silent_pi_migration(self) -> None:
+        updater = (REPO_ROOT / "scripts" / "update-private-skills.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("[switch]$UpdateHostRuntimes", updater)
+        self.assertIn("[switch]$ReplacePiStandaloneSkills", updater)
+        self.assertIn("Invoke-Checked codex update", updater)
+        self.assertIn("Invoke-Checked claude update", updater)
+        self.assertIn("Invoke-Checked pi update --self --no-approve", updater)
+        self.assertIn("Invoke-Checked pi install $PiSource --no-approve", updater)
+        self.assertIn("Standalone Pi Harness skills can shadow", updater)
+        self.assertIn("Move-Item -LiteralPath $destinationSkill", updater)
 
     def test_sync_removes_stale_generated_files(self) -> None:
         module = self.load_sync_module()

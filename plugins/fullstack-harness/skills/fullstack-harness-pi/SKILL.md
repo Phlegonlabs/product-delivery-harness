@@ -15,6 +15,8 @@ A PLAN node is selectable here when its `allowed_providers` includes `pi`. `pref
 
 Observe the current Pi session and record the result under `runtime_adapter` independently from authorization. A package, CLI binary, or agent file does not prove a usable worker surface.
 
+Record `pi --version` and the loaded Harness release in `runtime_adapter.version_gate`, then follow `../fullstack-harness-engineering/references/runtime-upgrades.md`. A `compatible_old` session may finish its already-active wave but cannot start the next wave. Update Pi with its native updater and a packaged Harness source with Pi's package updater only after an explicit user instruction; then mark `restart_required`, start a fresh Pi session, and re-probe. Never overwrite standalone skills or change installed roles, models, fallbacks, credentials, or unrelated packages as part of this gate.
+
 - Record `subagents` only when the session exposes the installed workflow and terminal child results.
 - Always record `sequential_parent` as fallback.
 - Use `worker_runtime: subagent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` or `report_file` for delegated writes.
@@ -47,7 +49,7 @@ Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra 
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md`. Record Pi queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Pi queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Failure
 

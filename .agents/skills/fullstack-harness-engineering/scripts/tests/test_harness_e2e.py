@@ -25,6 +25,7 @@ from manifest_fixtures import manifest_markdown  # noqa: E402
 from test_harness_manifest import (  # noqa: E402
     authorize_execution,
     codex_capability_probe,
+    current_version_gate,
     legacy_plan,
     legacy_run,
     mark_legacy_complete,
@@ -156,6 +157,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                         "sequential_parent",
                     ],
                     "detection_source": "observed",
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -219,6 +221,7 @@ class HarnessCliE2ETests(unittest.TestCase):
                         app_threads=True,
                         subagents=True,
                     ),
+                    "version_gate": current_version_gate(),
                 },
                 "nested_subagents": {
                     "available": True,

@@ -42,6 +42,7 @@ from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
     codex_capability_probe,
+    current_version_gate,
     retained_gate_execution,
 )
 
@@ -205,6 +206,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
                 "available_drivers": ["subagents", "sequential_parent"],
                 "detection_source": "observed",
                 "capability_probe": codex_capability_probe(subagents=True),
+                "version_gate": current_version_gate(),
             },
             "permission_boundary": {
                 "selected_mode": "ask_for_approval",
@@ -452,6 +454,7 @@ def configure_flat_app_task(
                     app_threads=True,
                     subagents=True,
                 ),
+                "version_gate": current_version_gate(),
             },
             "nested_subagents": {
                 "available": True,
@@ -915,6 +918,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                         app_threads=True,
                         subagents=True,
                     ),
+                    "version_gate": current_version_gate(),
                 },
                 "nested_subagents": {
                     "available": True,
@@ -1988,6 +1992,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "available_drivers": ["subagents", "sequential_parent"],
                     "detection_source": "observed",
                     "capability_probe": codex_capability_probe(subagents=True),
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2059,6 +2064,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
                     "capability_probe": codex_capability_probe(),
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2112,6 +2118,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
                     "capability_probe": codex_capability_probe(),
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2227,6 +2234,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "available_drivers": ["sequential_parent"],
                     "detection_source": "observed",
                     "capability_probe": codex_capability_probe(),
+                    "version_gate": current_version_gate(),
                 },
             }
         )
@@ -2320,6 +2328,14 @@ class SelectReadyNodesTests(unittest.TestCase):
             "deferred_missions": [],
             "conflict_edges": [],
         }
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"] = {
+            "host_version": "0.146.0",
+            "minimum_host_version": None,
+            "harness_version": "0.5.0",
+            "required_harness_version": "0.6.0",
+            "status": "compatible_old",
+            "evidence": "old runtime remains compatible for the active wave",
+        }
         self.assertEqual([], validate_run(plan, run))
 
         selected = select_ready_nodes(plan, run)
@@ -2327,6 +2343,47 @@ class SelectReadyNodesTests(unittest.TestCase):
             "N-FRONTEND-REVIEW",
             [item["node_id"] for item in selected["dispatchable_nodes"]],
         )
+
+    def test_old_runtime_blocks_the_next_wave_until_upgrade_and_restart(self) -> None:
+        for status, expected_reason in (
+            ("compatible_old", "runtime_upgrade_pending"),
+            ("upgrade_required", "runtime_upgrade_required"),
+            ("restart_required", "runtime_restart_required"),
+            ("unobserved", "runtime_version_unobserved"),
+        ):
+            with self.subTest(status=status):
+                plan, run = self._authorized_conflict_free_pair()
+                run["runtime_capabilities"]["runtime_adapter"]["version_gate"] = {
+                    "host_version": "0.146.0",
+                    "minimum_host_version": None,
+                    "harness_version": "0.5.0",
+                    "required_harness_version": "0.6.0",
+                    "status": status,
+                    "evidence": f"test version state: {status}",
+                }
+
+                selected = select_ready_nodes(plan, run)
+
+                self.assertEqual([], selected["dispatchable_nodes"])
+                deferred = {
+                    item["node_id"]: item["reason_codes"]
+                    for item in selected["deferred_nodes"]
+                }
+                self.assertIn(expected_reason, deferred["N-M1"])
+
+    def test_legacy_v10_run_without_a_version_gate_must_be_observed(self) -> None:
+        plan, run = self._authorized_conflict_free_pair()
+        run["runtime_capabilities"]["runtime_adapter"].pop("version_gate")
+        self.assertEqual([], validate_run(plan, run))
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertEqual([], selected["dispatchable_nodes"])
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in selected["deferred_nodes"]
+        }
+        self.assertIn("runtime_version_unobserved", deferred["N-M1"])
 
     def test_active_wave_still_defers_new_writer_nodes(self) -> None:
         plan = valid_graph_plan()

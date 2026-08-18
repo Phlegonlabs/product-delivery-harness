@@ -147,6 +147,23 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("Subscribe or block on terminal child/status events", pi)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
+    def test_every_adapter_applies_the_shared_runtime_upgrade_gate(self) -> None:
+        codex = self.read_sibling_skill("fullstack-harness-codex")
+        claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        pi = self.read_sibling_skill("fullstack-harness-pi")
+
+        for name, content in (("codex", codex), ("claude", claude), ("pi", pi)):
+            with self.subTest(adapter=name):
+                self.assertIn("runtime_adapter.version_gate", content)
+                self.assertIn("runtime-upgrades.md", content)
+                self.assertIn("compatible_old", content)
+                self.assertIn("restart_required", content)
+
+        self.assertIn("fresh top-level task", codex)
+        self.assertIn("`/reload-plugins` or restart Claude Code", claude)
+        self.assertIn("Never overwrite standalone skills", pi)
+
+    @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_same_repository_handoff_is_serialized_and_cross_machine_is_unsupported(self) -> None:
         state = self.read("references/execution-state-model.md")
         self.assertIn("Serialized Same-Repository Host Handoff", state)

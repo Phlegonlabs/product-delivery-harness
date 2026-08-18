@@ -314,6 +314,24 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("lightest safe direct or PLAN-v5/RUN-v10 delivery path", agent)
         self.assertIn("Host adapter: none | codex | claude_code | pi | generic", skill)
 
+    def test_runtime_upgrade_gate_blocks_old_or_stale_sessions(self) -> None:
+        skill = self.read("SKILL.md")
+        upgrades = self.read("references/runtime-upgrades.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        selector = self.read("scripts/select_ready_nodes.py")
+
+        self.assertIn("references/runtime-upgrades.md", skill)
+        self.assertIn("Never hot-upgrade a live worker", upgrades)
+        self.assertIn("runtime_adapter.version_gate", upgrades)
+        self.assertIn('"required_harness_version": "0.6.0"', runbook)
+        for reason in (
+            "runtime_version_unobserved",
+            "runtime_upgrade_pending",
+            "runtime_upgrade_required",
+            "runtime_restart_required",
+        ):
+            self.assertIn(reason, selector)
+
     def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")

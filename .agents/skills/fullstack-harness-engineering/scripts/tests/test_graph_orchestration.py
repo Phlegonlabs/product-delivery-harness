@@ -34,6 +34,7 @@ from test_harness_manifest import (  # noqa: E402
     authorize_action,
     authorize_execution,
     codex_capability_probe,
+    current_version_gate,
     legacy_graph_plan,
     legacy_graph_run,
     mark_legacy_complete,
@@ -1309,6 +1310,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
+            "version_gate": current_version_gate(),
         }
         for action in (
             "spawn_subagents",
@@ -1405,6 +1407,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
+            "version_gate": current_version_gate(),
         }
         run["observed"]["runtime"].update(
             {"available_worker_slots": 2, "isolation_capacity": 2}
@@ -1518,6 +1521,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
+            "version_gate": current_version_gate(),
         }
         record_worker_passed_mission_with_review(
             plan,
@@ -1596,6 +1600,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
+            "version_gate": current_version_gate(),
         }
         record_worker_passed_mission_with_review(
             plan,
@@ -2014,6 +2019,7 @@ class GraphManifestTests(unittest.TestCase):
             "provider": "claude_code",
             "available_drivers": ["dynamic_workflow", "sequential_parent"],
             "detection_source": "observed",
+            "version_gate": current_version_gate(),
         }
         for action in (
             "spawn_subagents",
