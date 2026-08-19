@@ -42,7 +42,14 @@ def _harness_version() -> str:
 
     for directory in Path(__file__).resolve().parents:
         package = directory / "package.json"
-        if not package.is_file():
+        # Only a package.json that owns a skill tree is this Harness's. A
+        # standalone install (for example `~/.pi/agent/skills/...`) has none
+        # above it, and walking on would happily record an unrelated app's
+        # version from the user's home directory into the upgrade gate.
+        if not package.is_file() or not (
+            (directory / ".agents" / "skills").is_dir()
+            or (directory / "plugins").is_dir()
+        ):
             continue
         try:
             version = json.loads(package.read_text(encoding="utf-8"))["version"]

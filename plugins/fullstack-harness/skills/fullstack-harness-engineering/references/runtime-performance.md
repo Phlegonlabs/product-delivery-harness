@@ -76,7 +76,7 @@ A verifier that binds a shared resource declares it:
 
 Two verifiers may share a wave when neither sets `execution.parallel_safe: false` and no shared resource key has `exclusive` access. A missing `execution` block means no resource claim and no contention, so those verifiers batch. `execution.parallel_safe: false` or a conflicting exclusive resource serializes the verifier.
 
-Declare a resource for anything that binds a port, mutates a database, drives a browser, or otherwise cannot run twice at once. An undeclared verifier that secretly needs one is a declaration bug, and the fix is the declaration, not a global serial default. This changes scheduling only; session cache rules and gate ownership stay unchanged.
+Declare a resource for anything that binds a port, mutates a database, drives a browser, or otherwise cannot run twice at once. That includes a file two verifiers in the same checkout both write: a test-runner cache, an incremental build manifest, a coverage database, a lockfile. Those are easy to miss because nothing about the command looks shared, and two of them in one wave corrupt each other and fail nondeterministically. Claim the file as an `exclusive` resource key. An undeclared verifier that secretly needs one is a declaration bug, and the fix is the declaration, not a global serial default. Note the migration risk this creates: a verifier authored before batching became the default has no `execution` block, so it is now eligible to run concurrently. Audit existing declarations for shared-file contention once, rather than assuming silence meant safety. This changes scheduling only; session cache rules and gate ownership stay unchanged.
 
 ## Machine Telemetry
 

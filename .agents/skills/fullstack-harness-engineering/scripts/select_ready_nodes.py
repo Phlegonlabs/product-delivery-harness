@@ -976,36 +976,29 @@ def select_ready_nodes(
     )
     if runtime_driver == "sequential_parent":
         runtime_budget = min(runtime_budget, 1)
-    # Read-only nodes draw from their own budget of the same size: they consume
-    # no isolation capacity and cannot write, so charging them against the
-    # writer budget only made a streaming review starve the writer it was meant
-    # to overlap with. It is the same size, never a floor -- a host reporting no
-    # free slots gets no review either. `sequential_parent` keeps one shared
-    # budget, because that route spawns nothing and the parent cannot run a
-    # sibling review while it is the sole writer.
-    separate_review_budget = runtime_driver != "sequential_parent"
-    review_budget = runtime_budget if separate_review_budget else 0
+    # One budget for every runtime worker, writer or reviewer. A reviewer is an
+    # agent and occupies a host slot exactly like a writer does, so a separate
+    # counter would let the parent launch twice what the host reported. Reviews
+    # genuinely do not consume *isolation* capacity, but that is a different
+    # field (`isolation_capacity`) already spent only on the write budget above;
+    # `available_worker_slots` is what this counter spends, and there is no
+    # second pool of those.
     runtime_count = 0
-    review_count = 0
+    runtime_worker_node_ids = {
+        item["node"]["id"]
+        for item in authorized_candidates
+        if item["node"]["executor"] == "runtime_worker"
+    }
     dispatchable: list[dict[str, Any]] = []
     for item in authorized_candidates:
         node = item["node"]
         if node["executor"] == "runtime_worker":
-            read_only = separate_review_budget and node["kind"] in READ_ONLY_NODE_KINDS
-            if read_only:
-                if review_count >= review_budget:
-                    deferred.append(
-                        {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
-                    )
-                    continue
-                review_count += 1
-            else:
-                if runtime_count >= runtime_budget:
-                    deferred.append(
-                        {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
-                    )
-                    continue
-                runtime_count += 1
+            if runtime_count >= runtime_budget:
+                deferred.append(
+                    {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
+                )
+                continue
+            runtime_count += 1
         dispatchable.append(_directive(node, item["binding"], run))
 
     # A wave that runs one mission at a time is often correct: a dependency
@@ -1022,14 +1015,26 @@ def select_ready_nodes(
         "capability_unprobed" in entry["reason_codes"] for entry in deferred
     )
     if withheld_for_unprobed_capability:
+        # Withhold only what unmeasured capability actually governs. A local
+        # command, an approval, or an external wait needs no worker slot and no
+        # isolated workspace, so blocking it here would report a reason that is
+        # not its reason. A lifecycle action stays withheld: it pushes or cleans
+        # up, and that should not proceed while the route is undecided.
+        held, released = [], []
         for directive in dispatchable:
+            governed = (
+                directive.get("launch_kind") == "run_lifecycle_action"
+                or directive["node_id"] in runtime_worker_node_ids
+            )
+            (held if governed else released).append(directive)
+        for directive in held:
             deferred.append(
                 {
                     "node_id": directive["node_id"],
                     "reason_codes": ["capability_unprobed"],
                 }
             )
-        dispatchable = []
+        dispatchable = released
 
     execution_route = classify_execution_route(
         managed_artifacts=True,
