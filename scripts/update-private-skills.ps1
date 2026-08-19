@@ -108,11 +108,27 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
     # That is the worst kind of stale: silent, and indistinguishable from
     # up to date. Codex avoids it only because `plugin add` reinstalls; do the
     # same here instead of relying on the version string being maintained.
+    # `claude plugin install` is a no-op when the plugin is already installed,
+    # so forcing a refetch means uninstalling first. That opens a window where a
+    # failed install leaves no plugin at all, which the plain `update` path
+    # never did -- so retry once and, if it still fails, say plainly that the
+    # plugin is now absent and how to put it back.
     $installedPlugins = Get-JsonItems (Invoke-Checked claude plugin list --json | ConvertFrom-Json) "plugins"
     if ($installedPlugins.id -contains $PluginSelector) {
         Invoke-Checked claude plugin uninstall $PluginSelector --scope user
     }
-    Invoke-Checked claude plugin install $PluginSelector --scope user
+    try {
+        Invoke-Checked claude plugin install $PluginSelector --scope user
+    }
+    catch {
+        Write-Warning "Installing $PluginSelector failed; retrying once."
+        try {
+            Invoke-Checked claude plugin install $PluginSelector --scope user
+        }
+        catch {
+            throw ("Claude plugin $PluginSelector is currently NOT installed: it was uninstalled to force a refetch and both install attempts failed. Restore it with: claude plugin install $PluginSelector --scope user. $_")
+        }
+    }
 }
 else {
     Write-Warning "Claude CLI was not found. Skipping Claude Code."
@@ -198,59 +214,73 @@ if (Get-Command pi -ErrorAction SilentlyContinue) {
         # recursive copy is a realistic failure point on Windows: a long path
         # under scripts/tests/fixtures, or a file locked by a running Pi
         # session. Staging every replacement before touching anything live
-        # reduces the dangerous window to a rename, and a failed rename rolls
-        # the already-swapped skills back.
+        # reduces the dangerous window to a rename.
+        #
+        # Stage outside the skills directory. A half-copied directory left in
+        # $piSkillsDir carries a valid SKILL.md, and Pi scans that directory, so
+        # a partial copy or a killed process would leave Pi loading a duplicate.
+        $stagingRoot = Join-Path $backupRoot ".staging"
+        New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+
+        # Clean up any staging directory an earlier interrupted run left behind
+        # inside the skills directory, from before staging moved out of it.
+        $strays = @(Get-ChildItem -LiteralPath $piSkillsDir -Directory -Filter "*.incoming-*" -ErrorAction SilentlyContinue)
+        foreach ($stray in $strays) {
+            Write-Warning "Removing a staging directory left by an interrupted run: $($stray.Name)"
+            Remove-Item -LiteralPath $stray.FullName -Recurse -Force
+        }
+
         $staged = @()
         try {
             foreach ($skillName in $standaloneSkills) {
                 $sourceSkill = Join-Path $piPackageSkills $skillName
-                $stagedSkill = Join-Path $piSkillsDir "$skillName.incoming-$timestamp"
-                if (Test-Path -LiteralPath $stagedSkill) {
-                    Remove-Item -LiteralPath $stagedSkill -Recurse -Force
-                }
+                $stagedSkill = Join-Path $stagingRoot $skillName
                 Copy-Item -LiteralPath $sourceSkill -Destination $stagedSkill -Recurse
                 $staged += [pscustomobject]@{ Name = $skillName; Path = $stagedSkill }
             }
         }
         catch {
-            foreach ($item in $staged) {
-                try { Remove-Item -LiteralPath $item.Path -Recurse -Force } catch {}
-            }
+            try { Remove-Item -LiteralPath $stagingRoot -Recurse -Force } catch {}
             throw "Staging the replacement skills failed; nothing was changed. $_"
         }
 
-        $swapped = @()
+        # Record the backup move as soon as it succeeds, not after the whole
+        # swap. If the second move fails -- the locked-file case this staging
+        # exists to survive -- the live directory is already gone, and a record
+        # written only after both moves would leave that one skill missing while
+        # the error claimed everything was restored.
+        $moves = @()
         try {
             foreach ($item in $staged) {
                 $destinationSkill = Join-Path $piSkillsDir $item.Name
                 $backupSkill = Join-Path $backupRoot $item.Name
                 Move-Item -LiteralPath $destinationSkill -Destination $backupSkill
+                $moves += [pscustomobject]@{ Name = $item.Name; Backup = $backupSkill; Live = $destinationSkill }
                 Move-Item -LiteralPath $item.Path -Destination $destinationSkill
-                $swapped += [pscustomobject]@{ Name = $item.Name; Backup = $backupSkill; Live = $destinationSkill }
             }
         }
         catch {
-            foreach ($item in $swapped) {
+            $unrestored = @()
+            for ($i = $moves.Count - 1; $i -ge 0; $i--) {
+                $move = $moves[$i]
                 try {
-                    if (Test-Path -LiteralPath $item.Live) {
-                        Remove-Item -LiteralPath $item.Live -Recurse -Force
+                    if (Test-Path -LiteralPath $move.Live) {
+                        Remove-Item -LiteralPath $move.Live -Recurse -Force
                     }
-                    Move-Item -LiteralPath $item.Backup -Destination $item.Live
+                    Move-Item -LiteralPath $move.Backup -Destination $move.Live
                 }
                 catch {
-                    Write-Warning "Could not restore $($item.Name); it remains at $($item.Backup)."
+                    $unrestored += $move.Name
+                    Write-Warning "Could not restore $($move.Name); the previous copy is at $($move.Backup)."
                 }
             }
-            foreach ($item in $staged) {
-                try {
-                    if (Test-Path -LiteralPath $item.Path) {
-                        Remove-Item -LiteralPath $item.Path -Recurse -Force
-                    }
-                }
-                catch {}
+            try { Remove-Item -LiteralPath $stagingRoot -Recurse -Force } catch {}
+            if ($unrestored.Count -gt 0) {
+                throw ("Replacing the standalone skills failed. These were NOT restored and must be copied back from $backupRoot manually: " + ($unrestored -join ", ") + ". $_")
             }
             throw "Replacing the standalone skills failed and the previous ones were restored. $_"
         }
+        try { Remove-Item -LiteralPath $stagingRoot -Recurse -Force } catch {}
         Write-Host "Replaced standalone Pi Harness skills. Backup: $backupRoot"
     }
 }
