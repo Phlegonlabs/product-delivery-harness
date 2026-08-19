@@ -926,6 +926,20 @@ def select_ready_nodes(
         run["observed"]["runtime"]["available_worker_slots"],
         run["observed"]["runtime"]["isolation_capacity"],
     )
+    # A budget of one looks like a deliberate cap, but it is also what an
+    # unprobed host looks like: new_run.py seeds observation fields with 1 and
+    # `detection_source: "fallback"`, and nothing forces the parent to replace
+    # them. A run that never probed then executes every mission sequentially and
+    # reports only `over_budget`, which reads as "your limit", not "nobody
+    # looked". Name that case so it is visible in the proposal.
+    capability_unprobed = (
+        run["runtime_capabilities"].get("runtime_adapter", {}).get("detection_source")
+        == "fallback"
+    )
+
+    def budget_reasons() -> list[str]:
+        return ["over_budget", "capability_unprobed"] if capability_unprobed else ["over_budget"]
+
     conflict_pairs = {
         frozenset((edge["left"], edge["right"])) for edge in conflict_edges
     }
@@ -939,11 +953,11 @@ def select_ready_nodes(
             deferred.append({"node_id": node_id, "reason_codes": ["write_conflict"]})
             continue
         if len(selected_write) >= configured_write_budget:
-            deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
+            deferred.append({"node_id": node_id, "reason_codes": budget_reasons()})
             continue
         if run["runtime_capabilities"]["workspace_mode"] != "shared_checkout":
             if isolated_write_count >= isolated_write_budget:
-                deferred.append({"node_id": node_id, "reason_codes": ["over_budget"]})
+                deferred.append({"node_id": node_id, "reason_codes": budget_reasons()})
                 continue
             isolated_write_count += 1
         selected_write.append(item)
@@ -993,6 +1007,29 @@ def select_ready_nodes(
                     continue
                 runtime_count += 1
         dispatchable.append(_directive(node, item["binding"], run))
+
+    # A wave that runs one mission at a time is often correct: a dependency
+    # chain, overlapping write scopes, no isolation, or a host with no way to
+    # spawn isolated writers. Every one of those states its own reason.
+    #
+    # It is not correct when independent, conflict-free, authorized missions
+    # were held back only by a budget nobody ever measured. `fallback` means the
+    # capability was never determined, so running sequentially on it is a guess
+    # presented as a decision -- and it looks identical to a deliberate cap.
+    # Withhold the proposal and make the parent say which it is: probe the host
+    # (`observed`) or declare the route on purpose (`explicit`).
+    withheld_for_unprobed_capability = capability_unprobed and any(
+        "capability_unprobed" in entry["reason_codes"] for entry in deferred
+    )
+    if withheld_for_unprobed_capability:
+        for directive in dispatchable:
+            deferred.append(
+                {
+                    "node_id": directive["node_id"],
+                    "reason_codes": ["capability_unprobed"],
+                }
+            )
+        dispatchable = []
 
     execution_route = classify_execution_route(
         managed_artifacts=True,

@@ -157,6 +157,7 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `review_head_unchanged` — a `fix_required` review's source head has not changed.
 - `route_not_activated` — no incoming route edge has activated the node.
 - `runtime_capacity_unavailable` — observed worker slots or isolation capacity are exhausted.
+- `capability_unprobed` — independent, conflict-free, authorized missions were held back only by a write budget, and `runtime_adapter.detection_source` is still `fallback`. The selector withholds the whole proposal in that state rather than dispatching one mission: `fallback` means the capability was never determined, so a sequential wave there is a guess presented as a decision, and it looks exactly like a deliberate cap. Resolve it by probing the host and recording real capacity (`observed`), or by declaring the sequential route on purpose (`explicit`). A genuine observed capacity of one is a real answer and dispatches normally.
 - `run_status_not_dispatchable` — RUN status is terminal or otherwise not one of the executable `ready`/`running` states.
 - `runtime_unavailable` — the node's allowed providers exclude the current host.
 - `worker_state_unreconciled` — a live worker's worktree, branch, or head does not match observation.

@@ -2040,6 +2040,58 @@ class SelectReadyNodesTests(unittest.TestCase):
         deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
         self.assertIn("over_budget", deferred["N-M2"])
 
+    def _unprobed_pair(self):
+        plan, run = self._authorized_conflict_free_pair()
+        adapter = run["runtime_capabilities"]["runtime_adapter"]
+        adapter["detection_source"] = "fallback"
+        adapter.pop("capability_probe", None)
+        run["runtime_capabilities"]["max_parallel_workers"] = 1
+        run["observed"]["runtime"]["available_worker_slots"] = 1
+        run["observed"]["runtime"]["isolation_capacity"] = 1
+        return plan, run
+
+    def test_unprobed_capability_withholds_a_silently_sequential_wave(self) -> None:
+        # Independent, conflict-free, authorized missions held back only by a
+        # budget nobody measured. Running one of them anyway would present a
+        # guess as a decision, and it is indistinguishable from a deliberate cap.
+        plan, run = self._unprobed_pair()
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual([], result["dispatchable_nodes"])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertIn("capability_unprobed", deferred["N-M1"])
+        self.assertIn("capability_unprobed", deferred["N-M2"])
+
+    def test_declaring_the_route_explicitly_is_allowed_to_proceed(self) -> None:
+        # `explicit` is the escape hatch: sequential on purpose, not by accident.
+        plan, run = self._unprobed_pair()
+        run["runtime_capabilities"]["runtime_adapter"]["detection_source"] = "explicit"
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertNotIn("capability_unprobed", deferred["N-M2"])
+
+    def test_observed_capacity_of_one_is_a_real_answer_and_proceeds(self) -> None:
+        # A host that genuinely has one slot is not the same as an unmeasured
+        # one, and must not be blocked.
+        plan, run = self._authorized_conflict_free_pair()
+        run["runtime_capabilities"]["max_parallel_workers"] = 1
+        run["observed"]["runtime"]["available_worker_slots"] = 1
+        run["observed"]["runtime"]["isolation_capacity"] = 1
+
+        result = select_ready_nodes(plan, run)
+
+        self.assertEqual(
+            "observed",
+            run["runtime_capabilities"]["runtime_adapter"]["detection_source"],
+        )
+        self.assertEqual(["N-M1"], [item["node_id"] for item in result["dispatchable_nodes"]])
+        deferred = {item["node_id"]: item["reason_codes"] for item in result["deferred_nodes"]}
+        self.assertNotIn("capability_unprobed", deferred["N-M2"])
+
     def test_sequential_parent_caps_write_and_runtime_budgets_at_one(self) -> None:
         plan = valid_graph_plan()
         detach_mission_edges(plan)
