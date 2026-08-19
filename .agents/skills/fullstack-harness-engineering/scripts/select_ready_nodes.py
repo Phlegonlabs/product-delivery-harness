@@ -310,13 +310,18 @@ def _active_wave_allows_streaming_review(
         or run.get("schema_version") != 10
     ):
         return False
-    if node.get("kind") not in READ_ONLY_NODE_KINDS:
+    kind = node.get("kind")
+    if kind not in READ_ONLY_NODE_KINDS:
         return False
     review = node.get("review")
     if not isinstance(review, dict):
-        # A read-only node with no review binding (approval, external_wait, or a
-        # local-command verifier) is unconditionally safe during the wave.
-        return True
+        # An approval or external wait blocks on a human or an outside system
+        # and touches nothing, so it may proceed. A verifier node without a
+        # review binding is a deterministic gate, and route edges are
+        # ANY-matched: letting one through would fire a batch/integration gate
+        # as soon as any streamed review passed, while writers are still live
+        # and the mission is not integrated. Those wait for wave close.
+        return kind in {"approval", "external_wait"}
     if (
         review.get("stage", "preintegration") != "preintegration"
         or len(review.get("mission_ids", [])) != 1
@@ -957,17 +962,22 @@ def select_ready_nodes(
     )
     if runtime_driver == "sequential_parent":
         runtime_budget = min(runtime_budget, 1)
-    # Read-only nodes draw from their own budget. They consume no isolation
-    # capacity and cannot write, so charging them against the writer budget only
-    # made a streaming review starve the writer it was meant to overlap with.
-    review_budget = max(runtime_budget, 1)
+    # Read-only nodes draw from their own budget of the same size: they consume
+    # no isolation capacity and cannot write, so charging them against the
+    # writer budget only made a streaming review starve the writer it was meant
+    # to overlap with. It is the same size, never a floor -- a host reporting no
+    # free slots gets no review either. `sequential_parent` keeps one shared
+    # budget, because that route spawns nothing and the parent cannot run a
+    # sibling review while it is the sole writer.
+    separate_review_budget = runtime_driver != "sequential_parent"
+    review_budget = runtime_budget if separate_review_budget else 0
     runtime_count = 0
     review_count = 0
     dispatchable: list[dict[str, Any]] = []
     for item in authorized_candidates:
         node = item["node"]
         if node["executor"] == "runtime_worker":
-            read_only = node["kind"] in READ_ONLY_NODE_KINDS
+            read_only = separate_review_budget and node["kind"] in READ_ONLY_NODE_KINDS
             if read_only:
                 if review_count >= review_budget:
                     deferred.append(

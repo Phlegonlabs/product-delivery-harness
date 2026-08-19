@@ -32,13 +32,25 @@ from harness_manifest import (
 )
 
 def _harness_version() -> str:
-    """Read the packaged Harness version from the repository package.json."""
+    """Read the packaged Harness version from the nearest package.json.
 
-    package = Path(__file__).resolve().parents[4] / "package.json"
-    try:
-        return json.loads(package.read_text(encoding="utf-8"))["version"]
-    except (OSError, ValueError, KeyError):
-        return "0.0.0"
+    The depth differs between the canonical `.agents/skills/...` tree and the
+    generated plugin bundle, so walk up instead of counting parents: a fixed
+    depth silently recorded "0.0.0" for every plugin user, in the very field
+    the runtime upgrade gate checks against.
+    """
+
+    for directory in Path(__file__).resolve().parents:
+        package = directory / "package.json"
+        if not package.is_file():
+            continue
+        try:
+            version = json.loads(package.read_text(encoding="utf-8"))["version"]
+        except (OSError, ValueError, KeyError):
+            continue
+        if isinstance(version, str) and version:
+            return version
+    return "0.0.0"
 
 
 AUTHORIZATION_KEYS = (
