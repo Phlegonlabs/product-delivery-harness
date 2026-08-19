@@ -61,7 +61,9 @@ Batch integration gate:
 Fresh integration review gate:
 
 - Starts per surface once every mission covering that surface has integrated serially into one integration branch. It does not wait for unrelated surfaces still integrating.
-- Uses new parent-dispatched read-only reviewer attempts on the exact `integration_head_sha`; mission writers and pre-integration outcomes cannot be reused.
+- Uses new parent-dispatched read-only reviewer attempts on the exact `integration_head_sha`. A mission writer is never a reviewer.
+- Skip the dispatch only when `integration_head_sha` is literally the same commit a pre-integration review of the same review type already passed. Then the reviewer would read a byte-identical tree and reach the same verdict, and a reviewer dispatch is one of the most expensive steps in a run. Record the node as `skipped`; the validator rejects that phase unless the matching PASS exists on that exact SHA.
+- Any other integration head is a different tree. The "did the combination break" question is real there, and no earlier PASS answers it.
 - Uses one reviewer per applicable surface by default. Same-surface fan-out requires an explicit user request or a recorded high-impact risk. None may delegate.
 - Returns all blocking findings in one bounded pass and routes one deduplicated finding set to a bounded repair mission. Runtime review permits only the initial review and one repair re-review. A repair changes the candidate SHA and invalidates every integration-stage PASS whose declared review scope intersects the repair diff. A review whose scope the repair did not touch keeps its PASS and records the new candidate SHA; the SHA string changing is not by itself a reason to re-review a surface the repair never reached.
 
@@ -69,7 +71,8 @@ Final/current-head gate:
 
 - Runs the one planned broad regression, browser E2E, and visual/UI validation suite only after fresh integration review and repair loops converge.
 - Binds every PASS to the exact integration head. Any later code or configuration change invalidates the affected proof.
-- Focused task, worker, and integration checks are not this broad suite. If the broad suite fails or a repair changes the candidate, establish and review a new candidate before rerunning it; do not claim an exactly-once history when the candidate changed.
+- Focused task, worker, and integration checks are not this broad suite. Plan the suite as cross-cutting checks that only the whole candidate can answer — build, browser E2E, migration, UI evidence — rather than a rerun of every focused suite already green on the same code. A gate that only re-executes a mission's own unit tests on an unchanged tree is repeated work; either give it changed-file selection against the plan write union, or drop it and rely on the task and worker gates that already covered it.
+- If the broad suite fails or a repair changes the candidate, establish and review a new candidate before rerunning it; do not claim an exactly-once history when the candidate changed.
 - Delivery ends on this local evidence. The harness never waits for remote CI or remote review.
 - In `integration_push` mode, push only the final verified candidate — the exact head this gate passed on.
 

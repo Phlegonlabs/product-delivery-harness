@@ -1439,17 +1439,21 @@ def _validate_runtime_metrics(errors: list[str], run: dict[str, Any]) -> None:
     if value is None:
         return
     required = {
-        "target_reduction_percent",
         "baseline_wall_time_ms",
         "run_wall_time_ms",
         "critical_path_ms",
         "events",
     }
-    if not _keys(errors, "run.runtime_metrics", value, required):
+    # There is no default runtime target. Set one only when a specific run has a
+    # specific agreed goal; an invented number pressures a run toward slicing
+    # missions too small or skipping a gate to make the arithmetic work.
+    if not _keys(
+        errors, "run.runtime_metrics", value, required, {"target_reduction_percent"}
+    ):
         return
 
-    target = value["target_reduction_percent"]
-    if _keys(
+    target = value.get("target_reduction_percent")
+    if target is not None and _keys(
         errors,
         "run.runtime_metrics.target_reduction_percent",
         target,

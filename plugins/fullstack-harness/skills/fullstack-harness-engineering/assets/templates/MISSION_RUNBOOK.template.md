@@ -167,10 +167,6 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "workflow_runs": [],
     "verifier_executions": [],
     "runtime_metrics": {
-      "target_reduction_percent": {
-        "minimum": 75,
-        "stretch": 85
-      },
       "baseline_wall_time_ms": null,
       "run_wall_time_ms": null,
       "critical_path_ms": null,
