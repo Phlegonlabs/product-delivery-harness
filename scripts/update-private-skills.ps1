@@ -188,12 +188,63 @@ if (Get-Command pi -ErrorAction SilentlyContinue) {
             }
         }
 
-        foreach ($skillName in $standaloneSkills) {
-            $sourceSkill = Join-Path $piPackageSkills $skillName
-            $destinationSkill = Join-Path $piSkillsDir $skillName
-            $backupSkill = Join-Path $backupRoot $skillName
-            Move-Item -LiteralPath $destinationSkill -Destination $backupSkill
-            Copy-Item -LiteralPath $sourceSkill -Destination $destinationSkill -Recurse
+        # Copy first, then swap. Moving the live skill out and only then copying
+        # the replacement in leaves the skill missing if the copy fails, and a
+        # recursive copy is a realistic failure point on Windows: a long path
+        # under scripts/tests/fixtures, or a file locked by a running Pi
+        # session. Staging every replacement before touching anything live
+        # reduces the dangerous window to a rename, and a failed rename rolls
+        # the already-swapped skills back.
+        $staged = @()
+        try {
+            foreach ($skillName in $standaloneSkills) {
+                $sourceSkill = Join-Path $piPackageSkills $skillName
+                $stagedSkill = Join-Path $piSkillsDir "$skillName.incoming-$timestamp"
+                if (Test-Path -LiteralPath $stagedSkill) {
+                    Remove-Item -LiteralPath $stagedSkill -Recurse -Force
+                }
+                Copy-Item -LiteralPath $sourceSkill -Destination $stagedSkill -Recurse
+                $staged += [pscustomobject]@{ Name = $skillName; Path = $stagedSkill }
+            }
+        }
+        catch {
+            foreach ($item in $staged) {
+                try { Remove-Item -LiteralPath $item.Path -Recurse -Force } catch {}
+            }
+            throw "Staging the replacement skills failed; nothing was changed. $_"
+        }
+
+        $swapped = @()
+        try {
+            foreach ($item in $staged) {
+                $destinationSkill = Join-Path $piSkillsDir $item.Name
+                $backupSkill = Join-Path $backupRoot $item.Name
+                Move-Item -LiteralPath $destinationSkill -Destination $backupSkill
+                Move-Item -LiteralPath $item.Path -Destination $destinationSkill
+                $swapped += [pscustomobject]@{ Name = $item.Name; Backup = $backupSkill; Live = $destinationSkill }
+            }
+        }
+        catch {
+            foreach ($item in $swapped) {
+                try {
+                    if (Test-Path -LiteralPath $item.Live) {
+                        Remove-Item -LiteralPath $item.Live -Recurse -Force
+                    }
+                    Move-Item -LiteralPath $item.Backup -Destination $item.Live
+                }
+                catch {
+                    Write-Warning "Could not restore $($item.Name); it remains at $($item.Backup)."
+                }
+            }
+            foreach ($item in $staged) {
+                try {
+                    if (Test-Path -LiteralPath $item.Path) {
+                        Remove-Item -LiteralPath $item.Path -Recurse -Force
+                    }
+                }
+                catch {}
+            }
+            throw "Replacing the standalone skills failed and the previous ones were restored. $_"
         }
         Write-Host "Replaced standalone Pi Harness skills. Backup: $backupRoot"
     }
