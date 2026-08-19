@@ -123,8 +123,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         goal = self.read("assets/templates/GOAL.template.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
 
+        # Named everywhere it matters; described once, in execution-state-model.md.
         for content in (skill, state, graph, runbook, goal):
             self.assertIn("System Review And Route", content)
+        for content in (skill, state, runbook, goal):
             self.assertIn("parent-only", content)
             self.assertIn("read-only", content)
         self.assertIn("before loading any task-specific skill", skill)
@@ -181,12 +183,20 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         goal = self.read("assets/templates/GOAL.template.md")
 
+        # The binding is defined once, in execution-state-model.md. Every other
+        # file names the route and points at that definition instead of
+        # restating it; a restatement is what drifts.
         for content in (skill, state, graph, selector, runbook, goal):
             self.assertIn("runtime_worker", content)
+        for content in (skill, state, runbook, goal):
             self.assertIn("parent-owned", content)
             self.assertIn("parent_managed_worktree", content)
             self.assertIn("agent_result", content)
         self.assertIn("parent-owned executor/worker binding solely for lease/state validation", state)
+        for content in (graph, selector):
+            self.assertIn(
+                "`execution-state-model.md`'s `sequential_parent` definition", content
+            )
         self.assertIn("does not require `spawn_subagents`", selector)
         self.assertIn("route blocks rather than writing in `shared_checkout`", skill)
         self.assertNotIn("no worker identity", state.lower())
@@ -230,21 +240,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         graph = self.read("references/graph-orchestration.md")
 
+        # The rules live once, in execution-state-model.md; graph-orchestration
+        # keeps the heading and its one graph-specific rule so a reader lands
+        # somewhere, without a second copy that can drift.
         for content in (state, graph):
             self.assertIn("Serialized Same-Repository Host Handoff", content)
-            self.assertIn("only", content)
-            self.assertIn("active_wave", content)
-            self.assertIn("PLAN/RUN", content)
-            self.assertIn("exact", content.lower())
-            self.assertIn("Host B", content)
-            self.assertIn("re-probe", content)
-            self.assertIn("replaces", content)
-            self.assertIn("fix_required", content)
-            self.assertIn("new head invalidates", content)
-            self.assertIn("cross-machine handoff", content.lower())
-            self.assertIn("unsupported", content.lower())
+        for assertion in (
+            "only",
+            "active_wave",
+            "PLAN/RUN",
+            "Host B",
+            "re-probe",
+            "replaces",
+            "fix_required",
+            "new head invalidates",
+        ):
+            self.assertIn(assertion, state)
+        for assertion in ("exact", "cross-machine handoff", "unsupported"):
+            self.assertIn(assertion, state.lower())
+        self.assertIn("does not gain a host-handoff node", graph)
         self.assertIn("not an in-session bridge", state)
-        self.assertIn("not an in-session bridge", graph)
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_readme_explains_the_project_size_gate(self) -> None:
@@ -390,7 +405,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"lease_id"', workflow)
         self.assertIn('"task_results"', workflow)
         self.assertIn('"REFINEMENT_REQUEST"', workflow)
-        self.assertIn("capsule_sha256", workflow)
+        self.assertNotIn("capsule_sha256", workflow)
+        self.assertNotIn("context_bytes", workflow)
         self.assertIn("complete live task", workflow)
 
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
@@ -557,7 +573,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         # Readiness/authorization stops are blocked by the wave selector, not
         # the manifest validator; the section must name both tools.
         self.assertIn("select_ready_nodes.py", contract)
-        self.assertIn("No script parses that table", contract)
+        self.assertIn("`plan_readiness` in RUN is the single machine gate", contract)
         # The pair invariant is re-checked downstream, not only by the
         # authoring skill, and a hand-edited half-pair is a stop condition.
         # The command must be runnable (both required args) and read-only.
@@ -599,7 +615,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('"workflow_runs"', run)
         self.assertIn("mission_write", run)
         self.assertIn("EnterWorktree", workflow)
-        self.assertIn("capsule_sha256", workflow)
+        self.assertNotIn("capsule_sha256", workflow)
+        self.assertNotIn("context_bytes", workflow)
         self.assertIn("complete live task", workflow)
 
     def test_plan_provider_options_bind_worker_models(self) -> None:

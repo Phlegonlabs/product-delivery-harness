@@ -136,7 +136,7 @@ class AdapterContractTests(unittest.TestCase):
 
         for name, content in (("codex", codex), ("claude", claude), ("pi", pi)):
             with self.subTest(adapter=name):
-                self.assertIn("context capsule", content)
+                self.assertIn("bounded context packet", content)
                 self.assertIn("runtime_metrics", content)
                 self.assertIn("pre-integration review", content)
                 self.assertIn("fresh", content)
@@ -207,7 +207,7 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("actual resolved role, model, effort, fallback, run id", pi)
         self.assertIn('explicit `context: "fresh"`', pi)
         self.assertIn("Fork only an `oracle`", pi)
-        self.assertIn("10-20 minute fresh-child slice", pi)
+        self.assertIn("one bounded fresh-child slice whose fixed overhead stays small", pi)
         self.assertIn("never pass `--no-context-files` or `-nc`", pi)
         self.assertIn("Pi's effective per-directory context selection", pi)
         self.assertIn("One mission has one writer", pi)

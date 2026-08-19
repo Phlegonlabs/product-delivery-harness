@@ -42,9 +42,19 @@ STATUS_OUTCOMES = {
 
 
 def validate_node_result(
-    plan: dict[str, Any], run: dict[str, Any], result: Any
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    result: Any,
+    *,
+    manifest_already_validated: bool = False,
 ) -> list[str]:
-    errors = validate_current_plan_run(plan, run)
+    """Validate one typed graph node result.
+
+    Set ``manifest_already_validated`` when the caller has already run
+    ``validate_current_plan_run`` on the same pair.
+    """
+
+    errors = [] if manifest_already_validated else validate_current_plan_run(plan, run)
     if errors:
         schema_pair = (
             plan.get("schema_version") if isinstance(plan, dict) else None,

@@ -1485,25 +1485,72 @@ class PlanValidationTests(unittest.TestCase):
         )
 
 
-    def test_integration_batch_and_final_verifiers_cannot_use_session_cache(self) -> None:
+    def test_batch_and_final_gates_select_against_the_plan_write_union(self) -> None:
+        plan = valid_plan()
+        union = plan["missions"][0]["write_scope"][0]
+        always_gate = copy.deepcopy(plan["final_gates"][0])
+        always_gate["id"] = "final-always"
+        plan["final_gates"].append(always_gate)
+        plan["final_gates"][0]["selection"] = {
+            "mode": "changed_files",
+            "scopes": [union],
+        }
+        self.assertEqual([], validate_plan(plan))
+
+        escaping = valid_plan()
+        escaping["final_gates"][0]["selection"] = {
+            "mode": "changed_files",
+            "scopes": ["unrelated/**"],
+        }
+        self.assert_error_contains(escaping, "escapes the owning write scope")
+
+    def test_batch_and_final_gates_keep_one_always_run_verifier(self) -> None:
+        plan = valid_plan()
+        union = plan["missions"][0]["write_scope"][0]
+        for gate in plan["final_gates"]:
+            gate["selection"] = {"mode": "changed_files", "scopes": [union]}
+        self.assert_error_contains(
+            plan, "must keep at least one always-run verifier"
+        )
+
+    def test_deterministic_local_attestation_unlocks_banned_layers(self) -> None:
+        cache = {
+            "mode": "session_exact",
+            "environment_keys": [],
+            "deterministic_local": True,
+        }
+
+        batch_plan = valid_plan()
+        batch_plan["batch_verifiers"][0]["cache"] = cache
+        self.assertEqual([], validate_plan(batch_plan))
+
+        final_plan = valid_plan()
+        final_plan["final_gates"][0]["cache"] = cache
+        self.assertEqual([], validate_plan(final_plan))
+
+        integration_plan = valid_plan()
+        integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
+        self.assertEqual([], validate_plan(integration_plan))
+
+    def test_integration_batch_and_final_verifiers_need_explicit_attestation(self) -> None:
         cache = {"mode": "session_exact", "environment_keys": []}
 
         batch_plan = valid_plan()
         batch_plan["batch_verifiers"][0]["cache"] = cache
         self.assert_error_contains(
-            batch_plan, "session_exact is not allowed for this verifier"
+            batch_plan, "session_exact at this layer requires cache.deterministic_local: true"
         )
 
         final_plan = valid_plan()
         final_plan["final_gates"][0]["cache"] = cache
         self.assert_error_contains(
-            final_plan, "session_exact is not allowed for this verifier"
+            final_plan, "session_exact at this layer requires cache.deterministic_local: true"
         )
 
         integration_plan = valid_plan()
         integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
         self.assert_error_contains(
-            integration_plan, "session_exact is not allowed for this verifier"
+            integration_plan, "session_exact at this layer requires cache.deterministic_local: true"
         )
 
         worker_plan = valid_plan()

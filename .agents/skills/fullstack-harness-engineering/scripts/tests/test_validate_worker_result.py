@@ -463,6 +463,16 @@ def error_codes(errors: list[dict[str, str]]) -> set[str]:
     return {error["code"] for error in errors}
 
 
+def test_protocol_literal_matches_verifier_runtime() -> None:
+    """The literal is duplicated to keep verifier_runtime off the import path;
+    pin it so the two cannot drift."""
+
+    import verifier_runtime
+    import validate_worker_result
+
+    assert validate_worker_result.VERIFIER_PROTOCOL == verifier_runtime.PROTOCOL
+
+
 class ValidateWorkerResultTests(unittest.TestCase):
     def setUp(self) -> None:
         self.plan = make_plan()

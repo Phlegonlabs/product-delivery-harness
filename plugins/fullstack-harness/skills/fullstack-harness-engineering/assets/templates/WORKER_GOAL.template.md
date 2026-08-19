@@ -21,8 +21,7 @@ Runtime:
 - Host-specific repository context: <ordered paths>
 - Runtime-specific worker contract: <matching adapter contract>
 - Context handoff: <fresh bounded packet or host-native task context>
-- Context capsule: SHA-256 <digest>; <byte count> bytes; stable prefix plus mission delta
-- Context sources: <ordered paths with content digests>
+- Context sources: <ordered paths>
 - Result contract: <absolute or readable path to references/worker-result-contract.md>
 - Permission boundary: <mode/profile, filesystem/network/bindings, approval policy>
 - Resource claims: <typed keys and access>

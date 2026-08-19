@@ -4,7 +4,7 @@ Use this reference when the harness runs multiple missions, delegates to workers
 
 ## System Review And Route Comes First
 
-Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage. That stage must not load task-specific skills or an adapter, create PLAN/RUN or other managed artifacts, probe worker capability, or spawn a worker. Small work never reaches this reference. A large route enters the existing PLAN-v5/RUN-v10 graph; a no-agent large route keeps its PLAN mission as `executor: runtime_worker` and uses the parent-owned `sequential_parent` path below, with a parent-owned RUN executor/worker binding solely for lease/state validation (`worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, `completion_channel: agent_result`). It executes one mission at a time, is not a delegated launch, and blocks if the required parent-managed worktree is unavailable or unauthorized.
+Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage defined in `execution-state-model.md`. Small work never reaches this reference. A large route enters the existing PLAN-v5/RUN-v10 graph; a no-agent large route uses the parent-owned `sequential_parent` path below, one mission at a time.
 
 ## Describe Capabilities, Not Product Labels
 
@@ -84,7 +84,7 @@ Workers must not edit the parent-owned `PLAN.md` or `RUN.md`, expand their own s
 
 ### Shared checkout
 
-Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate) or parallel read-only analysis. It is not an eligible workspace for plan-backed mission writes, including `sequential_parent`; if the required parent-managed worktree is unavailable or unauthorized, block the route rather than writing in the shared checkout.
+Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate) or parallel read-only analysis. It is not an eligible workspace for plan-backed mission writes, including `sequential_parent`.
 
 - Do not assign a plan-backed write lease in this checkout. Read-only inspection may run concurrently when it does not mutate shared state.
 - Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
@@ -132,7 +132,7 @@ Workers and reviewers never spawn or delegate further. RUN-v10 therefore accepts
 
 Every write mission has one worker, one explicit `write_scope` ownership boundary, and one clean exact-base worktree. Before launch, the parent verifies repository identity, branch/ref, HEAD equal to `batch_base_sha`, and empty `git status --porcelain`. Shared API, schema, and type edits are a prerequisite mission: freeze, review, and integrate them before cutting dependent worktrees.
 
-After exact-head pre-integration reviews pass, the parent integrates mission heads serially. Only then does it dispatch fresh reviewers against the exact unified integration SHA. Those reviewers are not mission writers and do not reuse pre-integration outcomes. A passing fresh review fixes the candidate SHA for one broad final validation; a repair changes the candidate and invalidates the earlier result.
+The review, integration, and final-validation gates that follow are defined in `verification-gates.md`.
 
 ## Launch Preconditions
 
@@ -232,7 +232,7 @@ Prefer structured result data returned directly to the parent. Use temporary `do
 
 ## Batch Integration
 
-Integrate selected missions serially in declared `merge_rank` and mission-ID order:
+Integrate selected missions serially, one at a time. A mission integrates as soon as its exact-head review PASSes; it does not wait for the rest of the wave. `merge_rank` and mission-ID order break ties between missions that become ready at the same moment — it is not a queue a finished mission waits in behind a slower one.
 
 1. Receive the worker result through the declared completion channel.
 2. Confirm the lease, plan revision/digest, batch base, and observed worker head.
@@ -241,7 +241,7 @@ Integrate selected missions serially in declared `merge_rank` and mission-ID ord
 5. Integrate onto the current integration head when `integrate_locally` is authorized.
 6. Rerun the mission integration verifier on the new head.
 7. Record `integrated_sha` and `integration_gate: PASS`, then transition to `integrated`; otherwise record `integration_failed` and stop dependent work.
-8. After all selected missions integrate, run the PLAN-level batch verifiers; stop the next wave if any fail.
+8. After the wave closes and every selected mission has integrated, run the PLAN-level batch verifiers; stop the next wave if any fail.
 9. Reobserve the integration head and recompute the ready frontier/conflict graph before launching another wave.
 
 Never treat a completed task/thread, a worker `PASS`, or a commit on a mission branch as dependency satisfaction. Only the integrated state described in `verification-gates.md` unblocks downstream missions.

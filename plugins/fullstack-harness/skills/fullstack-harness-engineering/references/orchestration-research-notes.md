@@ -6,17 +6,7 @@ Do not hard-code a local `codex-cli` version into portable guidance. Record the 
 
 ## Durable Decision
 
-Represent orchestration as three independent capability axes:
-
-```text
-worker_runtime: parent | subagent | app_task
-workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
-completion_channel: agent_result | thread_poll | report_file | user_relay
-```
-
-This replaces the older single mode enum. A mode label hid important differences: a subagent is parent-owned while an app task is user-owned; a worktree can be parent- or platform-managed; and completion can arrive as a result, poll, report file, or user relay.
-
-Schema v6 adds a small runtime adapter beside those axes. It records `provider`, observed `available_drivers`, and `detection_source`. The selector uses a deterministic provider route: Codex prefers app threads, Claude Code prefers Dynamic Workflow, both fall back to direct subagents when observed, and every provider has sequential parent execution as the final fallback. Provider routing does not replace authorization, isolation, or completion-channel checks.
+The capability axes (`worker_runtime`, `workspace_mode`, `completion_channel`), the runtime adapter beside them, and the deterministic per-provider driver order are defined once in `execution-state-model.md`. They replaced an older single mode enum that hid real differences: a subagent is parent-owned while an app task is user-owned, a worktree can be parent- or platform-managed, and completion can arrive as a result, poll, report file, or user relay.
 
 The portable default favors an isolated worktree per mission over shared-checkout serialization even with no real parallelism in play, because it lets a mission implement and receive an exact-head read-only review before one controlled merge into the run's own integration branch. `main` remains outside ordinary worktree execution: the run ends at its own pushed branch, and landing that branch on `main` is the user's own step outside this harness. Read-only work may fan out freely; parallel writes additionally require complete file/runtime resource claims, an observable completion channel, a fixed committed base SHA, and explicit action-specific authorization.
 
@@ -104,21 +94,6 @@ A generic skill must not promise automatic cross-task callbacks:
 - Where no programmatic channel exists, the user may need to relay completion.
 
 True event-driven Codex integration is an App Server client capability. App Server exposes notifications such as turn completion and thread status changes; a client must subscribe to and handle those events. The presence of this skill alone does not install that client or create an event channel.
-
-## Capability Combinations
-
-| Worker runtime | Typical workspace | Valid completion examples | Write concurrency rule |
-|---|---|---|---|
-| `parent` | `shared_checkout` | `agent_result` | fallback only, one write mission at a time, for when worktree creation is unavailable or unauthorized |
-| `subagent` | `shared_checkout` | `agent_result` | serialize writes; read-only fan-out is allowed |
-| `subagent` | `parent_managed_worktree` | `agent_result` or `report_file` | default for plan-backed mission writes, one mission at a time or several after the full fan-out gate |
-| `app_task` | `app_managed_worktree` | `thread_poll`, `report_file`, or `user_relay` | parallel writes only after full fan-out gate and lifecycle acknowledgement |
-
-The `subagent` + `parent_managed_worktree` + `agent_result` row covers both direct parent-owned subagents and Claude Dynamic Workflow mission agents.
-
-Inside the last row, the app task may coordinate up to three direct read-only helpers when the RUN policy and `spawn_subagents` authorization permit it. Those helpers return `agent_result` to the app task; they are not additional app tasks or write workers.
-
-These are examples, not an exhaustive compatibility table. The parent must prove that the chosen combination exists in the current environment. If a completion channel or workspace primitive is missing, fall back to sequential execution.
 
 ## Re-Verification Checklist
 

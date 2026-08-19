@@ -54,16 +54,16 @@ Mission integration gate:
 Batch integration gate:
 
 - Runs the PLAN-level `batch_verifiers` after every selected wave has integrated serially.
-- Groups independent local-command verifiers only when each opts into `execution.parallel_safe` and their typed resource claims do not conflict. Use `scripts/verifier_runtime.py` batch mode; unmarked or conflicting verifiers stay serial.
+- Groups independent local-command verifiers whose typed resource claims do not conflict. Use `scripts/verifier_runtime.py` batch mode. A verifier that declares no resource batches by default; `parallel_safe: false` or a conflicting exclusive claim keeps it serial. Task and worker gates use the same batch path.
 - Contains only checks that need more than one integrated mission or shared contract. Do not repeat focused task suites here.
 - Proves cross-mission behavior did not regress and blocks the next wave on failure.
 
 Fresh integration review gate:
 
-- Starts only after all covered mission heads have integrated serially into one integration branch.
+- Starts per surface once every mission covering that surface has integrated serially into one integration branch. It does not wait for unrelated surfaces still integrating.
 - Uses new parent-dispatched read-only reviewer attempts on the exact `integration_head_sha`; mission writers and pre-integration outcomes cannot be reused.
 - Uses one reviewer per applicable surface by default. Same-surface fan-out requires an explicit user request or a recorded high-impact risk. None may delegate.
-- Returns all blocking findings in one bounded pass and routes one deduplicated finding set to a bounded repair mission. Runtime review permits only the initial review and one repair re-review. Any repair changes the candidate and invalidates every earlier integration-stage PASS.
+- Returns all blocking findings in one bounded pass and routes one deduplicated finding set to a bounded repair mission. Runtime review permits only the initial review and one repair re-review. A repair changes the candidate SHA and invalidates every integration-stage PASS whose declared review scope intersects the repair diff. A review whose scope the repair did not touch keeps its PASS and records the new candidate SHA; the SHA string changing is not by itself a reason to re-review a surface the repair never reached.
 
 Final/current-head gate:
 
@@ -117,7 +117,7 @@ Use or adapt this matrix:
 
 ## Changed-File Selection And Exact Execution Reuse
 
-Changed-file selection is allowed only for task and worker verifiers. The declared selection scopes must stay inside the owning task or mission write scope. Integration, batch, final, migration, and smoke gates always run when their stage applies.
+Task and worker verifiers select against their own task or mission write scope. Batch and final gates may also select, but against the union of every mission write scope in the PLAN, never one mission's slice — the question they answer is whether the whole candidate regressed. Each of `batch_verifiers` and `final_gates` must keep at least one always-run verifier, so cross-mission interaction is proved rather than selected away; put build, browser E2E, migration, and UI checks there. Integration, migration, and smoke gates always run when their stage applies.
 
 The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
 
@@ -140,7 +140,9 @@ A local verifier may declare:
 }
 ```
 
-`session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`. The parent must also mark the command deterministic and local, supply a clean checkout, and place the session cache in a repository-external path. The execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, executable identity, OS/architecture, pass signal, and selected environment-value digests.
+`session_exact` is opt-in and accepts only literal `pass_signal: "exit 0"`.
+
+Integration, batch, and final gates refuse reuse by default. That default keys on the gate's layer, but the property that decides safety is the command's nature. A verifier at those layers may add `cache.deterministic_local: true` to attest it is a pure local deterministic command and become reusable. Never set it for runtime review, browser capture, migration, mutable-environment smoke, a network or shared-database check, or a time/random-dependent command; those are not pure functions of the tree and stay uncacheable regardless of layer. A static source scan such as `check_ui_contract.py` is a legitimate candidate. The parent must also mark the command deterministic and local, supply a clean checkout, and place the session cache in a repository-external path. The execution key binds run ID, PLAN revision/digest, graph revision, batch base, exact head, changed-file digest, trust domain, checkout role, cwd, ordered argv, executable identity, OS/architecture, pass signal, and selected environment-value digests.
 
 Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malformed entry, failure, timeout, missing cache root, or unsafe cache location runs the command fresh. Logical attribution — verifier ID, layer, mission, task, attempt, and lease — is not in the execution key, so equivalent opted-in task and worker gates may cite one exact execution while each keeps its own PASS record, context, and evidence key. Never use this cache for runtime review, browser capture, migration, mutable-environment smoke, network/shared-database checks, or time/random-dependent commands.
 
@@ -177,7 +179,9 @@ Not required when:
 
 Prefer targeted viewport, element, or region screenshots over whole-page captures. Whole-page captures need a reason. Traces, console logs, and browser reports are supplemental; they do not replace a required screenshot.
 
-For every PLAN surface with `evidence_gate: required`, capture one screenshot for each planned route-by-breakpoint-by-state combination. Schema-v9 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash.
+For every PLAN surface with `evidence_gate: required`, capture one screenshot for each planned route-by-breakpoint-by-state combination.
+
+Capture the full matrix once on the mission's worktree head. After serial integration, recapture the full matrix bound to the integration head only when the integration diff intersects that surface's write scope; when it does not, rebind the existing evidence to the integration head and record why. A merge that touched only backend files cannot change a rendered UI surface, and recapturing the whole route-by-breakpoint-by-state matrix to prove that is the slowest verifier class in the ladder. A merge that did touch the surface recaptures in full. Schema-v9 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash.
 
 ### Capture Mechanism By Platform
 

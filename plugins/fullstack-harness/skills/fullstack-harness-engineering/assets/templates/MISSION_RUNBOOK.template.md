@@ -20,7 +20,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "6187e71bca54f1184e4a4987d3f5198e4bb52a743e8fa569236e54737089679f"
+      "digest_sha256": "d014396350747ee28863143579e44c8def2b3fae780de10244590c01dfb9e3c8"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -69,11 +69,6 @@ A managed-sequential route is selected when fewer than two safe write missions a
         "local_binding": "unknown",
         "worker_inheritance": "unknown",
         "status": "unknown"
-      },
-      "platform_lifecycle": {
-        "owner": "parent",
-        "automatic_retention_cleanup_possible": false,
-        "durable_branch_required_before_unique_work": true
       }
     },
     "observed": {
@@ -209,18 +204,7 @@ Next action:
 
 ## Plan Readiness View
 
-| Readiness check | Status | Evidence / decision |
-|---|---|---|
-| Canonical PLAN JSON validates and digest matches | draft / PASS / BLOCKED | |
-| Every in-scope trace maps to a task and verifier | draft / PASS / BLOCKED | |
-| Mission and task DAGs are explicit and acyclic | draft / PASS / BLOCKED | |
-| Scopes and typed resource inventories are complete | draft / PASS / BLOCKED | |
-| Exact-head pre-integration review and final gates are defined | draft / PASS / BLOCKED | |
-| True cross-mission batch gate is applicable | n/a for one mission / PASS / BLOCKED | |
-| UI routes, states, breakpoints, and evidence are planned | draft / PASS / BLOCKED / n/a | |
-| Required user decisions and authorization gaps are surfaced | draft / PASS / BLOCKED | |
-
-For plan-backed work, do not set the run to `running` until readiness passes, the plan revision/digest is current, execution is explicitly authorized, and every next action has its own authorization. `tasks.md` may be created later if the human view is useful.
+For plan-backed work, do not set the run to `running` until static validation passes, the plan revision/digest is current, execution is explicitly authorized, and every next action has its own authorization. `plan_readiness` in the JSON manifest above is the machine gate; do not duplicate it as a hand-filled table. `tasks.md` may be created later if the human view is useful.
 
 ## Mission And Task View
 
@@ -228,13 +212,7 @@ The mission/task listing is intentionally omitted here for the single-mission ex
 
 ## Verification Dashboard
 
-| Layer | Intended scope | Head binding |
-|---|---|---|
-| Task / worker | focused checks selected from parent-observed changed files | worker head |
-| Worktree review | independent read-only review before integration | exact current worktree head |
-| Mission integration | that mission's integration surface after serial integration | integration head |
-| Batch | n/a for one mission; real cross-mission checks only for `parallel_graph` | post-wave integration head |
-| Final / current-head | broad validation after review repairs converge; breakpoint-by-state UI evidence when applicable | exact accepted integration head |
+Gate layers, their scope, and their head bindings are defined once in `references/verification-gates.md`. Do not restate them here.
 
 ## UX Evidence
 

@@ -271,6 +271,33 @@ class VerifierRuntimeTests(unittest.TestCase):
         # Every call above executed for real; none could have reused a prior PASS.
         self.assertEqual(self.read_count(counter), len(CACHE_BANNED_LAYERS))
 
+    def test_deterministic_local_attestation_reuses_at_banned_layers(self) -> None:
+        """The ban keys on layer, but the property that matters is the command's
+        nature. A verifier that attests it is a pure local deterministic command
+        may reuse an exact-input PASS at those layers."""
+
+        counter = self.root / "counter.txt"
+        attested = verifier(counter)
+        attested["cache"] = {
+            "mode": "session_exact",
+            "environment_keys": ["CI"],
+            "deterministic_local": True,
+        }
+        banned = context()
+        banned["layer"] = "batch"
+        for _ in range(2):
+            result = run_verifier(
+                attested,
+                banned,
+                checkout_root=self.checkout,
+                cache_root=self.cache,
+                environment=self.environment,
+            )
+            self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["cache_status"], "reused")
+        # The second call reused the first; the command ran exactly once.
+        self.assertEqual(self.read_count(counter), 1)
+
     def test_dirty_checkout_bypasses_existing_pass(self) -> None:
         counter = self.root / "counter.txt"
         run_verifier(
@@ -509,7 +536,9 @@ class VerifierRuntimeTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["waves"], 2)
         self.assertEqual(result["metrics"]["max_parallel"], 1)
 
-    def test_parallel_batch_serializes_unmarked_verifiers(self) -> None:
+    def test_parallel_batch_groups_unmarked_verifiers(self) -> None:
+        # A verifier with no execution block claims no resource, so it cannot
+        # contend with another that also claims none. They share one wave.
         with patch(
             "verifier_runtime.run_verifier",
             return_value={"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}},
@@ -517,7 +546,24 @@ class VerifierRuntimeTests(unittest.TestCase):
             result = run_verifier_batch(
                 [
                     self.batch_job("V1", include_execution=False),
-                    self.batch_job("V2"),
+                    self.batch_job("V2", include_execution=False),
+                ],
+                max_parallel=2,
+            )
+
+        self.assertEqual(result["metrics"]["waves"], 1)
+        self.assertEqual(result["metrics"]["max_parallel"], 2)
+
+    def test_parallel_batch_serializes_explicit_opt_out(self) -> None:
+        # Declaring parallel_safe: false still forces serial execution.
+        with patch(
+            "verifier_runtime.run_verifier",
+            return_value={"protocol": PROTOCOL, "status": "PASS", "metrics": {"executed": 1, "reused": 0}},
+        ):
+            result = run_verifier_batch(
+                [
+                    self.batch_job("V1", parallel_safe=False),
+                    self.batch_job("V2", include_execution=False),
                 ],
                 max_parallel=2,
             )

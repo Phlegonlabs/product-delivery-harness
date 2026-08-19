@@ -438,15 +438,17 @@ def validate_plan(
         "sources",
         "traces",
         "ui_surfaces",
-        "risks",
         "batch_verifiers",
         "final_gates",
         "missions",
     }
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
     if schema_version in {4, 5}:
-        top_keys.update({"graph", "required_reviews"})
-    if not _keys(errors, "plan", plan, top_keys):
+        top_keys.add("graph")
+    # `risks` and `required_reviews` are retained for older plans but no gate,
+    # selector, or scheduler reads them; new plans may omit them entirely.
+    plan_optional_keys = {"risks", "required_reviews"}
+    if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
         return sorted(errors)
     if plan["schema_version"] not in {2, 3, 4, 5}:
         _add(errors, "plan.schema_version", "must equal 2, 3, 4, or 5")
@@ -459,7 +461,7 @@ def validate_plan(
     if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
         _add(errors, "plan.max_parallel_workers", "must be a positive integer")
     required_reviews: list[str] = []
-    if schema_version in {4, 5}:
+    if schema_version in {4, 5} and "required_reviews" in plan:
         required_reviews = _strings(
             errors,
             "plan.required_reviews",
@@ -639,7 +641,9 @@ def validate_plan(
             if surface["evidence_gate"] not in {"required", "optional", "n/a"}:
                 _add(errors, f"{path}.evidence_gate", "has an unsupported value")
 
-    if not isinstance(plan["risks"], list):
+    if "risks" not in plan:
+        pass
+    elif not isinstance(plan["risks"], list):
         _add(errors, "plan.risks", "must be a list")
     else:
         seen_risks: set[str] = set()
@@ -659,6 +663,16 @@ def validate_plan(
 
     declared_verifier_ids: set[str] = set()
     singleton_no_batch = _is_single_mission_v5_without_batch_verifiers(plan)
+    # A batch or final gate asks "did the whole candidate regress", so it may
+    # select against the union of every mission write scope — never against one
+    # mission's slice. Each group must still keep at least one always-run
+    # verifier so cross-mission interaction is proved, not selected away.
+    plan_write_union: list[str] = []
+    for mission in plan.get("missions", []) or []:
+        if isinstance(mission, dict) and isinstance(mission.get("write_scope"), list):
+            plan_write_union.extend(
+                claim for claim in mission["write_scope"] if isinstance(claim, str)
+            )
     for group in ("batch_verifiers", "final_gates"):
         if not isinstance(plan[group], list) or (
             not plan[group] and not (group == "batch_verifiers" and singleton_no_batch)
@@ -666,11 +680,17 @@ def validate_plan(
             _add(errors, f"plan.{group}", "must be a non-empty list")
         else:
             ids: set[str] = set()
+            has_always = False
             for index, verifier in enumerate(plan[group]):
+                if isinstance(verifier, dict):
+                    selection = verifier.get("selection")
+                    if not isinstance(selection, dict) or selection.get("mode") != "changed_files":
+                        has_always = True
                 _validate_verifier(
                     errors,
                     f"plan.{group}[{index}]",
                     verifier,
+                    selection_scopes=plan_write_union or None,
                     cache_allowed=False,
                 )
                 if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
@@ -678,6 +698,12 @@ def validate_plan(
                         _add(errors, f"plan.{group}[{index}].id", "must be unique")
                     ids.add(verifier["id"])
                     declared_verifier_ids.add(verifier["id"])
+            if plan[group] and not has_always:
+                _add(
+                    errors,
+                    f"plan.{group}",
+                    "must keep at least one always-run verifier; changed-file selection alone cannot prove cross-mission behavior",
+                )
 
     missions: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["missions"], list) or not plan["missions"]:
@@ -697,16 +723,17 @@ def validate_plan(
         "runtime_resources",
         "worktree_eligible",
         "required_skills",
-        "stop_conditions",
         "worker_verifiers",
         "integration_verifiers",
         "tasks",
     }
     if plan["schema_version"] not in {4, 5}:
         mission_keys.add("depends_on")
+    # `stop_conditions` is prose no gate reads; accepted when present, never required.
+    mission_optional_keys = {"stop_conditions"}
     for index, mission in enumerate(plan["missions"]):
         path = f"plan.missions[{index}]"
-        if not _keys(errors, path, mission, mission_keys):
+        if not _keys(errors, path, mission, mission_keys, mission_optional_keys):
             continue
         mission_id = mission["id"]
         if not _nonempty_string(mission_id) or not ID_RE.fullmatch(mission_id):
@@ -814,7 +841,8 @@ def validate_plan(
                 f"{mission_path}.required_skills",
                 "must include 'impeccable' and 'frontend-design' when 'product-design-builder' is required",
             )
-        _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
+        if "stop_conditions" in mission:
+            _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)
         for verifier_group in ("worker_verifiers", "integration_verifiers"):
             values = mission[verifier_group]
             if not isinstance(values, list) or not values:
@@ -2991,17 +3019,18 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "workspace_mode",
         "completion_channel",
         "max_parallel_workers",
-        "platform_lifecycle",
     }
     if schema_version in {6, 7, 8, 9, 10}:
         runtime_keys.add("runtime_adapter")
+    # `platform_lifecycle` is shape-validated only; nothing branches on it.
+    runtime_optional_keys = {"platform_lifecycle"}
     runtime = run["runtime_capabilities"]
     if _keys(
         errors,
         "run.runtime_capabilities",
         runtime,
         runtime_keys,
-        {"nested_subagents", "permission_boundary"},
+        {"nested_subagents", "permission_boundary"} | runtime_optional_keys,
     ):
         if runtime["worker_runtime"] not in {"parent", "subagent", "app_task"}:
             _add(errors, "run.runtime_capabilities.worker_runtime", "has an unsupported value")
@@ -3369,6 +3398,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.runtime_capabilities.nested_subagents.completion_channel",
                     "must equal agent_result",
                 )
+    if "platform_lifecycle" in runtime:
         lifecycle = runtime["platform_lifecycle"]
         if _keys(
             errors,

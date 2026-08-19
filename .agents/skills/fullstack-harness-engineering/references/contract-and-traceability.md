@@ -165,7 +165,7 @@ The validators block these. Fix the plan or run state; do not work around them:
 
 Stop before implementation when:
 
-- The Plan Readiness Gate has required rows that are not `PASS`. No script parses that table; keeping it honest is the planner's obligation.
+- Static validation fails, or a readiness obligation in `execution-state-model.md` is unmet. `plan_readiness` in RUN is the single machine gate; keeping it honest is the planner's obligation.
 - The requested action is false or absent in the authorization ledger. General execution permission does not imply task creation, worktree creation, commits, integration, push, archival, or cleanup permission.
 - PRD and wireframe conflict on the primary flow.
 - Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.

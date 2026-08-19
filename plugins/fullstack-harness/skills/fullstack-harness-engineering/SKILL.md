@@ -91,7 +91,7 @@ For a self-contained feature inside an existing codebase, offer `/feature-dev` a
 
 New managed work uses PLAN schema v5 and RUN schema v10. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 
-Use `assets/templates/HARNESS_PLAN.template.md` and `assets/templates/MISSION_RUNBOOK.template.md`. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; create `tasks.md` only when a human listing is useful.
+Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py` rather than hand-copying `assets/templates/MISSION_RUNBOOK.template.md`; nearly every field of a new RUN is derivable from PLAN, and the generator grants nothing. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; create `tasks.md` only when a human listing is useful.
 
 ### Reference Routing
 
@@ -108,7 +108,7 @@ Read only what the current decision needs:
 - `references/runtime-upgrades.md`: host/Harness version observation, old-runtime wave boundaries, updater/restart handling, and fresh-session recovery.
 - `references/ui-implementation-contract.md`: every UI implementation or UI review.
 - `references/commit-convention.md`: before a Harness-managed commit.
-- `references/design-input-updates.md`, `references/platform-archetypes.md`, and `references/existing-app-refinement.md`: only when those shapes apply.
+- `references/design-input-updates.md` and `references/platform-archetypes.md`: only when those shapes apply.
 - `references/orchestration-research-notes.md`: capability/version evidence, not routine execution.
 - `references/worker-result-contract.md`: only while rendering or validating a delegated worker payload.
 
@@ -147,7 +147,7 @@ Apply this only to large plan-backed work:
 ## Default Mission Topology
 
 1. Map one independently testable goal to one mission. Tasks inside one mission run sequentially under one writer.
-2. Size each mission as one bounded worker slice that normally completes implementation plus focused verification in 10-20 minutes. If the frozen scope cannot fit that slice, split independently testable outcomes into additional missions before readiness instead of relying on a long-running child or a timeout-driven repair.
+2. Size each mission so its fixed per-mission overhead stays small against its useful work. Every mission pays for a worktree, a rendered handoff, result validation, an exact-head review, a serial integration, and an integration verifier rerun, so slicing past that point makes a run slower, not safer. Roughly 10-20 minutes of implementation plus focused verification is the usual landing zone, but treat it as a consequence of the overhead ratio rather than a target to hit. If the frozen scope cannot fit one bounded worker slice, split independently testable outcomes into additional missions before readiness instead of relying on a long-running child or a timeout-driven repair.
 3. The parent may fan out bounded read-only exploration. Explorers report to the parent and never delegate.
 4. Give every writer one explicit `write_scope` and one isolated exact-base worktree. No active writers share a branch, file ownership, or exclusive runtime resource.
 5. Freeze shared APIs, schemas, and types before dependent missions launch.
@@ -180,7 +180,7 @@ Freeze only the inputs needed by the graph: source paths and digests, scope, arc
 
 ### 3. Pass Plan Readiness
 
-Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, one bounded 10-20 minute worker slice per mission, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery will actually use. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
+Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, one bounded worker slice per mission whose fixed overhead stays small against its useful work, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery will actually use. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
 
 ### 4. Execute And Integrate
 
@@ -197,7 +197,7 @@ Use the verification ladder:
 5. one final applicable set of broad regression, browser E2E, breakpoint-by-state UI evidence, visual, and migration checks;
 6. `git diff --check` and complete final-diff review.
 
-Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Never cache integration, cross-mission, UI, or migration gates. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
+Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Integration, cross-mission, UI, and migration gates refuse reuse by default; one may opt in with `cache.deterministic_local: true` only when it is a pure local deterministic command, never for a browser capture, migration, mutable-environment smoke, or network check. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
 
 ### 6. Complete
 

@@ -2,6 +2,8 @@
 
 Use this gate after runtime capability detection and during Resume Reconciliation. It covers the active host runtime and the loaded Full Stack Harness release. A version string is supporting evidence; observable capability remains authoritative.
 
+Observe the versions once per host session, not once per run. Neither the host binary nor the loaded Harness release can change under a live session without a restart, and `restart_required` already covers the case where an updater changed installed files. A later run in the same session copies the recorded observation forward; a fresh session, a restart, or a changed provider re-observes.
+
 Record RUN-v10 `runtime_capabilities.runtime_adapter.version_gate` with normalized host and Harness versions, any minimum host or required Harness version, one status, and concrete evidence:
 
 ```text

@@ -288,21 +288,41 @@ def _current_review_result_matches_worker(
     return True
 
 
+# A node of these kinds cannot write to the repository, so running it during an
+# active wave cannot perturb a live writer, change a head, or race integration.
+READ_ONLY_NODE_KINDS = {"verifier", "approval", "external_wait"}
+
+
 def _active_wave_allows_streaming_review(
     node: dict[str, Any], run: dict[str, Any]
 ) -> bool:
+    """Whether an active wave still permits dispatching this node.
+
+    Writers and lifecycle actions wait for the wave to close. Read-only nodes do
+    not: blocking them only idles the parent while a straggling writer finishes,
+    and they hold no lease, produce no commit, and move no head.
+    """
+
     active_wave = run.get("active_wave")
-    review = node.get("review")
     if (
         not isinstance(active_wave, dict)
         or active_wave.get("status") != "active"
         or run.get("schema_version") != 10
-        or node.get("kind") != "verifier"
-        or node.get("executor") != "runtime_worker"
-        or not isinstance(review, dict)
-        or review.get("stage", "preintegration") != "preintegration"
+    ):
+        return False
+    if node.get("kind") not in READ_ONLY_NODE_KINDS:
+        return False
+    review = node.get("review")
+    if not isinstance(review, dict):
+        # A read-only node with no review binding (approval, external_wait, or a
+        # local-command verifier) is unconditionally safe during the wave.
+        return True
+    if (
+        review.get("stage", "preintegration") != "preintegration"
         or len(review.get("mission_ids", [])) != 1
     ):
+        # A batch or integration-stage review binds an integrated head, which
+        # does not exist until the wave closes.
         return False
     mission_id = review["mission_ids"][0]
     mission_state = run.get("mission_states", {}).get(mission_id)
@@ -937,17 +957,31 @@ def select_ready_nodes(
     )
     if runtime_driver == "sequential_parent":
         runtime_budget = min(runtime_budget, 1)
+    # Read-only nodes draw from their own budget. They consume no isolation
+    # capacity and cannot write, so charging them against the writer budget only
+    # made a streaming review starve the writer it was meant to overlap with.
+    review_budget = max(runtime_budget, 1)
     runtime_count = 0
+    review_count = 0
     dispatchable: list[dict[str, Any]] = []
     for item in authorized_candidates:
         node = item["node"]
         if node["executor"] == "runtime_worker":
-            if runtime_count >= runtime_budget:
-                deferred.append(
-                    {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
-                )
-                continue
-            runtime_count += 1
+            read_only = node["kind"] in READ_ONLY_NODE_KINDS
+            if read_only:
+                if review_count >= review_budget:
+                    deferred.append(
+                        {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
+                    )
+                    continue
+                review_count += 1
+            else:
+                if runtime_count >= runtime_budget:
+                    deferred.append(
+                        {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
+                    )
+                    continue
+                runtime_count += 1
         dispatchable.append(_directive(node, item["binding"], run))
 
     execution_route = classify_execution_route(

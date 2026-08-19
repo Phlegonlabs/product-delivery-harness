@@ -150,7 +150,12 @@ def _environment_digests(
 def _execution_policy(verifier: dict[str, Any]) -> dict[str, Any]:
     value = verifier.get("execution")
     if value is None:
-        return {"parallel_safe": False, "resources": []}
+        # A verifier that declares no execution block also claims no resource.
+        # Two such verifiers cannot contend, so batching them is safe and is the
+        # common case (lint, typecheck, unit tests). Anything that binds a port,
+        # database, or other shared resource must declare it, and may still set
+        # parallel_safe: false explicitly to force serial execution.
+        return {"parallel_safe": True, "resources": []}
     if not isinstance(value, dict) or set(value) != {"parallel_safe", "resources"}:
         raise VerifierRuntimeError(
             "verifier.execution must contain exactly parallel_safe and resources"
@@ -275,10 +280,15 @@ def _validated_inputs(
     cache = verifier.get("cache")
     if cache is None:
         cache = {"mode": "disabled", "environment_keys": []}
-    if not isinstance(cache, dict) or set(cache) != {"mode", "environment_keys"}:
+    if not isinstance(cache, dict) or not {"mode", "environment_keys"} <= set(cache) or not set(
+        cache
+    ) <= {"mode", "environment_keys", "deterministic_local"}:
         raise VerifierRuntimeError(
-            "verifier.cache must contain exactly mode and environment_keys"
+            "verifier.cache must contain mode and environment_keys, and may add deterministic_local"
         )
+    deterministic_local = cache.get("deterministic_local", False)
+    if not isinstance(deterministic_local, bool):
+        raise VerifierRuntimeError("verifier.cache.deterministic_local must be boolean")
     if cache["mode"] not in {"disabled", "session_exact"}:
         raise VerifierRuntimeError("verifier.cache.mode is unsupported")
     environment_keys = cache["environment_keys"]
@@ -433,7 +443,11 @@ def run_verifier(
     cache_reason = "cache_disabled"
     cache_path: Path | None = None
     can_reuse = cache_mode == "session_exact"
-    if can_reuse and key_inputs["context"]["layer"] in CACHE_BANNED_LAYERS:
+    if (
+        can_reuse
+        and key_inputs["context"]["layer"] in CACHE_BANNED_LAYERS
+        and not normalized_verifier["cache"].get("deterministic_local", False)
+    ):
         can_reuse = False
         cache_reason = "layer_not_cacheable"
     elif can_reuse and normalized_verifier["pass_signal"] != "exit 0":

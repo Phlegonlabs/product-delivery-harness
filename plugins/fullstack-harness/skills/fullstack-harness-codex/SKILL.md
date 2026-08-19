@@ -50,11 +50,11 @@ Use each `dispatchable_nodes[].required_actions` exactly.
 
 1. Resolve the current Codex project once.
 2. Allocate lease, identity, exact-base app-managed worktree, and authorized branch/ref. Verify repository, HEAD, branch/ref, and clean `git status --porcelain`.
-3. Render `WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Include the bounded context capsule digest, byte count, and ordered source digests. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v10 forbids task-local child agents.
+3. Render `WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Include the ordered repository context source paths. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v10 forbids task-local child agents.
 4. Create one top-level left-sidebar app task per selected mission. Do not replace a requested app task with a coordinator subagent.
-5. Treat every top-level app task as fresh bounded context. For direct sibling agents, explicitly start fresh and pass only the capsule; never fork the parent conversation.
+5. Treat every top-level app task as a fresh bounded context packet. For direct sibling agents, explicitly start fresh and pass only the bounded context packet; never fork the parent conversation.
 6. Prefer App Server status subscription or cursor-based `wait_threads`. Use one bounded wait for 1-8 tasks with each task's last cursor, process the first terminal or needs-attention result, then wait again with updated cursors. Do not repeatedly read unchanged tasks. Use bounded polling only when no wait/event surface exists, and record its wait time and fallback reason in `runtime_metrics`.
-7. Observe live Git head, diff, scope, commits, and ancestry. Validate each terminal result immediately so its pre-integration review may overlap remaining workers; integration still waits for wave close.
+7. Observe live Git head, diff, scope, commits, and ancestry. Validate each terminal result immediately so its pre-integration review may overlap remaining workers, then integrate that mission serially once the review PASSes; only batch gates wait for wave close.
 
 Do not stop after printing a non-empty app-task wave; consume every accepted dispatch entry.
 

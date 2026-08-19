@@ -12,7 +12,6 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
     "max_parallel_workers": 1,
-    "required_reviews": ["backend_code"],
     "sources": [
       {
         "id": "SRC-001",
@@ -37,15 +36,6 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
       }
     ],
     "ui_surfaces": [],
-    "risks": [
-      {
-        "id": "RISK-001",
-        "description": "<risk>",
-        "impact": "medium",
-        "mitigation": "<mitigation>",
-        "stop_condition": "<condition that stops execution>"
-      }
-    ],
     "batch_verifiers": [],
     "final_gates": [
       {
@@ -168,7 +158,6 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "runtime_resources": [],
         "worktree_eligible": true,
         "required_skills": [],
-        "stop_conditions": ["<mission-specific stop condition>"],
         "worker_verifiers": [
           {
             "id": "mission-focused",
@@ -272,33 +261,14 @@ These are planning expectations, not authorization. Record explicit action autho
 - Parallel fan-out when fewer than two safe write missions are selected.
 - UI repair graphs or unplanned design changes.
 
-## Mission View
-
-| Mission | Objective | Traces | Depends on | Write / deny scope | Resources | Exit verifier |
-|---|---|---|---|---|---|---|
-| M1 | <objective> | PRD-001 | none | src/example/** / PLAN,RUN denied | none | mission-focused |
-
 ## Plan Readiness Gate
 
-| Readiness check | Status | Evidence / decision |
-|---|---|---|
-| Every in-scope trace is planned, deferred, or out of scope | draft / PASS / BLOCKED | <note> |
-| Every must-have trace maps to a task and verifier | draft / PASS / BLOCKED | <note> |
-| Typed graph dependency edges and task dependencies are explicit and acyclic | draft / PASS / BLOCKED | <note> |
-| Scopes and typed resource inventories are complete | draft / PASS / BLOCKED | <note> |
-| Worker, exact-head review, integration, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |
-| Blocking decisions and approval needs are surfaced | draft / PASS / BLOCKED | <note> |
-
 Implementation may start only after static validation passes, RUN records `plan_readiness: "ready"`, and required actions have explicit user authorization. Readiness never grants authorization.
+
+`plan_readiness` in RUN is the single machine gate; do not restate the checks as a hand-filled table here.
 
 ## Stop / Ask Conditions
 
 - <condition>
 - A UI route has no frozen screen/design-system entry; load `ui-implementation-contract.md` and route a design-input delta instead of inventing a value.
 - A required worktree, authorization, scope/head binding, or exact-head review cannot be proved.
-
-## Open Risks
-
-| Risk | Impact | Mitigation / owner |
-|---|---|---|
-| <risk> | <impact> | <mitigation> |

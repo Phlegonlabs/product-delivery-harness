@@ -33,13 +33,24 @@ from select_verifiers import (
     applicable_targeted_verifiers,
     canonical_changed_path,
 )
-from verifier_runtime import PROTOCOL as VERIFIER_PROTOCOL, execution_key_from_document
+# `verifier_runtime` pulls in concurrent.futures -> logging -> traceback for its
+# batch mode, which this validator never uses; importing it at module scope cost
+# about a third of this script's startup. The two symbols below are needed only
+# on the retained-verifier path, so import them there. The protocol literal is
+# duplicated deliberately and pinned by a test against verifier_runtime.PROTOCOL.
+VERIFIER_PROTOCOL = "harness-verifier-execution-v2"
 
 
 SUPPORTED_VERIFIER_PROTOCOLS = {
     "harness-verifier-execution-v1",
     VERIFIER_PROTOCOL,
 }
+
+
+def _execution_key_from_document(key_document: dict[str, Any]) -> str:
+    from verifier_runtime import execution_key_from_document
+
+    return execution_key_from_document(key_document)
 
 
 WORKER_RESULT_FIELDS = {
@@ -461,7 +472,7 @@ def _retained_verifier_results(
                 path,
                 "must retain the execution key document and key",
             )
-        elif execution_key_from_document(key_document) != execution_key:
+        elif _execution_key_from_document(key_document) != execution_key:
             _issue(
                 errors,
                 "retained_verifier_key_mismatch",
@@ -615,11 +626,20 @@ def validate_worker_result_data(
     observed_changed_files: list[str] | None,
     ancestry_confirmed: bool,
     retained_verifier_results: list[dict[str, Any]] | None = None,
+    manifest_already_validated: bool = False,
 ) -> list[dict[str, str]]:
-    """Return deterministic validation issues for one integration candidate."""
+    """Return deterministic validation issues for one integration candidate.
+
+    Set ``manifest_already_validated`` when the caller has already run
+    ``validate_current_plan_run`` on the same pair, so one payload does not pay
+    for the full manifest walk twice.
+    """
 
     errors: list[dict[str, str]] = []
-    if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+    if not manifest_already_validated and (
+        plan.get("schema_version"),
+        run.get("schema_version"),
+    ) == (5, 10):
         for message in validate_current_plan_run(plan, run):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
         if errors:
@@ -1149,6 +1169,7 @@ def main(argv: list[str] | None = None) -> int:
                 observed_changed_files=args.observed_changed_file,
                 ancestry_confirmed=args.ancestry_confirmed,
                 retained_verifier_results=retained_verifier_results,
+                manifest_already_validated=True,
             )
         )
 
