@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.4.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.6.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -169,11 +169,12 @@ powershell -File .\scripts\update-private-skills.ps1
 
 克隆只是为了拿到这个脚本。更新脚本始终从 GitHub 安装（默认是 `Phlegonlabs/fullstack-goal-dev` 的 `main`），它不会读取你当前的工作目录。用这种方式装不上本地改动；要测试本地改动，请看下文「开发时使用本地检出」。
 
-然后打开新的 Codex 任务，或重新加载 Claude Code。确认插件已出现在列表中：
+然后打开新的 Codex 任务、重新加载 Claude Code，或启动新的 Pi 会话。确认 package 已出现在列表中：
 
 ```powershell
 codex plugin list
 claude plugin list
+pi list
 ```
 
 ### Zero-to-one 流程（从零开始）
@@ -185,7 +186,7 @@ claude plugin list
 
 ### 一条命令完成更新
 
-共享更新脚本会检测已安装的运行时，添加或更新市场，并在支持的地方安装插件。这个仓库更新后，重新运行同一条命令即可。
+共享更新脚本会检测 Codex、Claude Code 和 Pi，添加或更新市场／package，并保留无关的 runtime 设置。这个仓库更新后，重新运行同一条命令即可。只有明确要更新宿主本身时才加入 `-UpdateHostRuntimes`。如果旧的 standalone Pi Harness skill 遮蔽 package，可加入 `-ReplacePiStandaloneSkills`；它只备份并替换具名的 Harness skill 目录。
 
 装有 PowerShell 7（`pwsh`）的 Windows：
 
@@ -208,7 +209,7 @@ cd fullstack-goal-dev
 pwsh -File ./scripts/update-private-skills.ps1
 ```
 
-更新后请开一个新的 Codex 任务。更新 Claude Code 的插件后请重新加载或重启 Claude Code。
+更新后请开一个新的 Codex 任务、重新加载或重启 Claude Code，并启动新的 Pi 会话。现有会话不会热加载已变更的 runtime 或 Harness release。
 
 ### 直接在 Codex 中安装
 
@@ -227,6 +228,15 @@ claude plugin list
 ```
 
 插件安装完成后，运行 `/reload-plugins` 或重启 Claude Code。
+
+### 直接在 Pi 中安装
+
+```bash
+pi install git:github.com/Phlegonlabs/fullstack-goal-dev@main --no-approve
+pi list --no-approve
+```
+
+安装或更新后请启动新的 Pi 会话。`~/.pi/agent/skills` 中现有的 standalone skill 属于用户数据，绝不会被静默移除。
 
 ### 开发时使用本地检出
 
@@ -303,7 +313,7 @@ plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 插件清单
 .claude-plugin/marketplace.json                      Claude Code 市场定义
 assets/                                              README 封面
 scripts/sync_plugin_skills.py                        把规范技能复制到插件包
-scripts/update-private-skills.ps1                    更新已安装的市场和插件
+scripts/update-private-skills.ps1                    更新 Codex、Claude Code 和 Pi package；宿主更新需明确开启
 .github/workflows/harness-ci.yml                     契约、单元和 E2E 检查
 ```
 
@@ -334,6 +344,8 @@ git diff --check
 
 每次发布都要更新本节，同时完成上文所述的版本号提升。
 
+- **0.6.0** — 为 Codex、Claude Code 和 Pi 加入共享 runtime upgrade gate。RUN-v10 会记录宿主／Harness 版本，只允许已启动且仍兼容的旧版 wave 运行到安全边界，阻止不兼容或等待重启的会话，并在更新和重新 probe 后用新的 attempt 继续未完成工作。更新脚本现在支持 Pi package；宿主 binary 更新与 standalone Pi skill migration 仍需明确开启。
+- **0.5.0** — 降低 Codex、Claude Code 和 Pi 的 managed-run 开销：加入有界 fresh context、event-driven completion、active-wave 流式 review、资源安全的并行 verifier batch、exact session cache、effort routing、更小的 task slice，以及 RUN-v10 runtime telemetry。测量目标为 wall time 至少降低 75%，stretch target 为 85%；授权和 exact-SHA gate 保持不变。
 - **0.4.0** — 新增仓库内设计图片发现，并把 Impeccable concept generation 接入 Product Design Builder 的 visual-direction gate。Creation mode 现在要求 `product-design-builder`、`impeccable` 和 `frontend-design`，同时保留现有 PRD 与三文件设计 package 作为唯一正式的产品与设计来源。
 - **0.3.0** — 移除 GitHub 落地适配器和整套部署/发布模型。Harness 现在到「推送本次运行自己的分支」为止；把分支合进默认分支是用户自己的步骤。授权账本从 19 个动作缩到 12 个；`landing` 精简为 `mode`、`remote`、`pushed_head_sha`、`continuity`；`integration.branch` 是唯一的分支字段。移除分支保护证据、`target_sources`、三个契约标记、`post_merge_cleanup`、`plan.release` 和 `run.targets`。
 - **0.2.0** — 默认每个任务一个工作树；带多审查者扇出的 PLAN v5 / RUN v10 类型化图；Cloudflare 派发式部署（dispatched-deploy）和自动部署（Auto-Deploy，即原生 Git 自动部署）发布模型；持久化的集成分支；用通用的逐页 HTML 原型取代已下线的页面 UI 矩阵；移动端/桌面端平台支持，包含一份专门的移动端技术栈选型指南（原生 iOS/Android、Flutter、React Native/Expo）；通过 `.env.example` 生成环境密钥脚手架；为有界/机械式委派工作提供的 Haiku 成本档位。

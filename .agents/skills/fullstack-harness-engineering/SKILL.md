@@ -58,6 +58,8 @@ For UI work, inspect only `docs/design/`, a user-named design folder, and obviou
 
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python .agents/skills/fullstack-harness-engineering/scripts/inspect_harness_run.py --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
 
+After capability detection, apply `references/runtime-upgrades.md`. An old compatible runtime may finish only its already-active wave; an incompatible or restarted runtime dispatches nothing until a fresh session re-probes successfully. Never hot-upgrade a live worker or silently mutate installed runtime software.
+
 ## Non-Negotiable Boundaries
 
 These rules apply to both routes:
@@ -89,7 +91,7 @@ For a self-contained feature inside an existing codebase, offer `/feature-dev` a
 
 New managed work uses PLAN schema v5 and RUN schema v10. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 
-Use `assets/templates/HARNESS_PLAN.template.md` and `assets/templates/MISSION_RUNBOOK.template.md`. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; create `tasks.md` only when a human listing is useful.
+Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py` rather than hand-copying `assets/templates/MISSION_RUNBOOK.template.md`; nearly every field of a new RUN is derivable from PLAN, and the generator grants nothing. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; create `tasks.md` only when a human listing is useful.
 
 ### Reference Routing
 
@@ -102,9 +104,11 @@ Read only what the current decision needs:
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
+- `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
+- `references/runtime-upgrades.md`: host/Harness version observation, old-runtime wave boundaries, updater/restart handling, and fresh-session recovery.
 - `references/ui-implementation-contract.md`: every UI implementation or UI review.
 - `references/commit-convention.md`: before a Harness-managed commit.
-- `references/design-input-updates.md`, `references/platform-archetypes.md`, and `references/existing-app-refinement.md`: only when those shapes apply.
+- `references/design-input-updates.md` and `references/platform-archetypes.md`: only when those shapes apply.
 - `references/orchestration-research-notes.md`: capability/version evidence, not routine execution.
 - `references/worker-result-contract.md`: only while rendering or validating a delegated worker payload.
 
@@ -133,7 +137,7 @@ Discover the effective instruction chain from repository root to the selected ch
 
 Apply this only to large plan-backed work:
 
-1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, and shared resources before the first launch.
+1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch.
 2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. A Codex route that may select two writers needs the complete per-surface `capability_probe`; a provably sequential route records only the selected driver facts.
 3. Do not cap `max_parallel_workers` at a small fixed number. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
 4. Before selection, record `observed.captured_at`, live Git facts, and `integration.batch_base_sha`. A green validator with empty `dispatchable_nodes` and `deferred_nodes` reasons `parent_state_unreconciled` or `batch_base_missing` means the live snapshot is incomplete; these are dispatch-time reasons, not an empty graph.
@@ -143,14 +147,17 @@ Apply this only to large plan-backed work:
 ## Default Mission Topology
 
 1. Map one independently testable goal to one mission. Tasks inside one mission run sequentially under one writer.
-2. The parent may fan out bounded read-only exploration. Explorers report to the parent and never delegate.
-3. Give every writer one explicit `write_scope` and one isolated exact-base worktree. No active writers share a branch, file ownership, or exclusive runtime resource.
-4. Freeze shared APIs, schemas, and types before dependent missions launch.
-5. Verify repository, branch, base HEAD, and empty `git status --porcelain` before dispatch.
-6. Render `WORKER_GOAL.template.md`; attach only the host contract and result fields that mission needs.
-7. Validate returned identity, changed files, scope, verifier evidence, commits, and ancestry against live Git.
-8. Require an exact-head pre-integration review for every mission. Integrate passing heads serially.
-9. Dispatch fresh parent-owned read-only reviewers against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate.
+2. Size each mission so its fixed per-mission overhead stays small against its useful work. Every mission pays for a worktree, a rendered handoff, result validation, an exact-head review, a serial integration, and an integration verifier rerun, so slicing past that point makes a run slower, not safer. Roughly 10-20 minutes of implementation plus focused verification is the usual landing zone, but treat it as a consequence of the overhead ratio rather than a target to hit. If the frozen scope cannot fit one bounded worker slice, split independently testable outcomes into additional missions before readiness instead of relying on a long-running child or a timeout-driven repair.
+3. The parent may fan out bounded read-only exploration. Explorers report to the parent and never delegate.
+4. Give every writer one explicit `write_scope` and one isolated exact-base worktree. No active writers share a branch, file ownership, or exclusive runtime resource.
+5. Freeze shared APIs, schemas, and types before dependent missions launch.
+6. Verify repository, branch, base HEAD, and empty `git status --porcelain` before dispatch.
+7. Render `WORKER_GOAL.template.md`; attach only the host contract and result fields that mission needs.
+8. Validate returned identity, changed files, scope, verifier evidence, commits, and ancestry against live Git.
+9. Require one exact-head pre-integration reviewer per applicable surface for every mission. Give it a compact packet containing the exact SHA, scoped changed paths/diff, applicable acceptance rows, and unresolved findings; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it.
+10. Dispatch one planned parent-owned read-only reviewer per applicable integration surface against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate. The unified-head review is the final synthesis; do not dispatch another same-scope review while the SHA is unchanged.
+
+The runtime efficiency target for comparable execute-ready managed work is at least a 75% wall-time reduction from the recorded baseline, with 85% as the stretch target. This is an optimization SLO, not permission to weaken authorization, exact-head review, evidence, or final validation. Follow `references/runtime-performance.md`, write machine-readable RUN telemetry when available, and do not claim the target without a comparable measured baseline.
 
 ## UI Implementation Contract
 
@@ -169,15 +176,15 @@ Run System Review And Route. For a running RUN, reconcile canonical state with l
 
 ### 2. Plan Large Work
 
-Freeze only the inputs needed by the graph: source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Use a bounded acyclic review-repair-review graph. Every runtime review is read-only and names one SHA.
+Freeze only the inputs needed by the graph: source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Use a bounded acyclic review-repair-review graph. Every runtime review is read-only, names one SHA, reports all blocking findings in one attempt, and has at most two total attempts: the initial review plus one repair re-review.
 
 ### 3. Pass Plan Readiness
 
-Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery will actually use. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
+Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, one bounded worker slice per mission whose fixed overhead stays small against its useful work, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery will actually use. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
 
 ### 4. Execute And Integrate
 
-Select the ready frontier, follow the active adapter, and bind each worker to the exact plan digest, lease, base, worktree, write scope, resources, skills, verifier, permission boundary, and completion channel. Validate results from live facts, review the exact head, repair in the original mission worktree, re-review a changed head, and integrate passing heads serially.
+Select the ready frontier only after the runtime version gate is `current` or an already-active `compatible_old` wave is reaching its boundary. Follow the active adapter and bind each worker to the exact plan digest, lease, base, worktree, write scope, resources, skills, verifier, permission boundary, and completion channel. Validate results from live facts, review the exact head, repair in the original mission worktree, re-review a changed head, and integrate passing heads serially.
 
 ### 5. Verify Local-First
 
@@ -190,7 +197,7 @@ Use the verification ladder:
 5. one final applicable set of broad regression, browser E2E, breakpoint-by-state UI evidence, visual, and migration checks;
 6. `git diff --check` and complete final-diff review.
 
-Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Never cache integration, cross-mission, UI, or migration gates. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
+Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Integration, cross-mission, UI, and migration gates refuse reuse by default; one may opt in with `cache.deterministic_local: true` only when it is a pure local deterministic command, never for a browser capture, migration, mutable-environment smoke, or network check. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
 
 ### 6. Complete
 

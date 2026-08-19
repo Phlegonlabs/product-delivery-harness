@@ -127,7 +127,11 @@ Allowed status/outcome pairs:
 
 ## Refinement Request
 
+This is the canonical `REFINEMENT_REQUEST` schema. Every other reference points here instead of restating it.
+
 Return this payload and stop. The parent decides whether to reject it, accept one bounded split, or replan the mission.
+
+`pass_signal` must be the literal `exit 0` for a proposed child verifier to be eligible for `session_exact` cache reuse; any other spelling silently disables reuse for that verifier.
 
 ```json
 {
@@ -152,7 +156,7 @@ Return this payload and stop. The parent decides whether to reject it, accept on
           "id": "<verifier id>",
           "cwd": ".",
           "argv": ["<runner>", "<argument>"],
-          "pass_signal": "<literal pass signal>"
+          "pass_signal": "exit 0"
         }
       ]
     }

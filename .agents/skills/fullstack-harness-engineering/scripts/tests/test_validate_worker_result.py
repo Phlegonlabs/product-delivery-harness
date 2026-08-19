@@ -463,6 +463,16 @@ def error_codes(errors: list[dict[str, str]]) -> set[str]:
     return {error["code"] for error in errors}
 
 
+def test_protocol_literal_matches_verifier_runtime() -> None:
+    """The literal is duplicated to keep verifier_runtime off the import path;
+    pin it so the two cannot drift."""
+
+    import verifier_runtime
+    import validate_worker_result
+
+    assert validate_worker_result.VERIFIER_PROTOCOL == verifier_runtime.PROTOCOL
+
+
 class ValidateWorkerResultTests(unittest.TestCase):
     def setUp(self) -> None:
         self.plan = make_plan()
@@ -473,6 +483,45 @@ class ValidateWorkerResultTests(unittest.TestCase):
         self.assertEqual(validate_plan(self.plan), [])
         self.assertEqual(validate_run(self.plan, self.run), [])
         self.assertEqual(validate(self.plan, self.run, self.result), [])
+
+    def test_v2_retained_results_keep_gate_attribution_outside_the_key(self) -> None:
+        result = copy.deepcopy(self.result)
+        retained = [
+            retained_verifier_result("task-focused", self.plan),
+            retained_verifier_result("mission-focused", self.plan),
+        ]
+        evidence_by_id: dict[str, str] = {}
+        for item in retained:
+            item["protocol"] = "harness-verifier-execution-v2"
+            key_document = item["key_document"]
+            key_document["protocol"] = "harness-verifier-execution-v2"
+            for key in (
+                "verifier_id",
+                "layer",
+                "mission_id",
+                "task_id",
+                "attempt_id",
+                "lease_id",
+            ):
+                key_document.pop(key)
+            execution_key = hashlib.sha256(
+                json.dumps(
+                    key_document,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            item["execution_key"] = execution_key
+            item["evidence_key"] = execution_key
+            evidence_by_id[item["verifier_id"]] = execution_key
+        for item in result["verifiers"]:
+            item["evidence"] = evidence_by_id[item["id"]]
+
+        self.assertEqual(
+            validate(self.plan, self.run, result, retained=retained),
+            [],
+        )
 
     def test_parent_observed_diff_selects_required_verifiers(self) -> None:
         plan = copy.deepcopy(self.plan)

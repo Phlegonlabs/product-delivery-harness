@@ -15,6 +15,8 @@ A PLAN node is selectable here when its `allowed_providers` includes `claude_cod
 
 Observe Workflow, direct Agent tools, `EnterWorktree`, permission mode, slots, completion channel, tool-profile enforcement, and model/effort support. Record the result under `runtime_adapter` independently from authorization.
 
+Record the normalized Claude Code host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `../fullstack-harness-engineering/references/runtime-upgrades.md`. Dynamic Workflow requires Claude Code 2.1.154 or later. A `compatible_old` session may finish its already-active wave but cannot start the next wave. After a host or plugin update, mark `restart_required`, run `/reload-plugins` or restart Claude Code, and re-probe from the fresh session; never hot-upgrade a Workflow.
+
 Prefer:
 
 ```text
@@ -42,18 +44,18 @@ Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra 
 
 1. Validate PLAN/RUN and record the accepted wave.
 2. Allocate one exact-base parent-managed worktree and authorized branch per write mission. Verify repository, branch/ref, HEAD, and clean `git status --porcelain`.
-3. Render `WORKER_GOAL.template.md` with the node, scope, skills, verifier, permission boundary, result-contract path, Claude Code worker contract, effective `CLAUDE.md` repository context paths, and shared `AGENTS.md` governance paths. Keep automatic context discovery enabled. Do not apply Codex or Pi worker mechanics.
+3. Render `WORKER_GOAL.template.md` with the node, scope, skills, verifier, permission boundary, result-contract path, Claude Code worker contract, effective `CLAUDE.md` repository context paths, and shared `AGENTS.md` governance paths. Include the ordered repository context source paths. Keep automatic context discovery enabled. Do not apply Codex or Pi worker mechanics.
 4. Partition the accepted frontier into homogeneous `tool_profile` groups. Each group gets its own bounded call. Never put a `mission_write` node beside a `code_review_readonly` or `visual_review_readonly` node.
-5. Use `CLAUDE_GRAPH_WORKFLOW.template.js` for any group containing review nodes or for a mixed original frontier. Use `CLAUDE_DYNAMIC_WORKFLOW.template.js` only for an originally all-write, single-profile mission group.
+5. Use `CLAUDE_GRAPH_WORKFLOW.template.js` for any group containing review nodes or for a mixed original frontier. Give each review node only its exact SHA, scoped diff/paths, applicable acceptance rows, required evidence, and unresolved findings; refer to PLAN/RUN by path and identity instead of copying their full manifests. Use `CLAUDE_DYNAMIC_WORKFLOW.template.js` only for an originally all-write, single-profile mission group.
 6. A `tool_profile` is a prompt/result contract, not permission-level tool removal. Review nodes inherit host tools and must be validated as read-only.
 7. Do not ask for user input inside Workflow. Return a blocked/refinement result and let the parent resolve it.
-8. Validate each result against live worktree, branch, head, scope, commits, and verifier evidence.
+8. Each Workflow or direct Agent is a fresh sibling. Supply only the bounded context packet and do not replay the parent transcript. Treat `pipeline()` / `agent_result` terminal output as the completion event; consume each terminal result as soon as the host exposes it, validate it against live worktree, branch, head, scope, commits, and verifier evidence, then stream its ready pre-integration review while sibling workers continue. Use bounded polling only when no event result is exposed, and record the fallback.
 
-The workflow contains flat parent-owned siblings. Workers and reviewers do not delegate, edit PLAN/RUN, integrate, push, or clean up. After serial integration, dispatch fresh read-only reviewers against the exact unified integration SHA, then run one planned broad final validation.
+The workflow contains flat parent-owned siblings. Workers and reviewers do not delegate, edit PLAN/RUN, integrate, push, or clean up. Use one reviewer per applicable surface by default and allow only one repair re-review. After serial integration, dispatch only the planned fresh read-only reviewers against the exact unified integration SHA; that unified-head pass is the final synthesis, so do not add another same-scope review while the SHA is unchanged. Then run one planned broad final validation.
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`. This adapter adds no alternate state or handoff rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Claude queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Provider Boundary
 

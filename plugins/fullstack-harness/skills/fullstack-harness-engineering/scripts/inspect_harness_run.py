@@ -26,6 +26,17 @@ def _git(worktree: Path, *args: str) -> str | None:
 
 
 def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
+    runtime_capabilities = run.get("runtime_capabilities")
+    runtime_adapter = (
+        runtime_capabilities.get("runtime_adapter")
+        if isinstance(runtime_capabilities, dict)
+        else None
+    )
+    version_gate = (
+        runtime_adapter.get("version_gate")
+        if isinstance(runtime_adapter, dict)
+        else None
+    )
     workers = {
         item.get("mission_id"): item
         for item in run.get("workers", [])
@@ -109,6 +120,7 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         else None,
         "integration": run.get("integration"),
         "runtime_process_state": "not inspected",
+        "runtime_version_gate": version_gate if isinstance(version_gate, dict) else None,
         "missions": missions,
         "warnings": warnings,
     }
@@ -116,10 +128,16 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
 
 def render_text(summary: dict[str, Any]) -> str:
     wave = summary.get("active_wave") or {}
+    version_gate = summary.get("runtime_version_gate") or {}
     lines = [
         f"Run: {summary.get('run_id')} ({summary.get('status')})",
         f"Wave: {wave.get('wave_id') or '-'} ({wave.get('status') or '-'})",
         "Runtime processes: not inspected",
+        "Runtime version gate: "
+        f"{version_gate.get('status') or 'unrecorded'} | "
+        f"host={version_gate.get('host_version') or '-'} | "
+        f"harness={version_gate.get('harness_version') or '-'} | "
+        f"required={version_gate.get('required_harness_version') or '-'}",
     ]
     for mission in summary["missions"]:
         marker = "RECONCILE" if mission["needs_reconciliation"] else "aligned"

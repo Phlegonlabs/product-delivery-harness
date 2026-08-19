@@ -397,7 +397,7 @@ def _validate_verifier(
     cache_allowed: bool = True,
 ) -> None:
     required = {"id", "cwd", "argv", "pass_signal"}
-    optional = {"selection", "cache"}
+    optional = {"selection", "cache", "execution"}
     if not _keys(errors, path, value, required, optional):
         return
     for key in ("id", "cwd", "pass_signal"):
@@ -436,7 +436,13 @@ def _validate_verifier(
     cache = value.get("cache")
     if cache is not None:
         cache_path = f"{path}.cache"
-        if _keys(errors, cache_path, cache, {"mode", "environment_keys"}):
+        if _keys(
+            errors,
+            cache_path,
+            cache,
+            {"mode", "environment_keys"},
+            {"deterministic_local"},
+        ):
             mode = cache["mode"]
             if mode not in {"disabled", "session_exact"}:
                 _add(errors, f"{cache_path}.mode", "must be disabled or session_exact")
@@ -449,10 +455,53 @@ def _validate_verifier(
                 _add(errors, f"{cache_path}.environment_keys", "contains an empty key")
             if mode == "disabled" and environment_keys:
                 _add(errors, f"{cache_path}.environment_keys", "must be empty when cache is disabled")
-            if mode == "session_exact" and not cache_allowed:
-                _add(errors, cache_path, "session_exact is not allowed for this verifier")
+            deterministic_local = cache.get("deterministic_local", False)
+            if not isinstance(deterministic_local, bool):
+                _add(errors, f"{cache_path}.deterministic_local", "must be boolean")
+            # Integration, batch, and final gates ban reuse by default because a
+            # gate at those layers usually touches a live environment. The
+            # property that actually matters is the command's nature, not its
+            # layer, so a verifier may attest that it is a pure local
+            # deterministic command and become reusable. Never set this for a
+            # browser capture, migration, mutable-environment smoke, network or
+            # shared-database check, or a time/random-dependent command.
+            if mode == "session_exact" and not cache_allowed and not deterministic_local:
+                _add(
+                    errors,
+                    cache_path,
+                    "session_exact at this layer requires cache.deterministic_local: true",
+                )
             if mode == "session_exact" and value.get("pass_signal") != "exit 0":
                 _add(errors, f"{path}.pass_signal", "session_exact requires the literal pass signal exit 0")
+
+    execution = value.get("execution")
+    if execution is not None:
+        execution_path = f"{path}.execution"
+        if _keys(errors, execution_path, execution, {"parallel_safe", "resources"}):
+            if not isinstance(execution["parallel_safe"], bool):
+                _add(errors, f"{execution_path}.parallel_safe", "must be boolean")
+            resources = execution["resources"]
+            if not isinstance(resources, list):
+                _add(errors, f"{execution_path}.resources", "must be a list")
+            else:
+                resource_keys: set[str] = set()
+                for index, resource in enumerate(resources):
+                    resource_path = f"{execution_path}.resources[{index}]"
+                    if not _keys(errors, resource_path, resource, {"key", "access"}):
+                        continue
+                    key = resource["key"]
+                    if not _nonempty_string(key):
+                        _add(errors, f"{resource_path}.key", "must be a non-empty string")
+                    elif key in resource_keys:
+                        _add(errors, f"{resource_path}.key", "must be unique")
+                    else:
+                        resource_keys.add(key)
+                    if resource["access"] not in {"shared_read", "exclusive"}:
+                        _add(
+                            errors,
+                            f"{resource_path}.access",
+                            "must be shared_read or exclusive",
+                        )
 
 
 def _optional_string(errors: list[str], path: str, value: Any) -> None:

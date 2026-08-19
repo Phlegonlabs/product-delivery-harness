@@ -153,6 +153,13 @@ RUNTIME_DRIVERS = {
     "sequential_parent",
 }
 RUNTIME_DETECTION_SOURCES = {"observed", "explicit", "fallback"}
+RUNTIME_VERSION_STATUSES = {
+    "unobserved",
+    "current",
+    "compatible_old",
+    "upgrade_required",
+    "restart_required",
+}
 CAPABILITY_PROBE_STATUSES = {"available", "unavailable", "unobserved"}
 CODEX_CAPABILITY_PROBE_KEYS = (
     "app_project_list",

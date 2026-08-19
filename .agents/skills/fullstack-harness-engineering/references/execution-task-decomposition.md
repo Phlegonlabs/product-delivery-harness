@@ -51,6 +51,18 @@ A task's own module crossing the project's File Size Limit (see the seeded root 
 
 The parallel write unit is always a mission, and one independently testable goal maps to one mission. Tasks within one mission run sequentially in the same worker and workspace; refining a task never creates an additional parallel worker. Give the mission one explicit `write_scope` that is also the writer's file ownership. When missions share an API, schema, or type contract, freeze and integrate that contract before cutting dependent mission worktrees.
 
+## Runtime Slice Gate
+
+The default performance target is one bounded worker execution per mission, sized so the mission's fixed overhead — worktree, handoff, result validation, exact-head review, integration, integration verifier rerun — stays small against its useful work. That usually lands implementation plus focused verification around 10-20 minutes, but the ratio is the rule and the duration is its consequence; slicing below it makes a run slower. Pi uses a fresh child; other hosts use their matching isolated task context. Treat this as a planning SLO, not a hard process timer and not an authorization shortcut.
+
+- Keep tasks as sequential checkpoints inside that bounded mission slice. A task still needs one deliverable, scope, trace, and verifier; a list of acceptance cases is not extra work units.
+- Before readiness, split a proposed mission when its frozen work is expected to exceed the slice, span independent deliverables, or require unrelated verifier families. Create dependency edges between the smaller missions and freeze shared contracts first.
+- Do not use a 30-minute host timeout as task decomposition. If execution shows that the slice estimate was wrong, stop before beginning the next independent mutation and return `REFINEMENT_REQUEST`; preserve the current head and evidence.
+- A worker timeout is interrupted evidence, not a successful checkpoint. The parent may resume only after validating the worktree and deciding whether the remaining work still fits the same mission.
+- Record the estimate and actual elapsed phase timestamps in the human PLAN/RUN view. They are telemetry, not machine authorization and do not change PLAN/RUN schema.
+
+This slice gate supports the runtime-reduction target in `runtime-performance.md` (75% minimum, 85% stretch) by shortening child contexts and failure recovery. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
+
 ## UI Build Order
 
 When the product has a design system, its primitive layers decide task order. Each layer composes only the layers above it, so a task cannot be verified before the layer it depends on exists:
@@ -72,7 +84,7 @@ Rules:
 - Loading `frontend-design` does not change that route-task boundary. In frontend-design conformance mode it executes the frozen wireframe and design system with greater visual care; any proposed addition returns as a design-input delta instead of joining the route commit.
 - Each layer is one or more tasks, never one task spanning two layers — a task that adds a token and the component consuming it cannot fail the token independently.
 - A route's required states from its recipe are acceptance-matrix items inside that route's task, not separate tasks (see `What Deserves A Task` above). The same holds for every entry in the registry's responsive set.
-- For an existing product, keep the same layer order but sequence it around already-shipped routes rather than building bottom-up from nothing: adopt tokens and primitives behind the current implementation first, migrate routes in the order `references/existing-app-refinement.md`'s audit establishes, and let the two coexist until the last route moves.
+- For an existing product, keep the same layer order but sequence it around already-shipped routes rather than building bottom-up from nothing: adopt tokens and primitives behind the current implementation first, migrate routes in the order the Open-Ended Refinement audit in `references/design-input-updates.md` establishes, and let the two coexist until the last route moves.
 
 ## Backend Build Order
 
@@ -119,39 +131,7 @@ A generation-one task may not split again. If it still cannot be implemented ato
 
 Workers never edit canonical `PLAN.md` or `RUN.md`. When scope proves insufficient, a worker emits `REFINEMENT_REQUEST` and stops at a safe task boundary:
 
-```json
-{
-  "type": "REFINEMENT_REQUEST",
-  "run_id": "RUN-<stable-id>",
-  "plan_id": "PLAN-<stable-id>",
-  "mission_id": "M1",
-  "task_id": "M1/T01",
-  "plan_revision": 1,
-  "plan_digest_sha256": "<sha256>",
-  "lease_id": "<lease-id>",
-  "observed_head_sha": "<sha>",
-  "reason": "<why the planned task is not atomic>",
-  "proposed_children": [
-    {
-      "alias": "<human label>",
-      "deliverable": "<independent result>",
-      "trace_ids": ["<existing trace id>"],
-      "write_scope": ["<repo-relative scope>"],
-      "verifiers": [
-        {
-          "id": "<verifier id>",
-          "cwd": ".",
-          "argv": ["<executable>", "<argument>"],
-          "pass_signal": "exit_code_0"
-        }
-      ]
-    }
-  ],
-  "acceptance_matrix_items": ["<items that should stay inside one task>"],
-  "scope_or_contract_gap": null,
-  "evidence": ["<path or command result>"]
-}
-```
+See `worker-result-contract.md`'s Refinement Request section for the canonical payload schema. Do not restate it here.
 
 The request is evidence, not approval. The worker keeps its branch and evidence intact and performs no further writes until the parent decides.
 

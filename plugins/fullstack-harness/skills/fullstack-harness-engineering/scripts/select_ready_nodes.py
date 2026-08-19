@@ -288,6 +288,51 @@ def _current_review_result_matches_worker(
     return True
 
 
+# A node of these kinds cannot write to the repository, so running it during an
+# active wave cannot perturb a live writer, change a head, or race integration.
+READ_ONLY_NODE_KINDS = {"verifier", "approval", "external_wait"}
+
+
+def _active_wave_allows_streaming_review(
+    node: dict[str, Any], run: dict[str, Any]
+) -> bool:
+    """Whether an active wave still permits dispatching this node.
+
+    Writers and lifecycle actions wait for the wave to close. Read-only nodes do
+    not: blocking them only idles the parent while a straggling writer finishes,
+    and they hold no lease, produce no commit, and move no head.
+    """
+
+    active_wave = run.get("active_wave")
+    if (
+        not isinstance(active_wave, dict)
+        or active_wave.get("status") != "active"
+        or run.get("schema_version") != 10
+    ):
+        return False
+    if node.get("kind") not in READ_ONLY_NODE_KINDS:
+        return False
+    review = node.get("review")
+    if not isinstance(review, dict):
+        # A read-only node with no review binding (approval, external_wait, or a
+        # local-command verifier) is unconditionally safe during the wave.
+        return True
+    if (
+        review.get("stage", "preintegration") != "preintegration"
+        or len(review.get("mission_ids", [])) != 1
+    ):
+        # A batch or integration-stage review binds an integrated head, which
+        # does not exist until the wave closes.
+        return False
+    mission_id = review["mission_ids"][0]
+    mission_state = run.get("mission_states", {}).get(mission_id)
+    return (
+        mission_id in active_wave.get("selected_missions", [])
+        and isinstance(mission_state, dict)
+        and mission_state.get("phase") == "worker_passed"
+    )
+
+
 def _incoming_route_matched(
     node: dict[str, Any],
     run: dict[str, Any],
@@ -607,12 +652,31 @@ def _dispatch_reasons(
     reasons: set[str] = set()
     runtime = run["runtime_capabilities"]
     observed_runtime = run["observed"]["runtime"]
-    if run.get("active_wave", {}).get("status") == "active":
+    if (
+        run.get("active_wave", {}).get("status") == "active"
+        and not _active_wave_allows_streaming_review(node, run)
+    ):
         reasons.add("blocker_present")
     permission = runtime.get("permission_boundary")
     if permission is not None and permission.get("status") != "ready":
         reasons.add("permission_boundary_not_ready")
     if node["executor"] == "runtime_worker":
+        version_gate = runtime.get("runtime_adapter", {}).get("version_gate")
+        if version_gate is None and run.get("schema_version") == 10:
+            reasons.add("runtime_version_unobserved")
+        elif isinstance(version_gate, dict):
+            version_status = version_gate.get("status")
+            if version_status == "unobserved":
+                reasons.add("runtime_version_unobserved")
+            elif version_status == "upgrade_required":
+                reasons.add("runtime_upgrade_required")
+            elif version_status == "restart_required":
+                reasons.add("runtime_restart_required")
+            elif (
+                version_status == "compatible_old"
+                and run.get("active_wave", {}).get("status") != "active"
+            ):
+                reasons.add("runtime_upgrade_pending")
         # Deferral reasons are not short-circuited elsewhere in this module (see
         # _logical_reasons), so a missing binding does not return early either:
         # doing so hid every other applicable reason (e.g. action_not_authorized)
@@ -893,17 +957,31 @@ def select_ready_nodes(
     )
     if runtime_driver == "sequential_parent":
         runtime_budget = min(runtime_budget, 1)
+    # Read-only nodes draw from their own budget. They consume no isolation
+    # capacity and cannot write, so charging them against the writer budget only
+    # made a streaming review starve the writer it was meant to overlap with.
+    review_budget = max(runtime_budget, 1)
     runtime_count = 0
+    review_count = 0
     dispatchable: list[dict[str, Any]] = []
     for item in authorized_candidates:
         node = item["node"]
         if node["executor"] == "runtime_worker":
-            if runtime_count >= runtime_budget:
-                deferred.append(
-                    {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
-                )
-                continue
-            runtime_count += 1
+            read_only = node["kind"] in READ_ONLY_NODE_KINDS
+            if read_only:
+                if review_count >= review_budget:
+                    deferred.append(
+                        {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
+                    )
+                    continue
+                review_count += 1
+            else:
+                if runtime_count >= runtime_budget:
+                    deferred.append(
+                        {"node_id": node["id"], "reason_codes": ["over_runtime_budget"]}
+                    )
+                    continue
+                runtime_count += 1
         dispatchable.append(_directive(node, item["binding"], run))
 
     execution_route = classify_execution_route(

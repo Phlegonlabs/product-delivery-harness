@@ -12,7 +12,6 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
     "max_parallel_workers": 1,
-    "required_reviews": ["backend_code"],
     "sources": [
       {
         "id": "SRC-001",
@@ -37,15 +36,6 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
       }
     ],
     "ui_surfaces": [],
-    "risks": [
-      {
-        "id": "RISK-001",
-        "description": "<risk>",
-        "impact": "medium",
-        "mitigation": "<mitigation>",
-        "stop_condition": "<condition that stops execution>"
-      }
-    ],
     "batch_verifiers": [],
     "final_gates": [
       {
@@ -77,7 +67,7 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "provider_options": {
               "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "high"},
               "claude_code": {"model": "sonnet", "reasoning_effort": "high"},
-              "pi": {"model": null, "reasoning_effort": null},
+              "pi": {"model": null, "reasoning_effort": "high"},
               "generic": {"model": null, "reasoning_effort": null}
             }
           }
@@ -95,7 +85,7 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
             "provider_options": {
               "codex": {"model": "gpt-5.6-sol", "reasoning_effort": "medium"},
               "claude_code": {"model": "sonnet", "reasoning_effort": "medium"},
-              "pi": {"model": null, "reasoning_effort": null},
+              "pi": {"model": null, "reasoning_effort": "medium"},
               "generic": {"model": null, "reasoning_effort": null}
             }
           },
@@ -168,7 +158,6 @@ Use this template as `docs/goal/PLAN.md` for managed work that needs durable coo
         "runtime_resources": [],
         "worktree_eligible": true,
         "required_skills": [],
-        "stop_conditions": ["<mission-specific stop condition>"],
         "worker_verifiers": [
           {
             "id": "mission-focused",
@@ -233,7 +222,7 @@ For each `runtime_worker` node, Plan Mode may leave `preferred_provider` null an
 
 Every PLAN-v5 source binds the published input with `content_sha256`, `source_revision`, or both. When `validate_harness_plan.py --repo-root` is supplied, repo-relative sources must resolve inside that root and their `content_sha256` is checked against immutable bytes; `source_revision` makes the checker read the Git blob at that revision. URLs are never fetched, so an external source needs an immutable revision or a local frozen snapshot. `staged_revision` records a proposed accepted delta while the published source fields remain canonical; it is not an executable publication. A ready or executable RUN requires every source to be `frozen` or `delta_accepted` and forbids product staging locations. Publish the accepted revision to the canonical source location, move its hash/revision into the published fields, clear `staged_revision`, then increment the PLAN revision and recompute the digest.
 
-Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set a non-null `preferred_provider` only when an explicit host preference is part of the plan; otherwise keep it null so the same canonical graph routes on every supported host. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node; Pi and generic providers keep model and reasoning values null, and stronger models remain reserved for the parent's own coordination and planning. Raise the final review to `xhigh` only when its gate warrants it.
+Task and worker declarations may use the exact `selection.mode: "changed_files"` form shown by the machine manifest's `"mode": "changed_files"` value; targeted checks follow parent-observed changed files and cache roots stay repository-external. Equivalent opted-in task and worker commands on the same immutable inputs reuse one execution even though their verifier IDs differ. Plan each mission as one bounded fresh-child worker slice that normally completes implementation and focused verification in 10-20 minutes; split broader independent outcomes before readiness. Plan one runtime reviewer per applicable surface, set `max_attempts` to at most 2, and add same-surface fan-out only for an explicit user request or a recorded high-impact risk. For broad implementation plans, prefer Codex `gpt-5.6-terra` with `high` reasoning, while routine deterministic `backend_code` review uses `gpt-5.6-terra` with `medium`; provider-specific options remain per-node and the selected runtime adapter remains authoritative. A plan may set a non-null `preferred_provider` only when an explicit host preference is part of the plan; otherwise keep it null so the same canonical graph routes on every supported host. Provider examples may repeat delegated `"model": "sonnet"` and `"model": "gpt-5.6-sol"` for each matching node. Pi keeps model null but may bind per-node effort; generic keeps both values null. Stronger models remain reserved for the parent's own coordination and planning. Raise the unified-head review to `xhigh` only when its gate warrants it; it is the final synthesis, so do not add another same-scope review on an unchanged SHA.
 
 For UI work, load `references/ui-implementation-contract.md` only when the mission writes UI or a UI review needs the detailed contract. Creation mode requires `product-design-builder`, `impeccable`, and `frontend-design`; implementation-mode `frontend-design` is used only when the user explicitly selected it for the new or high-impact visual surface and then runs in frontend-design conformance mode. `impeccable` is not an implementation skill. A missing entry is a proposed design-input delta, not a local exception. The creation mode and conformance mode are distinct; do not bypass the frozen source pair. Run the broad final regression and browser/UI checks after exact-SHA code review and repair loops converge.
 
@@ -272,33 +261,14 @@ These are planning expectations, not authorization. Record explicit action autho
 - Parallel fan-out when fewer than two safe write missions are selected.
 - UI repair graphs or unplanned design changes.
 
-## Mission View
-
-| Mission | Objective | Traces | Depends on | Write / deny scope | Resources | Exit verifier |
-|---|---|---|---|---|---|---|
-| M1 | <objective> | PRD-001 | none | src/example/** / PLAN,RUN denied | none | mission-focused |
-
 ## Plan Readiness Gate
 
-| Readiness check | Status | Evidence / decision |
-|---|---|---|
-| Every in-scope trace is planned, deferred, or out of scope | draft / PASS / BLOCKED | <note> |
-| Every must-have trace maps to a task and verifier | draft / PASS / BLOCKED | <note> |
-| Typed graph dependency edges and task dependencies are explicit and acyclic | draft / PASS / BLOCKED | <note> |
-| Scopes and typed resource inventories are complete | draft / PASS / BLOCKED | <note> |
-| Worker, exact-head review, integration, and final verifiers have literal signals | draft / PASS / BLOCKED | <note> |
-| Blocking decisions and approval needs are surfaced | draft / PASS / BLOCKED | <note> |
-
 Implementation may start only after static validation passes, RUN records `plan_readiness: "ready"`, and required actions have explicit user authorization. Readiness never grants authorization.
+
+`plan_readiness` in RUN is the single machine gate; do not restate the checks as a hand-filled table here.
 
 ## Stop / Ask Conditions
 
 - <condition>
 - A UI route has no frozen screen/design-system entry; load `ui-implementation-contract.md` and route a design-input delta instead of inventing a value.
 - A required worktree, authorization, scope/head binding, or exact-head review cannot be proved.
-
-## Open Risks
-
-| Risk | Impact | Mitigation / owner |
-|---|---|---|
-| <risk> | <impact> | <mitigation> |

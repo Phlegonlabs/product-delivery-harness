@@ -1,0 +1,14 @@
+{
+  "name": "fullstack-goal-dev",
+  "version": "0.6.0",
+  "private": true,
+  "type": "commonjs",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "skills": [
+      "./.agents/skills"
+    ]
+  }
+}

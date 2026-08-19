@@ -129,6 +129,41 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("Pi context discovery enabled", pi)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
+    def test_every_adapter_uses_fresh_context_terminal_events_and_runtime_metrics(self) -> None:
+        codex = self.read_sibling_skill("fullstack-harness-codex")
+        claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        pi = self.read_sibling_skill("fullstack-harness-pi")
+
+        for name, content in (("codex", codex), ("claude", claude), ("pi", pi)):
+            with self.subTest(adapter=name):
+                self.assertIn("bounded context packet", content)
+                self.assertIn("runtime_metrics", content)
+                self.assertIn("pre-integration review", content)
+                self.assertIn("fresh", content)
+
+        self.assertIn("cursor-based `wait_threads`", codex)
+        self.assertIn("Do not repeatedly read unchanged tasks", codex)
+        self.assertIn("`pipeline()` / `agent_result` terminal output", claude)
+        self.assertIn("Subscribe or block on terminal child/status events", pi)
+
+    @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
+    def test_every_adapter_applies_the_shared_runtime_upgrade_gate(self) -> None:
+        codex = self.read_sibling_skill("fullstack-harness-codex")
+        claude = self.read_sibling_skill("fullstack-harness-claude-code")
+        pi = self.read_sibling_skill("fullstack-harness-pi")
+
+        for name, content in (("codex", codex), ("claude", claude), ("pi", pi)):
+            with self.subTest(adapter=name):
+                self.assertIn("runtime_adapter.version_gate", content)
+                self.assertIn("runtime-upgrades.md", content)
+                self.assertIn("compatible_old", content)
+                self.assertIn("restart_required", content)
+
+        self.assertIn("fresh top-level task", codex)
+        self.assertIn("`/reload-plugins` or restart Claude Code", claude)
+        self.assertIn("Never overwrite standalone skills", pi)
+
+    @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_same_repository_handoff_is_serialized_and_cross_machine_is_unsupported(self) -> None:
         state = self.read("references/execution-state-model.md")
         self.assertIn("Serialized Same-Repository Host Handoff", state)
@@ -159,14 +194,20 @@ class AdapterContractTests(unittest.TestCase):
         pi = self.read_sibling_skill("fullstack-harness-pi")
         prompt = self.read_agent_prompt("fullstack-harness-pi")
 
-        self.assertIn("Pi owns role-to-model selection", pi)
-        self.assertIn('`{"model": null, "reasoning_effort": null}`', pi)
+        self.assertIn("Pi owns role-to-model and fallback selection", pi)
+        self.assertIn("`provider_options.pi.model` null", pi)
+        self.assertIn("PLAN may lower or raise reasoning effort per node", pi)
+        self.assertIn("per-run thinking suffix", pi)
+        self.assertIn("`medium` for bounded discovery", pi)
+        self.assertIn("`high` for general implementation", pi)
+        self.assertIn("`xhigh` only for a justified high-risk or unified final synthesis", pi)
         self.assertIn("`frontend_designer` role", pi)
         self.assertIn("general implementation use `worker`", pi)
         self.assertIn("read-only review uses `reviewer`", pi)
-        self.assertIn("actual resolved role, model, fallback, run id", pi)
-        self.assertIn("Forked subagent context requires a persisted Pi parent session", pi)
-        self.assertIn("With `--no-session`, launch a fresh child context instead", pi)
+        self.assertIn("actual resolved role, model, effort, fallback, run id", pi)
+        self.assertIn('explicit `context: "fresh"`', pi)
+        self.assertIn("Fork only an `oracle`", pi)
+        self.assertIn("one bounded fresh-child slice whose fixed overhead stays small", pi)
         self.assertIn("never pass `--no-context-files` or `-nc`", pi)
         self.assertIn("Pi's effective per-directory context selection", pi)
         self.assertIn("One mission has one writer", pi)

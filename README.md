@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.4.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.6.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -169,11 +169,12 @@ powershell -File .\scripts\update-private-skills.ps1
 
 The clone only gives you the script. The updater always installs from GitHub — `Phlegonlabs/fullstack-goal-dev` at `main` by default — and never reads your working directory. Local edits are not installed this way; use [Use a local checkout during development](#use-a-local-checkout-during-development) for that.
 
-Then open a new Codex task or reload Claude Code. Confirm the plugin is visible:
+Then open a new Codex task, reload Claude Code, or start a fresh Pi session. Confirm the package is visible:
 
 ```powershell
 codex plugin list
 claude plugin list
+pi list
 ```
 
 ### Zero-to-one flow
@@ -185,7 +186,7 @@ claude plugin list
 
 ### One-command updater
 
-The shared updater detects installed runtimes, adds or updates the marketplace, and installs the plugin where supported. Re-run the same command when this repository changes.
+The shared updater detects Codex, Claude Code, and Pi; adds or updates the marketplace/package; and leaves unrelated runtime settings alone. Re-run the same command when this repository changes. Add `-UpdateHostRuntimes` only when you explicitly want the hosts themselves updated. If legacy standalone Pi Harness skills shadow the package, add `-ReplacePiStandaloneSkills`; it backs up and replaces only the named Harness skill directories.
 
 Windows with PowerShell 7 (`pwsh`):
 
@@ -208,7 +209,7 @@ cd fullstack-goal-dev
 pwsh -File ./scripts/update-private-skills.ps1
 ```
 
-Open a new Codex task after updating. Reload or restart Claude Code after updating its plugin.
+Open a new Codex task, reload or restart Claude Code, and start a fresh Pi session after updating. An active session does not hot-reload a changed runtime or Harness release.
 
 ### Install directly in Codex
 
@@ -227,6 +228,15 @@ claude plugin list
 ```
 
 Run `/reload-plugins` or restart Claude Code once the plugin is installed.
+
+### Install directly in Pi
+
+```bash
+pi install git:github.com/Phlegonlabs/fullstack-goal-dev@main --no-approve
+pi list --no-approve
+```
+
+Start a fresh Pi session after installing or updating. Existing standalone skills under `~/.pi/agent/skills` are user data and are never removed silently.
 
 ### Use a local checkout during development
 
@@ -303,7 +313,7 @@ plugins/fullstack-harness/.codex-plugin/plugin.json  Codex plugin manifest
 .claude-plugin/marketplace.json                      Claude Code marketplace definition
 assets/                                              README covers
 scripts/sync_plugin_skills.py                        Copies canonical skills into the plugin bundle
-scripts/update-private-skills.ps1                    Updates installed marketplaces and plugin
+scripts/update-private-skills.ps1                    Updates Codex, Claude Code, and Pi packages; host updates are opt-in
 .github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
 ```
 
@@ -334,6 +344,8 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
+- **0.6.0** — Added a shared runtime upgrade gate for Codex, Claude Code, and Pi. RUN-v10 records host/Harness versions, lets only an already-active compatible-old wave reach its boundary, blocks incompatible or restart-pending sessions, and resumes unfinished work with a fresh attempt after update and re-probe. The updater now supports Pi packages; host binary updates and standalone Pi skill migration stay explicit.
+- **0.5.0** — Reduced managed-run overhead across Codex, Claude Code, and Pi with bounded fresh context, event-driven completion, active-wave streaming review, resource-safe parallel verifier batches, exact session caching, effort routing, smaller task slices, and RUN-v10 runtime telemetry. The measured target is 75% less wall time, with 85% as the stretch target; authorization and exact-SHA gates are unchanged.
 - **0.4.0** — Added repository-local design-image discovery and connected Impeccable concept generation to the Product Design Builder visual-direction gate. Creation mode now requires `product-design-builder`, `impeccable`, and `frontend-design`, while the existing PRD and three-file design package remain the only canonical product and design sources.
 - **0.3.0** — Removed the GitHub landing adapter and the whole deployment/release model. The harness now ends at a push to the run's own branch; landing on the default branch is the user's own step. Authorization ledger cut from 19 actions to 12; `landing` reduced to `mode`, `remote`, `pushed_head_sha`, `continuity`; `integration.branch` is the only branch field. Dropped branch-protection evidence, `target_sources`, the three contract markers, `post_merge_cleanup`, `plan.release`, and `run.targets`.
 - **0.2.0** — Worktree-per-mission default; PLAN v5 / RUN v10 typed graph with multi-reviewer fan-out; Cloudflare dispatched-deploy and Auto-Deploy (native Git auto-deploy) release models; persistent integration branches; per-page generic HTML prototypes replacing the retired page UI matrix; mobile/desktop platform support including a dedicated mobile stack-selection guide (native iOS/Android, Flutter, React Native/Expo); environment-secret scaffolding via `.env.example`; a Haiku cost tier for bounded/mechanical delegated work.

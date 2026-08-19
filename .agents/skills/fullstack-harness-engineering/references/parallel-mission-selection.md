@@ -2,7 +2,7 @@
 
 Use this reference after the parent-only `System Review And Route` stage and Plan Readiness pass, before any parallel write fan-out. Selection is deterministic analysis. It does not create tasks, branches, worktrees, commits, merges, pushes, or cleanup actions. The system review itself is never selected as a graph node and never creates PLAN/RUN state.
 
-The Project Size Gate and `System Review And Route` run first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted PLAN/RUN graph and execute the derived `managed_sequential` route with its selected runtime driver. A no-agent route uses `sequential_parent`, keeps the PLAN mission's `executor: runtime_worker`, and records a parent-owned executor/worker binding in RUN solely for lease/state validation; it is not a delegated or spawned worker and does not claim `spawn_subagents`. The parent writes one mission at a time in its required parent-managed worktree.
+The Project Size Gate and `System Review And Route` (see `execution-state-model.md`) run first. Small work never reaches this selector. Large work uses scheduler fan-out only when at least two dependency-ready, nonconflicting missions make parallel execution useful; otherwise keep the accepted PLAN/RUN graph and execute the derived `managed_sequential` route with its selected runtime driver. A no-agent route uses `sequential_parent` and writes one mission at a time. See `execution-state-model.md`'s `sequential_parent` definition.
 
 This file defines the shared scope/resource conflict rules and deterministic write budget. PLAN v5 and RUN v10 use `scripts/select_ready_nodes.py`. The selector computes the typed graph frontier first, then applies this contract to ready mission nodes. For a managed-sequential route, never run parallel writers in `shared_checkout`; the selected driver and isolated writer remain explicit.
 
@@ -222,7 +222,7 @@ Before using a proposal, the parent re-observes:
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
 
-When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. If the System Review And Route selected no-agent execution, use `sequential_parent` directly: do not request `spawn_subagents` or report a delegated launch; when the parent accepts the existing `runtime_worker` mission directive, record its parent-owned executor/worker binding for lease/state validation. Parent-managed worktree creation is required, so an unavailable or unauthorized worktree blocks the route rather than allowing `shared_checkout`. For an agent-capable route, use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
+When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. If the System Review And Route selected no-agent execution, use `sequential_parent` directly and do not request `spawn_subagents` or report a delegated launch. For an agent-capable route, use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
 
 For `launch_kind: "create_thread"`, the parent must consume the directive after accepting the wave instead of merely reporting `selected_missions`:
 
@@ -250,27 +250,18 @@ Current Claude Code can support nested subagents, but current RUN-v10 deliberate
 
 ## Batch Integration And Recompute
 
-One wave lifecycle has a fixed order, and no other order works: the selector dispatches no node while `run.active_wave.status` is `active` — any node that reaches dispatch-stage evaluation, including read-only review nodes, is deferred with `blocker_present` — and worker-result validation accepts a result only while its wave is active. So:
+One wave lifecycle has a fixed mutation order. Worker-result validation accepts a result only while its wave is active. The selector still blocks new writers and every integration/lifecycle mutation while `run.active_wave.status` is `active`, but it may stream a dependency-ready, read-only pre-integration review for one selected mission that has already reached `worker_passed`. So:
 
 1. Launch the selected workers.
-2. Validate every selected mission's worker result against the still-active wave.
-3. Close the wave: once all selected missions' worker results are validated, the parent transitions the wave out of `active`. No node dispatches while a wave is active.
-4. Re-run selection; the review nodes now dispatch. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.
+2. Validate each selected mission's worker result against the still-active wave. As each mission reaches `worker_passed`, re-run selection and dispatch its ready read-only pre-integration review while sibling workers continue.
+3. Close the wave once all selected missions' worker results are validated. A mission whose exact-head pre-integration review has PASSed may integrate before this transition, one at a time; a straggling writer must not hold finished work hostage. Batch gates still wait for wave close.
+4. Re-run selection and dispatch any remaining review nodes. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.
 5. Integrate the passing missions serially in declared merge order (steps below).
 6. Run the batch gates, then recompute.
 
-The parent integrates one worker-passed mission at a time in declared merge order:
+The integration procedure itself is defined once, in `worktree-thread-orchestration.md`'s Batch Integration section. One selector-specific rule applies on top of it: a read-only review PASS bound to the exact current worktree head may come from the streamed active-wave review or a post-close selector pass. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`.
 
-1. Confirm worker base/head ancestry and head stability.
-2. Recompute actual changed paths and reject scope escape or parent-owned files.
-3. Require the read-only review PASS from the post-close selector pass above: at least one review bound to the exact current worktree head. A disabled-policy or graph-backed direct worker result may validate first so the downstream review node becomes selectable, but record a terminal covering `review_workers[]` PASS on that SHA before the mission transitions to `integrating`.
-4. Integrate into the resolved integration branch only when `integrate_locally` is authorized.
-5. Run the affected mission's integration verifiers after its integration.
-6. Mark it `integrated` only after the gate passes and record `integrated_sha`.
-7. Stop the batch on worker failure, review failure, integration failure, unexpected conflict, stale base, or contract gap.
-8. Run cross-mission/batch verification after all selected missions integrate.
-9. Refresh RUN observations and recompute the next ready frontier and conflict graph.
-10. Repeat steps 1-9 with the recomputed frontier until the ready frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the final/current-head gate on the resolved integration branch; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
+Selection then continues: refresh RUN observations, recompute the ready frontier and conflict graph, and repeat until the frontier is empty and no mission remains `queued`, `ready`, `leased`, `worker_running`, or blocked pending a retry. Only then proceed to the final/current-head gate on the resolved integration branch; do not treat any single wave's completion as the run's finish line while missions remain outside a terminal phase.
 
 Never reuse the prior wave's independence result. Each merge changes the integration head and may change dependencies, generated artifacts, or resource availability. Push, task archival, worktree removal, and branch deletion remain separate authorization-gated actions.
 

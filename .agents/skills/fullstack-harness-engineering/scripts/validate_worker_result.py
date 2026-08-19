@@ -33,7 +33,24 @@ from select_verifiers import (
     applicable_targeted_verifiers,
     canonical_changed_path,
 )
-from verifier_runtime import PROTOCOL as VERIFIER_PROTOCOL, execution_key_from_document
+# `verifier_runtime` pulls in concurrent.futures -> logging -> traceback for its
+# batch mode, which this validator never uses; importing it at module scope cost
+# about a third of this script's startup. The two symbols below are needed only
+# on the retained-verifier path, so import them there. The protocol literal is
+# duplicated deliberately and pinned by a test against verifier_runtime.PROTOCOL.
+VERIFIER_PROTOCOL = "harness-verifier-execution-v2"
+
+
+SUPPORTED_VERIFIER_PROTOCOLS = {
+    "harness-verifier-execution-v1",
+    VERIFIER_PROTOCOL,
+}
+
+
+def _execution_key_from_document(key_document: dict[str, Any]) -> str:
+    from verifier_runtime import execution_key_from_document
+
+    return execution_key_from_document(key_document)
 
 
 WORKER_RESULT_FIELDS = {
@@ -443,7 +460,8 @@ def _retained_verifier_results(
             _issue(errors, "retained_verifier_mismatch", f"{path}.verifier_id", "must identify the verifier")
             continue
         retained[verifier_id] = item
-        if item.get("protocol") != VERIFIER_PROTOCOL:
+        protocol = item.get("protocol")
+        if protocol not in SUPPORTED_VERIFIER_PROTOCOLS:
             _issue(errors, "retained_verifier_mismatch", f"{path}.protocol", "does not match verifier runtime protocol")
         key_document = item.get("key_document")
         execution_key = item.get("execution_key")
@@ -454,14 +472,14 @@ def _retained_verifier_results(
                 path,
                 "must retain the execution key document and key",
             )
-        elif execution_key_from_document(key_document) != execution_key:
+        elif _execution_key_from_document(key_document) != execution_key:
             _issue(
                 errors,
                 "retained_verifier_key_mismatch",
                 f"{path}.execution_key",
                 "does not match the retained key document",
             )
-        elif key_document.get("protocol") != VERIFIER_PROTOCOL:
+        elif key_document.get("protocol") != protocol:
             _issue(
                 errors,
                 "retained_verifier_mismatch",
@@ -533,25 +551,25 @@ def _retained_verifier_results(
                         "must reference the exact retained mission/task/lease attempt",
                     )
             if isinstance(key_document, dict):
+                key_context_fields = [
+                    "run_id",
+                    "plan_revision",
+                    "plan_digest_sha256",
+                    "graph_revision",
+                    "batch_base_sha",
+                    "head_sha",
+                    "trust_domain",
+                    "checkout_role",
+                    "checkout_dirty",
+                    "cache_safe",
+                ]
+                if protocol == "harness-verifier-execution-v1":
+                    key_context_fields.extend(
+                        ["layer", "mission_id", "task_id", "attempt_id", "lease_id"]
+                    )
                 key_context = {
                     field: key_document.get(field)
-                    for field in (
-                        "run_id",
-                        "plan_revision",
-                        "plan_digest_sha256",
-                        "graph_revision",
-                        "batch_base_sha",
-                        "head_sha",
-                        "trust_domain",
-                        "checkout_role",
-                        "checkout_dirty",
-                        "cache_safe",
-                        "layer",
-                        "mission_id",
-                        "task_id",
-                        "attempt_id",
-                        "lease_id",
-                    )
+                    for field in key_context_fields
                 }
                 retained_context = {field: context.get(field) for field in key_context}
                 changed_digest = hashlib.sha256(
@@ -579,7 +597,10 @@ def _retained_verifier_results(
             or normalized.get("pass_signal") != declaration.get("pass_signal")
             or normalized.get("cache") != declared_cache
             or not isinstance(key_document, dict)
-            or key_document.get("verifier_id") != verifier_id
+            or (
+                protocol == "harness-verifier-execution-v1"
+                and key_document.get("verifier_id") != verifier_id
+            )
             or key_document.get("cwd") != normalized.get("cwd")
             or key_document.get("argv") != normalized.get("argv")
             or key_document.get("pass_signal") != normalized.get("pass_signal")
@@ -605,11 +626,20 @@ def validate_worker_result_data(
     observed_changed_files: list[str] | None,
     ancestry_confirmed: bool,
     retained_verifier_results: list[dict[str, Any]] | None = None,
+    manifest_already_validated: bool = False,
 ) -> list[dict[str, str]]:
-    """Return deterministic validation issues for one integration candidate."""
+    """Return deterministic validation issues for one integration candidate.
+
+    Set ``manifest_already_validated`` when the caller has already run
+    ``validate_current_plan_run`` on the same pair, so one payload does not pay
+    for the full manifest walk twice.
+    """
 
     errors: list[dict[str, str]] = []
-    if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+    if not manifest_already_validated and (
+        plan.get("schema_version"),
+        run.get("schema_version"),
+    ) == (5, 10):
         for message in validate_current_plan_run(plan, run):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
         if errors:
@@ -1139,6 +1169,7 @@ def main(argv: list[str] | None = None) -> int:
                 observed_changed_files=args.observed_changed_file,
                 ancestry_confirmed=args.ancestry_confirmed,
                 retained_verifier_results=retained_verifier_results,
+                manifest_already_validated=True,
             )
         )
 

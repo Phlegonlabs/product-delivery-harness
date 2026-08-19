@@ -370,6 +370,17 @@ def legacy_graph_plan() -> dict[str, object]:
 
 
 
+def current_version_gate() -> dict[str, object]:
+    return {
+        "host_version": "test-current",
+        "minimum_host_version": None,
+        "harness_version": "0.6.0",
+        "required_harness_version": "0.6.0",
+        "status": "current",
+        "evidence": "test fixture observed the current runtime and Harness release",
+    }
+
+
 def valid_run(plan: dict[str, object]) -> dict[str, object]:
     digest = plan_digest(plan)
     mission_ids = [item["id"] for item in plan["missions"]]
@@ -405,6 +416,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
                 "provider": "codex",
                 "available_drivers": ["sequential_parent"],
                 "detection_source": "fallback",
+                "version_gate": current_version_gate(),
             },
             "platform_lifecycle": {
                 "owner": "parent",
@@ -576,6 +588,8 @@ def legacy_run(plan: dict[str, object], schema_version: int) -> dict[str, object
         run.pop("ui_evidence")
     if schema_version == 5:
         run["runtime_capabilities"].pop("runtime_adapter")
+    else:
+        run["runtime_capabilities"]["runtime_adapter"].pop("version_gate", None)
     return run
 
 
@@ -586,6 +600,7 @@ def legacy_graph_run(
         raise ValueError("legacy graph RUN requires PLAN v4 with RUN v8 or v9")
     run = valid_run(plan)
     run["schema_version"] = schema_version
+    run["runtime_capabilities"]["runtime_adapter"].pop("version_gate", None)
     run.pop("closed_waves")
     run.pop("verifier_executions")
     if schema_version == 8:
@@ -1470,30 +1485,101 @@ class PlanValidationTests(unittest.TestCase):
         )
 
 
-    def test_integration_batch_and_final_verifiers_cannot_use_session_cache(self) -> None:
+    def test_batch_and_final_gates_select_against_the_plan_write_union(self) -> None:
+        plan = valid_plan()
+        union = plan["missions"][0]["write_scope"][0]
+        always_gate = copy.deepcopy(plan["final_gates"][0])
+        always_gate["id"] = "final-always"
+        plan["final_gates"].append(always_gate)
+        plan["final_gates"][0]["selection"] = {
+            "mode": "changed_files",
+            "scopes": [union],
+        }
+        self.assertEqual([], validate_plan(plan))
+
+        escaping = valid_plan()
+        escaping["final_gates"][0]["selection"] = {
+            "mode": "changed_files",
+            "scopes": ["unrelated/**"],
+        }
+        self.assert_error_contains(escaping, "escapes the owning write scope")
+
+    def test_batch_and_final_gates_keep_one_always_run_verifier(self) -> None:
+        plan = valid_plan()
+        union = plan["missions"][0]["write_scope"][0]
+        for gate in plan["final_gates"]:
+            gate["selection"] = {"mode": "changed_files", "scopes": [union]}
+        self.assert_error_contains(
+            plan, "must keep at least one always-run verifier"
+        )
+
+    def test_deterministic_local_attestation_unlocks_banned_layers(self) -> None:
+        cache = {
+            "mode": "session_exact",
+            "environment_keys": [],
+            "deterministic_local": True,
+        }
+
+        batch_plan = valid_plan()
+        batch_plan["batch_verifiers"][0]["cache"] = cache
+        self.assertEqual([], validate_plan(batch_plan))
+
+        final_plan = valid_plan()
+        final_plan["final_gates"][0]["cache"] = cache
+        self.assertEqual([], validate_plan(final_plan))
+
+        integration_plan = valid_plan()
+        integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
+        self.assertEqual([], validate_plan(integration_plan))
+
+    def test_integration_batch_and_final_verifiers_need_explicit_attestation(self) -> None:
         cache = {"mode": "session_exact", "environment_keys": []}
 
         batch_plan = valid_plan()
         batch_plan["batch_verifiers"][0]["cache"] = cache
         self.assert_error_contains(
-            batch_plan, "session_exact is not allowed for this verifier"
+            batch_plan, "session_exact at this layer requires cache.deterministic_local: true"
         )
 
         final_plan = valid_plan()
         final_plan["final_gates"][0]["cache"] = cache
         self.assert_error_contains(
-            final_plan, "session_exact is not allowed for this verifier"
+            final_plan, "session_exact at this layer requires cache.deterministic_local: true"
         )
 
         integration_plan = valid_plan()
         integration_plan["missions"][0]["integration_verifiers"][0]["cache"] = cache
         self.assert_error_contains(
-            integration_plan, "session_exact is not allowed for this verifier"
+            integration_plan, "session_exact at this layer requires cache.deterministic_local: true"
         )
 
         worker_plan = valid_plan()
         worker_plan["missions"][0]["worker_verifiers"][0]["cache"] = cache
         self.assertEqual(validate_plan(worker_plan), [])
+
+    def test_verifier_parallel_execution_metadata_is_resource_bounded(self) -> None:
+        plan = valid_plan()
+        verifier = plan["missions"][0]["worker_verifiers"][0]
+        verifier["execution"] = {
+            "parallel_safe": True,
+            "resources": [
+                {"key": "database:test", "access": "shared_read"},
+                {"key": "port:4173", "access": "exclusive"},
+            ],
+        }
+        self.assertEqual(validate_plan(plan), [])
+
+        duplicate = copy.deepcopy(plan)
+        duplicate["missions"][0]["worker_verifiers"][0]["execution"]["resources"].append(
+            {"key": "port:4173", "access": "shared_read"}
+        )
+        self.assert_error_contains(duplicate, "must be unique")
+
+        invalid_access = copy.deepcopy(plan)
+        invalid_access["missions"][0]["worker_verifiers"][0]["execution"]["resources"][0][
+            "access"
+        ] = "write"
+        self.assert_error_contains(invalid_access, "must be shared_read or exclusive")
 
 
 
@@ -1636,6 +1722,36 @@ class RunValidationTests(unittest.TestCase):
 
         run["plan"]["digest_sha256"] = "0" * 64
         self.assert_run_error_contains(plan, run, "does not match semantic PLAN digest")
+
+    def test_v2_verifier_execution_omits_logical_gate_attribution(self) -> None:
+        plan = valid_plan()
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        execution = run["verifier_executions"][0]
+        execution["protocol"] = "harness-verifier-execution-v2"
+        key_document = execution["key_document"]
+        key_document["protocol"] = "harness-verifier-execution-v2"
+        for key in (
+            "verifier_id",
+            "layer",
+            "mission_id",
+            "task_id",
+            "attempt_id",
+            "lease_id",
+        ):
+            key_document.pop(key)
+        execution_key = hashlib.sha256(
+            json.dumps(
+                key_document,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        execution["execution_key"] = execution_key
+        execution["evidence_key"] = execution_key
+
+        self.assertEqual(validate_run(plan, run), [])
 
     def test_default_branch_observation_is_optional_without_a_schema_bump(self) -> None:
         plan = valid_plan()
@@ -2666,6 +2782,33 @@ class RunValidationTests(unittest.TestCase):
             "run.runtime_capabilities.runtime_adapter: unknown keys: external_runtimes",
         )
 
+    def test_runtime_version_gate_validates_status_and_evidence(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+
+        gate["status"] = "silently_upgrade"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter.version_gate.status: has an unsupported value",
+        )
+
+        gate["status"] = []
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter.version_gate.status: has an unsupported value",
+        )
+
+        gate["status"] = "upgrade_required"
+        gate["evidence"] = ""
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "run.runtime_capabilities.runtime_adapter.version_gate.evidence: must be a non-empty string",
+        )
+
     def test_worker_runtime_binding_source_must_equal_host(self) -> None:
         # A node's required provider must match whatever host actually runs
         # it: there is no bridged/guarded external source anymore, so
@@ -3097,6 +3240,38 @@ class RunValidationTests(unittest.TestCase):
         run = valid_run(plan)
         run["runtime_capabilities"]["unexpected"] = True
         self.assert_run_error_contains(plan, run, "unknown keys: unexpected")
+
+    def test_runtime_metrics_accept_machine_events_and_reject_invalid_counts(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_metrics"] = {
+            "target_reduction_percent": {"minimum": 75, "stretch": 85},
+            "baseline_wall_time_ms": 1000,
+            "run_wall_time_ms": None,
+            "critical_path_ms": None,
+            "events": [
+                {
+                    "event_id": "E-001",
+                    "provider": "codex",
+                    "node_id": "N-M1",
+                    "attempt_id": "A-001",
+                    "phase": "dispatch",
+                    "status": "complete",
+                    "started_at": "2026-08-18T00:00:00Z",
+                    "completed_at": "2026-08-18T00:00:01Z",
+                    "duration_ms": 1000,
+                    "wait_ms": 0,
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "cached_input_tokens": 80,
+                    "context_bytes": 4096,
+                }
+            ],
+        }
+        self.assertEqual(validate_run(plan, run), [])
+
+        run["runtime_metrics"]["events"][0]["cached_input_tokens"] = 101
+        self.assert_run_error_contains(plan, run, "must not exceed input_tokens")
 
     def test_non_graph_schema_v9_rejects_workflow_runs(self) -> None:
         plan = legacy_plan()

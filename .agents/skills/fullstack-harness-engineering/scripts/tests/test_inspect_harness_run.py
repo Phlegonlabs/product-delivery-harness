@@ -89,6 +89,34 @@ class InspectHarnessRunTests(unittest.TestCase):
         self.assertEqual(summary["warnings"], [])
         self.assertFalse(summary["missions"][0]["live_dirty"])
 
+    def test_summary_surfaces_the_recorded_runtime_version_gate(self) -> None:
+        run = {
+            "schema_version": 10,
+            "run_id": "RUN-VERSION",
+            "status": "running",
+            "runtime_capabilities": {
+                "runtime_adapter": {
+                    "version_gate": {
+                        "host_version": "0.146.0",
+                        "harness_version": "0.5.0",
+                        "required_harness_version": "0.6.0",
+                        "status": "upgrade_required",
+                    }
+                }
+            },
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {},
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("upgrade_required", summary["runtime_version_gate"]["status"])
+        rendered = inspect_harness_run.render_text(summary)
+        self.assertIn("Runtime version gate: upgrade_required", rendered)
+        self.assertIn("required=0.6.0", rendered)
+
     def test_running_worker_without_a_worktree_requires_reconciliation(self) -> None:
         run = {
             "schema_version": 10,
