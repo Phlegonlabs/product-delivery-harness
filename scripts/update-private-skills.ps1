@@ -101,13 +101,18 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
         Invoke-Checked claude plugin marketplace add $ClaudeMarketplaceSource --scope user
     }
 
+    # Reinstall rather than update. `claude plugin update` compares the
+    # plugin.json version and reports "already at the latest version" when it
+    # matches, so any change that ships new skill content without bumping that
+    # version leaves the cached copy stale while the command reports success.
+    # That is the worst kind of stale: silent, and indistinguishable from
+    # up to date. Codex avoids it only because `plugin add` reinstalls; do the
+    # same here instead of relying on the version string being maintained.
     $installedPlugins = Get-JsonItems (Invoke-Checked claude plugin list --json | ConvertFrom-Json) "plugins"
     if ($installedPlugins.id -contains $PluginSelector) {
-        Invoke-Checked claude plugin update $PluginSelector --scope user
+        Invoke-Checked claude plugin uninstall $PluginSelector --scope user
     }
-    else {
-        Invoke-Checked claude plugin install $PluginSelector --scope user
-    }
+    Invoke-Checked claude plugin install $PluginSelector --scope user
 }
 else {
     Write-Warning "Claude CLI was not found. Skipping Claude Code."
