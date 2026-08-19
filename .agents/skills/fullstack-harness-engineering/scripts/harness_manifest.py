@@ -445,8 +445,12 @@ def validate_plan(
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
     if schema_version in {4, 5}:
         top_keys.add("graph")
-    # `risks` and `required_reviews` are retained for older plans but no gate,
-    # selector, or scheduler reads them; new plans may omit them entirely.
+    # `risks` is retained for older plans; no gate, selector, or scheduler reads
+    # it. `required_reviews` is read below: whatever review types a PLAN lists
+    # there must exist as graph review nodes. It is a self-declared obligation,
+    # so an empty list was always legal and omitting it is the same thing --
+    # actual review coverage comes from the per-mission singleton review nodes
+    # described in `contract-and-traceability.md`, not from this field.
     plan_optional_keys = {"risks", "required_reviews"}
     if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
         return sorted(errors)
@@ -1439,17 +1443,21 @@ def _validate_runtime_metrics(errors: list[str], run: dict[str, Any]) -> None:
     if value is None:
         return
     required = {
-        "target_reduction_percent",
         "baseline_wall_time_ms",
         "run_wall_time_ms",
         "critical_path_ms",
         "events",
     }
-    if not _keys(errors, "run.runtime_metrics", value, required):
+    # There is no default runtime target. Set one only when a specific run has a
+    # specific agreed goal; an invented number pressures a run toward slicing
+    # missions too small or skipping a gate to make the arithmetic work.
+    if not _keys(
+        errors, "run.runtime_metrics", value, required, {"target_reduction_percent"}
+    ):
         return
 
-    target = value["target_reduction_percent"]
-    if _keys(
+    target = value.get("target_reduction_percent")
+    if target is not None and _keys(
         errors,
         "run.runtime_metrics.target_reduction_percent",
         target,
@@ -1860,11 +1868,16 @@ def _validate_verifier_executions(
                             "must be a lowercase SHA-256 digest",
                         )
         normalized_verifier = item["verifier"]
+        # `execution` and `cache.deterministic_local` are optional declarations
+        # that run_verifier copies into the retained record verbatim. They must
+        # be accepted here or a run that uses them emits evidence its own
+        # validator rejects.
         if not _keys(
             errors,
             f"{path}.verifier",
             normalized_verifier,
             {"id", "cwd", "argv", "pass_signal", "cache"},
+            {"execution"},
         ):
             pass
         else:
@@ -1887,6 +1900,7 @@ def _validate_verifier_executions(
                 f"{path}.verifier.cache",
                 normalized_verifier["cache"],
                 {"mode", "environment_keys"},
+                {"deterministic_local"},
             ):
                 if normalized_verifier["cache"]["mode"] not in {
                     "disabled",
@@ -3398,7 +3412,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.runtime_capabilities.nested_subagents.completion_channel",
                     "must equal agent_result",
                 )
-    if "platform_lifecycle" in runtime:
+    if isinstance(runtime, dict) and "platform_lifecycle" in runtime:
         lifecycle = runtime["platform_lifecycle"]
         if _keys(
             errors,

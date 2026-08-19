@@ -61,7 +61,7 @@ The default performance target is one bounded worker execution per mission, size
 - A worker timeout is interrupted evidence, not a successful checkpoint. The parent may resume only after validating the worktree and deciding whether the remaining work still fits the same mission.
 - Record the estimate and actual elapsed phase timestamps in the human PLAN/RUN view. They are telemetry, not machine authorization and do not change PLAN/RUN schema.
 
-This slice gate supports the runtime-reduction target in `runtime-performance.md` (75% minimum, 85% stretch) by shortening child contexts and failure recovery. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
+This slice gate shortens child contexts and failure recovery. It is not a target to slice toward: past the point where a mission's fixed overhead dominates its useful work, more missions make a run slower. It does not authorize parallel writers in one mission; only independently scoped missions may enter the parallel frontier.
 
 ## UI Build Order
 

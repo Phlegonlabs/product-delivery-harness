@@ -1,6 +1,19 @@
 # Runtime Performance Contract
 
-Use this contract for every PLAN-v5/RUN-v10 execution on Codex, Claude Code, or Pi. The minimum target is 75% less wall time than a comparable recorded baseline; the stretch target is 85%. A target is not a result. Claim it only after a comparable RUN records both baseline and actual wall time.
+Use this contract for every PLAN-v5/RUN-v10 execution on Codex, Claude Code, or Pi.
+
+The goal is to stop paying for the same work twice, not to hit a number. This file carries no percentage target, and one must not be added back without a measurement behind it. An earlier revision carried invented reduction figures that had never been measured against anything, and chasing a made-up number is how a run ends up slicing missions too small or skipping a gate to make the arithmetic work. Remove repeated work, then measure what that bought.
+
+Repeated work, in the order it usually costs the most:
+
+1. Re-dispatching a reviewer against a commit an earlier review already passed.
+2. Re-running a deterministic local verifier whose inputs did not change.
+3. Serializing verifiers that never contend for a resource.
+4. Making a finished mission wait on a slower sibling before it can integrate.
+5. Re-reading state the parent could have read once.
+6. Re-capturing evidence for a surface the merge did not touch.
+
+Each has a rule below or in `verification-gates.md`. None of them weakens authorization, isolation, exact-SHA review, evidence, or final validation.
 
 Performance work never weakens authorization, isolation, scope, exact-SHA review, integration, evidence, or final validation.
 
@@ -71,14 +84,9 @@ RUN-v10 may include `runtime_metrics`. It is observational and never grants auth
 
 Record one append-only event for queue, context render, dispatch, wait, execute, review, verify, and integrate transitions when applicable. Each event records provider, node/attempt identity, phase, terminal status, timestamps, duration, wait time, input/output/cached tokens, and context bytes. Unknown values remain `null`; do not estimate them.
 
-At closeout record:
+At closeout record `run_wall_time_ms` and `critical_path_ms`. Record `baseline_wall_time_ms` only when a comparable earlier run was actually measured; otherwise leave it null rather than inventing one.
 
-- comparable `baseline_wall_time_ms`;
-- actual `run_wall_time_ms`;
-- `critical_path_ms`; and
-- target `{ "minimum": 75, "stretch": 85 }`.
-
-Report the measured reduction as `(baseline - actual) / baseline`. If workload, hardware, provider, model tier, or validation scope changed materially, label the comparison non-comparable and collect a new baseline.
+`target_reduction_percent` is optional and carries no default. Set it only when a specific run has a specific agreed goal. Report any reduction as `(baseline - actual) / baseline`, and if workload, hardware, provider, model tier, or validation scope changed materially, label the comparison non-comparable and collect a new baseline.
 
 ## Host Mapping
 

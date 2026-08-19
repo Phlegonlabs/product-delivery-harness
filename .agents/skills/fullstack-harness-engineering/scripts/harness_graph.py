@@ -13,6 +13,7 @@ from harness_core import (
     _optional_string,
     _strings,
     _validate_scope_list,
+    is_full_sha,
     is_safe_model_token,
 )
 from harness_schema import (
@@ -599,6 +600,62 @@ def _validate_graph(
         _add(errors, f"{path}.nodes", f"unreachable nodes: {', '.join(unreachable)}")
 
 
+def _add_integration_review_skip_errors(
+    errors: list[str],
+    state_path: str,
+    node: dict[str, Any],
+    run: dict[str, Any],
+    graph_nodes: dict[str, Any],
+) -> None:
+    """An integration-stage review may be skipped only on an exact SHA match.
+
+    Re-dispatching a reviewer against a commit that a pre-integration review
+    already passed reads a byte-identical tree and reaches the same verdict, and
+    a reviewer dispatch is one of the most expensive steps in a run. Skipping it
+    is safe only when the integration head IS that reviewed commit: same SHA,
+    same review type. Any other integration head is a different tree, so the
+    "did the combination break" question is real and the review must run.
+
+    Without this check ``skipped`` carried no justification at all, so this both
+    enables the short-circuit and closes that hole.
+    """
+
+    integration = run.get("integration")
+    head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
+    if not is_full_sha(head):
+        _add(
+            errors,
+            state_path,
+            "skipped integration review requires a recorded integration_head_sha",
+        )
+        return
+
+    review_type = node["review"].get("type")
+    review_workers = run.get("review_workers")
+    for worker in review_workers if isinstance(review_workers, list) else []:
+        if not isinstance(worker, dict):
+            continue
+        if worker.get("phase") != "worker_passed" or worker.get("outcome") != "pass":
+            continue
+        if worker.get("reviewed_sha") != head:
+            continue
+        source = graph_nodes.get(worker.get("node_id"))
+        if not isinstance(source, dict) or not isinstance(source.get("review"), dict):
+            continue
+        if source["review"].get("stage", "preintegration") != "preintegration":
+            continue
+        if source["review"].get("type") != review_type:
+            continue
+        return
+
+    _add(
+        errors,
+        state_path,
+        "skipped integration review requires a pre-integration PASS of the same"
+        " review type on the exact integration head",
+    )
+
+
 def _validate_graph_state(
     errors: list[str], plan: dict[str, Any], run: dict[str, Any]
 ) -> None:
@@ -674,6 +731,16 @@ def _validate_graph_state(
                 state["bound_worker_id"]
             ):
                 _add(errors, f"{state_path}.bound_worker_id", "is required for a running runtime worker")
+
+            if (
+                node.get("kind") == "verifier"
+                and isinstance(node.get("review"), dict)
+                and node["review"].get("stage") == "integration"
+                and phase == "skipped"
+            ):
+                _add_integration_review_skip_errors(
+                    errors, state_path, node, run, graph_nodes
+                )
 
             if node.get("kind") == "mission" and node.get("ref") in mission_states:
                 mission_state = mission_states[node["ref"]]

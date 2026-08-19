@@ -33,8 +33,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Map one independently testable goal to one mission", skill)
         self.assertIn("one bounded worker slice", skill)
         self.assertIn("10-20 minutes", skill)
-        self.assertIn("75% wall-time reduction", skill)
-        self.assertIn("85% as the stretch target", skill)
+        self.assertIn("no wall-time percentage target", skill)
+        self.assertIn("stop paying for the same work twice", skill)
         self.assertIn("bounded read-only exploration", skill)
         self.assertIn("one explicit `write_scope`", skill)
         self.assertIn("Freeze shared APIs, schemas, and types", skill)
@@ -53,8 +53,13 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         verifier = self.read("scripts/verifier_runtime.py")
 
-        self.assertIn("minimum target is 75%", performance)
-        self.assertIn("stretch target is 85%", performance)
+        # No percentage target: the old 75/85 figures were never measured
+        # against anything, and chasing an invented number pressures a run
+        # toward slicing too small or skipping a gate.
+        self.assertNotIn("75%", performance)
+        self.assertNotIn("85%", performance)
+        self.assertIn("carries no percentage target", performance)
+        self.assertIn("Re-dispatching a reviewer against a commit", performance)
         self.assertIn("context capsule", performance)
         self.assertIn("cursor wait", performance)
         self.assertIn("read-only pre-integration review", performance)
@@ -66,8 +71,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("validate_result.py", performance)
         self.assertIn("never weakens authorization", performance)
         self.assertIn('"runtime_metrics"', runbook)
-        self.assertIn('"minimum": 75', runbook)
-        self.assertIn('"stretch": 85', runbook)
+        self.assertNotIn("target_reduction_percent", runbook)
         self.assertIn("BATCH_PROTOCOL", verifier)
 
     def read(self, relative_path: str) -> str:
