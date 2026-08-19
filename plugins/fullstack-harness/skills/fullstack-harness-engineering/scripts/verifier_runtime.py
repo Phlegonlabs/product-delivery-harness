@@ -20,11 +20,15 @@ from select_verifiers import VerifierSelectionError, normalize_changed_files
 
 PROTOCOL = "harness-verifier-execution-v2"
 BATCH_PROTOCOL = "harness-verifier-batch-v1"
-# PLAN validation already refuses session_exact for these layers
-# (harness_core.py's cache_allowed=False, enforced via harness_manifest.py).
-# That is unreachable through a validated PLAN, but a direct run_verifier call
-# with a hand-built context dict bypasses it, so the runtime enforces the same
-# ban here as defense in depth.
+# Integration, batch, and final gates refuse cache reuse by default, in PLAN
+# validation (harness_core.py's cache_allowed=False) and again here.
+#
+# This is no longer defense in depth against a hand-built request. A verifier
+# may attest `cache.deterministic_local: true` to reuse at these layers, and
+# that flag travels inside the same request this check would otherwise guard.
+# A caller who hand-builds a final-layer request can therefore assert its way
+# past the ban. The real protection is PLAN validation of a declared verifier;
+# what remains here is a default for anything that did not make the claim.
 CACHE_BANNED_LAYERS = {"mission_integration", "batch", "final"}
 CACHE_ENTRY_FIELDS = {
     "protocol",

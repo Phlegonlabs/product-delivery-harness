@@ -81,7 +81,22 @@ def observe(repo_root: Path, plan: dict[str, Any], run: dict[str, Any]) -> dict[
     recorded_digest = (run.get("plan") or {}).get("digest_sha256")
     live_digest = plan_digest(plan)
 
+    adapter = (run.get("runtime_capabilities") or {}).get("runtime_adapter") or {}
+
     return {
+        "capability": {
+            "detection_source": adapter.get("detection_source"),
+            "available_drivers": adapter.get("available_drivers"),
+            "configured_max_parallel_workers": (
+                run.get("runtime_capabilities") or {}
+            ).get("max_parallel_workers"),
+            "observed_worker_slots": (
+                (run.get("observed") or {}).get("runtime") or {}
+            ).get("available_worker_slots"),
+            "observed_isolation_capacity": (
+                (run.get("observed") or {}).get("runtime") or {}
+            ).get("isolation_capacity"),
+        },
         "plan": {
             "recorded_revision": (run.get("plan") or {}).get("revision"),
             "live_revision": plan.get("revision"),
@@ -124,6 +139,14 @@ def blocking_notes(observed: dict[str, Any]) -> list[str]:
     if observed["git"]["dirty"]:
         notes.append(
             "parent checkout is dirty; attribute every path before dispatching a writer"
+        )
+    capability = observed["capability"]
+    if capability["detection_source"] == "fallback":
+        notes.append(
+            "runtime capability was never observed (detection_source: fallback);"
+            " this run will execute one mission at a time regardless of how many"
+            " are ready. Probe the host and record slots, isolation capacity, and"
+            " available drivers before dispatch"
         )
     if not observed["integration"]["recorded_batch_base_sha"]:
         notes.append("integration.batch_base_sha is unset; record it before dispatch")

@@ -161,6 +161,29 @@ class StreamingGuardTests(unittest.TestCase):
 
 
 class HarnessVersionTests(unittest.TestCase):
+    def test_version_ignores_an_unrelated_package_json(self) -> None:
+        # A standalone skill install has no package.json above it. Walking on
+        # would record whatever app owns the user's home directory into
+        # version_gate.required_harness_version.
+        import json
+        import tempfile
+        from pathlib import Path
+
+        import new_run
+
+        root = Path(tempfile.mkdtemp())
+        (root / "package.json").write_text(
+            json.dumps({"name": "unrelated", "version": "9.9.9"}), encoding="utf-8"
+        )
+        standalone = root / "agent" / "skills" / "harness" / "scripts"
+        standalone.mkdir(parents=True)
+        original = new_run.__file__
+        try:
+            new_run.__file__ = str(standalone / "new_run.py")
+            self.assertEqual("0.0.0", new_run._harness_version())
+        finally:
+            new_run.__file__ = original
+
     def test_version_resolves_from_the_nearest_package_json(self) -> None:
         # A fixed parent depth resolved correctly only in the canonical tree;
         # the shipped plugin copy silently recorded "0.0.0" in the very field

@@ -93,6 +93,31 @@ class HarnessStepTests(unittest.TestCase):
         self.assertIn("available worker slots and isolation capacity", remaining)
         self.assertIn("observed provider and available runtime drivers", remaining)
 
+    def test_unprobed_capability_is_named_not_silent(self) -> None:
+        # A budget of one looks identical to a deliberate cap. new_run.py seeds
+        # the observation fields with 1 and detection_source "fallback", and if
+        # the parent never replaces them the run goes sequential while reporting
+        # only "over_budget". Say so instead.
+        self.run["runtime_capabilities"]["runtime_adapter"]["detection_source"] = "fallback"
+        write_manifest(self.repo, "RUN.md", {"harness_run": self.run})
+
+        _, payload = self.run_step("--observe-only")
+
+        self.assertEqual("fallback", payload["observed"]["capability"]["detection_source"])
+        self.assertTrue(
+            any("never observed" in note for note in payload["notes"])
+        )
+
+    def test_observed_capability_is_not_flagged(self) -> None:
+        self.run["runtime_capabilities"]["runtime_adapter"]["detection_source"] = "observed"
+        write_manifest(self.repo, "RUN.md", {"harness_run": self.run})
+
+        _, payload = self.run_step("--observe-only")
+
+        self.assertFalse(
+            any("never observed" in note for note in payload["notes"])
+        )
+
     def test_dirty_checkout_is_reported_with_its_paths(self) -> None:
         (self.repo / "scratch.txt").write_text("x\n", encoding="utf-8")
 
