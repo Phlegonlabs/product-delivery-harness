@@ -13,6 +13,25 @@ All three adapters use the same four invariants:
 3. As soon as one active-wave mission reaches `worker_passed`, dispatch its dependency-ready read-only pre-integration review, and integrate that mission once the review PASSes. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is validated and the wave closes.
 4. Run independent local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. Batching is the default: a verifier that declares no resource cannot contend with another that declares none. Serialization is opt-in, through a resource claim or an explicit `execution.parallel_safe: false`. Use batch mode at the task and worker gates too, not only the batch gate.
 
+## Parent Turn Boundaries
+
+The contract fixes the order of mutating actions. It does not fix how many parent turns those actions take, and reading it one command at a time inflated a three-mission run to roughly thirty parent round-trips when about half that is enough.
+
+Batch into one turn:
+
+- the pre-launch re-observation list, plus authorization recheck, plus node selection — one `scripts/harness_step.py` call;
+- validating a returned node result and worker result — one `scripts/validate_result.py` call;
+- the selector re-run that a terminal result triggers, folded into the same turn that validated that result;
+- serial merges of several already-review-PASSed missions — several Git operations, one parent decision.
+
+These stay their own stop, because the parent must look at new evidence before deciding:
+
+- a worker result checked against live Git facts;
+- a review verdict, PASS or `fix_required`;
+- each gate result.
+
+Batching reads never merges two mutations, skips a target recheck, or lets a script write PLAN, RUN, or Git.
+
 ## Bounded Context Capsule
 
 The parent renders one bounded context packet per node containing:
