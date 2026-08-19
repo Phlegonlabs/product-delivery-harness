@@ -209,7 +209,9 @@ Given semantically identical canonical inputs, selection must be byte-for-byte s
 
 ## Parent Launch Gate
 
-Before using a proposal, the parent re-observes:
+Before using a proposal, the parent re-observes the list below. This is one batched turn, not one turn per bullet: run `scripts/harness_step.py --plan <PLAN.md> --run <RUN.md> --repo-root <root>` to derive every manifest- and Git-derivable fact and the ready frontier in a single read-only call, then observe the host-only facts it names under `still_observe_yourself`. The contract fixes the order of mutating actions, never the number of parent turns spent reading.
+
+The facts:
 
 - Plan revision and digest.
 - Integration branch and committed `batch_base_sha`.
@@ -221,6 +223,8 @@ Before using a proposal, the parent re-observes:
 - The selected parent permission mode/profile, worker inheritance, and every required filesystem/network/local surface.
 
 If anything differs, discard the proposal and rerun selection. Launch workers with leases bound to the accepted plan revision/digest and base SHA.
+
+Recording the accepted wave and batch base, minting worker/branch/worktree identities, and re-checking each exact target immediately before its own mutation stay parent actions. `harness_step.py` is read-only and records nothing.
 
 When the proposal is empty only because launch actions are unauthorized, request the preferred route's exact bundle once with run-wide mission scope and pre-allocation `targets: ["*"]`, then pause. After the answer is recorded, rerun validation and selection. If the System Review And Route selected no-agent execution, use `sequential_parent` directly and do not request `spawn_subagents` or report a delegated launch. For an agent-capable route, use sequential fallback only after the user declines or a non-authorization capability, isolation, permission, dependency, conflict, or resource gate prevents the wave.
 

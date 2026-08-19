@@ -59,6 +59,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("cursor wait", performance)
         self.assertIn("read-only pre-integration review", performance)
         self.assertIn("execution.parallel_safe", performance)
+        # Turn count is a runtime cost like any other; pin the contract that
+        # says which reads batch and which stay their own stop.
+        self.assertIn("Parent Turn Boundaries", performance)
+        self.assertIn("harness_step.py", performance)
+        self.assertIn("validate_result.py", performance)
         self.assertIn("never weakens authorization", performance)
         self.assertIn('"runtime_metrics"', runbook)
         self.assertIn('"minimum": 75', runbook)

@@ -184,7 +184,7 @@ Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, one bounded w
 
 ### 4. Execute And Integrate
 
-Select the ready frontier only after the runtime version gate is `current` or an already-active `compatible_old` wave is reaching its boundary. Follow the active adapter and bind each worker to the exact plan digest, lease, base, worktree, write scope, resources, skills, verifier, permission boundary, and completion channel. Validate results from live facts, review the exact head, repair in the original mission worktree, re-review a changed head, and integrate passing heads serially.
+Select the ready frontier only after the runtime version gate is `current` or an already-active `compatible_old` wave is reaching its boundary. Follow the active adapter and bind each worker to the exact plan digest, lease, base, worktree, write scope, resources, skills, verifier, permission boundary, and completion channel. Validate results from live facts, review the exact head, repair in the original mission worktree, re-review a changed head, and integrate passing heads serially. Use `scripts/harness_step.py` to re-observe and select in one read-only call, and `scripts/validate_result.py` to validate a graph-backed payload in one; see `references/runtime-performance.md`'s Parent Turn Boundaries for what batches and what stays its own stop.
 
 ### 5. Verify Local-First
 
