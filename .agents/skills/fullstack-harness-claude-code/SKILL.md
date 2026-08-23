@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-claude-code
-description: "Launch PLAN-v5/RUN-v10 Harness nodes from a Claude Code host. Use only after the shared core classifies work as large and selects Claude orchestration. This adapter probes Dynamic Workflow and direct Agent capability, maps PLAN model options, and launches exact authorized nodes; it does not own shared state, review, integration, handoff, or cleanup."
+description: "Launch PLAN-v6/RUN-v11 Harness nodes from a Claude Code host. Use only after the shared core classifies work as large and selects Claude orchestration. This adapter probes Dynamic Workflow and direct Agent capability, maps PLAN model options, and launches exact authorized nodes; it does not own shared state, review, integration, handoff, or cleanup."
 ---
 
 # Full-Stack Harness: Claude Code Adapter
@@ -55,7 +55,7 @@ The workflow contains flat parent-owned siblings. Workers and reviewers do not d
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Claude queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Claude queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v11 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Provider Boundary
 

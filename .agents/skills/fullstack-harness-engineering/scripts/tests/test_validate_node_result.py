@@ -174,15 +174,13 @@ class ValidateNodeResultTests(unittest.TestCase):
                     errors = validate_node_result(plan, run, result)
 
                 self.assertIn(
-                    "node result validation requires PLAN v5 with RUN v10",
+                    "node result validation requires PLAN v6 with RUN v11",
                     errors,
                 )
 
-    def test_plan_v5_run_v10_pair_uses_graph_node_result_validation(self) -> None:
+    def test_plan_v6_run_v11_pair_uses_graph_node_result_validation(self) -> None:
         plan = valid_graph_plan()
-        plan["schema_version"] = 5
         run = valid_graph_run(plan)
-        run["schema_version"] = 10
         result = running_result(plan, run)
 
         with patch("validate_node_result.validate_plan", return_value=[]), patch(

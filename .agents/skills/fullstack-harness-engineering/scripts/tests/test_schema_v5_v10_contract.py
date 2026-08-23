@@ -20,7 +20,7 @@ from harness_core import load_plan, load_run  # noqa: E402
 from harness_manifest import validate_plan, validate_run  # noqa: E402
 
 
-class SchemaV5V10ContractTests(unittest.TestCase):
+class SchemaV6V11ContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
@@ -41,11 +41,11 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
         for content in (skill, plan):
-            self.assertIn("PLAN schema v5", content)
+            self.assertIn("PLAN schema v6", content)
         for content in (skill, run):
-            self.assertIn("RUN schema v10", content)
-        self.assertIn('"schema_version": 5', plan)
-        self.assertIn('"schema_version": 10', run)
+            self.assertIn("RUN schema v11", content)
+        self.assertIn('"schema_version": 6', plan)
+        self.assertIn('"schema_version": 11', run)
         self.assertIn("Older PLAN schemas remain readable", plan)
         self.assertIn("Older RUN schemas remain readable", run)
         for stale in ("current-v4", "current-v9"):
@@ -118,8 +118,8 @@ class SchemaV5V10ContractTests(unittest.TestCase):
         self.assertIn("targeted UI-evidence decoding error", verification)
         self.assertIn("without preventing non-UI CLIs from starting", verification)
         self.assertIn("accepted Git `head_sha`", verification)
-        self.assertIn("PLAN v5", readme)
-        self.assertIn("RUN v10", readme)
+        self.assertIn("PLAN v6", readme)
+        self.assertIn("RUN v11", readme)
         self.assertIn("`design-system.md`, `design-system.json`", readme)
 
 

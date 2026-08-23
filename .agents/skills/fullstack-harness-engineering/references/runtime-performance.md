@@ -1,6 +1,6 @@
 # Runtime Performance Contract
 
-Use this contract for every PLAN-v5/RUN-v10 execution on Codex, Claude Code, or Pi.
+Use this contract for every PLAN-v6/RUN-v11 execution on Codex, Claude Code, or Pi.
 
 The goal is to stop paying for the same work twice, not to hit a number. This file carries no percentage target, and one must not be added back without a measurement behind it. An earlier revision carried invented reduction figures that had never been measured against anything, and chasing a made-up number is how a run ends up slicing missions too small or skipping a gate to make the arithmetic work. Remove repeated work, then measure what that bought.
 
@@ -80,7 +80,7 @@ Declare a resource for anything that binds a port, mutates a database, drives a 
 
 ## Machine Telemetry
 
-RUN-v10 may include `runtime_metrics`. It is observational and never grants authorization or satisfies a gate.
+RUN-v11 may include `runtime_metrics`. It is observational and never grants authorization or satisfies a gate.
 
 Record one append-only event for queue, context render, dispatch, wait, execute, review, verify, and integrate transitions when applicable. Each event records provider, node/attempt identity, phase, terminal status, timestamps, duration, wait time, input/output/cached tokens, and context bytes. Unknown values remain `null`; do not estimate them.
 

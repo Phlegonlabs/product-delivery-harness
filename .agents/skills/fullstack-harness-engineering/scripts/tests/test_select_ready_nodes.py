@@ -193,7 +193,38 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
     run = json.loads(
         (fixture_root / "legacy_ui_template_run.json").read_text(encoding="utf-8")
     )["harness_run"]
+    plan["schema_version"] = 6
+    for node in plan["graph"]["nodes"]:
+        review = node.get("review")
+        if isinstance(review, dict):
+            review["lineage_id"] = f"REVIEW-{node['id']}"
+    run["schema_version"] = 11
+    run["control"] = {
+        "desired_state": "running",
+        "requested_at": None,
+        "source": None,
+        "acknowledged_at": None,
+    }
+    run["integration"]["coordination_paths"] = [
+        "docs/goal/PLAN.md",
+        "docs/goal/RUN.md",
+        "docs/goal/DECISIONS.md",
+    ]
+    run["review_lineages"] = {
+        node["review"]["lineage_id"]: {
+            "review_type": node["review"]["type"],
+            "mission_ids": node["review"]["mission_ids"],
+            "base_allowance": node["max_attempts"],
+            "additional_allowance": 0,
+            "consumed_attempts": 0,
+            "failure_families": [],
+            "owner_decisions": [],
+        }
+        for node in plan["graph"]["nodes"]
+        if isinstance(node.get("review"), dict)
+    }
     digest = plan_digest(plan)
+    run["plan"]["digest_sha256"] = digest
     authorize_execution(run, ["M1"], status="ready", plan=plan, digest=digest)
     run["runtime_capabilities"].update(
         {
@@ -1513,6 +1544,9 @@ class SelectReadyNodesTests(unittest.TestCase):
         nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
         # Two missions makes this a batch review, not a direct singleton one.
         nodes[node_id]["review"]["mission_ids"] = ["M1", "M3"]
+        run["review_lineages"][nodes[node_id]["review"]["lineage_id"]][
+            "mission_ids"
+        ] = ["M1", "M3"]
         digest = plan_digest(plan)
         run["plan"]["digest_sha256"] = digest
         run["execution_authorization_scope"]["plan_digest_sha256"] = digest
@@ -1645,7 +1679,6 @@ class SelectReadyNodesTests(unittest.TestCase):
         edge_states["E-VISUAL-REPAIR-REREVIEW"].update(
             {"status": "traversed", "traversals": 1, "source_attempt_id": "ATT-REPAIR-REVIEW-1"}
         )
-
         rearmed = _logical_reasons(
             next(n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW"),
             plan,
@@ -1682,6 +1715,10 @@ class SelectReadyNodesTests(unittest.TestCase):
         edge_states["E-VISUAL-REPAIR-REREVIEW"].update(
             {"status": "traversed", "traversals": 1, "source_attempt_id": "ATT-REPAIR-REVIEW-1"}
         )
+        lineage_id = next(
+            n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW"
+        )["review"]["lineage_id"]
+        run["review_lineages"][lineage_id]["consumed_attempts"] = 2
 
         reasons = _logical_reasons(
             next(n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW"),
@@ -1689,7 +1726,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             run,
             *_incoming(plan),
         )
-        self.assertIn("attempts_exhausted", reasons)
+        self.assertIn("review_lineage_exhausted", reasons)
         self.assertIn("node_phase_not_ready", reasons)
 
     def test_traversed_edge_requires_an_outcome_the_edge_declares(self) -> None:
@@ -1840,7 +1877,7 @@ class SelectReadyNodesTests(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "RUN-v10 forbids worker-owned delegation" in error
+                "RUN-v11 forbids worker-owned delegation" in error
                 for error in validate_run(plan, run)
             )
         )
@@ -2385,6 +2422,9 @@ class SelectReadyNodesTests(unittest.TestCase):
             "minimum_host_version": None,
             "harness_version": "0.5.0",
             "required_harness_version": "0.6.0",
+            "session_id": "test-session",
+            "loaded_contract_digest": "a" * 64,
+            "installed_contract_digest": "a" * 64,
             "status": "compatible_old",
             "evidence": "old runtime remains compatible for the active wave",
         }
@@ -2410,6 +2450,9 @@ class SelectReadyNodesTests(unittest.TestCase):
                     "minimum_host_version": None,
                     "harness_version": "0.5.0",
                     "required_harness_version": "0.6.0",
+                    "session_id": "test-session",
+                    "loaded_contract_digest": "a" * 64,
+                    "installed_contract_digest": "a" * 64,
                     "status": status,
                     "evidence": f"test version state: {status}",
                 }
@@ -2478,7 +2521,7 @@ class SelectReadyNodesTests(unittest.TestCase):
                         select_ready_nodes(plan, run)
 
                 self.assertIn(
-                    "typed graph selection requires PLAN v5 with RUN v10",
+                    "typed graph selection requires PLAN v6 with RUN v11",
                     str(ctx.exception),
                 )
 

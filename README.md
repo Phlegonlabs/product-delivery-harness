@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.6.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.7.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -36,7 +36,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 ## Core guarantees
 
 - **Small work stays small.** One bounded change uses a direct inspect, implement, verify, and review loop.
-- **Large work is explicit.** PLAN v5 defines the typed graph; RUN v10 records authorization, attempts, and evidence.
+- **Large work is explicit.** PLAN v6 defines the typed graph; RUN v11 records authorization, attempts, and evidence.
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
 - **Capability is not permission.** A runtime may be able to push or clean up, but each action still needs exact authorization.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
@@ -88,13 +88,13 @@ The Harness is built around explicit boundaries:
 5. Verify task results, integrations, UI journeys where relevant, and the final diff. A single mission has no invented cross-mission batch gate.
 6. Stop with verified local evidence by default. If a remote outcome is explicitly requested, push the run's own branch only with exact remote intent plus branch/head authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
 
-For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v10 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
+For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v11 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
 
 ```mermaid
 flowchart TB
   Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
   Size -->|small| Direct["Direct parent work<br/>no PLAN/RUN, no scheduler"]
-  Size -->|large| Plan["PLAN v5 + RUN v10<br/>frozen contracts, authorization ledger"]
+  Size -->|large| Plan["PLAN v6 + RUN v11<br/>frozen contracts, authorization ledger"]
   Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
   Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
   Frontier --> Host["One host adapter: codex, claude_code, or pi<br/>no cross-host fallback"]
@@ -133,7 +133,7 @@ One run has one active host. A same-repository handoff is allowed only after Hos
 The skills use two graph layers:
 
 - The **org graph** is the stable role contract: product, architecture, UX, design-system, mission-worker, reviewer, approval, integration, and lifecycle responsibilities.
-- The **work graph** is the temporary task graph for one run. PRD and design workflows use bounded analysis graphs only when the host can enforce a `builder_readonly` tool profile; otherwise they fall back to the sequential parent. Engineering uses the canonical PLAN v5 graph and RUN v10 state.
+- The **work graph** is the temporary task graph for one run. PRD and design workflows use bounded analysis graphs only when the host can enforce a `builder_readonly` tool profile; otherwise they fall back to the sequential parent. Engineering uses the canonical PLAN v6 graph and RUN v11 state.
 
 Interviews and approvals stay outside running workflows because Claude Code Dynamic Workflows cannot ask for mid-run user input. The parent freezes inputs first, runs a bounded workflow, then owns staged writes, conflict resolution, approval, and publication.
 
@@ -344,6 +344,7 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
+- **0.7.0** — Upgraded managed work to PLAN v6 / RUN v11 with durable pause/cancel control, cross-revision review lineages and owner grants, candidate-head tolerance for coordination-only commits, loaded/installed contract digests, guarded transition commands, and bounded review packets.
 - **0.6.0** — Added a shared runtime upgrade gate for Codex, Claude Code, and Pi. RUN-v10 records host/Harness versions, lets only an already-active compatible-old wave reach its boundary, blocks incompatible or restart-pending sessions, and resumes unfinished work with a fresh attempt after update and re-probe. The updater now supports Pi packages; host binary updates and standalone Pi skill migration stay explicit.
 - **0.5.0** — Reduced managed-run overhead across Codex, Claude Code, and Pi with bounded fresh context, event-driven completion, active-wave streaming review, resource-safe parallel verifier batches, exact session caching, effort routing, smaller task slices, and RUN-v10 runtime telemetry. The measured target is 75% less wall time, with 85% as the stretch target; authorization and exact-SHA gates are unchanged.
 - **0.4.0** — Added repository-local design-image discovery and connected Impeccable concept generation to the Product Design Builder visual-direction gate. Creation mode now requires `product-design-builder`, `impeccable`, and `frontend-design`, while the existing PRD and three-file design package remain the only canonical product and design sources.

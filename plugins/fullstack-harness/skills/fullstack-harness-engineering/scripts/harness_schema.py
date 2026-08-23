@@ -129,7 +129,11 @@ PERMISSION_NETWORK_SCOPES = {"disabled", "filtered", "open", "unknown"}
 PERMISSION_LOCAL_BINDINGS = {"allowed", "blocked", "unknown"}
 PERMISSION_INHERITANCE = {"inherited", "not_inherited", "unknown"}
 PERMISSION_STATUSES = {"ready", "may_prompt", "blocked", "unknown"}
-SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9, 10}
+SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+CURRENT_PLAN_SCHEMA_VERSION = 6
+CURRENT_RUN_SCHEMA_VERSION = 11
+CURRENT_SCHEMA_PAIR = (CURRENT_PLAN_SCHEMA_VERSION, CURRENT_RUN_SCHEMA_VERSION)
+RUN_CONTROL_STATES = {"running", "paused", "cancelled"}
 UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # `push` is the only action bound to an exact head SHA: it publishes one verified
 # commit. Every other action either mutates local state or cleans it up.

@@ -65,7 +65,7 @@ const subagentActivitySchema = {
   type: "object",
   required: ["status", "skip_reason", "children"],
   properties: {
-    // RUN-v10 is flat: every current worker reports this shape and no child
+    // RUN-v11 is flat: every current worker reports this shape and no child
     // entries. Legacy v6-v9 manifests are validated by the compatibility path.
     status: { enum: ["not_applicable"] },
     skip_reason: { type: "string" },

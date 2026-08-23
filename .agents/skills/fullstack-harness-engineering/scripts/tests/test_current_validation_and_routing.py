@@ -41,7 +41,7 @@ class CurrentValidationAndRoutingTests(unittest.TestCase):
             errors = validate_current_plan_run(plan, run)
 
         self.assertEqual(
-            ["current PLAN/RUN validation requires PLAN v5 with RUN v10"], errors
+            ["current PLAN/RUN validation requires PLAN v6 with RUN v11"], errors
         )
         validate_plan_mock.assert_not_called()
         validate_run_mock.assert_not_called()
@@ -60,7 +60,7 @@ class CurrentValidationAndRoutingTests(unittest.TestCase):
         self.assertEqual([], validate_plan(plan))
         self.assertEqual([], validate_run(plan, run))
         self.assertEqual(
-            ["current PLAN/RUN validation requires PLAN v5 with RUN v10"],
+            ["current PLAN/RUN validation requires PLAN v6 with RUN v11"],
             validate_current_plan_run(plan, run),
         )
 

@@ -2,7 +2,7 @@
 
 Use this template as `docs/goal/RUN.md` only after the parent-only, read-only `System Review And Route` classifies the work as large and routes it into the managed graph. Small direct work does not instantiate this file. Keep mutable authorization, observed runtime facts, mission/task phases, worker state, verification, blockers, and closeout here; keep static definitions in `PLAN.md`. A large managed route executes one mission at a time when it is sequential; this template is not a new authoring route for legacy compact state.
 
-All new managed work uses PLAN schema v5 plus RUN schema v10 (RUN-v10). Older RUN schemas remain readable through the compatibility path. Legacy compact RUN-only files remain readable and validatable through the compatibility path, but cannot authorize new managed execution or enter the current graph. A large no-agent route is still PLAN/RUN-backed: its PLAN mission remains `executor: runtime_worker`, and RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation. This is not a delegated or spawned worker and does not require `spawn_subagents`; it is the required large no-agent path.
+All new managed work uses PLAN schema v6 plus RUN schema v11 (RUN-v11). Older RUN schemas remain readable through the compatibility path. Legacy compact RUN-only files remain readable and validatable through the compatibility path, but cannot authorize new managed execution or enter the current graph. A large no-agent route is still PLAN/RUN-backed: its PLAN mission remains `executor: runtime_worker`, and RUN records a parent-owned binding with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation. This is not a delegated or spawned worker and does not require `spawn_subagents`; it is the required large no-agent path.
 
 The System Review And Route stage completes before this file exists. It is parent-only and read-only: no task-specific skill, adapter/model selection, worker preflight, PLAN/RUN creation, external runtime, or worker launch occurs during that stage.
 
@@ -15,12 +15,12 @@ A managed-sequential route is selected when fewer than two safe write missions a
 ```json
 {
   "harness_run": {
-    "schema_version": 10,
+    "schema_version": 11,
     "run_id": "RUN-<stable-id>",
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "0ac165caab594c274b83591111266c3ebd3928dcfba4e1b3c0cae3335b7fa846"
+      "digest_sha256": "a3103eaad4e2a1d77e7309e108b2ae98fa48eaee421de62cf980e515df9f376b"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -28,6 +28,12 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "execution_authorized": false,
     "execution_authorization_source": null,
     "execution_authorization_scope": null,
+    "control": {
+      "desired_state": "running",
+      "requested_at": null,
+      "source": null,
+      "acknowledged_at": null
+    },
     "authorizations": {
       "invoke_external_runtime": {"authorized": false, "source": null},
       "spawn_subagents": {"authorized": false, "source": null},
@@ -55,7 +61,10 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.6.0",
+          "required_harness_version": "0.7.0",
+          "session_id": null,
+          "loaded_contract_digest": null,
+          "installed_contract_digest": null,
           "status": "unobserved",
           "evidence": "Runtime and Harness versions have not been observed yet"
         }
@@ -92,7 +101,8 @@ A managed-sequential route is selected when fewer than two safe write missions a
       "retention": "ephemeral",
       "batch_base_sha": null,
       "integration_head_sha": null,
-      "prior_head_shas": []
+      "prior_head_shas": [],
+      "coordination_paths": ["docs/goal/PLAN.md", "docs/goal/RUN.md", "docs/goal/DECISIONS.md"]
     },
     "batch_gate_results": [],
     "final_gate_results": [
@@ -164,6 +174,17 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "closed_waves": [],
     "workers": [],
     "review_workers": [],
+    "review_lineages": {
+      "REVIEW-M1": {
+        "review_type": "backend_code",
+        "mission_ids": ["M1"],
+        "base_allowance": 2,
+        "additional_allowance": 0,
+        "consumed_attempts": 0,
+        "failure_families": [],
+        "owner_decisions": []
+      }
+    },
     "workflow_runs": [],
     "verifier_executions": [],
     "runtime_metrics": {
@@ -179,11 +200,13 @@ A managed-sequential route is selected when fewer than two safe write missions a
 
 The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN.
 
-RUN schema v10 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes the exact action and its target. `push` remains separate, exact-branch/head-bound, and remote intent is never implied by local execution; a separate explicit remote intent is required. `integration_push` is the remote end state and `landing.pushed_head_sha` records the verified branch head. A separate explicit remote instruction is required before moving there; keep the phrase separate remote intent in the checkpoint. Legacy RUN schemas remain readable with their historical ledger and result shapes; do not copy their weaker fields into a new run. RUN-v10 workers never delegate; all reviews are parent-dispatched graph nodes. The dynamic_workflow and app_threads adapters are transport choices, not execution routes; their typed `mission_write` profile, `EnterWorktree` handoff, and task creation `model`/`thinking` fields remain adapter-specific. App task creation passes the task creation `model` and `thinking` values only after the parent proves the route.
+Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `reconcile-interrupted`, `record-review-attempt`, and `grant-review-attempts`. These transitions validate the full pair and replace RUN atomically. A resume fails while a worker is still recorded active. Use `scripts/render_review_packet.py` to produce the exact-head reviewer handoff with a bounded diff.
+
+RUN schema v11 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes the exact action and its target. `push` remains separate, exact-branch/head-bound, and remote intent is never implied by local execution; a separate explicit remote intent is required. `integration_push` is the remote end state and `landing.pushed_head_sha` records the verified branch head. A separate explicit remote instruction is required before moving there; keep the phrase separate remote intent in the checkpoint. Legacy RUN schemas remain readable with their historical ledger and result shapes; do not copy their weaker fields into a new run. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes. The dynamic_workflow and app_threads adapters are transport choices, not execution routes; their typed `mission_write` profile, `EnterWorktree` handoff, and task creation `model`/`thinking` fields remain adapter-specific. App task creation passes the task creation `model` and `thinking` values only after the parent proves the route.
 
 When the selected driver is `sequential_parent`, keep the PLAN mission's `executor: runtime_worker` and use `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result`. This parent-owned executor/worker binding is solely for lease/state validation; it is not a delegated launch and does not require `spawn_subagents`. If the required parent-managed worktree is unavailable or unauthorized, block rather than writing in `shared_checkout`.
 
-For a managed-sequential route, prove the chosen driver and exact host axes, allocate one isolated writer, bind the lease to PLAN revision/digest and batch base, validate changed files against write/deny scope, retain commits and observed head, and run the direct singleton pre-integration review before integration. The absence of a cross-mission batch gate does not remove any of those checks. If the selector returns `parallel_graph`, follow `references/parallel-mission-selection.md` and record only real cross-mission checks that apply. A focused verifier may use `session_exact` only for a clean, cache-safe command with a repository-external cache; broad regression runs after exact-SHA code review and repair loops converge. Record evidence against the exact head with lowercase SHA-256 values under `docs/goal/evidence/`; for RUN-v10 UI proof, read and safely decode each artifact from its recorded accepted Git commit/ref before comparing `artifact_sha256`, while RUN-v9 remains working-tree compatible. UI proof uses breakpoint-by-state artifacts when applicable.
+For a managed-sequential route, prove the chosen driver and exact host axes, allocate one isolated writer, bind the lease to PLAN revision/digest and batch base, validate changed files against write/deny scope, retain commits and observed head, and run the direct singleton pre-integration review before integration. The absence of a cross-mission batch gate does not remove any of those checks. If the selector returns `parallel_graph`, follow `references/parallel-mission-selection.md` and record only real cross-mission checks that apply. A focused verifier may use `session_exact` only for a clean, cache-safe command with a repository-external cache; broad regression runs after exact-SHA code review and repair loops converge. Record evidence against the exact head with lowercase SHA-256 values under `docs/goal/evidence/`; for RUN-v11 UI proof, read and safely decode each artifact from its recorded accepted Git commit/ref before comparing `artifact_sha256`, while RUN-v9 remains working-tree compatible. UI proof uses breakpoint-by-state artifacts when applicable.
 
 ## Goal And Checkpoint
 

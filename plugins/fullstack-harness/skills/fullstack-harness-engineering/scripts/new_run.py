@@ -30,6 +30,7 @@ from harness_manifest import (
     plan_digest,
     validate_plan,
 )
+from harness_contract import contract_digest
 
 def _harness_version() -> str:
     """Read the packaged Harness version from the nearest package.json.
@@ -140,7 +141,7 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
     missions = plan.get("missions", []) or []
 
     return {
-        "schema_version": 10,
+        "schema_version": 11,
         "run_id": run_id,
         "plan": {
             "id": plan["plan_id"],
@@ -153,6 +154,12 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
         "execution_authorized": False,
         "execution_authorization_source": None,
         "execution_authorization_scope": None,
+        "control": {
+            "desired_state": "running",
+            "requested_at": None,
+            "source": None,
+            "acknowledged_at": None,
+        },
         "authorizations": {
             key: {"authorized": False, "source": None} for key in AUTHORIZATION_KEYS
         },
@@ -170,6 +177,9 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                     "minimum_host_version": None,
                     "harness_version": None,
                     "required_harness_version": _harness_version(),
+                    "session_id": None,
+                    "loaded_contract_digest": None,
+                    "installed_contract_digest": contract_digest(),
                     "status": "unobserved",
                     "evidence": "Runtime and Harness versions have not been observed yet",
                 },
@@ -207,6 +217,11 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
             "batch_base_sha": None,
             "integration_head_sha": None,
             "prior_head_shas": [],
+            "coordination_paths": [
+                "docs/goal/PLAN.md",
+                "docs/goal/RUN.md",
+                "docs/goal/DECISIONS.md",
+            ],
         },
         "batch_gate_results": _gate_results(plan.get("batch_verifiers")),
         "final_gate_results": _gate_results(plan.get("final_gates")),
@@ -260,6 +275,23 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
         "closed_waves": [],
         "workers": [],
         "review_workers": [],
+        "review_lineages": {
+            node["review"]["lineage_id"]: {
+                "review_type": node["review"]["type"],
+                "mission_ids": node["review"]["mission_ids"],
+                "base_allowance": node["max_attempts"],
+                "additional_allowance": 0,
+                "consumed_attempts": 0,
+                "failure_families": [],
+                "owner_decisions": [],
+            }
+            for node in nodes
+            if isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+            and isinstance(node.get("review"), dict)
+            and isinstance(node["review"].get("lineage_id"), str)
+        },
         "workflow_runs": [],
         "verifier_executions": [],
         "runtime_metrics": None,

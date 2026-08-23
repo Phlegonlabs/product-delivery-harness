@@ -19,7 +19,7 @@ Use the smallest reliable proof first:
 10. If deterministic checks are impossible, use structured review and name residual risk.
 ```
 
-For RUN-v10 screenshot evidence, the order is immutable Git blob read, safe byte-based decode, then `artifact_sha256` comparison. RUN-v9 keeps its historical working-tree check.
+For RUN-v11 screenshot evidence, the order is immutable Git blob read, safe byte-based decode, then `artifact_sha256` comparison. RUN-v9 keeps its historical working-tree check.
 
 ## Gate Levels
 
@@ -124,7 +124,7 @@ Task and worker verifiers select against their own task or mission write scope. 
 
 The parent supplies normalized, repository-relative observed paths to `select_verifiers.py`. A targeted verifier is `not_applicable` only when no observed path matches its exact path or `/**` subtree. Invalid or incomplete parent observations fail safe by requiring every declared verifier.
 
-Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v10 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
+Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v11 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
 
 Every applicable declared verifier runs through `verifier_runtime.py`'s `run_verifier()`, cache configured or not; its returned `execution_key` is the worker result's reported `evidence`. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
 
@@ -237,7 +237,7 @@ Status: PASS | FAIL | BLOCKED | UNVALIDATED
 Notes:
 ```
 
-Every current RUN-v10 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. A PASS is stale as soon as the integration head changes, regardless of the RUN lifecycle state. Markdown evidence rows do not replace these canonical closeout records.
+Every current RUN-v11 PLAN batch and final gate has one canonical `batch_gate_results` or `final_gate_results` entry with the same gate ID, gate status, exact integration head SHA, and non-empty evidence. A PASS is stale as soon as the integration head changes, regardless of the RUN lifecycle state. Markdown evidence rows do not replace these canonical closeout records.
 
 ## Worker Result Gate
 
@@ -283,14 +283,14 @@ Final PASS requires:
 - Closeout runs `scripts/validate_harness_plan.py --design-system <path to design-system.json>` whenever a design system is a contract source, so its `stateMatrix` and responsive set are cross-checked against the PLAN's UI surfaces. Without it, required screenshot coverage is derived from the PLAN's own state list, and a PLAN that declares `ready` alone reaches a PASS closeout with one state of eleven.
 - Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS: RUN.md's own internal consistency never proves the recorded head still matches reality.
 - Every skipped gate is justified.
-- Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. RUN-v10 re-reads the accepted Git blob at the recorded head, so a working-tree mutation cannot replace or satisfy that evidence; RUN-v9 keeps its historical working-tree invalidation behavior.
-- Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; for RUN-v10, existence and decoding are checked in the accepted Git commit/ref rather than the working tree. Accepted non-file evidence applies only to gates that do not require screenshots.
+- Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason. RUN-v11 re-reads the accepted Git blob at the recorded head, so a working-tree mutation cannot replace or satisfy that evidence; RUN-v9 keeps its historical working-tree invalidation behavior.
+- Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256; for RUN-v11, existence and decoding are checked in the accepted Git commit/ref rather than the working tree. Accepted non-file evidence applies only to gates that do not require screenshots.
 - Baseline and skipped-check justifications are recorded when relevant.
 - When `parent_managed_worktree` or `app_managed_worktree` was used: the integration-branch verifier has been rerun after integration. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
 - Every mission required for completion is `integrated` or explicitly superseded; every live task is `mission_recorded` with a PASS verifier, and no blocker, active or blocked mission/review worker, or open wave remains.
 - The final integration head still descends from every recorded required mission integration SHA.
 - Landing state is recorded: the verified integration head pushed to the run's own branch, or the run explicitly left local. `landing.continuity` is `preserved` at that integration head.
 - In `integration_push` mode, local diff review passed before push and `pushed_head_sha` equals the integration head. Any newer local integration resets this gate. `pushed_head_sha` is a parent-attested record: the push itself is observed by the parent, not provable by the validators, which check it only for internal consistency and against the local branch.
-- For current PLAN-v5 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
+- For current PLAN-v6 graph runs, every node is succeeded, skipped, or superseded with no retained blocker, and every edge is traversed, exhausted, or skipped; failed nodes must be routed or superseded, and no selector-ready work remains.
 - When a primary journey exists, its required automated E2E check is PASS on the current head. Any replaced manual smoke records `not required - covered by current-head E2E`; uncovered or environment-specific smoke remains required.
 - When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.

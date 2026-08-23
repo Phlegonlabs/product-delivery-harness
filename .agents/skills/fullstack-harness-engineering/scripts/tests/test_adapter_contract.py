@@ -86,7 +86,7 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("exact unified integration SHA", codex)
         self.assertIn("one planned broad final validation", codex)
         self.assertIn("dispatchable_nodes[].required_actions", codex)
-        self.assertIn("RUN-v10 forbids task-local child agents", codex)
+        self.assertIn("RUN-v11 forbids task-local child agents", codex)
         self.assertIn("probe app-task and subagent surfaces", prompt)
         self.assertIn("keep all workers and reviewers flat and parent-owned", prompt)
         self.assertIn("Never replace explicitly requested independent app tasks", codex)

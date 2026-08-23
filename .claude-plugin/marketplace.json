@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Private Full Stack Harness skills for Codex, Claude Code, and Pi.",
-    "version": "0.6.0"
+    "version": "0.7.0"
   },
   "plugins": [
     {
       "name": "fullstack-harness",
       "source": "./plugins/fullstack-harness",
       "description": "Plan full-stack delivery with lightweight Codex, Claude Code, and Pi adapters.",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "author": {
         "name": "Phlegonlabs"
       }

@@ -181,6 +181,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         review["review"] = {
             "type": "frontend_code",
+            "lineage_id": "REVIEW-FRONTEND",
             "mission_ids": ["M1"],
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],

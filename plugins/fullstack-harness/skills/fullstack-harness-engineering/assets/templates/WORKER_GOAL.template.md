@@ -94,7 +94,7 @@ Do not spawn, create, or delegate to another agent. All explorers, writers, and 
 ## Launch Checklist
 
 - [ ] System Review And Route completed before this delegated handoff exists.
-- [ ] PLAN schema v5 and RUN schema v10 validate and match the supplied digest.
+- [ ] PLAN schema v6 and RUN schema v11 validate and match the supplied digest.
 - [ ] Lease, base, worktree, branch/ref, permission boundary, and required actions are current.
 - [ ] Host-specific repository context and matching adapter contract were read.
 - [ ] Exact skills, write/deny scope, resources, stop conditions, and verifiers are known.

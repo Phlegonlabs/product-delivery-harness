@@ -81,7 +81,7 @@ Common missions: `M1 workspace-foundation` (above), then the archetype's own lis
 
 ### Worked `M1 workspace-foundation` Mission Object
 
-This is a complete, copy-paste-ready PLAN-v5 mission object for the scaffold mission above. Every field keeps the meaning and default that `assets/templates/HARNESS_PLAN.template.md` already explains for its main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
+This is a complete, copy-paste-ready PLAN-v6 mission object for the scaffold mission above. Every field keeps the meaning and default that `assets/templates/HARNESS_PLAN.template.md` already explains for its main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
 
 ```json
 {
