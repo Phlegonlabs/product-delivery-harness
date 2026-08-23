@@ -138,7 +138,30 @@ if (Get-Command pi -ErrorAction SilentlyContinue) {
     $piPackageLines = @(Invoke-Checked pi list --no-approve)
     $piPackageText = $piPackageLines -join "`n"
     $piIdentity = "git:github.com/$Repository"
-    if ($piPackageText.Contains($piIdentity)) {
+    $matchingPiSources = @(
+        $piPackageLines |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_.StartsWith($piIdentity, [System.StringComparison]::OrdinalIgnoreCase) }
+    )
+    $installedPiSource = if ($matchingPiSources.Count -gt 0) { $matchingPiSources[0] } else { $null }
+    if ($null -ne $installedPiSource -and $installedPiSource -ne $PiSource) {
+        # `pi update --extension <new-ref>` still updates the ref recorded in
+        # settings and can report success while leaving the old checkout in
+        # place. Change the registered source through Pi itself, and restore
+        # the old source if installing the requested ref fails.
+        Invoke-Checked pi remove $installedPiSource --no-approve
+        try {
+            Invoke-Checked pi install $PiSource --no-approve
+        }
+        catch {
+            Write-Warning "Installing $PiSource failed; restoring $installedPiSource."
+            Invoke-Checked pi install $installedPiSource --no-approve
+            throw
+        }
+        $piPackageLines = @(Invoke-Checked pi list --no-approve)
+        $piPackageText = $piPackageLines -join "`n"
+    }
+    elseif ($null -ne $installedPiSource) {
         Invoke-Checked pi update --extension $PiSource --no-approve
     }
     else {
