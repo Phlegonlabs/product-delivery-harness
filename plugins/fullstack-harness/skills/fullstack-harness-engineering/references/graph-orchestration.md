@@ -90,6 +90,20 @@ Keep frontend and backend review separate when both surfaces exist. Combine them
 
 PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type, so the planner cannot mark a review required only in prose. Use an empty list only when none of the three review surfaces applies, and record that rationale in the human plan view. Render each reviewer a compact packet with the exact reviewed SHA, its declared scope, scoped changed paths/diff, applicable acceptance rows, required evidence, and unresolved prior findings. Refer to PLAN/RUN by identity and path instead of copying their full manifests into the prompt.
 
+## Root-Cause Repair Escalation
+
+The parent turns a `fix_required` result into one consolidated repair packet, not a checklist of isolated examples. Group findings by semantic root cause and failure family. For each family, include the affected primitive, all known variants, the narrow approach that failed or is rejected, the structural repair objective, the acceptance-matrix cases that prove the family is closed, and the review attempts already consumed across PLAN revisions.
+
+Escalate from local correction to structural repair when any of these is true:
+
+- two or more findings are adjacent variants of the same parsing, validation, serialization, protocol, state-machine, or boundary primitive;
+- a re-review finds another variant of a family the repair claimed to close; or
+- the proposed repair adds another special-case branch without proving that the input grammar or state space is closed and bounded.
+
+Structural repair means the smallest coherent change that closes the named family, not an automatic rewrite or abstraction. A regular expression remains acceptable for a genuinely closed local grammar; an open grammar needs an appropriate scanner, parser, state machine, or other structure-aware mechanism. Freeze the failure-family matrix in the task acceptance criteria before writing. If the structural change does not fit the mission scope or frozen contract, the worker returns `REFINEMENT_REQUEST` or `contract_gap` before another mutation.
+
+Review limits follow a stable mission + review surface + root-cause lineage, not only the current node ID. A PLAN revision carries forward prior attempts and unresolved findings in its owner-decision source, mission stop conditions, and review packet. It does not reset the default initial-plus-one-re-review budget. Once that cumulative budget is exhausted, stop at `blocked`. One successor structural-repair generation may proceed only when an explicit owner decision names the failure family, approves the changed strategy and acceptance matrix, and grants an exact additional review allowance. A broad request to continue the project does not satisfy this gate. The successor review node sets `max_attempts` to only that remaining allowance; it never receives a fresh default of two.
+
 ## Multi-Reviewer Fan-Out
 
 One review node per surface is the required planning default. Same-surface fan-out multiplies context and review cost, so add it only when the user explicitly requests independent reviewers or a recorded high-impact risk justifies them — security-sensitive code, destructive or irreversible migrations, or genuinely ambiguous visual judgment. Prefer one reviewer with the appropriate reasoning effort for routine work. Record the reason in the human plan view whenever fan-out is used.
@@ -189,7 +203,7 @@ Never reuse:
 - a prior successful verifier result after its input head changed;
 - a failed worker report as if the retry replaced its evidence.
 
-Do not retry the same failed approach more than twice. A runtime review is stricter: `max_attempts` cannot exceed 2, meaning one initial review and at most one repair re-review. After the configured attempt or route bound is exhausted, stop at `blocked` and identify the required decision.
+Do not retry the same failed approach more than twice. A runtime review is stricter: `max_attempts` cannot exceed 2, meaning one initial review and at most one repair re-review. Count attempts cumulatively for the same mission, surface, and root-cause lineage across successor PLAN revisions. Replanning changes the contract; it does not erase the attempt history. After the configured or cumulative bound is exhausted, stop at `blocked` and identify the required decision. Apply the explicit structural-repair owner gate above before authoring any successor review node.
 
 ## Validation And Integration
 

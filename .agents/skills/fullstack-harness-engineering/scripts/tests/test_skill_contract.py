@@ -48,6 +48,25 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## No Nested Delegation", worker)
         self.assertIn("explicit file-ownership scope", project)
 
+    def test_related_review_findings_escalate_by_root_cause_across_revisions(self) -> None:
+        skill = self.read("SKILL.md")
+        graph = self.read("references/graph-orchestration.md")
+        decomposition = self.read("references/execution-task-decomposition.md")
+        verification = self.read("references/verification-gates.md")
+        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+
+        self.assertIn("root-cause failure family", skill)
+        self.assertIn("A generic instruction to continue", skill)
+        self.assertIn("## Root-Cause Repair Escalation", graph)
+        self.assertIn("open grammar needs an appropriate scanner, parser, state machine", graph)
+        self.assertIn("stable mission + review surface + root-cause lineage", graph)
+        self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
+        self.assertIn("Do not authorize another example-specific patch", verification)
+        self.assertIn("A replan does not grant a fresh review budget", plan)
+        self.assertIn("Repair context (omit for an initial implementation)", worker)
+        self.assertIn("fix the named root-cause family", worker)
+
     def test_runtime_performance_contract_is_machine_measured_and_safety_preserving(self) -> None:
         performance = self.read("references/runtime-performance.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")

@@ -148,6 +148,7 @@ The parent evaluates every request with this matrix:
 | Generation | Parent is generation zero and every child will be generation one |
 | Parallel semantics | The refinement stays inside one mission worker; it does not bypass mission conflict analysis |
 | Contract | No new product, architecture, permission, data, or destructive behavior is being assumed |
+| Repair lineage | Prior review attempts, unresolved findings, and the stable mission + surface + root-cause family remain visible across the revision |
 
 The parent chooses one outcome:
 
@@ -155,6 +156,8 @@ The parent chooses one outcome:
 2. **Accept refinement.** Allocate new flat IDs, supersede the parent, create generation-one tasks, increment the plan revision, recompute the plan digest, and revalidate DAG, scopes, resources, traces, and verifiers.
 3. **Mission-level replan.** Stop affected execution when scope, contract, resource ownership, or another generation of splitting is required. Revise or replace the mission, then rerun readiness and conflict selection.
 4. **Reject with evidence.** Resume the existing task only after explaining why the planned unit remains executable and recording any clarified acceptance criteria.
+
+A mission-level replan does not replenish a review budget. Carry the consumed attempt count and unresolved root-cause families into the revised owner-decision source, mission stop conditions, and reviewer packet. When related edge cases expose one brittle primitive, update the acceptance matrix to cover the full failure family and change the repair strategy before resuming. If the initial review plus repair re-review is exhausted, a successor generation requires an explicit owner decision naming the structural strategy, failure-family matrix, and exact additional review allowance; a generic direction to continue is insufficient. Set the successor review node's `max_attempts` to that allowance only.
 
 Any accepted change invalidates the active wave and every lease bound to the previous revision/digest, not only future proposals. Before publishing the new revision, the parent freezes launches and integration, asks all old-revision workers to stop at a safe boundary, and records the old wave as superseded. Preserve their branches/heads and evidence, but reject old-lease results for integration. After the new plan validates, an unaffected head may continue only through a new lease bound to the new revision/digest and after scope/resource revalidation; otherwise stop for mission-level replan. The parent records the decision and new static definitions before leasing work again.
 

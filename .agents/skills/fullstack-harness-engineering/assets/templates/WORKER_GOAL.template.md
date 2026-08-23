@@ -35,6 +35,12 @@ Acceptance:
 - Objective and stop conditions: <exact values>
 - Verifiers: <selected task and worker verifiers>
 - Commit authorization: <true/false and source>
+
+Repair context (omit for an initial implementation):
+- Root-cause families: <stable labels, affected primitives, and consolidated findings>
+- Known variants and acceptance matrix: <all cases the repair must close>
+- Rejected narrow approach: <case-specific strategy that must not be repeated>
+- Review lineage: <mission, surface, used attempts across PLAN revisions, remaining authorized allowance>
 ```
 
 ## Launch
@@ -51,6 +57,7 @@ Acceptance:
 - Never edit PLAN/RUN, create another worker/task/branch/worktree/lease, or delegate.
 - Do not pull, rebase, merge, integrate, push, archive, remove a worktree, or delete a branch.
 - Create commits only when `create_local_commits` is authorized. Each task commit names one task; the last commit equals the reported head.
+- For a repair handoff, fix the named root-cause family rather than applying the findings as independent patches. If another adjacent variant shows that the proposed mechanism is not closed, stop before adding another special case and return `REFINEMENT_REQUEST` or `contract_gap` with the structural strategy and missing acceptance classes.
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
 

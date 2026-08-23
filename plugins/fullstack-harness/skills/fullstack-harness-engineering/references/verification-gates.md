@@ -268,6 +268,9 @@ If verification fails:
 - Record the failing command, exit code, and minimal error.
 - Decide whether the next action is code fix, test fix, environment fix, contract clarification, or user input.
 - Treat repeated failure as a harness issue after two similar failed attempts.
+- Treat adjacent edge cases from one parsing, validation, serialization, protocol, state-machine, or boundary primitive as one failure family. Do not authorize another example-specific patch after that family survives a repair.
+- Before another write, require a structural repair objective and an acceptance matrix covering the family's known equivalence classes; otherwise return `REFINEMENT_REQUEST` or `contract_gap`.
+- Preserve the mission + review surface + root-cause attempt count across PLAN revisions. Replanning never resets it, and a generic instruction to continue never authorizes an extra review.
 
 ## Closeout Bar
 
