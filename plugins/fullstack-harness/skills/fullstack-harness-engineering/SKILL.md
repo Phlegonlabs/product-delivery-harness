@@ -12,7 +12,7 @@ Use the least ceremony that preserves the real safety boundary. Keep routine wor
 Keep upstream ownership separate:
 
 - `prd-builder` owns `PRD.md`, `architecture.md`, and `stack-decisions.md`.
-- `product-design-builder`, with `impeccable` and `frontend-design`, owns `wireframes.md`, `design-system.md`, and `design-system.json`.
+- `prd-builder` owns the UI surface contract in `PRD.md`; `product-design-builder`, with `impeccable` and `frontend-design`, owns `design-system.md` and `design-system.json`.
 - This skill implements frozen inputs, including the Builder UX Direction. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
 
 ## Project Size Gate
@@ -165,7 +165,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 - Design creation mode requires `product-design-builder`, `impeccable`, and `frontend-design` together.
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- Conformance mode obeys the frozen wireframe, `design-system.md`, and `design-system.json`. A missing token, primitive, variant, component, state, motion rule, or page structure is a design-input delta, not local invention.
+- Conformance mode obeys the frozen PRD UI surface contract, `design-system.md`, and `design-system.json`. A missing token, primitive, variant, component, state, motion rule, or page structure is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 
 ## Workflow

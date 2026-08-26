@@ -27,7 +27,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 | If you have... | Start with | What you get |
 | --- | --- | --- |
 | A product idea | `prd-builder` | Requirements, architecture, stack decisions, release targets, tests, and sourced market research |
-| Frozen product inputs that need UI design | `product-design-builder` + `frontend-design` | Low-fidelity wireframes and a binding design-system contract |
+| Frozen product inputs that need UI design | `product-design-builder` + `frontend-design` | A binding design-system contract based on the PRD UI surface contract |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
 
@@ -47,7 +47,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | Skill | Use it for | Main output |
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `architecture.md`, `stack-decisions.md`, `market-research.md` |
-| `product-design-builder` | Product wireframes, visual direction, and the design-system contract. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `wireframes.md`, `design-system.md`, `design-system.json` |
+| `product-design-builder` | Visual direction and the design-system contract. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
@@ -68,7 +68,7 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
-  PRD --> Design["product-design-builder + frontend-design\nWireframes and design system"]
+  PRD --> Design["product-design-builder + frontend-design\nVisual direction and design system"]
   Design --> Harness["fullstack-harness-engineering\nShared delivery core"]
   Harness --> Runtime["One host adapter\nCodex, Claude Code, or Pi"]
   Runtime --> Evidence["Local tests and UI evidence"]
@@ -259,7 +259,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, re
 ```
 
 ```text
-Use $product-design-builder with $frontend-design to create wireframes and the design-system contract from the approved docs/product/ product inputs.
+Use $product-design-builder with $frontend-design to create the design-system contract from the approved docs/product/ product inputs.
 ```
 
 ```text

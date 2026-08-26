@@ -1368,7 +1368,6 @@ class PlanValidationTests(unittest.TestCase):
     def test_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
         plan = valid_plan()
         design_scopes = [
-            "docs/product/wireframes.md",
             "docs/product/design-system.md",
             "docs/product/design-system.json",
         ]
@@ -1396,7 +1395,6 @@ class PlanValidationTests(unittest.TestCase):
     def test_staged_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
         for staging_scope in (
             "docs/product/.prd-staging/run-001/**",
-            "docs/product/.prd-staging/run-001/wireframes.md",
             "docs/product/.prd-staging/run-001/design-system.md",
             "docs/product/.prd-staging/run-001/design-system.json",
         ):
@@ -1436,14 +1434,14 @@ class PlanValidationTests(unittest.TestCase):
             [
                 {
                     "id": "SRC-DESIGN-001",
-                    "kind": "wireframes",
-                    "location": "specs/custom/ui-map.md",
+                    "kind": "design system markdown",
+                    "location": "specs/custom/design-rules.md",
                     "owner": "design",
                     "status": "frozen",
                     "content_sha256": "d" * 64,
                     "source_revision": None,
                     "staged_revision": None,
-                    "notes": "custom named wireframe source",
+                    "notes": "custom named design system source",
                 },
                 {
                     "id": "SRC-DESIGN-002",

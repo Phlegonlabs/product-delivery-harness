@@ -17,7 +17,7 @@ interface:
     preference is not usability proof. Freeze product scope, routes, content
     responsibilities, actions, states, trace IDs, brand constraints,
     accessibility, platform, and performance limits as design inputs. Do not
-    create wireframes, visual directions, design tokens, or a design system in
+    create visual directions, design tokens, or a design system in
     this skill. Hand UI-bearing product inputs to $product-design-builder; it
     must load $impeccable and $frontend-design before design work and must stop
     when either dependency is unavailable. Recommend one explicit frontend stack when the

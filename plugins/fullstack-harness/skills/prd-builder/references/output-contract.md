@@ -6,15 +6,15 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/architecture.md`
 - `docs/product/stack-decisions.md`
 
-For a UI-bearing product, hand the staged core documents to `product-design-builder`. That separate skill must load `impeccable` and `frontend-design` and return `wireframes.md`, `design-system.md`, and `design-system.json` as one validated set before whole-package publication. A product with no UI surface — a headless API or backend service, or an automation whose only surfaces belong to someone else's client — records the skip in `PRD.md` and publishes no placeholder design artifacts.
+For a UI-bearing product, include the complete UI surface contract in `PRD.md`, then hand the staged core documents to `product-design-builder`. That separate skill must load `impeccable` and `frontend-design` and return `design-system.md` and `design-system.json` as one validated pair before whole-package publication. A product with no UI surface records the skip in `PRD.md` and publishes no placeholder design artifacts.
 
-This contract covers the product spec. It does not define or create wireframes, visual directions, tokens, components, or design-system rules. Those contracts belong only to `product-design-builder`.
+This contract covers the product spec, including screen structure and behavior. It does not define visual directions, tokens, components, or design-system rules. Those contracts belong only to `product-design-builder`.
 
 It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass is on by default for a non-trivial package; when the user declined it, no web tool was available, or the role returned blocked, the package publishes without the file and records the unvalidated market context in `PRD.md`'s `## Assumptions`. See `market-research-guide.md`.
 
-It stays out of the page and design layers. Do not add wireframe templates, visual-direction methods, token schemas, per-route recipes, high-fidelity HTML mockups, component catalogs, or page-level visual acceptance specs here.
+It specifies what each UI surface must show and do without prescribing high-fidelity visual treatment. Do not add visual-direction methods, token schemas, high-fidelity HTML mockups, component catalogs, or styling rules here.
 
-`PRD.md` is the canonical source for product scope and the Builder UX Direction Decision. The returned `wireframes.md` is the canonical source for screen structure, visible-region responsibility, actions, states, and flow. The returned design-system pair is the canonical visual implementation contract. Any design finding that changes product scope comes back to the PRD owner; `prd-builder` does not revise the design artifacts itself.
+`PRD.md` is the canonical source for product scope, routes, screen structure, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, and the Builder UX Direction Decision. The returned design-system pair is the canonical visual implementation contract. Any design finding that changes the PRD contract comes back to the PRD owner; `product-design-builder` does not revise it.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -27,13 +27,12 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `PRD.md` | Anyone deciding whether to build this | What is it, for whom, and what counts as done |
-| `wireframes.md` (returned by `product-design-builder`) | A designer or frontend engineer | What each screen must show and do |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
-| `design-system.md` + `design-system.json` (returned by `product-design-builder`) | A designer or frontend engineer styling a screen | The binding visual contract — tokens, primitives, components, and states; read alongside `wireframes.md` |
+| `design-system.md` + `design-system.json` (returned by `product-design-builder`) | A designer or frontend engineer styling a screen | The binding visual contract — tokens, primitives, components, and states; read alongside `PRD.md` |
 
-Core reading order is `PRD.md` → `architecture.md` → `stack-decisions.md`. When the design handoff exists, read `wireframes.md` and the design-system pair after `PRD.md`. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
+Core reading order is `PRD.md` → the design-system pair when present → `architecture.md` → `stack-decisions.md`. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
 
 Two rules keep the package readable:
 
@@ -103,6 +102,24 @@ Record every applicable quality category as a measurable `PRD-*` requirement, or
 | --- | --- | --- | --- | --- |
 | UX-001 | [User completing a critical task] | [Screens, states, accessibility, notifications, responsive behavior, or recovery] | [Observable success plus failure or abandonment signal] | [research-backed / prototype-reviewed / assumption] |
 
+## UI Surface Contract
+
+Omit this section only when the product has no shipped UI surface. Define one entry per addressable screen or bounded UI surface. This is the canonical implementation source for structure and behavior.
+
+### UI-001 — [Surface name]
+
+- Route(s): [Every route this surface serves, or `n/a — <reason>`]
+- Main purpose: [One primary user goal]
+- Layout pattern and density: [Task-fit pattern and reason]
+- Region order and responsibilities: [Ordered visible regions; exact copy or bounded display contract for each]
+- Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
+- States: [ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, mobile-reflow; mark inapplicable states `n/a — <reason>`]
+- Responsive behavior: [Order, stacking, never-drop content, and platform-specific behavior]
+- Accessibility and SEO: [Focus, labels, announcements, heading order, metadata, and alt text as applicable]
+- Trace IDs: [PRD-*, UX-*, ARCH-*, TEST-*]
+
+Every route maps to exactly one `UI-*` entry. Every region states what it displays, where the content comes from, what the user should understand or do, and any ordering, format, count, or length constraint. Do not use generic placeholders such as `Main content`, `Feature section`, or `Card 1`.
+
 ## Frontend Delivery Requirements
 - [Target devices and browsers, content/interactivity profile, SEO, rendering, performance, accessibility, localization, offline, and deployment constraints]
 
@@ -157,7 +174,7 @@ This is the single recorded home for the interview's validation-depth answer, so
 Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
 ```
 
-Keep this section's heading text exactly as written. `wireframes.md` links to it by anchor (`PRD.md#builder-ux-direction-decision`); the anchor survives the section moving to the end of the file, but not the heading being renamed.
+Keep this section's heading text exactly as written because the design-system workflow consumes it by anchor.
 
 ## `market-research.md`
 
@@ -418,9 +435,9 @@ Use only when a layer cannot yet be decided.
 
 ## Product Design Handoff
 
-For a UI-bearing product, complete the market-research gap pass first, then pass the staged core documents, Builder UX Direction Decision, `market-research.md` and its `MR-*` evidence when produced, or the recorded skipped/blocked research status to `../product-design-builder/SKILL.md`. That skill owns the exact `wireframes.md`, `design-system.md`, and `design-system.json` contracts, requires `impeccable` and `frontend-design`, asks the human owner once for style preferences and visual references, runs the bounded Impeccable concept-generation bridge, inspects current public references, normalizes exactly three product-specific directions, preserves `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*`, and returns one reconciled design set to this package lifecycle. Pass a known reference use as `design inspiration` or `page-faithful target`; do not infer faithful-copy intent from a URL, screenshot, or Figma frame. Market-research URLs remain product evidence rather than visual references unless that skill separately inspects and records them; it claims market support only when valid `MR-*` evidence applies.
+For a UI-bearing product, complete the UI surface contract and complete the market-research gap pass first, then pass the staged core documents, Builder UX Direction Decision, market evidence or recorded skipped/blocked status to `../product-design-builder/SKILL.md`. That skill owns `design-system.md` and `design-system.json`, requires `impeccable` and `frontend-design`, asks the human owner once for style preferences and visual references, runs the bounded concept-generation bridge, and returns one reconciled design-system pair. It preserves `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` and never changes PRD structure or behavior. Pass a known reference use as `design inspiration` or `page-faithful target`; do not infer faithful-copy intent from a URL, screenshot, or Figma frame.
 
-Do not duplicate its wireframe template, visual-direction method, token schema, primitive rules, component rules, or design validation checklist here. If the product has no shipped UI surface, record the reason in `PRD.md` and publish no placeholder design artifacts. A UI-bearing package may skip the handoff only under an explicit user override recorded in `PRD.md` with the replacement visual contract.
+Do not duplicate its visual-direction method, token schema, primitive rules, component rules, or design validation checklist here. If the product has no shipped UI surface, record the reason in `PRD.md` and publish no placeholder design artifacts. A UI-bearing package may skip the handoff only under an explicit user override recorded in `PRD.md` with the replacement visual contract.
 
 ## Optional `implementation-plan.md`
 
@@ -485,7 +502,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. For a UI-bearing complete package, the validated three-file design set returned by `product-design-builder` is also present; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. For a UI-bearing complete package, the validated design-system pair returned by `product-design-builder` is also present; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.

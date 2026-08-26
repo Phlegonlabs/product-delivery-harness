@@ -185,15 +185,16 @@ async function agent(_prompt, options) {
             self.assertIn("impeccable", content)
             self.assertIn("frontend-design", content)
         self.assertIn("must load `impeccable` and `frontend-design` before any design work", skill)
-        self.assertIn("do not author its wireframes or design system here", skill)
+        self.assertIn("define the routes, screen structure, flows", skill)
         self.assertIn(
-            "Do not create wireframes, visual directions, design tokens, or a design system",
+            "create visual directions, design tokens, or a design system",
             agent,
         )
         self.assertIn(
             "Those contracts belong only to `product-design-builder`", contract
         )
-        self.assertNotIn("Visual Direction Gate in `wireframe-guide.md`", contract)
+        self.assertIn("## UI Surface Contract", contract)
+        self.assertNotIn("wireframe", contract.casefold())
         self.assertNotIn("Optional `frontend-design`", contract)
 
     def test_market_research_precedes_style_aware_design_handoff(self) -> None:

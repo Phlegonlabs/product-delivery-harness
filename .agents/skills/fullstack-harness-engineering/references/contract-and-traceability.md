@@ -1,6 +1,6 @@
 # Contract And Traceability
 
-Use this reference when the work starts from a PRD, wireframe, design system, architecture note, ticket set, screenshot, or broad full-stack idea.
+Use this reference when the work starts from a PRD, design system, architecture note, ticket set, screenshot, or broad full-stack idea.
 
 ## Contract Freeze
 
@@ -18,7 +18,7 @@ Verification: commands, E2E journey, evidence paths, acceptance thresholds
 Write scope: allowed paths, read-only paths, destructive-action approval gates
 ```
 
-Low-fidelity wireframes remain the product authority for structure and flow. Upstream `impeccable` concept-generation results and `frontend-design` visual-direction candidates are non-canonical until `product-design-builder` normalizes them into the frozen design set above. Harness implementation consumes those frozen sources, not the candidate prototype.
+The `PRD.md` UI surface contract remains the product authority for structure and flow. Upstream `impeccable` concept-generation results and `frontend-design` visual-direction candidates are non-canonical until `product-design-builder` normalizes them into the frozen design-system pair. Harness implementation consumes those frozen sources, not the candidate prototype.
 
 For large work, including parallel mission work, implementation starts only after the plan readiness gate passes and execution is explicitly authorized. Selecting the skill or requesting a plan does not authorize implementation. User-authorized assumptions can resolve contract gaps but do not by themselves authorize code changes.
 
@@ -46,7 +46,7 @@ Record every canonical input and its status:
 |---|---|---|---|---|---|
 | PRD | <path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <summary> |
 | Builder UX direction | <PRD section, path, or URL> | <hash or revision> | human decision owner | selected / provisional / assumed | <direction and validation needs> |
-| Wireframe | <path or URL> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <screens> |
+| PRD UI surface contract | <path or URL> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <screens> |
 | Design system | <design-system.md path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <tokens, primitive layers, components, state matrix, guardrails> |
 | Design system (machine) | <design-system.json path> | <hash or revision> | human / team | draft / frozen / delta_accepted / revision staged | <the allowlist check_ui_contract.py reads; publishes with the Markdown> |
 | Architecture | <path> | <hash or revision> | Codex / team | draft / frozen / delta_accepted / revision staged | <contract surfaces> |
@@ -69,7 +69,7 @@ Recognize common upstream files and folders:
 PRD.md
 architecture.md
 stack-decisions.md
-wireframes.md
+PRD.md#ui-surface-contract
 implementation-plan.md
 design-system.md
 design-system.json
@@ -84,9 +84,9 @@ Rules:
 - Do not write harness-owned artifacts into the upstream document folder unless the user explicitly asks for that location.
 - When `implementation-plan.md` is present, read its `Harness Handoff Signals` table (dependency order, parallel candidates, shared resources, required reviews, human gates) as non-canonical planning hints before drafting the mission graph from scratch, instead of re-deriving the same analysis unassisted.
 - `design-system.md` and `design-system.json` are binding contract sources, not advisory notes. Freeze both with a `content_sha256` and give each its own source row. They publish as a pair, so an edit to either invalidates the PLAN digest and reaches implementation through `design-input-updates.md`, not by a mission quietly following the newer file. `design-system.md` owns visual reasoning, ratios, and taste guardrails. `design-system.json` is the sole structured authority for tokens, primitive layers and closed variants, product components, motion, and the state matrix; Markdown's machine-contract block is generated from it. `../product-design-builder/references/design-system-guide.md` holds the design method itself — read it there rather than restating it in harness artifacts.
-- Precedence between design sources: product rules beat the wireframes' structure, which beats the design system's visual choices, which beat product components, which beat primitives, which beat any page-specific preference. A mission may not resolve such a conflict by picking the more convenient source.
-- If `design-system.md` or `design-system.json` is missing and UI quality matters, classify the design input state as `missing` or `partial` and stop for acceptance or assumptions before claiming a design-faithful build. One of the pair present without the other is `partial`, never `frozen`. An in-scope route with no screen entry in `wireframes.md` is a blocker for that route, not an invitation to improvise it.
-- If a wireframe screen omits its states, record the gap in the handoff readiness table and resolve it before implementation or mark the surface `UNVALIDATED`. The required responsive set comes from `design-system.json`: `viewports` for a web target or `sizeClasses` for a native or desktop target, exactly one of the two. The harness does not carry its own default set — an absent or empty set is a `partial` design input, not a cue to assume common breakpoints.
+- Precedence between design sources: product rules and the PRD UI surface contract beat the design system's visual choices, which beat product components, which beat primitives, which beat any page-specific preference. A mission may not resolve such a conflict by picking the more convenient source.
+- If `design-system.md` or `design-system.json` is missing and UI quality matters, classify the design input state as `missing` or `partial` and stop for acceptance or assumptions before claiming a design-faithful build. One of the pair present without the other is `partial`, never `frozen`. An in-scope route with no `UI-*` entry in `PRD.md` is a blocker for that route, not an invitation to improvise it.
+- If a PRD UI surface omits its states, record the gap in the handoff readiness table and resolve it before implementation or mark the surface `UNVALIDATED`. The required responsive set comes from `design-system.json`: `viewports` for a web target or `sizeClasses` for a native or desktop target, exactly one of the two. The harness does not carry its own default set.
 - For every platform (web, native iOS/Android/Flutter, macOS, Windows), the design system's tokens, primitive layers, and components keep their meaning and take the platform's own vocabulary: tokens become theme values, layout primitives become the platform's layout containers, and control primitives wrap its native controls. Wrapping a platform's own component in a design-system primitive is what keeps the closed variant sets — do not drop the primitive layer because the platform ships a component library.
 - When `stack-decisions.md`'s Frontend Technology Decision is `Selected` or `Recommended` and no matching framework/UI-library/styling stack exists in the repository yet, that decision is the scaffold mission's install target: every named layer (deployment/runtime, framework, UI library, build tool, styling/components) becomes a task in mission M1, not just the framework. See `platform-archetypes.md`'s Greenfield / Empty Repository section and `HARNESS_PLAN.template.md`'s workspace-foundation example. A layer still `Provisional` is a stop condition, not a default guess.
 
@@ -167,13 +167,13 @@ Stop before implementation when:
 
 - Static validation fails, or a readiness obligation in `execution-state-model.md` is unmet. `plan_readiness` in RUN is the single machine gate; keeping it honest is the planner's obligation.
 - The requested action is false or absent in the authorization ledger. General execution permission does not imply task creation, worktree creation, commits, integration, push, archival, or cleanup permission.
-- PRD and wireframe conflict on the primary flow.
+- Two PRD sections conflict on the primary UI flow.
 - Builder UX Direction is missing for UI-bearing work, its decision owner is unclear, or it conflicts with user evidence or accessibility without a recorded hypothesis and validation decision.
-- The design system contradicts the wireframe in a user-visible way.
+- The design system contradicts the PRD UI surface contract in a user-visible way.
 - `design-system.md` and `design-system.json` are both present but fail `product-design-builder`'s pair checker, run read-only from the repository root: `scripts/check_design_system_pair.py --markdown <design-system.md> --registry <design-system.json> --require-filled`. Never run it with `--write` from the harness — that edits a frozen source. A failing pair means the two files no longer agree — usually a hand edit to one after publication. Route the fix through `design-input-updates.md`; do not guess which file is right or implement against half a contract.
 - `impeccable` or `frontend-design` cannot be loaded for a creation-mode mission that requires it. Creation mode is blocked; it does not fall back.
 - A UI implementation mission lists `frontend-design` without an explicit user selection for that new or high-impact visual surface, or its handoff asks the skill to choose a new direction instead of conforming to the frozen package.
-- An in-scope route has no screen entry in `wireframes.md`, or a route needs a token, primitive, variant, component, or motion variant that `design-system.json` does not list. Ask for the missing screen or design-system entry; do not improvise the route or pass a raw value at the call site.
+- An in-scope route has no `UI-*` entry in `PRD.md`, or a route needs a token, primitive, variant, component, or motion variant that `design-system.json` does not list. Ask for the missing PRD or design-system entry; do not improvise the route or pass a raw value at the call site.
 - The design system is written for a different platform than the resolved target — for example web pixel `viewports` and web-family icons handed off for a native iOS/Android/Flutter/desktop mission, or the reverse. Confirm with the user; do not silently implement against the mismatch or guess the intended platform. `verification-gates.md`'s "Capture Mechanism By Platform" separately decides the UI evidence capture mechanism after implementation.
 - Auth, permissions, or destructive data behavior is ambiguous.
 - Required secrets, services, databases, or browser tools are unavailable. A required environment variable with no `.env.example` placeholder gets its placeholder added in the task that introduces the read (see `platform-archetypes.md`'s Greenfield / Empty Repository section); then stop and ask the user for the real value instead of inventing one.

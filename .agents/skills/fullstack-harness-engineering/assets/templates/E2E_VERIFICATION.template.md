@@ -95,7 +95,7 @@ Builder approval proves direction conformance only. Use `UNVALIDATED` when only 
 
 | Delta / page | Source | Expected conformance | Evidence | Status |
 |---|---|---|---|---|
-| DELTA-001 | <PRD/wireframe/design/page UI source> | <expected result> | <test/screenshot/trace> | planned |
+| DELTA-001 | <PRD/design/page UI source> | <expected result> | <test/screenshot/trace> | planned |
 
 ## Skipped Checks
 

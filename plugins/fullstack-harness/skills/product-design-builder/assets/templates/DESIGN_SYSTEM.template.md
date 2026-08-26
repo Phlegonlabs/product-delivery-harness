@@ -19,7 +19,7 @@ The two files publish together. Edit structured fields in JSON, then run `script
 | Source | Path / URL | Role |
 |---|---|---|
 | PRD | <path> | product scope and requirements |
-| Wireframes | <path> | screen structure, content, actions, and states |
+| PRD UI surface contract | <path and section> | screen structure, content, actions, states, and flows |
 | Selected direction / brand | <VD-* direction ID or decision record> | approved visual input |
 
 ## Selected Visual Direction
@@ -77,7 +77,7 @@ Family and scale rationale: <reason>
 
 ## Primitive And Component Rules
 
-Primitive rationale: <why the JSON layout, surface, typography, and control primitives cover the wireframes>
+Primitive rationale: <why the JSON layout, surface, typography, and control primitives cover the PRD UI surfaces>
 
 Product-component rationale: <why each JSON product component recurs and belongs in the system>
 
@@ -94,7 +94,7 @@ Do not duplicate the machine-owned primitive, variant, component, composition, o
 
 ## State And Interaction Rules
 
-Every screen implements every JSON `stateMatrix` entry or records `<state>: n/a — <reason>` in the wireframe.
+Every screen implements every JSON `stateMatrix` entry or records `<state>: n/a — <reason>` in `PRD.md`.
 
 <Concise rules for focus, hover where applicable, active, loading, disabled, selected, expanded, validation, retry, and reduced motion.>
 

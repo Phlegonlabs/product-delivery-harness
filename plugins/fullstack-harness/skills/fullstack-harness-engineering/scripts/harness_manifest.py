@@ -105,18 +105,14 @@ from harness_ui_evidence import (
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
-    "docs/product/wireframes.md",
     "docs/product/design-system.md",
     "docs/product/design-system.json",
 )
 PRODUCT_DESIGN_SOURCE_FILENAMES = {
-    "wireframes.md",
     "design-system.md",
     "design-system.json",
 }
 PRODUCT_DESIGN_SOURCE_KINDS = {
-    "wireframe",
-    "wireframes",
     "design system",
     "design system machine",
 }
@@ -375,7 +371,6 @@ def _product_design_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]
         filename = normalized_location.rsplit("/", 1)[-1].lower()
         kind_is_product_design = (
             normalized_kind in PRODUCT_DESIGN_SOURCE_KINDS
-            or normalized_kind.startswith("wireframe ")
             or normalized_kind.startswith("design system ")
         )
         if (

@@ -103,13 +103,13 @@ Use or adapt this matrix:
 | Responsive | UI changed | target breakpoints render without overlap | viewport captures |
 | Console/network | browser surface changed | no relevant errors | console/network log |
 | Accessibility | interactive UI changed | no serious blockers or named residuals | checker output |
-| Visual design | design source exists | matches wireframe/design system within stated tolerance | screenshots or human approval |
-| Page-to-wireframe conformance | a route has a `wireframes.md` screen entry | the built route matches its screen entry in region responsibilities, section order, actions, and exact wording or display contract, judged at every required viewport or size class; state the tolerance and what is allowed to differ (real data, live copy, platform chrome) | screenshots + reviewer note |
+| Visual design | design source exists | matches the PRD UI surface contract and design system within stated tolerance | screenshots or human approval |
+| Page-to-PRD conformance | a route has a `PRD.md` `UI-*` entry | the built route matches its entry in region responsibilities, section order, actions, and exact wording or display contract, judged at every required viewport or size class; state the tolerance and what is allowed to differ (real data, live copy, platform chrome) | screenshots + reviewer note |
 | UI contract check | `design-system.json` exists | `scripts/check_ui_contract.py` reports no violation against the product's real source; a run that analyzed zero files is not a pass, and a `--rule`-filtered run is not a contract-clean signal | checker output |
 | Design-system pair check | `design-system.md` and `design-system.json` both exist | `product-design-builder`'s `scripts/check_design_system_pair.py --markdown <design-system.md> --registry <design-system.json> --require-filled` exits 0 against the frozen pair, run from the repository root and never with `--write`; a failure is a stop condition per `contract-and-traceability.md`, not a fix-it-inline finding | checker output |
 | Content contract conformance | a product component renders contract-governed content | every field in `design-system.json`'s `requiredContentOrder` renders, in that order — those fields never drop; limits, formats, empty and long-content rules respected | screenshot or content review |
 | State matrix coverage | a UI route changed | every state in `design-system.json`'s `stateMatrix` is captured or listed as `<state>:n/a` with a reason, at every required viewport or size class | `ui_evidence` rows |
-| No-JavaScript path | a route's wireframe screen declares server-rendered content | that content renders and is readable with JavaScript disabled | screenshot with JS disabled |
+| No-JavaScript path | a route's PRD UI surface declares server-rendered content | that content renders and is readable with JavaScript disabled | screenshot with JS disabled |
 | SEO metadata | public page changed | title/description/canonical/OG/schema as specified | rendered HTML or test |
 | CMS/content readback | content source changed | draft/preview/publish/readback works | command/log/screenshot |
 | Analytics / conversion | CTA/form/tracking changed | event/form/webhook observed or stub-verified | log/trace |

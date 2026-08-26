@@ -63,7 +63,7 @@ Repair context (omit for an initial implementation):
 
 For design creation mode, load `product-design-builder`, `impeccable`, and `frontend-design` together and stop at required human gates.
 
-For frontend-design conformance mode, read the named wireframe, `design-system.md`, and `design-system.json`. Do not invent a token, primitive, variant, component, motion rule, state, or structure. Return a design-input delta and stop.
+For frontend-design conformance mode, read the named PRD UI surface, `design-system.md`, and `design-system.json`. Do not invent a token, primitive, variant, component, motion rule, state, or structure. Return a design-input delta and stop.
 
 ## Verify
 

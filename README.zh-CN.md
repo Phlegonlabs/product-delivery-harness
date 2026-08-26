@@ -47,7 +47,7 @@
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
 | `prd-builder` | 产品探索、需求、Builder UX Direction 输入、架构、技术栈决策、发布目标、测试义务，以及草稿完成后的市场调研补缺 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`market-research.md` |
-| `product-design-builder` | 产品线框图、视觉方向与设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `wireframes.md`、`design-system.md`、`design-system.json` |
+| `product-design-builder` | 视觉方向与设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的 worktree，以及由 parent 派发的同级 reviewers | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
@@ -259,7 +259,7 @@ Use $prd-builder to turn this idea into a PRD, architecture, stack decisions, re
 ```
 
 ```text
-Use $product-design-builder with $frontend-design to create wireframes and the design-system contract from the approved docs/product/ product inputs.
+Use $product-design-builder with $frontend-design to create the design-system contract from the approved docs/product/ product inputs.
 ```
 
 ```text

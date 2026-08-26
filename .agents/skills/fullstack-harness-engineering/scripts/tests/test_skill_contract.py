@@ -411,7 +411,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("only after the user requests faithful matching", updates)
         self.assertIn("Source version / hash", updates)
         self.assertIn("Tolerance / allowed deviations", updates)
-        self.assertIn("`product-design-builder` must normalize either accepted source type", updates)
+        self.assertIn("`prd-builder` freezes structural or behavioral consequences", updates)
+        self.assertIn("`product-design-builder` freezes visual consequences", updates)
         self.assertIn("user explicitly requests faithful conformance", skill)
 
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:

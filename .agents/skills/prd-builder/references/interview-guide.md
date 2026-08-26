@@ -100,7 +100,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What validation depth does the builder expect: documented assumptions, internal prototype review, testing with likely users, or recurring usability benchmarking? (AskUserQuestion)
    - What screens, dashboards, forms, or notifications are expected?
    - What should users see when there is no data, a long-running job, a validation error, or a permission issue?
-   - Do not ask the user to choose from a fixed catalog of high-fidelity visual styles in this discovery interview. Record known brand references, visual constraints, product-specific goals, and disliked patterns. After the structural wireframes pass and the market-research gap pass is available, the separate Visual Direction Gate asks what style the owner wants, waits for the answer, uses Impeccable's concept-generation bridge, and normalizes exactly three product-specific directions supported by that preference and the validated research evidence. That later gate does not count against this interview's three closed-question calls.
+   - Do not ask the user to choose from a fixed catalog of high-fidelity visual styles in this discovery interview. Record known brand references, visual constraints, product-specific goals, and disliked patterns. After the PRD UI surface contract passes and the market-research gap pass is available, the separate Visual Direction Gate asks what style the owner wants, waits for the answer, uses Impeccable's concept-generation bridge, and normalizes exactly three product-specific directions supported by that preference and the validated research evidence. That later gate does not count against this interview's three closed-question calls.
    - Are there known design references or brand constraints?
    - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
    - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action?
@@ -142,10 +142,10 @@ Discovery is complete enough to draft when the agent can state:
 - A complete expected deployable-surface inventory with stable surface IDs, plus stable development and production target IDs for every expected surface. Each target separates stable `surface` identity from stage-specific `provider`, names the exact branch or ref its release builds from, and records artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Native targets are not forced into a web environment model.
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider.
-- The UI screens or interaction points that need wireframes.
+- The UI screens or interaction points that need a canonical PRD surface entry.
 - A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
-- Approved or draft exact wording and bounded display responsibilities for wireframed regions, or permission to derive them.
-- Known brand references, visual hard limits, disliked patterns, and product-specific visual goals, with high-fidelity preference discovery explicitly deferred to the mandatory Visual Direction Gate after structural wireframes pass.
+- Approved or draft exact wording and bounded display responsibilities for visible regions, or permission to derive them.
+- Known brand references, visual hard limits, disliked patterns, and product-specific visual goals, with high-fidelity preference discovery explicitly deferred to the mandatory Visual Direction Gate after the PRD UI surface contract passes.
 - Required style and motion intent for visually important regions, or permission to derive it.
 - The success metrics and acceptance criteria.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.

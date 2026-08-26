@@ -5,7 +5,7 @@ Use this bridge inside the Visual Direction Gate. It adapts Impeccable's concept
 ## Authority Boundary
 
 - `PRD.md` and its Builder UX Direction remain product truth.
-- `wireframes.md`, `design-system.md`, and `design-system.json` remain the only canonical design handoff.
+- `PRD.md`, `design-system.md`, and `design-system.json` remain the only canonical product and design handoff.
 - Do not run Impeccable `init`, `document`, `craft`, `live`, build, or finish flows from this bridge. Do not create `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, preview code, or comps unless the user separately asks for a non-canonical preview artifact.
 - Treat Impeccable output as design-stage evidence. `product-design-builder` normalizes accepted results into `VD-*`, `REF-*`, and `RP-*` records before anything becomes canonical.
 - Do not run `concept-seed.mjs` directly here. Its required `PRODUCT.md` would create a second product authority. Apply the same generation and challenger method to the frozen inputs instead.
@@ -16,7 +16,7 @@ Before generation, freeze:
 
 - the staged PRD, architecture, stack decisions, and Builder UX Direction;
 - approved scope, routes, representative screens, actions, content responsibilities, states, traces, accessibility, platform, and performance constraints;
-- the structural wireframes and Market Design Evidence Brief;
+- the PRD UI surface contract and Market Design Evidence Brief;
 - the Visual Preference Brief, avoid list, and confirmed `RP-*` principles from supplied or repository-discovered references.
 
 Missing product truth returns upstream. It is not filled with design taste.

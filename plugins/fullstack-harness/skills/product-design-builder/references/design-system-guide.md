@@ -7,11 +7,11 @@ The design system exists so frontend implementation can follow one set of tokens
 ## Drafting Order
 
 1. Load `product-design-builder`, `impeccable`, and `frontend-design` together. If either dependency is unavailable, stop instead of creating or revising the design system through a fallback path.
-2. Finish the PRD and structural wireframes using the mandatory design-skill trio.
-3. Run `wireframe-guide.md`'s Visual Direction Gate, `impeccable-concept-generation.md`, and `design-reference-guide.md`. Use `impeccable` to generate and challenge concept worlds and `frontend-design` to form every product-specific visual direction. Keep `MR-*`/`S-*` market evidence separate from inspected `REF-*` visual evidence, and use only owner-confirmed `RP-*` principles from owner-supplied or `Check This` sources. Do not fix token values or component styling until the human owner selects one consolidated direction and confirms its contributing principles, or explicitly authorizes a provisional assumption.
-4. Use `frontend-design` to translate the selected direction into `design-system.json` from the real controls, surfaces, repeated compositions, states, and responsive needs in the wireframes.
+2. Confirm that the PRD's UI surface contract is complete and frozen.
+3. Run `visual-direction-guide.md`'s Visual Direction Gate, `impeccable-concept-generation.md`, and `design-reference-guide.md`. Use `impeccable` to generate and challenge concept worlds and `frontend-design` to form every product-specific visual direction. Keep `MR-*`/`S-*` market evidence separate from inspected `REF-*` visual evidence, and use only owner-confirmed `RP-*` principles from owner-supplied or `Check This` sources. Do not fix token values or component styling until the human owner selects one consolidated direction and confirms its contributing principles, or explicitly authorizes a provisional assumption.
+4. Use `frontend-design` to translate the selected direction into `design-system.json` from the real controls, surfaces, repeated compositions, states, and responsive needs in the PRD UI surface contract.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
-6. Reconcile the final token, primitive, and product-component names back into every wireframe element inventory and spacing declaration. An unresolved `custom — reason` flag blocks publication.
+6. Reconcile the final token, primitive, and product-component names against every required PRD UI element and state. An unresolved page-local exception blocks publication.
 
 Publish the Markdown and JSON together.
 
@@ -60,7 +60,7 @@ Builder approval proves direction conformance, not usability. Product requiremen
 
 ## Tokens
 
-Define a token only when the wireframes or a declared component use it. Raw colors, dimensions, and motion values may appear only in the JSON's declared `tokenSources`.
+Define a token only when a PRD UI surface or declared component uses it. Raw colors, dimensions, and motion values may appear only in the JSON's declared `tokenSources`.
 
 Keep the normal implementation groups:
 
@@ -112,7 +112,7 @@ Ship exactly one responsive set:
 
 Choose the smallest set that covers the real layouts. Native and desktop products use their platform's own size or window classes, not web pixel breakpoints.
 
-`stateMatrix` is the checklist for every screen. Each screen implements every listed state or records `<state>: n/a — <reason>`. The final wireframe and JSON must agree.
+`stateMatrix` is the checklist for every screen. Each screen implements every listed state or records `<state>: n/a — <reason>` in `PRD.md`. The PRD and JSON must agree.
 
 Keep accessibility rules implementation-facing:
 
@@ -142,7 +142,7 @@ Resolve conflicts in this order:
 5. selected Visual Direction;
 6. provisional or assumed preference.
 
-Wireframes own screen structure and content responsibility. The design system owns visual implementation. A visual treatment that needs a structural change returns to the PRD/wireframe owner instead of silently changing the screen.
+`PRD.md` owns screen structure and content responsibility. The design system owns visual implementation. A visual treatment that needs a structural change returns to the PRD owner instead of silently changing the screen.
 
 ## Publish Check
 
@@ -150,7 +150,7 @@ Before publication:
 
 1. Confirm one selected or explicitly provisional Visual Direction.
 2. Confirm every token, primitive, component, state, and responsive entry is used or required.
-3. Confirm every wireframe element maps to a registered primitive or product component.
+3. Confirm every required PRD UI element maps to a registered primitive or product component.
 4. Confirm no page-local value or control is required.
 5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`.
 6. Validate it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.

@@ -5,7 +5,7 @@
   "stylingMechanism": "<utility CSS | CSS-in-JS | CSS modules | plain CSS | platform theme>",
   "enforcement": "<blocking | advisory>",
 
-  "$comment:minimal": "Keep only tokens, primitives, product components, motion variants, states, and responsive entries the real wireframes require. Remove unused examples before publication.",
+  "$comment:minimal": "Keep only tokens, primitives, product components, motion variants, states, and responsive entries required by the PRD UI surface contract. Remove unused examples before publication.",
   "$comment:sources": "tokenSources are the only paths where a raw color, dimension, or motion value may appear. primitiveSources are the paths whose job is defining control and surface selectors, so page-local-control-style is not reported for them. Both are matched as path suffixes against each checked file.",
   "tokenSources": [
     "<path to the file that declares the token values, e.g. src/styles/tokens.css>"
