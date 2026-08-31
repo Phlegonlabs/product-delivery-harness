@@ -175,6 +175,21 @@ async function agent(_prompt, options) {
         )
         self.assertIn("record that gap before offering the Harness", skill)
 
+    def test_publish_uses_distinct_repository_context_templates(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn(
+            "<fullstack-harness-engineering-skill-root>/scripts/"
+            "configure_project_context.py --root <target-root> --check",
+            skill,
+        )
+        self.assertIn("PROJECT_AGENTS.template.md` for `AGENTS.md`", skill)
+        self.assertIn("PROJECT_CLAUDE.template.md` for `CLAUDE.md`", skill)
+        self.assertIn("Never copy one template to both files", skill)
+        self.assertNotIn(
+            "both files exist before any implementation run starts", skill
+        )
+
     def test_ui_design_is_delegated_to_the_mandatory_design_skills(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")

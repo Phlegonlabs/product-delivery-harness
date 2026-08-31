@@ -752,8 +752,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Runtime Boundary", project_agents)
         self.assertIn("Codex and Pi load it as their native project context", project_agents)
         self.assertIn("## Core Development Principles", project_agents)
+        self.assertIn("## Managed Full-Stack Harness Runs", project_agents)
+        self.assertIn("Small bounded work may proceed directly", project_agents)
+        self.assertNotIn("<verification-command>", project_agents)
+        self.assertNotIn("<e2e-command>", project_agents)
+        self.assertNotIn("(List protected files here", project_agents)
+        self.assertNotIn("current v10", project_agents)
+        self.assertIn("The current RUN push guard", project_agents)
         self.assertIn("@AGENTS.md", project_claude)
         self.assertIn("## Claude Code Runtime Boundary", project_claude)
+        self.assertIn("Direct Claude Code work follows `AGENTS.md`", project_claude)
+        self.assertIn("does not transfer to the worker", project_claude)
+
+        if REPO_ROOT is not None:
+            root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+            root_claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+            self.assertNotIn("codex/<short-name>", root_agents)
+            self.assertIn("never add a fixed prefix", root_agents.lower())
+            self.assertIn("@AGENTS.md", root_claude)
+            self.assertIn("Direct Claude Code work follows `AGENTS.md`", root_claude)
+            self.assertIn("does not transfer to the worker", root_claude)
 
     def test_branch_names_are_explicit_and_have_no_harness_prefix(self) -> None:
         policy_paths = (
