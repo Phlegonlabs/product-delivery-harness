@@ -31,6 +31,7 @@ from harness_schema import (
     PERMISSION_STATUSES,
     PLAN_HEADING,
     RUN_DISPATCH_STATUSES,
+    RUN_CONTROL_STATES,
     RUN_HEADING,
     RUNTIME_DETECTION_SOURCES,
     RUNTIME_DRIVER_PRIORITY,
@@ -104,18 +105,14 @@ from harness_ui_evidence import (
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
-    "docs/product/wireframes.md",
     "docs/product/design-system.md",
     "docs/product/design-system.json",
 )
 PRODUCT_DESIGN_SOURCE_FILENAMES = {
-    "wireframes.md",
     "design-system.md",
     "design-system.json",
 }
 PRODUCT_DESIGN_SOURCE_KINDS = {
-    "wireframe",
-    "wireframes",
     "design system",
     "design system machine",
 }
@@ -147,7 +144,7 @@ def _read_git_source_blob(
 def validate_plan_sources(
     plan: dict[str, Any], repo_root: str | Path
 ) -> list[str]:
-    """Bind current PLAN-v5 sources to bytes available under ``repo_root``.
+    """Bind current PLAN-v6 sources to bytes available under ``repo_root``.
 
     Local sources are read from the repository snapshot, or from the immutable
     Git revision recorded by ``source_revision``. External URLs are never
@@ -155,7 +152,7 @@ def validate_plan_sources(
     available for verification.
     """
 
-    if not isinstance(plan, dict) or plan.get("schema_version") != 5:
+    if not isinstance(plan, dict) or plan.get("schema_version") not in {5, 6}:
         return []
     errors: list[str] = []
     try:
@@ -304,7 +301,7 @@ def _validated_sha_history(
 
 
 def _validate_global_verifier_ids(errors: list[str], plan: dict[str, Any]) -> None:
-    if plan.get("schema_version") != 5:
+    if plan.get("schema_version") not in {5, 6}:
         return
     seen: dict[str, str] = {}
 
@@ -374,7 +371,6 @@ def _product_design_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]
         filename = normalized_location.rsplit("/", 1)[-1].lower()
         kind_is_product_design = (
             normalized_kind in PRODUCT_DESIGN_SOURCE_KINDS
-            or normalized_kind.startswith("wireframe ")
             or normalized_kind.startswith("design system ")
         )
         if (
@@ -407,11 +403,11 @@ def _scope_includes_product_design_source(
 
 
 def _is_single_mission_v5_without_batch_verifiers(plan: Any) -> bool:
-    """Return whether PLAN-v5 has the intentional no-batch singleton shape."""
+    """Return whether PLAN-v6 has the intentional no-batch singleton shape."""
 
     return (
         isinstance(plan, dict)
-        and plan.get("schema_version") == 5
+        and plan.get("schema_version") in {5, 6}
         and isinstance(plan.get("missions"), list)
         and len(plan["missions"]) == 1
         and plan.get("batch_verifiers") == []
@@ -443,7 +439,7 @@ def validate_plan(
         "missions",
     }
     schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
-    if schema_version in {4, 5}:
+    if schema_version in {4, 5, 6}:
         top_keys.add("graph")
     # `risks` is retained for older plans; no gate, selector, or scheduler reads
     # it. `required_reviews` is read below: whatever review types a PLAN lists
@@ -454,8 +450,8 @@ def validate_plan(
     plan_optional_keys = {"risks", "required_reviews"}
     if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
         return sorted(errors)
-    if plan["schema_version"] not in {2, 3, 4, 5}:
-        _add(errors, "plan.schema_version", "must equal 2, 3, 4, or 5")
+    if plan["schema_version"] not in {2, 3, 4, 5, 6}:
+        _add(errors, "plan.schema_version", "must equal 2 through 6")
     if not _nonempty_string(plan["plan_id"]):
         _add(errors, "plan.plan_id", "must be a non-empty string")
     if not _is_int(plan["revision"]) or plan["revision"] < 1:
@@ -465,7 +461,7 @@ def validate_plan(
     if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
         _add(errors, "plan.max_parallel_workers", "must be a positive integer")
     required_reviews: list[str] = []
-    if schema_version in {4, 5} and "required_reviews" in plan:
+    if schema_version in {4, 5, 6} and "required_reviews" in plan:
         required_reviews = _strings(
             errors,
             "plan.required_reviews",
@@ -486,9 +482,9 @@ def validate_plan(
         _add(errors, "plan.sources", "must be a non-empty list")
     else:
         source_keys = {"id", "kind", "location", "owner", "status", "notes"}
-        if schema_version in {4, 5}:
+        if schema_version in {4, 5, 6}:
             source_keys.update({"content_sha256", "source_revision"})
-        if schema_version == 5:
+        if schema_version in {5, 6}:
             source_keys.add("staged_revision")
         for index, source in enumerate(plan["sources"]):
             path = f"plan.sources[{index}]"
@@ -497,7 +493,7 @@ def validate_plan(
             for key in {"id", "kind", "location", "owner", "status", "notes"}:
                 if not _nonempty_string(source[key]):
                     _add(errors, f"{path}.{key}", "must be a non-empty string")
-            if schema_version == 5 and source["status"] not in {
+            if schema_version in {5, 6} and source["status"] not in {
                 "frozen",
                 "delta_accepted",
                 "revision staged",
@@ -507,13 +503,13 @@ def validate_plan(
                     f"{path}.status",
                     "must be frozen, delta_accepted, or revision staged",
                 )
-            if schema_version == 5 and _is_product_staging_location(source["location"]):
+            if schema_version in {5, 6} and _is_product_staging_location(source["location"]):
                 _add(
                     errors,
                     f"{path}.location",
                     "published PLAN sources cannot use product staging paths",
                 )
-            if schema_version in {4, 5}:
+            if schema_version in {4, 5, 6}:
                 content_sha = source["content_sha256"]
                 source_revision = source["source_revision"]
                 if content_sha is not None and (
@@ -523,7 +519,7 @@ def validate_plan(
                 if source_revision is not None and not _nonempty_string(source_revision):
                     _add(errors, f"{path}.source_revision", "must be null or a non-empty immutable revision")
                 if (
-                    schema_version == 5
+                    schema_version in {5, 6}
                     and _nonempty_string(source_revision)
                     and isinstance(source["location"], str)
                     and "://" not in source["location"]
@@ -540,7 +536,7 @@ def validate_plan(
                         path,
                         "schema v4+ sources require content_sha256 or source_revision",
                     )
-            if schema_version == 5:
+            if schema_version in {5, 6}:
                 staged = source["staged_revision"]
                 if staged is not None and _keys(
                     errors,
@@ -731,7 +727,7 @@ def validate_plan(
         "integration_verifiers",
         "tasks",
     }
-    if plan["schema_version"] not in {4, 5}:
+    if plan["schema_version"] not in {4, 5, 6}:
         mission_keys.add("depends_on")
     # `stop_conditions` is prose no gate reads; accepted when present, never required.
     mission_optional_keys = {"stop_conditions"}
@@ -773,7 +769,7 @@ def validate_plan(
         for key in ("priority", "merge_rank"):
             if not _is_int(mission[key]):
                 _add(errors, f"{mission_path}.{key}", "must be an integer")
-        if plan["schema_version"] not in {4, 5}:
+        if plan["schema_version"] not in {4, 5, 6}:
             _strings(errors, f"{mission_path}.depends_on", mission["depends_on"])
         mission_trace_ids = _strings(
             errors, f"{mission_path}.trace_ids", mission["trace_ids"], nonempty=True
@@ -904,7 +900,7 @@ def validate_plan(
             if not _nonempty_string(task[key]):
                 _add(errors, f"{path}.{key}", "must be a non-empty string")
         acceptance_trace_ids: set[str] = set()
-        if plan["schema_version"] == 5:
+        if plan["schema_version"] in {5, 6}:
             acceptance = task["acceptance_matrix"]
             if not isinstance(acceptance, list):
                 _add(errors, f"{path}.acceptance_matrix", "must be a list")
@@ -945,7 +941,7 @@ def validate_plan(
                 _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not planned")
             else:
                 planned_trace_coverage.add(trace_id)
-                if plan["schema_version"] == 5:
+                if plan["schema_version"] in {5, 6}:
                     if trace_id in acceptance_trace_ids:
                         verified_trace_coverage.add(trace_id)
                 elif (
@@ -956,7 +952,7 @@ def validate_plan(
             mission_trace_set = set(missions.get(mission_id, {}).get("trace_ids", []))
             if trace_id not in mission_trace_set:
                 _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not declared by its mission")
-        if plan["schema_version"] == 5:
+        if plan["schema_version"] in {5, 6}:
             unknown_acceptance_traces = sorted(acceptance_trace_ids - set(trace_ids))
             if unknown_acceptance_traces:
                 _add(
@@ -1059,13 +1055,14 @@ def validate_plan(
                 "an empty acceptance_matrix",
             )
 
-    if plan["schema_version"] in {4, 5}:
+    if plan["schema_version"] in {4, 5, 6}:
         _validate_graph(
             errors,
             plan["graph"],
             missions,
             declared_verifier_ids,
-            require_bounded_review_repair=plan["schema_version"] == 5,
+            require_bounded_review_repair=plan["schema_version"] in {5, 6},
+            require_review_lineage=plan["schema_version"] == 6,
         )
         declared_reviews = {
             node.get("review", {}).get("type")
@@ -1084,7 +1081,7 @@ def validate_plan(
             )
 
     _validate_global_verifier_ids(errors, plan)
-    if plan.get("schema_version") == 5 and repo_root is not None:
+    if plan.get("schema_version") in {5, 6} and repo_root is not None:
         errors.extend(validate_plan_sources(plan, repo_root))
     return sorted(set(errors))
 
@@ -1236,7 +1233,7 @@ def _validate_gate_results(
             _add(errors, path, "PASS requires head_sha and non-empty evidence")
         if result["status"] == "PASS" and result["head_sha"] != integration_head:
             _add(errors, path, f"PASS {label} must match integration_head_sha")
-        if result["status"] == "PASS" and run.get("schema_version") == 10:
+        if result["status"] == "PASS" and run.get("schema_version") in {10, 11}:
             expected_layer = "batch" if plan_key == "batch_verifiers" else "final"
             matching_executions = [
                 execution
@@ -2329,7 +2326,7 @@ def _validate_v10_execution_records(
             _add(
                 errors,
                 f"{path}.workspace_mode",
-                "PLAN-v5 write mission requires an isolated managed worktree",
+                "PLAN-v6 write mission requires an isolated managed worktree",
             )
             continue
         if workspace_mode not in {
@@ -2598,32 +2595,52 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     schema_version = run.get("schema_version") if isinstance(run, dict) else None
     graph_run = (
         plan.get("schema_version") == 4 and schema_version in {8, 9}
-    ) or (plan.get("schema_version") == 5 and schema_version == 10)
+    ) or (plan.get("schema_version") == 5 and schema_version == 10) or (
+        plan.get("schema_version") == 6 and schema_version == 11
+    )
     if graph_run:
         run_keys.update({"graph_state", "review_workers"})
-    if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
+    if schema_version in {3, 4, 5, 6, 7, 8, 9, 10, 11}:
         run_keys.add("landing")
-    if schema_version == 10:
+    if schema_version in {10, 11}:
         run_keys.update({"verifier_executions", "closed_waves"})
-    if schema_version in {9, 10}:
+    if schema_version == 11:
+        run_keys.update({"control", "review_lineages"})
+    if schema_version in {9, 10, 11}:
         run_keys.update({"batch_gate_results", "final_gate_results", "ui_evidence"})
     if schema_version not in SUPPORTED_RUN_SCHEMA_VERSIONS:
-        _add(errors, "run.schema_version", "must equal 2 through 10")
+        _add(errors, "run.schema_version", "must equal 2 through 11")
     if plan.get("schema_version") == 4 and schema_version not in {8, 9}:
         _add(errors, "run.schema_version", "must equal 8 or 9 for a schema v4 graph PLAN")
     elif plan.get("schema_version") == 5 and schema_version != 10:
         _add(errors, "run.schema_version", "must equal 10 for a schema v5 graph PLAN")
+    elif plan.get("schema_version") == 6 and schema_version != 11:
+        _add(errors, "run.schema_version", "must equal 11 for a schema v6 graph PLAN")
     elif schema_version == 8 and plan.get("schema_version") != 4:
         _add(errors, "run.schema_version", "schema v8 requires a schema v4 graph PLAN")
     elif schema_version == 10 and plan.get("schema_version") != 5:
         _add(errors, "run.schema_version", "schema v10 requires a schema v5 graph PLAN")
+    elif schema_version == 11 and plan.get("schema_version") != 6:
+        _add(errors, "run.schema_version", "schema v11 requires a schema v6 graph PLAN")
     optional_run_keys: set[str] = set()
     if graph_run:
         optional_run_keys.add("workflow_runs")
-    if schema_version == 10:
+    if schema_version in {10, 11}:
         optional_run_keys.add("runtime_metrics")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
+    if schema_version == 11:
+        control = run["control"]
+        if _keys(
+            errors,
+            "run.control",
+            control,
+            {"desired_state", "requested_at", "source", "acknowledged_at"},
+        ):
+            if control["desired_state"] not in RUN_CONTROL_STATES:
+                _add(errors, "run.control.desired_state", "must be running, paused, or cancelled")
+            for key in ("requested_at", "source", "acknowledged_at"):
+                _optional_string(errors, f"run.control.{key}", control[key])
     if not _nonempty_string(run["run_id"]):
         _add(errors, "run.run_id", "must be a non-empty string")
     if run["status"] not in {"draft", "ready", "running", "blocked", "complete"}:
@@ -2653,7 +2670,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.intent", "has an unsupported value")
     if run["plan_readiness"] not in {"draft", "ready", "blocked"}:
         _add(errors, "run.plan_readiness", "has an unsupported value")
-    if schema_version == 10 and (
+    if schema_version in {10, 11} and (
         run.get("plan_readiness") == "ready"
         or run.get("execution_authorized") is True
         or run.get("status") in {"running", "complete"}
@@ -2678,7 +2695,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _add(errors, "run.execution_authorized", "must be boolean")
     if (
         run.get("execution_authorized") is True
-        and plan.get("schema_version") in {4, 5}
+        and plan.get("schema_version") in {4, 5, 6}
         and isinstance(plan.get("graph"), dict)
     ):
         reviewed_missions: set[str] = set()
@@ -2702,10 +2719,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review = node.get("review")
             if not isinstance(review, dict):
                 continue
-            if schema_version == 10 and review.get("stage", "preintegration") != "preintegration":
+            if schema_version in {10, 11} and review.get("stage", "preintegration") != "preintegration":
                 continue
             review_mission_ids = review.get("mission_ids") or []
-            if schema_version == 10:
+            if schema_version in {10, 11}:
                 if (
                     len(review_mission_ids) != 1
                     or not isinstance(review_mission_ids[0], str)
@@ -2734,7 +2751,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if unreviewed:
             review_requirement = (
                 "no direct singleton pre-integration review node"
-                if schema_version == 10
+                if schema_version in {10, 11}
                 else "no review node"
             )
             _add(
@@ -2751,11 +2768,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "run.execution_authorization_scope",
             run["execution_authorization_scope"],
             action=False,
-            require_plan_binding=(schema_version == 10),
+            require_plan_binding=(schema_version in {10, 11}),
             expires_when=(
                 run["execution_authorization_scope"].get("expires_when")
                 if isinstance(run["execution_authorization_scope"], dict)
-                and schema_version == 10
+                and schema_version in {10, 11}
                 else None
             ),
         )
@@ -2763,12 +2780,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             execution_scope = run["execution_authorization_scope"]
             if execution_scope.get("run_id") != run["run_id"]:
                 _add(errors, "run.execution_authorization_scope.run_id", "must match run_id")
-            if schema_version == 10:
+            if schema_version in {10, 11}:
                 if execution_scope.get("plan_revision") != run.get("plan", {}).get("revision"):
                     _add(errors, "run.execution_authorization_scope.plan_revision", "must match run.plan.revision")
                 if execution_scope.get("plan_digest_sha256") != run.get("plan", {}).get("digest_sha256"):
                     _add(errors, "run.execution_authorization_scope.plan_digest_sha256", "must match run.plan.digest_sha256")
-            if schema_version == 10 and (
+            if schema_version in {10, 11} and (
                 execution_scope.get("expires_when") == "wave_closed"
                 and not wave_scope_matches_current(run, execution_scope)
             ):
@@ -2810,7 +2827,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             entry = authorizations[action]
             path = f"run.authorizations.{action}"
             optional_entry_keys = {"scope", "expires_when"}
-            if schema_version == 10:
+            if schema_version in {10, 11}:
                 optional_entry_keys.add("authorized_head_sha")
             if not _keys(
                 errors,
@@ -2834,10 +2851,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         entry["scope"],
                         action=True,
                         action_name=action,
-                        require_plan_binding=(schema_version == 10),
+                        require_plan_binding=(schema_version in {10, 11}),
                         expires_when=(
                             entry.get("expires_when")
-                            if schema_version == 10
+                            if schema_version in {10, 11}
                             else None
                         ),
                     )
@@ -2845,12 +2862,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         action_scope = entry["scope"]
                         if action_scope.get("run_id") != run["run_id"]:
                             _add(errors, f"{path}.scope.run_id", "must match run_id")
-                        if schema_version == 10:
+                        if schema_version in {10, 11}:
                             if action_scope.get("plan_revision") != run.get("plan", {}).get("revision"):
                                 _add(errors, f"{path}.scope.plan_revision", "must match run.plan.revision")
                             if action_scope.get("plan_digest_sha256") != run.get("plan", {}).get("digest_sha256"):
                                 _add(errors, f"{path}.scope.plan_digest_sha256", "must match run.plan.digest_sha256")
-                        if schema_version == 10 and (
+                        if schema_version in {10, 11} and (
                             entry.get("expires_when") == "wave_closed"
                             and not wave_scope_matches_current(run, action_scope)
                         ):
@@ -2866,7 +2883,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             "must be wave_closed, run_complete, or explicit_revocation",
                         )
                 if (
-                    schema_version == 10
+                    schema_version in {10, 11}
                     and action == "push"
                     and entry["authorized"]
                     and run.get("status") != "complete"
@@ -2887,9 +2904,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         _add(
                             errors,
                             f"{path}.scope.targets",
-                            "RUN-v10 push authorization requires one exact branch target",
+                            "RUN-v11 push authorization requires one exact branch target",
                         )
-                if schema_version == 10 and action in HEAD_BOUND_AUTHORIZATION_ACTIONS:
+                if schema_version in {10, 11} and action in HEAD_BOUND_AUTHORIZATION_ACTIONS:
                     authorized_head = entry.get("authorized_head_sha")
                     if not is_full_sha(authorized_head):
                         _add(
@@ -2904,7 +2921,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.scope.targets",
                             "head-bound remote actions require exact targets, not *",
                         )
-                elif schema_version == 10 and entry.get("authorized_head_sha") is not None:
+                elif schema_version in {10, 11} and entry.get("authorized_head_sha") is not None:
                     _add(
                         errors,
                         f"{path}.authorized_head_sha",
@@ -2915,10 +2932,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{path}.source", "must be null when unauthorized")
                 if "scope" in entry or "expires_when" in entry:
                     _add(errors, path, "unauthorized action must omit scope and expires_when")
-                if schema_version == 10 and "authorized_head_sha" in entry:
+                if schema_version in {10, 11} and "authorized_head_sha" in entry:
                     _add(errors, f"{path}.authorized_head_sha", "must be omitted when unauthorized")
 
-    if schema_version in {3, 4, 5, 6, 7, 8, 9, 10}:
+    if schema_version in {3, 4, 5, 6, 7, 8, 9, 10, 11}:
         raw_integration = run.get("integration")
         landing_integration_head = (
             raw_integration.get("integration_head_sha")
@@ -2969,7 +2986,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             integration_head_sha=landing_integration_head,
             push_authorized=push_scope_ok,
         )
-    if schema_version == 10 and isinstance(run.get("landing"), dict):
+    if schema_version in {10, 11} and isinstance(run.get("landing"), dict):
         v10_landing = run["landing"]
         continuity = v10_landing.get("continuity")
         v10_integration = (
@@ -3034,7 +3051,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "completion_channel",
         "max_parallel_workers",
     }
-    if schema_version in {6, 7, 8, 9, 10}:
+    if schema_version in {6, 7, 8, 9, 10, 11}:
         runtime_keys.add("runtime_adapter")
     # `platform_lifecycle` is shape-validated only; nothing branches on it.
     runtime_optional_keys = {"platform_lifecycle"}
@@ -3065,7 +3082,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.runtime_capabilities.max_parallel_workers", "must be a positive integer")
         adapter = runtime.get("runtime_adapter")
         adapter_path = "run.runtime_capabilities.runtime_adapter"
-        if schema_version in {6, 7, 8, 9, 10} and adapter is None:
+        if schema_version in {6, 7, 8, 9, 10, 11} and adapter is None:
             _add(errors, adapter_path, "must be an object")
         elif adapter is not None and _keys(
             errors,
@@ -3076,7 +3093,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "available_drivers",
                 "detection_source",
             },
-            {"capability_probe", "version_gate"} if schema_version == 10 else set(),
+            {"capability_probe", "version_gate"} if schema_version in {10, 11} else set(),
         ):
             provider = adapter["provider"]
             provider_valid = isinstance(provider, str) and provider in RUNTIME_PROVIDERS
@@ -3115,18 +3132,27 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
 
             version_gate = adapter.get("version_gate")
             version_path = f"{adapter_path}.version_gate"
+            required_version_keys = {
+                "host_version",
+                "minimum_host_version",
+                "harness_version",
+                "required_harness_version",
+                "status",
+                "evidence",
+            }
+            if schema_version == 11:
+                required_version_keys.update(
+                    {
+                        "session_id",
+                        "loaded_contract_digest",
+                        "installed_contract_digest",
+                    }
+                )
             if version_gate is not None and _keys(
                 errors,
                 version_path,
                 version_gate,
-                {
-                    "host_version",
-                    "minimum_host_version",
-                    "harness_version",
-                    "required_harness_version",
-                    "status",
-                    "evidence",
-                },
+                required_version_keys,
             ):
                 for field in (
                     "host_version",
@@ -3148,10 +3174,36 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     _add(errors, f"{version_path}.status", "has an unsupported value")
                 if not _nonempty_string(version_gate["evidence"]):
                     _add(errors, f"{version_path}.evidence", "must be a non-empty string")
+                if schema_version == 11:
+                    _optional_string(errors, f"{version_path}.session_id", version_gate["session_id"])
+                    for field in ("loaded_contract_digest", "installed_contract_digest"):
+                        value = version_gate[field]
+                        if value is not None and (
+                            not isinstance(value, str)
+                            or SHA256_RE.fullmatch(value) is None
+                        ):
+                            _add(errors, f"{version_path}.{field}", "must be null or a lowercase SHA-256 digest")
+                    loaded = version_gate["loaded_contract_digest"]
+                    installed = version_gate["installed_contract_digest"]
+                    status = version_gate["status"]
+                    if status == "current" and (
+                        loaded is None or installed is None or loaded != installed
+                    ):
+                        _add(
+                            errors,
+                            f"{version_path}.status",
+                            "current requires matching loaded and installed contract digests",
+                        )
+                    if loaded is not None and installed is not None and loaded != installed and status != "restart_required":
+                        _add(
+                            errors,
+                            f"{version_path}.status",
+                            "digest mismatch requires restart_required",
+                        )
 
             selected_driver = route_runtime_driver(runtime)
             probe_required = (
-                schema_version == 10
+                schema_version in {10, 11}
                 and provider == "codex"
                 and detection_source == "observed"
                 and run.get("status") in RUN_DISPATCH_STATUSES
@@ -3436,7 +3488,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             "parent_dirty",
             "worktrees",
         }
-        if schema_version in {5, 6, 7, 8, 9, 10}:
+        if schema_version in {5, 6, 7, 8, 9, 10, 11}:
             observed_git_keys.add("parent_worktree_path")
         if _keys(
             errors,
@@ -3445,7 +3497,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             observed_git_keys,
             {"default_branch"},
         ):
-            if schema_version in {5, 6, 7, 8, 9, 10}:
+            if schema_version in {5, 6, 7, 8, 9, 10, 11}:
                 _optional_string(
                     errors,
                     "run.observed.git.parent_worktree_path",
@@ -3481,8 +3533,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     integration = run["integration"]
     integration_optional_keys = {"retention"}
     integration_prior_heads: set[str] = set()
-    if schema_version == 10:
+    if schema_version in {10, 11}:
         integration_optional_keys.add("prior_head_shas")
+    if schema_version == 11:
+        integration_optional_keys.add("coordination_paths")
     if _keys(
         errors,
         "run.integration",
@@ -3493,7 +3547,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_string(errors, "run.integration.branch", integration["branch"])
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
-        if schema_version == 10 and "prior_head_shas" in integration:
+        if schema_version in {10, 11} and "prior_head_shas" in integration:
             integration_prior_heads = _validated_sha_history(
                 errors,
                 "run.integration.prior_head_shas",
@@ -3505,6 +3559,22 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.integration.prior_head_shas",
                 "must contain only superseded integration heads",
             )
+        if schema_version == 11:
+            coordination_paths = _strings(
+                errors,
+                "run.integration.coordination_paths",
+                integration.get("coordination_paths"),
+                nonempty=True,
+            )
+            if len(coordination_paths) != len(set(coordination_paths)):
+                _add(errors, "run.integration.coordination_paths", "must not contain duplicates")
+            for coordination_path in coordination_paths:
+                if coordination_path.startswith(("/", "\\")) or "\\" in coordination_path or ".." in coordination_path.split("/"):
+                    _add(
+                        errors,
+                        "run.integration.coordination_paths",
+                        "must contain repository-relative POSIX paths",
+                    )
         retention = integration.get("retention")
         if retention is not None and retention not in {"persistent", "ephemeral"}:
             _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
@@ -3532,7 +3602,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "report_path",
     }
     mission_state_optional_keys = (
-        {"prior_head_shas"} if schema_version == 10 else set()
+        {"prior_head_shas"} if schema_version in {10, 11} else set()
     )
     mission_prior_heads: dict[str, set[str]] = {}
     if not isinstance(mission_states, dict):
@@ -3560,7 +3630,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.lease_plan_revision", "must be null or positive integer")
             for key in ("lease_plan_digest_sha256", "base_sha", "head_sha", "integrated_sha"):
                 _optional_sha(errors, f"{path}.{key}", state[key])
-            if schema_version == 10 and "prior_head_shas" in state:
+            if schema_version in {10, 11} and "prior_head_shas" in state:
                 prior_heads = _validated_sha_history(
                     errors,
                     f"{path}.prior_head_shas",
@@ -3623,7 +3693,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 _add(errors, f"{path}.refinement_request", "must be null or an object")
 
     closed_pairs: set[tuple[str, str]] = set()
-    if schema_version == 10:
+    if schema_version in {10, 11}:
         closed_waves = run["closed_waves"]
         if not isinstance(closed_waves, list):
             _add(errors, "run.closed_waves", "must be a list")
@@ -3666,7 +3736,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.active_wave.plan_revision", "must be positive integer")
         _optional_sha(errors, "run.active_wave.plan_digest_sha256", wave["plan_digest_sha256"])
         _optional_sha(errors, "run.active_wave.batch_base_sha", batch_base_sha)
-        if schema_version == 10:
+        if schema_version in {10, 11}:
             current_pair = (
                 (wave_id, batch_base_sha)
                 if _nonempty_string(wave_id) and is_full_sha(batch_base_sha)
@@ -3729,7 +3799,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         node.get("ref"): node
         for node in plan.get("graph", {}).get("nodes", [])
         if isinstance(node, dict) and node.get("kind") == "mission"
-    } if plan.get("schema_version") in {4, 5} and isinstance(plan.get("graph"), dict) else {}
+    } if plan.get("schema_version") in {4, 5, 6} and isinstance(plan.get("graph"), dict) else {}
     worker_keys = {
         "worker_id",
         "mission_id",
@@ -3871,7 +3941,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             nested_policy = worker.get("nested_subagent_policy")
             nested_review_evidence = worker.get("nested_review_evidence")
             if (
-                schema_version in {6, 7, 8, 9, 10}
+                schema_version in {6, 7, 8, 9, 10, 11}
                 and isinstance(runtime, dict)
                 and route_runtime_driver(runtime) == "dynamic_workflow"
                 and nested_policy is not None
@@ -3911,11 +3981,11 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         f"{path}.nested_subagent_policy.enabled",
                         "must be boolean",
                     )
-                if schema_version == 10 and nested_policy["enabled"] is True:
+                if schema_version in {10, 11} and nested_policy["enabled"] is True:
                     _add(
                         errors,
                         f"{path}.nested_subagent_policy.enabled",
-                        "must be false because RUN-v10 forbids worker-owned delegation",
+                        "must be false because RUN-v11 forbids worker-owned delegation",
                     )
                 if nested_policy["write_policy"] != "read_only":
                     _add(
@@ -3986,7 +4056,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             "must be a subset of runtime allowed_roles",
                         )
                     if (
-                        schema_version == 10
+                        schema_version in {10, 11}
                         and "reviewer" not in policy_roles
                     ):
                         _add(
@@ -3999,7 +4069,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "spawn_subagents",
                         worker["mission_id"],
                         f"worker:{worker['worker_id']}",
-                        require_exact_target=(schema_version == 10),
+                        require_exact_target=(schema_version in {10, 11}),
                     ):
                         _add(
                             errors,
@@ -4059,7 +4129,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     nested_review_evidence["evidence_paths"],
                 )
                 if (
-                    schema_version == 10
+                    schema_version in {10, 11}
                     and not is_full_sha(nested_review_evidence["reviewed_sha"])
                 ):
                     _add(
@@ -4191,7 +4261,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     else "preintegration"
                 )
                 if (
-                    schema_version == 10
+                    schema_version in {10, 11}
                     and review_stage == "integration"
                     and isinstance(workers, list)
                     and worker.get("worker_id")
@@ -4233,7 +4303,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     in reviewed_mission_ids
                 }
                 if (
-                    schema_version == 10
+                    schema_version in {10, 11}
                     and len(direct_preintegration_mission_ids) == 1
                     and isinstance(mission_states, dict)
                     and isinstance(workers, list)
@@ -4272,7 +4342,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 )
                 state = raw_state if isinstance(raw_state, dict) else {}
                 is_current_review_worker = (
-                    schema_version == 10
+                    schema_version in {10, 11}
                     and review_stage in {"preintegration", "integration"}
                     and state.get("phase") in {"running", "succeeded", "failed", "blocked"}
                     and state.get("last_attempt_id") == worker["attempt_id"]
@@ -4433,7 +4503,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if isinstance(review_node.get("review"), dict)
                 else "preintegration"
             )
-            if schema_version != 10 or review_stage != "integration":
+            if schema_version not in {10, 11} or review_stage != "integration":
                 continue
             state = (
                 graph_node_states.get(review_node_id)
@@ -4482,7 +4552,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         integrating_mission_state_items = (
             mission_states.items()
-            if schema_version == 10 and isinstance(mission_states, dict)
+            if schema_version in {10, 11} and isinstance(mission_states, dict)
             else []
         )
         for mission_id, state in integrating_mission_state_items:
@@ -4496,7 +4566,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 not mission_worker
                 or mission_worker.get("mission_id") != mission_id
             ):
-                if schema_version == 10:
+                if schema_version in {10, 11}:
                     _add(
                         errors,
                         f"run.mission_states.{mission_id}.worker_id",
@@ -4646,7 +4716,12 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         attempt_keys = {"attempt_id", "mission_id", "task_id", "lease_id", "kind", "result", "evidence"}
         for index, attempt in enumerate(run["attempt_log"]):
             path = f"run.attempt_log[{index}]"
-            if not _keys(errors, path, attempt, attempt_keys):
+            optional_attempt_keys = (
+                {"review_lineage_id", "failure_family_ids"}
+                if schema_version == 11
+                else set()
+            )
+            if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
                 continue
             for key in ("attempt_id", "kind", "result"):
                 if not _nonempty_string(attempt[key]):
@@ -4662,13 +4737,128 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if attempt["task_id"] is not None and attempt["task_id"] not in task_ids:
                 _add(errors, f"{path}.task_id", "is unknown")
             _strings(errors, f"{path}.evidence", attempt["evidence"])
+            if schema_version == 11:
+                _optional_string(errors, f"{path}.review_lineage_id", attempt.get("review_lineage_id"))
+                _strings(errors, f"{path}.failure_family_ids", attempt.get("failure_family_ids", []))
 
-    if schema_version == 10:
+    if schema_version == 11:
+        lineage_nodes = {
+            node["review"]["lineage_id"]: node
+            for node in plan.get("graph", {}).get("nodes", [])
+            if isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+            and isinstance(node.get("review"), dict)
+            and isinstance(node["review"].get("lineage_id"), str)
+        }
+        review_lineages = run["review_lineages"]
+        if not isinstance(review_lineages, dict):
+            _add(errors, "run.review_lineages", "must be an object")
+        elif set(review_lineages) != set(lineage_nodes):
+            _add(errors, "run.review_lineages", "keys must exactly match PLAN review lineage IDs")
+        else:
+            consumed_by_lineage: dict[str, int] = {key: 0 for key in lineage_nodes}
+            for attempt in run.get("attempt_log", []):
+                if isinstance(attempt, dict) and attempt.get("review_lineage_id") in consumed_by_lineage:
+                    consumed_by_lineage[attempt["review_lineage_id"]] += 1
+            for lineage_id, lineage in review_lineages.items():
+                path = f"run.review_lineages.{lineage_id}"
+                if not _keys(
+                    errors,
+                    path,
+                    lineage,
+                    {
+                        "review_type",
+                        "mission_ids",
+                        "base_allowance",
+                        "additional_allowance",
+                        "consumed_attempts",
+                        "failure_families",
+                        "owner_decisions",
+                    },
+                ):
+                    continue
+                node = lineage_nodes[lineage_id]
+                if lineage["review_type"] != node["review"]["type"]:
+                    _add(errors, f"{path}.review_type", "must match PLAN review type")
+                if lineage["mission_ids"] != node["review"]["mission_ids"]:
+                    _add(errors, f"{path}.mission_ids", "must match PLAN review mission_ids")
+                for key in ("base_allowance", "additional_allowance", "consumed_attempts"):
+                    if not _is_int(lineage[key]) or lineage[key] < 0:
+                        _add(errors, f"{path}.{key}", "must be a non-negative integer")
+                if lineage["base_allowance"] != node["max_attempts"]:
+                    _add(errors, f"{path}.base_allowance", "must match PLAN node max_attempts")
+                if lineage["consumed_attempts"] != consumed_by_lineage[lineage_id]:
+                    _add(errors, f"{path}.consumed_attempts", "must match attempt_log lineage count")
+                if not isinstance(lineage["failure_families"], list):
+                    _add(errors, f"{path}.failure_families", "must be a list")
+                else:
+                    family_ids: set[str] = set()
+                    for index, family in enumerate(lineage["failure_families"]):
+                        family_path = f"{path}.failure_families[{index}]"
+                        if not _keys(
+                            errors,
+                            family_path,
+                            family,
+                            {"id", "primitive", "equivalence_classes", "strategy", "status"},
+                        ):
+                            continue
+                        if not _nonempty_string(family["id"]) or not ID_RE.fullmatch(family["id"]):
+                            _add(errors, f"{family_path}.id", "must be a flat uppercase identifier")
+                        elif family["id"] in family_ids:
+                            _add(errors, f"{family_path}.id", "must be unique within the lineage")
+                        if isinstance(family.get("id"), str):
+                            family_ids.add(family["id"])
+                        for key in ("primitive", "strategy"):
+                            if not _nonempty_string(family[key]):
+                                _add(errors, f"{family_path}.{key}", "must be a non-empty string")
+                        _strings(errors, f"{family_path}.equivalence_classes", family["equivalence_classes"], nonempty=True)
+                        if family["status"] not in {"open", "repairing", "resolved", "accepted"}:
+                            _add(errors, f"{family_path}.status", "has an unsupported value")
+                if not isinstance(lineage["owner_decisions"], list):
+                    _add(errors, f"{path}.owner_decisions", "must be a list")
+                else:
+                    decision_ids: set[str] = set()
+                    granted = 0
+                    for index, decision in enumerate(lineage["owner_decisions"]):
+                        decision_path = f"{path}.owner_decisions[{index}]"
+                        if not _keys(
+                            errors,
+                            decision_path,
+                            decision,
+                            {
+                                "id",
+                                "source",
+                                "strategy",
+                                "acceptance_matrix",
+                                "additional_review_attempts",
+                            },
+                        ):
+                            continue
+                        if not _nonempty_string(decision["id"]):
+                            _add(errors, f"{decision_path}.id", "must be a non-empty string")
+                        elif decision["id"] in decision_ids:
+                            _add(errors, f"{decision_path}.id", "must be unique within the lineage")
+                        if isinstance(decision.get("id"), str):
+                            decision_ids.add(decision["id"])
+                        for key in ("source", "strategy"):
+                            if not _nonempty_string(decision[key]):
+                                _add(errors, f"{decision_path}.{key}", "must be a non-empty string")
+                        _strings(errors, f"{decision_path}.acceptance_matrix", decision["acceptance_matrix"], nonempty=True)
+                        allowance = decision["additional_review_attempts"]
+                        if not _is_int(allowance) or allowance < 1:
+                            _add(errors, f"{decision_path}.additional_review_attempts", "must be a positive integer")
+                        else:
+                            granted += allowance
+                    if granted != lineage["additional_allowance"]:
+                        _add(errors, f"{path}.additional_allowance", "must equal the sum of owner decision grants")
+
+    if schema_version in {10, 11}:
         _validate_runtime_metrics(errors, run)
         _validate_verifier_executions(errors, plan, run)
         _validate_v10_execution_records(errors, plan, run)
 
-    if schema_version in {9, 10}:
+    if schema_version in {9, 10, 11}:
         _validate_gate_results(
             errors,
             plan,
@@ -4687,7 +4877,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         )
         _validate_ui_evidence(errors, plan, run)
 
-    if schema_version in {8, 9, 10} and run.get("status") == "complete":
+    if schema_version in {8, 9, 10, 11} and run.get("status") == "complete":
         if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:
             _add(errors, "run.intent", "complete run requires execution intent")
         if run.get("plan_readiness") != "ready":
@@ -4695,7 +4885,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         plan_sources = plan.get("sources")
         complete_source_statuses = (
             {"frozen", "delta_accepted"}
-            if schema_version == 10
+            if schema_version in {10, 11}
             else {"frozen", "delta accepted"}
         )
         if isinstance(plan_sources, list) and any(
@@ -4898,7 +5088,7 @@ def validate_current_plan_run(
     *,
     repo_root: str | Path | None = None,
 ) -> list[str]:
-    """Validate only the current PLAN-v5/RUN-v10 pair.
+    """Validate only the current PLAN-v6/RUN-v11 pair.
 
     The version-pair check intentionally runs before the compatibility-aware
     validators. Callers on the current execution path therefore cannot
@@ -4908,9 +5098,9 @@ def validate_current_plan_run(
     """
 
     if not isinstance(plan, dict) or not isinstance(run, dict):
-        return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
-    if (plan.get("schema_version"), run.get("schema_version")) != (5, 10):
-        return ["current PLAN/RUN validation requires PLAN v5 with RUN v10"]
+        return ["current PLAN/RUN validation requires PLAN v6 with RUN v11"]
+    if (plan.get("schema_version"), run.get("schema_version")) != (6, 11):
+        return ["current PLAN/RUN validation requires PLAN v6 with RUN v11"]
     plan_errors = (
         validate_plan(plan)
         if repo_root is None

@@ -121,7 +121,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("two-way project-size gate", research)
         self.assertIn("Small work never reaches this selector", selector)
         self.assertIn("Small direct work does not instantiate this file", runbook)
-        self.assertIn("lightest safe direct or PLAN-v5/RUN-v10 delivery path", agent)
+        self.assertIn("lightest safe direct or PLAN-v6/RUN-v11 delivery path", agent)
         self.assertIn("A high file count", skill)
         self.assertIn("does not make work `large` by itself", skill)
 
@@ -173,8 +173,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         goal = self.read("assets/templates/GOAL.template.md")
 
         for content in (skill, state, runbook, goal):
-            self.assertIn("PLAN schema v5", content)
-            self.assertIn("RUN schema v10", content)
+            self.assertIn("PLAN schema v6", content)
+            self.assertIn("RUN schema v11", content)
             self.assertIn("legacy compact run-only", content.lower())
             self.assertIn("read", content.lower())
         self.assertIn("New managed work never authors a compact RUN-only artifact", skill)
@@ -240,11 +240,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         goal = self.read("assets/templates/GOAL.template.md")
 
         for content in (state, runbook, orchestration):
-            self.assertIn("RUN-v10", content)
+            self.assertIn("RUN-v11", content)
             self.assertIn("parent", content.lower())
         self.assertIn("accepts only an omitted `nested_subagent_policy` or one with `enabled: false`", state)
         self.assertIn("RUN v6 through v9 retain their legacy nested-policy compatibility", state)
-        self.assertIn("RUN-v10 workers never delegate", runbook)
+        self.assertIn("RUN-v11 workers never delegate", runbook)
         self.assertIn("Workers and reviewers never spawn or delegate further", orchestration)
         self.assertNotIn("app-task fan-out includes `spawn_subagents`", selector.lower())
         self.assertNotIn("enabled v10 policy", state.lower())
@@ -354,7 +354,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
         self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
-        self.assertIn("lightest safe direct or PLAN-v5/RUN-v10 delivery path", agent)
+        self.assertIn("lightest safe direct or PLAN-v6/RUN-v11 delivery path", agent)
         self.assertIn("Host adapter: none | codex | claude_code | pi | generic", skill)
 
     def test_runtime_upgrade_gate_blocks_old_or_stale_sessions(self) -> None:
@@ -366,7 +366,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("references/runtime-upgrades.md", skill)
         self.assertIn("Never hot-upgrade a live worker", upgrades)
         self.assertIn("runtime_adapter.version_gate", upgrades)
-        self.assertIn('"required_harness_version": "0.6.0"', runbook)
+        self.assertIn('"required_harness_version": "0.7.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -382,7 +382,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## No Nested Delegation", worker_goal)
         self.assertIn("Do not spawn, create, or delegate to another agent", worker_goal)
         self.assertIn("All explorers, writers, and reviewers are parent-dispatched siblings", worker_goal)
-        self.assertIn("RUN-v10 workers never delegate", runbook)
+        self.assertIn("RUN-v11 workers never delegate", runbook)
         self.assertIn("all reviews are parent-dispatched graph nodes", runbook)
 
     def test_frontend_design_has_creation_and_conformance_modes(self) -> None:
@@ -411,7 +411,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("only after the user requests faithful matching", updates)
         self.assertIn("Source version / hash", updates)
         self.assertIn("Tolerance / allowed deviations", updates)
-        self.assertIn("`product-design-builder` must normalize either accepted source type", updates)
+        self.assertIn("`prd-builder` freezes structural or behavioral consequences", updates)
+        self.assertIn("`product-design-builder` freezes visual consequences", updates)
         self.assertIn("user explicitly requests faithful conformance", skill)
 
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
@@ -440,7 +441,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def test_goal_template_matches_current_authorization_ledger(self) -> None:
         goal = self.read("assets/templates/GOAL.template.md")
 
-        self.assertIn("Keep all 12 schema-v10 RUN authorization entries false", goal)
+        self.assertIn("Keep all 12 schema-v11 RUN authorization entries false", goal)
         self.assertIn("invoke_external_runtime", goal)
         self.assertIn("one top-level left-sidebar task with its own clean exact-base app-managed worktree", goal)
 
@@ -633,8 +634,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         for content in (skill, run):
             self.assertIn("invoke_external_runtime", content)
-        self.assertIn('"schema_version": 5', plan)
-        self.assertIn('"schema_version": 10', run)
+        self.assertIn('"schema_version": 6', plan)
+        self.assertIn('"schema_version": 11', run)
         self.assertIn('"graph_state"', run)
         self.assertIn("dependency", graph)
         self.assertIn("max_traversals", graph)
@@ -719,11 +720,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         verification = self.read("references/verification-gates.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        self.assertIn('"schema_version": 10', runbook)
+        self.assertIn('"schema_version": 11', runbook)
         self.assertIn('"batch_gate_results"', runbook)
         self.assertIn('"final_gate_results"', runbook)
         self.assertIn('"ui_evidence"', runbook)
-        self.assertIn("New managed work uses PLAN schema v5 and RUN schema v10", skill)
+        self.assertIn("New managed work uses PLAN schema v6 and RUN schema v11", skill)
         self.assertIn("complete` is an execution closeout state", state)
         for content in (skill, verification, runbook):
             self.assertIn("breakpoint-by-state", content)
@@ -751,8 +752,26 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Runtime Boundary", project_agents)
         self.assertIn("Codex and Pi load it as their native project context", project_agents)
         self.assertIn("## Core Development Principles", project_agents)
+        self.assertIn("## Managed Full-Stack Harness Runs", project_agents)
+        self.assertIn("Small bounded work may proceed directly", project_agents)
+        self.assertNotIn("<verification-command>", project_agents)
+        self.assertNotIn("<e2e-command>", project_agents)
+        self.assertNotIn("(List protected files here", project_agents)
+        self.assertNotIn("current v10", project_agents)
+        self.assertIn("The current RUN push guard", project_agents)
         self.assertIn("@AGENTS.md", project_claude)
         self.assertIn("## Claude Code Runtime Boundary", project_claude)
+        self.assertIn("Direct Claude Code work follows `AGENTS.md`", project_claude)
+        self.assertIn("does not transfer to the worker", project_claude)
+
+        if REPO_ROOT is not None:
+            root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+            root_claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+            self.assertNotIn("codex/<short-name>", root_agents)
+            self.assertIn("never add a fixed prefix", root_agents.lower())
+            self.assertIn("@AGENTS.md", root_claude)
+            self.assertIn("Direct Claude Code work follows `AGENTS.md`", root_claude)
+            self.assertIn("does not transfer to the worker", root_claude)
 
     def test_branch_names_are_explicit_and_have_no_harness_prefix(self) -> None:
         policy_paths = (

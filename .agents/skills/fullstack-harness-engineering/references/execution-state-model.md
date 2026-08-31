@@ -12,7 +12,7 @@ Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 ```
 
-The stage is parent-only and cannot create or edit `PLAN.md`, `RUN.md`, `tasks.md`, evidence, branches, worktrees, or other managed state; it does not load a task skill, select a worker/model, invoke an external runtime, or spawn a worker. A small route remains direct and creates no PLAN/RUN. A large route creates the current PLAN schema v5 plus RUN schema v10 and only then enters graph readiness. The stage is not a graph node and must not be represented in `graph_state`.
+The stage is parent-only and cannot create or edit `PLAN.md`, `RUN.md`, `tasks.md`, evidence, branches, worktrees, or other managed state; it does not load a task skill, select a worker/model, invoke an external runtime, or spawn a worker. A small route remains direct and creates no PLAN/RUN. A large route creates the current PLAN schema v6 plus RUN schema v11 and only then enters graph readiness. The stage is not a graph node and must not be represented in `graph_state`.
 
 When no agent capability is available after routing, the large route remains plan-backed and selects `sequential_parent`: the PLAN mission remains `executor: runtime_worker`, while RUN records a parent-owned executor/worker binding solely for lease/state validation (`worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, `completion_channel: agent_result`). This binding is not a delegated or spawned worker and requires no `spawn_subagents`; the parent is the sole mission writer and executes one mission at a time. A parent-managed worktree is required; if it is unavailable or unauthorized, the route blocks rather than writing in `shared_checkout`.
 
@@ -30,7 +30,7 @@ The harness has three distinct authorities. Do not merge them into one table or 
 
 The parent is the only writer of `PLAN.md` and `RUN.md`. Workers return reports and evidence. The parent verifies those reports against observed facts before changing canonical state.
 
-New managed work is never authored as compact RUN-only work. Legacy compact RUN-only manifests whose `plan` identity fields are `null` remain readable and validatable for migration and closeout compatibility, but they make no current scheduling claim and cannot authorize new managed execution or enter the PLAN-v5/RUN-v10 graph. When work continues, the parent creates a fresh PLAN schema v5 and RUN schema v10 pair after routing; it does not null the PLAN fields in the current runbook. “Sequential” for a current large run describes the mission cadence: keep the PLAN mission's `executor: runtime_worker`, record the parent-owned executor/worker binding in RUN solely for lease/state validation, and bind it to `worker_runtime: parent`, `parent_managed_worktree`, and `agent_result`. The binding is not a delegated or spawned worker, so no `spawn_subagents` grant is needed; the parent executes one mission at a time. Parent-managed worktrees are required, and an unavailable or unauthorized worktree blocks the route rather than permitting a `shared_checkout` write. Require one exact-head read-only review before parent integration, then merge the passing head into the resolved integration branch and run its integration gate.
+New managed work is never authored as compact RUN-only work. Legacy compact RUN-only manifests whose `plan` identity fields are `null` remain readable and validatable for migration and closeout compatibility, but they make no current scheduling claim and cannot authorize new managed execution or enter the PLAN-v6/RUN-v11 graph. When work continues, the parent creates a fresh PLAN schema v6 and RUN schema v11 pair after routing; it does not null the PLAN fields in the current runbook. “Sequential” for a current large run describes the mission cadence: keep the PLAN mission's `executor: runtime_worker`, record the parent-owned executor/worker binding in RUN solely for lease/state validation, and bind it to `worker_runtime: parent`, `parent_managed_worktree`, and `agent_result`. The binding is not a delegated or spawned worker, so no `spawn_subagents` grant is needed; the parent executes one mission at a time. Parent-managed worktrees are required, and an unavailable or unauthorized worktree blocks the route rather than permitting a `shared_checkout` write. Require one exact-head read-only review before parent integration, then merge the passing head into the resolved integration branch and run its integration gate.
 
 Use exact RUN lifecycle values:
 
@@ -52,15 +52,15 @@ plan_readiness: draft | ready | blocked
 | Workers | No active or blocked mission or review worker |
 | Waves | No proposed or active wave |
 | Landing | `landing.continuity` is `preserved` with its `head_sha` equal to the integration head |
-| PLAN-v5 graph run | Every node is succeeded, skipped, or superseded; every edge is terminal; no retained node blocker (a failed node must be routed or superseded before closeout) |
-| RUN-v10 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS; when a UI registry is supplied, the PLAN surface matrix also covers its exact responsive set, required states, and route trace/test bindings |
+| PLAN-v6 graph run | Every node is succeeded, skipped, or superseded; every edge is terminal; no retained node blocker (a failed node must be routed or superseded before closeout) |
+| RUN-v11 gates | Every PLAN batch and final gate has a PASS result bound to the integration head, and every required UI screenshot matrix entry is PASS; when a UI registry is supplied, the PLAN surface matrix also covers its exact responsive set, required states, and route trace/test bindings |
 | Gate freshness | A changed integration head invalidates an earlier gate PASS immediately, in every RUN lifecycle state |
 
-New runs are authored at RUN v10. The manifest validator still reads older RUN schemas, but graph selection and node-result validation require RUN v10. RUN v9 introduced the gate arrays; v10 adds PLAN-v5 binding, continuity, and append-only verifier history.
+New runs are authored at RUN v11. The manifest validator still reads older RUN schemas, but graph selection and node-result validation require RUN v11. RUN v9 introduced the gate arrays; v10 adds PLAN-v6 binding, continuity, and append-only verifier history.
 
 `plan_readiness: ready` is the machine gate. Human verification tables may display `PASS`, but selectors never substitute a table cell for canonical readiness.
 
-New PLAN/RUN files are authored at the current schema (PLAN v5, RUN v10). Older files remain validatable as manifests but cannot drive graph selection or node-result validation.
+New PLAN/RUN files are authored at the current schema (PLAN v6, RUN v11). Older files remain validatable as manifests but cannot drive graph selection or node-result validation.
 
 ## Generating And Validating State
 
@@ -78,7 +78,7 @@ Verifier declarations are data, not shell prose. Each verifier records at least 
 
 A worker-supplied hash is only a claim, even when it is 64 lowercase hexadecimal characters. The parent retains each `verifier_runtime.py` result, including verifier ID, immutable context, key document, exact head, status, exit result, and execution key. Worker-result validation recomputes the key from the retained key document and requires the reported verifier ID, status, and evidence key to match that parent-retained result exactly. Missing, forged, stale-context, wrong-head, or mismatched results fail closed.
 
-When the CLI is given `--repo-root`, current PLAN-v5 local sources are resolved inside that root and checked against their frozen bytes; a supplied `source_revision` is read from that immutable Git revision. URLs are not fetched and need an immutable revision or a local frozen snapshot. For RUN-v10 UI evidence, the verifier reads the artifact blob from the recorded accepted Git commit/ref, decodes those bytes, and only then compares `artifact_sha256`; RUN-v9 retains working-tree compatibility.
+When the CLI is given `--repo-root`, current PLAN-v6 local sources are resolved inside that root and checked against their frozen bytes; a supplied `source_revision` is read from that immutable Git revision. URLs are not fetched and need an immutable revision or a local frozen snapshot. For RUN-v11 UI evidence, the verifier reads the artifact blob from the recorded accepted Git commit/ref, decodes those bytes, and only then compares `artifact_sha256`; RUN-v9 retains working-tree compatibility.
 
 Derived artifacts must bind all three values:
 
@@ -138,7 +138,7 @@ blocked | worker_failed | integration_failed | superseded
 | `ready -> leased` | Parent records one worker lease bound to mission, plan revision/digest, and base SHA |
 | `leased -> worker_running` | Worker identity and workspace are observable |
 | `worker_running -> worker_passed` | Worker verifier passed and a result with head SHA, diff summary, and evidence was returned |
-| `worker_passed -> integrating` | Parent rechecks ancestry, actual diff scope, forbidden files, head stability, integration authorization, and a terminal `review_workers[]` PASS bound to the exact worktree head; current RUN-v10 workers never use task-local nested review evidence, while v6-v9 records retain their historical compatibility rule |
+| `worker_passed -> integrating` | Parent rechecks ancestry, actual diff scope, forbidden files, head stability, integration authorization, and a terminal `review_workers[]` PASS bound to the exact worktree head; current RUN-v11 workers never use task-local nested review evidence, while v6-v9 records retain their historical compatibility rule |
 | `integrating -> integrated` | Changes are on the resolved integration branch, the integration verifier passed, and `integrated_sha` is recorded |
 
 These phase transitions describe one run's lifecycle; when `run.integration.retention` is `"persistent"`, the integration branch itself survives across runs rather than being scoped to a single run.
@@ -177,7 +177,7 @@ Reconcile the current host and loaded Harness release through `runtime_capabilit
 
 ## Typed Graph State
 
-PLAN v5 and RUN v10 carry the typed-graph contract: typed nodes, explicit dependency/route edges, and one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.
+PLAN v6 and RUN v11 carry the typed-graph contract: typed nodes, explicit dependency/route edges, and one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.
 
 Use node phases:
 
@@ -195,7 +195,7 @@ Every node state records `attempts`, `last_attempt_id`, `last_outcome`, optional
 
 Dependency edges always consume `pass` and remain acyclic. Route edges activate from declared outcomes. A cyclic route requires a PLAN traversal bound and an exit. A retry or subgraph replay creates new attempts and preserves old evidence; it never revives a lease, action grant, base/head binding, or verifier result.
 
-Run `select_ready_nodes.py` for PLAN v5 with RUN v10. Its strict current-pair entrypoint rejects other schema pairs before compatibility dispatch. It computes graph readiness before runtime binding, then applies the existing write-conflict and worker-budget rules to ready mission nodes. The derived selector-only `execution_route` is `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more; `runtime_driver` remains a separate transport fact. See `graph-orchestration.md` for the complete routing contract.
+Run `select_ready_nodes.py` for PLAN v6 with RUN v11. Its strict current-pair entrypoint rejects other schema pairs before compatibility dispatch. It computes graph readiness before runtime binding, then applies the existing write-conflict and worker-budget rules to ready mission nodes. The derived selector-only `execution_route` is `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more; `runtime_driver` remains a separate transport fact. See `graph-orchestration.md` for the complete routing contract.
 
 ## Authorization Action Ledger
 
@@ -303,7 +303,7 @@ RUN records them together under `runtime_capabilities`, along with `max_parallel
 
 ### Runtime adapter and routing
 
-RUN v10 records observed host capabilities without replacing the three portable axes:
+RUN v11 records observed host capabilities without replacing the three portable axes:
 
 ```json
 {
@@ -317,7 +317,7 @@ RUN v10 records observed host capabilities without replacing the three portable 
 
 `provider` is `codex`, `claude_code`, `pi`, or `generic`. `detection_source` is `observed`, `explicit`, or `fallback`, and the three are not interchangeable: `observed` means the host was probed and the recorded capacity is real, `explicit` means the route was chosen on purpose, and `fallback` means the capability was never determined. A multi-mission plan may not run sequentially on `fallback` — the selector withholds the proposal with `capability_unprobed` until the parent probes or declares. How to probe differs per host and belongs to the adapter; whether it happened is checked here, the same way for all three. `available_drivers` contains only capabilities proven in the current surface and always includes `sequential_parent`. The selector applies a fixed route: Codex uses `app_threads`, then `subagents`, then `sequential_parent`; Claude Code uses `dynamic_workflow`, then `subagents`, then `sequential_parent`; Pi and generic use `subagents`, then `sequential_parent`.
 
-RUN v10 adds an optional `runtime_adapter.capability_probe` that is valid only for an observed Codex adapter. A route that may select two writers must complete it before entering `ready` or `running`; a provably sequential route may omit the unrelated surfaces and records only the facts needed to prove its selected driver:
+RUN v11 adds an optional `runtime_adapter.capability_probe` that is valid only for an observed Codex adapter. A route that may select two writers must complete it before entering `ready` or `running`; a provably sequential route may omit the unrelated surfaces and records only the facts needed to prove its selected driver:
 
 ```json
 {
@@ -336,9 +336,9 @@ RUN v10 adds an optional `runtime_adapter.capability_probe` that is valid only f
 
 Every supplied probe entry has exactly `status` and `evidence`; status is `available`, `unavailable`, or `unobserved`, and evidence is non-empty. A parallel-capable ready/running Codex execution rejects a missing probe or any `unobserved` entry with `capability_snapshot_incomplete`. A sequential route may omit the probe when `sequential_parent` is selected, or provide only the selected driver's required available surfaces; it still cannot claim an app-thread or subagent driver without those facts. When all eight entries are supplied, all six `app_*` entries being available derives `app_threads`; both `direct_*` entries being available derives `subagents`; `sequential_parent` is always derived, and `available_drivers` must equal those derived drivers in Codex priority order. Historical/superseded RUN evidence remains readable, but a resumed parallel route re-probes before launch.
 
-PLAN v5 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex, Claude Code, and Pi, while generic providers keep it null. Pi model remains null because the installed role owns primary-model and fallback selection; a non-null Pi effort changes only that run's thinking tier. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`; a missing Pi option preserves the installed Pi role/model/effort configuration. The destination host still validates current model and effort support.
+PLAN v6 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex, Claude Code, and Pi, while generic providers keep it null. Pi model remains null because the installed role owns primary-model and fallback selection; a non-null Pi effort changes only that run's thinking tier. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`; a missing Pi option preserves the installed Pi role/model/effort configuration. The destination host still validates current model and effort support.
 
-When the parent allocates a PLAN-v5 graph worker in RUN v10, copy a mission binding into `workers[].runtime_binding` or a read-only verifier binding into `review_workers[].runtime_binding`, with provider, driver, source, model, reasoning effort, and option source. A review worker also records node/attempt identity, graph revision, review path, and exact reviewed SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null values through task creation. A Claude Code host passes each node's own model and non-null reasoning effort directly into that node's own `agent()` call inside the Workflow script; one wave may freely mix models and reasoning efforts across nodes since selection happens per spawned agent, not per wave. Pi keeps the installed role's resolved model and fallbacks, then applies a non-null binding effort through the per-run thinking suffix. Never silently replace a rejected model or effort; replan the affected node and increment the PLAN revision.
+When the parent allocates a PLAN-v6 graph worker in RUN v11, copy a mission binding into `workers[].runtime_binding` or a read-only verifier binding into `review_workers[].runtime_binding`, with provider, driver, source, model, reasoning effort, and option source. A review worker also records node/attempt identity, graph revision, review path, and exact reviewed SHA; it has no mission lease, writable worktree, branch, or commit authority. For Codex app tasks, pass non-null values through task creation. A Claude Code host passes each node's own model and non-null reasoning effort directly into that node's own `agent()` call inside the Workflow script; one wave may freely mix models and reasoning efforts across nodes since selection happens per spawned agent, not per wave. Pi keeps the installed role's resolved model and fallbacks, then applies a non-null binding effort through the per-run thinking suffix. Never silently replace a rejected model or effort; replan the affected node and increment the PLAN revision.
 
 For a managed route that may fan out, capture this adapter before the first production edit or worker launch. A managed-sequential route proves only its selected driver and does not inventory unused parallel driver surfaces. Capability observation and action authorization are separate facts: record a usable driver even when its launch actions remain false. In particular, do not omit `app_threads` because `create_user_owned_tasks` or worktree authorization is missing. Record the capability, request the launch bundle once at Plan Readiness, and rerun selection after the answer.
 
@@ -348,7 +348,7 @@ The chosen host driver must match the portable host axes. `app_threads` requires
 
 For a plan-backed graph, every mission node remains a write mission with PLAN `executor: runtime_worker` and must bind to `parent_managed_worktree` or `app_managed_worktree`. A `sequential_parent` mission runs one mission at a time under the binding defined above. The selector never rewrites that node into a deterministic parent action or a shared-checkout write. If the required parent-managed worktree and its worktree/branch/commit authorizations cannot be obtained, the route remains deferred or blocked rather than downgrading.
 
-A current PLAN-v5 typed node's `allowed_providers` must include the current host's provider for the node to be selectable at all; there is no other-host adapter to fall back into. A node whose `allowed_providers` excludes the current host provider is deferred with `runtime_unavailable` and reported as needing a run hosted by the matching adapter.
+A current PLAN-v6 typed node's `allowed_providers` must include the current host's provider for the node to be selectable at all; there is no other-host adapter to fall back into. A node whose `allowed_providers` excludes the current host provider is deferred with `runtime_unavailable` and reported as needing a run hosted by the matching adapter.
 
 Claude Dynamic Workflow is a wave-level flat script, not a nested mission worker. The parent preallocates one worktree, branch, and lease per selected write mission. The workflow coordinates sibling agents and returns structured result candidates. Omit `nested_subagents` for this flat route. If a workflow stage needs human sign-off, return a refinement/blocker result and run a later workflow after the parent updates canonical state; never let a workflow script or agent edit PLAN/RUN directly.
 
@@ -389,7 +389,7 @@ Do not promise an automatic callback from a generic skill. True event-driven tas
 
 ### Flat parent-owned delegation
 
-An app task is a root task in its own app-managed worktree and is the sole writer for one mission. It never coordinates child agents. The parent may still record the observed host capability under `runtime_capabilities.nested_subagents`, but capability does not change the RUN-v10 prohibition:
+An app task is a root task in its own app-managed worktree and is the sole writer for one mission. It never coordinates child agents. The parent may still record the observed host capability under `runtime_capabilities.nested_subagents`, but capability does not change the RUN-v11 prohibition:
 
 ```json
 {
@@ -402,7 +402,7 @@ An app task is a root task in its own app-managed worktree and is the sole write
 }
 ```
 
-`available` is an observed capability, not authorization. Outer app-task selection and creation does not require or preauthorize `spawn_subagents`. RUN v10 accepts only an omitted `nested_subagent_policy` or one with `enabled: false`; enabled policy is invalid even when the host exposes child tools. The worker reports `subagent_activity.status: "not_applicable"`, no children, and a concrete flat-topology reason.
+`available` is an observed capability, not authorization. Outer app-task selection and creation does not require or preauthorize `spawn_subagents`. RUN v11 accepts only an omitted `nested_subagent_policy` or one with `enabled: false`; enabled policy is invalid even when the host exposes child tools. The worker reports `subagent_activity.status: "not_applicable"`, no children, and a concrete flat-topology reason.
 
 The parent owns every launch. It may dispatch independent read-only explorers before writing, one writer per mission/worktree, exact-head pre-integration reviewers, and fresh reviewers after serial integration. These are sibling PLAN nodes or parent-owned runtime attempts; none is a child of a worker or reviewer. RUN v6 through v9 retain their legacy nested-policy compatibility for validation only. Never copy that legacy shape into a new RUN.
 
@@ -450,7 +450,7 @@ Before leasing or fanning out a mission, the parent must prove all applicable ro
 | Lifecycle understood | Branch/ref durability and app-managed retention behavior are recorded |
 | Permission boundary | Parent mode/profile and inheritance are observed; every required filesystem, Git metadata, temp/cache, network, local-binding, and socket surface is covered without an unresolved prompt |
 | Runtime route | Provider and available drivers are observed; the deterministic selected driver matches the declared runtime/workspace/completion axes |
-| Flat worker result | Current RUN-v10 workers report `subagent_activity: not_applicable` with a concrete reason and empty `children`; legacy v6-v9 nested-policy evidence is compatibility-only |
+| Flat worker result | Current RUN-v11 workers report `subagent_activity: not_applicable` with a concrete reason and empty `children`; legacy v6-v9 nested-policy evidence is compatibility-only |
 
 If any capability, isolation, permission, or completion row is unknown, do not fan out. Observe it first; if it remains unavailable, select the real `sequential_parent` route defined above and apply the same verification gates. Missing launch authorization is not an unknown capability: request the exact run-wide launch bundle once and pause rather than rewriting the runtime adapter or silently downgrading.
 
@@ -478,7 +478,7 @@ selected_missions
 deferred_missions and reason codes
 ```
 
-RUN schema v10 also carries an append-only `closed_waves` list of
+RUN schema v11 also carries an append-only `closed_waves` list of
 `{ wave_id, batch_base_sha }` pairs. Append a pair before closing or
 superseding that wave; a proposed or active wave may not reuse a pair already
 listed there. A `wave_closed` grant is valid only when its scope matches the

@@ -14,9 +14,9 @@
 
 ## Git Flow
 
-- Do not push directly to `main`.
+- Do not edit, commit, merge, or push directly to the default branch (`main` in this repository).
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
-- With matching `create_local_branches` authorization, create a `codex/<short-name>` branch for implementation work, cut from the current `main`.
+- With matching `create_local_branches` authorization, create the exact non-default branch named by repository governance or the user, cut from the current default branch. If neither source names it, ask before branch creation; never add a fixed prefix.
 - With matching `create_local_commits` authorization, commit only the verified task scope.
 - Worker branches and worktrees stay local. With matching `integrate_locally` authorization, the parent integrates verified worker commits into that one run branch.
 - Before push, run the required tests and review the complete diff against `main`.
@@ -44,7 +44,7 @@ CI runs the same set. Running only the engineering suite passes locally and then
 
 Treat these as blocking findings:
 
-- Any path that bypasses explicit action authorization for any of the 12 ledger actions — external runtime invocation, subagent spawn, user-owned task creation, worktree creation, branch, commit, integration, push, worker-task archival, worktree removal, or branch deletion.
+- Any path that bypasses explicit action authorization for one of the 12 ledger keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, or `delete_branches`.
 - Any `push` that reaches `main`, or any run whose own integration branch resolves to `main`.
 - Any `push` grant whose target is a branch other than the run's resolved integration branch.
 - Any gate PASS that is not bound to the exact integration head SHA.

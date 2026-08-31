@@ -4,7 +4,7 @@ Use this reference when the harness runs multiple missions, delegates to workers
 
 ## System Review And Route Comes First
 
-Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage defined in `execution-state-model.md`. Small work never reaches this reference. A large route enters the existing PLAN-v5/RUN-v10 graph; a no-agent large route uses the parent-owned `sequential_parent` path below, one mission at a time.
+Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage defined in `execution-state-model.md`. Small work never reaches this reference. A large route enters the existing PLAN-v6/RUN-v11 graph; a no-agent large route uses the parent-owned `sequential_parent` path below, one mission at a time.
 
 ## Describe Capabilities, Not Product Labels
 
@@ -26,7 +26,7 @@ If a requested combination is unsupported, downgrade to sequential parent execut
 
 ## Runtime Adapter Routing
 
-RUN v10 records the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
+RUN v11 records the observed host provider separately from the portable axes under `runtime_capabilities.runtime_adapter`:
 
 ```text
 provider: codex | claude_code | pi | generic
@@ -46,7 +46,7 @@ The selected driver must match the axes recorded in RUN. `app_threads` maps to `
 
 Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. In Pi, the installed subagent workflow must also return a terminal child result before `subagents` is recorded. Codex task tools may be lazy-loaded, so use the current tool-discovery surface to search for project listing, top-level task creation, messaging, and thread waiting before declaring `app_threads` missing. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
-For a RUN-v10 observed Codex execution that may select two writers, write the full eight-entry `capability_probe` described by `execution-state-model.md`; do not summarize several surfaces into one claim. A provably sequential route may omit unused surfaces, but still records enough available facts to prove a selected app-thread or subagent driver (or records the native `sequential_parent` route). `app_threads` is derived only from available project listing, thread creation/read/message/wait, and app-managed-worktree support. Direct `subagents` is derived separately from spawn and result support. Before a parallel-capable ready/running run validates, every surface must be `available` or `unavailable` with evidence, and `available_drivers` must exactly match the derived Codex priority list. Missing, `unobserved`, under-reported, or over-claimed required snapshots block execution.
+For a RUN-v11 observed Codex execution that may select two writers, write the full eight-entry `capability_probe` described by `execution-state-model.md`; do not summarize several surfaces into one claim. A provably sequential route may omit unused surfaces, but still records enough available facts to prove a selected app-thread or subagent driver (or records the native `sequential_parent` route). `app_threads` is derived only from available project listing, thread creation/read/message/wait, and app-managed-worktree support. Direct `subagents` is derived separately from spawn and result support. Before a parallel-capable ready/running run validates, every surface must be `available` or `unavailable` with evidence, and `available_drivers` must exactly match the derived Codex priority list. Missing, `unobserved`, under-reported, or over-claimed required snapshots block execution.
 
 Perform this detection proactively before the first production edit in every plan-backed run, using the lightweight selected-driver check for a sequential route. Record all observed drivers even when their action authorizations are false. Missing authorization is a launch gap, not evidence that `app_threads`, `dynamic_workflow`, or `subagents` is unavailable.
 
@@ -128,7 +128,7 @@ Use one coordination level:
 Harness parent -> read-only explorers | mission writers | read-only reviewers
 ```
 
-Workers and reviewers never spawn or delegate further. RUN-v10 therefore accepts only an omitted or disabled `nested_subagent_policy`. If an app task would benefit from another independent view, it reports that need and waits; the parent may dispatch a bounded read-only sibling under its own authorization and budget.
+Workers and reviewers never spawn or delegate further. RUN-v11 therefore accepts only an omitted or disabled `nested_subagent_policy`. If an app task would benefit from another independent view, it reports that need and waits; the parent may dispatch a bounded read-only sibling under its own authorization and budget.
 
 Every write mission has one worker, one explicit `write_scope` ownership boundary, and one clean exact-base worktree. Before launch, the parent verifies repository identity, branch/ref, HEAD equal to `batch_base_sha`, and empty `git status --porcelain`. Shared API, schema, and type edits are a prerequisite mission: freeze, review, and integrate them before cutting dependent worktrees.
 
@@ -182,7 +182,7 @@ When no safe set exists, run the next dependency-ready mission sequentially. Par
 
 ## Launch Selected Claude Dynamic Workflow
 
-This section is retained schema-v6-through-v9 context for in-flight legacy runs only. The current mechanics live in `../../fullstack-harness-claude-code/SKILL.md`, which routes by wave composition rather than schema version; read the adapter first. Current selection requires PLAN v5/RUN v10, so current tools never produce a v6-v9 wave — nothing below can fire from a newly selected wave.
+This section is retained schema-v6-through-v9 context for in-flight legacy runs only. The current mechanics live in `../../fullstack-harness-claude-code/SKILL.md`, which routes by wave composition rather than schema version; read the adapter first. Current selection requires PLAN v6/RUN v11, so current tools never produce a v6-v9 wave — nothing below can fire from a newly selected wave.
 
 When the accepted schema-v6-through-v9 wave routes to `claude_code` + `dynamic_workflow`, use one flat workflow for the selected wave:
 
@@ -220,7 +220,7 @@ batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
 runtime provider and selected driver
 required_skills (the mission's skill list, verbatim, or "none")
-omitted or explicitly disabled nested-subagent policy; RUN-v10 never enables it
+omitted or explicitly disabled nested-subagent policy; RUN-v11 never enables it
 allowed and denied paths
 declared serialized/runtime resources
 task order and verifier argv/cwd

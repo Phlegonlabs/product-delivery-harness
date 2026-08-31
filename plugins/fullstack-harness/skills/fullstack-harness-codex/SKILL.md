@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-codex
-description: "Launch PLAN-v5/RUN-v10 Harness nodes from a Codex host. Use only after the shared core classifies work as large and selects Codex orchestration. This adapter probes Codex app-task and direct-subagent capability, maps PLAN model options, and launches exact authorized nodes; it does not own shared state, review, integration, handoff, or cleanup."
+description: "Launch PLAN-v6/RUN-v11 Harness nodes from a Codex host. Use only after the shared core classifies work as large and selects Codex orchestration. This adapter probes Codex app-task and direct-subagent capability, maps PLAN model options, and launches exact authorized nodes; it does not own shared state, review, integration, handoff, or cleanup."
 ---
 
 # Full-Stack Harness: Codex Adapter
@@ -15,7 +15,7 @@ A PLAN node is selectable here when its `allowed_providers` includes `codex`. `p
 
 Before the first launch, observe all eight Codex surfaces: `app_project_list`, `app_thread_create`, `app_thread_read`, `app_thread_message`, `app_thread_wait`, `app_managed_worktree`, `direct_subagent_spawn`, and `direct_agent_result`. Search the current Codex tool surface before marking lazy-loaded thread tools unavailable.
 
-For RUN-v10, record each surface under `runtime_adapter` as `available`, `unavailable`, or `unobserved` with evidence. Ready/running state contains no required `unobserved` surface. Derive `app_threads` only from all six app surfaces and `subagents` only from both direct-agent surfaces.
+For RUN-v11, record each surface under `runtime_adapter` as `available`, `unavailable`, or `unobserved` with evidence. Ready/running state contains no required `unobserved` surface. Derive `app_threads` only from all six app surfaces and `subagents` only from both direct-agent surfaces.
 
 Record the observable Codex host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `../fullstack-harness-engineering/references/runtime-upgrades.md`. A `compatible_old` task may finish its already-active wave but cannot start the next wave. After a Codex or Harness update, mark `restart_required` and open a fresh top-level task before re-probing; never assume an existing task reloads changed runtime or skill files.
 
@@ -50,7 +50,7 @@ Use each `dispatchable_nodes[].required_actions` exactly.
 
 1. Resolve the current Codex project once.
 2. Allocate lease, identity, exact-base app-managed worktree, and authorized branch/ref. Verify repository, HEAD, branch/ref, and clean `git status --porcelain`.
-3. Render `WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Include the ordered repository context source paths. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v10 forbids task-local child agents.
+3. Render `WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Include the ordered repository context source paths. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v11 forbids task-local child agents.
 4. Create one top-level left-sidebar app task per selected mission. Do not replace a requested app task with a coordinator subagent.
 5. Treat every top-level app task as a fresh bounded context packet. For direct sibling agents, explicitly start fresh and pass only the bounded context packet; never fork the parent conversation.
 6. Prefer App Server status subscription or cursor-based `wait_threads`. Use one bounded wait for 1-8 tasks with each task's last cursor, process the first terminal or needs-attention result, then wait again with updated cursors. Do not repeatedly read unchanged tasks. Use bounded polling only when no wait/event surface exists, and record its wait time and fallback reason in `runtime_metrics`.
@@ -68,7 +68,7 @@ Codex explorers, mission workers, and reviewers are sibling nodes dispatched by 
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Codex queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Codex queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v11 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Provider Boundary
 

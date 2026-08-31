@@ -63,7 +63,7 @@ Repair context (omit for an initial implementation):
 
 For design creation mode, load `product-design-builder`, `impeccable`, and `frontend-design` together and stop at required human gates.
 
-For frontend-design conformance mode, read the named wireframe, `design-system.md`, and `design-system.json`. Do not invent a token, primitive, variant, component, motion rule, state, or structure. Return a design-input delta and stop.
+For frontend-design conformance mode, read the named PRD UI surface, `design-system.md`, and `design-system.json`. Do not invent a token, primitive, variant, component, motion rule, state, or structure. Return a design-input delta and stop.
 
 ## Verify
 
@@ -94,7 +94,7 @@ Do not spawn, create, or delegate to another agent. All explorers, writers, and 
 ## Launch Checklist
 
 - [ ] System Review And Route completed before this delegated handoff exists.
-- [ ] PLAN schema v5 and RUN schema v10 validate and match the supplied digest.
+- [ ] PLAN schema v6 and RUN schema v11 validate and match the supplied digest.
 - [ ] Lease, base, worktree, branch/ref, permission boundary, and required actions are current.
 - [ ] Host-specific repository context and matching adapter contract were read.
 - [ ] Exact skills, write/deny scope, resources, stop conditions, and verifiers are known.

@@ -81,7 +81,7 @@ Common missions: `M1 workspace-foundation` (above), then the archetype's own lis
 
 ### Worked `M1 workspace-foundation` Mission Object
 
-This is a complete, copy-paste-ready PLAN-v5 mission object for the scaffold mission above. Every field keeps the meaning and default that `assets/templates/HARNESS_PLAN.template.md` already explains for its main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
+This is a complete, copy-paste-ready PLAN-v6 mission object for the scaffold mission above. Every field keeps the meaning and default that `assets/templates/HARNESS_PLAN.template.md` already explains for its main worked mission — only `objective`, `write_scope`, `stop_conditions`, the verifier commands, and `tasks` actually differ for a scaffold mission.
 
 ```json
 {
@@ -214,7 +214,7 @@ M6 sitemap/robots/redirect checks
 
 M2 and M5 above are illustrative single lines, not a mandate to lump every page into one mission or defer all visual QA to the end. Per `contract-and-traceability.md`'s mission-granularity corollary, split M2 into one mission per page (or a small tightly-coupled group, for example the legal/about/contact pages sharing one trivial template) and pair each with its own scoped `visual` review as soon as that mission integrates, rather than one M2 covering the whole page inventory reviewed once by a later M5.
 
-When the product has a design system, M2's page templates come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order. Each page mission then implements its route from `design-system.json` and that route's screen entry in `wireframes.md`.
+When the product has a design system, M2's page templates come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order. Each page mission then implements its route from `design-system.json` and that route's `UI-*` entry in `PRD.md`.
 
 Required E2E scenarios:
 

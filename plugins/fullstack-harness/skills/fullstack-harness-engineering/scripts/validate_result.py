@@ -90,12 +90,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False))
         return 2
 
-    current_pair = (plan.get("schema_version"), run.get("schema_version")) == (5, 10)
+    current_pair = (plan.get("schema_version"), run.get("schema_version")) == (6, 11)
     if current_pair:
         errors.extend(validate_current_plan_run(plan, run))
     else:
         if args.node_result:
-            errors.append("node result validation requires PLAN v5 with RUN v10")
+            errors.append("node result validation requires PLAN v6 with RUN v11")
         errors.extend(validate_plan(plan))
         errors.extend(validate_run(plan, run))
 

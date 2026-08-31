@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-pi
-description: "Launch PLAN-v5/RUN-v10 Harness nodes from a Pi host. Use only after the shared core classifies work as large and selects Pi orchestration. This adapter preserves Pi's installed role, model, and fallback routing while the Harness parent owns scope, worktrees, validation, and integration."
+description: "Launch PLAN-v6/RUN-v11 Harness nodes from a Pi host. Use only after the shared core classifies work as large and selects Pi orchestration. This adapter preserves Pi's installed role, model, and fallback routing while the Harness parent owns scope, worktrees, validation, and integration."
 ---
 
 # Full-Stack Harness: Pi Adapter
@@ -49,7 +49,7 @@ Follow every `dispatchable_nodes[].required_actions` exactly. Never infer extra 
 
 ## Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Pi queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v10 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
+Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `../fullstack-harness-engineering/references/execution-state-model.md`, plus `../fullstack-harness-engineering/references/runtime-performance.md` and `../fullstack-harness-engineering/references/runtime-upgrades.md`. Record Pi queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v11 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ## Failure
 

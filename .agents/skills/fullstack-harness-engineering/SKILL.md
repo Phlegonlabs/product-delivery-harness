@@ -1,6 +1,6 @@
 ---
 name: fullstack-harness-engineering
-description: "Route engineering work to the lightest safe delivery path, then plan, authorize, execute, verify, and integrate it. Use direct parent-owned delivery when one writer and one coherent verification pass are enough. Use PLAN-v5/RUN-v10 only for work that needs durable coordination, isolated mission integration, or a bounded correction graph. Load exactly one Codex, Claude Code, or Pi adapter only when that managed route needs host-specific orchestration."
+description: "Route engineering work to the lightest safe delivery path, then plan, authorize, execute, verify, and integrate it. Use direct parent-owned delivery when one writer and one coherent verification pass are enough. Use PLAN-v6/RUN-v11 only for work that needs durable coordination, isolated mission integration, or a bounded correction graph. Load exactly one Codex, Claude Code, or Pi adapter only when that managed route needs host-specific orchestration."
 ---
 
 # Full-Stack Harness Engineering
@@ -12,7 +12,7 @@ Use the least ceremony that preserves the real safety boundary. Keep routine wor
 Keep upstream ownership separate:
 
 - `prd-builder` owns `PRD.md`, `architecture.md`, and `stack-decisions.md`.
-- `product-design-builder`, with `impeccable` and `frontend-design`, owns `wireframes.md`, `design-system.md`, and `design-system.json`.
+- `prd-builder` owns the UI surface contract in `PRD.md`; `product-design-builder`, with `impeccable` and `frontend-design`, owns `design-system.md` and `design-system.json`.
 - This skill implements frozen inputs, including the Builder UX Direction. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
 
 ## Project Size Gate
@@ -34,7 +34,7 @@ Planning preference may choose the stricter route, but it cannot override a `lar
 ```text
 System Review And Route (parent-only, read-only)
   small -> direct inspect -> implement -> local verify -> review -> authorized Git actions
-  large -> planner -> PLAN v5 + RUN v10 -> readiness -> managed execution
+  large -> planner -> PLAN v6 + RUN v11 -> readiness -> managed execution
 ```
 
 Small work creates no PLAN/RUN files, scheduler state, worker-capability inventory, or delegated worker by default. Load no runtime adapter unless the direct task actually needs a host-specific action. If small work grows large, preserve the current diff and evidence, then plan only the remainder.
@@ -89,7 +89,7 @@ For a self-contained feature inside an existing codebase, offer `/feature-dev` a
 
 ## Managed Route
 
-New managed work uses PLAN schema v5 and RUN schema v10. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
+New managed work uses PLAN schema v6 and RUN schema v11. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 
 Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py` rather than hand-copying `assets/templates/MISSION_RUNBOOK.template.md`; nearly every field of a new RUN is derivable from PLAN, and the generator grants nothing. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; create `tasks.md` only when a human listing is useful.
 
@@ -154,7 +154,7 @@ Apply this only to large plan-backed work:
 6. Verify repository, branch, base HEAD, and empty `git status --porcelain` before dispatch.
 7. Render `WORKER_GOAL.template.md`; attach only the host contract and result fields that mission needs.
 8. Validate returned identity, changed files, scope, verifier evidence, commits, and ancestry against live Git.
-9. Require one exact-head pre-integration reviewer per applicable surface for every mission. Give it a compact packet containing the exact SHA, scoped changed paths/diff, applicable acceptance rows, and unresolved findings; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Group related findings into one root-cause failure family before repair. If another variant of that family appears after repair, stop example-by-example patching and require one structural repair with a complete acceptance matrix or return `REFINEMENT_REQUEST` / `contract_gap`. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it.
+9. Require one exact-head pre-integration reviewer per applicable surface for every mission. Render its bounded packet with `scripts/render_review_packet.py`; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Group related findings into one root-cause failure family before repair. If another variant of that family appears after repair, stop example-by-example patching and require one structural repair with a complete acceptance matrix or return `REFINEMENT_REQUEST` / `contract_gap`. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it.
 10. Dispatch one planned parent-owned read-only reviewer per applicable integration surface against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate. The unified-head review is the final synthesis; do not dispatch another same-scope review while the SHA is unchanged.
 
 Managed runs carry no wall-time percentage target. The objective is to stop paying for the same work twice: repeated reviewer dispatches, repeated deterministic verifier runs, needless serialization, and finished work waiting on a slower sibling. Follow `references/runtime-performance.md`. Removing repetition never licenses weakening authorization, exact-head review, evidence, or final validation, and no reduction may be claimed without a comparable measured baseline.
@@ -165,7 +165,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 - Design creation mode requires `product-design-builder`, `impeccable`, and `frontend-design` together.
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- Conformance mode obeys the frozen wireframe, `design-system.md`, and `design-system.json`. A missing token, primitive, variant, component, state, motion rule, or page structure is a design-input delta, not local invention.
+- Conformance mode obeys the frozen PRD UI surface contract, `design-system.md`, and `design-system.json`. A missing token, primitive, variant, component, state, motion rule, or page structure is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 
 ## Workflow
@@ -173,6 +173,8 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 ### 1. Intake And Route
 
 Run System Review And Route. For a running RUN, reconcile canonical state with live Git and runtime evidence before selecting a node.
+
+If the user pauses or cancels a managed run, apply the durable control transition with `scripts/harness_transition.py`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile an interrupted worker with the same tool before any resume.
 
 ### 2. Plan Large Work
 

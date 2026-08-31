@@ -212,7 +212,7 @@ def _validate_authorization_scope(
 
 
 def _scope_matches_plan(run: dict[str, Any], scope: dict[str, Any]) -> bool:
-    if run.get("schema_version") != 10:
+    if run.get("schema_version") not in {10, 11}:
         return True
     plan = run.get("plan")
     return (
@@ -255,7 +255,7 @@ def _target_branch(target: Any) -> str | None:
 def _v10_push_is_current_and_safe(
     run: dict[str, Any], entry: dict[str, Any], target: str | None
 ) -> bool:
-    """Require a current, exact, non-default branch push in RUN-v10."""
+    """Require a current, exact, non-default branch push in RUN-v11."""
 
     integration_branch = _integration_branch(run)
     requested_branch = _target_branch(target)
@@ -365,7 +365,7 @@ def authorization_covers(
         and run.get("status") == "complete"
         and entry.get("expires_when") == "run_complete"
     )
-    if action == "push" and run.get("schema_version") == 10:
+    if action == "push" and run.get("schema_version") in {10, 11}:
         # A completed RUN may retain a run_complete grant as historical
         # evidence, but that expiry exception never relaxes remote intent or
         # the current exact branch/default/head safety gates.
@@ -465,7 +465,7 @@ def _wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
     re-proposes the same wave pair.
     """
     wave = run.get("active_wave")
-    if run.get("schema_version") != 10:
+    if run.get("schema_version") not in {10, 11}:
         # Legacy RUNs retain their historical status-only expiry semantics.
         # The pair binding and durable tombstones are v10 additions.
         return isinstance(wave, dict) and wave.get("status") not in {

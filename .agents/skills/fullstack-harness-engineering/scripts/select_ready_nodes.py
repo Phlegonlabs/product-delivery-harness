@@ -130,7 +130,7 @@ def _preintegration_review_source_ready(
 ) -> bool:
     review = node.get("review")
     if (
-        run.get("schema_version") != 10
+        run.get("schema_version") not in {10, 11}
         or node.get("kind") != "verifier"
         or node.get("executor") != "runtime_worker"
         or not isinstance(review, dict)
@@ -307,7 +307,7 @@ def _active_wave_allows_streaming_review(
     if (
         not isinstance(active_wave, dict)
         or active_wave.get("status") != "active"
-        or run.get("schema_version") != 10
+        or run.get("schema_version") not in {10, 11}
     ):
         return False
     kind = node.get("kind")
@@ -424,6 +424,18 @@ def _logical_reasons(
     route_matched = _incoming_route_matched(
         node, run, dependencies, routes, node_states, nodes_by_id
     )
+    review = node.get("review")
+    lineage_exhausted = False
+    uses_lineage_budget = (
+        run.get("schema_version") == 11
+        and node.get("kind") == "verifier"
+        and isinstance(review, dict)
+    )
+    if uses_lineage_budget:
+        lineage = run.get("review_lineages", {}).get(review.get("lineage_id"))
+        if isinstance(lineage, dict):
+            allowance = lineage.get("base_allowance", 0) + lineage.get("additional_allowance", 0)
+            lineage_exhausted = lineage.get("consumed_attempts", 0) >= allowance
     if _current_review_result_matches_worker(node, run) is False:
         reasons.add("review_result_dissent")
     # A post-integration review that returned fix_required parks in `failed`.
@@ -436,8 +448,18 @@ def _logical_reasons(
         and state["phase"] == "failed"
         and state.get("last_outcome") == "fix_required"
         and route_matched is True
-        and state["attempts"] < node["max_attempts"]
+        and not lineage_exhausted
+        and (
+            run.get("schema_version") == 11
+            or state["attempts"] < node["max_attempts"]
+        )
     )
+    if run.get("schema_version") == 11:
+        desired_state = run.get("control", {}).get("desired_state")
+        if desired_state == "paused":
+            reasons.add("run_paused")
+        elif desired_state == "cancelled":
+            reasons.add("run_cancelled")
     if run.get("plan_readiness") != "ready":
         reasons.add("plan_not_ready")
     if run.get("status") not in RUN_DISPATCH_STATUSES:
@@ -452,7 +474,9 @@ def _logical_reasons(
         reasons.add("node_phase_not_ready")
     if state["blockers"]:
         reasons.add("blocker_present")
-    if state["attempts"] >= node["max_attempts"]:
+    if lineage_exhausted:
+        reasons.add("review_lineage_exhausted")
+    elif not uses_lineage_budget and state["attempts"] >= node["max_attempts"]:
         reasons.add("attempts_exhausted")
 
     for edge in dependencies[node_id]:
@@ -476,7 +500,6 @@ def _logical_reasons(
     if route_matched is False:
         reasons.add("route_not_activated")
 
-    review = node.get("review")
     if (
         node.get("kind") == "verifier"
         and isinstance(review, dict)
@@ -620,13 +643,13 @@ def _required_actions(
         actions.append("spawn_subagents")
     elif driver == "app_threads":
         actions.append("create_user_owned_tasks")
-        # RUN-v10 records nested capability separately from the worker's
+        # RUN-v11 records nested capability separately from the worker's
         # explicit nested policy.  Capability discovery alone must not grant
         # or require a child-spawn action; an enabled policy is validated when
         # its worker result is recorded.  Keep the legacy inference for
         # pre-v10 runs so their historical action contract remains stable.
         nested = runtime.get("nested_subagents")
-        if not read_only_review and schema_version != 10:
+        if not read_only_review and schema_version not in {10, 11}:
             nested_spawn_required = (
                 isinstance(nested, dict)
                 and nested.get("available") is True
@@ -667,7 +690,7 @@ def _dispatch_reasons(
         reasons.add("permission_boundary_not_ready")
     if node["executor"] == "runtime_worker":
         version_gate = runtime.get("runtime_adapter", {}).get("version_gate")
-        if version_gate is None and run.get("schema_version") == 10:
+        if version_gate is None and run.get("schema_version") in {10, 11}:
             reasons.add("runtime_version_unobserved")
         elif isinstance(version_gate, dict):
             version_status = version_gate.get("status")
@@ -682,6 +705,13 @@ def _dispatch_reasons(
                 and run.get("active_wave", {}).get("status") != "active"
             ):
                 reasons.add("runtime_upgrade_pending")
+            if run.get("schema_version") == 11:
+                loaded = version_gate.get("loaded_contract_digest")
+                installed = version_gate.get("installed_contract_digest")
+                if loaded is None or installed is None:
+                    reasons.add("runtime_contract_unobserved")
+                elif loaded != installed:
+                    reasons.add("runtime_restart_required")
         # Deferral reasons are not short-circuited elsewhere in this module (see
         # _logical_reasons), so a missing binding does not return early either:
         # doing so hid every other applicable reason (e.g. action_not_authorized)
@@ -759,7 +789,7 @@ def _dispatch_reasons(
         ):
             reasons.add("action_not_authorized")
         elif (
-            run.get("schema_version") == 10
+            run.get("schema_version") in {10, 11}
             and node["ref"] in HEAD_BOUND_AUTHORIZATION_ACTIONS
             and (
                 not isinstance(current_head, str)
@@ -846,9 +876,9 @@ def select_ready_nodes(
             plan.get("schema_version") if isinstance(plan, dict) else None,
             run.get("schema_version") if isinstance(run, dict) else None,
         )
-        if schema_pair != (5, 10):
+        if schema_pair != (6, 11):
             raise GraphSelectionError(
-                "typed graph selection requires PLAN v5 with RUN v10"
+                "typed graph selection requires PLAN v6 with RUN v11"
             )
         raise _validation_error("PLAN/RUN", validation_errors)
 
@@ -1064,7 +1094,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--repo-root",
         type=Path,
-        help="Optional repository root used to bind PLAN-v5 sources",
+        help="Optional repository root used to bind PLAN-v6 sources",
     )
     return parser
 

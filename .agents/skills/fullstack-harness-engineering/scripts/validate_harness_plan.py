@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", help="Optional path to plan-backed RUN.md")
     parser.add_argument(
         "--repo-root",
-        help="Optional repository root used to bind PLAN-v5 sources and verify UI artifacts",
+        help="Optional repository root used to bind PLAN-v6 sources and verify UI artifacts",
     )
     parser.add_argument(
         "--design-system",
@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         run = None
         if args.run:
             run = load_run(args.run)
-            if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+            if (plan.get("schema_version"), run.get("schema_version")) == (6, 11):
                 errors = validate_current_plan_run(
                     plan, run, repo_root=args.repo_root
                 )

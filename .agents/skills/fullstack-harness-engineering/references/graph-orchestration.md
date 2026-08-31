@@ -1,6 +1,6 @@
 # Typed Graph Orchestration
 
-Use this reference for current PLAN schema v5 and RUN schema v10 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs remain validatable as manifests but cannot be selected or executed.
+Use this reference for current PLAN schema v6 and RUN schema v11 typed graphs, conditional routing, retries, and graph traces. Older typed-graph schema pairs remain validatable as manifests but cannot be selected or executed.
 
 ## Contents
 
@@ -45,7 +45,7 @@ PLAN owns static nodes, edges, outcomes, attempt limits, and runtime policy. RUN
 
 If the large route has no usable agent capability, the graph still runs as `sequential_parent` while each PLAN mission remains `executor: runtime_worker`, one mission at a time. See `execution-state-model.md`'s `sequential_parent` definition for the binding, authorization, and blocking rules; keep the mission on its existing runtime-worker executor.
 
-For current PLAN v5 typed graphs, use graph dependency edges as the only cross-mission ordering source. PLAN v4 uses the same graph rule. PLAN v2 and v3 retain the legacy `missions[].depends_on` DAG. Task dependencies remain flat, same-mission, and acyclic.
+For current PLAN v6 typed graphs, use graph dependency edges as the only cross-mission ordering source. PLAN v4 uses the same graph rule. PLAN v2 and v3 retain the legacy `missions[].depends_on` DAG. Task dependencies remain flat, same-mission, and acyclic.
 
 ## Nodes And Executors
 
@@ -71,7 +71,7 @@ human           -> explicit approval or contract decision
 
 The node is the workflow identity. A thread, Claude session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
 
-A `push` lifecycle node must declare an exact branch `target`. When `target` is absent the selector falls back to `"*"`, and schema v10 forbids `"*"`-scoped grants for head-bound actions, so a target-less push node is permanently `action_not_authorized`.
+A `push` lifecycle node must declare an exact branch `target`. When `target` is absent the selector falls back to `"*"`, and schema v11 forbids `"*"`-scoped grants for head-bound actions, so a target-less push node is permanently `action_not_authorized`.
 
 A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), optional `stage` (`preintegration` by default or `integration`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree or integrated SHA. It never receives a mission lease, write scope, branch, or commit authority.
 
@@ -86,7 +86,7 @@ contract freeze
   -> one broad final deterministic validation on the fixed candidate SHA
 ```
 
-Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. A pre-integration review reports every blocking finding it can establish in one bounded pass; do not stop after the first finding or open another review merely to confirm it. A `fix_required` result is parent-side correction handling: deduplicate findings by file, location, and root cause, send the consolidated set to the original mission task/thread, keep its existing worktree and branch, require its focused verifier on a changed head, then re-arm the same review node. Do not model that correction as a new mission or create a new worktree from an integration branch that lacks the reviewed head. Current PLAN v5 runtime review nodes allow at most two total attempts: the initial review plus one repair re-review, followed by a blocked or human-owned exit. Integration-stage reviewers are fresh parent-dispatched agents and become ready only after every covered mission is integrated and `integration_head_sha` exists. They may use bounded repair-route nodes because repair worktrees start from the reviewed integration head. A repair changes the candidate SHA and invalidates the prior integration review. This shape names one frontend mission and one visual review for readability; scope each pair to one page (or a small, genuinely tightly-coupled group of pages) per `contract-and-traceability.md`'s mission-granularity corollary, and repeat the shape per page/group rather than letting one frontend mission span the whole UI matrix with a single visual review fired once at the end.
+Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. A pre-integration review reports every blocking finding it can establish in one bounded pass; do not stop after the first finding or open another review merely to confirm it. A `fix_required` result is parent-side correction handling: deduplicate findings by file, location, and root cause, send the consolidated set to the original mission task/thread, keep its existing worktree and branch, require its focused verifier on a changed head, then re-arm the same review node. Do not model that correction as a new mission or create a new worktree from an integration branch that lacks the reviewed head. Current PLAN v6 runtime review nodes allow at most two total attempts: the initial review plus one repair re-review, followed by a blocked or human-owned exit. Integration-stage reviewers are fresh parent-dispatched agents and become ready only after every covered mission is integrated and `integration_head_sha` exists. They may use bounded repair-route nodes because repair worktrees start from the reviewed integration head. A repair changes the candidate SHA and invalidates the prior integration review. This shape names one frontend mission and one visual review for readability; scope each pair to one page (or a small, genuinely tightly-coupled group of pages) per `contract-and-traceability.md`'s mission-granularity corollary, and repeat the shape per page/group rather than letting one frontend mission span the whole UI matrix with a single visual review fired once at the end.
 
 PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type, so the planner cannot mark a review required only in prose. Use an empty list only when none of the three review surfaces applies, and record that rationale in the human plan view. Render each reviewer a compact packet with the exact reviewed SHA, its declared scope, scoped changed paths/diff, applicable acceptance rows, required evidence, and unresolved prior findings. Refer to PLAN/RUN by identity and path instead of copying their full manifests into the prompt.
 
@@ -146,11 +146,12 @@ Defined once in `execution-state-model.md`. The only graph-specific rule: the gr
 
 ## Readiness And Outcomes
 
-Run `scripts/select_ready_nodes.py` for PLAN v5 with RUN v10. A node is logically ready only when:
+Run `scripts/select_ready_nodes.py` for PLAN v6 with RUN v11. A node is logically ready only when:
 
 - plan readiness and execution authorization are current;
-- its phase is `dormant` or `ready` and its attempt budget remains;
-- all dependency sources succeeded with `pass`, except that a current RUN-v10 runtime review may consume a covered mission's validated `worker_passed` exact head before the parent integrates it;
+- RUN `control.desired_state` is `running`; `paused` and `cancelled` fail closed for every node;
+- its phase is `dormant` or `ready` and its attempt budget remains; runtime reviews consume the stable `review.lineage_id` budget in `RUN.review_lineages`, not a fresh node-local budget after replan;
+- all dependency sources succeeded with `pass`, except that a current RUN-v11 runtime review may consume a covered mission's validated `worker_passed` exact head before the parent integrates it;
 - at least one incoming route matches when route edges exist, except that the same pre-integration dependency activates the review's initial attempt while a matching repair route activates later attempts;
 - no node blocker remains;
 - mission nodes still have a queued or ready mission state.

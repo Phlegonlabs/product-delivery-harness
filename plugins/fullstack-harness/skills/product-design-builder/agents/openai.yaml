@@ -1,4 +1,4 @@
 interface:
   display_name: "Product Design Builder"
-  short_description: "Create wireframes and a frozen design system"
-  default_prompt: "Use $product-design-builder with $impeccable and $frontend-design to turn approved product inputs into wireframes, ask once for my style and visual references, generate and challenge concept worlds, inspect current public references for exactly three product-specific directions, and extract confirmed Adopt / Adapt / Avoid principles before freezing the design system."
+  short_description: "Create a frozen design-system contract"
+  default_prompt: "Use $product-design-builder with $impeccable and $frontend-design to turn the approved PRD UI surface contract into a design-system pair, ask once for my style and visual references, generate and challenge concept worlds, inspect current public references for exactly three product-specific directions, and extract confirmed Adopt / Adapt / Avoid principles before freezing the design system."

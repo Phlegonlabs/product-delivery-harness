@@ -61,7 +61,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         for source in (design, design_lifecycle, prd_lifecycle, harness):
             self.assertIn("design-system.md", source)
             self.assertIn("design-system.json", source)
-        self.assertIn("Publish the three files as one reconciled set", design_lifecycle)
+        self.assertIn("Publish the two design-system files as one reconciled set", design_lifecycle)
         self.assertIn("Freeze both with a `content_sha256`", harness)
         self.assertIn("is `partial`, never `frozen`", harness)
 
@@ -99,9 +99,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
             for retired in ("ui-architecture-builder", "ui-registry.json", "page-recipes.md"):
                 self.assertNotIn(retired, source, f"{relative_path} still references {retired}")
 
-    def test_wireframe_visual_direction_and_harness_conformance_boundary(self) -> None:
+    def test_prd_visual_direction_and_harness_conformance_boundary(self) -> None:
         product_design = self.read("product-design-builder/SKILL.md")
-        wireframes = self.read("product-design-builder/references/wireframe-guide.md")
+        directions = self.read("product-design-builder/references/visual-direction-guide.md")
         references = self.read("product-design-builder/references/design-reference-guide.md")
         harness = self.read("fullstack-harness-engineering/SKILL.md")
         ui_contract = self.read(
@@ -114,13 +114,13 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md"
         )
 
-        self.assertIn("## Visual Direction Gate", wireframes)
+        self.assertIn("## Visual Direction Gate", directions)
         self.assertIn(
-            "low-fidelity wireframes remain canonical for screen structure",
-            wireframes,
+            "`PRD.md` remains canonical for routes, screen purpose",
+            directions,
         )
-        self.assertIn("The gate is required; optional preview tooling is not", wireframes)
-        self.assertIn("The published design system records the selected direction ID", wireframes)
+        self.assertIn("The gate is required; optional preview tooling is not", directions)
+        self.assertIn("same frozen PRD structure and states", directions)
         self.assertIn("references/ui-implementation-contract.md", harness)
         self.assertIn(
             "`product-design-builder`, `impeccable`, and `frontend-design` in creation mode",
@@ -130,7 +130,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("`product-design-builder`, `frontend-design`, and `impeccable`", product_design)
         self.assertIn("impeccable-concept-generation.md", product_design)
         self.assertIn("frontend-design conformance mode", ui_contract)
-        self.assertIn("missing contract entry returns to `product-design-builder`", ui_contract)
+        self.assertIn("returns to `prd-builder`", ui_contract)
+        self.assertIn("returns to `product-design-builder`", ui_contract)
         self.assertIn("frontend-design conformance mode", worker_goal)
         self.assertIn("Design inspiration", design_updates)
         self.assertIn("Page-faithful target", design_updates)
@@ -181,6 +182,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         review["review"] = {
             "type": "frontend_code",
+            "lineage_id": "REVIEW-FRONTEND",
             "mission_ids": ["M1"],
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],

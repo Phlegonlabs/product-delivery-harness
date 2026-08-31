@@ -176,6 +176,7 @@ def graph_for(*missions: dict[str, object]) -> dict[str, object]:
         )
         review["review"] = {
             "type": "backend_code",
+            "lineage_id": f"REVIEW-{mission_id}",
             "mission_ids": [mission_id],
             "scope": list(item["write_scope"]),
             "required_evidence": ["reviewed_sha", "findings"],
@@ -271,7 +272,7 @@ def valid_plan() -> dict[str, object]:
     )
     m2["runtime_resources"] = [{"key": "port:3001", "access": "exclusive"}]
     return {
-        "schema_version": 5,
+        "schema_version": 6,
         "plan_id": "PLAN-TEST",
         "revision": 1,
         "objective": "Deliver a deterministic test plan",
@@ -376,12 +377,15 @@ def current_version_gate() -> dict[str, object]:
         "minimum_host_version": None,
         "harness_version": "0.6.0",
         "required_harness_version": "0.6.0",
+        "session_id": "test-session",
+        "loaded_contract_digest": "a" * 64,
+        "installed_contract_digest": "a" * 64,
         "status": "current",
         "evidence": "test fixture observed the current runtime and Harness release",
     }
 
 
-def valid_run(plan: dict[str, object]) -> dict[str, object]:
+def _valid_run(plan: dict[str, object]) -> dict[str, object]:
     digest = plan_digest(plan)
     mission_ids = [item["id"] for item in plan["missions"]]
     task_ids = [
@@ -390,7 +394,7 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         for item in current_mission["tasks"]
     ]
     return {
-        "schema_version": 10,
+        "schema_version": 11,
         "run_id": "RUN-TEST",
         "plan": {
             "id": plan["plan_id"],
@@ -403,6 +407,12 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         "execution_authorized": False,
         "execution_authorization_source": None,
         "execution_authorization_scope": None,
+        "control": {
+            "desired_state": "running",
+            "requested_at": None,
+            "source": None,
+            "acknowledged_at": None,
+        },
         "authorizations": {
             key: {"authorized": False, "source": None}
             for key in AUTHORIZATION_KEYS
@@ -443,6 +453,11 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             "branch": "codex/test",
             "batch_base_sha": SHA_A,
             "integration_head_sha": SHA_A,
+            "coordination_paths": [
+                "docs/goal/PLAN.md",
+                "docs/goal/RUN.md",
+                "docs/goal/DECISIONS.md",
+            ],
         },
         "landing": {
             "mode": "local_only",
@@ -490,6 +505,20 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
         "closed_waves": [],
         "workers": [],
         "review_workers": [],
+        "review_lineages": {
+            node["review"]["lineage_id"]: {
+                "review_type": node["review"]["type"],
+                "mission_ids": node["review"]["mission_ids"],
+                "base_allowance": node["max_attempts"],
+                "additional_allowance": 0,
+                "consumed_attempts": 0,
+                "failure_families": [],
+                "owner_decisions": [],
+            }
+            for node in plan["graph"]["nodes"]
+            if isinstance(node.get("review"), dict)
+            and isinstance(node["review"].get("lineage_id"), str)
+        },
         "attempt_log": [],
         "batch_gate_results": [
             {"id": gate["id"], "status": "planned", "head_sha": None, "evidence": []}
@@ -524,6 +553,21 @@ def valid_run(plan: dict[str, object]) -> dict[str, object]:
             },
         },
     }
+
+
+def valid_run(plan: dict[str, object]) -> dict[str, object]:
+    """Build the current pair, or the matching v5/v10 compatibility fixture."""
+    run = _valid_run(plan)
+    if plan.get("schema_version") != 6:
+        run["schema_version"] = 10
+        run.pop("control")
+        run.pop("review_lineages")
+        run["integration"].pop("coordination_paths")
+        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
+        gate.pop("session_id")
+        gate.pop("loaded_contract_digest")
+        gate.pop("installed_contract_digest")
+    return run
 
 
 def codex_capability_probe(
@@ -569,6 +613,9 @@ def legacy_run(plan: dict[str, object], schema_version: int) -> dict[str, object
     run = valid_run(valid_plan())
     digest = plan_digest(plan)
     run["schema_version"] = schema_version
+    run.pop("control", None)
+    run.pop("review_lineages", None)
+    run["integration"].pop("coordination_paths", None)
     run.pop("closed_waves")
     run["plan"] = {
         "id": plan["plan_id"],
@@ -600,6 +647,9 @@ def legacy_graph_run(
         raise ValueError("legacy graph RUN requires PLAN v4 with RUN v8 or v9")
     run = valid_run(plan)
     run["schema_version"] = schema_version
+    run.pop("control", None)
+    run.pop("review_lineages", None)
+    run["integration"].pop("coordination_paths", None)
     run["runtime_capabilities"]["runtime_adapter"].pop("version_gate", None)
     run.pop("closed_waves")
     run.pop("verifier_executions")
@@ -1318,7 +1368,6 @@ class PlanValidationTests(unittest.TestCase):
     def test_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
         plan = valid_plan()
         design_scopes = [
-            "docs/product/wireframes.md",
             "docs/product/design-system.md",
             "docs/product/design-system.json",
         ]
@@ -1346,7 +1395,6 @@ class PlanValidationTests(unittest.TestCase):
     def test_staged_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
         for staging_scope in (
             "docs/product/.prd-staging/run-001/**",
-            "docs/product/.prd-staging/run-001/wireframes.md",
             "docs/product/.prd-staging/run-001/design-system.md",
             "docs/product/.prd-staging/run-001/design-system.json",
         ):
@@ -1386,14 +1434,14 @@ class PlanValidationTests(unittest.TestCase):
             [
                 {
                     "id": "SRC-DESIGN-001",
-                    "kind": "wireframes",
-                    "location": "specs/custom/ui-map.md",
+                    "kind": "design system markdown",
+                    "location": "specs/custom/design-rules.md",
                     "owner": "design",
                     "status": "frozen",
                     "content_sha256": "d" * 64,
                     "source_revision": None,
                     "staged_revision": None,
-                    "notes": "custom named wireframe source",
+                    "notes": "custom named design system source",
                 },
                 {
                     "id": "SRC-DESIGN-002",
@@ -1888,7 +1936,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "PLAN-v5 write mission requires an isolated managed worktree",
+            "PLAN-v6 write mission requires an isolated managed worktree",
         )
 
     def test_recorded_lifecycle_requires_each_exact_action_grant(self) -> None:
@@ -3457,7 +3505,7 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "must be false because RUN-v10 forbids worker-owned delegation",
+            "must be false because RUN-v11 forbids worker-owned delegation",
         )
 
         legacy_app_plan = legacy_plan()

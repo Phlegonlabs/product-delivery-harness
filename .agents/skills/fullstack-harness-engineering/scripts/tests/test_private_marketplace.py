@@ -61,7 +61,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertEqual(codex["version"], claude["version"])
         self.assertEqual(codex["version"], marketplace["metadata"]["version"])
         self.assertEqual(codex["version"], marketplace_plugin["version"])
-        self.assertEqual(codex["version"], "0.6.0")
+        self.assertEqual(codex["version"], "0.7.0")
         self.assertEqual(marketplace_plugin["source"], "./plugins/fullstack-harness")
 
         pi_package = self.load_json("package.json")
@@ -82,6 +82,8 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertIn("Codex marketplace is local; using its current checkout.", updater)
         self.assertIn("Claude marketplace is local; using its current checkout.", updater)
         self.assertIn("Invoke-Checked pi install $PiSource --no-approve", updater)
+        self.assertIn("Invoke-Checked pi remove $installedPiSource --no-approve", updater)
+        self.assertIn("restoring $installedPiSource", updater)
         self.assertIn("Standalone Pi Harness skills can shadow", updater)
         self.assertIn("Move-Item -LiteralPath $destinationSkill", updater)
 

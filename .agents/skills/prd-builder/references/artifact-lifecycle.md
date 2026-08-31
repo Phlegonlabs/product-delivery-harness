@@ -18,15 +18,15 @@ A staged package for the same product is **newer than the published one** and is
 
 A staging directory describing a *different* product is left untouched and reported; start this run's own staging directory beside it.
 
-- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `wireframes.md`, `design-system.md`, `design-system.json`, and `market-research.md` in full before drafting anything.
+- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `design-system.md`, `design-system.json`, and `market-research.md` in full before drafting anything.
 - Treat their content, decisions, and trace IDs (`PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `DS-*`, `MR-*`) as the baseline. Carry forward every section the new request does not touch, unchanged.
 - Draft only the additions, edits, or removals the new discovery actually requires. Never regenerate the whole package from a blank slate because a new idea came up.
-- The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `wireframes.md`, `design-system.md`, `design-system.json`, `market-research.md`, and `implementation-plan.md`, all directly under `docs/product/`. Enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
+- The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `design-system.md`, `design-system.json`, `market-research.md`, and `implementation-plan.md`, all directly under `docs/product/`. Enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
 - Enhancement mode still uses the staging, validation, and archive steps below: the prior version is archived for history once the enhanced draft is validated, even though its content already carried forward into that draft.
 
 ## Handle an Unrelated Document at a Fixed Publish Path
 
-If `docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-decisions.md`, `docs/product/wireframes.md`, `docs/product/design-system.md`, `docs/product/design-system.json`, or `docs/product/market-research.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
+If `docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-decisions.md`, `docs/product/design-system.md`, `docs/product/design-system.json`, or `docs/product/market-research.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
 
 The publish step still overwrites that exact path regardless of whether it enhances or replaces it, so the existing file must still be archived for safety — add it to the superseded-document inventory even though it is an unrelated product document. The general exclusion for unrelated product documents in "Inventory Superseded Documents" below applies to other documents found elsewhere in the repository, not to one already occupying a path this run will publish to.
 
@@ -40,7 +40,6 @@ In the Approval Gate, label this path explicitly as "existing unrelated content 
   - `docs/product/PRD.md`
   - `docs/product/architecture.md`
   - `docs/product/stack-decisions.md`
-  - `docs/product/wireframes.md` for a UI-bearing product
   - `docs/product/design-system.md` for a UI-bearing product
   - `docs/product/design-system.json` for a UI-bearing product
   - `docs/product/market-research.md` when the market-research gap pass produced it
@@ -62,7 +61,7 @@ Exclude:
 - Everything already under `docs/product/archived/`.
 - Research, meeting notes, source material, test evidence, and unrelated product documents — unless the unrelated document occupies one of this run's exact final publish paths, per "Handle an Unrelated Document at a Fixed Publish Path" above, in which case it must still be inventoried and archived.
 
-  `design-system.md` and `design-system.json` are this package's own artifacts and are **not** excluded: a superseded pair is archived together with the rest of the package. Never archive one without the other, and never archive a design system while keeping the `wireframes.md` that references its `DS-*` IDs.
+  `design-system.md` and `design-system.json` are this package's own artifacts and are **not** excluded: a superseded pair is archived together with the rest of the package. Never archive one without the other.
 
   `market-research.md` is also this package's own artifact, not the general "research" the exclusion means. A superseded `market-research.md` is archived with the rest of the package. Never archive it while keeping a `PRD.md` that cites its `MR-*` IDs, and — when this run's research pass was skipped or blocked — do not archive a prior `market-research.md` at all: leave it published, since nothing replaces it.
 - Any ambiguous candidate. Leave it in place and mention it to the user instead of guessing.

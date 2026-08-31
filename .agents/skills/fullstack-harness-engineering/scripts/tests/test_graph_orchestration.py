@@ -1471,6 +1471,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         review["review"] = {
             "type": "backend_code",
+            "lineage_id": "REVIEW-CODEX-ONLY",
             "mission_ids": ["M1"],
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],
@@ -1566,6 +1567,7 @@ class GraphManifestTests(unittest.TestCase):
             )
             node["review"] = {
                 "type": review_type,
+                "lineage_id": f"REVIEW-{node['id']}",
                 "mission_ids": ["M1"],
                 "scope": ["src/a/**"],
                 "required_evidence": ["reviewed_sha", "findings"],
@@ -1668,6 +1670,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         review["review"] = {
             "type": "frontend_code",
+            "lineage_id": "REVIEW-EXACT-SHA",
             "mission_ids": ["M1"],
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],
@@ -1783,6 +1786,7 @@ class GraphManifestTests(unittest.TestCase):
         )
         review["review"] = {
             "type": "frontend_code",
+            "lineage_id": "REVIEW-INDEPENDENT",
             "mission_ids": ["M1"],
             "scope": ["src/a/**"],
             "required_evidence": ["reviewed_sha", "findings"],

@@ -219,13 +219,13 @@ def _validate_ui_evidence(
         ):
             _add(errors, f"{path}.artifact_sha256", "must be a lowercase SHA-256")
         _optional_sha(errors, f"{path}.head_sha", item["head_sha"])
-        if run.get("schema_version") == 10 and item["status"] != "PASS" and not is_full_sha(
+        if run.get("schema_version") in {10, 11} and item["status"] != "PASS" and not is_full_sha(
             item["head_sha"]
         ):
             _add(
                 errors,
                 path,
-                "RUN-v10 UI evidence requires a recorded accepted Git commit/ref in head_sha",
+                "RUN-v11 UI evidence requires a recorded accepted Git commit/ref in head_sha",
             )
         if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
@@ -424,14 +424,14 @@ def validate_ui_evidence_files(
 ) -> list[str]:
     """Verify screenshot bytes and hashes for RUN-v9/v10.
 
-    RUN-v9 retains its historical working-tree binding. RUN-v10 reads the
+    RUN-v9 retains its historical working-tree binding. RUN-v11 reads the
     artifact blob from each row's accepted ``head_sha`` first, then decodes and
     hashes those immutable bytes; a working-tree-only or mutated screenshot is
     never accepted for the current evidence contract.
     """
 
     schema_version = run.get("schema_version")
-    if schema_version not in {9, 10} or not isinstance(
+    if schema_version not in {9, 10, 11} or not isinstance(
         run.get("ui_evidence"), list
     ):
         return []
@@ -444,13 +444,13 @@ def validate_ui_evidence_files(
             continue
         path = f"run.ui_evidence[{index}].artifact_path"
         artifact_bytes: bytes | None = None
-        if schema_version == 10:
+        if schema_version in {10, 11}:
             head_sha = item.get("head_sha")
             if not isinstance(head_sha, str) or not is_full_sha(head_sha):
                 _add(
                     errors,
                     path,
-                    "RUN-v10 evidence requires a recorded accepted Git commit/ref in head_sha",
+                    "RUN-v11 evidence requires a recorded accepted Git commit/ref in head_sha",
                 )
                 continue
             artifact_bytes, reason = _read_git_artifact_blob(
@@ -536,6 +536,29 @@ def validate_integration_head_against_git(
             _add(errors, path, f"could not be verified against live Git: {reason}")
         return sorted(set(errors))
     actual = result.stdout.strip()
+    if actual != recorded and run.get("schema_version") == 11:
+        ancestry = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", recorded, actual],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        changed = subprocess.run(
+            ["git", "diff", "--name-only", f"{recorded}..{actual}"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        coordination_paths = set(integration.get("coordination_paths", []))
+        changed_paths = {
+            line.strip().replace("\\", "/")
+            for line in changed.stdout.splitlines()
+            if line.strip()
+        }
+        if ancestry.returncode == 0 and changed.returncode == 0 and changed_paths.issubset(coordination_paths):
+            return []
     if actual != recorded:
         _add(
             errors,

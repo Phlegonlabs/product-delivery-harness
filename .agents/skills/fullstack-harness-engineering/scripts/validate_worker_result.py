@@ -639,7 +639,7 @@ def validate_worker_result_data(
     if not manifest_already_validated and (
         plan.get("schema_version"),
         run.get("schema_version"),
-    ) == (5, 10):
+    ) == (6, 11):
         for message in validate_current_plan_run(plan, run):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
         if errors:
@@ -752,7 +752,7 @@ def validate_worker_result_data(
         worker.get("nested_subagent_policy") if isinstance(worker, dict) else None
     )
     if (
-        run.get("schema_version") == 10
+        run.get("schema_version") in {10, 11}
         and isinstance(nested_policy, dict)
         and nested_policy.get("enabled") is True
     ):
@@ -760,14 +760,14 @@ def validate_worker_result_data(
             errors,
             "nested_delegation_forbidden",
             "harness_run.workers.nested_subagent_policy.enabled",
-            "RUN-v10 workers cannot delegate to child agents",
+            "RUN-v11 workers cannot delegate to child agents",
         )
-    if run.get("schema_version") == 10 and "subagent_activity" not in result:
+    if run.get("schema_version") in {10, 11} and "subagent_activity" not in result:
         _issue(
             errors,
             "missing_field",
             "worker_result.subagent_activity",
-            "RUN-v10 worker results must report flat not_applicable activity",
+            "RUN-v11 worker results must report flat not_applicable activity",
         )
     elif isinstance(nested_policy, dict) and "subagent_activity" not in result:
         _issue(
@@ -778,7 +778,7 @@ def validate_worker_result_data(
         )
     if "subagent_activity" in result:
         if (
-            run.get("schema_version") == 10
+            run.get("schema_version") in {10, 11}
             and isinstance(result.get("subagent_activity"), dict)
             and result["subagent_activity"].get("status") != "not_applicable"
         ):
@@ -786,7 +786,7 @@ def validate_worker_result_data(
                 errors,
                 "nested_delegation_forbidden",
                 "worker_result.subagent_activity.status",
-                "must be not_applicable for the flat RUN-v10 topology",
+                "must be not_applicable for the flat RUN-v11 topology",
             )
         _validate_subagent_activity(
             result.get("subagent_activity"),
@@ -1149,7 +1149,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(_result_document("FAIL", errors), sort_keys=True, separators=(",", ":")))
         return 1
 
-    if (plan.get("schema_version"), run.get("schema_version")) == (5, 10):
+    if (plan.get("schema_version"), run.get("schema_version")) == (6, 11):
         for message in validate_current_plan_run(plan, run):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
     else:

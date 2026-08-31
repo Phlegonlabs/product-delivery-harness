@@ -68,6 +68,7 @@ def _validate_graph(
     verifier_ids: set[str],
     *,
     require_bounded_review_repair: bool = False,
+    require_review_lineage: bool = False,
 ) -> None:
     path = "plan.graph"
     authorization_actions = AUTHORIZATION_KEYS
@@ -168,9 +169,25 @@ def _validate_graph(
                         errors,
                         review_path,
                         review,
-                        {"type", "mission_ids", "scope", "required_evidence"},
-                        {"stage"},
+                        {
+                            "type",
+                            "mission_ids",
+                            "scope",
+                            "required_evidence",
+                            *( {"lineage_id"} if require_review_lineage else set() ),
+                        },
+                        {"stage", *(set() if require_review_lineage else {"lineage_id"})},
                     ):
+                        lineage_id = review.get("lineage_id")
+                        if lineage_id is not None and (
+                            not _nonempty_string(lineage_id)
+                            or not ID_RE.fullmatch(lineage_id)
+                        ):
+                            _add(
+                                errors,
+                                f"{review_path}.lineage_id",
+                                "must be a flat uppercase identifier",
+                            )
                         if review.get("stage", "preintegration") not in {
                             "preintegration",
                             "integration",
