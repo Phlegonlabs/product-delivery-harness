@@ -196,6 +196,11 @@ class AdapterContractTests(unittest.TestCase):
 
         self.assertIn("Pi owns role-to-model and fallback selection", pi)
         self.assertIn("`provider_options.pi.model` null", pi)
+        self.assertIn("role-aware Pi launch surface", pi)
+        self.assertIn("generic `agents.spawn` surface", pi)
+        self.assertIn("lacks a Pi role selector, it does not satisfy this capability", pi)
+        self.assertIn("Omit `model` from the Pi launch call", pi)
+        self.assertIn("Do not manually respawn the node on another model or provider", pi)
         self.assertIn("PLAN may lower or raise reasoning effort per node", pi)
         self.assertIn("per-run thinking suffix", pi)
         self.assertIn("`medium` for bounded discovery", pi)
@@ -213,6 +218,10 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("One mission has one writer", pi)
         self.assertIn("A Pi child must not delegate again", pi)
         self.assertIn("preserve Pi's installed role and model routing", prompt)
+
+        graph = self.read("references/graph-orchestration.md")
+        self.assertIn("not cross-provider fallback hints", graph)
+        self.assertIn("On a Pi host, every review uses the installed `reviewer` role", graph)
 
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_claude_graph_workflow_splits_mixed_frontiers_by_tool_profile(self) -> None:

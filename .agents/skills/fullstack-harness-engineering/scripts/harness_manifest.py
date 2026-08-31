@@ -2568,6 +2568,36 @@ def _codex_probe_requires_parallel_inventory(
     return min(configured_budget, slots, isolation) >= 2
 
 
+def _validate_current_runtime_binding(
+    errors: list[str],
+    path: str,
+    binding: dict[str, Any],
+    runtime: dict[str, Any],
+) -> None:
+    """Bind a live RUN-v11 attempt to this session's selected host driver."""
+
+    adapter = runtime.get("runtime_adapter")
+    if not isinstance(adapter, dict):
+        return
+    expected_provider = adapter.get("provider")
+    expected_driver = route_runtime_driver(runtime)
+    if (
+        expected_provider in RUNTIME_PROVIDERS
+        and binding.get("provider") != expected_provider
+    ):
+        _add(
+            errors,
+            f"{path}.provider",
+            "must match the current RUN runtime adapter provider",
+        )
+    if expected_driver in RUNTIME_DRIVERS and binding.get("driver") != expected_driver:
+        _add(
+            errors,
+            f"{path}.driver",
+            "must match the current RUN runtime adapter driver",
+        )
+
+
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -3858,6 +3888,25 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if worker["phase"] not in WORKER_PHASES:
                 _add(errors, f"{path}.phase", "has an unsupported value")
             runtime_binding = worker.get("runtime_binding")
+            mission_state = (
+                mission_states.get(worker["mission_id"])
+                if isinstance(mission_states, dict)
+                else None
+            )
+            selected_missions = (
+                wave.get("selected_missions", []) if isinstance(wave, dict) else []
+            )
+            requires_current_host_binding = schema_version == 11 and (
+                worker["phase"] in {"leased", "worker_running"}
+                or (
+                    worker["phase"] == "worker_passed"
+                    and isinstance(wave, dict)
+                    and wave.get("status") in {"proposed", "active"}
+                    and worker["mission_id"] in selected_missions
+                    and isinstance(mission_state, dict)
+                    and mission_state.get("worker_id") == worker["worker_id"]
+                )
+            )
             if graph_run and worker["mission_id"] in graph_nodes_by_mission and runtime_binding is None:
                 _add(
                     errors,
@@ -3936,6 +3985,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.runtime_binding.option_source",
                             "must identify the matching PLAN option source",
                         )
+                if requires_current_host_binding:
+                    _validate_current_runtime_binding(
+                        errors,
+                        f"{path}.runtime_binding",
+                        runtime_binding,
+                        runtime,
+                    )
             if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
                 _add(errors, f"{path}.report_path", "is required for report_file")
             nested_policy = worker.get("nested_subagent_policy")
@@ -4348,6 +4404,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     and state.get("last_attempt_id") == worker["attempt_id"]
                     and state.get("bound_worker_id") == worker["worker_id"]
                 )
+                requires_current_host_binding = (
+                    schema_version == 11
+                    and state.get("phase") == "running"
+                    and state.get("last_attempt_id") == worker["attempt_id"]
+                    and state.get("bound_worker_id") == worker["worker_id"]
+                    and worker["phase"] in {"leased", "worker_running", "worker_passed"}
+                )
                 if is_current_review_worker and findings:
                     if outcome == "pass":
                         _add(
@@ -4475,6 +4538,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             errors,
                             f"{path}.runtime_binding.option_source",
                             "must identify the matching PLAN option source",
+                        )
+                    if requires_current_host_binding:
+                        _validate_current_runtime_binding(
+                            errors,
+                            f"{path}.runtime_binding",
+                            binding,
+                            runtime,
                         )
 
         # The graph node state and its current bound integration-stage review

@@ -90,6 +90,20 @@ class ValidateNodeResultTests(unittest.TestCase):
         run = valid_graph_run(plan)
         digest = plan_digest(plan)
         authorize_execution(run, ["M1"], status="running", plan=plan, digest=digest)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            {
+                "provider": "codex",
+                "available_drivers": ["subagents", "sequential_parent"],
+                "detection_source": "explicit",
+            }
+        )
         review_node = next(
             node for node in plan["graph"]["nodes"] if node["id"] == "N-REVIEW-M1"
         )
