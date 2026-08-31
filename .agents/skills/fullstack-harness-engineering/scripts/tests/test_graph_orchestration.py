@@ -1060,12 +1060,52 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertEqual([], validate_run(plan, run))
 
+        claude_rebind = copy.deepcopy(run)
+        claude_rebind["workers"][0]["runtime_binding"] = {
+            "provider": "claude_code",
+            "driver": "dynamic_workflow",
+            "source": "host",
+            "model": "sonnet",
+            "reasoning_effort": None,
+            "option_source": "provider_default",
+        }
+        errors = validate_run(plan, claude_rebind)
+        self.assertIn(
+            "run.workers[0].runtime_binding.provider: must match the current RUN runtime adapter provider",
+            errors,
+        )
+        self.assertIn(
+            "run.workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
+            errors,
+        )
+
+        wrong_pi_driver = copy.deepcopy(run)
+        wrong_pi_driver["workers"][0]["runtime_binding"]["driver"] = "dynamic_workflow"
+        self.assertIn(
+            "run.workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
+            validate_run(plan, wrong_pi_driver),
+        )
+
     def test_codex_worker_runtime_binding_rejects_non_host_source(self) -> None:
         # The guarded external-Codex-agent driver/source pair is gone: a
         # worker's runtime_binding.source is always exactly "host", so the
         # old external_agent axis-consistency contract no longer applies.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "app_task",
+                "workspace_mode": "app_managed_worktree",
+                "completion_channel": "thread_poll",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            {
+                "provider": "codex",
+                "available_drivers": ["app_threads", "sequential_parent"],
+                "detection_source": "explicit",
+            }
+        )
         worker = {
             "worker_id": "W-M1-CODEX",
             "mission_id": "M1",
@@ -1678,6 +1718,20 @@ class GraphManifestTests(unittest.TestCase):
         attach_single_mission_review(plan, review)
         plan["required_reviews"] = ["frontend_code"]
         run = valid_graph_run(plan)
+        run["runtime_capabilities"].update(
+            {
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+            }
+        )
+        run["runtime_capabilities"]["runtime_adapter"].update(
+            {
+                "provider": "claude_code",
+                "available_drivers": ["dynamic_workflow", "sequential_parent"],
+                "detection_source": "observed",
+            }
+        )
         run["integration"]["integration_head_sha"] = "a" * 40
         run["graph_state"]["node_states"][review["id"]].update(
             {
@@ -1715,6 +1769,33 @@ class GraphManifestTests(unittest.TestCase):
             }
         ]
         self.assertEqual([], validate_run(plan, run))
+
+        pi_host_mismatch = copy.deepcopy(run)
+        pi_host_mismatch["runtime_capabilities"]["runtime_adapter"].update(
+            {
+                "provider": "pi",
+                "available_drivers": ["subagents", "sequential_parent"],
+            }
+        )
+        errors = validate_run(plan, pi_host_mismatch)
+        self.assertIn(
+            "run.review_workers[0].runtime_binding.provider: must match the current RUN runtime adapter provider",
+            errors,
+        )
+        self.assertIn(
+            "run.review_workers[0].runtime_binding.driver: must match the current RUN runtime adapter driver",
+            errors,
+        )
+
+        historical_claude_review = copy.deepcopy(pi_host_mismatch)
+        historical_claude_review["graph_state"]["node_states"][review["id"]].update(
+            {"phase": "succeeded", "last_outcome": "pass"}
+        )
+        historical_claude_review["review_workers"][0].update(
+            {"phase": "worker_passed", "outcome": "pass"}
+        )
+        self.assertEqual([], validate_run(plan, historical_claude_review))
+
         run["mission_states"]["M1"]["head_sha"] = "b" * 40
         run["review_workers"][0]["reviewed_sha"] = "b" * 40
         self.assertEqual([], validate_run(plan, run))
