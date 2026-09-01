@@ -176,7 +176,7 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "<fullstack-harness-engineering-skill-root>/scripts/"
+            "<full-harness-skill-root>/scripts/"
             "configure_project_context.py --root <target-root> --check",
             skill,
         )

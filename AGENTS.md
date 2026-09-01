@@ -31,10 +31,10 @@ Edit only the canonical sources in `.agents/skills/`, then run all of this from 
 ```text
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
-python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
+python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 
