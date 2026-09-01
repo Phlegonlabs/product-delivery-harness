@@ -3,7 +3,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import hashlib
+import io
+import json
 import subprocess
 import sys
 import tempfile
@@ -24,10 +28,12 @@ import new_run  # noqa: E402
 from harness_core import load_run, plan_digest  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
 from harness_ui_evidence import validate_integration_head_against_git  # noqa: E402
+from manifest_fixtures import manifest_markdown  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
 from select_ready_nodes import select_ready_nodes  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from test_select_ready_nodes import current_preintegration_review_state  # noqa: E402
+from verifier_runtime import execution_key_from_document  # noqa: E402
 
 
 PLAN_TEMPLATE = SCRIPTS_DIR.parent / "assets" / "templates" / "HARNESS_PLAN.template.md"
@@ -550,6 +556,293 @@ class HarnessV11Tests(unittest.TestCase):
                 ),
             )
             self.assertEqual("cancelled", load_run(run_path)["control"]["desired_state"])
+
+    def _write_review_cli_fixture(self, root: Path) -> tuple[Path, Path]:
+        """Persist the dispatchable preintegration review state under a real repo root."""
+        plan, run = current_preintegration_review_state()
+        prd = root / "docs" / "goal" / "PRD.md"
+        prd.parent.mkdir(parents=True)
+        prd.write_bytes(b"frozen prd bytes\n")
+        plan["sources"] = [
+            {
+                "id": "SRC-001",
+                "kind": "prd",
+                "location": "docs/goal/PRD.md",
+                "owner": "user",
+                "status": "frozen",
+                "content_sha256": hashlib.sha256(prd.read_bytes()).hexdigest(),
+                "source_revision": None,
+                "staged_revision": None,
+                "notes": "frozen prd",
+            }
+        ]
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+
+        def refresh_plan_bindings(value: object) -> None:
+            if isinstance(value, dict):
+                if "plan_digest_sha256" in value:
+                    value["plan_digest_sha256"] = digest
+                for child in value.values():
+                    refresh_plan_bindings(child)
+            elif isinstance(value, list):
+                for child in value:
+                    refresh_plan_bindings(child)
+
+        refresh_plan_bindings(run)
+        for execution in run.get("verifier_executions", []):
+            if not isinstance(execution, dict):
+                continue
+            key_document = execution.get("key_document")
+            if isinstance(key_document, dict):
+                execution["execution_key"] = execution_key_from_document(key_document)
+                execution["evidence_key"] = execution["execution_key"]
+
+        plan_path = root / "PLAN.md"
+        run_path = root / "RUN.md"
+        plan_path.write_text(
+            manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+            encoding="utf-8",
+        )
+        run_path.write_text(
+            manifest_markdown("## Harness Run State", "harness_run", run),
+            encoding="utf-8",
+        )
+        return plan_path, run_path
+
+    def _git(self, root: Path, *arguments: str) -> None:
+        subprocess.run(
+            ["git", *arguments], cwd=root, check=True, capture_output=True, text=True
+        )
+
+    def _reserve_frontend_review(self, plan_path: Path, run_path: Path) -> list[str]:
+        return [
+            "--plan",
+            str(plan_path),
+            "--run",
+            str(run_path),
+            "--repo-root",
+            str(plan_path.parent),
+            "reserve-review-dispatch",
+            "--node-id",
+            "N-FRONTEND-REVIEW",
+            "--worker-id",
+            "RW-REVIEW-1",
+            "--attempt-id",
+            "ATT-REVIEW-1",
+        ]
+
+    def test_cli_reserve_review_dispatch_requires_repo_root_and_binds_exact_target(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self._git(root, "init", "-q")
+            self._git(root, "config", "user.email", "test@example.com")
+            self._git(root, "config", "user.name", "Harness Test")
+            plan_path, run_path = self._write_review_cli_fixture(root)
+            self._git(root, "add", "docs/goal/PRD.md", "PLAN.md", "RUN.md")
+            self._git(root, "commit", "-qm", "fixture")
+            before = run_path.read_text(encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                code = harness_transition.main(
+                    [
+                        "--plan",
+                        str(plan_path),
+                        "--run",
+                        str(run_path),
+                        "reserve-review-dispatch",
+                        "--node-id",
+                        "N-FRONTEND-REVIEW",
+                        "--worker-id",
+                        "RW-REVIEW-1",
+                        "--attempt-id",
+                        "ATT-REVIEW-1",
+                    ]
+                )
+            self.assertEqual(2, code)
+            self.assertIn("--repo-root", stderr.getvalue())
+            self.assertEqual(before, run_path.read_text(encoding="utf-8"))
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = harness_transition.main(
+                    self._reserve_frontend_review(plan_path, run_path)
+                )
+            self.assertEqual(0, code)
+            receipt = json.loads(stdout.getvalue())["dispatch_receipt"]
+            self.assertEqual("N-FRONTEND-REVIEW", receipt["node_id"])
+            self.assertEqual("RW-REVIEW-1", receipt["worker_id"])
+            self.assertEqual("ATT-REVIEW-1", receipt["attempt_id"])
+            self.assertEqual("spawn_subagent", receipt["launch_kind"])
+            self.assertEqual("b" * 40, receipt["reviewed_sha"])
+            self.assertEqual("C:/repo/worktrees/M1", receipt["review_path"])
+
+            run = load_run(run_path)
+            worker = run["review_workers"][-1]
+            self.assertEqual("leased", worker["phase"])
+            self.assertEqual("ATT-REVIEW-1", worker["attempt_id"])
+            self.assertEqual("b" * 40, worker["reviewed_sha"])
+            state = run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]
+            self.assertEqual("running", state["phase"])
+            self.assertEqual(1, state["attempts"])
+            self.assertEqual("ATT-REVIEW-1", state["last_attempt_id"])
+            self.assertEqual("RW-REVIEW-1", state["bound_worker_id"])
+
+    def test_cli_record_review_attempt_closes_the_reserved_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self._git(root, "init", "-q")
+            self._git(root, "config", "user.email", "test@example.com")
+            self._git(root, "config", "user.name", "Harness Test")
+            plan_path, run_path = self._write_review_cli_fixture(root)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    0, harness_transition.main(
+                        self._reserve_frontend_review(plan_path, run_path)
+                    )
+                )
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = harness_transition.main(
+                    [
+                        "--plan",
+                        str(plan_path),
+                        "--run",
+                        str(run_path),
+                        "record-review-attempt",
+                        "--lineage",
+                        "REVIEW-N-FRONTEND-REVIEW",
+                        "--worker-id",
+                        "RW-REVIEW-1",
+                        "--attempt-id",
+                        "ATT-REVIEW-1",
+                        "--mission-id",
+                        "M1",
+                        "--result",
+                        "pass",
+                        "--evidence",
+                        "reviewed the exact reserved head",
+                    ]
+                )
+            self.assertEqual(0, code)
+
+            run = load_run(run_path)
+            worker = run["review_workers"][-1]
+            self.assertEqual("worker_passed", worker["phase"])
+            self.assertEqual("pass", worker["outcome"])
+            attempt = run["attempt_log"][-1]
+            self.assertEqual("ATT-REVIEW-1", attempt["attempt_id"])
+            self.assertEqual("review", attempt["kind"])
+            self.assertEqual("pass", attempt["result"])
+            self.assertEqual(
+                "REVIEW-N-FRONTEND-REVIEW", attempt["review_lineage_id"]
+            )
+            self.assertEqual(
+                1,
+                run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"][
+                    "consumed_attempts"
+                ],
+            )
+            edge = run["graph_state"]["edge_states"]["E-FRONTEND-VISUAL-REVIEW"]
+            self.assertEqual("traversed", edge["status"])
+            self.assertEqual(1, edge["traversals"])
+            self.assertEqual("ATT-REVIEW-1", edge["source_attempt_id"])
+
+    def test_cli_grant_review_attempts_is_exact_and_one_shot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            plan, run = current_preintegration_review_state()
+            lineage = run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"]
+            for index in (1, 2):
+                run["attempt_log"].append(
+                    {
+                        "attempt_id": f"ATT-HISTORICAL-REVIEW-{index}",
+                        "mission_id": "M1",
+                        "task_id": None,
+                        "lease_id": None,
+                        "kind": "review",
+                        "result": "fix_required",
+                        "evidence": ["historical review defect"],
+                        "review_lineage_id": "REVIEW-N-FRONTEND-REVIEW",
+                        "failure_family_ids": ["FAMILY-MARKDOWN"],
+                    }
+                )
+            lineage["consumed_attempts"] = 2
+            lineage["failure_families"] = [
+                {
+                    "id": "FAMILY-MARKDOWN",
+                    "primitive": "Markdown scanner",
+                    "equivalence_classes": ["reference links", "fenced code"],
+                    "strategy": "replace regex patches with a fence-aware scanner",
+                    "status": "open",
+                }
+            ]
+            plan_path = root / "PLAN.md"
+            run_path = root / "RUN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            run_path.write_text(
+                manifest_markdown("## Harness Run State", "harness_run", run),
+                encoding="utf-8",
+            )
+            grant_arguments = [
+                "--plan",
+                str(plan_path),
+                "--run",
+                str(run_path),
+                "grant-review-attempts",
+                "--lineage",
+                "REVIEW-N-FRONTEND-REVIEW",
+                "--decision-id",
+                "OWNER-REVIEW-1",
+                "--source",
+                "I approve OWNER-REVIEW-1 for one additional review",
+                "--source-ref",
+                "user_turn:turn-123",
+                "--failure-family-id",
+                "FAMILY-MARKDOWN",
+                "--strategy",
+                "structural scanner repair",
+                "--acceptance",
+                "all Markdown reference classes",
+                "--acceptance",
+                "fenced code renders identically",
+                "--additional-attempts",
+                "1",
+            ]
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(0, harness_transition.main(grant_arguments))
+
+            granted = load_run(run_path)["review_lineages"][
+                "REVIEW-N-FRONTEND-REVIEW"
+            ]
+            self.assertEqual(1, granted["additional_allowance"])
+            decision = granted["owner_decisions"][0]
+            self.assertEqual("user_turn:turn-123", decision["source_ref"])
+            self.assertEqual("FAMILY-MARKDOWN", decision["failure_family_id"])
+            self.assertEqual("structural scanner repair", decision["strategy"])
+            self.assertEqual(
+                [
+                    "all Markdown reference classes",
+                    "fenced code renders identically",
+                ],
+                decision["acceptance_matrix"],
+            )
+            family = granted["failure_families"][0]
+            self.assertEqual("repairing", family["status"])
+            self.assertEqual("structural scanner repair", family["strategy"])
+
+            before = run_path.read_text(encoding="utf-8")
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                code = harness_transition.main(grant_arguments)
+            self.assertEqual(2, code)
+            self.assertIn("one owner-granted successor", stderr.getvalue())
+            self.assertEqual(before, run_path.read_text(encoding="utf-8"))
 
     def test_interrupted_mission_worker_is_reconciled(self) -> None:
         plan, run = current_preintegration_review_state()
