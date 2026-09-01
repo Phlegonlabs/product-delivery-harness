@@ -385,7 +385,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("RUN-v11 workers never delegate", runbook)
         self.assertIn("all reviews are parent-dispatched graph nodes", runbook)
 
-    def test_frontend_design_has_creation_and_conformance_modes(self) -> None:
+    def test_frontend_design_has_compilation_and_conformance_modes(self) -> None:
         skill = self.read("SKILL.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
@@ -395,11 +395,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("frontend-design conformance mode", content)
             self.assertIn("design-input delta", content)
             self.assertIn("product-design-builder", content)
-            self.assertIn("creation mode", content)
+            self.assertIn("compilation mode", content.casefold())
         self.assertIn("user explicitly selected it", plan)
         self.assertIn("new or high-impact visual surface", plan)
         self.assertIn("proposed design-input delta", design_updates)
-        self.assertIn("Return it to `product-design-builder`", design_updates)
+        self.assertIn("return formal pair changes to `product-design-builder`", design_updates)
 
     def test_page_reference_modes_do_not_bypass_frozen_design_sources(self) -> None:
         skill = self.read("SKILL.md")
@@ -411,8 +411,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("only after the user requests faithful matching", updates)
         self.assertIn("Source version / hash", updates)
         self.assertIn("Tolerance / allowed deviations", updates)
-        self.assertIn("`prd-builder` freezes structural or behavioral consequences", updates)
-        self.assertIn("`product-design-builder` freezes visual consequences", updates)
+        self.assertIn("PRD UI Design Handoff", updates)
+        self.assertIn("Design System Need Gate", updates)
         self.assertIn("user explicitly requests faithful conformance", skill)
 
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:

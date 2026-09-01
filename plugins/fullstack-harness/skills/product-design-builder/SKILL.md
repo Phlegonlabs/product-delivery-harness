@@ -1,61 +1,58 @@
 ---
 name: product-design-builder
-description: Create or refine an implementation-ready frozen design-system contract (`design-system.md` and `design-system.json`) from an existing PRD, product brief, or approved requirements. Use for visual directions, current public design-reference discovery, image/screenshot/URL/Figma/named-product design extraction, design systems, design tokens, UI primitives, product-component contracts, responsive/state matrices, or design-input deltas. This skill requires the separate `frontend-design` and `impeccable` skills for every design-system creation or revision; it must not fall back to an unaided design path.
+description: Create or refine an implementation-ready frozen design-system contract (`design-system.md` and `design-system.json`) only when an approved PRD UI Design Handoff says a formal pair is required. Use for design systems, design tokens, UI primitives, product-component contracts, responsive/state matrices, or design-input deltas. The default path compiles an already approved UI direction and wireframes; it does not rerun Taste, concept generation, or preview selection.
 ---
 
 # Product Design Builder
 
 ## Purpose
 
-Turn approved product intent into two binding UI sources:
+Turn an approved UI direction into two binding reusable UI sources:
 
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
 
-`PRD.md` owns product scope plus routes, screen structure, flows, visible-region responsibilities, actions, states, responsive behavior, and `UI-*` / `UX-*` traces. Do not duplicate those contracts here. Do not implement production UI code or create Harness PLAN/RUN state.
+This skill is optional. Invoke it only when an explicitly requested visual-design phase has produced an approved UI Design Handoff and `PRD.md` records `Design System Need Gate: required`. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the approved UI Design Handoff. Approved `wireframes.html` is its low-fidelity interactive review projection. Do not duplicate or change those contracts, rerun visual exploration by default, implement production UI code, or create Harness PLAN/RUN state.
 
-## Mandatory Design Skills Gate
+## Compilation Skills Gate
 
-Before creating or revising any visual direction, token, primitive, component, motion rule, or responsive rule:
+Before creating or revising a formal pair:
 
-1. Confirm that the installed skills with exact frontmatter names `frontend-design` and `impeccable` are available in the current session.
-2. Load both skills with this skill. Use `impeccable` through `references/impeccable-concept-generation.md` for surface-mode and concept-world generation, and use `frontend-design` for hierarchy, differentiation, typography, color, composition, motion, and anti-generic-UI craft.
-3. State that all three skills are active before producing design output.
-4. If `frontend-design` or `impeccable` is unavailable or cannot be loaded, stop and report the missing dependency. Do not draft, revise, or validate the design artifacts through a fallback path.
+1. Confirm that the installed skill with exact frontmatter name `frontend-design` is available.
+2. Load it with `product-design-builder` in contract-compilation mode. It translates the approved direction into a coherent token, primitive, component, motion, responsive, and state system; it does not choose a new direction.
+3. If `frontend-design` cannot be loaded, stop. Do not draft, revise, or validate the pair through a fallback path.
 
-For a Harness mission, `required_skills` must contain `product-design-builder`, `frontend-design`, and `impeccable`. A worker loads exactly that trio before the launch checklist. This is distinct from Harness UI implementation conformance mode, where `frontend-design` obeys an already frozen package and `impeccable` is not loaded.
+For a Harness design-source mission, `required_skills` must contain `product-design-builder` and `frontend-design`. This is distinct from Harness UI implementation conformance mode, which obeys frozen sources and does not revise them.
 
-Create HTML, Figma, image, or code previews only when the user explicitly asks for that extra artifact. Keep previews non-canonical and outside the staged or published package.
+Do not reload `design-taste-frontend` or `impeccable` merely to compile the pair. Their approved consequences, when used, are already frozen in `PRD.md`'s UI Design Handoff. Reopen visual direction only when the human owner explicitly asks; follow the bounded expansion in Reference Routing, return the selected result to `prd-builder` for approval and recording, and restart compilation from that updated source.
 
 ## Inputs And Ownership
 
-Read the current sources in full before asking questions or drafting:
+Read the current sources in full before drafting:
 
-- `PRD.md` or the approved product brief, including its UI surface contract and Builder UX Direction Decision;
-- `market-research.md` and the `MR-*` citations in `PRD.md` when research exists, or the recorded skipped or blocked status;
+- `PRD.md`, including its UI surface contract, Builder UX Direction Decision, approved `### UI Design Handoff`, and `Design System Need Gate: required` decision;
+- approved `wireframes.html`, including its matching `UI-*` page, viewport, state, region, and responsive projection, plus `PRD.md`'s `### Wireframe Approval` record;
 - `architecture.md` and `stack-decisions.md` when they constrain platform, rendering, accessibility, performance, or component sources;
-- existing `design-system.md` and `design-system.json` for an enhancement or delta;
-- approved reference images, screenshots, brand rules, or page-specific design inputs; and
-- repository-discovered design-image candidates, especially readable files under `docs/design/`, passed by the Harness as non-canonical design inspiration with their repository-relative paths and SHA-256 content hashes. Inspect and confirm them through the normal reference flow; never treat repository presence as a page-faithful request.
+- existing `design-system.md` and `design-system.json` for an enhancement or delta; and
+- the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by the handoff.
+
+Read `market-research.md` only when the handoff cites its `MR-*` evidence. Repository-discovered images remain non-canonical design inspiration unless the PRD handoff explicitly promotes one to a scoped page-faithful target with its hash, route, state, responsive scope, and tolerance.
 
 If a required source is named but missing or unreadable, stop and request its path or contents. A statement that an approved source exists is not a substitute for reading it.
 
-If an existing package or staged revision describes the same product, enhance it. Preserve unaffected content and stable `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` IDs. Never regenerate the package from a blank slate.
+If an existing pair or staged revision describes the same product, enhance it. Preserve unaffected content and stable `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` IDs. Never regenerate the pair from a blank slate.
 
-Product scope, route, structure, content, action, flow, or state gaps return to `prd-builder` or the named product owner. A visual treatment that needs one of those changes is a finding, not permission to change the PRD.
+Product scope, route, structure, content, action, flow, state, wireframe, or approved-target gaps return to `prd-builder` or the named product owner. A treatment that needs one of those changes is a finding, not permission to edit the source.
 
 ## Workflow
 
-1. Pass the Mandatory Design Skills Gate.
-2. Read `references/visual-direction-guide.md`, then verify its Builder UX Direction Gate with the human product/design decision owner. Every `assumed` answer requires that owner's explicit authorization. If the recorded decision or UI surface contract is missing or incomplete, return a bounded update to `prd-builder` or the named product owner and wait; do not edit `PRD.md` here.
-3. Read `references/design-reference-guide.md` and `references/impeccable-concept-generation.md`, build the bounded Market Design Evidence Brief, then run `references/visual-direction-guide.md`'s combined Style And Reference Intake. Ask the human owner for the desired character, disliked patterns, and any visual references in one turn. End the turn and wait.
-4. Inspect every supplied or repository-discovered reference using `references/design-reference-guide.md`. Return `Adopt / Adapt / Avoid` principles and wait for confirmation before using their signals.
-5. Use `impeccable` and `frontend-design` to form exactly three materially different product-specific directions, or one per set only for an owner-requested lightweight direction pass. Find and inspect one current public visual reference for every direction and a second only when it adds a distinct useful mechanic. Preserve the same representative PRD surfaces, structure, content responsibilities, states, and trace IDs.
-6. Let the human owner select, reject, mix, or inspect another reference. Do not fix tokens or components until one direction and its contributing `RP-*` principles are explicitly confirmed, or the user explicitly authorizes a provisional assumption.
-7. Read `references/design-system-guide.md`. Use `frontend-design` to translate the selected direction and real PRD UI surface contract into the smallest complete implementation contract.
-8. Build `design-system.json`, write the short rationale in `design-system.md`, and reconcile names, required content order, responsive rules, and states against the PRD UI surface contract.
-9. Run the validation commands and the final checklist in `references/output-contract.md`.
-10. Stage and publish both files together using `references/artifact-lifecycle.md`. When called from `prd-builder`, return the validated pair to that parent workflow.
+1. Confirm that `PRD.md` says `Design System Need Gate: required`. If it says `not_required` or `blocked`, stop; this skill should not have been invoked.
+2. Pass the Compilation Skills Gate.
+3. Verify that the PRD UI surface contract, approved Wireframe Approval, approved UI Design Handoff, immutable UI target, and approved `wireframes.html` are complete and consistent. If not, return a bounded update to `prd-builder` and wait.
+4. Read `references/design-system-guide.md`. Use `frontend-design` to translate only the approved visual consequences, real controls, repeated compositions, states, and responsive needs into the smallest complete implementation contract.
+5. Build `design-system.json`, write the short rationale in `design-system.md`, and reconcile names, required content order, responsive rules, states, and target provenance against the PRD and wireframes.
+6. Run the validation commands and the final checklist in `references/output-contract.md`.
+7. Stage and publish both files together using `references/artifact-lifecycle.md`. When called from `prd-builder`, return the validated pair to that parent workflow.
 
 ## Validation
 
@@ -70,8 +67,11 @@ python .agents/skills/product-design-builder/scripts/check_type_scale.py <the ar
 
 Also confirm:
 
+- the Design System Need Gate is `required` and names its owner and reason;
 - every PRD UI surface has an addressable route or an explicit `n/a` reason;
-- every surface covers the final state matrix or records `<state>: n/a — <reason>` in `PRD.md`;
+- every UI surface maps to an approved `wireframes.html` page with matching regions, states, and responsive order;
+- the approved UI target, Taste applicability record, visual approval, scope, hash, responsive coverage, and tolerance are present in the UI Design Handoff;
+- every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
 - every required UI element maps to a registered primitive or product component;
 - exactly one responsive set exists: web `viewports` or native or desktop `sizeClasses`;
 - no unresolved placeholder, page-local value, or one-off control remains; and
@@ -79,19 +79,18 @@ Also confirm:
 
 ## Reference Routing
 
-- Read `references/visual-direction-guide.md` before visual-direction work.
-- Read `references/design-reference-guide.md` for visual-reference discovery, inspection, evidence records, and revision behavior.
-- Read `references/design-system-guide.md` after one direction is selected.
+- Read `references/design-system-guide.md` for normal contract compilation.
 - Read `references/output-contract.md` for artifact boundaries and quality checks.
 - Read `references/artifact-lifecycle.md` before creating staging files or publishing.
-- Use `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json` for the design-system pair.
+- Use `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json` for the pair.
 - Use the three scripts under `scripts/` for deterministic pair, contrast, and type-scale validation.
+- Only when the owner explicitly asks to reopen direction, read `references/visual-direction-guide.md`, `references/design-reference-guide.md`, and `references/impeccable-concept-generation.md`; load `impeccable`, `frontend-design`, and the design method selected by the PRD UI Design Handoff. Use `../prd-builder/references/ui-design-pass.md` for Taste applicability and provider-neutral previews. Return the result upstream for human approval instead of writing the pair against an unrecorded direction.
 
 ## Output Rules
 
 - Default artifacts to English unless the user requests another language.
 - Keep the design system implementation-facing.
-- Put candidate directions, reference analysis, and optional previews outside the published package.
+- Keep candidate directions, reference analysis, and preview artifacts outside the published pair.
 - Keep stable trace IDs across revisions; do not reuse retired IDs for different meanings.
 - Builder approval proves direction conformance, not usability. Record unresolved validation needs.
 - Report exact staged and published paths, validation results, assumptions, and every intentionally unresolved gap.

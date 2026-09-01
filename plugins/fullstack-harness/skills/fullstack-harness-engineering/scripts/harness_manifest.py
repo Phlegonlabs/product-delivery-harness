@@ -116,6 +116,15 @@ PRODUCT_DESIGN_SOURCE_KINDS = {
     "design system",
     "design system machine",
 }
+PRODUCT_WIREFRAME_SOURCE_PATHS = (
+    "docs/product/wireframes.html",
+)
+PRODUCT_WIREFRAME_SOURCE_FILENAMES = {"wireframes.html"}
+PRODUCT_WIREFRAME_SOURCE_KINDS = {
+    "wireframe",
+    "ui wireframe",
+    "low fidelity wireframe",
+}
 
 
 def _read_git_source_blob(
@@ -400,6 +409,49 @@ def _scope_includes_product_design_source(
     if tree_scope:
         return len(tail) <= 1
     return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_DESIGN_SOURCE_FILENAMES
+
+
+def _product_wireframe_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]:
+    paths = set(PRODUCT_WIREFRAME_SOURCE_PATHS)
+    for source in sources.values():
+        location = source.get("location")
+        kind = source.get("kind")
+        if not isinstance(location, str) or "://" in location:
+            continue
+        normalized_kind = ""
+        if isinstance(kind, str):
+            normalized_kind = " ".join(
+                kind.replace("_", " ").replace("-", " ").casefold().split()
+            )
+        normalized_location = location.replace("\\", "/").removeprefix("./").strip("/")
+        filename = normalized_location.rsplit("/", 1)[-1].lower()
+        if (
+            normalized_kind in PRODUCT_WIREFRAME_SOURCE_KINDS
+            or filename in PRODUCT_WIREFRAME_SOURCE_FILENAMES
+        ):
+            paths.add(normalized_location)
+    return paths
+
+
+def _scope_includes_product_wireframe_source(
+    scope: Any, product_wireframe_source_paths: set[str]
+) -> bool:
+    if not isinstance(scope, str):
+        return False
+    if any(path_in_scopes(path, [scope]) for path in product_wireframe_source_paths):
+        return True
+    if not _is_product_staging_location(scope):
+        return False
+    normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
+    parts = normalized.split("/")
+    staging_index = next(
+        index for index, part in enumerate(parts) if part == ".prd-staging"
+    )
+    tree_scope = parts[-1] == "**"
+    tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
+    if tree_scope:
+        return len(tail) <= 1
+    return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_WIREFRAME_SOURCE_FILENAMES
 
 
 def _is_single_mission_v5_without_batch_verifiers(plan: Any) -> bool:
@@ -822,24 +874,36 @@ def validate_plan(
             )
             for scope in mission_write
         )
-        design_skill_trio = {
+        design_skill_set = {
             "product-design-builder",
-            "impeccable",
             "frontend-design",
         }
-        if design_source_scope and not design_skill_trio.issubset(required_skills):
+        if design_source_scope and not design_skill_set.issubset(required_skills):
             _add(
                 errors,
                 f"{mission_path}.required_skills",
-                "design-source write scope must include 'product-design-builder', 'impeccable', and 'frontend-design'",
+                "design-source write scope must include 'product-design-builder' and 'frontend-design'",
             )
-        elif "product-design-builder" in required_skills and not design_skill_trio.issubset(
+        elif "product-design-builder" in required_skills and not design_skill_set.issubset(
             required_skills
         ):
             _add(
                 errors,
                 f"{mission_path}.required_skills",
-                "must include 'impeccable' and 'frontend-design' when 'product-design-builder' is required",
+                "must include 'frontend-design' when 'product-design-builder' is required",
+            )
+        product_wireframe_source_paths = _product_wireframe_source_paths(sources)
+        wireframe_source_scope = any(
+            _scope_includes_product_wireframe_source(
+                scope, product_wireframe_source_paths
+            )
+            for scope in mission_write
+        )
+        if wireframe_source_scope and "prd-builder" not in required_skills:
+            _add(
+                errors,
+                f"{mission_path}.required_skills",
+                "wireframe-source write scope must include 'prd-builder'",
             )
         if "stop_conditions" in mission:
             _strings(errors, f"{mission_path}.stop_conditions", mission["stop_conditions"], nonempty=True)

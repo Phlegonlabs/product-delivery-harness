@@ -42,7 +42,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
         for ds_family in ("`DS-*`", "`DS-COMP-*`"):
             self.assertIn(ds_family, design)
         self.assertIn("product-design-builder", prd)
-        self.assertIn("`DS-*` ID names an entry that exists in `design-system.json`", harness)
+        self.assertIn("wireframes.html", prd)
+        self.assertNotIn("wireframes.md", prd)
+        self.assertIn("Approved wireframe", harness)
+        self.assertIn("`DS-*` ID names an entry that exists in `design-system.json` when", harness)
         self.assertIn("content_sha256", harness)
         self.assertIn("immutable `source_revision`", harness)
         self.assertIn("Passing validation does not authorize", prd_lifecycle)
@@ -63,7 +66,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
             self.assertIn("design-system.json", source)
         self.assertIn("Publish the two design-system files as one reconciled set", design_lifecycle)
         self.assertIn("Freeze both with a `content_sha256`", harness)
-        self.assertIn("is `partial`, never `frozen`", harness)
+        self.assertIn("half-present pair is `missing` or `partial`", harness)
+        self.assertIn("No design-system pair is expected", harness)
 
     def test_harness_reads_the_responsive_set_from_the_design_system(self) -> None:
         design = self.read("product-design-builder/references/output-contract.md")
@@ -76,7 +80,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         # detailed contract instead of repeating the responsive-set rule.
         self.assertIn("exactly one responsive verification set", design)
         self.assertIn("references/contract-and-traceability.md", harness_skill)
-        self.assertIn("The harness does not carry its own default set", harness)
+        self.assertIn("The harness carries no default set", harness)
 
     def test_the_retired_middle_skill_is_gone_from_every_contract(self) -> None:
         for relative_path in (
@@ -100,6 +104,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
                 self.assertNotIn(retired, source, f"{relative_path} still references {retired}")
 
     def test_prd_visual_direction_and_harness_conformance_boundary(self) -> None:
+        prd = self.read("prd-builder/SKILL.md")
+        ui_pass = self.read("prd-builder/references/ui-design-pass.md")
         product_design = self.read("product-design-builder/SKILL.md")
         directions = self.read("product-design-builder/references/visual-direction-guide.md")
         references = self.read("product-design-builder/references/design-reference-guide.md")
@@ -114,33 +120,46 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "fullstack-harness-engineering/assets/templates/WORKER_GOAL.template.md"
         )
 
-        self.assertIn("## Visual Direction Gate", directions)
-        self.assertIn(
-            "`PRD.md` remains canonical for routes, screen purpose",
-            directions,
-        )
-        self.assertIn("The gate is required; optional preview tooling is not", directions)
-        self.assertIn("same frozen PRD structure and states", directions)
+        self.assertIn("run `references/ui-design-pass.md` directly", prd)
+        self.assertIn("## Taste Applicability Gate", ui_pass)
+        self.assertIn("## Design System Need Gate", ui_pass)
+        self.assertIn("only when the human owner explicitly asks", directions)
         self.assertIn("references/ui-implementation-contract.md", harness)
-        self.assertIn(
-            "`product-design-builder`, `impeccable`, and `frontend-design` in creation mode",
-            ui_contract,
-        )
-        self.assertIn("## Mandatory Design Skills Gate", product_design)
-        self.assertIn("`product-design-builder`, `frontend-design`, and `impeccable`", product_design)
+        self.assertIn("## System-Conformance Mode", ui_contract)
+        self.assertIn("## Target-Conformance Mode", ui_contract)
+        self.assertIn("## Compilation Skills Gate", product_design)
+        self.assertIn("`product-design-builder` and `frontend-design`", product_design)
         self.assertIn("impeccable-concept-generation.md", product_design)
         self.assertIn("frontend-design conformance mode", ui_contract)
-        self.assertIn("returns to `prd-builder`", ui_contract)
-        self.assertIn("returns to `product-design-builder`", ui_contract)
+        self.assertIn("to `prd-builder`", ui_contract)
+        self.assertIn("to `product-design-builder`", ui_contract)
         self.assertIn("frontend-design conformance mode", worker_goal)
         self.assertIn("Design inspiration", design_updates)
         self.assertIn("Page-faithful target", design_updates)
         self.assertIn("non-canonical evidence", design_updates)
-        self.assertIn("user explicitly requests faithful conformance", ui_contract)
+        self.assertIn("Only the approved target recorded in the PRD handoff", ui_contract)
         self.assertIn("never invoke them automatically", references)
         self.assertIn("design inspiration never enters this matrix", design_updates.lower())
 
+    def test_wireframes_and_ui_previews_have_separate_authority(self) -> None:
+        prd = self.read("prd-builder/SKILL.md")
+        design = self.read("product-design-builder/SKILL.md")
+        preview = self.read("prd-builder/references/ui-design-pass.md")
+        ui_contract = self.read(
+            "fullstack-harness-engineering/references/ui-implementation-contract.md"
+        )
+
+        self.assertIn("single approved low-fidelity projection", prd)
+        self.assertIn("`wireframes.html`", prd)
+        self.assertIn("approved UI Design Handoff", design)
+        self.assertIn("approved `wireframes.html`", design)
+        self.assertIn("does not require Codex", preview)
+        self.assertIn("matching approved page in `wireframes.html`", ui_contract)
+        self.assertIn("never overrides `PRD.md`", ui_contract)
+        self.assertIn("UI Preview Gate outputs", ui_contract)
+
     def test_repository_design_images_enter_the_reference_confirmation_flow(self) -> None:
+        prd = self.read("prd-builder/SKILL.md")
         product_design = self.read("product-design-builder/SKILL.md")
         harness = self.read("fullstack-harness-engineering/SKILL.md")
         contract = self.read(
@@ -150,20 +169,16 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "fullstack-harness-engineering/references/design-input-updates.md"
         )
 
-        for content in (product_design, harness, contract, design_updates):
+        for content in (prd, harness, contract, design_updates):
             self.assertIn("docs/design/", content)
-        for content in (product_design, contract, design_updates):
+        for content in (contract, design_updates):
             self.assertIn("repository-relative path", content)
         self.assertIn("references/design-input-updates.md", harness)
         self.assertIn("candidate design inspiration", design_updates)
         self.assertIn("SHA-256 content hash", design_updates)
         self.assertIn("docs/goal/evidence/", design_updates)
-        self.assertIn("owner-confirmed `RP-*`", design_updates)
-        self.assertIn("repository-discovered reference", product_design)
-        self.assertIn(
-            "never treat repository presence as a page-faithful request",
-            product_design,
-        )
+        self.assertIn("owner confirmation", design_updates)
+        self.assertIn("Repository-discovered images remain non-canonical", product_design)
 
     def test_frontend_review_binds_to_the_host_provider_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()

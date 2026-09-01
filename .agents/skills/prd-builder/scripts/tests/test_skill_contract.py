@@ -1,6 +1,8 @@
 import json
 import shutil
 import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -36,6 +38,7 @@ async function agent(_prompt, options) {
   if (role === "synthesis") {
     return {
       prd_markdown: "# PRD",
+      wireframes_html_data_json: '{"screens":[]}',
       architecture_markdown: "# Architecture",
       stack_decisions_markdown: "# Stack Decisions",
       implementation_plan_markdown: null,
@@ -81,7 +84,7 @@ async function agent(_prompt, options) {
 })();
 """
         completed = subprocess.run(
-            [node, "-e", runner, str(workflow_path)],
+            [node, "-e", " ".join(runner.splitlines()), str(workflow_path)],
             input=json.dumps(workflow_args),
             text=True,
             capture_output=True,
@@ -162,18 +165,12 @@ async function agent(_prompt, options) {
         self.assertIn("Cloudflare is a deployment/runtime platform", skill)
         self.assertIn("when the product has a browser surface", agent)
 
-    def test_completed_prd_offers_opt_in_harness_handoff(self) -> None:
+    def test_completed_wireframe_stage_stops_before_harness(self) -> None:
         skill = self.read("SKILL.md")
 
-        self.assertIn(
-            "ask whether the user wants to run `fullstack-harness-engineering` next",
-            skill,
-        )
-        self.assertIn("Do not invoke another skill without an explicit yes", skill)
-        self.assertIn(
-            "do not offer the handoff while the PRD workflow is incomplete", skill
-        )
-        self.assertIn("record that gap before offering the Harness", skill)
+        self.assertIn("An approved `wireframes.html` completes the wireframe stage", skill)
+        self.assertIn("do not invoke or automatically offer either", skill)
+        self.assertIn("If the owner later requests Harness work", skill)
 
     def test_publish_uses_distinct_repository_context_templates(self) -> None:
         skill = self.read("SKILL.md")
@@ -190,57 +187,313 @@ async function agent(_prompt, options) {
             "both files exist before any implementation run starts", skill
         )
 
-    def test_ui_design_is_delegated_to_the_mandatory_design_skills(self) -> None:
+    def test_ui_design_pass_is_explicit_and_pair_compilation_is_conditional(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         agent = self.read_agent_prompt()
 
         for content in (skill, contract, agent):
             self.assertIn("product-design-builder", content)
-            self.assertIn("impeccable", content)
             self.assertIn("frontend-design", content)
-        self.assertIn("must load `impeccable` and `frontend-design` before any design work", skill)
-        self.assertIn("define the routes, screen structure, flows", skill)
+            self.assertIn("design-taste-frontend", content)
         self.assertIn(
-            "create visual directions, design tokens, or a design system",
-            agent,
+            "Only when the result is `required`, load `product-design-builder`",
+            skill,
         )
-        self.assertIn(
-            "Those contracts belong only to `product-design-builder`", contract
-        )
+        self.assertIn("define routes, screen structure, flows", skill)
+        self.assertIn("Only when the owner explicitly continues into visual design", agent)
+        self.assertIn("later optional visual-design phase", contract)
         self.assertIn("## UI Surface Contract", contract)
-        self.assertNotIn("wireframe", contract.casefold())
-        self.assertNotIn("Optional `frontend-design`", contract)
+        self.assertNotIn("wireframes.md", contract)
+        self.assertIn("Wireframe Approval Gate", skill)
+        self.assertIn("Design System Need Gate", contract)
+
+    def test_prd_builder_owns_approved_low_fidelity_wireframes(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        guide = self.read("references/wireframe-guide.md")
+        html_template = self.read("assets/templates/WIREFRAMES.template.html")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+
+        for content in (skill, contract, lifecycle):
+            self.assertIn("wireframes.html", content)
+            self.assertNotIn("wireframes.md", content)
+        self.assertFalse((SKILL_ROOT / "assets/templates/WIREFRAMES.template.md").exists())
+        self.assertIn("`prd-builder` owns one low-fidelity deliverable", guide)
+        self.assertIn("Create one screen for every `UI-*` entry", guide)
+        self.assertIn("## HTML Requirements", guide)
+        self.assertIn("Generate one self-contained file", guide)
+        self.assertIn("an all-pages overview plus a page switcher", guide)
+        self.assertIn("## Wireframe Approval Gate", guide)
+        self.assertIn("PRD.md` wins", contract)
+        self.assertIn("Visual design phase: not requested", contract)
+
+        payload = html_template.split(
+            '<script id="wireframe-data" type="application/json">', 1
+        )[1].split("</script>", 1)[0]
+        data = json.loads(payload)
+        self.assertEqual([screen["id"] for screen in data["screens"]], ["UI-001", "UI-002"])
+        self.assertIn('data-viewport="expanded"', html_template)
+        self.assertIn('id="state-controls"', html_template)
+        self.assertIn('id="page-list"', html_template)
+        self.assertIn("All pages", html_template)
+        self.assertIn("Hero Section", html_template)
+        self.assertIn("textContent", html_template)
+        self.assertNotIn("https://", html_template)
+        self.assertIn("wireframes_html_data_json", workflow)
+
+        checker = SKILL_ROOT / "scripts/check_wireframe_html.py"
+        result = subprocess.run(
+            [sys.executable, str(checker), "--html", str(SKILL_ROOT / "assets/templates/WIREFRAMES.template.html")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            external = Path(tmp) / "wireframes.html"
+            external.write_text(
+                html_template.replace(
+                    "<title>",
+                    '<script src="https://example.com/reviewer.js"></script><title>',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(checker), "--html", str(external)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("must not load external resources", result.stderr)
+
+    def run_checker_with_data(
+        self, data: dict, extra_args: list[str] | None = None
+    ) -> subprocess.CompletedProcess:
+        html_template = self.read("assets/templates/WIREFRAMES.template.html")
+        marker = '<script id="wireframe-data" type="application/json">'
+        original_payload = html_template.split(marker, 1)[1].split("</script>", 1)[0]
+        modified = html_template.replace(
+            original_payload, "\n" + json.dumps(data) + "\n", 1
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "wireframes.html"
+            path.write_text(modified, encoding="utf-8")
+            return subprocess.run(
+                [
+                    sys.executable,
+                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    "--html",
+                    str(path),
+                    *(extra_args or []),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+    def minimal_wireframe_data(self) -> dict:
+        return {
+            "product": "P",
+            "approvalStatus": "draft",
+            "source": "PRD.md#UI-Surface-Contract",
+            "screens": [
+                {
+                    "id": "UI-001",
+                    "name": "N",
+                    "route": "/",
+                    "goal": "G",
+                    "traces": ["UX-001"],
+                    "regions": [
+                        {
+                            "id": "r1",
+                            "section": "S",
+                            "purpose": "P",
+                            "priority": "primary",
+                            "span": 12,
+                            "elements": [
+                                "Exact copy",
+                                {"label": "L", "contract": {"source": "S"}},
+                            ],
+                            "actions": [],
+                            "traces": ["UX-001"],
+                        }
+                    ],
+                    "compactOrder": ["r1"],
+                    "states": [{"id": "ready", "label": "Ready", "treatments": {}}],
+                }
+            ],
+            "flows": [{"from": "UI-001", "trigger": "T", "to": "UI-001"}],
+        }
+
+    def test_wireframe_template_projects_flows_traces_and_display_contracts(
+        self,
+    ) -> None:
+        guide = self.read("references/wireframe-guide.md")
+        html_template = self.read("assets/templates/WIREFRAMES.template.html")
+        payload = html_template.split(
+            '<script id="wireframe-data" type="application/json">', 1
+        )[1].split("</script>", 1)[0]
+        data = json.loads(payload)
+
+        self.assertIn("`flows` lists each flow", guide)
+        self.assertIsInstance(data["flows"], list)
+        self.assertTrue(data["flows"])
+        screen_ids = {screen["id"] for screen in data["screens"]}
+        for flow in data["flows"]:
+            for key in ("from", "trigger", "to"):
+                self.assertIsInstance(flow[key], str)
+                self.assertTrue(flow[key].strip())
+            self.assertIn(flow["from"], screen_ids)
+        self.assertTrue(any(screen.get("traces") for screen in data["screens"]))
+        self.assertTrue(
+            any(
+                region.get("traces")
+                for screen in data["screens"]
+                for region in screen["regions"]
+            )
+        )
+        elements = [
+            item
+            for screen in data["screens"]
+            for region in screen["regions"]
+            for item in region["elements"]
+        ]
+        self.assertTrue(any(isinstance(item, dict) for item in elements))
+        for marker in ("flow-panel", "display-contract", "flowTarget", "Traces"):
+            self.assertIn(marker, html_template)
+
+        self.assertEqual(self.run_checker_with_data(self.minimal_wireframe_data()).returncode, 0)
+
+        missing_label = self.minimal_wireframe_data()
+        missing_label["screens"][0]["regions"][0]["elements"] = [
+            {"contract": {"source": "S"}}
+        ]
+        result = self.run_checker_with_data(missing_label)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("elements", result.stderr)
+
+        unknown_flow = self.minimal_wireframe_data()
+        unknown_flow["flows"][0]["from"] = "UI-999"
+        result = self.run_checker_with_data(unknown_flow)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("references unknown screen ID", result.stderr)
+
+        bad_traces = self.minimal_wireframe_data()
+        bad_traces["screens"][0]["traces"] = "UX-001"
+        result = self.run_checker_with_data(bad_traces)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("traces", result.stderr)
+
+    def test_require_filled_rejects_unfilled_placeholders(self) -> None:
+        unfilled = self.minimal_wireframe_data()
+        unfilled["screens"][0]["regions"][0]["elements"].append("<feature name>")
+        result = self.run_checker_with_data(unfilled, extra_args=["--require-filled"])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("contains an unfilled <placeholder>", result.stderr)
+
+        clean = self.run_checker_with_data(
+            self.minimal_wireframe_data(), extra_args=["--require-filled"]
+        )
+        self.assertEqual(clean.returncode, 0, clean.stderr)
+
+    def test_require_approved_blocks_unapproved_wireframes(self) -> None:
+        result = self.run_checker_with_data(
+            self.minimal_wireframe_data(), extra_args=["--require-approved"]
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be 'approved'", result.stderr)
+
+        approved = self.minimal_wireframe_data()
+        approved["approvalStatus"] = "approved"
+        result = self.run_checker_with_data(
+            approved, extra_args=["--require-approved"]
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_approval_status_uses_the_gate_decision_vocabulary(self) -> None:
+        for retired in ("provisional", "revise"):
+            data = self.minimal_wireframe_data()
+            data["approvalStatus"] = retired
+            result = self.run_checker_with_data(data)
+            self.assertNotEqual(result.returncode, 0, retired)
+
+        for decision in ("revision_requested", "blocked"):
+            data = self.minimal_wireframe_data()
+            data["approvalStatus"] = decision
+            result = self.run_checker_with_data(data)
+            self.assertEqual(result.returncode, 0, f"{decision}: {result.stderr}")
+
+    def test_ui_design_handoff_has_taste_and_provider_neutral_preview_gates(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        guide = self.read("references/ui-design-pass.md")
+
+        for content in (skill, contract, guide):
+            self.assertIn("design-taste-frontend", content)
+            self.assertIn("UI Preview Gate", content)
+        self.assertIn("record `applicable`, `partially_applicable`, or `n/a: <reason>`", skill)
+        self.assertIn("imagegen-frontend-web", guide)
+        self.assertIn("imagegen-frontend-mobile", guide)
+        self.assertIn("provider/model", guide)
+        self.assertIn("Optional `brandkit` exploration", guide)
+        self.assertIn("An approved preview becomes an implementation target", guide)
+        self.assertIn("## Design System Need Gate", guide)
+
+    def test_ui_design_pass_records_provenance_and_retention_consequences(self) -> None:
+        guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+        references = self.read(
+            "../product-design-builder/references/design-reference-guide.md"
+        )
+
+        self.assertIn("design-reference-guide.md", guide)
+        self.assertIn("`VD-*` ID", guide)
+        self.assertIn("`REF-*` record", guide)
+        self.assertIn("`RP-*` record", guide)
+        self.assertIn(
+            "visual authority then reverts to `PRD.md` plus approved `wireframes.html`",
+            guide,
+        )
+        self.assertIn("A durable target binding requires retention", guide)
+        self.assertIn(
+            "Selected direction: [VD-* ID and one-line visual intent, "
+            "with confirmed REF-* / RP-* IDs or none]",
+            contract,
+        )
+        self.assertIn(
+            "optional `flows`, `UX-*` traces, and element display contracts", contract
+        )
+        self.assertIn(
+            "record protocol also governs the `prd-builder` UI Design Pass", references
+        )
 
     def test_market_research_precedes_style_aware_design_handoff(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
         research = skill.index("13. Run the market-research gap pass")
-        design = skill.index("14. For a UI-bearing product")
+        design = skill.index("14. Only when the owner explicitly requests visual design")
         self.assertLess(research, design)
+        self.assertIn("valid `MR-*` evidence", skill)
+        self.assertIn("Ask the human owner once for style preferences and visual references", skill)
+        self.assertIn("produce one recommended product-specific direction by default", skill)
+        self.assertIn("Produce three comparable directions only when", skill)
         self.assertIn(
-            "`market-research.md` and its `MR-*` evidence when produced", skill
-        )
-        self.assertIn(
-            "asks the human owner once for style preferences and visual references",
-            skill,
-        )
-        self.assertIn(
-            "normalizes exactly three product-specific, current-reference-informed directions",
-            skill,
-        )
-        self.assertIn(
-            "may call a direction market-supported only when valid `MR-*` evidence applies",
+            "A direction may call itself market-supported only when valid `MR-*` evidence applies",
             skill,
         )
         self.assertIn("a market-research URL is not visual evidence", skill)
-        self.assertIn("`design inspiration` or `page-faithful target`", skill)
+        self.assertIn("`design inspiration` or `page-faithful target`", contract)
         self.assertIn("do not infer faithful-copy intent", contract)
-        self.assertIn("complete the market-research gap pass first", contract)
+        self.assertIn("Stop after the human owner approves `wireframes.html`", contract)
         interview = self.read("references/interview-guide.md")
-        self.assertIn("normalizes exactly three product-specific directions", interview)
-        self.assertNotIn("or four when a real product tension justifies it", interview)
+        self.assertIn("produces one recommended product-specific direction by default", interview)
+        self.assertIn("three comparable directions only when the owner asks", interview)
 
     def test_selection_guide_separates_layers_and_product_patterns(self) -> None:
         guide = self.read("references/frontend-stack-selection.md")
@@ -1080,17 +1333,19 @@ async function agent(_prompt, options) {
         self.assertNotIn("or under `docs/product/` by default", lifecycle)
         self.assertNotIn("or a legacy `docs/product/` directory", lifecycle)
 
-    def test_design_handoff_skip_needs_no_ui_surface_or_explicit_override(self) -> None:
+    def test_design_system_not_required_is_a_normal_ui_outcome(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
-            "A UI-bearing product skips the design handoff only when the user explicitly overrides it",
+            "Mark it `not_required` for a small or single-surface UI",
             skill,
         )
         self.assertIn(
-            "may skip the handoff only under an explicit user override", contract
+            "`not_required` is a normal result for a small or single-surface UI",
+            contract,
         )
+        self.assertIn("publish no placeholder pair", skill)
 
     def test_call_three_drop_order_drops_exactly_one_question(self) -> None:
         interview = self.read("references/interview-guide.md")

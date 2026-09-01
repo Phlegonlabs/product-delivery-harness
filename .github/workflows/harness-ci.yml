@@ -52,3 +52,11 @@ jobs:
 
       - name: Run packaged skill smoke tests
         run: python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
+
+      - name: Check diff whitespace
+        run: |
+          base="origin/main"
+          if [ "${{ github.event_name }}" = "push" ] && git rev-parse --verify --quiet "${{ github.event.before }}^{commit}" >/dev/null; then
+            base="${{ github.event.before }}"
+          fi
+          git diff --check "$base...HEAD"

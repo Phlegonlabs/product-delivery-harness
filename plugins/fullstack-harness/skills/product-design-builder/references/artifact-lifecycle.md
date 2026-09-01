@@ -4,18 +4,20 @@ Use the repository's established product-document location. In this skill family
 
 ## Detect Existing Work
 
-Before drafting, inspect the current `PRD.md`, `design-system.md`, `design-system.json`, and any matching staged revision. Read the current PRD and both design-system files when either design-system file exists. A staged package may be newer than the published package; ask whether to resume, publish, or discard it before creating another competing draft.
+Before drafting, inspect the current `PRD.md`, `wireframes.html`, `design-system.md`, `design-system.json`, and any matching staged revision. Read the current PRD, approved wireframe HTML, and both design-system files when either design-system file exists. A staged package may be newer than the published package; ask whether to resume, publish, or discard it before creating another competing draft.
 
-Freeze the current product-source paths, revisions or SHA-256 digests, and decision owner. If the PRD, architecture, Builder UX Direction, or platform changes while design work is in progress, mark the design draft stale and reconcile the changed source before publication.
+Freeze the current product-source paths, revisions or SHA-256 digests, `wireframes.html` approval, approved UI Design Handoff, Design System Need Gate, and decision owner. If the PRD, wireframe HTML, approved UI target, architecture, Builder UX Direction, or platform changes while design work is in progress, mark the design draft stale and reconcile the changed source before publication.
 
 ## Stage As One Set
 
-Stage these files in the same run directory:
+Only when the Design System Need Gate is `required`, stage these files in the same run directory:
 
 - `design-system.md`
 - `design-system.json`
 
 Do not publish directly while drafting. Do not create a placeholder for a product with no shipped UI surface.
+
+Keep UI Design Pass previews and their evidence manifest outside `docs/product/`. When repository retention is useful, use the disclosed path recorded by `prd-builder`, such as `docs/design/ui-previews/<run-id>/`. The selected target binds only through the immutable source and approval record in `PRD.md`; Product Design Builder does not republish the preview inside the pair.
 
 ## Validate And Publish
 

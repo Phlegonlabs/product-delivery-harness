@@ -63,8 +63,10 @@ def included_files(root: Path) -> dict[Path, Path]:
 def enumerate_destination_files(root: Path) -> dict[Path, Path]:
     """Enumerate every regular file already present in a generated skill.
 
-    Source bundling exclusions do not apply here: an excluded source test or
-    bytecode file is still drift when it remains in the generated destination.
+    Source test exclusions do not apply here: an excluded source test that
+    remains in the generated destination is still drift. Runtime bytecode is
+    the one exception: running the packaged smoke test imports the bundle and
+    writes ``__pycache__`` beside it, which is never shipped drift.
     """
     files: dict[Path, Path] = {}
     pending = [root]
@@ -76,7 +78,13 @@ def enumerate_destination_files(root: Path) -> dict[Path, Path]:
             if path.is_dir():
                 pending.append(path)
             elif path.is_file():
-                files[path.relative_to(root)] = path
+                relative_path = path.relative_to(root)
+                if (
+                    "__pycache__" in relative_path.parts
+                    or relative_path.suffix == ".pyc"
+                ):
+                    continue
+                files[relative_path] = path
     return files
 
 

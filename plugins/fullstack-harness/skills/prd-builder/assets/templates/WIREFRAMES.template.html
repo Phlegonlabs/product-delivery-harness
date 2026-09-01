@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wireframes — &lt;Product Name&gt;</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f4f3ef;
+      --panel: #ffffff;
+      --ink: #20211f;
+      --muted: #686a65;
+      --line: #b8bab4;
+      --line-strong: #74776f;
+      --mark: #e6e4dc;
+      --focus: #1f5f55;
+      --sidebar: 19rem;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    button { font: inherit; }
+
+    button:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 35%, transparent);
+      outline-offset: 2px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      padding: 24px 18px;
+      border-right: 1px solid var(--line);
+      background: #e9e8e2;
+    }
+
+    .eyebrow,
+    .meta-label,
+    .section-kind {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 8px 0 6px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 28px;
+      line-height: 1.05;
+    }
+
+    .sidebar-meta {
+      margin: 0 0 24px;
+      color: var(--muted);
+    }
+
+    .page-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .page-button {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .page-button:hover { border-color: var(--line); }
+
+    .page-button[aria-current="page"] {
+      border-color: var(--line-strong);
+      background: var(--panel);
+    }
+
+    .page-button strong,
+    .page-button span { display: block; }
+
+    .page-button span {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .main { min-width: 0; }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 64px;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--paper) 94%, transparent);
+      backdrop-filter: blur(10px);
+    }
+
+    .control-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .control {
+      min-height: 36px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .control[aria-pressed="true"] {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: #fff;
+    }
+
+    .content { padding: 32px; }
+
+    .screen-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.55fr);
+      gap: 24px;
+      max-width: 1120px;
+      margin: 0 auto 24px;
+    }
+
+    .screen-header h2 {
+      margin: 4px 0 8px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1;
+    }
+
+    .screen-header p { margin: 0; color: var(--muted); }
+
+    .metadata {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-content: start;
+      gap: 6px 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: var(--mark);
+    }
+
+    .canvas-shell {
+      width: min(100%, 1120px);
+      margin: 0 auto;
+      padding: 18px;
+      border: 1px solid var(--line-strong);
+      background: #d7d7d1;
+      transition: width 160ms ease;
+    }
+
+    .canvas-shell.compact { width: min(100%, 430px); }
+
+    .wireframe {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 12px;
+      min-height: 620px;
+      padding: 12px;
+      border: 1px solid var(--line-strong);
+      background: var(--panel);
+    }
+
+    .region {
+      grid-column: span var(--span, 12);
+      min-height: var(--height, 110px);
+      padding: 14px;
+      border: 1px dashed var(--line-strong);
+      background: repeating-linear-gradient(
+        -45deg,
+        #fff,
+        #fff 10px,
+        #faf9f6 10px,
+        #faf9f6 20px
+      );
+    }
+
+    .compact .region {
+      grid-column: 1 / -1;
+      min-height: auto;
+    }
+
+    .region-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .region h3 { margin: 0; font-size: 15px; }
+
+    .priority {
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      background: var(--mark);
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .annotation { margin-top: 10px; }
+    .annotation p { margin: 4px 0 10px; }
+    .annotation ul { margin: 4px 0 10px; padding-left: 18px; }
+    .annotation-off .annotation { display: none; }
+
+    .state-note {
+      margin-top: 12px;
+      padding: 8px 10px;
+      border-left: 3px solid var(--line-strong);
+      background: var(--mark);
+    }
+
+    .display-contract {
+      display: grid;
+      gap: 2px;
+      margin-top: 4px;
+      padding: 6px 8px;
+      border-left: 3px solid var(--line);
+      background: var(--mark);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .flow-panel {
+      max-width: 1120px;
+      margin: 24px auto 0;
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .flow-panel > .meta-label { display: block; margin-bottom: 8px; }
+
+    .flow-list {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .flow-direction {
+      padding: 1px 5px;
+      border: 1px solid var(--line);
+      background: var(--mark);
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+    }
+
+    .flow-target {
+      padding: 1px 5px;
+      border: 1px solid var(--line);
+      background: var(--mark);
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+    }
+
+    button.flow-target { cursor: pointer; }
+
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+      gap: 18px;
+      max-width: 1320px;
+      margin: 0 auto;
+    }
+
+    .overview-card {
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      cursor: pointer;
+    }
+
+    .overview-card:hover { border-color: var(--ink); }
+
+    .overview-card h2 { margin: 5px 0 3px; font-size: 18px; }
+    .overview-card p { margin: 0 0 12px; color: var(--muted); }
+
+    .mini-layout {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 5px;
+      padding: 7px;
+      border: 1px solid var(--line-strong);
+      background: #f7f6f2;
+    }
+
+    .mini-region {
+      grid-column: span var(--span, 12);
+      min-height: 44px;
+      padding: 5px;
+      border: 1px dashed var(--line-strong);
+      color: var(--muted);
+      font-size: 9px;
+      overflow: hidden;
+    }
+
+    .empty-state {
+      max-width: 720px;
+      margin: 80px auto;
+      padding: 24px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .noscript {
+      margin: 20px;
+      padding: 16px;
+      border: 2px solid #8a2727;
+      background: #fff;
+    }
+
+    @media (max-width: 820px) {
+      .app { display: block; }
+      .sidebar { position: static; width: auto; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      .page-list { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+      .toolbar { position: static; }
+      .content { padding: 20px 12px; }
+      .screen-header { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      .sidebar, .toolbar { display: none; }
+      .app { display: block; }
+      .content { padding: 0; }
+      .canvas-shell { width: 100%; border: 0; padding: 0; }
+      .wireframe { min-height: 0; }
+    }
+  </style>
+</head>
+<body>
+  <noscript><p class="noscript">Enable JavaScript to use the page, viewport, and state controls in this local wireframe file.</p></noscript>
+  <div class="app">
+    <aside class="sidebar" aria-label="Wireframe pages">
+      <div class="eyebrow">Low-fidelity structure</div>
+      <h1 id="product-name">Wireframes</h1>
+      <p class="sidebar-meta" id="contract-meta"></p>
+      <nav class="page-list" id="page-list"></nav>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar" aria-label="Wireframe controls">
+        <div class="control-group" id="viewport-controls">
+          <button class="control" type="button" data-viewport="expanded" aria-pressed="true">Expanded</button>
+          <button class="control" type="button" data-viewport="compact" aria-pressed="false">Compact</button>
+        </div>
+        <div class="control-group" id="state-controls" aria-label="Screen states"></div>
+        <button class="control" id="annotation-toggle" type="button" aria-pressed="true">Section notes</button>
+      </div>
+      <div class="content" id="content" tabindex="-1"></div>
+    </main>
+  </div>
+
+  <script id="wireframe-data" type="application/json">
+  {
+    "product": "<Product Name>",
+    "approvalStatus": "draft",
+    "source": "PRD.md#UI-Surface-Contract",
+    "screens": [
+      {
+        "id": "UI-001",
+        "name": "<Landing Page>",
+        "route": "/",
+        "goal": "<Primary user goal>",
+        "traces": ["UX-001"],
+        "regions": [
+          {
+            "id": "global-header",
+            "section": "Global Header",
+            "purpose": "<Orientation and primary navigation>",
+            "priority": "primary",
+            "span": 12,
+            "height": 72,
+            "elements": ["<Logo or product name>", "<Primary navigation>", "<Primary action>"],
+            "actions": ["<Action → destination>"]
+          },
+          {
+            "id": "hero-content",
+            "section": "Hero Section — Content",
+            "purpose": "<Explain the value and next step>",
+            "priority": "primary",
+            "span": 7,
+            "height": 250,
+            "elements": ["<Eyebrow>", "<Headline display contract>", "<Supporting copy>", "<Primary CTA>"],
+            "actions": ["<Primary CTA → destination>"],
+            "traces": ["UX-002"]
+          },
+          {
+            "id": "hero-support",
+            "section": "Hero Section — Supporting Media",
+            "purpose": "<Show the product or supporting proof>",
+            "priority": "secondary",
+            "span": 5,
+            "height": 250,
+            "elements": [
+              {"label": "<Media placeholder and content responsibility>", "contract": {"source": "<Copy or data source>", "count": "<Maximum items>"}}
+            ],
+            "actions": []
+          },
+          {
+            "id": "feature-grid",
+            "section": "Feature Grid",
+            "purpose": "<Explain the main capabilities in priority order>",
+            "priority": "secondary",
+            "span": 12,
+            "height": 210,
+            "elements": ["<Feature 1>", "<Feature 2>", "<Feature 3>"],
+            "actions": ["<Optional detail action → destination>"]
+          },
+          {
+            "id": "closing-cta",
+            "section": "Closing CTA",
+            "purpose": "<Offer the final next step>",
+            "priority": "primary",
+            "span": 12,
+            "height": 130,
+            "elements": ["<CTA message>", "<Primary action>"],
+            "actions": ["<Primary action → destination>"]
+          }
+        ],
+        "compactOrder": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
+        "states": [
+          {"id": "ready", "label": "Ready", "treatments": {}},
+          {
+            "id": "loading",
+            "label": "Loading",
+            "treatments": {
+              "hero-support": "<Layout-preserving skeleton; announce loading>",
+              "feature-grid": "<Three placeholder rows preserve the section height>"
+            }
+          },
+          {
+            "id": "error",
+            "label": "Error",
+            "treatments": {
+              "feature-grid": "<Inline error message with retry action; hero remains available>"
+            }
+          }
+        ]
+      },
+      {
+        "id": "UI-002",
+        "name": "<Product Workspace>",
+        "route": "/app",
+        "goal": "<Complete the product's main task>",
+        "regions": [
+          {
+            "id": "app-header",
+            "section": "Application Header",
+            "purpose": "<Context, global actions, and account access>",
+            "priority": "primary",
+            "span": 12,
+            "height": 72,
+            "elements": ["<Breadcrumb or title>", "<Global action>", "<Account control>"],
+            "actions": ["<Global action → result>"]
+          },
+          {
+            "id": "task-controls",
+            "section": "Task Controls",
+            "purpose": "<Collect the inputs needed for the main task>",
+            "priority": "primary",
+            "span": 4,
+            "height": 430,
+            "elements": ["<Input group>", "<Validation message location>", "<Submit action>"],
+            "actions": ["<Submit → ready or error state>"]
+          },
+          {
+            "id": "primary-workspace",
+            "section": "Primary Workspace",
+            "purpose": "<Display the main working result and direct manipulation area>",
+            "priority": "primary",
+            "span": 8,
+            "height": 430,
+            "elements": ["<Result summary>", "<Primary content region>", "<Contextual actions>"],
+            "actions": ["<Contextual action → result>"]
+          }
+        ],
+        "compactOrder": ["app-header", "task-controls", "primary-workspace"],
+        "states": [
+          {"id": "ready", "label": "Ready", "treatments": {}},
+          {
+            "id": "empty",
+            "label": "Empty",
+            "treatments": {
+              "primary-workspace": "<Explain what appears here and point back to the primary input>"
+            }
+          },
+          {
+            "id": "permission-denied",
+            "label": "Permission denied",
+            "treatments": {
+              "primary-workspace": "<Preserve context; explain access requirement and recovery>"
+            }
+          }
+        ]
+      }
+    ],
+    "flows": [
+      {"from": "UI-001", "trigger": "<Primary CTA>", "to": "UI-002"},
+      {"from": "UI-002", "trigger": "<Global action>", "to": "<External destination>"}
+    ]
+  }
+  </script>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const data = JSON.parse(document.getElementById("wireframe-data").textContent);
+      const state = {
+        page: location.hash.slice(1) || "overview",
+        viewport: "expanded",
+        screenState: "ready",
+        annotations: true
+      };
+
+      const pageList = document.getElementById("page-list");
+      const content = document.getElementById("content");
+      const stateControls = document.getElementById("state-controls");
+      const annotationToggle = document.getElementById("annotation-toggle");
+
+      document.getElementById("product-name").textContent = data.product;
+      document.getElementById("contract-meta").textContent =
+        `${data.approvalStatus} · ${data.source}`;
+
+      const element = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+
+      const currentScreen = () => data.screens.find((screen) => screen.id === state.page);
+
+      const selectPage = (page) => {
+        state.page = page;
+        const screen = currentScreen();
+        state.screenState = screen?.states?.[0]?.id || "ready";
+        location.hash = page;
+        render();
+        content.focus({preventScroll: true});
+      };
+
+      const makePageButton = (id, title, detail) => {
+        const button = element("button", "page-button");
+        button.type = "button";
+        button.dataset.page = id;
+        button.setAttribute("aria-current", state.page === id ? "page" : "false");
+        button.append(element("strong", "", title), element("span", "", detail));
+        button.addEventListener("click", () => selectPage(id));
+        return button;
+      };
+
+      const renderNavigation = () => {
+        pageList.replaceChildren();
+        pageList.append(makePageButton("overview", "All pages", `${data.screens.length} surfaces`));
+        data.screens.forEach((screen) => {
+          pageList.append(makePageButton(screen.id, `${screen.id} · ${screen.name}`, screen.route));
+        });
+      };
+
+      const regionOrder = (screen) => {
+        if (state.viewport !== "compact" || !screen.compactOrder?.length) return screen.regions;
+        const order = new Map(screen.compactOrder.map((id, index) => [id, index]));
+        return [...screen.regions].sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999));
+      };
+
+      const appendList = (parent, label, values) => {
+        if (!values?.length) return;
+        parent.append(element("div", "meta-label", label));
+        const list = element("ul");
+        values.forEach((value) => list.append(element("li", "", value)));
+        parent.append(list);
+      };
+
+      const appendElements = (parent, values) => {
+        if (!values?.length) return;
+        parent.append(element("div", "meta-label", "Elements"));
+        const list = element("ul");
+        values.forEach((value) => {
+          const item = element("li");
+          if (typeof value === "string") {
+            item.textContent = value;
+          } else {
+            item.append(element("span", "", value.label));
+            if (value.contract && typeof value.contract === "object") {
+              const contract = element("div", "display-contract");
+              Object.entries(value.contract).forEach(([key, text]) => {
+                contract.append(element("div", "", `${key}: ${text}`));
+              });
+              item.append(contract);
+            }
+          }
+          list.append(item);
+        });
+        parent.append(list);
+      };
+
+      const flowTarget = (target) => {
+        if (data.screens.some((screen) => screen.id === target)) {
+          const button = element("button", "flow-target", target);
+          button.type = "button";
+          button.addEventListener("click", () => selectPage(target));
+          return button;
+        }
+        return element("span", "flow-target", target);
+      };
+
+      const screenFlows = (screenId) =>
+        (data.flows || []).filter((flow) => flow.from === screenId || flow.to === screenId);
+
+      const renderRegion = (region, activeState) => {
+        const node = element("section", "region");
+        node.dataset.region = region.id;
+        node.style.setProperty("--span", String(region.span || 12));
+        node.style.setProperty("--height", `${region.height || 110}px`);
+
+        const head = element("div", "region-head");
+        const title = element("div");
+        title.append(element("div", "section-kind", region.id), element("h3", "", region.section));
+        head.append(title, element("span", "priority", region.priority || "secondary"));
+        node.append(head);
+
+        const notes = element("div", "annotation");
+        notes.append(element("div", "meta-label", "Purpose"), element("p", "", region.purpose));
+        appendElements(notes, region.elements);
+        appendList(notes, "Actions", region.actions);
+        appendList(notes, "Traces", region.traces);
+        const treatment = activeState?.treatments?.[region.id];
+        if (treatment) notes.append(element("div", "state-note", `${activeState.label}: ${treatment}`));
+        node.append(notes);
+        return node;
+      };
+
+      const renderStateControls = (screen) => {
+        stateControls.replaceChildren();
+        if (!screen) return;
+        screen.states.forEach((screenState) => {
+          const button = element("button", "control", screenState.label);
+          button.type = "button";
+          button.setAttribute("aria-pressed", String(state.screenState === screenState.id));
+          button.addEventListener("click", () => {
+            state.screenState = screenState.id;
+            renderScreen(screen);
+            renderStateControls(screen);
+          });
+          stateControls.append(button);
+        });
+      };
+
+      const renderScreenFlows = (screen) => {
+        const flows = screenFlows(screen.id);
+        if (!flows.length) return null;
+        const panel = element("section", "flow-panel");
+        panel.setAttribute("aria-label", `Flows for ${screen.id}`);
+        panel.append(element("div", "meta-label", "Flows"));
+        const list = element("ul", "flow-list");
+        flows.forEach((flow) => {
+          const item = element("li");
+          if (flow.from === screen.id) {
+            item.append(
+              element("span", "flow-direction", "Out"),
+              element("span", "", ` via ${flow.trigger} → `),
+              flowTarget(flow.to)
+            );
+          } else {
+            item.append(
+              element("span", "flow-direction", "In"),
+              flowTarget(flow.from),
+              element("span", "", ` via ${flow.trigger}`)
+            );
+          }
+          list.append(item);
+        });
+        panel.append(list);
+        return panel;
+      };
+
+      const renderScreen = (screen) => {
+        content.replaceChildren();
+        const header = element("header", "screen-header");
+        const summary = element("div");
+        summary.append(
+          element("div", "eyebrow", `${screen.id} · ${screen.route}`),
+          element("h2", "", screen.name),
+          element("p", "", screen.goal)
+        );
+        const metadata = element("div", "metadata");
+        const rows = [
+          ["Viewport", state.viewport],
+          ["State", state.screenState],
+          ["Sections", String(screen.regions.length)]
+        ];
+        if (screen.traces?.length) rows.push(["Traces", screen.traces.join(", ")]);
+        rows.push(["Authority", data.source]);
+        rows.forEach(([label, value]) => {
+          metadata.append(element("div", "meta-label", label), element("div", "", value));
+        });
+        header.append(summary, metadata);
+
+        const shell = element("div", `canvas-shell ${state.viewport} ${state.annotations ? "" : "annotation-off"}`.trim());
+        const canvas = element("div", "wireframe");
+        canvas.setAttribute("aria-label", `${screen.name}, ${state.viewport}, ${state.screenState}`);
+        const activeState = screen.states.find((item) => item.id === state.screenState) || screen.states[0];
+        regionOrder(screen).forEach((region) => canvas.append(renderRegion(region, activeState)));
+        shell.append(canvas);
+        content.append(header, shell);
+        const flows = renderScreenFlows(screen);
+        if (flows) content.append(flows);
+      };
+
+      const renderOverviewFlows = () => {
+        if (!data.flows?.length) return null;
+        const panel = element("section", "flow-panel");
+        panel.setAttribute("aria-label", "Screen flows");
+        panel.append(element("div", "meta-label", "Screen flows"));
+        const list = element("ul", "flow-list");
+        data.flows.forEach((flow) => {
+          const item = element("li");
+          item.append(
+            flowTarget(flow.from),
+            element("span", "", ` ${flow.trigger} → `),
+            flowTarget(flow.to)
+          );
+          list.append(item);
+        });
+        panel.append(list);
+        return panel;
+      };
+
+      const renderOverview = () => {
+        content.replaceChildren();
+        const grid = element("div", "overview-grid");
+        data.screens.forEach((screen) => {
+          const card = element("article", "overview-card");
+          card.tabIndex = 0;
+          card.setAttribute("role", "button");
+          card.setAttribute("aria-label", `Open ${screen.id} ${screen.name}`);
+          card.append(
+            element("div", "eyebrow", `${screen.id} · ${screen.route}`),
+            element("h2", "", screen.name),
+            element("p", "", screen.goal)
+          );
+          const mini = element("div", "mini-layout");
+          screen.regions.forEach((region) => {
+            const miniRegion = element("div", "mini-region", region.section);
+            miniRegion.style.setProperty("--span", String(region.span || 12));
+            mini.append(miniRegion);
+          });
+          card.append(mini);
+          const open = () => selectPage(screen.id);
+          card.addEventListener("click", open);
+          card.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              open();
+            }
+          });
+          grid.append(card);
+        });
+        content.append(grid);
+        const flows = renderOverviewFlows();
+        if (flows) content.append(flows);
+      };
+
+      const render = () => {
+        if (state.page !== "overview" && !currentScreen()) state.page = "overview";
+        renderNavigation();
+        const screen = currentScreen();
+        renderStateControls(screen);
+        if (screen) renderScreen(screen); else renderOverview();
+      };
+
+      document.getElementById("viewport-controls").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-viewport]");
+        if (!button) return;
+        state.viewport = button.dataset.viewport;
+        document.querySelectorAll("[data-viewport]").forEach((item) => {
+          item.setAttribute("aria-pressed", String(item === button));
+        });
+        const screen = currentScreen();
+        if (screen) renderScreen(screen);
+      });
+
+      annotationToggle.addEventListener("click", () => {
+        state.annotations = !state.annotations;
+        annotationToggle.setAttribute("aria-pressed", String(state.annotations));
+        const screen = currentScreen();
+        if (screen) renderScreen(screen);
+      });
+
+      window.addEventListener("hashchange", () => {
+        state.page = location.hash.slice(1) || "overview";
+        const screen = currentScreen();
+        state.screenState = screen?.states?.[0]?.id || "ready";
+        render();
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>

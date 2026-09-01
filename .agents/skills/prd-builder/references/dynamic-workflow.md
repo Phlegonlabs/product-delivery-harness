@@ -1,6 +1,6 @@
 # Claude Code Dynamic Workflow
 
-Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete. A running workflow cannot ask the user for decisions, create a design system, approve publication, or replace the parent-owned artifact lifecycle.
+Use this reference only after product discovery, the Builder UX Direction gate, and source identification are complete, with one exception: the parent-side Optional Platform Research Lanes below are read-only lookups that run during discovery, before the platform `AskUserQuestion` menu. A running workflow cannot ask the user for decisions, create a design system, approve publication, or replace the parent-owned artifact lifecycle.
 
 ## Graph Model
 
@@ -58,7 +58,7 @@ Use `assets/templates/CLAUDE_PRD_WORKFLOW.template.js` with structured arguments
 5. When `args.market_research` is true, the `market-research` role runs in the same stage against the same synthesis. It is not a verifier: it returns a `market-research.md` body and gap findings rather than a pass/fail decision, so it never blocks the package on its own. A role that finds nothing sourceable returns blocked, and the package publishes without the artifact.
 6. The parent receives candidate Markdown bodies, review findings, and the research result.
 
-A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle and repairs unresolved findings. For a UI-bearing product, `PRD.md` contains the frozen UI surface contract; the parent then hands it and the Builder UX Direction to `product-design-builder`, which must use `impeccable` for bounded concept generation and `frontend-design` for visual craft while creating the design-system pair. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation. Only after the complete package passes the output checklist does the parent present exact mutations for approval.
+A workflow result does not authorize file creation, overwrite, archive, or publication. The parent applies the normal staging lifecycle and repairs unresolved findings. For a UI-bearing product, `PRD.md` contains the frozen UI surface contract and `wireframes_html_data_json` supplies its low-fidelity interactive projection. The parent embeds that data into `WIREFRAMES.template.html`, verifies it against `PRD.md`, and presents the resulting single-file `wireframes.html` for approval. Approval completes this phase. The parent runs `ui-design-pass.md`, Taste, `product-design-builder`, or Harness only after the owner explicitly requests a later visual-design or implementation phase. Research findings are applied by the parent, not the role: a finding that would widen product scope goes back to the user as a recommendation. Only after the complete requested package passes the output checklist does the parent present exact mutations for approval.
 
 ## Failure And Resume
 

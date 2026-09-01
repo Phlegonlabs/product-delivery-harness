@@ -161,6 +161,7 @@ const draftSchema = {
   type: "object",
   required: [
     "prd_markdown",
+    "wireframes_html_data_json",
     "architecture_markdown",
     "stack_decisions_markdown",
     "implementation_plan_markdown",
@@ -171,6 +172,7 @@ const draftSchema = {
   ],
   properties: {
     prd_markdown: { type: "string" },
+    wireframes_html_data_json: { type: ["string", "null"] },
     architecture_markdown: { type: "string" },
     stack_decisions_markdown: { type: "string" },
     implementation_plan_markdown: { type: ["string", "null"] },
@@ -289,9 +291,9 @@ const lanes = rawLanes.map((result, index) => (
 
 phase("Synthesize");
 const draft = await agent(
-  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. For a UI-bearing product, PRD.md must include the complete UI surface contract. Do not create design-system artifacts; the parent hands stable UI-bearing product inputs to product-design-builder after this workflow. " +
+  "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. For a UI-bearing product, PRD.md must include the complete UI surface contract and Wireframe Approval record. Also return wireframes_html_data_json as a valid JSON string containing the complete screens, regions, states, and compact order required by WIREFRAMES.template.html; the parent embeds it into the supplied self-contained HTML shell and verifies it against PRD.md. Return the HTML data field as null only when ui_bearing is false. Do not create design-system artifacts or start visual design; the parent presents wireframes.html for human approval and stops unless the owner explicitly asks to continue. " +
     "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral development and production release-target blocks for every expected deployable surface in the frozen inventory. Keep surface identity separate from provider, permit different providers by stage, and name the exact source branch or ref per target. Do not treat upload/submission as availability or force native distribution into the hosted environment table. " +
-    "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer. " +
+    "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer, except the mandated hosted environment contract in architecture.md, whose columns are all release-critical. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
   { label: "prd:synthesis", phase: "Synthesize", schema: draftSchema },
 );
@@ -306,7 +308,7 @@ const reviewers = [
   },
   {
     key: "consistency-verifier",
-    task: "Check all four documents for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify that every expected deployable surface has stable development and production target IDs and complete provider-neutral release fields. Confirm surface identity is separate from provider, different stage providers are allowed, and each source policy names an exact branch or ref. Reject missing expected surfaces, upload/submission/approval as the availability signal, and web-style rollback claims for native channels that require staged-rollout halt and forward-fix.",
+    task: "Check the complete draft package for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. For a UI-bearing product, verify that wireframes_html_data_json is valid JSON, maps every PRD UI-* entry exactly once, preserves region order, states, and compact order, and contains no high-fidelity styling or implementation code. Verify that every expected deployable surface has stable development and production target IDs and complete provider-neutral release fields. Confirm surface identity is separate from provider, different stage providers are allowed, and each source policy names an exact branch or ref. Reject missing expected surfaces, upload/submission/approval as the availability signal, and web-style rollback claims for native channels that require staged-rollout halt and forward-fix.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {

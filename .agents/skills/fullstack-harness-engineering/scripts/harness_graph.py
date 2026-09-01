@@ -698,6 +698,11 @@ def _validate_graph_state(
     mission_states = (
         raw_mission_states if isinstance(raw_mission_states, dict) else {}
     )
+    retained_attempt_ids = {
+        attempt.get("attempt_id")
+        for attempt in run.get("attempt_log", [])
+        if isinstance(attempt, dict) and _nonempty_string(attempt.get("attempt_id"))
+    }
 
     node_states = value["node_states"]
     node_state_keys = {
@@ -759,6 +764,35 @@ def _validate_graph_state(
                     errors, state_path, node, run, graph_nodes
                 )
 
+            if (
+                node.get("kind") == "verifier"
+                and isinstance(node.get("review"), dict)
+                and node["review"].get("stage") == "integration"
+                and phase in {"ready", "running"}
+            ):
+                incomplete_missions = sorted(
+                    mission_id
+                    for mission_id in node["review"].get("mission_ids", [])
+                    if not isinstance(mission_states.get(mission_id), dict)
+                    or mission_states[mission_id].get("phase") != "integrated"
+                )
+                if incomplete_missions:
+                    _add(
+                        errors,
+                        state_path,
+                        "integration review cannot become ready or run before every covered mission is integrated: "
+                        + ", ".join(incomplete_missions),
+                    )
+                integration = run.get("integration")
+                if not isinstance(integration, dict) or not is_full_sha(
+                    integration.get("integration_head_sha")
+                ):
+                    _add(
+                        errors,
+                        state_path,
+                        "integration review requires a full integration head SHA",
+                    )
+
             if node.get("kind") == "mission" and node.get("ref") in mission_states:
                 mission_state = mission_states[node["ref"]]
                 mission_phase = mission_state.get("phase") if isinstance(mission_state, dict) else None
@@ -819,6 +853,18 @@ def _validate_graph_state(
                 else None
             )
             declared_outcomes = graph_edges[edge_id].get("on_outcomes")
+            if (
+                state["status"] == "traversed"
+                and isinstance(source_state, dict)
+                and _nonempty_string(state["source_attempt_id"])
+                and source_state.get("last_attempt_id") != state["source_attempt_id"]
+                and state["source_attempt_id"] not in retained_attempt_ids
+            ):
+                _add(
+                    errors,
+                    f"{state_path}.source_attempt_id",
+                    "must match the source node's current attempt or a retained attempt_log entry",
+                )
             if (
                 state["status"] == "traversed"
                 and isinstance(source_state, dict)
