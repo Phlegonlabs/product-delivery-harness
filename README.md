@@ -28,7 +28,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 | --- | --- | --- |
 | A product idea | `prd-builder` | Requirements, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, tests, and sourced market research |
 | An approved wireframe package that needs visual design | `prd-builder` UI Design Pass, then `product-design-builder` + `frontend-design` when the gate requires it | An approved visual direction, plus a binding design-system pair when required |
-| A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
+| A scoped change in an existing repository | `full-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
 
 The skills can be used independently. You do not need to run the entire pipeline for every task.
@@ -49,7 +49,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
 | `product-design-builder` | Compiling an approved UI Design Handoff into the frozen design-system pair. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
-| `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work or `PLAN.md` + `RUN.md` |
+| `full-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
 | `fullstack-harness-pi` | Pi subagent roles with Pi-owned model and fallback selection in parent-managed worktrees | Runtime launch directives, resolved-role/model evidence, and worker results |
@@ -72,7 +72,7 @@ flowchart LR
   PRD --> Wireframe["wireframes.html\ninteractive low-fidelity projection"]
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\nproduct-design-builder when required"]
-  Gate -->|"approved, no visual phase"| Harness["fullstack-harness-engineering\nShared delivery core"]
+  Gate -->|"approved, no visual phase"| Harness["full-harness\nShared delivery core"]
   Design --> Harness
   Harness --> Runtime["One host adapter\nCodex, Claude Code, or Pi"]
   Runtime --> Evidence["Local tests and UI evidence"]
@@ -128,7 +128,7 @@ The shared core owns the one PLAN/RUN control plane. Runtime-specific launch det
 - A Pi host loads only `fullstack-harness-pi`, executes only `pi`-provider PLAN nodes, and leaves role/model/fallback selection to Pi's installed configuration.
 - No adapter can invoke another runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
 
-Shared scripts, schemas, references, and templates remain under `fullstack-harness-engineering`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
+Shared scripts, schemas, references, and templates remain under `full-harness`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
 
 One run has one active host. A same-repository handoff is allowed only after Host A closes its wave and `RUN.active_wave.status` is neither `active` nor `proposed`; the `active_wave` object remains in RUN, so its absence is not a handoff signal. Host B preserves PLAN/RUN and graph state, re-probes its runtime, and reviews the current exact SHA before selecting the next wave. A repair routes back to Host A and invalidates the old review; cross-machine handoff is unsupported until a future schema adds portable repository/state identity.
 
@@ -184,7 +184,7 @@ pi list
 ### Zero-to-one flow
 
 1. Install one supported host (Codex, Claude Code, or Pi) and this plugin, then use that host for the run.
-2. Start a fresh host session, confirm the plugin, and invoke `$fullstack-harness-engineering`.
+2. Start a fresh host session, confirm the plugin, and invoke `$full-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
 
@@ -271,19 +271,19 @@ The wireframes are approved; continue into visual design with $prd-builder's UI 
 ```
 
 ```text
-Use $fullstack-harness-engineering to review the existing app, plan the required work, and stop before implementation.
+Use $full-harness to review the existing app, plan the required work, and stop before implementation.
 ```
 
 ```text
-Use $fullstack-harness-engineering to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
+Use $full-harness to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
 ```text
-Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+Use $full-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
 ```text
-Use fullstack-harness-engineering with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use full-harness with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
 ```text
@@ -332,10 +332,10 @@ Edit only the canonical sources in `.agents/skills/`, then sync and verify the g
 ```bash
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
-python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
+python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 

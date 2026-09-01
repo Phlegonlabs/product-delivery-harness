@@ -28,7 +28,7 @@
 | --- | --- | --- |
 | 一个产品想法 | `prd-builder` | 需求、UI 产品的低保真交互线框图、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
 | 已批准线框图、需要视觉设计的包 | `prd-builder` UI Design Pass；gate 判定为 required 时再进入 `product-design-builder` + `frontend-design` | 批准的视觉方向，以及需要时有约束力的设计系统契约 |
-| 现有仓库中的明确变更 | `fullstack-harness-engineering` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
+| 现有仓库中的明确变更 | `full-harness` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 每个分支各自的 Cloudflare Worker 预览 | `manage-cloudflare-worker-deployments` | 安全的预览 Worker 部署与清理，以及可选、单独设门的生产环境初始部署 |
 
 这些技能可以单独使用。不是每个任务都要运行整条流程。
@@ -49,7 +49,7 @@
 | --- | --- | --- |
 | `prd-builder` | 产品探索、需求、Builder UX Direction 输入、UI 产品的低保真交互线框图、架构、技术栈决策、发布目标、测试义务，以及草稿完成后的市场调研补缺 | `PRD.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 将已批准的 UI Design Handoff 编译成冻结的设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
-| `fullstack-harness-engineering` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
+| `full-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的 worktree，以及由 parent 派发的同级 reviewers | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-pi` | 在父级托管工作树中使用 Pi 子代理角色，并由 Pi 选择模型和回退方案 | 运行时启动指令、实际角色/模型证据和工作节点结果 |
@@ -72,7 +72,7 @@ flowchart LR
   PRD --> Wireframe["wireframes.html\n可交互的低保真投影"]
   Wireframe --> Gate{"Wireframe Approval Gate\n人类 owner"}
   Gate -->|"批准且要求视觉设计"| Design["UI Design Pass\n需要时进入 product-design-builder"]
-  Gate -->|"批准、不进入视觉阶段"| Harness["fullstack-harness-engineering\n共享交付核心"]
+  Gate -->|"批准、不进入视觉阶段"| Harness["full-harness\n共享交付核心"]
   Design --> Harness
   Harness --> Runtime["单一宿主适配器\nCodex、Claude Code 或 Pi"]
   Runtime --> Evidence["本地测试与 UI 证据"]
@@ -128,7 +128,7 @@ flowchart TB
 - Pi 宿主只加载 `fullstack-harness-pi`，只执行 `pi` 提供方的 PLAN 节点，并沿用 Pi 已安装的角色、模型和回退设置。
 - 任何适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
 
-共享的脚本、schema、参考文档和模板仍然放在 `fullstack-harness-engineering` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
+共享的脚本、schema、参考文档和模板仍然放在 `full-harness` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
 
 一次运行只有一个 active host。same-repository handoff 只有在 Host A 关闭 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 后才允许；`active_wave` 对象仍保留在 RUN 中，不能把对象缺失当作交接信号：Host B 保留 PLAN/RUN 和 graph state，重新探测 runtime，并在选取下一波前审查当前 exact SHA。若需修复，路由回 Host A 且旧 review 立即失效；除非未来 schema 增加可携带的仓库/状态身份，否则不支持 cross-machine handoff。
 
@@ -184,7 +184,7 @@ pi list
 ### Zero-to-one 流程（从零开始）
 
 1. 安装一个受支持的宿主（Codex、Claude Code 或 Pi）和本插件，并用该宿主运行本次交付。
-2. 开启新的宿主会话，确认插件可见，然后调用 `$fullstack-harness-engineering`。
+2. 开启新的宿主会话，确认插件可见，然后调用 `$full-harness`。
 3. 让规模闸决定直接工作还是 PLAN/RUN；小型工作不要预先创建工作节点。
 4. 大型运行一次只保留一个 active host，并在 same-repository handoff 前关闭和审查每个 wave。
 
@@ -271,19 +271,19 @@ The wireframes are approved; continue into visual design with $prd-builder's UI 
 ```
 
 ```text
-Use $fullstack-harness-engineering to review the existing app, plan the required work, and stop before implementation.
+Use $full-harness to review the existing app, plan the required work, and stop before implementation.
 ```
 
 ```text
-Use $fullstack-harness-engineering to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
+Use $full-harness to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
 ```text
-Use $fullstack-harness-engineering to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+Use $full-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
 ```text
-Use fullstack-harness-engineering with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use full-harness with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
 ```text
@@ -332,10 +332,10 @@ scripts/update-private-skills.ps1                    更新 Codex、Claude Code 
 ```bash
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
-python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
+python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 

@@ -180,7 +180,7 @@ if (Get-Command pi -ErrorAction SilentlyContinue) {
     $harnessSkills = @(
         "fullstack-harness-claude-code",
         "fullstack-harness-codex",
-        "fullstack-harness-engineering",
+        "full-harness",
         "fullstack-harness-pi",
         "manage-cloudflare-worker-deployments",
         "prd-builder",

@@ -35,13 +35,13 @@ jobs:
           python-version: "3.13"
 
       - name: Install harness test dependencies
-        run: python -m pip install -r .agents/skills/fullstack-harness-engineering/requirements-test.txt
+        run: python -m pip install -r .agents/skills/full-harness/requirements-test.txt
 
       - name: Check generated plugin skill bundle
         run: python scripts/sync_plugin_skills.py --check
 
       - name: Run harness unit, contract, and E2E tests
-        run: python -m unittest discover -s .agents/skills/fullstack-harness-engineering/scripts/tests -v
+        run: python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 
 
       - name: Run PRD builder contract tests
@@ -51,7 +51,7 @@ jobs:
         run: python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
 
       - name: Run packaged skill smoke tests
-        run: python -m unittest discover -s plugins/fullstack-harness/skills/fullstack-harness-engineering/scripts/tests -p "test_packaged_*.py" -v
+        run: python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 
       - name: Check diff whitespace
         run: |
