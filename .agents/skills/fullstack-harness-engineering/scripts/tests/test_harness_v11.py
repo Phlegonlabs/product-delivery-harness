@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 
 
@@ -49,6 +50,101 @@ class HarnessV11Tests(unittest.TestCase):
         self.assertTrue(
             all("run_paused" in item["reason_codes"] for item in selected["deferred_nodes"])
         )
+
+    def test_resume_rejects_an_active_review_worker(self) -> None:
+        _plan, run = current_preintegration_review_state()
+        run["review_workers"] = [{"phase": "worker_running"}]
+
+        with self.assertRaises(harness_transition.ManifestError):
+            harness_transition._control(run, "running", "user requested resume")
+
+    def test_interrupted_integration_reviews_are_reconciled_atomically(self) -> None:
+        plan, run = current_preintegration_review_state()
+        digest = plan_digest(plan)
+        node_id = "N-VISUAL-REVIEW"
+        lineage_id = "REVIEW-N-VISUAL-REVIEW"
+        worker_id = "RW-INTERRUPTED"
+        attempt_id = "ATT-INTERRUPTED"
+        for index in (1, 2):
+            run["attempt_log"].append(
+                {
+                    "attempt_id": f"ATT-HISTORICAL-{index}",
+                    "mission_id": None,
+                    "task_id": None,
+                    "lease_id": None,
+                    "kind": "review",
+                    "result": "pass",
+                    "evidence": ["historical review"],
+                    "review_lineage_id": lineage_id,
+                    "failure_family_ids": [],
+                }
+            )
+        review_worker = {
+            "worker_id": worker_id,
+            "node_id": node_id,
+            "attempt_id": attempt_id,
+            "plan_revision": plan["revision"],
+            "plan_digest_sha256": digest,
+            "graph_revision": plan["revision"],
+            "reviewed_sha": "a" * 40,
+            "review_path": "C:/repo",
+            "worker_runtime": "subagent",
+            "completion_channel": "agent_result",
+            "runtime_binding": {
+                "provider": "codex",
+                "driver": "subagents",
+                "source": "host",
+                "model": "gpt-5.6-sol",
+                "reasoning_effort": "medium",
+                "option_source": "plan_provider_options",
+            },
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "worker_running",
+            "outcome": None,
+            "findings": [],
+        }
+        run["review_workers"] = [review_worker]
+        run["graph_state"]["node_states"][node_id].update(
+            {
+                "phase": "running",
+                "attempts": 0,
+                "last_attempt_id": attempt_id,
+                "last_outcome": None,
+                "bound_worker_id": worker_id,
+                "blockers": [],
+            }
+        )
+        fake_edge = run["graph_state"]["edge_states"]["E-M1-VISUAL-REVIEW"]
+        fake_edge.update(
+            {
+                "status": "traversed",
+                "traversals": 1,
+                "source_attempt_id": "ATT-M1-SKIP",
+            }
+        )
+
+        before = validate_run(plan, run)
+        self.assertTrue(any("every covered mission is integrated" in error for error in before))
+        self.assertTrue(any("current attempt or a retained" in error for error in before))
+        self.assertTrue(any("attempt_log lineage count" in error for error in before))
+
+        harness_transition._reconcile_interrupted_reviews(
+            plan,
+            run,
+            Namespace(
+                worker_id=[worker_id],
+                reason="user stopped review",
+                source="user requested stop",
+            ),
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+        self.assertEqual("paused", run["control"]["desired_state"])
+        self.assertEqual("blocked", review_worker["phase"])
+        self.assertEqual("dormant", run["graph_state"]["node_states"][node_id]["phase"])
+        self.assertEqual("dormant", fake_edge["status"])
+        self.assertEqual(3, run["review_lineages"][lineage_id]["consumed_attempts"])
 
     def test_review_lineage_survives_plan_revision(self) -> None:
         plan = valid_plan()
@@ -242,6 +338,105 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertEqual(1, lineage["consumed_attempts"])
             self.assertEqual(1, lineage["additional_allowance"])
             self.assertEqual("FAMILY-MARKDOWN", lineage["failure_families"][0]["id"])
+
+
+    def test_cancel_blocks_dispatch_with_run_cancelled(self) -> None:
+        plan, run = current_preintegration_review_state()
+        harness_transition._control(run, "cancelled", "user requested stop")
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertEqual([], selected["dispatchable_nodes"])
+        self.assertTrue(selected["deferred_nodes"])
+        self.assertTrue(
+            all(
+                "run_cancelled" in item["reason_codes"]
+                for item in selected["deferred_nodes"]
+            )
+        )
+
+    def test_transition_command_cancels_generated_run(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            run_path = Path(temp) / "RUN.md"
+            self.assertEqual(
+                0,
+                new_run.main(
+                    [
+                        "--plan",
+                        str(PLAN_TEMPLATE),
+                        "--run-id",
+                        "RUN-cancel-test",
+                        "--branch",
+                        "refs/heads/test-run",
+                        "--out",
+                        str(run_path),
+                    ]
+                ),
+            )
+            self.assertEqual(
+                0,
+                harness_transition.main(
+                    [
+                        "--plan",
+                        str(PLAN_TEMPLATE),
+                        "--run",
+                        str(run_path),
+                        "cancel",
+                        "--source",
+                        "user requested stop",
+                    ]
+                ),
+            )
+            self.assertEqual("cancelled", load_run(run_path)["control"]["desired_state"])
+
+    def test_interrupted_mission_worker_is_reconciled(self) -> None:
+        plan, run = current_preintegration_review_state()
+        worker_id = "W-INTERRUPTED"
+        reason = "host stopped mid-mission"
+        run["workers"] = [
+            {
+                "worker_id": worker_id,
+                "mission_id": "M1",
+                "lease_id": "LEASE-INTERRUPTED",
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": plan_digest(plan),
+                "batch_base_sha": run["integration"]["batch_base_sha"],
+                "worker_runtime": "subagent",
+                "workspace_mode": "parent_managed_worktree",
+                "completion_channel": "agent_result",
+                "task_thread_id": None,
+                "worktree_path": "C:/repo/worktrees/m1",
+                "branch_ref": "refs/heads/codex/m1",
+                "report_path": None,
+                "phase": "worker_running",
+                "worker_head_sha": None,
+            }
+        ]
+        run["mission_states"]["M1"]["phase"] = "worker_running"
+        run["graph_state"]["node_states"]["N-M1"].update(
+            {
+                "phase": "running",
+                "bound_worker_id": worker_id,
+                "last_attempt_id": "ATT-M1-INTERRUPTED",
+            }
+        )
+
+        harness_transition._reconcile_interrupted(
+            run,
+            Namespace(worker_id=worker_id, reason=reason),
+        )
+
+        self.assertEqual("blocked", run["workers"][0]["phase"])
+        self.assertEqual("blocked", run["mission_states"]["M1"]["phase"])
+        self.assertIn(reason, run["mission_states"]["M1"]["blockers"])
+        node_state = run["graph_state"]["node_states"]["N-M1"]
+        self.assertEqual("blocked", node_state["phase"])
+        self.assertEqual("blocked", node_state["last_outcome"])
+        self.assertEqual(
+            "interrupted_worker_reconciliation",
+            run["attempt_log"][-1]["kind"],
+        )
+        self.assertEqual("blocked", run["attempt_log"][-1]["result"])
 
 
 if __name__ == "__main__":

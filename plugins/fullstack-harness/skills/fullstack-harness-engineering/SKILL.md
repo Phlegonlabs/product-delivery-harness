@@ -11,9 +11,9 @@ Use the least ceremony that preserves the real safety boundary. Keep routine wor
 
 Keep upstream ownership separate:
 
-- `prd-builder` owns `PRD.md`, `architecture.md`, and `stack-decisions.md`.
-- `prd-builder` owns the UI surface contract in `PRD.md`; `product-design-builder`, with `impeccable` and `frontend-design`, owns `design-system.md` and `design-system.json`.
-- This skill implements frozen inputs, including the Builder UX Direction. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
+- `prd-builder` owns `PRD.md`, approved low-fidelity `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
+- `PRD.md` owns UI structure, behavior, and the approved UI Design Handoff; `wireframes.html` makes its low-fidelity page, section, state, and responsive map inspectable. `product-design-builder`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
+- This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
 
 ## Project Size Gate
 
@@ -54,7 +54,7 @@ Landing: local_only | integration_push
 Upstream inputs: present | missing | needs owner decision
 ```
 
-For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images encountered during the normal scan. Treat each image as a candidate reference, record its relative path and hash, and route it through `references/design-input-updates.md`. It influences implementation only after the owner confirms Adopt / Adapt / Avoid principles and `product-design-builder` updates the frozen contract.
+For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images encountered during the normal scan. Treat each image as a candidate reference, record its relative path and hash, and route it through `references/design-input-updates.md`. It influences implementation only after the PRD UI Design Pass records owner-approved consequences; when the Design System Need Gate is `required`, `product-design-builder` also compiles those consequences into the frozen pair.
 
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python .agents/skills/fullstack-harness-engineering/scripts/inspect_harness_run.py --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
 
@@ -163,9 +163,9 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 Read `references/ui-implementation-contract.md` before UI implementation or review.
 
-- Design creation mode requires `product-design-builder`, `impeccable`, and `frontend-design` together.
+- Design-system compilation mode requires `product-design-builder` and `frontend-design` together, after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- Conformance mode obeys the frozen PRD UI surface contract, `design-system.md`, and `design-system.json`. A missing token, primitive, variant, component, state, motion rule, or page structure is a design-input delta, not local invention.
+- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved immutable UI target, scope, states, responsive coverage, and tolerance recorded in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 
 ## Workflow
@@ -174,7 +174,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 Run System Review And Route. For a running RUN, reconcile canonical state with live Git and runtime evidence before selecting a node.
 
-If the user pauses or cancels a managed run, apply the durable control transition with `scripts/harness_transition.py`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile an interrupted worker with the same tool before any resume.
+If the user pauses or cancels a managed run, apply the durable control transition with `scripts/harness_transition.py`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile interrupted mission workers with `reconcile-interrupted` and stopped review workers together with `reconcile-interrupted-reviews` before any resume. Review reconciliation preserves the attempt evidence, restores lineage counters, removes ungrounded edge traversals, and leaves the run paused.
 
 ### 2. Plan Large Work
 

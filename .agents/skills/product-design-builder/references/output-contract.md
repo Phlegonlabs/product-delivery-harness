@@ -1,11 +1,11 @@
 # Product Design Output Contract
 
-Publish these files for a UI-bearing product:
+Publish these files only when `PRD.md` records `Design System Need Gate: required`:
 
 - `design-system.md`
 - `design-system.json`
 
-The pair forms one visual implementation handoff. `PRD.md` owns routes, screen structure, flows, visible-region responsibilities, content, actions, states, responsive behavior, and trace IDs. The design-system pair owns visual implementation. Publish or revise both design-system files together.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product structure, behavior, and the approved UI Design Handoff; approved `wireframes.html` provides its low-fidelity interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. The approved preview remains a scoped page-faithful target outside this pair.
 
 ## `design-system.md`
 
@@ -33,24 +33,27 @@ Keep it the sole structured authority for:
 
 ## PRD Input Quality Check
 
+- The Design System Need Gate is `required` and records its human owner and reason.
+- `### UI Design Handoff` records an approved immutable target, source hash, routes and states, responsive scope, tolerance, and allowed deviations.
+- `wireframes.html` has human approval recorded in `PRD.md`, and each `UI-*` page matches the PRD.
 - Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
 - Every visible region has exact copy or a bounded display contract, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
 - Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
 - Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a`.
-- Scope, routes, actions, content responsibilities, and trace IDs stay fixed across visual directions.
+- Scope, routes, actions, content responsibilities, wireframe structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
 
 If any item is missing, return a bounded PRD update. Do not invent it in the design system.
 
 ## Final Quality Check
 
-- `impeccable` and `frontend-design` were loaded with `product-design-builder` for every creation or revision step.
-- Every direction set records a surface mode and concept-generation route from `impeccable-concept-generation.md`.
-- The human owner selected one consolidated direction, or explicitly authorized a provisional assumption.
-- Every presented direction used one inspected current public `REF-*` source and at most one additional source that contributed a distinct useful mechanic.
+- `frontend-design` was loaded with `product-design-builder` in contract-compilation mode.
+- `impeccable` and `design-taste-frontend` were not rerun during normal compilation; their approved consequences are read from the PRD UI Design Handoff.
+- The Taste applicability record contains a Design Read and dial settings when applicable, or a specific `n/a` reason.
+- The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
 - Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.
 - Pair generation, filled-pair validation, contrast checks, and type-scale checks pass.
-- Candidate directions, full reference analysis, and optional preview artifacts remain outside the package.
+- Candidate directions, full reference analysis, and UI preview artifacts remain outside the pair.
 - The final report names exact paths, decision status, validation results, assumptions, and open gaps.

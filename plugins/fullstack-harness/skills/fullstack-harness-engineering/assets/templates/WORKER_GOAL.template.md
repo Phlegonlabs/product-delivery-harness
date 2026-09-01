@@ -61,9 +61,9 @@ Repair context (omit for an initial implementation):
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
 
-For design creation mode, load `product-design-builder`, `impeccable`, and `frontend-design` together and stop at required human gates.
+For design-system compilation mode, load `product-design-builder` and `frontend-design` together. Read the approved `PRD.md` UI Design Handoff plus approved `wireframes.html`; proceed only when the Design System Need Gate is `required`, and do not reopen Taste or preview selection.
 
-For frontend-design conformance mode, read the named PRD UI surface, `design-system.md`, and `design-system.json`. Do not invent a token, primitive, variant, component, motion rule, state, or structure. Return a design-input delta and stop.
+For frontend-design conformance mode, read the named PRD UI surface, approved matching wireframe, and active visual source. In system-conformance mode, read `design-system.md` and `design-system.json` and invent no token, primitive, variant, component, or motion rule. In target-conformance mode, read the approved immutable UI target and stay inside its scope and tolerance. Return a design-input delta and stop when the active source is incomplete.
 
 ## Verify
 

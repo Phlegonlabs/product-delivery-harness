@@ -9,42 +9,46 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
-    def test_design_skills_are_fail_closed_dependencies(self) -> None:
+    def test_pair_compilation_requires_frontend_design_and_skips_reexploration(self) -> None:
         skill = self.read("SKILL.md")
         directions = self.read("references/visual-direction-guide.md")
         design_system = self.read("references/design-system-guide.md")
         agent = self.read("agents/openai.yaml")
 
-        for content in (skill, directions, design_system, agent):
+        for content in (skill, design_system, agent):
             self.assertIn("frontend-design", content)
-            self.assertIn("impeccable", content)
-        self.assertIn("## Mandatory Design Skills Gate", skill)
+        self.assertIn("## Compilation Skills Gate", skill)
         self.assertIn(
-            "If `frontend-design` or `impeccable` is unavailable or cannot be loaded, stop",
+            "If `frontend-design` cannot be loaded, stop",
             skill,
         )
         self.assertIn("Do not draft, revise, or validate", skill)
-        self.assertIn("If either skill is unavailable, stop", directions)
-        self.assertIn("If either dependency is unavailable, stop", design_system)
+        self.assertIn("Do not rerun visual-direction generation", design_system)
+        self.assertIn("only when the human owner explicitly asks", directions)
+        self.assertNotIn("$impeccable", agent)
+        self.assertNotIn("$design-taste-frontend", agent)
 
-    def test_prd_owns_structure_and_design_builder_owns_only_the_pair(self) -> None:
+    def test_prd_and_wireframes_own_structure_and_design_builder_owns_only_the_pair(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
 
         for content in (skill, contract):
             self.assertIn("`PRD.md` owns", content)
+            self.assertIn("`wireframes.html`", content)
+            self.assertNotIn("wireframes.md", content)
             self.assertIn("`design-system.md`", content)
             self.assertIn("`design-system.json`", content)
         self.assertIn("Publish the two design-system files", lifecycle)
-        for content in (skill, contract, lifecycle):
-            self.assertNotIn("wireframe", content.casefold())
+        self.assertIn("approved wireframe HTML", lifecycle)
+        self.assertIn("wireframes.html", lifecycle)
+        self.assertIn("outside `docs/product/`", lifecycle)
 
     def test_human_owner_controls_assumptions_before_drafting(self) -> None:
         skill = self.read("SKILL.md")
         directions = self.read("references/visual-direction-guide.md")
 
-        self.assertIn("Every `assumed` answer requires that owner's explicit authorization", skill)
+        self.assertIn("approved `### UI Design Handoff`", skill)
         self.assertIn("the agent cannot self-authorize it", directions)
         self.assertIn("return the bounded decision update to `prd-builder`", directions)
         self.assertIn("Do not edit `PRD.md` from this skill", directions)
@@ -68,7 +72,7 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("End the turn and wait for the answer", directions)
         self.assertIn("exactly three materially different, product-specific style directions", directions)
         self.assertIn("Do not add a fourth", directions)
-        self.assertIn("exactly three product-specific directions", agent)
+        self.assertIn("explicitly asks", directions)
 
     def test_market_design_evidence_is_traceable_and_does_not_overclaim(self) -> None:
         directions = self.read("references/visual-direction-guide.md")
@@ -79,14 +83,36 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Label every resulting design implication as an inference", directions)
         self.assertIn("Do not claim that a recommendation is market-research-backed", directions)
 
-    def test_creation_mode_requires_the_exact_skill_trio(self) -> None:
+    def test_creation_mode_requires_the_exact_skill_set(self) -> None:
         skill = self.read("SKILL.md")
 
         self.assertIn(
-            "`required_skills` must contain `product-design-builder`, `frontend-design`, and `impeccable`",
+            "`required_skills` must contain `product-design-builder` and `frontend-design`",
             skill,
         )
         self.assertIn("distinct from Harness UI implementation conformance mode", skill)
+
+    def test_ui_preview_gate_is_provider_neutral_and_noncanonical(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("../prd-builder/references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("../prd-builder/references/ui-design-pass.md", skill)
+        self.assertIn("rendered HTML or temporary React", guide)
+        self.assertIn("imagegen-frontend-web", guide)
+        self.assertIn("another named image-generation", guide)
+        self.assertIn("does not require Codex", guide)
+        self.assertIn("approved UI Design Handoff", contract)
+
+    def test_taste_applicability_and_optional_brandkit_are_bounded(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("../prd-builder/references/ui-design-pass.md")
+
+        self.assertIn("Do not reload `design-taste-frontend`", skill)
+        self.assertIn("Do not load `gpt-taste` by default", guide)
+        self.assertIn("never combine it with `design-taste-frontend`", guide)
+        self.assertIn("Optional `brandkit` exploration", guide)
+        self.assertIn("explicitly authorizes", guide)
 
     def test_impeccable_generation_is_bounded_by_canonical_sources(self) -> None:
         skill = self.read("SKILL.md")
@@ -118,10 +144,12 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         references = self.read("references/design-reference-guide.md")
 
-        for trigger in ("image/screenshot/URL/Figma/named-product", "current public design-reference discovery"):
-            self.assertIn(trigger, skill)
+        self.assertIn("Only when the owner explicitly asks to reopen direction", skill)
+        self.assertIn("references/design-reference-guide.md", skill)
         for marker in ("`MR-*`", "`S-*`", "`REF-*`", "`RP-*`"):
             self.assertIn(marker, references)
+        self.assertIn("record protocol also governs the `prd-builder` UI Design Pass", references)
+        self.assertIn("keeps its own one-direction default and preview gate", references)
         self.assertIn("Do not fabricate references, URLs, access dates, or observed traits", references)
         self.assertIn("never invoke them automatically", references)
 
@@ -134,8 +162,10 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
 
         self.assertIn("PRD UI surface contract", skill)
         self.assertIn("PRD UI surface contract", design_system)
+        self.assertIn("`wireframes.html` has explicit human-owner approval", design_system)
         self.assertIn("Every required PRD element maps to the final registry", contract)
         self.assertIn("PRD UI surface contract", template_md)
+        self.assertIn("Approved wireframe", template_md)
         self.assertIn('"schema": "design-system/1"', template_json)
         self.assertIn('"requiredContentOrder"', template_json)
 

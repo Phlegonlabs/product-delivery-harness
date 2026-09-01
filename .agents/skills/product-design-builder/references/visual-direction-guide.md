@@ -1,6 +1,6 @@
 # Visual Direction Guide
 
-Use this guide after `PRD.md` has frozen the product's UI surface contract and before fixing design-system tokens or components. `PRD.md` remains canonical for routes, screen purpose, region order, content responsibilities, actions, states, responsive behavior, flows, and trace IDs.
+Use this guide only when the human owner explicitly asks `product-design-builder` to reopen visual direction after `PRD.md` has frozen the UI surface contract and approved `wireframes.html`. The normal Product Design Builder path consumes the already approved UI Design Handoff and skips this guide. `PRD.md` remains canonical for product structure and behavior; `wireframes.html` is its low-fidelity interactive projection.
 
 ## Builder UX Direction Gate
 
@@ -12,11 +12,12 @@ Builder preference controls direction, not usability claims. When preference con
 
 ## Visual Direction Gate
 
-Run this gate for every UI-bearing product after the PRD's UI surface contract passes its quality checklist and before fixing design-system tokens or components. The gate is required; optional preview tooling is not.
+Run this gate only for the explicit direction-reopen request, after the PRD UI surface contract and matching wireframes pass their quality and approval checks, and before fixing design-system tokens or components. The direction gate and the UI Preview Gate are required unless the human owner explicitly waives preview review with a recorded reason.
 
 Select the same one or two representative PRD surfaces for every direction and carry:
 
 - the selected `UI-*` surface and region IDs;
+- the approved wireframe's region order, grouping, element inventory, state coverage, and responsive rearrangement;
 - each surface's purpose, layout pattern, density, exact copy or display contracts, actions, states, and responsive constraints;
 - the Builder UX Direction Decision, known brand constraints, and product-specific visual goals;
 - relevant sourced or reported `MR-*` findings and their source IDs; and
@@ -34,7 +35,7 @@ If the owner supplies a reference, read `design-reference-guide.md`, inspect it 
 
 ### Reference-Informed Direction Recommendations
 
-After the combined intake and any owner-supplied reference confirmation are resolved, run `impeccable-concept-generation.md` first. Use its surface-mode, cultural-world, and challenger pass to widen the conceptual field, then use `frontend-design` and `design-reference-guide.md` to normalize the result into exactly three materially different, product-specific style directions. Do not add a fourth. The only reduction is an owner-requested lightweight direction pass per `design-reference-guide.md`'s Lightweight exception, which the agent never proposes.
+After the combined intake and any owner-supplied reference confirmation are resolved, run `impeccable-concept-generation.md` first. Use its surface-mode, cultural-world, and challenger pass to widen the conceptual field, then use `frontend-design`, the design method selected by the PRD UI Design Handoff, and `design-reference-guide.md` to normalize the result into exactly three materially different, product-specific style directions. Record Taste applicability, Design Read, and dials through `../../prd-builder/references/ui-design-pass.md` when Taste applies; use `frontend-design` plus the platform or official design-system conventions when it does not. Do not add a fourth. The only reduction is an owner-requested lightweight direction pass per `design-reference-guide.md`'s Lightweight exception, which the agent never proposes.
 
 Find and inspect one current public reference for every direction; add a second only when it contributes a distinct useful mechanic. Include one contemporary or modern direction by default and a second only when preference, product constraints, and valid evidence support a materially different modern treatment. Modern is an evidence-backed quality lane, not a fixed catalog entry or `modern-minimal` default.
 
@@ -42,8 +43,8 @@ Base each recommendation on the Visual Preference Brief, valid Market Design Evi
 
 Do not call a direction market-supported when prior market research was skipped, blocked, missing, `UNVALIDATED`, or irrelevant. `MR-*` and `S-*` market evidence and `REF-*` visual evidence are separate lanes.
 
-The three directions use the same frozen PRD structure and states. Ask the human owner to `Select`, `Reject`, `Mix`, or `Check This`. A revision produces a complete versioned set of exactly three directions, not an appended fourth. In an owner-requested lightweight direction pass, each set contains one direction instead of three.
+The three directions use the same frozen PRD and approved wireframe structure and states. Run `../../prd-builder/references/ui-design-pass.md`'s provider-neutral preview route for the full direction set before asking the human owner to `Select`, `Reject`, `Mix`, or `Check This`. A revision produces a complete versioned set of exactly three directions, not an appended fourth. In an owner-requested lightweight direction pass, each set contains one direction instead of three.
 
-`product-design-builder` must load and use both `impeccable` and `frontend-design` for every visual direction. If either skill is unavailable, stop; do not use a fallback design path. Candidate and selected HTML are non-canonical design-stage evidence and require an explicit user request. They may explore visual treatment but must not add product scope or silently change the canonical PRD surface contract.
+For an explicit direction-reopen request, `product-design-builder` must load `impeccable`, `frontend-design`, and the design method selected by the PRD UI Design Handoff. Load `design-taste-frontend` only where its recorded applicability allows it. If a required skill is unavailable, stop; do not use a fallback design path. Candidate HTML, generated images, Figma frames, and other previews are non-canonical until the human owner approves one and `prd-builder` records it in the UI Design Handoff. They may explore visual treatment but must not add product scope or silently change the canonical PRD or wireframe contract.
 
-If the visual pass exposes a structural problem, return a concise finding tied to the affected `UI-*` IDs. The PRD owner decides whether to revise the UI surface contract. Only then may the visual pass continue.
+If the visual pass exposes a structural problem, return a concise finding tied to the affected `UI-*` IDs. `prd-builder` and the human owner decide whether to revise and reapprove the PRD and wireframes. Only then may the visual pass continue.

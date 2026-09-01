@@ -1,6 +1,6 @@
 # Design Reference Guide
 
-Use this guide after the PRD UI surface contract passes and before visual-direction selection. It governs public references found by the agent and images, screenshots, Figma views, URLs, named products, or brand references supplied by the owner. Treat them as `design inspiration` by default. A `page-faithful target` requires a separate explicit user request and frozen conformance scope; never infer faithful-copy intent from the presence of a visual source.
+Use this guide for reference inspection and direction selection after the PRD UI surface contract and low-fidelity `wireframes.html` are approved. Its `REF-*`, `RP-*`, and `VD-*` record protocol also governs the `prd-builder` UI Design Pass whenever that pass inspects visual references or records its selected direction. The Initial Direction Set and Selection And Revision Loop below govern direction selection run from this skill; the `prd-builder` pass keeps its own one-direction default and preview gate. This guide governs public references found by the agent and images, screenshots, Figma views, URLs, named products, or brand references supplied by the owner. Treat them as `design inspiration` by default. A `page-faithful target` requires a separate explicit user request and frozen conformance scope; never infer faithful-copy intent from the presence of a visual source.
 
 ## Evidence Boundary
 
@@ -91,7 +91,7 @@ End the turn and wait for the human owner to confirm or correct the principles. 
 
 After the combined Style And Reference Intake is resolved:
 
-1. Run `impeccable-concept-generation.md` from the frozen PRD UI surface contract, Visual Preference Brief, Builder UX Direction, and valid market evidence. Normalize its surface-mode, concept-world, and challenger results into product-specific direction hypotheses.
+1. Run `impeccable-concept-generation.md` from the frozen PRD UI surface contract, approved wireframes, Visual Preference Brief, Builder UX Direction, and valid market evidence. Normalize its surface-mode, concept-world, and challenger results into product-specific direction hypotheses.
 2. Find and inspect one primary current public reference for every direction. Add a second only when it demonstrates a different useful mechanic.
 3. Present exactly three materially different directions with IDs `VD-R1-01` through `VD-R1-03`. Do not add a fourth.
 4. Include one contemporary/modern reference-informed direction by default. Include a second only when owner preference, product constraints, and valid evidence support a materially different modern treatment. Keep the remaining direction deliberately contrasting.

@@ -175,6 +175,8 @@ A resume snapshot is usable only when the parent checkout path, branch, head, an
 
 Reconcile the current host and loaded Harness release through `runtime_capabilities.runtime_adapter.version_gate` as a separate observation. Follow `runtime-upgrades.md`. `unobserved`, `upgrade_required`, and `restart_required` defer runtime-worker dispatch. `compatible_old` may finish only the already-active wave and its streaming reviews; it defers the next wave. A runtime update never revives a lease. Preserve terminal exact-bound results, but create a new attempt and lease for unfinished work after restart and fresh capability probing.
 
+Resume also rejects any mission worker or review worker still recorded as `leased` or `worker_running`. After a stopped review fan-out, use `harness_transition.py reconcile-interrupted-reviews` once with every affected review worker ID. The transition records each interrupted attempt as blocked, restores lineage counts from the append-only attempt log, resets the current review nodes, removes incoming edge traversals that have no current or retained source attempt, and persists `control.desired_state: paused`. It does not grant another review attempt or resume dispatch.
+
 ## Typed Graph State
 
 PLAN v6 and RUN v11 carry the typed-graph contract: typed nodes, explicit dependency/route edges, and one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.

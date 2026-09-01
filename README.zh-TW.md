@@ -26,7 +26,7 @@
 
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
-| 一個產品構想 | `prd-builder` | 需求、架構、技術選型、發佈目標、測試義務，以及附來源的市場研究 |
+| 一個產品構想 | `prd-builder` | 需求、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務，以及附來源的市場研究 |
 | 已凍結、需要 UI 設計的產品輸入 | `product-design-builder` + `frontend-design` | 依據 PRD UI 表面契約建立具約束力的設計系統契約 |
 | 既有儲存庫中的明確變更 | `fullstack-harness-engineering` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 每個分支各自的 Cloudflare Worker 預覽 | `manage-cloudflare-worker-deployments` | 安全的預覽 Worker 部署與清理，以及可選、獨立設閘的正式環境初始部署 |
@@ -46,7 +46,7 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `prd-builder` | 產品探索、需求、Builder UX Direction 輸入、架構、技術選型、發佈目標、測試義務，以及草稿完成後的市場研究補缺 | `PRD.md`、`architecture.md`、`stack-decisions.md`、`market-research.md` |
+| `prd-builder` | 產品探索、需求、Builder UX Direction 輸入、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務，以及草稿完成後的市場研究補缺 | `PRD.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 視覺方向與設計系統契約。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
 | `fullstack-harness-engineering` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及由 parent 派發的同層 reviewers | 執行環境啟動指令與 worker 結果 |

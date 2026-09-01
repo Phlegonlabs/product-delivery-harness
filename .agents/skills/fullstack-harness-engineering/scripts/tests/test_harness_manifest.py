@@ -1347,16 +1347,14 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["required_skills"] = ["frontend-design", "feature-dev"]
         self.assertEqual(validate_plan(plan), [])
 
-    def test_product_design_builder_requires_creation_skill_trio(self) -> None:
+    def test_product_design_builder_requires_compilation_skill_set(self) -> None:
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = ["product-design-builder"]
-        self.assert_error_contains(plan, "impeccable")
         self.assert_error_contains(plan, "frontend-design")
 
         plan = valid_plan()
         plan["missions"][0]["required_skills"] = [
             "product-design-builder",
-            "impeccable",
             "frontend-design",
         ]
         self.assertEqual(validate_plan(plan), [])
@@ -1365,7 +1363,7 @@ class PlanValidationTests(unittest.TestCase):
         plan["missions"][0]["required_skills"] = ["frontend-design"]
         self.assertEqual(validate_plan(plan), [])
 
-    def test_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
+    def test_design_source_write_scope_requires_the_exact_skill_set(self) -> None:
         plan = valid_plan()
         design_scopes = [
             "docs/product/design-system.md",
@@ -1384,7 +1382,6 @@ class PlanValidationTests(unittest.TestCase):
 
         mission["required_skills"] = [
             "product-design-builder",
-            "impeccable",
             "frontend-design",
         ]
         self.assertEqual(validate_plan(plan), [])
@@ -1392,7 +1389,7 @@ class PlanValidationTests(unittest.TestCase):
         mission["required_skills"] = ["frontend-design"]
         self.assert_error_contains(plan, "design-source write scope must include")
 
-    def test_staged_design_source_write_scope_requires_the_exact_skill_trio(self) -> None:
+    def test_staged_design_source_write_scope_requires_the_exact_skill_set(self) -> None:
         for staging_scope in (
             "docs/product/.prd-staging/run-001/**",
             "docs/product/.prd-staging/run-001/design-system.md",
@@ -1409,9 +1406,10 @@ class PlanValidationTests(unittest.TestCase):
 
                 mission["required_skills"] = [
                     "product-design-builder",
-                    "impeccable",
                     "frontend-design",
                 ]
+                if staging_scope.endswith("/**"):
+                    mission["required_skills"].append("prd-builder")
                 self.assertEqual(validate_plan(plan), [])
 
         plan = valid_plan()
@@ -1428,7 +1426,7 @@ class PlanValidationTests(unittest.TestCase):
                 plan["missions"][0]["write_scope"].append(non_design_scope)
                 self.assertEqual(validate_plan(plan), [])
 
-    def test_registered_custom_design_sources_require_the_exact_skill_trio(self) -> None:
+    def test_registered_custom_design_sources_require_the_exact_skill_set(self) -> None:
         plan = valid_plan()
         plan["sources"].extend(
             [
@@ -1476,9 +1474,50 @@ class PlanValidationTests(unittest.TestCase):
 
         mission["required_skills"] = [
             "product-design-builder",
-            "impeccable",
             "frontend-design",
         ]
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_wireframe_source_write_scope_requires_prd_builder(self) -> None:
+        for wireframe_scope in (
+            "docs/product/wireframes.html",
+            "docs/product/.prd-staging/run-001/wireframes.html",
+        ):
+            with self.subTest(wireframe_scope=wireframe_scope):
+                plan = valid_plan()
+                mission = plan["missions"][0]
+                mission["write_scope"].append(wireframe_scope)
+
+                self.assert_error_contains(
+                    plan, "wireframe-source write scope must include 'prd-builder'"
+                )
+
+                mission["required_skills"] = ["prd-builder"]
+                self.assertEqual(validate_plan(plan), [])
+
+    def test_registered_custom_wireframe_source_requires_prd_builder(self) -> None:
+        plan = valid_plan()
+        plan["sources"].append(
+            {
+                "id": "SRC-WIREFRAME-001",
+                "kind": "low_fidelity_wireframe",
+                "location": "specs/custom/layout-sketches.md",
+                "owner": "product",
+                "status": "frozen",
+                "content_sha256": "a" * 64,
+                "source_revision": None,
+                "staged_revision": None,
+                "notes": "custom approved wireframe source",
+            }
+        )
+        mission = plan["missions"][0]
+        mission["write_scope"].append("specs/custom/**")
+
+        self.assert_error_contains(
+            plan, "wireframe-source write scope must include 'prd-builder'"
+        )
+
+        mission["required_skills"] = ["prd-builder"]
         self.assertEqual(validate_plan(plan), [])
 
     def test_required_skills_rejects_non_list_and_missing_key(self) -> None:

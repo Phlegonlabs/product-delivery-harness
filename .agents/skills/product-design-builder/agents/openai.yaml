@@ -1,4 +1,4 @@
 interface:
   display_name: "Product Design Builder"
   short_description: "Create a frozen design-system contract"
-  default_prompt: "Use $product-design-builder with $impeccable and $frontend-design to turn the approved PRD UI surface contract into a design-system pair, ask once for my style and visual references, generate and challenge concept worlds, inspect current public references for exactly three product-specific directions, and extract confirmed Adopt / Adapt / Avoid principles before freezing the design system."
+  default_prompt: "Use $product-design-builder with $frontend-design only after an explicitly requested visual-design phase has produced an approved UI Design Handoff and PRD.md records Design System Need Gate: required. Compile that handoff plus approved wireframes.html into design-system.md and design-system.json without reopening Taste, concept generation, or preview selection by default."

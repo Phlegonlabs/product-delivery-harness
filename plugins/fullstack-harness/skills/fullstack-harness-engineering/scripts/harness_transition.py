@@ -58,10 +58,10 @@ def _replace_run_document(path: Path, run: dict[str, Any]) -> None:
 def _control(run: dict[str, Any], state: str, source: str) -> None:
     if state == "running" and any(
         isinstance(worker, dict) and worker.get("phase") in {"leased", "worker_running"}
-        for worker in run.get("workers", [])
+        for worker in [*run.get("workers", []), *run.get("review_workers", [])]
     ):
         raise ManifestError(
-            "cannot resume while a worker is still recorded active; reconcile-interrupted or refresh live worker evidence first"
+            "cannot resume while a worker or review worker is still recorded active; reconcile it or refresh live worker evidence first"
         )
     timestamp = _now()
     run["control"] = {
@@ -139,6 +139,164 @@ def _reconcile_interrupted(run: dict[str, Any], args: argparse.Namespace) -> Non
     )
 
 
+def _sync_review_lineage_counts(run: dict[str, Any]) -> None:
+    counts = {
+        lineage_id: 0
+        for lineage_id, lineage in run.get("review_lineages", {}).items()
+        if isinstance(lineage, dict)
+    }
+    for attempt in run.get("attempt_log", []):
+        if isinstance(attempt, dict) and attempt.get("review_lineage_id") in counts:
+            counts[attempt["review_lineage_id"]] += 1
+    for lineage_id, count in counts.items():
+        run["review_lineages"][lineage_id]["consumed_attempts"] = count
+
+
+def _reset_edge_state(state: dict[str, Any]) -> None:
+    state.update(
+        {
+            "status": "dormant",
+            "traversals": 0,
+            "source_attempt_id": None,
+        }
+    )
+
+
+def _reconcile_interrupted_reviews(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    worker_ids = args.worker_id
+    if len(worker_ids) != len(set(worker_ids)):
+        raise ManifestError("--worker-id values must be unique")
+
+    plan_nodes = {
+        node.get("id"): node
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict)
+    }
+    graph_state = run.get("graph_state", {})
+    node_states = graph_state.get("node_states", {})
+    edge_states = graph_state.get("edge_states", {})
+    plan_edges = {
+        edge.get("id"): edge
+        for edge in plan.get("graph", {}).get("edges", [])
+        if isinstance(edge, dict)
+    }
+    _sync_review_lineage_counts(run)
+    retained_attempt_ids = {
+        attempt.get("attempt_id")
+        for attempt in run.get("attempt_log", [])
+        if isinstance(attempt, dict) and isinstance(attempt.get("attempt_id"), str)
+    }
+
+    for worker_id in worker_ids:
+        worker = next(
+            (
+                item
+                for item in run.get("review_workers", [])
+                if isinstance(item, dict) and item.get("worker_id") == worker_id
+            ),
+            None,
+        )
+        if worker is None:
+            raise ManifestError(f"unknown review worker {worker_id!r}")
+        if worker.get("phase") not in {"leased", "worker_running"}:
+            raise ManifestError(
+                f"review worker {worker_id!r} is not active; no interrupted transition is needed"
+            )
+
+        node_id = worker.get("node_id")
+        node = plan_nodes.get(node_id)
+        review = node.get("review") if isinstance(node, dict) else None
+        if not isinstance(review, dict):
+            raise ManifestError(
+                f"review worker {worker_id!r} does not reference a PLAN review node"
+            )
+        lineage_id = review.get("lineage_id")
+        lineage = run.get("review_lineages", {}).get(lineage_id)
+        if not isinstance(lineage, dict):
+            raise ManifestError(f"unknown review lineage {lineage_id!r}")
+
+        attempt_id = worker.get("attempt_id")
+        if not isinstance(attempt_id, str) or not attempt_id:
+            raise ManifestError(f"review worker {worker_id!r} has no attempt ID")
+        if any(
+            isinstance(item, dict) and item.get("attempt_id") == attempt_id
+            for item in run.get("attempt_log", [])
+        ):
+            raise ManifestError(f"duplicate attempt ID {attempt_id!r}")
+
+        worker["phase"] = "blocked"
+        worker["outcome"] = "blocked"
+        worker["findings"] = sorted(
+            set([*worker.get("findings", []), args.reason])
+        )
+        run["attempt_log"].append(
+            {
+                "attempt_id": attempt_id,
+                "mission_id": None,
+                "task_id": None,
+                "lease_id": None,
+                "kind": "review",
+                "result": "blocked",
+                "evidence": [
+                    args.reason,
+                    "partial review output was not accepted; local evidence was preserved",
+                ],
+                "review_lineage_id": lineage_id,
+                "failure_family_ids": [],
+            }
+        )
+        lineage["consumed_attempts"] += 1
+
+        state = node_states.get(node_id)
+        if not isinstance(state, dict):
+            raise ManifestError(f"review node {node_id!r} has no graph state")
+        if (
+            state.get("bound_worker_id") != worker_id
+            or state.get("last_attempt_id") != attempt_id
+        ):
+            raise ManifestError(
+                f"review worker {worker_id!r} does not match the current graph binding"
+            )
+        state.update(
+            {
+                "phase": "dormant",
+                "attempts": min(
+                    node.get("max_attempts", 0), max(1, state.get("attempts", 0))
+                ),
+                "last_attempt_id": None,
+                "last_outcome": None,
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+
+        for edge_id, edge in plan_edges.items():
+            edge_state = edge_states.get(edge_id)
+            if not isinstance(edge_state, dict):
+                continue
+            if edge.get("from") == node_id and edge_state.get(
+                "source_attempt_id"
+            ) == attempt_id:
+                _reset_edge_state(edge_state)
+                continue
+            if edge.get("to") != node_id or edge_state.get("status") != "traversed":
+                continue
+            source_state = node_states.get(edge.get("from"))
+            source_attempt_id = edge_state.get("source_attempt_id")
+            if (
+                not isinstance(source_state, dict)
+                or (
+                    source_state.get("last_attempt_id") != source_attempt_id
+                    and source_attempt_id not in retained_attempt_ids
+                )
+            ):
+                _reset_edge_state(edge_state)
+
+    _control(run, "paused", args.source)
+
+
 def _record_review_attempt(run: dict[str, Any], args: argparse.Namespace) -> None:
     lineage = run.get("review_lineages", {}).get(args.lineage)
     if not isinstance(lineage, dict):
@@ -208,6 +366,10 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile = subparsers.add_parser("reconcile-interrupted")
     reconcile.add_argument("--worker-id", required=True)
     reconcile.add_argument("--reason", required=True)
+    review_reconcile = subparsers.add_parser("reconcile-interrupted-reviews")
+    review_reconcile.add_argument("--worker-id", action="append", required=True)
+    review_reconcile.add_argument("--reason", required=True)
+    review_reconcile.add_argument("--source", required=True)
     review = subparsers.add_parser("record-review-attempt")
     review.add_argument("--lineage", required=True)
     review.add_argument("--attempt-id", required=True)
@@ -233,6 +395,8 @@ def main(argv: list[str] | None = None) -> int:
             _grant(run, args)
         elif args.command == "reconcile-interrupted":
             _reconcile_interrupted(run, args)
+        elif args.command == "reconcile-interrupted-reviews":
+            _reconcile_interrupted_reviews(plan, run, args)
         else:
             _record_review_attempt(run, args)
         errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)

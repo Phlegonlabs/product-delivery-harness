@@ -20,7 +20,9 @@ The two files publish together. Edit structured fields in JSON, then run `script
 |---|---|---|
 | PRD | <path> | product scope and requirements |
 | PRD UI surface contract | <path and section> | screen structure, content, actions, states, and flows |
-| Selected direction / brand | <VD-* direction ID or decision record> | approved visual input |
+| Approved wireframe | <wireframes.html path and PRD approval record> | low-fidelity all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
+| Approved UI Design Handoff | <PRD section, direction ID, target path/hash, scope, tolerance, and Design System Need Gate> | approved visual input and pair requirement |
+| Taste and preview evidence | <applicable / partially_applicable / n/a, Design Read and dials when applicable, preview manifest and approval> | frozen UI treatment and direction-review evidence |
 
 ## Selected Visual Direction
 

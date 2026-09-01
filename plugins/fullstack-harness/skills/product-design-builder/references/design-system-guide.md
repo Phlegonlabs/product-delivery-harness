@@ -6,10 +6,10 @@ The design system exists so frontend implementation can follow one set of tokens
 
 ## Drafting Order
 
-1. Load `product-design-builder`, `impeccable`, and `frontend-design` together. If either dependency is unavailable, stop instead of creating or revising the design system through a fallback path.
-2. Confirm that the PRD's UI surface contract is complete and frozen.
-3. Run `visual-direction-guide.md`'s Visual Direction Gate, `impeccable-concept-generation.md`, and `design-reference-guide.md`. Use `impeccable` to generate and challenge concept worlds and `frontend-design` to form every product-specific visual direction. Keep `MR-*`/`S-*` market evidence separate from inspected `REF-*` visual evidence, and use only owner-confirmed `RP-*` principles from owner-supplied or `Check This` sources. Do not fix token values or component styling until the human owner selects one consolidated direction and confirms its contributing principles, or explicitly authorizes a provisional assumption.
-4. Use `frontend-design` to translate the selected direction into `design-system.json` from the real controls, surfaces, repeated compositions, states, and responsive needs in the PRD UI surface contract.
+1. Confirm that `PRD.md` records `Design System Need Gate: required`, then load `product-design-builder` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
+2. Confirm that the PRD UI surface contract is complete and frozen, `wireframes.html` has explicit human-owner approval recorded in `### Wireframe Approval`, and `### UI Design Handoff` records an approved immutable target with scope, hash, responsive coverage, and tolerance.
+3. Consume the selected direction, Taste applicability result, Design Read and dials when applicable, visual evidence, and human approval from the UI Design Handoff. Do not rerun visual-direction generation, `impeccable`, `design-taste-frontend`, or the UI Preview Gate during normal compilation.
+4. Use `frontend-design` in contract-compilation mode to translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
 6. Reconcile the final token, primitive, and product-component names against every required PRD UI element and state. An unresolved page-local exception blocks publication.
 
@@ -36,7 +36,7 @@ Publish the Markdown and JSON together.
 - concise responsive, interaction, and accessibility rules; and
 - product-specific do/don't guardrails.
 
-Do not preserve reference-image files, the full image extraction or `Check This` analysis, rejected direction history, exploratory HTML, per-route recipes, implementation examples, or general design theory in either file.
+Do not preserve reference-image files, the full image extraction or `Check This` analysis, rejected direction history, UI previews, per-route recipes, implementation examples, or general design theory in either file.
 
 ## Selected Visual Direction
 
@@ -45,7 +45,8 @@ Record:
 - decision status: `selected`, `provisional`, or `assumed`;
 - the human decision owner;
 - the selected or consolidated `VD-*` direction ID;
-- the representative surface mode, concept thesis, and named visual world produced by the Impeccable bridge;
+- the Taste applicability decision and confirmed Design Read or dial settings when applicable;
+- the representative surface mode, concept thesis, and named visual world when the approved handoff includes them;
 - applicable `MR-*` market evidence, or an explicit statement that no valid market evidence supports the visual decision;
 - inspected `REF-*` sources with direct URL or attachment label and retrieval date;
 - confirmed `RP-*` `Adopt / Adapt / Avoid` principles and the owner's confirmation record;
@@ -142,13 +143,13 @@ Resolve conflicts in this order:
 5. selected Visual Direction;
 6. provisional or assumed preference.
 
-`PRD.md` owns screen structure and content responsibility. The design system owns visual implementation. A visual treatment that needs a structural change returns to the PRD owner instead of silently changing the screen.
+`PRD.md` owns product structure and behavior, and approved `wireframes.html` is its low-fidelity interactive review projection. The design system owns visual implementation. A visual treatment that needs a structural change returns to `prd-builder` instead of silently changing the screen.
 
 ## Publish Check
 
 Before publication:
 
-1. Confirm one selected or explicitly provisional Visual Direction.
+1. Confirm one selected or explicitly provisional Visual Direction plus UI preview evidence or an explicit owner waiver.
 2. Confirm every token, primitive, component, state, and responsive entry is used or required.
 3. Confirm every required PRD UI element maps to a registered primitive or product component.
 4. Confirm no page-local value or control is required.

@@ -5,16 +5,17 @@ Produce a core multi-file Markdown PRD package. Stage and publish it according t
 - `docs/product/PRD.md`
 - `docs/product/architecture.md`
 - `docs/product/stack-decisions.md`
+- `docs/product/wireframes.html` for a UI-bearing product
 
-For a UI-bearing product, include the complete UI surface contract in `PRD.md`, then hand the staged core documents to `product-design-builder`. That separate skill must load `impeccable` and `frontend-design` and return `design-system.md` and `design-system.json` as one validated pair before whole-package publication. A product with no UI surface records the skip in `PRD.md` and publishes no placeholder design artifacts.
+For a UI-bearing product, include the complete UI surface contract in `PRD.md`, project it into one interactive low-fidelity `wireframes.html` containing every page, obtain human approval, and stop. Run `ui-design-pass.md`, Taste, UI preview generation, `product-design-builder`, or Harness only after a separate explicit request to continue into visual design or implementation. A product with no UI surface records the skip in `PRD.md` and publishes no placeholder wireframe or design artifacts.
 
-This contract covers the product spec, including screen structure and behavior. It does not define visual directions, tokens, components, or design-system rules. Those contracts belong only to `product-design-builder`.
+This contract covers the product spec and approved low-fidelity screen structure and behavior. It does not require a visual direction, preview, token set, closed component variants, or design-system rules. Those belong to a later optional visual-design phase.
 
 It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass is on by default for a non-trivial package; when the user declined it, no web tool was available, or the role returned blocked, the package publishes without the file and records the unvalidated market context in `PRD.md`'s `## Assumptions`. See `market-research-guide.md`.
 
-It specifies what each UI surface must show and do without prescribing high-fidelity visual treatment. Do not add visual-direction methods, token schemas, high-fidelity HTML mockups, component catalogs, or styling rules here.
+It specifies what each UI surface must show and do and shows its low-fidelity structure in a self-contained HTML reviewer. Do not turn `wireframes.html` into a high-fidelity mockup or add token schemas, component catalogs, or styling rules here.
 
-`PRD.md` is the canonical source for product scope, routes, screen structure, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, and the Builder UX Direction Decision. The returned design-system pair is the canonical visual implementation contract. Any design finding that changes the PRD contract comes back to the PRD owner; `product-design-builder` does not revise it.
+`PRD.md` is the canonical source for product scope, routes, screen purpose, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, and the Builder UX Direction Decision. `wireframes.html` is the only low-fidelity review projection and never overrides `PRD.md`. If a later visual-design phase is explicitly requested, its approved handoff and optional design-system pair add visual implementation authority without taking ownership of product structure or behavior.
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
@@ -27,12 +28,13 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `PRD.md` | Anyone deciding whether to build this | What is it, for whom, and what counts as done |
+| `wireframes.html` | The human owner reviewing the full UI map | How all pages, labeled sections, viewport arrangements, and states fit together in one interactive file |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
-| `design-system.md` + `design-system.json` (returned by `product-design-builder`) | A designer or frontend engineer styling a screen | The binding visual contract — tokens, primitives, components, and states; read alongside `PRD.md` |
+| `design-system.md` + `design-system.json` (only after an explicitly requested visual-design phase whose Design System Need Gate is `required`) | A designer or frontend engineer styling reusable surfaces | The binding token, primitive, component, and state contract; read alongside `PRD.md` and `wireframes.html` |
 
-Core reading order is `PRD.md` → the design-system pair when present → `architecture.md` → `stack-decisions.md`. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
+Core reading order is `PRD.md` → `wireframes.html` → `architecture.md` → `stack-decisions.md`. Read the optional visual-design handoff and design-system pair only when that later phase was requested and completed. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
 
 Two rules keep the package readable:
 
@@ -42,6 +44,7 @@ Two rules keep the package readable:
 Length budget. These are targets, not caps — say less when the product is simple, and go over only when the product is genuinely more complex, not when a section drifted:
 
 - `PRD.md`: about 200 lines. `## At a Glance` fits on one screen.
+- `wireframes.html`: one self-contained file; keep product data in the embedded data block and reuse the supplied reviewer shell rather than duplicating page-specific CSS or JavaScript.
 - `architecture.md`: about 250 lines.
 - `stack-decisions.md`: about 150 lines.
 - `market-research.md`: about 150 lines. Findings and sources, not an industry report.
@@ -172,9 +175,62 @@ Validation depth: [lightweight direction-conformance review only / moderate (con
 This is the single recorded home for the interview's validation-depth answer, so the design-system step and downstream skills can read it here instead of re-asking.
 
 Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
+
+### Wireframe Approval
+
+Artifact: [wireframes.html path]
+
+Decision: [approved / revision_requested / blocked], decided by [human owner] on [YYYY-MM-DD]
+
+Approved scope: [UI-* entries, routes, viewports or size classes, and states]
+
+Bounded revisions or unresolved items: [None / named items]
+
+Visual design phase: [not requested / requested / completed]
+
+### UI Design Handoff
+
+Include this subsection only after the human owner explicitly requests the visual-design phase.
+
+Taste applicability: [applicable / partially_applicable / n/a: reason]
+
+Design method: [design-taste-frontend / frontend-design for named excluded surfaces / explicit gpt-taste alternative for named scope]
+
+Design Read and dials: [one-line Design Read plus DESIGN_VARIANCE / MOTION_INTENSITY / VISUAL_DENSITY when Taste applies; otherwise the platform/design-system basis]
+
+Selected direction: [VD-* ID and one-line visual intent, with confirmed REF-* / RP-* IDs or none] — [approved / provisional / blocked], decided by [human owner]
+
+| UI target | Source path or immutable version | SHA-256 | Routes / states | Responsive scope | Tolerance and allowed deviations |
+| --- | --- | --- | --- | --- | --- |
+| [Preview ID] | [Path or version] | [Digest] | [UI-* and states] | [Viewports or size classes] | [Comparison method, tolerance, real-data/platform-chrome allowances] |
+
+Preview route and evidence: [HTML/React, image-generation skill, or external provider; provider/model; prompt or source; seed when supported; limitations]
+
+Visual approval is direction conformance, not usability proof or production readiness.
+
+Design System Need Gate: [required / not_required / blocked] — [reason], decided by [owner]
+
+Replacement visual contract when `not_required`: [approved page-faithful target above plus PRD.md and wireframes.html]
+
+Approved wireframe review projection: [wireframes.html path]
 ```
 
-Keep this section's heading text exactly as written because the design-system workflow consumes it by anchor.
+Keep the `### UI Design Handoff` heading text exactly as written when that optional subsection is present because the design-system workflow consumes it by anchor.
+
+## `wireframes.html`
+
+Produce this file for every UI-bearing product, using `wireframe-guide.md` and `assets/templates/WIREFRAMES.template.html`.
+
+It must be one self-contained local file containing:
+
+1. every `UI-*` page or shipped surface;
+2. an all-pages overview and page/route switcher;
+3. expanded/desktop and compact/mobile or alternate-size-class views;
+4. required state switching for each page;
+5. visible product-fit section names plus purpose, priority, elements, actions, and state treatment; and
+6. approval status that agrees with `PRD.md`'s `### Wireframe Approval`.
+
+The embedded page data must agree exactly with `PRD.md`; `PRD.md` wins on conflict. The data block may also project the optional `flows`, `UX-*` traces, and element display contracts described in `wireframe-guide.md`; they inherit the same agreement rule. Use inline CSS and JavaScript only for the low-fidelity review shell. Make no external request and include no production component, brand styling, high-fidelity visual direction, generated imagery, or design-system token decision. Human approval completes the wireframe phase; do not start visual design or implementation unless separately requested.
 
 ## `market-research.md`
 
@@ -433,11 +489,11 @@ Use only when a layer cannot yet be decided.
 | --- | --- | --- | --- | --- | --- | --- |
 ```
 
-## Product Design Handoff
+## Optional UI Design And Product Design Handoff
 
-For a UI-bearing product, complete the UI surface contract and complete the market-research gap pass first, then pass the staged core documents, Builder UX Direction Decision, market evidence or recorded skipped/blocked status to `../product-design-builder/SKILL.md`. That skill owns `design-system.md` and `design-system.json`, requires `impeccable` and `frontend-design`, asks the human owner once for style preferences and visual references, runs the bounded concept-generation bridge, and returns one reconciled design-system pair. It preserves `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` and never changes PRD structure or behavior. Pass a known reference use as `design inspiration` or `page-faithful target`; do not infer faithful-copy intent from a URL, screenshot, or Figma frame.
+Stop after the human owner approves `wireframes.html` unless they explicitly ask to continue into visual design. On that later request, run `ui-design-pass.md`: record Taste applicability, use `design-taste-frontend` where applicable or `frontend-design` for excluded surfaces, run the provider-neutral UI Preview Gate, obtain human visual approval, and freeze the selected result in `PRD.md`'s `### UI Design Handoff`. Pass a known reference use as `design inspiration` or `page-faithful target`; do not infer faithful-copy intent from a URL, screenshot, or Figma frame.
 
-Do not duplicate its visual-direction method, token schema, primitive rules, component rules, or design validation checklist here. If the product has no shipped UI surface, record the reason in `PRD.md` and publish no placeholder design artifacts. A UI-bearing package may skip the handoff only under an explicit user override recorded in `PRD.md` with the replacement visual contract.
+Run the Design System Need Gate after approval. `not_required` is a normal result for a small or single-surface UI; its approved page-faithful target plus `PRD.md` and `wireframes.html` form the replacement visual contract. When the gate is `required`, pass the approved UI Design Handoff and staged product sources to `../product-design-builder/SKILL.md`; it owns `design-system.md` and `design-system.json`, preserves stable `DS-*` and `DS-COMP-*` IDs, and does not reopen visual direction by default. If the product has no shipped UI surface, record the reason in `PRD.md` and publish no placeholder wireframe, preview, or design artifacts.
 
 ## Optional `implementation-plan.md`
 
@@ -495,18 +551,20 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Readability
 
-- Each artifact opens with human-readable content and keeps ID matrices and decision records at the end: `PRD.md` opens with `## At a Glance`, and for a UI-bearing product closes with `## Builder UX Direction Decision`; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` closes with `## Options And Open Decisions`.
+- Each artifact opens with human-readable content and keeps ID matrices and decision records at the end: `PRD.md` opens with `## At a Glance`, and for a UI-bearing product closes with `## Builder UX Direction Decision`, including `### Wireframe Approval` and the optional `### UI Design Handoff` only when visual design was requested; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` closes with `## Options And Open Decisions`.
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
 - No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. For a UI-bearing complete package, the validated design-system pair returned by `product-design-builder` is also present; for a product with no UI surface it is absent and `PRD.md` records that skip with its reason.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. For a UI-bearing complete wireframe package, approved `wireframes.html` and `PRD.md`'s approved `### Wireframe Approval` are also present. An approved UI Design Handoff and validated design-system pair are required only when the owner explicitly requested and completed that later visual-design phase. For a product with no UI surface, wireframe and design artifacts are absent and `PRD.md` records that skip with its reason.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
+- For a UI-bearing product, `wireframes.html` maps every `UI-*` entry exactly once in one self-contained file with working overview, page, viewport, state, and section-label controls. It contains no high-fidelity styling or product implementation code, agrees with `PRD.md`, passes `wireframe-guide.md`'s quality check and `check_wireframe_html.py --require-filled --require-approved`, and has one human `approved` decision recorded in `PRD.md` before the wireframe phase completes.
+- A wireframe-only package records `Visual design phase: not requested` and validates without Taste, preview evidence, a UI Design Handoff, a Design System Need Gate, or design-system artifacts. When visual design was explicitly requested, `PRD.md` records those later decisions and evidence.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
 - For every deployable web, API, mobile, or desktop surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, separate stable surface and stage-specific provider fields, a source policy naming the exact branch or ref, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Different providers by stage are valid for the same surface.
 - Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
@@ -521,7 +579,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every mobile/desktop layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
-For a UI-bearing product, the package includes the validated design set returned by `product-design-builder`, or `PRD.md` records the user's explicit override and replacement visual contract. The parent confirms that `product-design-builder` reported the mandatory `impeccable` and `frontend-design` gate, one selected or explicitly provisional direction, a passing design-output checklist, and the exact staged paths. It does not reimplement the design checks here.
+- When the visual-design phase was explicitly requested, the Design System Need Gate is not `blocked`. When it is `required`, the package includes the validated pair returned by `product-design-builder` and the parent records its exact staged paths and passing checks. When it is `not_required`, no placeholder pair is present and the approved page-faithful UI target, `PRD.md`, and `wireframes.html` are explicitly named as the replacement visual contract.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - The market-research gap pass either produced `market-research.md`, or the package records which reason skipped it — the user declined, no web search or fetch tool was available, the package is a trivial stub, or the role returned blocked. A silently missing pass does not validate.
 - When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.

@@ -26,7 +26,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
-| A product idea | `prd-builder` | Requirements, architecture, stack decisions, release targets, tests, and sourced market research |
+| A product idea | `prd-builder` | Requirements, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, tests, and sourced market research |
 | Frozen product inputs that need UI design | `product-design-builder` + `frontend-design` | A binding design-system contract based on the PRD UI surface contract |
 | A scoped change in an existing repository | `fullstack-harness-engineering` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
@@ -46,7 +46,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `architecture.md`, `stack-decisions.md`, `market-research.md` |
+| `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
 | `product-design-builder` | Visual direction and the design-system contract. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `fullstack-harness-engineering` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |

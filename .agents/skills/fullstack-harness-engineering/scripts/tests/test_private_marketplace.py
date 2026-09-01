@@ -281,6 +281,38 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
                 [], list(destination_root.rglob("*.pyc")) + list(destination_root.rglob("__pycache__"))
             )
 
+    def test_check_ignores_runtime_bytecode_in_the_bundle(self) -> None:
+        """Running the packaged smoke test imports the bundle and writes
+        __pycache__ beside it; that runtime bytecode is not bundle drift, or
+        every --check after a local packaged-test run fails on it."""
+        module = self.load_sync_module()
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source_root = root / "source"
+            destination_root = root / "destination"
+            source_scripts = source_root / "sample" / "scripts"
+            source_scripts.mkdir(parents=True)
+            (source_root / "sample" / "SKILL.md").write_text("current\n", encoding="utf-8")
+            (source_scripts / "tool.py").write_text("print('hi')\n", encoding="utf-8")
+            destination_root.mkdir(parents=True)
+            marker = destination_root / ".generated-from-agents-skills"
+            marker.write_text("managed\n", encoding="utf-8")
+
+            module.REPO_ROOT = root
+            module.SOURCE_ROOT = source_root
+            module.DESTINATION_ROOT = destination_root
+            module.MARKER = marker
+            module.SKILL_NAMES = ("sample",)
+            module.sync()
+
+            cache = destination_root / "sample" / "scripts" / "__pycache__"
+            cache.mkdir()
+            (cache / "tool.cpython-313.pyc").write_bytes(b"\x00runtime")
+            (destination_root / "sample" / "scripts" / "orphan.pyc").write_bytes(b"\x00runtime")
+
+            self.assertEqual([], module.differences())
+
     def test_sync_ships_only_the_packaged_smoke_test(self) -> None:
         """Test suites run against `.agents/`, so mirroring them doubles the
         bundle for nothing. The packaged smoke test is the exception: it exists
