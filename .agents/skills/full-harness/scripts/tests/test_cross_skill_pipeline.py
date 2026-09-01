@@ -170,6 +170,58 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("never overrides `PRD.md`", ui_contract)
         self.assertIn("UI Preview Gate outputs", ui_contract)
 
+    def test_approved_html_references_carry_from_design_skills_to_harness_pages(self) -> None:
+        prd = self.read("prd-builder/SKILL.md")
+        preview = self.read("prd-builder/references/ui-design-pass.md")
+        ui_contract = self.read(
+            "full-harness/references/ui-implementation-contract.md"
+        )
+        contract = self.read(
+            "full-harness/references/contract-and-traceability.md"
+        )
+
+        # The UI Design Pass renders the default web preview as high-fidelity
+        # HTML with its loaded design skills and retains the approved files.
+        self.assertIn(
+            "high-fidelity HTML produced with the loaded design skill", prd
+        )
+        self.assertIn("already loaded design skill", preview)
+        self.assertIn(
+            "becomes the HTML reference Harness implements each page from", preview
+        )
+        self.assertIn("request retention by default", preview)
+        self.assertIn("cannot implement from an HTML reference", preview)
+        # Harness then builds each bound page from its approved HTML reference.
+        self.assertIn("implemented from its HTML reference", ui_contract)
+        self.assertIn("markup, styles, assets, and rendered behavior", ui_contract)
+        self.assertIn(
+            "binding target evidence, not previews to reinterpret", ui_contract
+        )
+        self.assertIn("every approved HTML reference file's SHA-256", contract)
+
+    def test_ui_references_folder_archives_superseded_sets_like_documents(self) -> None:
+        preview = self.read("prd-builder/references/ui-design-pass.md")
+        prd_lifecycle = self.read("prd-builder/references/artifact-lifecycle.md")
+        design_lifecycle = self.read(
+            "product-design-builder/references/artifact-lifecycle.md"
+        )
+        design_updates = self.read(
+            "full-harness/references/design-input-updates.md"
+        )
+
+        # Approved HTML references live in one dedicated folder on every side.
+        for source in (preview, prd_lifecycle, design_lifecycle, design_updates):
+            self.assertIn("docs/design/ui-references/<run-id>/", source)
+        # A superseded set archives like superseded documents; nothing is deleted.
+        self.assertIn("docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/", preview)
+        self.assertIn("docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/", prd_lifecycle)
+        self.assertIn("docs/design/archived/", design_lifecycle)
+        self.assertIn("mirroring how superseded product documents move", prd_lifecycle)
+        self.assertIn("Never delete a superseded reference file", preview)
+        self.assertIn("no live contract points at an archived reference", prd_lifecycle)
+        # Harness consumes the references only through the recorded handoff.
+        self.assertIn("never by folder discovery", design_updates)
+
     def test_repository_design_images_enter_the_reference_confirmation_flow(self) -> None:
         prd = self.read("prd-builder/SKILL.md")
         product_design = self.read("product-design-builder/SKILL.md")
