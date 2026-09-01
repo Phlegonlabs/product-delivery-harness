@@ -50,6 +50,18 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("immutable `source_revision`", harness)
         self.assertIn("Passing validation does not authorize", prd_lifecycle)
 
+    def test_completed_goal_documents_archive_on_completion_declaration(self) -> None:
+        harness = self.read(
+            "full-harness/references/contract-and-traceability.md"
+        )
+
+        self.assertIn("declares the project or initiative complete", harness)
+        self.assertIn(
+            "docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/", harness
+        )
+        self.assertIn("Closeout Bar", harness)
+        self.assertIn("Never move anything under `docs/product/`", harness)
+
     def test_design_system_pair_publishes_and_freezes_together(self) -> None:
         design = self.read("product-design-builder/references/output-contract.md")
         design_lifecycle = self.read(
