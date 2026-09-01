@@ -92,7 +92,7 @@ For a self-contained feature inside an existing codebase, offer `/feature-dev` a
 
 New managed work uses PLAN schema v6 and RUN schema v11. New managed work never authors a compact RUN-only artifact. Legacy compact RUN-only files remain readable for recovery, but cannot authorize new execution.
 
-Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py` rather than hand-copying `assets/templates/MISSION_RUNBOOK.template.md`; nearly every field of a new RUN is derivable from PLAN, and the generator grants nothing. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; create `tasks.md` only when a human listing is useful.
+Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with `scripts/new_run.py` rather than hand-copying `assets/templates/MISSION_RUNBOOK.template.md`; nearly every field of a new RUN is derivable from PLAN, and the generator grants nothing. Keep one canonical fenced JSON manifest in each file. Keep checkpoints, tasks, attempts, evidence, and closeout in RUN; render `tasks.md` with `scripts/render_tasks_view.py` only when a human listing is useful — it stays a non-canonical view of RUN.
 
 ### Reference Routing
 

@@ -227,7 +227,7 @@ For plan-backed work, do not set the run to `running` until static validation pa
 
 ## Mission And Task View
 
-The mission/task listing is intentionally omitted here for the single-mission example. If a human view is useful, create it on demand from `assets/templates/TASKS.template.md`; `RUN.md` remains authoritative.
+The mission/task listing is intentionally omitted here for the single-mission example. If a human view is useful, render it on demand with `scripts/render_tasks_view.py` (see `assets/templates/TASKS.template.md`); `RUN.md` remains authoritative.
 
 ## Verification Dashboard
 
