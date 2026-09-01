@@ -1094,6 +1094,22 @@ def validate_worker_result_data(
             _issue(errors, "commit_reused", "worker_result.task_results", "one commit cannot satisfy multiple tasks")
         if commits is not None and set(flattened) != set(commits):
             _issue(errors, "unattributed_commit", "worker_result.commits", "every worker commit must belong to exactly one task result")
+        if commits is not None:
+            commit_positions = {commit: index for index, commit in enumerate(commits)}
+            for task_id, task_result in task_results.items():
+                task_commits = task_result.get("commits", [])
+                if not isinstance(task_commits, list) or not all(
+                    commit in commit_positions for commit in task_commits
+                ):
+                    continue
+                positions = [commit_positions[commit] for commit in task_commits]
+                if positions != sorted(positions):
+                    _issue(
+                        errors,
+                        "commit_order_mismatch",
+                        f"worker_result.task_results.{task_id}.commits",
+                        "task commits must preserve the mission commit order",
+                    )
 
     return _sorted_errors(errors)
 

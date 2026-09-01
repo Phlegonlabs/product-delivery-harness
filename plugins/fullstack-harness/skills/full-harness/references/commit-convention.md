@@ -5,12 +5,14 @@ Use this convention for every harness-managed task commit. Commit permission is 
 ## Atomic Boundary
 
 - Commit one coherent, independently verified task outcome at a time.
+- Every executable task gets its own initial atomic commit before the worker starts the next task. Do not batch completed tasks into an end-of-mission commit.
 - Include the implementation, focused tests, and any migration or documentation required for that same outcome.
 - Exclude any unrelated formatting, cleanup, refactors, generated files, and user-owned work.
 - Split an oversized task through the parent-owned refinement protocol before committing when it contains independently useful outcomes. Never rewrite only `RUN.md` to invent accepted scope.
 - Stage explicit files, inspect the staged diff, and commit only after the task verifier passes and commits are authorized.
 - Do not commit failed work except an explicitly planned harness or test artifact whose purpose is to expose the failure.
 - Do not start a second task's implementation before the current task's verifier has run and, on pass, its commit is made. Checkpoint each task as you finish it, not in a batch at the end of a mission or session — an interruption before that checkpoint leaves unverified, unrecorded drift that a later resume has to reconstruct from the diff alone (see `execution-state-model.md`'s Resume Reconciliation Gate).
+- A repair after review is a new atomic follow-up commit attributed to exactly one task. Multiple commits may belong to one task only to preserve explicit repair history; never reuse one commit for several task IDs or squash different task outcomes together.
 - When a task reads a new required environment variable, add its placeholder entry to `.env.example` in that same commit (see `platform-archetypes.md`'s Greenfield / Empty Repository section) — never land the code that reads it without the matching documented placeholder, and never commit the real `.env`/local secret file itself.
 
 ## Commit Message
@@ -55,7 +57,7 @@ After the commit succeeds and its task verifier passes, the worker reports the t
 `a1b2c3d` — `feat(auth): implement password login` — PASS
 ```
 
-One mission branch may contain multiple ordered task commits. List closeout commits as:
+One mission branch may contain multiple ordered task commits. Report the SHAs in actual Git order; each SHA appears once in the mission list and under exactly one task result. List closeout commits as:
 
 ```text
 Commits:

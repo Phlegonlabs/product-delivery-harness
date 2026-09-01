@@ -33,6 +33,24 @@ An ID contains only the owning mission and a stable task token. It does not enco
 
 Do not reuse or renumber IDs after a plan is published. If historical data needs a new scheme, add a deterministic old-to-new mapping in `legacy_task_ids`.
 
+## Mission Cohesion Gate
+
+Run this gate for every proposed mission before PLAN readiness. The goal is a small independently reviewable outcome, not the largest set of changes one worker could technically finish.
+
+Split the mission when any answer is yes:
+
+- Can one clause of the objective deliver value, fail, or pass review without another clause?
+- Does it combine separate product surfaces or domain capabilities, such as Blog, Settings, and user administration?
+- Would parts of it naturally use different focused verifier families or different review surfaces?
+- Does a task hide two independently useful outcomes that should be separate atomic commits?
+- Is the mission being kept together mainly because the parts touch the same router, auth boundary, migration directory, schema, or serialized resource?
+
+Shared foundations do not justify a catch-all mission. Freeze the smallest shared contract or primitive in its own predecessor mission when needed, then use mission dependencies and serialized-resource claims for the dependent outcome missions. Expected merge conflicts are scheduling facts, not product cohesion.
+
+Keep work together only when splitting would produce an unverifiable or nonfunctional half-state, such as one schema change and its inseparable compatibility adapter. Even then, the mission owns one outcome and its tasks remain separate commit-sized checkpoints. Prefer the smaller cohesive mission when either split would work.
+
+Use a mission split, not merely more tasks, when the resulting units can have their own write scope, focused verifier, exact-head review, and integration result. Use task boundaries only for sequential checkpoints that still form one independently reviewable mission outcome. Do this before readiness; execution-time refinement is recovery for a mistaken estimate, not the normal planning path.
+
 ## What Deserves A Task
 
 A refined task must have all of these properties:
@@ -41,7 +59,7 @@ A refined task must have all of these properties:
 - A bounded write scope contained by its mission scope.
 - At least one upstream trace ID.
 - An independent verifier with a pass/fail result.
-- A commit-sized outcome, even when commit creation is not authorized.
+- A commit-sized outcome, even when commit creation is not authorized. When commits are authorized, every executable task receives its own initial atomic commit before the next task begins. A later repair may add a separate atomic commit attributed to that same task, but one commit never satisfies multiple tasks.
 
 Test cases, fault scenarios, browser sizes, retry attempts, and small implementation steps normally belong in the task's acceptance matrix. They are not separate tasks solely because they can be enumerated.
 
@@ -53,7 +71,7 @@ The parallel write unit is always a mission, and one independently testable goal
 
 ## Runtime Slice Gate
 
-The default performance target is one bounded worker execution per mission, sized so the mission's fixed overhead — worktree, handoff, result validation, exact-head review, integration, integration verifier rerun — stays small against its useful work. That usually lands implementation plus focused verification around 10-20 minutes, but the ratio is the rule and the duration is its consequence; slicing below it makes a run slower. Pi uses a fresh child; other hosts use their matching isolated task context. Treat this as a planning SLO, not a hard process timer and not an authorization shortcut.
+The default performance target is one bounded worker execution per mission, sized so the mission's fixed overhead — worktree, handoff, result validation, exact-head review, integration, integration verifier rerun — stays small against its useful work. A normal bounded slice should stay within roughly 10-20 minutes of implementation plus focused verification; treat that range as an upper shape, not capacity to fill. Prefer a smaller cohesive mission when it exposes an independent verification or review boundary, but do not slice until overhead dominates useful work. Pi uses a fresh child; other hosts use their matching isolated task context. Treat this as a planning SLO, not a hard process timer and not an authorization shortcut.
 
 - Keep tasks as sequential checkpoints inside that bounded mission slice. A task still needs one deliverable, scope, trace, and verifier; a list of acceptance cases is not extra work units.
 - Before readiness, split a proposed mission when its frozen work is expected to exceed the slice, span independent deliverables, or require unrelated verifier families. Create dependency edges between the smaller missions and freeze shared contracts first.

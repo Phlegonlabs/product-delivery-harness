@@ -95,7 +95,7 @@ For a worker-level verifier, use `"layer": "worker"` and `"task_id": null`. Use 
 }
 ```
 
-A passing mission lists every executable, non-superseded task in `task_results`. A blocked or failed result sets `current_task_id` and preserves completed task results. The final commit must equal `head_sha`.
+A passing mission lists every executable, non-superseded task in `task_results`. A blocked or failed result sets `current_task_id` and preserves completed task results. List commits in actual Git order. Every SHA appears exactly once in the mission `commits` list and under exactly one task result; the order of each task's commit list must match that mission sequence. The final commit must equal `head_sha`.
 
 ## Graph Node Result
 
