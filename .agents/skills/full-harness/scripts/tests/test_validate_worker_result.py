@@ -661,6 +661,35 @@ class ValidateWorkerResultTests(unittest.TestCase):
             }.issubset(error_codes(errors))
         )
 
+    def test_task_commits_preserve_reported_mission_order(self) -> None:
+        result = copy.deepcopy(self.result)
+        later_commit = "c" * 40
+        result["head_sha"] = later_commit
+        result["commits"] = [HEAD_SHA, later_commit]
+        result["task_results"][0]["head_sha"] = later_commit
+        result["task_results"][0]["commits"] = [HEAD_SHA, later_commit]
+
+        ordered_errors = validate(
+            self.plan,
+            self.run,
+            result,
+            observed_head=later_commit,
+            retained=[],
+        )
+        self.assertNotIn("commit_order_mismatch", error_codes(ordered_errors))
+
+        result["task_results"][0]["head_sha"] = HEAD_SHA
+        result["task_results"][0]["commits"] = [later_commit, HEAD_SHA]
+        reversed_errors = validate(
+            self.plan,
+            self.run,
+            result,
+            observed_head=later_commit,
+            retained=[],
+        )
+
+        self.assertIn("commit_order_mismatch", error_codes(reversed_errors))
+
     def test_verifier_evidence_must_match_a_parent_retained_result(self) -> None:
         retained = [
             retained_verifier_result("task-focused", self.plan),

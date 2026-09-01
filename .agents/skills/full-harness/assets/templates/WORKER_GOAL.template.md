@@ -56,7 +56,7 @@ Repair context (omit for an initial implementation):
 - Make the smallest coherent change inside the write scope.
 - Never edit PLAN/RUN, create another worker/task/branch/worktree/lease, or delegate.
 - Do not pull, rebase, merge, integrate, push, archive, remove a worktree, or delete a branch.
-- Create commits only when `create_local_commits` is authorized. Each task commit names one task; the last commit equals the reported head.
+- Create commits only when `create_local_commits` is authorized. For each executable task: implement only that outcome, run its focused verifier, create its atomic task commit, confirm the task is checkpointed, and only then begin the next task. Each commit names exactly one task; a repair is a separate atomic follow-up for that task. Report every SHA once in actual Git order, and make the last commit equal the reported head.
 - For a repair handoff, fix the named root-cause family rather than applying the findings as independent patches. If another adjacent variant shows that the proposed mechanism is not closed, stop before adding another special case and return `REFINEMENT_REQUEST` or `contract_gap` with the structural strategy and missing acceptance classes.
 - If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`; do not wait for a host timeout to create the checkpoint.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.

@@ -48,6 +48,24 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## No Nested Delegation", worker)
         self.assertIn("explicit file-ownership scope", project)
 
+    def test_missions_are_cohesive_and_tasks_keep_atomic_commit_boundaries(self) -> None:
+        skill = self.read("SKILL.md")
+        decomposition = self.read("references/execution-task-decomposition.md")
+        convention = self.read("references/commit-convention.md")
+        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+        result_validator = self.read("scripts/validate_worker_result.py")
+
+        self.assertIn("A mission is not a phase label", skill)
+        self.assertIn("Pass the Mission Cohesion Gate", skill)
+        self.assertIn("## Mission Cohesion Gate", decomposition)
+        self.assertIn("Shared foundations do not justify a catch-all mission", decomposition)
+        self.assertIn("Expected merge conflicts are scheduling facts", decomposition)
+        self.assertIn("Before readiness, apply", plan)
+        self.assertIn("Every executable task gets its own initial atomic commit", convention)
+        self.assertIn("only then begin the next task", worker)
+        self.assertIn("commit_order_mismatch", result_validator)
+
     def test_related_review_findings_escalate_by_root_cause_across_revisions(self) -> None:
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
