@@ -34,10 +34,10 @@ Default to one recommended product-specific direction. Produce three materially 
 
 Record every inspected visual source as a `REF-*` record and every owner-confirmed `Adopt / Adapt / Avoid` principle as an `RP-*` record, using the formats in `../product-design-builder/references/design-reference-guide.md`. Give every direction a `VD-*` ID under that guide's round versioning: a default single-direction pass records `VD-R1-01`, and each later revision round increments. Name the selected `VD-*` direction and its confirmed `REF-*` / `RP-*` IDs in the handoff so the design-system step can read the provenance without re-deriving it.
 
-Choose the simplest available provider-neutral preview route:
+Choose the provider-neutral preview route whose approved artifact can serve directly as the Harness implementation reference:
 
-1. rendered HTML or temporary React for a compatible web surface;
-2. `imagegen-frontend-web` for a website section or page image;
+1. rendered HTML or temporary React for a compatible web surface — the default web route. Produce it with the already loaded design skill (`design-taste-frontend` when applicable, otherwise `frontend-design`) as one self-contained high-fidelity file per representative `UI-*` screen, or one multi-page file when the owner prefers, because the retained approved file becomes the HTML reference Harness implements each page from;
+2. `imagegen-frontend-web` for a website section or page image when no HTML rendering capability exists;
 3. `imagegen-frontend-mobile` for a native or cross-platform mobile screen image; or
 4. another named image-generation, design, or external provider.
 
@@ -61,9 +61,11 @@ For every retained preview, record:
 - observed limitations, including unreadable text or non-observable interaction; and
 - human decision: `approved`, `rejected`, `revision_requested`, or `waived` with reason.
 
-Preview artifacts stay outside `docs/product/`. If the owner requests retention, disclose and obtain exact write approval for a path under `docs/design/ui-previews/<run-id>/`; otherwise use temporary storage and say that it will not publish with the package. When the owner declines retention and that preview is the approved page-faithful target, the handoff must record the target as temporary: the visual authority then reverts to `PRD.md` plus approved `wireframes.html` once the run ends, because the recorded path stops resolving. A durable target binding requires retention.
+Preview artifacts stay outside `docs/product/`. When an approved HTML preview will serve as the page-faithful implementation reference, request retention by default: disclose and obtain exact write approval for a path under `docs/design/ui-references/<run-id>/`, the dedicated UI references folder, one file per recorded screen. Other previews are retained only when the owner requests it; otherwise use temporary storage and say that it will not publish with the package. When the owner declines retention and that preview is the approved page-faithful target, the handoff must record the target as temporary: the visual authority then reverts to `PRD.md` plus approved `wireframes.html` once the run ends, because the recorded path stops resolving. A durable target binding requires retention, and Harness cannot implement from an HTML reference whose recorded path is temporary.
 
-An approved preview becomes an implementation target only when `PRD.md` records its source path or immutable version, SHA-256, named routes and states, responsive scope, acceptance tolerance, and allowed deviations. This page-faithful target is visual authority for only that recorded scope. Approval proves visual-direction conformance, not usability or production readiness.
+When a later approved UI target supersedes retained UI references, archive the superseded files by moving them under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/` — the same archive-not-delete discipline `references/artifact-lifecycle.md` applies to superseded product documents — and update the UI Design Handoff to the new live paths. Never delete a superseded reference file or leave a live handoff entry pointing at an archived path.
+
+An approved preview becomes an implementation target only when `PRD.md` records its source path or immutable version, SHA-256, named routes and states, responsive scope, acceptance tolerance, and allowed deviations. This page-faithful target is visual authority for only that recorded scope. When the approved target is high-fidelity HTML, `full-harness` implements each recorded route from its approved HTML reference file within the recorded tolerance. Approval proves visual-direction conformance, not usability or production readiness.
 
 ## Design System Need Gate
 
@@ -73,4 +75,4 @@ After visual approval, record exactly one result in `PRD.md`:
 - `not_required`: the approved work is a small or single-surface UI whose visual target, PRD behavior, and wireframes are sufficient for implementation; or
 - `blocked`: the owner decision, source evidence, or approved preview needed to decide is missing.
 
-Record the decision owner, reason, affected scope, and replacement visual contract. `not_required` is a normal outcome, not a waiver. When `required`, invoke `product-design-builder` only after the UI target is approved; it compiles the approved direction into `design-system.md` and `design-system.json` without reopening visual direction by default. When `not_required`, pass the approved page-faithful target directly to Harness with `PRD.md` and the approved `wireframes.html` review projection.
+Record the decision owner, reason, affected scope, and replacement visual contract. `not_required` is a normal outcome, not a waiver. When `required`, invoke `product-design-builder` only after the UI target is approved; it compiles the approved direction into `design-system.md` and `design-system.json` without reopening visual direction by default. When `not_required`, pass the approved page-faithful target directly to Harness with `PRD.md` and the approved `wireframes.html` review projection; for a web pass that means the retained approved HTML reference files with their recorded hashes.

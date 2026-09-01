@@ -27,7 +27,7 @@
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
 | 一個產品構想 | `prd-builder` | 需求、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務，以及附來源的市場研究 |
-| 已核准線框稿、需要視覺設計的套件 | `prd-builder` UI Design Pass；gate 判定 required 時再進 `product-design-builder` + `frontend-design` | 核准的視覺方向，以及需要時具約束力的設計系統契約 |
+| 已核准線框稿、需要視覺設計的套件 | `prd-builder` UI Design Pass；gate 判定 required 時再進 `product-design-builder` + `frontend-design` | 核准的視覺方向——在 web 上是保留於 `docs/design/ui-references/` 的高擬真 HTML references——以及需要時具約束力的設計系統契約 |
 | 既有儲存庫中的明確變更 | `full-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 | 每個分支各自的 Cloudflare Worker 預覽 | `manage-cloudflare-worker-deployments` | 安全的預覽 Worker 部署與清理，以及可選、獨立設閘的正式環境初始部署 |
 
@@ -38,6 +38,7 @@
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
 - **產品定義止於人工關卡。** UI 產品以一份可互動的低擬真 `wireframes.html` 作結，由 owner 核准；視覺設計與實作只在明確要求後繼續。
+- **視覺目標是真正的 HTML。** 受要求的 web 視覺階段會用載入的設計技能產出高擬真 HTML，把核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除；Harness 依每頁核可的 HTML reference 實作。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
@@ -47,7 +48,7 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `prd-builder` | 產品探索、需求、Builder UX Direction 輸入、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務，以及草稿完成後的市場研究補缺 | `PRD.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
+| `prd-builder` | 產品探索、需求、Builder UX Direction 輸入、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務、草稿完成後的市場研究補缺，以及 web 路線會產出保留高擬真 HTML references 的選用 UI Design Pass | `PRD.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 將已核准的 UI Design Handoff 編譯成凍結的設計系統契約。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
 | `full-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證，以及整合 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | 左側欄的獨立 Codex 任務、每個 mission 一個由 app 管理的 worktree，以及由 parent 派發的同層 reviewers | 執行環境啟動指令與 worker 結果 |
@@ -73,13 +74,13 @@ flowchart LR
   Wireframe --> Gate{"Wireframe Approval Gate\n人類 owner"}
   Gate -->|"核准且要求視覺設計"| Design["UI Design Pass\n需要時進 product-design-builder"]
   Gate -->|"核准、不進視覺階段"| Harness["full-harness\n共用交付核心"]
-  Design --> Harness
+  Design -->|"核可的 HTML references 或設計系統契約"| Harness
   Harness --> Runtime["單一 host 轉接器\nCodex、Claude Code 或 Pi"]
   Runtime --> Evidence["本機測試與 UI 佐證"]
   Evidence --> Push["推送到這次執行自己的分支\n合進預設分支是你自己的步驟"]
 ```
 
-你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app。各技能各司其職：`prd-builder` 定義產品並止於核准的 `wireframes.html`，選用的 UI Design Pass 與 `product-design-builder` 定義視覺契約，Harness 實作已凍結的結果。
+你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app。各技能各司其職：`prd-builder` 定義產品並止於核准的 `wireframes.html`，選用的 UI Design Pass 與 `product-design-builder` 定義視覺契約——在 web 上，pass 會把核可的高擬真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的組合搬進 `docs/design/archived/`——Harness 實作已凍結的結果。
 
 ## 交付模型
 
@@ -267,7 +268,11 @@ Use $prd-builder to review the staged wireframes.html with me and record the Wir
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $prd-builder's UI Design Pass, invoking $product-design-builder only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $prd-builder's UI Design Pass. Render the web previews as high-fidelity HTML and retain the approved references under docs/design/ui-references/, invoking $product-design-builder only when the Design System Need Gate is required.
+```
+
+```text
+Use $full-harness to implement the approved plan, building each page from its approved HTML reference in docs/design/ui-references/ within the recorded tolerance.
 ```
 
 ```text
@@ -352,6 +357,7 @@ git diff --check
 
 每次發佈都要更新這一節，並搭配上面說明的版本號提升。
 
+- **未發佈（Unreleased）** — UI Design Pass 的 web 預覽路線改為預設由設計技能產出高擬真 HTML。核可的 HTML references 保留在 `docs/design/ui-references/<run-id>/`，被取代的組合歸檔到 `docs/design/archived/`；target-conformance 實作依每頁核可的 HTML reference 進行，並逐檔凍結 hash。
 - **0.8.0** — 為 prd-builder 加入線框稿階段：每個 UI 產品包都會把 UI surface contract 投影成單一自包含的可互動 wireframes.html，並經人類 Wireframe Approval Gate 核可；視覺設計改為獨立、需明確要求的階段（UI Design Pass、provider 中立的 preview gate、Design System Need Gate）。product-design-builder 只編譯已核可的 UI Design Handoff。同時修復 design-system pair 檢查命令路徑、統一線框核可詞彙、讓 sync --check 忽略 runtime bytecode，並在 CI 加入 git diff --check。
 - **0.7.0** — 將 managed work 升級為 PLAN v6 / RUN v11：加入 durable pause/cancel、跨 revision review lineage 與 owner grant、只含協調檔提交時不失效的 candidate head、loaded/installed contract digest、受控狀態轉移指令，以及有界 review packet。
 - **0.6.0** — 為 Codex、Claude Code 與 Pi 加入共用 runtime upgrade gate。RUN-v10 會記錄 host／Harness 版本，只允許已啟動且仍相容的舊版 wave 跑到安全邊界，阻擋不相容或等待 restart 的 session，並在更新及重新 probe 後用新的 attempt 繼續未完成工作。更新器現在支援 Pi package；host binary 更新與 standalone Pi skill migration 仍需明確啟用。

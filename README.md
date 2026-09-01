@@ -27,7 +27,7 @@ It is not a prompt collection. The plugin separates product definition, visual d
 | If you have... | Start with | What you get |
 | --- | --- | --- |
 | A product idea | `prd-builder` | Requirements, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, tests, and sourced market research |
-| An approved wireframe package that needs visual design | `prd-builder` UI Design Pass, then `product-design-builder` + `frontend-design` when the gate requires it | An approved visual direction, plus a binding design-system pair when required |
+| An approved wireframe package that needs visual design | `prd-builder` UI Design Pass, then `product-design-builder` + `frontend-design` when the gate requires it | An approved visual direction — on web, retained high-fidelity HTML references under `docs/design/ui-references/` — plus a binding design-system pair when required |
 | A scoped change in an existing repository | `full-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
 
@@ -38,6 +38,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 - **Small work stays small.** One bounded change uses a direct inspect, implement, verify, and review loop.
 - **Large work is explicit.** PLAN v6 defines the typed graph; RUN v11 records authorization, attempts, and evidence.
 - **Product definition stops at a human gate.** A UI-bearing package ends in one interactive low-fidelity `wireframes.html` approved by the owner; visual design and implementation continue only on explicit request.
+- **Visual targets are real HTML.** A requested web visual phase renders high-fidelity HTML with the loaded design skills, retains the approved references under `docs/design/ui-references/`, and archives superseded sets instead of deleting them; the Harness builds each page from its approved HTML reference.
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
 - **Capability is not permission.** A runtime may be able to push or clean up, but each action still needs exact authorization.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
@@ -47,7 +48,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, and the post-draft market-research gap pass | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
+| `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, the post-draft market-research gap pass, and the optional UI Design Pass whose web route renders retained high-fidelity HTML references | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
 | `product-design-builder` | Compiling an approved UI Design Handoff into the frozen design-system pair. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `full-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work or `PLAN.md` + `RUN.md` |
 | `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |
@@ -73,13 +74,13 @@ flowchart LR
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\nproduct-design-builder when required"]
   Gate -->|"approved, no visual phase"| Harness["full-harness\nShared delivery core"]
-  Design --> Harness
+  Design -->|"approved HTML references or design-system pair"| Harness
   Harness --> Runtime["One host adapter\nCodex, Claude Code, or Pi"]
   Runtime --> Evidence["Local tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines the product and stops at the approved `wireframes.html`, the optional UI Design Pass and `product-design-builder` define the visual contract, and the Harness implements the frozen result.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines the product and stops at the approved `wireframes.html`, the optional UI Design Pass and `product-design-builder` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/` — and the Harness implements the frozen result.
 
 ## Delivery model
 
@@ -267,7 +268,11 @@ Use $prd-builder to review the staged wireframes.html with me and record the Wir
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $prd-builder's UI Design Pass, invoking $product-design-builder only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $prd-builder's UI Design Pass. Render the web previews as high-fidelity HTML and retain the approved references under docs/design/ui-references/, invoking $product-design-builder only when the Design System Need Gate is required.
+```
+
+```text
+Use $full-harness to implement the approved plan, building each page from its approved HTML reference in docs/design/ui-references/ within the recorded tolerance.
 ```
 
 ```text
@@ -352,6 +357,7 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
+- **Unreleased** — Made design-skill-rendered high-fidelity HTML the default web preview route in the UI Design Pass. Approved HTML references are retained under `docs/design/ui-references/<run-id>/`, superseded sets archive under `docs/design/archived/`, and target-conformance implementation builds each page from its approved HTML reference with per-file frozen hashes.
 - **0.8.0** — Added the wireframe stage to prd-builder: every UI-bearing package projects its UI surface contract into one self-contained interactive wireframes.html behind a human Wireframe Approval Gate, and visual design became a separate explicitly requested phase (UI Design Pass, provider-neutral preview gate, Design System Need Gate). product-design-builder now compiles only an approved UI Design Handoff. Also fixed the design-system pair-check command path, unified the wireframe approval vocabulary, made sync --check ignore runtime bytecode, and added git diff --check to CI.
 - **0.7.0** — Upgraded managed work to PLAN v6 / RUN v11 with durable pause/cancel control, cross-revision review lineages and owner grants, candidate-head tolerance for coordination-only commits, loaded/installed contract digests, guarded transition commands, and bounded review packets.
 - **0.6.0** — Added a shared runtime upgrade gate for Codex, Claude Code, and Pi. RUN-v10 records host/Harness versions, lets only an already-active compatible-old wave reach its boundary, blocks incompatible or restart-pending sessions, and resumes unfinished work with a fresh attempt after update and re-probe. The updater now supports Pi packages; host binary updates and standalone Pi skill migration stay explicit.

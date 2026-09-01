@@ -17,7 +17,7 @@ Only when the Design System Need Gate is `required`, stage these files in the sa
 
 Do not publish directly while drafting. Do not create a placeholder for a product with no shipped UI surface.
 
-Keep UI Design Pass previews and their evidence manifest outside `docs/product/`. When repository retention is useful, use the disclosed path recorded by `prd-builder`, such as `docs/design/ui-previews/<run-id>/`. The selected target binds only through the immutable source and approval record in `PRD.md`; Product Design Builder does not republish the preview inside the pair.
+Keep UI Design Pass previews and their evidence manifest outside `docs/product/`. When repository retention is useful, use the disclosed path recorded by `prd-builder`, such as `docs/design/ui-references/<run-id>/`; a set superseded by a later approved target archives under `docs/design/archived/` per `prd-builder`'s lifecycle. The selected target binds only through the immutable source and approval record in `PRD.md`; Product Design Builder does not republish the preview inside the pair.
 
 ## Validate And Publish
 
