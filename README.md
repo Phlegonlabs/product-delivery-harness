@@ -29,7 +29,6 @@ It is not a prompt collection. The plugin separates product definition, visual d
 | A product idea | `prd-builder` | Requirements, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, tests, and sourced market research |
 | An approved wireframe package that needs visual design | `prd-builder` UI Design Pass, then `product-design-builder` + `frontend-design` when the gate requires it | An approved visual direction — on web, retained high-fidelity HTML references under `docs/design/ui-references/` — plus a binding design-system pair when required |
 | A scoped change in an existing repository | `full-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
-| Per-branch Cloudflare Worker previews | `manage-cloudflare-worker-deployments` | Safe preview Worker deployment and cleanup, with an optional separately gated production bootstrap |
 
 The skills can be used independently. You do not need to run the entire pipeline for every task.
 
@@ -54,7 +53,6 @@ The skills can be used independently. You do not need to run the entire pipeline
 | `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |
 | `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
 | `fullstack-harness-pi` | Pi subagent roles with Pi-owned model and fallback selection in parent-managed worktrees | Runtime launch directives, resolved-role/model evidence, and worker results |
-| `manage-cloudflare-worker-deployments` | Automatic per-branch Cloudflare Worker previews, guarded cleanup, and optional manual production bootstrap | Installer, lifecycle script, tests, configuration, and GitHub Actions templates |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
@@ -289,10 +287,6 @@ Use $full-harness to implement this plan and push the verified branch. I will op
 
 ```text
 Use full-harness with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
-```
-
-```text
-Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.

@@ -29,7 +29,6 @@
 | 一个产品想法 | `prd-builder` | 需求、UI 产品的低保真交互线框图、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
 | 已批准线框图、需要视觉设计的包 | `prd-builder` UI Design Pass；gate 判定为 required 时再进入 `product-design-builder` + `frontend-design` | 批准的视觉方向——在 web 上是保留于 `docs/design/ui-references/` 的高保真 HTML references——以及需要时有约束力的设计系统契约 |
 | 现有仓库中的明确变更 | `full-harness` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
-| 每个分支各自的 Cloudflare Worker 预览 | `manage-cloudflare-worker-deployments` | 安全的预览 Worker 部署与清理，以及可选、单独设门的生产环境初始部署 |
 
 这些技能可以单独使用。不是每个任务都要运行整条流程。
 
@@ -54,7 +53,6 @@
 | `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的 worktree，以及由 parent 派发的同级 reviewers | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
 | `fullstack-harness-pi` | 在父级托管工作树中使用 Pi 子代理角色，并由 Pi 选择模型和回退方案 | 运行时启动指令、实际角色/模型证据和工作节点结果 |
-| `manage-cloudflare-worker-deployments` | 自动为每个分支创建 Cloudflare Worker 预览、受保护的清理流程，以及可选的手动生产环境初始部署 | 安装器、生命周期脚本、测试、配置和 GitHub Actions 模板 |
 
 交付核心在调用托管编排之前，会先做一个规模判定：
 
@@ -289,10 +287,6 @@ Use $full-harness to implement this plan and push the verified branch. I will op
 
 ```text
 Use full-harness with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
-```
-
-```text
-Use $manage-cloudflare-worker-deployments to configure safe per-branch Cloudflare Worker previews and cleanup for this repository.
 ```
 
 对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、移除工作树和删除分支都是彼此独立的动作。Harness 不会开 PR、不会合并、也不会部署——这些步骤由你自己完成。

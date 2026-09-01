@@ -182,7 +182,6 @@ if (Get-Command pi -ErrorAction SilentlyContinue) {
         "fullstack-harness-codex",
         "full-harness",
         "fullstack-harness-pi",
-        "manage-cloudflare-worker-deployments",
         "prd-builder",
         "product-design-builder"
     )
