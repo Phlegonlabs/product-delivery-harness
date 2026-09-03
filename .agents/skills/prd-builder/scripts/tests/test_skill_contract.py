@@ -1639,16 +1639,23 @@ async function agent(_prompt, options) {
             "cross-platform mobile, and desktop",
             guide,
         )
-        self.assertIn(
-            "mock the screen as simple HTML at its size class", guide
-        )
-        self.assertIn(
+        for marker in (
+            "one self-contained high-fidelity HTML containing every `UI-*` "
+            "screen of that surface",
+            "the same single-file principle as `wireframes.html`",
+            "with a screen switcher",
+            "reviews the whole app in one file",
             "when HTML cannot represent the surface, such as platform chrome",
-            guide,
-        )
+        ):
+            self.assertIn(marker, guide)
         self.assertIn(
             "Default every UI-bearing surface — web, native or cross-platform "
             "mobile, and desktop — to high-fidelity HTML",
+            skill,
+        )
+        self.assertIn(
+            "one self-contained high-fidelity HTML containing every `UI-*` "
+            "screen with a screen switcher",
             skill,
         )
 
