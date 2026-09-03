@@ -5,20 +5,20 @@ This file is ready-to-use shared repository guidance. Resolve the repository's r
 ## Runtime Boundary
 
 - This file contains shared repository governance. Codex and Pi load it as their native project context; the generated `CLAUDE.md` imports it for Claude Code.
-- Keep runtime-specific worker roles, model selection, subagent behavior, and launch flags in the matching Full-Stack Harness adapter. Never copy Codex, Claude Code, or Pi mechanics into another runtime's worker.
+- Keep runtime-specific worker roles, model selection, subagent behavior, and launch flags in the Full-Stack Harness runtime adapter reference (`full-harness/references/runtime-adapters.md`, the section for the detected host). Never copy Codex, Claude Code, or Pi mechanics into another runtime's worker.
 - Rules under **Managed Full-Stack Harness Runs** apply only after the Harness routes work into PLAN/RUN. Small direct work follows the shared principles, Git safety, and verification rules without creating Harness state, missions, workers, or worktrees unless the repository or user requires them.
 
 ## Skill Bindings
 
 The delivery flow binds stage slots, not fixed skill names. This table binds the project's installed skills to those slots; updating it to adopt a new skill is a project edit, not a harness change, and a bound skill inherits the same modes, frozen sources, and review gates as the default.
 
-| Slot | Stage | Bound skill |
-| --- | --- | --- |
-| design_direction | wireframes → UI direction and mockup (UI Design Pass) | <bundled Taste-aware pass (`design-taste-frontend`), or an installed taste skill> |
-| design_compilation | frozen design-system pair | <bundled `product-design-builder` + `frontend-design`, or your own> |
-| frontend_implementation | implementation missions | <bundled `frontend-design`, or your own frontend skill> |
+| Slot | Stage | Bound skill | Pinned SHA-256 |
+| --- | --- | --- | --- |
+| design_direction | wireframes → UI direction and mockup (UI Design Pass) | <bundled Taste-aware pass (`design-taste-frontend`), or an installed taste skill> | <hash of the bound skill's SKILL.md> |
+| design_compilation | frozen design-system pair | <bundled `product-design-builder` + `frontend-design`, or your own> | n/a for defaults |
+| frontend_implementation | implementation missions | <bundled `frontend-design`, or your own frontend skill> | <hash of the bound skill's SKILL.md> |
 
-An unbound slot uses the bundled default. PLAN missions resolve their workers' skill lists from this table where a slot applies.
+An unbound slot uses the bundled default. A non-default bound skill pins the SHA-256 of its SKILL.md; `full-harness/scripts/check_skill_bindings.py` recomputes it and fails on a mismatch, so changing a bound skill's content is a deliberate, reviewed pin update — never a silent swap. PLAN missions resolve their workers' skill lists from this table where a slot applies.
 
 ## Core Development Principles
 

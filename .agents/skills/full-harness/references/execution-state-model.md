@@ -484,6 +484,13 @@ If any capability, isolation, permission, or completion row is unknown, do not f
 
 For plan-backed multi-mission execution, the configured write-worker maximum has no default numeric ceiling; per `SKILL.md`'s Default Runtime And Wave Policy the parent sets `max_parallel_workers` generously high and lets observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size do the real bounding. Deterministic mission selection is the default immediately after Plan Readiness and execution authorization; run validation and selection before any production task. The effective wave remains the minimum of that configured maximum, live worker slots, isolated workspaces, dependency-ready nonconflicting missions, and every capability and permission gate above.
 
+## Run Lock And Watchdog
+
+Durable execution for one RUN has two machine guards; both are `harness_transition.py` subcommands.
+
+- **Run lock**: before dispatching, the parent records `run.run_lock` (`session_id`, `acquired_at`, `heartbeat_at`) with `acquire-run-lock --session-id <id>` and refreshes it with `heartbeat-run-lock` each wave. Every other mutating transition refuses while a fresh lock names a different session, so two parents can never dispatch against the same state; a lock whose heartbeat is older than 15 minutes is stale and the next `acquire-run-lock` takes it over. Release with `release-run-lock` when the session ends. A RUN without a lock keeps its historical behavior.
+- **Watchdog**: `watchdog [--stale-after-minutes N]` reports read-only whether the lock is live or stale and lists `running` nodes that lost their parent heartbeat as interrupted-work candidates; `--reclaim` clears a stale lock so the reconcile transitions can run.
+
 ## Serialized Same-Repository Host Handoff
 
 Hosts may hand off a large plan-backed run only as a serialized, same-repository operation. Host A must close the active wave: `RUN.active_wave.status` is neither `active` nor `proposed`. The `active_wave` object remains part of RUN; an absent object is not proof that handoff is safe. The handoff never transfers a live lease, hides a worker, or starts a second writer. Preserve the canonical PLAN/RUN and graph state, mission/task evidence, and current exact head SHA. Do not invent a new schema field or identity from the handoff.

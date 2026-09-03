@@ -40,6 +40,9 @@ jobs:
       - name: Check generated plugin skill bundle
         run: python scripts/sync_plugin_skills.py --check
 
+      - name: Validate Agent Skills specification compliance
+        run: python .agents/skills/full-harness/scripts/check_skill_spec.py
+
       - name: Run harness unit, contract, and E2E tests
         run: python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 

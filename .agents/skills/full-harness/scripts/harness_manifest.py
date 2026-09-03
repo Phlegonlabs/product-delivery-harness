@@ -2726,8 +2726,30 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         optional_run_keys.add("workflow_runs")
     if schema_version in {10, 11}:
         optional_run_keys.add("runtime_metrics")
+    if schema_version == 11:
+        optional_run_keys.add("run_lock")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
+    if schema_version == 11 and isinstance(run.get("run_lock"), dict):
+        lock = run["run_lock"]
+        if _keys(
+            errors,
+            "run.run_lock",
+            lock,
+            {"session_id", "acquired_at", "heartbeat_at"},
+            {"owner"},
+        ):
+            for key in ("session_id", "acquired_at", "heartbeat_at"):
+                if not _nonempty_string(lock[key]):
+                    _add(errors, f"run.run_lock.{key}", "must be a non-empty string")
+            if _nonempty_string(lock["acquired_at"]) and _nonempty_string(
+                lock["heartbeat_at"]
+            ) and lock["heartbeat_at"] < lock["acquired_at"]:
+                _add(
+                    errors,
+                    "run.run_lock.heartbeat_at",
+                    "must not predate acquired_at",
+                )
     if schema_version == 11:
         control = run["control"]
         if _keys(

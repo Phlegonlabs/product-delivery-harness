@@ -36,6 +36,14 @@ class AdapterContractTests(unittest.TestCase):
     def read_adapters(self) -> str:
         return self.read("references/runtime-adapters.md")
 
+    def test_project_templates_point_at_the_runtime_adapter_reference(self) -> None:
+        agents = (SKILLS_ROOT / "full-harness" / "assets" / "templates" / "PROJECT_AGENTS.template.md").read_text(encoding="utf-8")
+        claude = (SKILL_ROOT / "assets" / "templates" / "PROJECT_CLAUDE.template.md").read_text(encoding="utf-8")
+
+        for content in (agents, claude):
+            self.assertIn("runtime adapter reference", content)
+            self.assertNotIn("Full-Stack Harness adapter", content)
+
     def test_runtime_adapters_replaces_the_retired_adapter_skills(self) -> None:
         core = self.read("SKILL.md")
 

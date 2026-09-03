@@ -3,8 +3,11 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
+import tempfile
 import unittest
+from argparse import Namespace
 from pathlib import Path
 
 
@@ -15,7 +18,9 @@ if str(TESTS_DIR) not in sys.path:
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from harness_manifest import plan_digest, validate_run  # noqa: E402
+import harness_transition  # noqa: E402
+from harness_core import is_full_sha  # noqa: E402
+from harness_manifest import ManifestError, plan_digest, validate_run  # noqa: E402
 from test_select_ready_nodes import current_preintegration_review_state  # noqa: E402
 
 HEAD = "c" * 40
@@ -124,6 +129,113 @@ class IntegrationReviewSkipTests(unittest.TestCase):
         run["review_workers"][0]["tree_sha"] = "e" * 40
 
         self.assertTrue(self.skip_errors(plan, run))
+
+    def test_skip_transition_binds_byte_identity_against_live_git(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "T"], cwd=root, check=True)
+            (root / "file.txt").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+            reviewed = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            # A merge-style commit: new SHA, byte-identical tree.
+            subprocess.run(
+                ["git", "commit", "--allow-empty", "-qm", "merge"], cwd=root, check=True
+            )
+            head = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            self.assertNotEqual(reviewed, head)
+
+            plan, run = self.state(reviewed_sha=reviewed)
+            run["integration"]["integration_head_sha"] = head
+            run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "dormant"
+
+            harness_transition._skip_integration_review(
+                plan,
+                run,
+                Namespace(node_id="N-VISUAL-REVIEW", worker_id="RW-PRE", repo_root=root),
+            )
+
+            self.assertEqual([], self.skip_errors(plan, run))
+            node_state = run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]
+            self.assertEqual("skipped", node_state["phase"])
+            self.assertTrue(is_full_sha(run["integration"]["integration_tree_sha"]))
+            self.assertEqual(
+                run["review_workers"][0]["tree_sha"],
+                run["integration"]["integration_tree_sha"],
+            )
+
+    def test_skip_transition_refuses_when_the_trees_differ(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "T"], cwd=root, check=True)
+            (root / "file.txt").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+            reviewed = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            (root / "file.txt").write_text("changed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "changed"], cwd=root, check=True)
+            head = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+
+            plan, run = self.state(reviewed_sha=reviewed)
+            run["integration"]["integration_head_sha"] = head
+            run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "dormant"
+
+            with self.assertRaises(ManifestError):
+                harness_transition._skip_integration_review(
+                    plan,
+                    run,
+                    Namespace(
+                        node_id="N-VISUAL-REVIEW", worker_id="RW-PRE", repo_root=root
+                    ),
+                )
+
+    def test_record_review_attempt_persists_the_reviewed_tree(self) -> None:
+        plan, run = self.state(reviewed_sha=HEAD)
+        run["review_workers"][0]["phase"] = "leased"
+        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
+            {"phase": "running", "last_attempt_id": "ATT-PRE", "bound_worker_id": "RW-PRE"}
+        )
+        lineage_id = next(
+            node["review"]["lineage_id"]
+            for node in plan["graph"]["nodes"]
+            if isinstance(node.get("review"), dict)
+            and node["id"] == "N-FRONTEND-REVIEW"
+        )
+
+        harness_transition._record_review_attempt(
+            plan,
+            run,
+            Namespace(
+                lineage=lineage_id,
+                worker_id="RW-PRE",
+                attempt_id="ATT-PRE",
+                mission_id=None,
+                result="pass",
+                evidence=["exact-head review passed"],
+                finding=None,
+                failure_family_id=None,
+                failure_primitive=None,
+                equivalence_class=None,
+                strategy=None,
+                tree_sha="e" * 40,
+                repo_root=None,
+            ),
+        )
+
+        self.assertEqual("e" * 40, run["review_workers"][0]["tree_sha"])
 
     def test_tree_skip_is_rejected_for_a_malformed_tree_sha(self) -> None:
         plan, run = self.state(reviewed_sha="d" * 40)

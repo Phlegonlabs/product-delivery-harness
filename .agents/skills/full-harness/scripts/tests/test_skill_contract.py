@@ -370,7 +370,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("# Documents", documents_template)
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
-        self.assertIn("render `TASKS.md` at the repository root", skill)
+        self.assertIn("render `docs/goal/tasks.md`", skill)
 
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -449,7 +449,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.16.0"', runbook)
+        self.assertIn('"required_harness_version": "0.17.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

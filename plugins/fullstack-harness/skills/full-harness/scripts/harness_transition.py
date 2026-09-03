@@ -12,13 +12,14 @@ import argparse
 import copy
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from harness_core import plan_digest
+from harness_core import is_full_sha, plan_digest
 from harness_manifest import (
     ManifestError,
     load_plan,
@@ -30,6 +31,139 @@ from select_ready_nodes import GraphSelectionError, select_ready_nodes
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+DEFAULT_LOCK_STALE_MINUTES = 15
+
+
+def _parse_ts(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _lock_age_minutes(run: dict[str, Any]) -> float | None:
+    lock = run.get("run_lock")
+    if not isinstance(lock, dict):
+        return None
+    heartbeat = _parse_ts(lock.get("heartbeat_at"))
+    if heartbeat is None:
+        return None
+    return (datetime.now(timezone.utc) - heartbeat).total_seconds() / 60
+
+
+def _ensure_run_lock_free(run: dict[str, Any], session_id: str | None) -> None:
+    """Refuse to mutate a RUN another live parent session holds.
+
+    A missing lock is the historical behavior and stays valid; a fresh lock
+    with a different session blocks the transition so two parents can never
+    dispatch against the same state.
+    """
+
+    lock = run.get("run_lock")
+    if not isinstance(lock, dict):
+        return
+    holder = lock.get("session_id")
+    if not isinstance(holder, str) or not holder:
+        return
+    if session_id is not None and holder == session_id:
+        return
+    age = _lock_age_minutes(run)
+    if age is not None and age <= DEFAULT_LOCK_STALE_MINUTES:
+        raise ManifestError(
+            f"run lock is held by session {holder!r} "
+            f"(heartbeat {age:.1f}m ago); pass its --session-id or release the lock"
+        )
+
+
+def _acquire_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    _ensure_run_lock_free(run, args.session_id)
+    now = _now()
+    lock = {
+        "session_id": args.session_id,
+        "acquired_at": now,
+        "heartbeat_at": now,
+    }
+    if args.owner:
+        lock["owner"] = args.owner
+    run["run_lock"] = lock
+
+
+def _release_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    lock = run.get("run_lock")
+    if not isinstance(lock, dict):
+        raise ManifestError("run has no lock to release")
+    if lock.get("session_id") != args.session_id:
+        raise ManifestError(
+            f"run lock is held by session {lock.get('session_id')!r}, not {args.session_id!r}"
+        )
+    del run["run_lock"]
+
+
+def _heartbeat_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    lock = run.get("run_lock")
+    if not isinstance(lock, dict):
+        raise ManifestError("run has no lock to heartbeat")
+    if lock.get("session_id") != args.session_id:
+        raise ManifestError(
+            f"run lock is held by session {lock.get('session_id')!r}, not {args.session_id!r}"
+        )
+    lock["heartbeat_at"] = _now()
+
+
+def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
+    lines: list[str] = []
+    age = _lock_age_minutes(run)
+    lock = run.get("run_lock")
+    if isinstance(lock, dict):
+        if age is None:
+            lines.append(
+                f"lock: session {lock.get('session_id')!r} has an unparseable heartbeat; treat as stale and reclaim"
+            )
+        elif age > stale_after:
+            lines.append(
+                f"lock: session {lock.get('session_id')!r} heartbeat is {age:.1f}m old (stale after {stale_after:.0f}m); safe to reclaim"
+            )
+        else:
+            lines.append(f"lock: session {lock.get('session_id')!r} is live ({age:.1f}m)")
+    else:
+        lines.append("lock: none")
+    stale_parent = not isinstance(lock, dict) or age is None or age > stale_after
+    running = [
+        node_id
+        for node_id, state in run.get("graph_state", {}).get("node_states", {}).items()
+        if isinstance(state, dict) and state.get("phase") == "running"
+    ]
+    if running and stale_parent:
+        lines.append(
+            "interrupted-work candidates (no live parent heartbeat): "
+            + ", ".join(sorted(running))
+        )
+        lines.append(
+            "reconcile them with reconcile-interrupted / reconcile-interrupted-reviews after reclaiming the lock"
+        )
+    elif running:
+        lines.append("running nodes (parent live): " + ", ".join(sorted(running)))
+    return lines
+
+
+def _git_tree(repo_root: Path, sha: str) -> str:
+    """Resolve a commit's tree SHA from live Git; the skip proof is real or absent."""
+
+    result = subprocess.run(
+        ["git", "rev-parse", f"{sha}^{{tree}}"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    tree = result.stdout.strip()
+    if result.returncode != 0 or not is_full_sha(tree):
+        raise ManifestError(f"cannot resolve tree SHA for {sha!r} in {repo_root}")
+    return tree
 
 
 def _replace_run_document(path: Path, run: dict[str, Any]) -> None:
@@ -591,6 +725,14 @@ def _record_review_attempt(
             "findings": findings,
         }
     )
+    if args.result == "pass":
+        tree_sha = getattr(args, "tree_sha", None)
+        if tree_sha is None and getattr(args, "repo_root", None) is not None:
+            reviewed = worker.get("reviewed_sha")
+            if is_full_sha(reviewed):
+                tree_sha = _git_tree(args.repo_root, reviewed)
+        if is_full_sha(tree_sha):
+            worker["tree_sha"] = tree_sha
     state.update(
         {
             "phase": {
@@ -618,6 +760,72 @@ def _record_review_attempt(
             edge_state["status"] = "traversed"
             edge_state["traversals"] = traversals + 1
         edge_state["source_attempt_id"] = args.attempt_id
+
+
+def _skip_integration_review(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    node = _review_node(plan, args.node_id)
+    if node["review"].get("stage", "preintegration") != "integration":
+        raise ManifestError("skip-integration-review applies only to integration-stage review nodes")
+    state = run["graph_state"]["node_states"].get(args.node_id)
+    if not isinstance(state, dict):
+        raise ManifestError(f"no graph state for node {args.node_id!r}")
+    if state.get("phase") not in {"dormant", "ready"}:
+        raise ManifestError("integration review is not skippable in its current phase")
+    integration = run.get("integration")
+    head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
+    if not is_full_sha(head):
+        raise ManifestError("skip-integration-review requires a recorded integration_head_sha")
+    if args.repo_root is None:
+        raise ManifestError("skip-integration-review requires --repo-root")
+    graph_nodes = {
+        item.get("id"): item
+        for item in plan.get("graph", {}).get("nodes", [])
+        if isinstance(item, dict)
+    }
+    worker = next(
+        (
+            item
+            for item in run.get("review_workers", [])
+            if isinstance(item, dict)
+            and item.get("worker_id") == args.worker_id
+            and item.get("phase") == "worker_passed"
+            and item.get("outcome") == "pass"
+            and (graph_nodes.get(item.get("node_id")) or {}).get("review", {}).get(
+                "stage", "preintegration"
+            )
+            == "preintegration"
+            and (graph_nodes.get(item.get("node_id")) or {}).get("review", {}).get("type")
+            == node["review"].get("type")
+        ),
+        None,
+    )
+    if worker is None:
+        raise ManifestError(
+            "no passed pre-integration review of the same type matches that worker"
+        )
+    reviewed = worker.get("reviewed_sha")
+    if not is_full_sha(reviewed):
+        raise ManifestError("the matched review worker has no concrete reviewed_sha")
+    head_tree = _git_tree(args.repo_root, head)
+    reviewed_tree = _git_tree(args.repo_root, reviewed)
+    if head_tree != reviewed_tree:
+        raise ManifestError(
+            "integration head tree differs from the reviewed tree; the review must run"
+        )
+    integration["integration_tree_sha"] = head_tree
+    worker.setdefault("tree_sha", reviewed_tree)
+    state.update(
+        {
+            "phase": "skipped",
+            "attempts": 0,
+            "last_attempt_id": None,
+            "last_outcome": None,
+            "bound_worker_id": None,
+            "blockers": [],
+        }
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -662,6 +870,18 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--failure-primitive")
     review.add_argument("--equivalence-class", action="append")
     review.add_argument("--strategy")
+    review.add_argument("--tree-sha")
+    skip = subparsers.add_parser("skip-integration-review")
+    skip.add_argument("--node-id", required=True)
+    skip.add_argument("--worker-id", required=True)
+    for name in ("acquire-run-lock", "release-run-lock", "heartbeat-run-lock"):
+        lock_command = subparsers.add_parser(name)
+        lock_command.add_argument("--session-id", required=True)
+        lock_command.add_argument("--owner")
+    watchdog = subparsers.add_parser("watchdog")
+    watchdog.add_argument("--stale-after-minutes", type=float, default=DEFAULT_LOCK_STALE_MINUTES)
+    watchdog.add_argument("--reclaim", action="store_true")
+    parser.add_argument("--session-id")
     return parser
 
 
@@ -672,6 +892,18 @@ def main(argv: list[str] | None = None) -> int:
         original = load_run(args.run)
         run = copy.deepcopy(original)
         receipt = None
+        report: list[str] | None = None
+        if args.command == "watchdog":
+            report = _watchdog_report(run, args.stale_after_minutes)
+            if args.reclaim:
+                _ensure_run_lock_free(run, args.session_id)
+                run.pop("run_lock", None)
+            else:
+                for line in report:
+                    print(line)
+                return 0
+        else:
+            _ensure_run_lock_free(run, getattr(args, "session_id", None))
         if args.command in {"pause", "resume", "cancel"}:
             _control(run, {"pause": "paused", "resume": "running", "cancel": "cancelled"}[args.command], args.source)
         elif args.command == "grant-review-attempts":
@@ -686,6 +918,14 @@ def main(argv: list[str] | None = None) -> int:
             receipt = _reserve_review_dispatch(
                 plan, run, args, repo_root=args.repo_root
             )
+        elif args.command == "skip-integration-review":
+            _skip_integration_review(plan, run, args)
+        elif args.command == "acquire-run-lock":
+            _acquire_run_lock(run, args)
+        elif args.command == "release-run-lock":
+            _release_run_lock(run, args)
+        elif args.command == "heartbeat-run-lock":
+            _heartbeat_run_lock(run, args)
         else:
             _record_review_attempt(plan, run, args)
         errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
@@ -697,6 +937,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if receipt is not None:
         print(json.dumps(receipt, indent=2))
+    elif report is not None:
+        for line in report:
+            print(line)
     else:
         print(f"updated {args.run} with {args.command}")
     return 0
