@@ -250,6 +250,7 @@ class HarnessV11Tests(unittest.TestCase):
 
             self.assertIn("## Diff (truncated)", packet)
             self.assertIn("REVIEW-M1", packet)
+            self.assertIn('"required_tools": []', packet)
             self.assertNotIn('"harness_plan"', packet)
 
     def test_transition_command_pauses_generated_run(self) -> None:

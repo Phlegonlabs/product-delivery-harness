@@ -301,7 +301,7 @@ status: planned | preserved | blocked
 
 Represent orchestration with three independent axes. Do not encode them as a single mode string.
 
-RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and optional backward-compatible `nested_subagents` and `permission_boundary` objects. Schema v10 requires `runtime_adapter`. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
+RUN records them together under `runtime_capabilities`, along with `max_parallel_workers`, a `platform_lifecycle` object, and optional backward-compatible `nested_subagents`, `permission_boundary`, and `reviewer_tools` objects. Schema v10 requires `runtime_adapter`. `platform_lifecycle` has `owner` (`parent` or `app`), `automatic_retention_cleanup_possible`, and `durable_branch_required_before_unique_work`.
 
 ### Runtime adapter and routing
 
@@ -337,6 +337,32 @@ RUN v11 adds an optional `runtime_adapter.capability_probe` that is valid only f
 ```
 
 Every supplied probe entry has exactly `status` and `evidence`; status is `available`, `unavailable`, or `unobserved`, and evidence is non-empty. A parallel-capable ready/running Codex execution rejects a missing probe or any `unobserved` entry with `capability_snapshot_incomplete`. A sequential route may omit the probe when `sequential_parent` is selected, or provide only the selected driver's required available surfaces; it still cannot claim an app-thread or subagent driver without those facts. When all eight entries are supplied, all six `app_*` entries being available derives `app_threads`; both `direct_*` entries being available derives `subagents`; `sequential_parent` is always derived, and `available_drivers` must equal those derived drivers in Codex priority order. Historical/superseded RUN evidence remains readable, but a resumed parallel route re-probes before launch.
+
+### Reviewer tool capabilities
+
+PLAN review nodes may declare `required_tools`. The supported reviewer tool is currently `chrome_devtools`. Use it for web visual review and any frontend review whose evidence needs the live DOM, console, network, runtime JavaScript, accessibility tree, or rendered interaction. Source-only and backend reviews omit it.
+
+RUN records the selected driver's observation separately from its orchestration capability:
+
+```json
+{
+  "reviewer_tools": {
+    "chrome_devtools": {
+      "status": "available",
+      "provider": "codex",
+      "driver": "subagents",
+      "surface": "raw_cdp",
+      "probe_scope": "reviewer_session",
+      "session_id": "reviewer-probe-01",
+      "evidence": "Fresh reviewer attached to the active tab and Runtime.evaluate returned 2 for 1+1"
+    }
+  }
+}
+```
+
+`status` is `available`, `unavailable`, or `unobserved`. `provider` must be the active host and an available entry's `driver` must be the selected runtime driver. `surface` is provider-specific: Codex uses `raw_cdp`, Claude Code uses `claude_in_chrome`, Pi uses `pi_chrome_devtools`, and an unobserved generic default uses `none`. An available entry requires `probe_scope: reviewer_session` and a non-empty fresh reviewer session ID. Parent-session access, configuration, a package listing, or a launch flag is supporting evidence only; none proves the child surface. The read-only probe child uses the same provider, driver, role, and extension inheritance as the planned reviewer, requires the matching launch authorization, and cannot submit a review verdict or update review state.
+
+The selector defers a node with `reviewer_tool_unobserved:<tool>` until this probe is completed, or `reviewer_tool_unavailable:<tool>` when the probed child lacks it. The dispatch directive and bounded review packet carry the exact requirement and capability evidence. A required browser tool is not silently replaced by retained screenshots, Playwright in another process, or the parent's browser connection. Those remain valid separate evidence only when PLAN does not require reviewer-side Chrome DevTools.
 
 PLAN v6 runtime-worker nodes may add `provider_options` for any provider in their `allowed_providers`. Each option uses the exact keys `model` and `reasoning_effort`. Model is null or a safe token matching `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Reasoning effort is null or one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, and `ultra`; selectable effort is supported for Codex, Claude Code, and Pi, while generic providers keep it null. Pi model remains null because the installed role owns primary-model and fallback selection; a non-null Pi effort changes only that run's thinking tier. The selector chooses the provider first, then attaches its options to one immutable runtime binding. A missing Codex option means the destination default; a missing Claude option means `sonnet`; a missing Pi option preserves the installed Pi role/model/effort configuration. The destination host still validates current model and effort support.
 

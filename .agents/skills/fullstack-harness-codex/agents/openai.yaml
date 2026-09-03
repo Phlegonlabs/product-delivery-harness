@@ -1,6 +1,0 @@
-interface:
-  display_name: "Harness Codex Adapter"
-  short_description: "Run Harness missions from a Codex host"
-  default_prompt: "Use $fullstack-harness-codex after the shared core selects a Codex-hosted managed run; probe app-task and subagent surfaces, launch only exact authorized nodes, and keep all workers and reviewers flat and parent-owned."
-policy:
-  allow_implicit_invocation: true

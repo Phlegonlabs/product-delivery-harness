@@ -57,6 +57,25 @@ def _failure_outcome(node: dict[str, Any]) -> str:
     raise GraphSelectionError(f"runtime node {node['id']} has no workflow failure outcome")
 
 
+def _reviewer_tool_reasons(
+    node: dict[str, Any], runtime: dict[str, Any]
+) -> set[str]:
+    review = node.get("review")
+    if not isinstance(review, dict):
+        return set()
+    capabilities = runtime.get("reviewer_tools")
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+    reasons: set[str] = set()
+    for tool_name in review.get("required_tools", []):
+        capability = capabilities.get(tool_name)
+        if not isinstance(capability, dict) or capability.get("status") == "unobserved":
+            reasons.add(f"reviewer_tool_unobserved:{tool_name}")
+        elif capability.get("status") != "available":
+            reasons.add(f"reviewer_tool_unavailable:{tool_name}")
+    return reasons
+
+
 def _validation_error(kind: str, errors: list[str]) -> GraphSelectionError:
     return GraphSelectionError(
         f"{kind} validation failed:\n" + "\n".join(f"- {error}" for error in errors)
@@ -731,6 +750,8 @@ def _dispatch_reasons(
                 reasons.add("completion_channel_unavailable")
             if observed_runtime.get("available_worker_slots", 0) <= 0:
                 reasons.add("runtime_capacity_unavailable")
+            if node["kind"] == "verifier":
+                reasons.update(_reviewer_tool_reasons(node, runtime))
     if node["kind"] in {"mission", "lifecycle"}:
         # mission nodes spawn workers/commits and lifecycle nodes push or
         # clean up: both mutate real state derived from the parent's current git
@@ -857,9 +878,14 @@ def _directive(
             run["schema_version"],
         ),
     }
+    runtime = run["runtime_capabilities"]
     if node["kind"] == "verifier":
         directive["review"] = node["review"]
-    runtime = run["runtime_capabilities"]
+        required_tools = node["review"].get("required_tools", [])
+        directive["reviewer_tool_capabilities"] = {
+            tool_name: runtime.get("reviewer_tools", {}).get(tool_name)
+            for tool_name in required_tools
+        }
     directive.update(
         {
             "worker_runtime": runtime["worker_runtime"],

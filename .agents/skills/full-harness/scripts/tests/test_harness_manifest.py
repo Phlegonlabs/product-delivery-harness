@@ -1299,6 +1299,24 @@ class DigestTests(unittest.TestCase):
 
 
 class PlanValidationTests(unittest.TestCase):
+    def test_runtime_review_accepts_only_supported_required_tools(self) -> None:
+        plan = valid_plan()
+        review = next(
+            node["review"]
+            for node in plan["graph"]["nodes"]
+            if isinstance(node.get("review"), dict)
+        )
+        review["required_tools"] = ["chrome_devtools"]
+        self.assertEqual([], validate_plan(plan))
+
+        review["required_tools"] = ["browser_magic"]
+        self.assertTrue(
+            any(
+                "unsupported reviewer tools: browser_magic" in error
+                for error in validate_plan(plan)
+            )
+        )
+
     def assert_error_contains(self, plan: dict[str, object], fragment: str) -> None:
         errors = validate_plan(plan)
         self.assertTrue(
@@ -1778,6 +1796,41 @@ class PlanValidationTests(unittest.TestCase):
 
 
 class RunValidationTests(unittest.TestCase):
+    def test_reviewer_tool_capability_requires_a_fresh_provider_session(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["runtime_capabilities"]["reviewer_tools"] = {
+            "chrome_devtools": {
+                "status": "available",
+                "provider": "codex",
+                "driver": "sequential_parent",
+                "surface": "raw_cdp",
+                "probe_scope": "parent_session",
+                "session_id": None,
+                "evidence": "Parent can call CDP, reviewer was not probed",
+            }
+        }
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("available capability requires a reviewer_session probe" in error for error in errors)
+        )
+        self.assertTrue(
+            any("available capability requires a reviewer session id" in error for error in errors)
+        )
+
+        capability = run["runtime_capabilities"]["reviewer_tools"]["chrome_devtools"]
+        capability["probe_scope"] = "reviewer_session"
+        capability["session_id"] = "reviewer-codex-1"
+        self.assertEqual([], validate_run(plan, run))
+
+        capability["driver"] = "subagents"
+        self.assertTrue(
+            any(
+                "available capability must match the selected runtime driver" in error
+                for error in validate_run(plan, run)
+            )
+        )
+
     def test_integration_stage_review_does_not_replace_preintegration_coverage(self) -> None:
         plan = valid_plan()
         for node in plan["graph"]["nodes"]:

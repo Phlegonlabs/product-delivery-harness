@@ -1,6 +1,0 @@
-interface:
-  display_name: "Harness Claude Code Adapter"
-  short_description: "Run Harness missions from a Claude Code host"
-  default_prompt: "Use $fullstack-harness-claude-code after the shared core selects a Claude-hosted managed run; group nodes by tool profile, launch only exact authorized worktrees, and keep all workers and reviewers flat and parent-owned."
-policy:
-  allow_implicit_invocation: true

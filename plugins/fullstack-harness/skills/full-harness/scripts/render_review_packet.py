@@ -73,6 +73,13 @@ def render_packet(
             json.dumps(
                 {
                     "required_evidence": review["required_evidence"],
+                    "required_tools": review.get("required_tools", []),
+                    "reviewer_tool_capabilities": {
+                        tool_name: run.get("runtime_capabilities", {})
+                        .get("reviewer_tools", {})
+                        .get(tool_name)
+                        for tool_name in review.get("required_tools", [])
+                    },
                     "acceptance": acceptance,
                     "failure_families": lineage["failure_families"],
                     "owner_decisions": lineage["owner_decisions"],

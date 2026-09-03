@@ -30,6 +30,10 @@ from harness_schema import (
     PERMISSION_SELECTED_MODES,
     PERMISSION_STATUSES,
     PLAN_HEADING,
+    REVIEWER_TOOL_KEYS,
+    REVIEWER_TOOL_PROBE_SCOPES,
+    REVIEWER_TOOL_STATUSES,
+    REVIEWER_TOOL_SURFACES,
     RUN_DISPATCH_STATUSES,
     RUN_CONTROL_STATES,
     RUN_HEADING,
@@ -3155,7 +3159,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         "run.runtime_capabilities",
         runtime,
         runtime_keys,
-        {"nested_subagents", "permission_boundary"} | runtime_optional_keys,
+        {"nested_subagents", "permission_boundary", "reviewer_tools"}
+        | runtime_optional_keys,
     ):
         if runtime["worker_runtime"] not in {"parent", "subagent", "app_task"}:
             _add(errors, "run.runtime_capabilities.worker_runtime", "has an unsupported value")
@@ -3223,6 +3228,88 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             detection_source = adapter["detection_source"]
             if not isinstance(detection_source, str) or detection_source not in RUNTIME_DETECTION_SOURCES:
                 _add(errors, f"{adapter_path}.detection_source", "has an unsupported value")
+
+            reviewer_tools = runtime.get("reviewer_tools")
+            tools_path = "run.runtime_capabilities.reviewer_tools"
+            if reviewer_tools is not None:
+                if not isinstance(reviewer_tools, dict):
+                    _add(errors, tools_path, "must be an object")
+                else:
+                    unknown_tools = sorted(set(reviewer_tools) - REVIEWER_TOOL_KEYS)
+                    if unknown_tools:
+                        _add(
+                            errors,
+                            tools_path,
+                            f"unsupported reviewer tools: {', '.join(unknown_tools)}",
+                        )
+                    for tool_name, capability in reviewer_tools.items():
+                        capability_path = f"{tools_path}.{tool_name}"
+                        if not _keys(
+                            errors,
+                            capability_path,
+                            capability,
+                            {
+                                "status",
+                                "provider",
+                                "driver",
+                                "surface",
+                                "probe_scope",
+                                "session_id",
+                                "evidence",
+                            },
+                        ):
+                            continue
+                        status = capability["status"]
+                        capability_provider = capability["provider"]
+                        capability_driver = capability["driver"]
+                        surface = capability["surface"]
+                        probe_scope = capability["probe_scope"]
+                        session_id = capability["session_id"]
+                        if status not in REVIEWER_TOOL_STATUSES:
+                            _add(errors, f"{capability_path}.status", "has an unsupported value")
+                        if capability_provider not in RUNTIME_PROVIDERS:
+                            _add(errors, f"{capability_path}.provider", "has an unsupported value")
+                        if capability_driver not in RUNTIME_DRIVERS:
+                            _add(errors, f"{capability_path}.driver", "has an unsupported value")
+                        if surface not in set(REVIEWER_TOOL_SURFACES.values()):
+                            _add(errors, f"{capability_path}.surface", "has an unsupported value")
+                        if probe_scope not in REVIEWER_TOOL_PROBE_SCOPES:
+                            _add(errors, f"{capability_path}.probe_scope", "has an unsupported value")
+                        _optional_string(errors, f"{capability_path}.session_id", session_id)
+                        if not _nonempty_string(capability["evidence"]):
+                            _add(errors, f"{capability_path}.evidence", "must be a non-empty string")
+                        if status == "available":
+                            if capability_provider != provider:
+                                _add(
+                                    errors,
+                                    f"{capability_path}.provider",
+                                    "available capability must match the current runtime provider",
+                                )
+                            if capability_driver != route_runtime_driver(runtime):
+                                _add(
+                                    errors,
+                                    f"{capability_path}.driver",
+                                    "available capability must match the selected runtime driver",
+                                )
+                            expected_surface = REVIEWER_TOOL_SURFACES.get(capability_provider)
+                            if surface != expected_surface:
+                                _add(
+                                    errors,
+                                    f"{capability_path}.surface",
+                                    f"available capability for {capability_provider} requires {expected_surface}",
+                                )
+                            if probe_scope != "reviewer_session":
+                                _add(
+                                    errors,
+                                    f"{capability_path}.probe_scope",
+                                    "available capability requires a reviewer_session probe",
+                                )
+                            if not _nonempty_string(session_id):
+                                _add(
+                                    errors,
+                                    f"{capability_path}.session_id",
+                                    "available capability requires a reviewer session id",
+                                )
 
             version_gate = adapter.get("version_gate")
             version_path = f"{adapter_path}.version_gate"

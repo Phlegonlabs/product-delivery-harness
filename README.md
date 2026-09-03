@@ -49,16 +49,13 @@ The skills can be used independently. You do not need to run the entire pipeline
 | --- | --- | --- |
 | `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, the post-draft market-research gap pass, and the optional UI Design Pass whose web route renders retained high-fidelity HTML references | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
 | `product-design-builder` | Compiling an approved UI Design Handoff into the frozen design-system pair. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
-| `full-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration | Direct work or `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | Top-level Codex tasks with one app-managed worktree per mission and parent-dispatched sibling reviewers | Runtime launch directives and worker results |
-| `fullstack-harness-claude-code` | Claude Dynamic Workflow and parent-managed worktrees | Runtime launch directives and worker results |
-| `fullstack-harness-pi` | Pi subagent roles with Pi-owned model and fallback selection in parent-managed worktrees | Runtime launch directives, resolved-role/model evidence, and worker results |
+| `full-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
 - Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; `tasks.md` is an on-demand human view, not required state.
-- The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core then loads exactly one host adapter; external runtimes are preflighted only when a selected route needs them.
+- The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core then applies exactly one host provider section from the runtime adapter reference; external runtimes are preflighted only when a selected route needs them.
 - Work never waits for remote CI. A run normally finishes with verified local evidence; only an explicit remote outcome moves it to pushing the verified integration head to the run's own branch.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
@@ -73,7 +70,7 @@ flowchart LR
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\nproduct-design-builder when required"]
   Gate -->|"approved, no visual phase"| Harness["full-harness\nShared delivery core"]
   Design -->|"approved HTML references or design-system pair"| Harness
-  Harness --> Runtime["One host adapter\nCodex, Claude Code, or Pi"]
+  Harness --> Runtime["One host provider section\nCodex, Claude Code, Pi, or generic"]
   Runtime --> Evidence["Local tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
@@ -100,7 +97,7 @@ flowchart TB
   Size -->|large| Plan["PLAN v6 + RUN v11<br/>frozen contracts, authorization ledger"]
   Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
   Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
-  Frontier --> Host["One host adapter: codex, claude_code, or pi<br/>no cross-host fallback"]
+  Frontier --> Host["One host provider section: codex, claude_code, pi, or generic<br/>no cross-host fallback"]
   Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
@@ -120,14 +117,14 @@ flowchart TB
 
 ## Lightweight runtime adapters
 
-The shared core owns the one PLAN/RUN control plane. Runtime-specific launch details are loaded lazily:
+The shared core owns the one PLAN/RUN control plane. Host-specific launch details live in one reference — `full-harness/references/runtime-adapters.md` — with a shared adapter contract and one provider section per host, applied lazily:
 
-- A Codex host loads only `fullstack-harness-codex` and executes only `codex`-provider PLAN nodes.
-- A Claude Code host loads only `fullstack-harness-claude-code` and executes only `claude_code`-provider PLAN nodes.
-- A Pi host loads only `fullstack-harness-pi`, executes only `pi`-provider PLAN nodes, and leaves role/model/fallback selection to Pi's installed configuration.
-- No adapter can invoke another runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by the matching adapter.
+- A host applies only its own provider section and executes only PLAN nodes whose `allowed_providers` includes that host.
+- A Pi host leaves role/model/fallback selection to Pi's installed configuration.
+- No provider section can invoke another runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by a matching host.
+- Adding a new runtime host adds one provider section to that reference, not a new skill.
 
-Shared scripts, schemas, references, and templates remain under `full-harness`; adapters link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
+Shared scripts, schemas, references, and templates remain under `full-harness`; the provider sections link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
 
 One run has one active host. A same-repository handoff is allowed only after Host A closes its wave and `RUN.active_wave.status` is neither `active` nor `proposed`; the `active_wave` object remains in RUN, so its absence is not a handoff signal. Host B preserves PLAN/RUN and graph state, re-probes its runtime, and reviews the current exact SHA before selecting the next wave. A repair routes back to Host A and invalidates the old review; cross-machine handoff is unsupported until a future schema adds portable repository/state identity.
 
@@ -255,7 +252,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 
 ## Typical prompts
 
-Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `fullstack-harness-pi` by name.
+Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `full-harness` by name.
 
 ```text
 Use $prd-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
@@ -286,7 +283,7 @@ Use $full-harness to implement this plan and push the verified branch. I will op
 ```
 
 ```text
-Use full-harness with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use full-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
 For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.
@@ -297,15 +294,15 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 | Runtime | Preferred parallel route | Fallback |
 | --- | --- | --- |
-| Codex app (`fullstack-harness-codex`) | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
-| Claude Code (`fullstack-harness-claude-code`) | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
-| Pi (`fullstack-harness-pi`) | Installed Pi roles in parent-managed worktrees, with Pi selecting configured models and fallbacks | One sequential parent |
+| Codex app | App tasks in isolated app-managed worktrees | Direct subagents, then one sequential parent |
+| Claude Code | Dynamic workflow with exact-base parent-managed `.claude/worktrees/` worktrees | Direct subagents, then one sequential parent |
+| Pi | Installed Pi roles in parent-managed worktrees, with Pi selecting configured models and fallbacks | One sequential parent |
 
 On Codex, each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree. The Harness parent separately dispatches any read-only explorer or reviewer as a sibling; a mission task never creates child agents. Coordinator-owned direct subagents do not replace requested top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
 Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA and pass an exact-head read-only review before local integration into the run's own branch. The run defaults to verified local completion; an explicit remote outcome with an exact branch/head grant may push that branch. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
 
-Each adapter runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
+Each provider section runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
 
 Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. One independently testable goal maps to one mission. Every writer gets explicit file ownership and a separate clean exact-base worktree. Shared APIs, schemas, and types freeze before dependent writers fan out. Explorers, writers, and reviewers are parent-dispatched siblings; workers and reviewers never delegate. After exact-head mission review, the parent integrates passing heads serially, starts fresh reviewers on the unified integration head, and then runs one broad final validation on the fixed candidate SHA. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 

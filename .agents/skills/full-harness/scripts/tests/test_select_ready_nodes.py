@@ -27,9 +27,11 @@ from harness_manifest import (  # noqa: E402
 from select_ready_nodes import (  # noqa: E402
     GraphSelectionError,
     _incoming,
+    _dispatch_reasons,
     _logical_reasons,
     _preintegration_review_source_ready,
     _required_actions,
+    _runtime_binding,
     select_ready_nodes,
 )
 from verifier_runtime import execution_key_from_document  # noqa: E402
@@ -524,6 +526,35 @@ def configure_flat_app_task(
 
 
 class SelectReadyNodesTests(unittest.TestCase):
+    def test_required_reviewer_tool_blocks_until_the_reviewer_session_proves_it(self) -> None:
+        plan, run = current_preintegration_review_state()
+        review_node = next(
+            node
+            for node in plan["graph"]["nodes"]
+            if node["id"] == "N-FRONTEND-REVIEW"
+        )
+        review_node["review"]["required_tools"] = ["chrome_devtools"]
+
+        missions = {mission["id"]: mission for mission in plan["missions"]}
+        binding = _runtime_binding(review_node, run["runtime_capabilities"])
+        before = _dispatch_reasons(review_node, binding, plan, run, missions)
+        self.assertIn("reviewer_tool_unobserved:chrome_devtools", before)
+
+        run["runtime_capabilities"]["reviewer_tools"] = {
+            "chrome_devtools": {
+                "status": "available",
+                "provider": "codex",
+                "driver": "subagents",
+                "surface": "raw_cdp",
+                "probe_scope": "reviewer_session",
+                "session_id": "reviewer-codex-1",
+                "evidence": "Fresh reviewer evaluated 1+1 through raw CDP and received 2",
+            }
+        }
+        after = _dispatch_reasons(review_node, binding, plan, run, missions)
+        self.assertNotIn("reviewer_tool_unobserved:chrome_devtools", after)
+        self.assertNotIn("reviewer_tool_unavailable:chrome_devtools", after)
+
     def test_integration_stage_review_waits_for_unified_integration(self) -> None:
         plan, run = current_preintegration_review_state()
         review_node = next(

@@ -114,7 +114,7 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
     "node_id", "attempt_id", "mission_id", "lease_id", "branch_ref", "worktree_path", "failure_outcome", "worker_prompt", "model",
   ];
   const reviewFields = [
-    "node_id", "attempt_id", "review_id", "review_type", "reviewed_sha", "review_path", "review_scope", "required_evidence", "failure_outcome", "worker_prompt", "model",
+    "node_id", "attempt_id", "review_id", "review_type", "reviewed_sha", "review_path", "review_scope", "required_evidence", "required_tools", "reviewer_tool_capabilities", "failure_outcome", "worker_prompt", "model",
   ];
   const requiredFields = node.node_kind === "mission" ? missionFields : reviewFields;
   if (!["mission", "review"].includes(node.node_kind)) {
@@ -144,6 +144,9 @@ const results = await pipeline(workflowArgs.nodes, async (node) => {
       `- Return blocked if EnterWorktree is unavailable or does not enter that exact path.\n` +
       `- Review scope: ${node.review_scope.join(", ")}.\n` +
       `- Required evidence: ${node.required_evidence.join(", ")}.\n` +
+      `- Required reviewer tools: ${node.required_tools.length ? node.required_tools.join(", ") : "none"}.\n` +
+      `- Reviewer tool capability evidence: ${JSON.stringify(node.reviewer_tool_capabilities)}.\n` +
+      `- If a required tool is not exposed inside this reviewer session, return blocked; parent-session access is not enough.\n` +
       `- This is read-only. Do not edit files, create commits or branches, run mutating tools, or delegate.\n` +
       `- Report every blocking finding you can establish in this pass; do not stop after the first finding or repeat the same root cause.\n` +
       `- Put the reviewed SHA, findings, and evidence summary inside worker_result.\n`;

@@ -6,7 +6,7 @@ All new managed work uses PLAN schema v6 plus RUN schema v11 (RUN-v11). Older RU
 
 The System Review And Route stage completes before this file exists. It is parent-only and read-only: no task-specific skill, adapter/model selection, worker preflight, PLAN/RUN creation, external runtime, or worker launch occurs during that stage.
 
-Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. On an observed Codex route that may select two writers, record the complete eight-entry `runtime_adapter.capability_probe`; a provably sequential route records only the facts needed to prove its selected driver. Never run parallel writers in `shared_checkout`.
+Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. On an observed Codex route that may select two writers, record the complete eight-entry `runtime_adapter.capability_probe`; a provably sequential route records only the facts needed to prove its selected driver. For every PLAN review `required_tools` entry, replace the generic `reviewer_tools` placeholder with a fresh reviewer-session probe from the exact selected provider and driver. Never mark a parent-only probe available. Never run parallel writers in `shared_checkout`.
 
 A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony: no fan-out claim, no mandatory `tasks.md` view, no true cross-mission batch gate for one mission, and no inventory of unused parallel drivers. It still proves the selected `runtime_driver`, uses an isolated writer, checks authorization and exact scope/head bindings, and requires the same exact-head review and final gates. Two or more selected safe writers produce `parallel_graph`; this derived route is separate from the runtime transport driver and is never persisted as a PLAN/RUN schema field. New RUN files start at `mode: "local_only"`; only an explicit remote outcome moves to `integration_push`.
 
@@ -67,6 +67,17 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "installed_contract_digest": null,
           "status": "unobserved",
           "evidence": "Runtime and Harness versions have not been observed yet"
+        }
+      },
+      "reviewer_tools": {
+        "chrome_devtools": {
+          "status": "unobserved",
+          "provider": "generic",
+          "driver": "sequential_parent",
+          "surface": "none",
+          "probe_scope": "unobserved",
+          "session_id": null,
+          "evidence": "No fresh reviewer session has probed Chrome DevTools yet"
         }
       },
       "permission_boundary": {
