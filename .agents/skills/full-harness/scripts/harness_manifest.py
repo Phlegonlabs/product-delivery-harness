@@ -457,6 +457,35 @@ def _scope_includes_product_wireframe_source(
     )
 
 
+def _validate_verifier_group(
+    errors: list[str],
+    container_path: str,
+    values: Any,
+    *,
+    selection_scopes: list[str] | None,
+    cache_allowed: bool,
+) -> set[str]:
+    """Run ``_validate_verifier`` over one verifier list and return its IDs.
+
+    The caller owns the empty-list check and any ``has_always`` logic; the
+    returned IDs are meant to be folded into the caller's declared-verifier set.
+    """
+    ids: set[str] = set()
+    for verifier_index, verifier in enumerate(values):
+        _validate_verifier(
+            errors,
+            f"{container_path}[{verifier_index}]",
+            verifier,
+            selection_scopes=selection_scopes,
+            cache_allowed=cache_allowed,
+        )
+        if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
+            if verifier["id"] in ids:
+                _add(errors, f"{container_path}[{verifier_index}].id", "must be unique")
+            ids.add(verifier["id"])
+    return ids
+
+
 def _is_single_mission_v5_without_batch_verifiers(plan: Any) -> bool:
     """Return whether PLAN-v6 has the intentional no-batch singleton shape."""
 
@@ -469,69 +498,12 @@ def _is_single_mission_v5_without_batch_verifiers(plan: Any) -> bool:
     )
 
 
-def validate_plan(
-    plan: dict[str, Any], *, repo_root: str | Path | None = None
-) -> list[str]:
-    """Return deterministic validation errors for a harness_plan object.
-
-    The optional repository binding is intentionally opt-in. Legacy callers
-    and the public shape-only validator retain their historical behavior when
-    ``repo_root`` is omitted.
-    """
-
-    errors: list[str] = []
-    top_keys = {
-        "schema_version",
-        "plan_id",
-        "revision",
-        "objective",
-        "max_parallel_workers",
-        "sources",
-        "traces",
-        "ui_surfaces",
-        "batch_verifiers",
-        "final_gates",
-        "missions",
-    }
-    schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
-    if schema_version in {4, 5, 6}:
-        top_keys.add("graph")
-    # `risks` is retained for older plans; no gate, selector, or scheduler reads
-    # it. `required_reviews` is read below: whatever review types a PLAN lists
-    # there must exist as graph review nodes. It is a self-declared obligation,
-    # so an empty list was always legal and omitting it is the same thing --
-    # actual review coverage comes from the per-mission singleton review nodes
-    # described in `contract-and-traceability.md`, not from this field.
-    plan_optional_keys = {"risks", "required_reviews"}
-    if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
-        return sorted(errors)
-    if plan["schema_version"] not in {2, 3, 4, 5, 6}:
-        _add(errors, "plan.schema_version", "must equal 2 through 6")
-    if not _nonempty_string(plan["plan_id"]):
-        _add(errors, "plan.plan_id", "must be a non-empty string")
-    if not _is_int(plan["revision"]) or plan["revision"] < 1:
-        _add(errors, "plan.revision", "must be a positive integer")
-    if not _nonempty_string(plan["objective"]):
-        _add(errors, "plan.objective", "must be a non-empty string")
-    if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
-        _add(errors, "plan.max_parallel_workers", "must be a positive integer")
-    required_reviews: list[str] = []
-    if schema_version in {4, 5, 6} and "required_reviews" in plan:
-        required_reviews = _strings(
-            errors,
-            "plan.required_reviews",
-            plan["required_reviews"],
-        )
-        if len(required_reviews) != len(set(required_reviews)):
-            _add(errors, "plan.required_reviews", "must not contain duplicates")
-        unknown_reviews = sorted(set(required_reviews) - RUNTIME_REVIEW_TYPES)
-        if unknown_reviews:
-            _add(
-                errors,
-                "plan.required_reviews",
-                f"unsupported review types: {', '.join(unknown_reviews)}",
-            )
-
+def _validate_plan_sources(
+    errors: list[str],
+    plan: dict[str, Any],
+    schema_version: Any,
+) -> dict[str, dict[str, Any]]:
+    """Validate plan.sources and return the id -> source record map."""
     sources: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["sources"], list) or not plan["sources"]:
         _add(errors, "plan.sources", "must be a non-empty list")
@@ -632,7 +604,15 @@ def validate_plan(
             if source_id in sources:
                 _add(errors, f"{path}.id", f"duplicate source ID {source_id!r}")
             sources[source_id] = source
+    return sources
 
+
+def _validate_plan_traces(
+    errors: list[str],
+    plan: dict[str, Any],
+    sources: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Validate plan.traces against the declared sources and return the map."""
     traces: dict[str, dict[str, Any]] = {}
     if not isinstance(plan["traces"], list) or not plan["traces"]:
         _add(errors, "plan.traces", "must be a non-empty list")
@@ -669,7 +649,15 @@ def validate_plan(
                 _add(errors, f"{path}.rationale", "is required when not planned")
             if trace["disposition"] == "planned" and trace["rationale"] is not None and not _nonempty_string(trace["rationale"]):
                 _add(errors, f"{path}.rationale", "must be null or a non-empty string")
+    return traces
 
+
+def _validate_plan_ui_surfaces(
+    errors: list[str],
+    plan: dict[str, Any],
+    traces: dict[str, dict[str, Any]],
+) -> None:
+    """Validate plan.ui_surfaces against the declared traces."""
     if not isinstance(plan["ui_surfaces"], list):
         _add(errors, "plan.ui_surfaces", "must be a list")
     else:
@@ -696,6 +684,9 @@ def validate_plan(
             if surface["evidence_gate"] not in {"required", "optional", "n/a"}:
                 _add(errors, f"{path}.evidence_gate", "has an unsupported value")
 
+
+def _validate_plan_risks(errors: list[str], plan: dict[str, Any]) -> None:
+    """Validate the optional plan.risks list."""
     if "risks" not in plan:
         pass
     elif not isinstance(plan["risks"], list):
@@ -716,6 +707,15 @@ def validate_plan(
             if risk["impact"] not in {"high", "medium", "low"}:
                 _add(errors, f"{path}.impact", "must be high, medium, or low")
 
+
+def _validate_plan_verifier_groups(
+    errors: list[str], plan: dict[str, Any]
+) -> set[str]:
+    """Validate plan.batch_verifiers and plan.final_gates.
+
+    Returns the declared verifier IDs; mission- and task-level sections fold
+    their own IDs into the same set later.
+    """
     declared_verifier_ids: set[str] = set()
     singleton_no_batch = _is_single_mission_v5_without_batch_verifiers(plan)
     # A batch or final gate asks "did the whole candidate regress", so it may
@@ -734,36 +734,43 @@ def validate_plan(
         ):
             _add(errors, f"plan.{group}", "must be a non-empty list")
         else:
-            ids: set[str] = set()
             has_always = False
-            for index, verifier in enumerate(plan[group]):
+            for verifier in plan[group]:
                 if isinstance(verifier, dict):
                     selection = verifier.get("selection")
                     if not isinstance(selection, dict) or selection.get("mode") != "changed_files":
                         has_always = True
-                _validate_verifier(
-                    errors,
-                    f"plan.{group}[{index}]",
-                    verifier,
-                    selection_scopes=plan_write_union or None,
-                    cache_allowed=False,
-                )
-                if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
-                    if verifier["id"] in ids:
-                        _add(errors, f"plan.{group}[{index}].id", "must be unique")
-                    ids.add(verifier["id"])
-                    declared_verifier_ids.add(verifier["id"])
+            group_ids = _validate_verifier_group(
+                errors,
+                f"plan.{group}",
+                plan[group],
+                selection_scopes=plan_write_union or None,
+                cache_allowed=False,
+            )
+            declared_verifier_ids.update(group_ids)
             if plan[group] and not has_always:
                 _add(
                     errors,
                     f"plan.{group}",
                     "must keep at least one always-run verifier; changed-file selection alone cannot prove cross-mission behavior",
                 )
+    return declared_verifier_ids
 
+
+def _validate_plan_missions(
+    errors: list[str],
+    plan: dict[str, Any],
+    traces: dict[str, dict[str, Any]],
+    sources: dict[str, dict[str, Any]],
+    declared_verifier_ids: set[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, tuple[str, dict[str, Any], str]]]:
+    """Validate plan.missions and their verifier groups.
+
+    Returns the id -> mission map and the id -> (mission_id, task, path) task
+    records; mission-level declared verifier IDs are added in place to
+    ``declared_verifier_ids``.
+    """
     missions: dict[str, dict[str, Any]] = {}
-    if not isinstance(plan["missions"], list) or not plan["missions"]:
-        _add(errors, "plan.missions", "must be a non-empty list")
-        return sorted(set(errors))
     mission_keys = {
         "id",
         "alias",
@@ -915,22 +922,16 @@ def validate_plan(
             if not isinstance(values, list) or not values:
                 _add(errors, f"{mission_path}.{verifier_group}", "must be a non-empty list")
             else:
-                ids: set[str] = set()
-                for verifier_index, verifier in enumerate(values):
-                    _validate_verifier(
-                        errors,
-                        f"{mission_path}.{verifier_group}[{verifier_index}]",
-                        verifier,
-                        selection_scopes=(
-                            mission_write if verifier_group == "worker_verifiers" else None
-                        ),
-                        cache_allowed=verifier_group != "integration_verifiers",
-                    )
-                    if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
-                        if verifier["id"] in ids:
-                            _add(errors, f"{mission_path}.{verifier_group}[{verifier_index}].id", "must be unique")
-                        ids.add(verifier["id"])
-                        declared_verifier_ids.add(verifier["id"])
+                mission_verifier_ids = _validate_verifier_group(
+                    errors,
+                    f"{mission_path}.{verifier_group}",
+                    values,
+                    selection_scopes=(
+                        mission_write if verifier_group == "worker_verifiers" else None
+                    ),
+                    cache_allowed=verifier_group != "integration_verifiers",
+                )
+                declared_verifier_ids.update(mission_verifier_ids)
         if not isinstance(mission["tasks"], list) or not mission["tasks"]:
             _add(errors, f"{mission_path}.tasks", "must be a non-empty list")
             continue
@@ -945,7 +946,22 @@ def validate_plan(
             if task_id in task_records:
                 _add(errors, f"{task_path}.id", f"duplicate task ID {task_id!r}")
             task_records[task_id] = (mission_id, task, task_path)
+    return missions, task_records
 
+
+def _validate_plan_tasks(
+    errors: list[str],
+    plan: dict[str, Any],
+    missions: dict[str, dict[str, Any]],
+    task_records: dict[str, tuple[str, dict[str, Any], str]],
+    traces: dict[str, dict[str, Any]],
+    declared_verifier_ids: set[str],
+) -> None:
+    """Validate per-task records, task graph, and planned-trace coverage.
+
+    Task-level declared verifier IDs are added in place to
+    ``declared_verifier_ids``.
+    """
     mission_edges = mission_dependencies(plan)
     for mission_id, mission in missions.items():
         for dependency in mission_edges[mission_id]:
@@ -1080,19 +1096,15 @@ def validate_plan(
         if not isinstance(task["verifiers"], list) or not task["verifiers"]:
             _add(errors, f"{path}.verifiers", "must be a non-empty list")
         else:
-            verifier_ids: set[str] = set()
-            for verifier_index, verifier in enumerate(task["verifiers"]):
-                _validate_verifier(
+            declared_verifier_ids.update(
+                _validate_verifier_group(
                     errors,
-                    f"{path}.verifiers[{verifier_index}]",
-                    verifier,
+                    f"{path}.verifiers",
+                    task["verifiers"],
                     selection_scopes=task_scopes,
+                    cache_allowed=True,
                 )
-                if isinstance(verifier, dict) and isinstance(verifier.get("id"), str):
-                    if verifier["id"] in verifier_ids:
-                        _add(errors, f"{path}.verifiers[{verifier_index}].id", "must be unique")
-                    verifier_ids.add(verifier["id"])
-                    declared_verifier_ids.add(verifier["id"])
+            )
 
     for task_id, dependencies in task_edges.items():
         for dependency in dependencies:
@@ -1122,6 +1134,15 @@ def validate_plan(
                 "an empty acceptance_matrix",
             )
 
+
+def _validate_plan_graph(
+    errors: list[str],
+    plan: dict[str, Any],
+    missions: dict[str, dict[str, Any]],
+    declared_verifier_ids: set[str],
+    required_reviews: list[str],
+) -> None:
+    """Validate the v4+ graph and that required runtime reviews have nodes."""
     if plan["schema_version"] in {4, 5, 6}:
         _validate_graph(
             errors,
@@ -1146,6 +1167,91 @@ def validate_plan(
                 "plan.required_reviews",
                 "missing runtime review nodes: " + ", ".join(missing_reviews),
             )
+
+
+def validate_plan(
+    plan: dict[str, Any], *, repo_root: str | Path | None = None
+) -> list[str]:
+    """Return deterministic validation errors for a harness_plan object.
+
+    The optional repository binding is intentionally opt-in. Legacy callers
+    and the public shape-only validator retain their historical behavior when
+    ``repo_root`` is omitted.
+    """
+
+    errors: list[str] = []
+    top_keys = {
+        "schema_version",
+        "plan_id",
+        "revision",
+        "objective",
+        "max_parallel_workers",
+        "sources",
+        "traces",
+        "ui_surfaces",
+        "batch_verifiers",
+        "final_gates",
+        "missions",
+    }
+    schema_version = plan.get("schema_version") if isinstance(plan, dict) else None
+    if schema_version in {4, 5, 6}:
+        top_keys.add("graph")
+    # `risks` is retained for older plans; no gate, selector, or scheduler reads
+    # it. `required_reviews` is read below: whatever review types a PLAN lists
+    # there must exist as graph review nodes. It is a self-declared obligation,
+    # so an empty list was always legal and omitting it is the same thing --
+    # actual review coverage comes from the per-mission singleton review nodes
+    # described in `contract-and-traceability.md`, not from this field.
+    plan_optional_keys = {"risks", "required_reviews"}
+    if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
+        return sorted(errors)
+    if plan["schema_version"] not in {2, 3, 4, 5, 6}:
+        _add(errors, "plan.schema_version", "must equal 2 through 6")
+    if not _nonempty_string(plan["plan_id"]):
+        _add(errors, "plan.plan_id", "must be a non-empty string")
+    if not _is_int(plan["revision"]) or plan["revision"] < 1:
+        _add(errors, "plan.revision", "must be a positive integer")
+    if not _nonempty_string(plan["objective"]):
+        _add(errors, "plan.objective", "must be a non-empty string")
+    if not _is_int(plan["max_parallel_workers"]) or plan["max_parallel_workers"] < 1:
+        _add(errors, "plan.max_parallel_workers", "must be a positive integer")
+    required_reviews: list[str] = []
+    if schema_version in {4, 5, 6} and "required_reviews" in plan:
+        required_reviews = _strings(
+            errors,
+            "plan.required_reviews",
+            plan["required_reviews"],
+        )
+        if len(required_reviews) != len(set(required_reviews)):
+            _add(errors, "plan.required_reviews", "must not contain duplicates")
+        unknown_reviews = sorted(set(required_reviews) - RUNTIME_REVIEW_TYPES)
+        if unknown_reviews:
+            _add(
+                errors,
+                "plan.required_reviews",
+                f"unsupported review types: {', '.join(unknown_reviews)}",
+            )
+
+    sources = _validate_plan_sources(errors, plan, schema_version)
+
+    traces = _validate_plan_traces(errors, plan, sources)
+
+    _validate_plan_ui_surfaces(errors, plan, traces)
+
+    _validate_plan_risks(errors, plan)
+
+    declared_verifier_ids = _validate_plan_verifier_groups(errors, plan)
+
+    if not isinstance(plan["missions"], list) or not plan["missions"]:
+        _add(errors, "plan.missions", "must be a non-empty list")
+        return sorted(set(errors))
+    missions, task_records = _validate_plan_missions(
+        errors, plan, traces, sources, declared_verifier_ids
+    )
+
+    _validate_plan_tasks(errors, plan, missions, task_records, traces, declared_verifier_ids)
+
+    _validate_plan_graph(errors, plan, missions, declared_verifier_ids, required_reviews)
 
     _validate_global_verifier_ids(errors, plan)
     if plan.get("schema_version") in {5, 6} and repo_root is not None:
@@ -2658,6 +2764,798 @@ def _validate_current_runtime_binding(
         )
 
 
+def _validate_run_attempt_log(
+    errors: list[str],
+    run: dict[str, Any],
+    schema_version: int | None,
+    mission_ids: set[str],
+    task_ids: set[str],
+) -> None:
+    """Validate run.attempt_log (moved verbatim from validate_run)."""
+    if not isinstance(run["attempt_log"], list):
+        _add(errors, "run.attempt_log", "must be a list")
+    else:
+        attempt_keys = {"attempt_id", "mission_id", "task_id", "lease_id", "kind", "result", "evidence"}
+        for index, attempt in enumerate(run["attempt_log"]):
+            path = f"run.attempt_log[{index}]"
+            optional_attempt_keys = (
+                {"review_lineage_id", "failure_family_ids"}
+                if schema_version == 11
+                else set()
+            )
+            if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
+                continue
+            for key in ("attempt_id", "kind", "result"):
+                if not _nonempty_string(attempt[key]):
+                    _add(errors, f"{path}.{key}", "must be a non-empty string")
+            # A final-gate or closeout-gate attempt belongs to no mission, so
+            # mission_id is nullable here rather than laundered through an
+            # arbitrary mission.
+            _optional_string(errors, f"{path}.mission_id", attempt["mission_id"])
+            if attempt["mission_id"] is not None and attempt["mission_id"] not in mission_ids:
+                _add(errors, f"{path}.mission_id", "is unknown")
+            for key in ("task_id", "lease_id"):
+                _optional_string(errors, f"{path}.{key}", attempt[key])
+            if attempt["task_id"] is not None and attempt["task_id"] not in task_ids:
+                _add(errors, f"{path}.task_id", "is unknown")
+            _strings(errors, f"{path}.evidence", attempt["evidence"])
+            if schema_version == 11:
+                _optional_string(errors, f"{path}.review_lineage_id", attempt.get("review_lineage_id"))
+                _strings(errors, f"{path}.failure_family_ids", attempt.get("failure_family_ids", []))
+
+
+
+def _validate_run_observed(
+    errors: list[str],
+    run: dict[str, Any],
+    schema_version: int | None,
+) -> None:
+    """Validate run.observed (moved verbatim from validate_run)."""
+    observed = run["observed"]
+    if _keys(errors, "run.observed", observed, {"captured_at", "git", "runtime"}):
+        _optional_string(errors, "run.observed.captured_at", observed["captured_at"])
+        git = observed["git"]
+        observed_git_keys = {
+            "parent_branch",
+            "parent_head_sha",
+            "parent_dirty",
+            "worktrees",
+        }
+        if schema_version in {5, 6, 7, 8, 9, 10, 11}:
+            observed_git_keys.add("parent_worktree_path")
+        if _keys(
+            errors,
+            "run.observed.git",
+            git,
+            observed_git_keys,
+            {"default_branch"},
+        ):
+            if schema_version in {5, 6, 7, 8, 9, 10, 11}:
+                _optional_string(
+                    errors,
+                    "run.observed.git.parent_worktree_path",
+                    git["parent_worktree_path"],
+                )
+            _optional_string(errors, "run.observed.git.parent_branch", git["parent_branch"])
+            _optional_string(errors, "run.observed.git.default_branch", git.get("default_branch"))
+            _optional_sha(errors, "run.observed.git.parent_head_sha", git["parent_head_sha"])
+            if git["parent_dirty"] is not None and not isinstance(git["parent_dirty"], bool):
+                _add(errors, "run.observed.git.parent_dirty", "must be null or boolean")
+            if not isinstance(git["worktrees"], list):
+                _add(errors, "run.observed.git.worktrees", "must be a list")
+            else:
+                for index, worktree in enumerate(git["worktrees"]):
+                    path = f"run.observed.git.worktrees[{index}]"
+                    if _keys(errors, path, worktree, {"path", "branch_ref", "head_sha", "managed_by", "dirty"}):
+                        if not _nonempty_string(worktree["path"]):
+                            _add(errors, f"{path}.path", "must be a non-empty string")
+                        _optional_string(errors, f"{path}.branch_ref", worktree["branch_ref"])
+                        _optional_sha(errors, f"{path}.head_sha", worktree["head_sha"])
+                        if worktree["managed_by"] not in {"parent", "app"}:
+                            _add(errors, f"{path}.managed_by", "must be parent or app")
+                        if not isinstance(worktree["dirty"], bool):
+                            _add(errors, f"{path}.dirty", "must be boolean")
+        observed_runtime = observed["runtime"]
+        if _keys(errors, "run.observed.runtime", observed_runtime, {"available_worker_slots", "isolation_capacity", "completion_channel_available"}):
+            for key in ("available_worker_slots", "isolation_capacity"):
+                if not _is_int(observed_runtime[key]) or observed_runtime[key] < 0:
+                    _add(errors, f"run.observed.runtime.{key}", "must be a non-negative integer")
+            if not isinstance(observed_runtime["completion_channel_available"], bool):
+                _add(errors, "run.observed.runtime.completion_channel_available", "must be boolean")
+
+
+
+def _validate_run_review_lineages(
+    errors,
+    plan,
+    run,
+    schema_version,
+    mission_ids,
+) -> None:
+    """Moved verbatim from validate_run."""
+    if schema_version == 11:
+        lineage_nodes = {
+            node["review"]["lineage_id"]: node
+            for node in plan.get("graph", {}).get("nodes", [])
+            if isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+            and isinstance(node.get("review"), dict)
+            and isinstance(node["review"].get("lineage_id"), str)
+        }
+        review_lineages = run["review_lineages"]
+        if not isinstance(review_lineages, dict):
+            _add(errors, "run.review_lineages", "must be an object")
+        elif set(review_lineages) != set(lineage_nodes):
+            _add(errors, "run.review_lineages", "keys must exactly match PLAN review lineage IDs")
+        else:
+            consumed_by_lineage: dict[str, int] = {key: 0 for key in lineage_nodes}
+            for attempt in run.get("attempt_log", []):
+                if isinstance(attempt, dict) and attempt.get("review_lineage_id") in consumed_by_lineage:
+                    consumed_by_lineage[attempt["review_lineage_id"]] += 1
+            for lineage_id, lineage in review_lineages.items():
+                path = f"run.review_lineages.{lineage_id}"
+                if not _keys(
+                    errors,
+                    path,
+                    lineage,
+                    {
+                        "review_type",
+                        "mission_ids",
+                        "base_allowance",
+                        "additional_allowance",
+                        "consumed_attempts",
+                        "failure_families",
+                        "owner_decisions",
+                    },
+                ):
+                    continue
+                node = lineage_nodes[lineage_id]
+                if lineage["review_type"] != node["review"]["type"]:
+                    _add(errors, f"{path}.review_type", "must match PLAN review type")
+                if lineage["mission_ids"] != node["review"]["mission_ids"]:
+                    _add(errors, f"{path}.mission_ids", "must match PLAN review mission_ids")
+                for key in ("base_allowance", "additional_allowance", "consumed_attempts"):
+                    if not _is_int(lineage[key]) or lineage[key] < 0:
+                        _add(errors, f"{path}.{key}", "must be a non-negative integer")
+                if lineage["base_allowance"] != node["max_attempts"]:
+                    _add(errors, f"{path}.base_allowance", "must match PLAN node max_attempts")
+                if lineage["consumed_attempts"] != consumed_by_lineage[lineage_id]:
+                    _add(errors, f"{path}.consumed_attempts", "must match attempt_log lineage count")
+                if not isinstance(lineage["failure_families"], list):
+                    _add(errors, f"{path}.failure_families", "must be a list")
+                else:
+                    family_ids: set[str] = set()
+                    for index, family in enumerate(lineage["failure_families"]):
+                        family_path = f"{path}.failure_families[{index}]"
+                        if not _keys(
+                            errors,
+                            family_path,
+                            family,
+                            {"id", "primitive", "equivalence_classes", "strategy", "status"},
+                        ):
+                            continue
+                        if not _nonempty_string(family["id"]) or not ID_RE.fullmatch(family["id"]):
+                            _add(errors, f"{family_path}.id", "must be a flat uppercase identifier")
+                        elif family["id"] in family_ids:
+                            _add(errors, f"{family_path}.id", "must be unique within the lineage")
+                        if isinstance(family.get("id"), str):
+                            family_ids.add(family["id"])
+                        for key in ("primitive", "strategy"):
+                            if not _nonempty_string(family[key]):
+                                _add(errors, f"{family_path}.{key}", "must be a non-empty string")
+                        _strings(errors, f"{family_path}.equivalence_classes", family["equivalence_classes"], nonempty=True)
+                        if family["status"] not in {"open", "repairing", "resolved", "accepted"}:
+                            _add(errors, f"{family_path}.status", "has an unsupported value")
+                if not isinstance(lineage["owner_decisions"], list):
+                    _add(errors, f"{path}.owner_decisions", "must be a list")
+                else:
+                    decision_ids: set[str] = set()
+                    granted = 0
+                    for index, decision in enumerate(lineage["owner_decisions"]):
+                        decision_path = f"{path}.owner_decisions[{index}]"
+                        if not _keys(
+                            errors,
+                            decision_path,
+                            decision,
+                            {
+                                "id",
+                                "source",
+                                "source_ref",
+                                "failure_family_id",
+                                "strategy",
+                                "acceptance_matrix",
+                                "additional_review_attempts",
+                            },
+                        ):
+                            continue
+                        if not _nonempty_string(decision["id"]):
+                            _add(errors, f"{decision_path}.id", "must be a non-empty string")
+                        elif decision["id"] in decision_ids:
+                            _add(errors, f"{decision_path}.id", "must be unique within the lineage")
+                        if isinstance(decision.get("id"), str):
+                            decision_ids.add(decision["id"])
+                        for key in ("source", "strategy"):
+                            if not _nonempty_string(decision[key]):
+                                _add(errors, f"{decision_path}.{key}", "must be a non-empty string")
+                        if (
+                            not _nonempty_string(decision["source_ref"])
+                            or not decision["source_ref"].startswith("user_turn:")
+                            or not decision["source_ref"].removeprefix("user_turn:").strip()
+                        ):
+                            _add(
+                                errors,
+                                f"{decision_path}.source_ref",
+                                "must identify a user turn as user_turn:<id>",
+                            )
+                        if (
+                            isinstance(decision.get("id"), str)
+                            and isinstance(decision.get("source"), str)
+                            and decision["id"].casefold()
+                            not in decision["source"].casefold()
+                        ):
+                            _add(
+                                errors,
+                                f"{decision_path}.source",
+                                "must quote the user approving this exact decision ID",
+                            )
+                        if decision["failure_family_id"] not in family_ids:
+                            _add(
+                                errors,
+                                f"{decision_path}.failure_family_id",
+                                "must reference a retained failure family",
+                            )
+                        _strings(errors, f"{decision_path}.acceptance_matrix", decision["acceptance_matrix"], nonempty=True)
+                        allowance = decision["additional_review_attempts"]
+                        if not _is_int(allowance) or allowance != 1:
+                            _add(errors, f"{decision_path}.additional_review_attempts", "must equal 1")
+                        else:
+                            granted += allowance
+                    if len(lineage["owner_decisions"]) > 1:
+                        _add(
+                            errors,
+                            f"{path}.owner_decisions",
+                            "may contain at most one owner-granted successor",
+                        )
+                    if lineage["owner_decisions"] and lineage["consumed_attempts"] < lineage["base_allowance"]:
+                        _add(
+                            errors,
+                            f"{path}.owner_decisions",
+                            "requires the base review allowance to be exhausted",
+                        )
+                    if granted != lineage["additional_allowance"]:
+                        _add(errors, f"{path}.additional_allowance", "must equal the sum of owner decision grants")
+
+    if schema_version in {10, 11}:
+        _validate_runtime_metrics(errors, run)
+        _validate_verifier_executions(errors, plan, run)
+        _validate_v10_execution_records(errors, plan, run)
+
+
+
+def _validate_run_waves(
+    errors,
+    run,
+    schema_version,
+    mission_ids,
+) -> None:
+    """Moved verbatim from validate_run."""
+    closed_pairs: set[tuple[str, str]] = set()
+    if schema_version in {10, 11}:
+        closed_waves = run["closed_waves"]
+        if not isinstance(closed_waves, list):
+            _add(errors, "run.closed_waves", "must be a list")
+        else:
+            for index, item in enumerate(closed_waves):
+                path = f"run.closed_waves[{index}]"
+                if not _keys(errors, path, item, {"wave_id", "batch_base_sha"}):
+                    continue
+                wave_id = item["wave_id"]
+                batch_base_sha = item["batch_base_sha"]
+                if not _nonempty_string(wave_id):
+                    _add(errors, f"{path}.wave_id", "must be a non-empty string")
+                if not is_full_sha(batch_base_sha):
+                    _add(errors, f"{path}.batch_base_sha", "must be a full Git SHA")
+                if _nonempty_string(wave_id) and is_full_sha(batch_base_sha):
+                    pair = (wave_id, batch_base_sha)
+                    if pair in closed_pairs:
+                        _add(errors, path, "duplicates a closed wave identity")
+                    closed_pairs.add(pair)
+
+    wave = run["active_wave"]
+    wave_keys = {
+        "wave_id",
+        "status",
+        "plan_revision",
+        "plan_digest_sha256",
+        "batch_base_sha",
+        "selected_missions",
+        "deferred_missions",
+        "conflict_edges",
+    }
+    if _keys(errors, "run.active_wave", wave, wave_keys):
+        wave_id = wave["wave_id"]
+        status = wave["status"]
+        batch_base_sha = wave["batch_base_sha"]
+        _optional_string(errors, "run.active_wave.wave_id", wave_id)
+        if status not in {"idle", "proposed", "active", "closed", "superseded"}:
+            _add(errors, "run.active_wave.status", "has an unsupported value")
+        if not _is_int(wave["plan_revision"]) or wave["plan_revision"] < 1:
+            _add(errors, "run.active_wave.plan_revision", "must be positive integer")
+        _optional_sha(errors, "run.active_wave.plan_digest_sha256", wave["plan_digest_sha256"])
+        _optional_sha(errors, "run.active_wave.batch_base_sha", batch_base_sha)
+        if schema_version in {10, 11}:
+            current_pair = (
+                (wave_id, batch_base_sha)
+                if _nonempty_string(wave_id) and is_full_sha(batch_base_sha)
+                else None
+            )
+            if status in {"proposed", "active"}:
+                if current_pair is None:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "proposed or active wave requires wave_id and batch_base_sha",
+                    )
+                elif current_pair in closed_pairs:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "proposed or active wave reuses a closed wave identity; choose a new wave_id or batch_base_sha",
+                    )
+            elif status in {"closed", "superseded"}:
+                if current_pair is None:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "closed or superseded wave requires wave_id and batch_base_sha",
+                    )
+                elif current_pair not in closed_pairs:
+                    _add(
+                        errors,
+                        "run.active_wave",
+                        "closed or superseded wave must be recorded in closed_waves",
+                    )
+        for mission_id in _strings(errors, "run.active_wave.selected_missions", wave["selected_missions"]):
+            if mission_id not in mission_ids:
+                _add(errors, "run.active_wave.selected_missions", f"unknown mission {mission_id!r}")
+        if not isinstance(wave["deferred_missions"], list):
+            _add(errors, "run.active_wave.deferred_missions", "must be a list")
+        else:
+            for index, item in enumerate(wave["deferred_missions"]):
+                path = f"run.active_wave.deferred_missions[{index}]"
+                if _keys(errors, path, item, {"mission_id", "reason_codes", "conflicts_with"}):
+                    if item["mission_id"] not in mission_ids:
+                        _add(errors, f"{path}.mission_id", "is unknown")
+                    _strings(errors, f"{path}.reason_codes", item["reason_codes"], nonempty=True)
+                    _strings(errors, f"{path}.conflicts_with", item["conflicts_with"])
+        if not isinstance(wave["conflict_edges"], list):
+            _add(errors, "run.active_wave.conflict_edges", "must be a list")
+        else:
+            for index, edge in enumerate(wave["conflict_edges"]):
+                path = f"run.active_wave.conflict_edges[{index}]"
+                if _keys(errors, path, edge, {"left", "right", "reason_codes"}):
+                    if edge["left"] not in mission_ids or edge["right"] not in mission_ids:
+                        _add(errors, path, "references an unknown mission")
+                    if edge["left"] >= edge["right"]:
+                        _add(errors, path, "endpoints must be lexical left < right")
+                    _strings(errors, f"{path}.reason_codes", edge["reason_codes"], nonempty=True)
+
+
+
+def _validate_run_workers(
+    errors,
+    plan,
+    run,
+    schema_version,
+    graph_run,
+    runtime,
+    workers,
+    worker_ids,
+    mission_states,
+    mission_ids,
+    wave,
+) -> None:
+    """Moved verbatim from validate_run."""
+    graph_nodes_by_mission = {
+        node.get("ref"): node
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict) and node.get("kind") == "mission"
+    } if plan.get("schema_version") in {4, 5, 6} and isinstance(plan.get("graph"), dict) else {}
+    worker_keys = {
+        "worker_id",
+        "mission_id",
+        "lease_id",
+        "plan_revision",
+        "plan_digest_sha256",
+        "batch_base_sha",
+        "worker_runtime",
+        "workspace_mode",
+        "completion_channel",
+        "task_thread_id",
+        "worktree_path",
+        "branch_ref",
+        "report_path",
+        "phase",
+        "worker_head_sha",
+    }
+    if not isinstance(workers, list):
+        _add(errors, "run.workers", "must be a list")
+    else:
+        for index, worker in enumerate(workers):
+            path = f"run.workers[{index}]"
+            if not _keys(
+                errors,
+                path,
+                worker,
+                worker_keys,
+                {
+                    "nested_subagent_policy",
+                    "nested_review_evidence",
+                    "runtime_binding",
+                },
+            ):
+                continue
+            for key in ("worker_id", "mission_id", "lease_id", "plan_digest_sha256", "batch_base_sha"):
+                if not _nonempty_string(worker[key]):
+                    _add(errors, f"{path}.{key}", "must be a non-empty string")
+            if worker["worker_id"] in worker_ids:
+                _add(errors, f"{path}.worker_id", "must be unique")
+            worker_ids.add(worker["worker_id"])
+            if worker["mission_id"] not in mission_ids:
+                _add(errors, f"{path}.mission_id", "is unknown")
+            if not _is_int(worker["plan_revision"]) or worker["plan_revision"] < 1:
+                _add(errors, f"{path}.plan_revision", "must be positive integer")
+            _optional_sha(errors, f"{path}.plan_digest_sha256", worker["plan_digest_sha256"])
+            _optional_sha(errors, f"{path}.batch_base_sha", worker["batch_base_sha"])
+            _optional_sha(errors, f"{path}.worker_head_sha", worker["worker_head_sha"])
+            if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
+                _add(errors, f"{path}.worker_runtime", "has an unsupported value")
+            if worker["workspace_mode"] not in {"shared_checkout", "parent_managed_worktree", "app_managed_worktree"}:
+                _add(errors, f"{path}.workspace_mode", "has an unsupported value")
+            if worker["completion_channel"] not in {"agent_result", "thread_poll", "report_file", "user_relay"}:
+                _add(errors, f"{path}.completion_channel", "has an unsupported value")
+            for key in ("task_thread_id", "worktree_path", "branch_ref", "report_path"):
+                _optional_string(errors, f"{path}.{key}", worker[key])
+            if worker["phase"] not in WORKER_PHASES:
+                _add(errors, f"{path}.phase", "has an unsupported value")
+            runtime_binding = worker.get("runtime_binding")
+            mission_state = (
+                mission_states.get(worker["mission_id"])
+                if isinstance(mission_states, dict)
+                else None
+            )
+            selected_missions = (
+                wave.get("selected_missions", []) if isinstance(wave, dict) else []
+            )
+            requires_current_host_binding = schema_version == 11 and (
+                worker["phase"] in {"leased", "worker_running"}
+                or (
+                    worker["phase"] == "worker_passed"
+                    and isinstance(wave, dict)
+                    and wave.get("status") in {"proposed", "active"}
+                    and worker["mission_id"] in selected_missions
+                    and isinstance(mission_state, dict)
+                    and mission_state.get("worker_id") == worker["worker_id"]
+                )
+            )
+            if graph_run and worker["mission_id"] in graph_nodes_by_mission and runtime_binding is None:
+                _add(
+                    errors,
+                    f"{path}.runtime_binding",
+                    "is required for a PLAN-v4 graph worker",
+                )
+            if runtime_binding is not None and _keys(
+                errors,
+                f"{path}.runtime_binding",
+                runtime_binding,
+                {
+                    "provider",
+                    "driver",
+                    "source",
+                    "model",
+                    "reasoning_effort",
+                    "option_source",
+                },
+            ):
+                if not is_valid_provider_id(runtime_binding["provider"]):
+                    _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
+                if not _nonempty_string(runtime_binding["driver"]):
+                    _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
+                if runtime_binding["source"] != "host":
+                    _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
+                if runtime_binding["option_source"] not in {
+                    "plan_provider_options",
+                    "provider_default",
+                }:
+                    _add(errors, f"{path}.runtime_binding.option_source", "has an unsupported value")
+                model = runtime_binding["model"]
+                if model is not None and not is_safe_model_token(model):
+                    _add(errors, f"{path}.runtime_binding.model", "must be null or a safe model token")
+                effort = runtime_binding["reasoning_effort"]
+                if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
+                    _add(
+                        errors,
+                        f"{path}.runtime_binding.reasoning_effort",
+                        "must be null or a supported reasoning effort",
+                    )
+                if runtime_binding["provider"] not in {"codex", "claude_code", "pi"} and effort is not None:
+                    _add(
+                        errors,
+                        f"{path}.runtime_binding.reasoning_effort",
+                        "must be null unless the provider supports selectable effort",
+                    )
+                graph_node = graph_nodes_by_mission.get(worker["mission_id"])
+                policy = graph_node.get("runtime") if isinstance(graph_node, dict) else None
+                if isinstance(policy, dict):
+                    binding_provider = runtime_binding["provider"]
+                    if binding_provider not in policy.get("allowed_providers", []):
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.provider",
+                            "must be allowed by the matching PLAN node",
+                        )
+                    expected_options = resolve_runtime_options(policy, binding_provider)
+                    if runtime_binding["model"] != expected_options["model"]:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.model",
+                            "must match the matching PLAN provider option",
+                        )
+                    if (
+                        runtime_binding["reasoning_effort"]
+                        != expected_options["reasoning_effort"]
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.reasoning_effort",
+                            "must match the matching PLAN provider option",
+                        )
+                    if runtime_binding["option_source"] != expected_options["option_source"]:
+                        _add(
+                            errors,
+                            f"{path}.runtime_binding.option_source",
+                            "must identify the matching PLAN option source",
+                        )
+                if requires_current_host_binding:
+                    _validate_current_runtime_binding(
+                        errors,
+                        f"{path}.runtime_binding",
+                        runtime_binding,
+                        runtime,
+                    )
+            if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
+                _add(errors, f"{path}.report_path", "is required for report_file")
+            nested_policy = worker.get("nested_subagent_policy")
+            nested_review_evidence = worker.get("nested_review_evidence")
+            if (
+                schema_version in {6, 7, 8, 9, 10, 11}
+                and isinstance(runtime, dict)
+                and route_runtime_driver(runtime) == "dynamic_workflow"
+                and nested_policy is not None
+            ):
+                _add(
+                    errors,
+                    f"{path}.nested_subagent_policy",
+                    "must be omitted for flat dynamic-workflow orchestration",
+                )
+            if (
+                schema_version in {6, 7, 8, 9}
+                and worker["worker_runtime"] == "app_task"
+                and isinstance(runtime, dict)
+                and "nested_subagents" in runtime
+                and nested_policy is None
+            ):
+                _add(
+                    errors,
+                    f"{path}.nested_subagent_policy",
+                    "is required for app_task workers when runtime nested_subagents is recorded",
+                )
+            if nested_policy is not None and _keys(
+                errors,
+                f"{path}.nested_subagent_policy",
+                nested_policy,
+                {
+                    "enabled",
+                    "max_children",
+                    "allowed_roles",
+                    "write_policy",
+                    "completion_channel",
+                },
+            ):
+                if not isinstance(nested_policy["enabled"], bool):
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.enabled",
+                        "must be boolean",
+                    )
+                if schema_version in {10, 11} and nested_policy["enabled"] is True:
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.enabled",
+                        "must be false because RUN-v11 forbids worker-owned delegation",
+                    )
+                if nested_policy["write_policy"] != "read_only":
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.write_policy",
+                        "must equal read_only",
+                    )
+                if nested_policy["completion_channel"] != "agent_result":
+                    _add(
+                        errors,
+                        f"{path}.nested_subagent_policy.completion_channel",
+                        "must equal agent_result",
+                    )
+                policy_roles = _strings(
+                    errors,
+                    f"{path}.nested_subagent_policy.allowed_roles",
+                    nested_policy["allowed_roles"],
+                    nonempty=bool(nested_policy["enabled"]),
+                )
+                runtime_nested = (
+                    runtime.get("nested_subagents")
+                    if isinstance(runtime, dict)
+                    else None
+                )
+                if nested_policy["enabled"]:
+                    if worker["worker_runtime"] != "app_task":
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "may be true only for app_task workers",
+                        )
+                    if worker["workspace_mode"] != "app_managed_worktree":
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "requires an app_managed_worktree",
+                        )
+                    if not isinstance(runtime_nested, dict) or runtime_nested.get("available") is not True:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "requires an available runtime nested-subagent capability",
+                        )
+                    runtime_limit = (
+                        runtime_nested.get("max_children_per_worker")
+                        if isinstance(runtime_nested, dict)
+                        else None
+                    )
+                    if (
+                        not _is_int(nested_policy["max_children"])
+                        or not 1 <= nested_policy["max_children"] <= 3
+                        or (_is_int(runtime_limit) and nested_policy["max_children"] > runtime_limit)
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.max_children",
+                            "must be 1..3 and not exceed the runtime limit",
+                        )
+                    runtime_roles = (
+                        set(runtime_nested.get("allowed_roles", []))
+                        if isinstance(runtime_nested, dict)
+                        else set()
+                    )
+                    if set(policy_roles) - runtime_roles:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must be a subset of runtime allowed_roles",
+                        )
+                    if (
+                        schema_version in {10, 11}
+                        and "reviewer" not in policy_roles
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must include reviewer when enabled",
+                        )
+                    if not authorization_covers(
+                        run,
+                        "spawn_subagents",
+                        worker["mission_id"],
+                        f"worker:{worker['worker_id']}",
+                        require_exact_target=(schema_version in {10, 11}),
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.enabled",
+                            "requires matching spawn_subagents authorization",
+                        )
+                else:
+                    if nested_policy["max_children"] != 0:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.max_children",
+                            "must equal 0 when disabled",
+                        )
+                    if policy_roles:
+                        _add(
+                            errors,
+                            f"{path}.nested_subagent_policy.allowed_roles",
+                            "must be empty when disabled",
+                        )
+            if nested_review_evidence is not None and _keys(
+                errors,
+                f"{path}.nested_review_evidence",
+                nested_review_evidence,
+                {
+                    "agent_id",
+                    "role",
+                    "task",
+                    "status",
+                    "summary",
+                    "evidence_paths",
+                    "reviewed_sha",
+                    "decision",
+                },
+            ):
+                for key in ("agent_id", "task", "summary"):
+                    if not _nonempty_string(nested_review_evidence[key]):
+                        _add(
+                            errors,
+                            f"{path}.nested_review_evidence.{key}",
+                            "must be a non-empty string",
+                        )
+                if nested_review_evidence["role"] != "reviewer":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.role",
+                        "must equal reviewer",
+                    )
+                if nested_review_evidence["status"] != "completed":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.status",
+                        "must equal completed",
+                    )
+                _strings(
+                    errors,
+                    f"{path}.nested_review_evidence.evidence_paths",
+                    nested_review_evidence["evidence_paths"],
+                )
+                if (
+                    schema_version in {10, 11}
+                    and not is_full_sha(nested_review_evidence["reviewed_sha"])
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        "must be a full lowercase Git SHA",
+                    )
+                else:
+                    _optional_sha(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        nested_review_evidence["reviewed_sha"],
+                    )
+                if nested_review_evidence["decision"] != "PASS":
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.decision",
+                        "must equal PASS",
+                    )
+                if (
+                    is_full_sha(worker["worker_head_sha"])
+                    and nested_review_evidence["reviewed_sha"]
+                    != worker["worker_head_sha"]
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence.reviewed_sha",
+                        "must match worker_head_sha",
+                    )
+                if not (
+                    isinstance(nested_policy, dict)
+                    and nested_policy.get("enabled") is True
+                ):
+                    _add(
+                        errors,
+                        f"{path}.nested_review_evidence",
+                        "is allowed only for an enabled nested-subagent policy",
+                    )
 def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
@@ -3673,58 +4571,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if not isinstance(lifecycle[key], bool):
                     _add(errors, f"run.runtime_capabilities.platform_lifecycle.{key}", "must be boolean")
 
-    observed = run["observed"]
-    if _keys(errors, "run.observed", observed, {"captured_at", "git", "runtime"}):
-        _optional_string(errors, "run.observed.captured_at", observed["captured_at"])
-        git = observed["git"]
-        observed_git_keys = {
-            "parent_branch",
-            "parent_head_sha",
-            "parent_dirty",
-            "worktrees",
-        }
-        if schema_version in {5, 6, 7, 8, 9, 10, 11}:
-            observed_git_keys.add("parent_worktree_path")
-        if _keys(
-            errors,
-            "run.observed.git",
-            git,
-            observed_git_keys,
-            {"default_branch"},
-        ):
-            if schema_version in {5, 6, 7, 8, 9, 10, 11}:
-                _optional_string(
-                    errors,
-                    "run.observed.git.parent_worktree_path",
-                    git["parent_worktree_path"],
-                )
-            _optional_string(errors, "run.observed.git.parent_branch", git["parent_branch"])
-            _optional_string(errors, "run.observed.git.default_branch", git.get("default_branch"))
-            _optional_sha(errors, "run.observed.git.parent_head_sha", git["parent_head_sha"])
-            if git["parent_dirty"] is not None and not isinstance(git["parent_dirty"], bool):
-                _add(errors, "run.observed.git.parent_dirty", "must be null or boolean")
-            if not isinstance(git["worktrees"], list):
-                _add(errors, "run.observed.git.worktrees", "must be a list")
-            else:
-                for index, worktree in enumerate(git["worktrees"]):
-                    path = f"run.observed.git.worktrees[{index}]"
-                    if _keys(errors, path, worktree, {"path", "branch_ref", "head_sha", "managed_by", "dirty"}):
-                        if not _nonempty_string(worktree["path"]):
-                            _add(errors, f"{path}.path", "must be a non-empty string")
-                        _optional_string(errors, f"{path}.branch_ref", worktree["branch_ref"])
-                        _optional_sha(errors, f"{path}.head_sha", worktree["head_sha"])
-                        if worktree["managed_by"] not in {"parent", "app"}:
-                            _add(errors, f"{path}.managed_by", "must be parent or app")
-                        if not isinstance(worktree["dirty"], bool):
-                            _add(errors, f"{path}.dirty", "must be boolean")
-        observed_runtime = observed["runtime"]
-        if _keys(errors, "run.observed.runtime", observed_runtime, {"available_worker_slots", "isolation_capacity", "completion_channel_available"}):
-            for key in ("available_worker_slots", "isolation_capacity"):
-                if not _is_int(observed_runtime[key]) or observed_runtime[key] < 0:
-                    _add(errors, f"run.observed.runtime.{key}", "must be a non-negative integer")
-            if not isinstance(observed_runtime["completion_channel_available"], bool):
-                _add(errors, "run.observed.runtime.completion_channel_available", "must be boolean")
-
+    _validate_run_observed(errors, run, schema_version)
     integration = run["integration"]
     integration_optional_keys = {"retention"}
     integration_prior_heads: set[str] = set()
@@ -3892,509 +4739,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             ):
                 _add(errors, f"{path}.refinement_request", "must be null or an object")
 
-    closed_pairs: set[tuple[str, str]] = set()
-    if schema_version in {10, 11}:
-        closed_waves = run["closed_waves"]
-        if not isinstance(closed_waves, list):
-            _add(errors, "run.closed_waves", "must be a list")
-        else:
-            for index, item in enumerate(closed_waves):
-                path = f"run.closed_waves[{index}]"
-                if not _keys(errors, path, item, {"wave_id", "batch_base_sha"}):
-                    continue
-                wave_id = item["wave_id"]
-                batch_base_sha = item["batch_base_sha"]
-                if not _nonempty_string(wave_id):
-                    _add(errors, f"{path}.wave_id", "must be a non-empty string")
-                if not is_full_sha(batch_base_sha):
-                    _add(errors, f"{path}.batch_base_sha", "must be a full Git SHA")
-                if _nonempty_string(wave_id) and is_full_sha(batch_base_sha):
-                    pair = (wave_id, batch_base_sha)
-                    if pair in closed_pairs:
-                        _add(errors, path, "duplicates a closed wave identity")
-                    closed_pairs.add(pair)
-
+    _validate_run_waves(errors, run, schema_version, mission_ids)
     wave = run["active_wave"]
-    wave_keys = {
-        "wave_id",
-        "status",
-        "plan_revision",
-        "plan_digest_sha256",
-        "batch_base_sha",
-        "selected_missions",
-        "deferred_missions",
-        "conflict_edges",
-    }
-    if _keys(errors, "run.active_wave", wave, wave_keys):
-        wave_id = wave["wave_id"]
-        status = wave["status"]
-        batch_base_sha = wave["batch_base_sha"]
-        _optional_string(errors, "run.active_wave.wave_id", wave_id)
-        if status not in {"idle", "proposed", "active", "closed", "superseded"}:
-            _add(errors, "run.active_wave.status", "has an unsupported value")
-        if not _is_int(wave["plan_revision"]) or wave["plan_revision"] < 1:
-            _add(errors, "run.active_wave.plan_revision", "must be positive integer")
-        _optional_sha(errors, "run.active_wave.plan_digest_sha256", wave["plan_digest_sha256"])
-        _optional_sha(errors, "run.active_wave.batch_base_sha", batch_base_sha)
-        if schema_version in {10, 11}:
-            current_pair = (
-                (wave_id, batch_base_sha)
-                if _nonempty_string(wave_id) and is_full_sha(batch_base_sha)
-                else None
-            )
-            if status in {"proposed", "active"}:
-                if current_pair is None:
-                    _add(
-                        errors,
-                        "run.active_wave",
-                        "proposed or active wave requires wave_id and batch_base_sha",
-                    )
-                elif current_pair in closed_pairs:
-                    _add(
-                        errors,
-                        "run.active_wave",
-                        "proposed or active wave reuses a closed wave identity; choose a new wave_id or batch_base_sha",
-                    )
-            elif status in {"closed", "superseded"}:
-                if current_pair is None:
-                    _add(
-                        errors,
-                        "run.active_wave",
-                        "closed or superseded wave requires wave_id and batch_base_sha",
-                    )
-                elif current_pair not in closed_pairs:
-                    _add(
-                        errors,
-                        "run.active_wave",
-                        "closed or superseded wave must be recorded in closed_waves",
-                    )
-        for mission_id in _strings(errors, "run.active_wave.selected_missions", wave["selected_missions"]):
-            if mission_id not in mission_ids:
-                _add(errors, "run.active_wave.selected_missions", f"unknown mission {mission_id!r}")
-        if not isinstance(wave["deferred_missions"], list):
-            _add(errors, "run.active_wave.deferred_missions", "must be a list")
-        else:
-            for index, item in enumerate(wave["deferred_missions"]):
-                path = f"run.active_wave.deferred_missions[{index}]"
-                if _keys(errors, path, item, {"mission_id", "reason_codes", "conflicts_with"}):
-                    if item["mission_id"] not in mission_ids:
-                        _add(errors, f"{path}.mission_id", "is unknown")
-                    _strings(errors, f"{path}.reason_codes", item["reason_codes"], nonempty=True)
-                    _strings(errors, f"{path}.conflicts_with", item["conflicts_with"])
-        if not isinstance(wave["conflict_edges"], list):
-            _add(errors, "run.active_wave.conflict_edges", "must be a list")
-        else:
-            for index, edge in enumerate(wave["conflict_edges"]):
-                path = f"run.active_wave.conflict_edges[{index}]"
-                if _keys(errors, path, edge, {"left", "right", "reason_codes"}):
-                    if edge["left"] not in mission_ids or edge["right"] not in mission_ids:
-                        _add(errors, path, "references an unknown mission")
-                    if edge["left"] >= edge["right"]:
-                        _add(errors, path, "endpoints must be lexical left < right")
-                    _strings(errors, f"{path}.reason_codes", edge["reason_codes"], nonempty=True)
-
     worker_ids: set[str] = set()
     workers = run["workers"]
-    graph_nodes_by_mission = {
-        node.get("ref"): node
-        for node in plan.get("graph", {}).get("nodes", [])
-        if isinstance(node, dict) and node.get("kind") == "mission"
-    } if plan.get("schema_version") in {4, 5, 6} and isinstance(plan.get("graph"), dict) else {}
-    worker_keys = {
-        "worker_id",
-        "mission_id",
-        "lease_id",
-        "plan_revision",
-        "plan_digest_sha256",
-        "batch_base_sha",
-        "worker_runtime",
-        "workspace_mode",
-        "completion_channel",
-        "task_thread_id",
-        "worktree_path",
-        "branch_ref",
-        "report_path",
-        "phase",
-        "worker_head_sha",
-    }
-    if not isinstance(workers, list):
-        _add(errors, "run.workers", "must be a list")
-    else:
-        for index, worker in enumerate(workers):
-            path = f"run.workers[{index}]"
-            if not _keys(
-                errors,
-                path,
-                worker,
-                worker_keys,
-                {
-                    "nested_subagent_policy",
-                    "nested_review_evidence",
-                    "runtime_binding",
-                },
-            ):
-                continue
-            for key in ("worker_id", "mission_id", "lease_id", "plan_digest_sha256", "batch_base_sha"):
-                if not _nonempty_string(worker[key]):
-                    _add(errors, f"{path}.{key}", "must be a non-empty string")
-            if worker["worker_id"] in worker_ids:
-                _add(errors, f"{path}.worker_id", "must be unique")
-            worker_ids.add(worker["worker_id"])
-            if worker["mission_id"] not in mission_ids:
-                _add(errors, f"{path}.mission_id", "is unknown")
-            if not _is_int(worker["plan_revision"]) or worker["plan_revision"] < 1:
-                _add(errors, f"{path}.plan_revision", "must be positive integer")
-            _optional_sha(errors, f"{path}.plan_digest_sha256", worker["plan_digest_sha256"])
-            _optional_sha(errors, f"{path}.batch_base_sha", worker["batch_base_sha"])
-            _optional_sha(errors, f"{path}.worker_head_sha", worker["worker_head_sha"])
-            if worker["worker_runtime"] not in {"parent", "subagent", "app_task"}:
-                _add(errors, f"{path}.worker_runtime", "has an unsupported value")
-            if worker["workspace_mode"] not in {"shared_checkout", "parent_managed_worktree", "app_managed_worktree"}:
-                _add(errors, f"{path}.workspace_mode", "has an unsupported value")
-            if worker["completion_channel"] not in {"agent_result", "thread_poll", "report_file", "user_relay"}:
-                _add(errors, f"{path}.completion_channel", "has an unsupported value")
-            for key in ("task_thread_id", "worktree_path", "branch_ref", "report_path"):
-                _optional_string(errors, f"{path}.{key}", worker[key])
-            if worker["phase"] not in WORKER_PHASES:
-                _add(errors, f"{path}.phase", "has an unsupported value")
-            runtime_binding = worker.get("runtime_binding")
-            mission_state = (
-                mission_states.get(worker["mission_id"])
-                if isinstance(mission_states, dict)
-                else None
-            )
-            selected_missions = (
-                wave.get("selected_missions", []) if isinstance(wave, dict) else []
-            )
-            requires_current_host_binding = schema_version == 11 and (
-                worker["phase"] in {"leased", "worker_running"}
-                or (
-                    worker["phase"] == "worker_passed"
-                    and isinstance(wave, dict)
-                    and wave.get("status") in {"proposed", "active"}
-                    and worker["mission_id"] in selected_missions
-                    and isinstance(mission_state, dict)
-                    and mission_state.get("worker_id") == worker["worker_id"]
-                )
-            )
-            if graph_run and worker["mission_id"] in graph_nodes_by_mission and runtime_binding is None:
-                _add(
-                    errors,
-                    f"{path}.runtime_binding",
-                    "is required for a PLAN-v4 graph worker",
-                )
-            if runtime_binding is not None and _keys(
-                errors,
-                f"{path}.runtime_binding",
-                runtime_binding,
-                {
-                    "provider",
-                    "driver",
-                    "source",
-                    "model",
-                    "reasoning_effort",
-                    "option_source",
-                },
-            ):
-                if not is_valid_provider_id(runtime_binding["provider"]):
-                    _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
-                if not _nonempty_string(runtime_binding["driver"]):
-                    _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
-                if runtime_binding["source"] != "host":
-                    _add(errors, f"{path}.runtime_binding.source", "has an unsupported value")
-                if runtime_binding["option_source"] not in {
-                    "plan_provider_options",
-                    "provider_default",
-                }:
-                    _add(errors, f"{path}.runtime_binding.option_source", "has an unsupported value")
-                model = runtime_binding["model"]
-                if model is not None and not is_safe_model_token(model):
-                    _add(errors, f"{path}.runtime_binding.model", "must be null or a safe model token")
-                effort = runtime_binding["reasoning_effort"]
-                if effort is not None and effort not in RUNTIME_REASONING_EFFORTS:
-                    _add(
-                        errors,
-                        f"{path}.runtime_binding.reasoning_effort",
-                        "must be null or a supported reasoning effort",
-                    )
-                if runtime_binding["provider"] not in {"codex", "claude_code", "pi"} and effort is not None:
-                    _add(
-                        errors,
-                        f"{path}.runtime_binding.reasoning_effort",
-                        "must be null unless the provider supports selectable effort",
-                    )
-                graph_node = graph_nodes_by_mission.get(worker["mission_id"])
-                policy = graph_node.get("runtime") if isinstance(graph_node, dict) else None
-                if isinstance(policy, dict):
-                    binding_provider = runtime_binding["provider"]
-                    if binding_provider not in policy.get("allowed_providers", []):
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding.provider",
-                            "must be allowed by the matching PLAN node",
-                        )
-                    expected_options = resolve_runtime_options(policy, binding_provider)
-                    if runtime_binding["model"] != expected_options["model"]:
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding.model",
-                            "must match the matching PLAN provider option",
-                        )
-                    if (
-                        runtime_binding["reasoning_effort"]
-                        != expected_options["reasoning_effort"]
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding.reasoning_effort",
-                            "must match the matching PLAN provider option",
-                        )
-                    if runtime_binding["option_source"] != expected_options["option_source"]:
-                        _add(
-                            errors,
-                            f"{path}.runtime_binding.option_source",
-                            "must identify the matching PLAN option source",
-                        )
-                if requires_current_host_binding:
-                    _validate_current_runtime_binding(
-                        errors,
-                        f"{path}.runtime_binding",
-                        runtime_binding,
-                        runtime,
-                    )
-            if worker["completion_channel"] == "report_file" and not _nonempty_string(worker["report_path"]):
-                _add(errors, f"{path}.report_path", "is required for report_file")
-            nested_policy = worker.get("nested_subagent_policy")
-            nested_review_evidence = worker.get("nested_review_evidence")
-            if (
-                schema_version in {6, 7, 8, 9, 10, 11}
-                and isinstance(runtime, dict)
-                and route_runtime_driver(runtime) == "dynamic_workflow"
-                and nested_policy is not None
-            ):
-                _add(
-                    errors,
-                    f"{path}.nested_subagent_policy",
-                    "must be omitted for flat dynamic-workflow orchestration",
-                )
-            if (
-                schema_version in {6, 7, 8, 9}
-                and worker["worker_runtime"] == "app_task"
-                and isinstance(runtime, dict)
-                and "nested_subagents" in runtime
-                and nested_policy is None
-            ):
-                _add(
-                    errors,
-                    f"{path}.nested_subagent_policy",
-                    "is required for app_task workers when runtime nested_subagents is recorded",
-                )
-            if nested_policy is not None and _keys(
-                errors,
-                f"{path}.nested_subagent_policy",
-                nested_policy,
-                {
-                    "enabled",
-                    "max_children",
-                    "allowed_roles",
-                    "write_policy",
-                    "completion_channel",
-                },
-            ):
-                if not isinstance(nested_policy["enabled"], bool):
-                    _add(
-                        errors,
-                        f"{path}.nested_subagent_policy.enabled",
-                        "must be boolean",
-                    )
-                if schema_version in {10, 11} and nested_policy["enabled"] is True:
-                    _add(
-                        errors,
-                        f"{path}.nested_subagent_policy.enabled",
-                        "must be false because RUN-v11 forbids worker-owned delegation",
-                    )
-                if nested_policy["write_policy"] != "read_only":
-                    _add(
-                        errors,
-                        f"{path}.nested_subagent_policy.write_policy",
-                        "must equal read_only",
-                    )
-                if nested_policy["completion_channel"] != "agent_result":
-                    _add(
-                        errors,
-                        f"{path}.nested_subagent_policy.completion_channel",
-                        "must equal agent_result",
-                    )
-                policy_roles = _strings(
-                    errors,
-                    f"{path}.nested_subagent_policy.allowed_roles",
-                    nested_policy["allowed_roles"],
-                    nonempty=bool(nested_policy["enabled"]),
-                )
-                runtime_nested = (
-                    runtime.get("nested_subagents")
-                    if isinstance(runtime, dict)
-                    else None
-                )
-                if nested_policy["enabled"]:
-                    if worker["worker_runtime"] != "app_task":
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.enabled",
-                            "may be true only for app_task workers",
-                        )
-                    if worker["workspace_mode"] != "app_managed_worktree":
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.enabled",
-                            "requires an app_managed_worktree",
-                        )
-                    if not isinstance(runtime_nested, dict) or runtime_nested.get("available") is not True:
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.enabled",
-                            "requires an available runtime nested-subagent capability",
-                        )
-                    runtime_limit = (
-                        runtime_nested.get("max_children_per_worker")
-                        if isinstance(runtime_nested, dict)
-                        else None
-                    )
-                    if (
-                        not _is_int(nested_policy["max_children"])
-                        or not 1 <= nested_policy["max_children"] <= 3
-                        or (_is_int(runtime_limit) and nested_policy["max_children"] > runtime_limit)
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.max_children",
-                            "must be 1..3 and not exceed the runtime limit",
-                        )
-                    runtime_roles = (
-                        set(runtime_nested.get("allowed_roles", []))
-                        if isinstance(runtime_nested, dict)
-                        else set()
-                    )
-                    if set(policy_roles) - runtime_roles:
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.allowed_roles",
-                            "must be a subset of runtime allowed_roles",
-                        )
-                    if (
-                        schema_version in {10, 11}
-                        and "reviewer" not in policy_roles
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.allowed_roles",
-                            "must include reviewer when enabled",
-                        )
-                    if not authorization_covers(
-                        run,
-                        "spawn_subagents",
-                        worker["mission_id"],
-                        f"worker:{worker['worker_id']}",
-                        require_exact_target=(schema_version in {10, 11}),
-                    ):
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.enabled",
-                            "requires matching spawn_subagents authorization",
-                        )
-                else:
-                    if nested_policy["max_children"] != 0:
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.max_children",
-                            "must equal 0 when disabled",
-                        )
-                    if policy_roles:
-                        _add(
-                            errors,
-                            f"{path}.nested_subagent_policy.allowed_roles",
-                            "must be empty when disabled",
-                        )
-            if nested_review_evidence is not None and _keys(
-                errors,
-                f"{path}.nested_review_evidence",
-                nested_review_evidence,
-                {
-                    "agent_id",
-                    "role",
-                    "task",
-                    "status",
-                    "summary",
-                    "evidence_paths",
-                    "reviewed_sha",
-                    "decision",
-                },
-            ):
-                for key in ("agent_id", "task", "summary"):
-                    if not _nonempty_string(nested_review_evidence[key]):
-                        _add(
-                            errors,
-                            f"{path}.nested_review_evidence.{key}",
-                            "must be a non-empty string",
-                        )
-                if nested_review_evidence["role"] != "reviewer":
-                    _add(
-                        errors,
-                        f"{path}.nested_review_evidence.role",
-                        "must equal reviewer",
-                    )
-                if nested_review_evidence["status"] != "completed":
-                    _add(
-                        errors,
-                        f"{path}.nested_review_evidence.status",
-                        "must equal completed",
-                    )
-                _strings(
-                    errors,
-                    f"{path}.nested_review_evidence.evidence_paths",
-                    nested_review_evidence["evidence_paths"],
-                )
-                if (
-                    schema_version in {10, 11}
-                    and not is_full_sha(nested_review_evidence["reviewed_sha"])
-                ):
-                    _add(
-                        errors,
-                        f"{path}.nested_review_evidence.reviewed_sha",
-                        "must be a full lowercase Git SHA",
-                    )
-                else:
-                    _optional_sha(
-                        errors,
-                        f"{path}.nested_review_evidence.reviewed_sha",
-                        nested_review_evidence["reviewed_sha"],
-                    )
-                if nested_review_evidence["decision"] != "PASS":
-                    _add(
-                        errors,
-                        f"{path}.nested_review_evidence.decision",
-                        "must equal PASS",
-                    )
-                if (
-                    is_full_sha(worker["worker_head_sha"])
-                    and nested_review_evidence["reviewed_sha"]
-                    != worker["worker_head_sha"]
-                ):
-                    _add(
-                        errors,
-                        f"{path}.nested_review_evidence.reviewed_sha",
-                        "must match worker_head_sha",
-                    )
-                if not (
-                    isinstance(nested_policy, dict)
-                    and nested_policy.get("enabled") is True
-                ):
-                    _add(
-                        errors,
-                        f"{path}.nested_review_evidence",
-                        "is allowed only for an enabled nested-subagent policy",
-                    )
-
+    _validate_run_workers(
+        errors, plan, run, schema_version, graph_run, runtime, workers,
+        worker_ids, mission_states, mission_ids, wave,
+    )
     if graph_run:
         review_workers = run["review_workers"]
         review_nodes = {
@@ -4951,196 +5303,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"run.mission_states.{mission_id}.integration_gate",
                     "transition to integrating requires every planned pre-integration review node and current-head review worker to retain an exact-head PASS",
                 )
-
-    if not isinstance(run["attempt_log"], list):
-        _add(errors, "run.attempt_log", "must be a list")
-    else:
-        attempt_keys = {"attempt_id", "mission_id", "task_id", "lease_id", "kind", "result", "evidence"}
-        for index, attempt in enumerate(run["attempt_log"]):
-            path = f"run.attempt_log[{index}]"
-            optional_attempt_keys = (
-                {"review_lineage_id", "failure_family_ids"}
-                if schema_version == 11
-                else set()
-            )
-            if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
-                continue
-            for key in ("attempt_id", "kind", "result"):
-                if not _nonempty_string(attempt[key]):
-                    _add(errors, f"{path}.{key}", "must be a non-empty string")
-            # A final-gate or closeout-gate attempt belongs to no mission, so
-            # mission_id is nullable here rather than laundered through an
-            # arbitrary mission.
-            _optional_string(errors, f"{path}.mission_id", attempt["mission_id"])
-            if attempt["mission_id"] is not None and attempt["mission_id"] not in mission_ids:
-                _add(errors, f"{path}.mission_id", "is unknown")
-            for key in ("task_id", "lease_id"):
-                _optional_string(errors, f"{path}.{key}", attempt[key])
-            if attempt["task_id"] is not None and attempt["task_id"] not in task_ids:
-                _add(errors, f"{path}.task_id", "is unknown")
-            _strings(errors, f"{path}.evidence", attempt["evidence"])
-            if schema_version == 11:
-                _optional_string(errors, f"{path}.review_lineage_id", attempt.get("review_lineage_id"))
-                _strings(errors, f"{path}.failure_family_ids", attempt.get("failure_family_ids", []))
-
-    if schema_version == 11:
-        lineage_nodes = {
-            node["review"]["lineage_id"]: node
-            for node in plan.get("graph", {}).get("nodes", [])
-            if isinstance(node, dict)
-            and node.get("kind") == "verifier"
-            and node.get("executor") == "runtime_worker"
-            and isinstance(node.get("review"), dict)
-            and isinstance(node["review"].get("lineage_id"), str)
-        }
-        review_lineages = run["review_lineages"]
-        if not isinstance(review_lineages, dict):
-            _add(errors, "run.review_lineages", "must be an object")
-        elif set(review_lineages) != set(lineage_nodes):
-            _add(errors, "run.review_lineages", "keys must exactly match PLAN review lineage IDs")
-        else:
-            consumed_by_lineage: dict[str, int] = {key: 0 for key in lineage_nodes}
-            for attempt in run.get("attempt_log", []):
-                if isinstance(attempt, dict) and attempt.get("review_lineage_id") in consumed_by_lineage:
-                    consumed_by_lineage[attempt["review_lineage_id"]] += 1
-            for lineage_id, lineage in review_lineages.items():
-                path = f"run.review_lineages.{lineage_id}"
-                if not _keys(
-                    errors,
-                    path,
-                    lineage,
-                    {
-                        "review_type",
-                        "mission_ids",
-                        "base_allowance",
-                        "additional_allowance",
-                        "consumed_attempts",
-                        "failure_families",
-                        "owner_decisions",
-                    },
-                ):
-                    continue
-                node = lineage_nodes[lineage_id]
-                if lineage["review_type"] != node["review"]["type"]:
-                    _add(errors, f"{path}.review_type", "must match PLAN review type")
-                if lineage["mission_ids"] != node["review"]["mission_ids"]:
-                    _add(errors, f"{path}.mission_ids", "must match PLAN review mission_ids")
-                for key in ("base_allowance", "additional_allowance", "consumed_attempts"):
-                    if not _is_int(lineage[key]) or lineage[key] < 0:
-                        _add(errors, f"{path}.{key}", "must be a non-negative integer")
-                if lineage["base_allowance"] != node["max_attempts"]:
-                    _add(errors, f"{path}.base_allowance", "must match PLAN node max_attempts")
-                if lineage["consumed_attempts"] != consumed_by_lineage[lineage_id]:
-                    _add(errors, f"{path}.consumed_attempts", "must match attempt_log lineage count")
-                if not isinstance(lineage["failure_families"], list):
-                    _add(errors, f"{path}.failure_families", "must be a list")
-                else:
-                    family_ids: set[str] = set()
-                    for index, family in enumerate(lineage["failure_families"]):
-                        family_path = f"{path}.failure_families[{index}]"
-                        if not _keys(
-                            errors,
-                            family_path,
-                            family,
-                            {"id", "primitive", "equivalence_classes", "strategy", "status"},
-                        ):
-                            continue
-                        if not _nonempty_string(family["id"]) or not ID_RE.fullmatch(family["id"]):
-                            _add(errors, f"{family_path}.id", "must be a flat uppercase identifier")
-                        elif family["id"] in family_ids:
-                            _add(errors, f"{family_path}.id", "must be unique within the lineage")
-                        if isinstance(family.get("id"), str):
-                            family_ids.add(family["id"])
-                        for key in ("primitive", "strategy"):
-                            if not _nonempty_string(family[key]):
-                                _add(errors, f"{family_path}.{key}", "must be a non-empty string")
-                        _strings(errors, f"{family_path}.equivalence_classes", family["equivalence_classes"], nonempty=True)
-                        if family["status"] not in {"open", "repairing", "resolved", "accepted"}:
-                            _add(errors, f"{family_path}.status", "has an unsupported value")
-                if not isinstance(lineage["owner_decisions"], list):
-                    _add(errors, f"{path}.owner_decisions", "must be a list")
-                else:
-                    decision_ids: set[str] = set()
-                    granted = 0
-                    for index, decision in enumerate(lineage["owner_decisions"]):
-                        decision_path = f"{path}.owner_decisions[{index}]"
-                        if not _keys(
-                            errors,
-                            decision_path,
-                            decision,
-                            {
-                                "id",
-                                "source",
-                                "source_ref",
-                                "failure_family_id",
-                                "strategy",
-                                "acceptance_matrix",
-                                "additional_review_attempts",
-                            },
-                        ):
-                            continue
-                        if not _nonempty_string(decision["id"]):
-                            _add(errors, f"{decision_path}.id", "must be a non-empty string")
-                        elif decision["id"] in decision_ids:
-                            _add(errors, f"{decision_path}.id", "must be unique within the lineage")
-                        if isinstance(decision.get("id"), str):
-                            decision_ids.add(decision["id"])
-                        for key in ("source", "strategy"):
-                            if not _nonempty_string(decision[key]):
-                                _add(errors, f"{decision_path}.{key}", "must be a non-empty string")
-                        if (
-                            not _nonempty_string(decision["source_ref"])
-                            or not decision["source_ref"].startswith("user_turn:")
-                            or not decision["source_ref"].removeprefix("user_turn:").strip()
-                        ):
-                            _add(
-                                errors,
-                                f"{decision_path}.source_ref",
-                                "must identify a user turn as user_turn:<id>",
-                            )
-                        if (
-                            isinstance(decision.get("id"), str)
-                            and isinstance(decision.get("source"), str)
-                            and decision["id"].casefold()
-                            not in decision["source"].casefold()
-                        ):
-                            _add(
-                                errors,
-                                f"{decision_path}.source",
-                                "must quote the user approving this exact decision ID",
-                            )
-                        if decision["failure_family_id"] not in family_ids:
-                            _add(
-                                errors,
-                                f"{decision_path}.failure_family_id",
-                                "must reference a retained failure family",
-                            )
-                        _strings(errors, f"{decision_path}.acceptance_matrix", decision["acceptance_matrix"], nonempty=True)
-                        allowance = decision["additional_review_attempts"]
-                        if not _is_int(allowance) or allowance != 1:
-                            _add(errors, f"{decision_path}.additional_review_attempts", "must equal 1")
-                        else:
-                            granted += allowance
-                    if len(lineage["owner_decisions"]) > 1:
-                        _add(
-                            errors,
-                            f"{path}.owner_decisions",
-                            "may contain at most one owner-granted successor",
-                        )
-                    if lineage["owner_decisions"] and lineage["consumed_attempts"] < lineage["base_allowance"]:
-                        _add(
-                            errors,
-                            f"{path}.owner_decisions",
-                            "requires the base review allowance to be exhausted",
-                        )
-                    if granted != lineage["additional_allowance"]:
-                        _add(errors, f"{path}.additional_allowance", "must equal the sum of owner decision grants")
-
-    if schema_version in {10, 11}:
-        _validate_runtime_metrics(errors, run)
-        _validate_verifier_executions(errors, plan, run)
-        _validate_v10_execution_records(errors, plan, run)
-
+    _validate_run_attempt_log(errors, run, schema_version, mission_ids, task_ids)
+    _validate_run_review_lineages(errors, plan, run, schema_version, mission_ids)
     if schema_version in {9, 10, 11}:
         _validate_gate_results(
             errors,

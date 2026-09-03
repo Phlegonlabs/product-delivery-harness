@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from typing import Any
@@ -142,10 +143,51 @@ def _incoming(plan: dict[str, Any]) -> tuple[dict[str, list[dict[str, Any]]], di
     return dependencies, routes
 
 
+@dataclass
+class _SelectionContext:
+    """Indexes built once per selection pass instead of once per node."""
+
+    nodes_by_id: dict[str, dict[str, Any]]
+    workers_by_mission: dict[Any, list[dict[str, Any]]]
+    review_workers_by_node: dict[Any, list[dict[str, Any]]]
+
+
+def _group_records(records: Any, key: str) -> dict[Any, list[dict[str, Any]]]:
+    """Group list records by a field, preserving their original order per key.
+
+    The linear scans these indexes replace all took the FIRST matching
+    record, so each per-key list keeps scan order and lookups still take the
+    first match. Records with an unhashable key can never equal a hashable
+    lookup key and are skipped rather than crashing the index build.
+    """
+    grouped: dict[Any, list[dict[str, Any]]] = {}
+    if not isinstance(records, list):
+        return grouped
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        try:
+            grouped.setdefault(record.get(key), []).append(record)
+        except TypeError:
+            continue
+    return grouped
+
+
+def _selection_context(
+    plan: dict[str, Any], run: dict[str, Any]
+) -> _SelectionContext:
+    return _SelectionContext(
+        nodes_by_id={node["id"]: node for node in plan["graph"]["nodes"]},
+        workers_by_mission=_group_records(run.get("workers"), "mission_id"),
+        review_workers_by_node=_group_records(run.get("review_workers"), "node_id"),
+    )
+
+
 def _preintegration_review_source_ready(
     node: dict[str, Any],
     source_node: dict[str, Any] | None,
     run: dict[str, Any],
+    context: _SelectionContext | None = None,
 ) -> bool:
     review = node.get("review")
     if (
@@ -174,13 +216,16 @@ def _preintegration_review_source_ready(
     )
     if not isinstance(source_state, dict) or source_state.get("phase") != "running":
         return False
+    workers_by_mission = (
+        context.workers_by_mission
+        if context is not None
+        else _group_records(run.get("workers"), "mission_id")
+    )
     matching_worker = next(
         (
             worker
-            for worker in run.get("workers", [])
-            if isinstance(worker, dict)
-            and worker.get("worker_id") == mission_state.get("worker_id")
-            and worker.get("mission_id") == source_node["ref"]
+            for worker in workers_by_mission.get(source_node["ref"], [])
+            if worker.get("worker_id") == mission_state.get("worker_id")
         ),
         None,
     )
@@ -199,16 +244,14 @@ def _preintegration_review_source_ready(
 
 def _preintegration_review_head_matches_current(
     node: dict[str, Any],
-    plan: dict[str, Any],
     run: dict[str, Any],
     dependencies: dict[str, list[dict[str, Any]]],
+    context: _SelectionContext,
 ) -> bool | None:
     state = run["graph_state"]["node_states"][node["id"]]
     if state.get("attempts", 0) == 0:
         return None
-    nodes_by_id = {
-        graph_node["id"]: graph_node for graph_node in plan["graph"]["nodes"]
-    }
+    nodes_by_id = context.nodes_by_id
     ready_sources = [
         nodes_by_id[edge["from"]]
         for edge in dependencies[node["id"]]
@@ -216,6 +259,7 @@ def _preintegration_review_head_matches_current(
             node,
             nodes_by_id.get(edge["from"]),
             run,
+            context,
         )
     ]
     if len(ready_sources) != 1:
@@ -225,10 +269,8 @@ def _preintegration_review_head_matches_current(
     prior_review = next(
         (
             worker
-            for worker in run.get("review_workers", [])
-            if isinstance(worker, dict)
-            and worker.get("node_id") == node["id"]
-            and worker.get("attempt_id") == state.get("last_attempt_id")
+            for worker in context.review_workers_by_node.get(node["id"], [])
+            if worker.get("attempt_id") == state.get("last_attempt_id")
         ),
         None,
     )
@@ -238,7 +280,9 @@ def _preintegration_review_head_matches_current(
 
 
 def _current_review_result_matches_worker(
-    node: dict[str, Any], run: dict[str, Any]
+    node: dict[str, Any],
+    run: dict[str, Any],
+    context: _SelectionContext | None = None,
 ) -> bool | None:
     """Check the current runtime-review node against its bound worker result.
 
@@ -280,14 +324,16 @@ def _current_review_result_matches_worker(
         ) in {"fix_required", "blocked", "retryable_failure", "contract_gap"}:
             return None
         return False
-    review_workers = run.get("review_workers")
+    review_workers_by_node = (
+        context.review_workers_by_node
+        if context is not None
+        else _group_records(run.get("review_workers"), "node_id")
+    )
     current_worker = next(
         (
             worker
-            for worker in (review_workers if isinstance(review_workers, list) else [])
-            if isinstance(worker, dict)
-            and worker.get("node_id") == node.get("id")
-            and worker.get("worker_id") == worker_id
+            for worker in review_workers_by_node.get(node.get("id"), [])
+            if worker.get("worker_id") == worker_id
             and worker.get("attempt_id") == attempt_id
         ),
         None,
@@ -363,7 +409,7 @@ def _incoming_route_matched(
     dependencies: dict[str, list[dict[str, Any]]],
     routes: dict[str, list[dict[str, Any]]],
     node_states: dict[str, Any],
-    nodes_by_id: dict[str, Any],
+    context: _SelectionContext,
 ) -> bool | None:
     """Whether an incoming route has activated this node.
 
@@ -377,6 +423,7 @@ def _incoming_route_matched(
         return None
     state = run["graph_state"]["node_states"][node_id]
     edge_states = run["graph_state"]["edge_states"]
+    nodes_by_id = context.nodes_by_id
     for edge in incoming_routes:
         source = node_states[edge["from"]]
         edge_state = edge_states[edge["id"]]
@@ -387,7 +434,7 @@ def _incoming_route_matched(
             and source["phase"] in {"succeeded", "failed", "blocked"}
             and (
                 not isinstance(source_node, dict)
-                or _current_review_result_matches_worker(source_node, run) is not False
+                or _current_review_result_matches_worker(source_node, run, context) is not False
             )
             and (bound is None or edge_state["traversals"] < bound)
         ):
@@ -398,6 +445,7 @@ def _incoming_route_matched(
                 node,
                 nodes_by_id.get(edge["from"]),
                 run,
+                context,
             )
             and (bound is None or edge_state["traversals"] < bound)
         ):
@@ -407,6 +455,7 @@ def _incoming_route_matched(
             node,
             nodes_by_id.get(edge["from"]),
             run,
+            context,
         )
         for edge in dependencies[node_id]
     ):
@@ -420,15 +469,20 @@ def _logical_reasons(
     run: dict[str, Any],
     dependencies: dict[str, list[dict[str, Any]]],
     routes: dict[str, list[dict[str, Any]]],
+    context: _SelectionContext | None = None,
 ) -> list[str]:
+    if context is None:
+        # Direct callers (the unit tests) build the indexes on demand, while
+        # select_ready_nodes passes one shared context for the whole pass.
+        context = _selection_context(plan, run)
     reasons: set[str] = set()
     node_id = node["id"]
     state = run["graph_state"]["node_states"][node_id]
     preintegration_head_matches = _preintegration_review_head_matches_current(
         node,
-        plan,
         run,
         dependencies,
+        context,
     )
     stale_preintegration_pass = (
         state["phase"] == "succeeded"
@@ -436,12 +490,8 @@ def _logical_reasons(
         and preintegration_head_matches is False
     )
     node_states = run["graph_state"]["node_states"]
-    nodes_by_id = {
-        graph_node["id"]: graph_node
-        for graph_node in plan["graph"]["nodes"]
-    }
     route_matched = _incoming_route_matched(
-        node, run, dependencies, routes, node_states, nodes_by_id
+        node, run, dependencies, routes, node_states, context
     )
     review = node.get("review")
     lineage_exhausted = False
@@ -455,7 +505,7 @@ def _logical_reasons(
         if isinstance(lineage, dict):
             allowance = lineage.get("base_allowance", 0) + lineage.get("additional_allowance", 0)
             lineage_exhausted = lineage.get("consumed_attempts", 0) >= allowance
-    if _current_review_result_matches_worker(node, run) is False:
+    if _current_review_result_matches_worker(node, run, context) is False:
         reasons.add("review_result_dissent")
     # A post-integration review that returned fix_required parks in `failed`.
     # Once its bounded repair route completes and routes back, the review has to
@@ -505,8 +555,9 @@ def _logical_reasons(
             or source["last_outcome"] != "pass"
         ) and not _preintegration_review_source_ready(
             node,
-            nodes_by_id.get(edge["from"]),
+            context.nodes_by_id.get(edge["from"]),
             run,
+            context,
         ):
             reasons.add("dependency_not_satisfied")
 
@@ -915,6 +966,7 @@ def select_ready_nodes(
     dependencies, routes = _incoming(plan)
     levels = _node_levels(plan)
     missions = {mission["id"]: mission for mission in plan["missions"]}
+    context = _selection_context(plan, run)
     nodes = sorted(
         plan["graph"]["nodes"],
         key=lambda node: (
@@ -930,7 +982,7 @@ def select_ready_nodes(
     reconciliation_reasons = _resume_reconciliation_reasons(run)
     for node in nodes:
         reasons = sorted(
-            set(_logical_reasons(node, plan, run, dependencies, routes))
+            set(_logical_reasons(node, plan, run, dependencies, routes, context))
             | set(reconciliation_reasons)
         )
         if reasons:
