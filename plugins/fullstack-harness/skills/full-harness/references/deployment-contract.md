@@ -46,7 +46,7 @@ After the run's authorized push, or after the user lands a change on the default
 
 ## Recording The Model In A Repository
 
-The seeded `AGENTS.md`/`CLAUDE.md` deployment section is the durable record agents follow: platform, mode, production branch, preview mechanism, production URL, deployed-commit check, and protected resources. Keep it filled from the live project; an unfilled section means the deployment model is unknown, not "deploy however".
+Two records carry the model. `DEPLOYMENT.md` at the repository root, seeded during PRD creation from `assets/templates/DEPLOYMENT.template.md`, is the detailed instance: the platform record, the human setup checklist (git connection, environments, verification access), and the environment status table. The seeded `AGENTS.md`/`CLAUDE.md` deployment section is the governance summary agents follow: platform, mode, production branch, preview mechanism, production URL, deployed-commit check, and protected resources. Keep both filled from the live project; an unfilled record means the deployment model is unknown, not "deploy whatever".
 
 ## Moving Between Platforms
 

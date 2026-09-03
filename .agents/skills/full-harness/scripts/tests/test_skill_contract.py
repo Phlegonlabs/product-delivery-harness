@@ -340,6 +340,21 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "runtime adapter reference (Claude Code section)", project_claude
         )
+        deployment_template = self.read("assets/templates/DEPLOYMENT.template.md")
+        documents_template = self.read("assets/templates/DOCUMENTS.template.md")
+
+        self.assertIn("## Human Setup Checklist", deployment_template)
+        self.assertIn("### Git connection", deployment_template)
+        self.assertIn(
+            "the Harness never performs, triggers, or reconfigures them",
+            deployment_template,
+        )
+        self.assertIn("## Environment Status", deployment_template)
+        self.assertIn("`DEPLOYMENT.md` at the repository root", contract)
+        self.assertIn("# Documents", documents_template)
+        self.assertIn("non-canonical view of RUN", documents_template)
+        self.assertIn("`docs/product/`", documents_template)
+        self.assertIn("render `TASKS.md` at the repository root", skill)
 
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -418,7 +433,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.13.0"', runbook)
+        self.assertIn('"required_harness_version": "0.14.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
