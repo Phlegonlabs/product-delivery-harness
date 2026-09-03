@@ -253,6 +253,20 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertIn('"required_tools": []', packet)
             self.assertNotIn('"harness_plan"', packet)
 
+            for node in plan["graph"]["nodes"]:
+                if isinstance(node.get("review"), dict):
+                    node["review"]["stage"] = "integration"
+            integration_packet = render_packet(
+                plan, run, "N-REVIEW-M1", root, max_diff_bytes=64
+            )
+
+            self.assertNotIn("## Integration focus", packet)
+            self.assertIn("## Already-reviewed mission heads", integration_packet)
+            self.assertIn("(passed exact-head pre-integration review)", integration_packet)
+            self.assertIn("## Integration focus", integration_packet)
+            self.assertIn("merge seams", integration_packet)
+            self.assertIn("cross-mission interaction", integration_packet)
+
     def test_transition_command_pauses_generated_run(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             run_path = Path(temp) / "RUN.md"

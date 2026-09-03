@@ -3719,6 +3719,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         integration_optional_keys.add("prior_head_shas")
     if schema_version == 11:
         integration_optional_keys.add("coordination_paths")
+        integration_optional_keys.add("integration_tree_sha")
     if _keys(
         errors,
         "run.integration",
@@ -3729,6 +3730,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         _optional_string(errors, "run.integration.branch", integration["branch"])
         _optional_sha(errors, "run.integration.batch_base_sha", integration["batch_base_sha"])
         _optional_sha(errors, "run.integration.integration_head_sha", integration["integration_head_sha"])
+        if schema_version == 11:
+            _optional_sha(
+                errors, "run.integration.integration_tree_sha", integration.get("integration_tree_sha")
+            )
         if schema_version in {10, 11} and "prior_head_shas" in integration:
             integration_prior_heads = _validated_sha_history(
                 errors,
@@ -4414,7 +4419,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         else:
             for index, worker in enumerate(review_workers):
                 path = f"run.review_workers[{index}]"
-                if not _keys(errors, path, worker, review_worker_keys):
+                if not _keys(errors, path, worker, review_worker_keys, {"tree_sha"}):
                     continue
                 for key in (
                     "worker_id",
@@ -4426,6 +4431,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 ):
                     if not _nonempty_string(worker[key]):
                         _add(errors, f"{path}.{key}", "must be a non-empty string")
+                _optional_sha(errors, f"{path}.tree_sha", worker.get("tree_sha"))
                 if worker["worker_id"] in worker_ids:
                     _add(errors, f"{path}.worker_id", "must be unique across all workers")
                 worker_ids.add(worker["worker_id"])

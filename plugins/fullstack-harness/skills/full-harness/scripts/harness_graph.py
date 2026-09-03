@@ -649,14 +649,17 @@ def _add_integration_review_skip_errors(
     run: dict[str, Any],
     graph_nodes: dict[str, Any],
 ) -> None:
-    """An integration-stage review may be skipped only on an exact SHA match.
+    """An integration-stage review may be skipped only on a byte-identical tree.
 
     Re-dispatching a reviewer against a commit that a pre-integration review
     already passed reads a byte-identical tree and reaches the same verdict, and
     a reviewer dispatch is one of the most expensive steps in a run. Skipping it
-    is safe only when the integration head IS that reviewed commit: same SHA,
-    same review type. Any other integration head is a different tree, so the
-    "did the combination break" question is real and the review must run.
+    is safe in exactly two cases: the integration head IS that reviewed commit,
+    or it is a merge commit whose recorded ``integration_tree_sha`` equals the
+    reviewed commit's recorded ``tree_sha`` — same bytes, same verdict. In both
+    cases the PASS must be the same review type. Any other integration head has
+    a tree no earlier PASS covers, so the "did the combination break" question
+    is real and the review must run.
 
     Without this check ``skipped`` carried no justification at all, so this both
     enables the short-circuit and closes that hole.
@@ -672,14 +675,17 @@ def _add_integration_review_skip_errors(
         )
         return
 
+    integration_tree = (
+        integration.get("integration_tree_sha") if isinstance(integration, dict) else None
+    )
+    tree_bound = is_full_sha(integration_tree)
+
     review_type = node["review"].get("type")
     review_workers = run.get("review_workers")
     for worker in review_workers if isinstance(review_workers, list) else []:
         if not isinstance(worker, dict):
             continue
         if worker.get("phase") != "worker_passed" or worker.get("outcome") != "pass":
-            continue
-        if worker.get("reviewed_sha") != head:
             continue
         source = graph_nodes.get(worker.get("node_id"))
         if not isinstance(source, dict) or not isinstance(source.get("review"), dict):
@@ -688,13 +694,20 @@ def _add_integration_review_skip_errors(
             continue
         if source["review"].get("type") != review_type:
             continue
-        return
+        if worker.get("reviewed_sha") == head:
+            return
+        if (
+            tree_bound
+            and is_full_sha(worker.get("tree_sha"))
+            and worker["tree_sha"] == integration_tree
+        ):
+            return
 
     _add(
         errors,
         state_path,
         "skipped integration review requires a pre-integration PASS of the same"
-        " review type on the exact integration head",
+        " review type on the exact integration head or a byte-identical tree",
     )
 
 

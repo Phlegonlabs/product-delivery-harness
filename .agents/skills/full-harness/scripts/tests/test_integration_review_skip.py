@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""An integration-stage review may be skipped only on an exact SHA match."""
+"""An integration-stage review may be skipped only on a byte-identical tree."""
 
 from __future__ import annotations
 
@@ -99,6 +99,41 @@ class IntegrationReviewSkipTests(unittest.TestCase):
         plan, run = self.state(reviewed_sha=HEAD)
         run["integration"]["integration_head_sha"] = None
 
+        self.assertTrue(self.skip_errors(plan, run))
+
+    def test_skip_is_accepted_when_the_tree_is_byte_identical(self) -> None:
+        # A merge commit integration of one mission has a new SHA but the
+        # same tree as the reviewed commit; there are no new bytes to read.
+        plan, run = self.state(reviewed_sha="d" * 40)
+        run["integration"]["integration_tree_sha"] = "e" * 40
+        run["review_workers"][0]["tree_sha"] = "e" * 40
+
+        self.assertEqual([], self.skip_errors(plan, run))
+
+    def test_tree_skip_is_rejected_when_the_trees_differ(self) -> None:
+        plan, run = self.state(reviewed_sha="d" * 40)
+        run["integration"]["integration_tree_sha"] = "e" * 40
+        run["review_workers"][0]["tree_sha"] = "f" * 40
+
+        self.assertTrue(self.skip_errors(plan, run))
+
+    def test_tree_skip_is_rejected_without_the_recorded_integration_tree(self) -> None:
+        # Without integration_tree_sha the validator cannot bind the skip;
+        # a parent-claimed worker tree_sha alone proves nothing.
+        plan, run = self.state(reviewed_sha="d" * 40)
+        run["review_workers"][0]["tree_sha"] = "e" * 40
+
+        self.assertTrue(self.skip_errors(plan, run))
+
+    def test_tree_skip_is_rejected_for_a_malformed_tree_sha(self) -> None:
+        plan, run = self.state(reviewed_sha="d" * 40)
+        run["integration"]["integration_tree_sha"] = "not-a-sha"
+        run["review_workers"][0]["tree_sha"] = "e" * 40
+
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("integration_tree_sha" in error for error in errors), errors
+        )
         self.assertTrue(self.skip_errors(plan, run))
 
     def test_skip_is_rejected_when_the_prior_review_did_not_pass(self) -> None:

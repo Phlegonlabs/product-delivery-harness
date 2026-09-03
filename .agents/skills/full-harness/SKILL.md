@@ -155,7 +155,7 @@ Apply this only to large plan-backed work:
 9. Render `WORKER_GOAL.template.md`; attach only the host contract and result fields that mission needs.
 10. Validate returned identity, changed files, scope, verifier evidence, atomic task-commit attribution, commit order, and ancestry against live Git.
 11. Require one exact-head pre-integration reviewer per applicable surface for every mission. Render its bounded packet with `scripts/render_review_packet.py`; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Group related findings into one root-cause failure family before repair. If another variant of that family appears after repair, stop example-by-example patching and require one structural repair with a complete acceptance matrix or return `REFINEMENT_REQUEST` / `contract_gap`. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it. A web `visual` review declares `required_tools: ["chrome_devtools"]`. A `frontend_code` review declares it when DOM state, console, network, runtime JavaScript, accessibility, or rendered behavior is part of its evidence. Backend-only and source-only reviews do not acquire a browser requirement. The selector defers a required tool as `reviewer_tool_unobserved:<tool>` or `reviewer_tool_unavailable:<tool>`; never replace the missing reviewer tool with the parent's browser session.
-12. Dispatch one planned parent-owned read-only reviewer per applicable integration surface against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate. The unified-head review is the final synthesis; do not dispatch another same-scope review while the SHA is unchanged.
+12. Dispatch one planned parent-owned read-only reviewer per applicable integration surface against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate. The unified-head review is the final synthesis; do not dispatch another same-scope review while the SHA is unchanged. Skip the unified dispatch when that head's tree is byte-identical to a tree an already-passed pre-integration review of the same type covers — the reviewed commit itself, or a merge commit with the same tree — and record the node as `skipped` with both tree SHAs.
 
 Managed runs carry no wall-time percentage target. The objective is to stop paying for the same work twice: repeated reviewer dispatches, repeated deterministic verifier runs, needless serialization, and finished work waiting on a slower sibling. Follow `references/runtime-performance.md`. Removing repetition never licenses weakening authorization, exact-head review, evidence, or final validation, and no reduction may be claimed without a comparable measured baseline.
 
@@ -195,7 +195,7 @@ Use the verification ladder:
 1. focused task and worker checks selected from parent-observed changed files using `selection.mode: "changed_files"`;
 2. exact-head mission review;
 3. mission integration and interaction checks;
-4. fresh exact-SHA unified review;
+4. fresh exact-SHA unified review, skipped when its tree is byte-identical to an already-passed review's tree;
 5. one final applicable set of broad regression, browser E2E, breakpoint-by-state UI evidence, visual, and migration checks;
 6. `git diff --check` and complete final-diff review.
 

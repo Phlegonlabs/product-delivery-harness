@@ -58,53 +58,76 @@ def render_packet(
     ]
     summary = _git(repo_root, "diff", "--stat", f"{base}..{head}").strip()
     changed = _git(repo_root, "diff", "--name-only", f"{base}..{head}").strip()
-    return "\n".join(
-        [
-            f"# Review packet: {node_id}",
+    packet_lines = [
+        f"# Review packet: {node_id}",
+        "",
+        f"- Reviewed head: `{head}`",
+        f"- Base: `{base}`",
+        f"- Lineage: `{review['lineage_id']}` ({lineage['consumed_attempts']}/{lineage['base_allowance'] + lineage['additional_allowance']} consumed)",
+        f"- Scope: {', '.join(review['scope'])}",
+    ]
+    if review.get("stage") == "integration":
+        reviewed_heads = []
+        for mission in missions:
+            mission_head = (
+                run.get("mission_states", {}).get(mission["id"], {}).get("head_sha")
+            )
+            if isinstance(mission_head, str) and mission_head:
+                reviewed_heads.append(
+                    f"- `{mission['id']}`: `{mission_head}`"
+                    " (passed exact-head pre-integration review)"
+                )
+        if reviewed_heads:
+            packet_lines += ["", "## Already-reviewed mission heads", "", *reviewed_heads]
+        packet_lines += [
             "",
-            f"- Reviewed head: `{head}`",
-            f"- Base: `{base}`",
-            f"- Lineage: `{review['lineage_id']}` ({lineage['consumed_attempts']}/{lineage['base_allowance'] + lineage['additional_allowance']} consumed)",
-            f"- Scope: {', '.join(review['scope'])}",
+            "## Integration focus",
             "",
-            "## Contract",
-            "",
-            "```json",
-            json.dumps(
-                {
-                    "required_evidence": review["required_evidence"],
-                    "required_tools": review.get("required_tools", []),
-                    "reviewer_tool_capabilities": {
-                        tool_name: run.get("runtime_capabilities", {})
-                        .get("reviewer_tools", {})
-                        .get(tool_name)
-                        for tool_name in review.get("required_tools", [])
-                    },
-                    "acceptance": acceptance,
-                    "failure_families": lineage["failure_families"],
-                    "owner_decisions": lineage["owner_decisions"],
-                },
-                indent=2,
-                ensure_ascii=False,
-            ),
-            "```",
-            "",
-            "## Changed files",
-            "",
-            changed or "(none)",
-            "",
-            "## Diff stat",
-            "",
-            summary or "(none)",
-            "",
-            f"## Diff{' (truncated)' if truncated else ''}",
-            "",
-            "```diff",
-            diff.rstrip(),
-            "```",
-            "",
+            "Each covered mission's content already passed its own exact-head"
+            " pre-integration review. Focus this pass on what combination"
+            " changed: merge seams, conflict resolutions, cross-mission"
+            " interaction, and shared-contract boundaries.",
         ]
-    )
+    packet_lines += [
+        "",
+        "## Contract",
+        "",
+        "```json",
+        json.dumps(
+            {
+                "required_evidence": review["required_evidence"],
+                "required_tools": review.get("required_tools", []),
+                "reviewer_tool_capabilities": {
+                    tool_name: run.get("runtime_capabilities", {})
+                    .get("reviewer_tools", {})
+                    .get(tool_name)
+                    for tool_name in review.get("required_tools", [])
+                },
+                "acceptance": acceptance,
+                "failure_families": lineage["failure_families"],
+                "owner_decisions": lineage["owner_decisions"],
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        "```",
+        "",
+        "## Changed files",
+        "",
+        changed or "(none)",
+        "",
+        "## Diff stat",
+        "",
+        summary or "(none)",
+        "",
+        f"## Diff{' (truncated)' if truncated else ''}",
+        "",
+        "```diff",
+        diff.rstrip(),
+        "```",
+        "",
+    ]
+    return "\n".join(packet_lines)
 
 
 def main(argv: list[str] | None = None) -> int:
