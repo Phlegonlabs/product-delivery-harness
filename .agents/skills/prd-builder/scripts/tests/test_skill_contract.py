@@ -1366,6 +1366,121 @@ async function agent(_prompt, options) {
         )
         self.assertIn("five against a four-question cap drops exactly one", skill)
 
+    def test_browser_extension_is_a_supported_archetype(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+        architecture = self.read("references/architecture-playbook.md")
+        frontend = self.read("references/frontend-stack-selection.md")
+
+        self.assertIn(
+            "web app, mobile app, desktop app, browser extension, internal tool",
+            skill,
+        )
+        self.assertIn(
+            "browser extension, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)",
+            interview,
+        )
+        self.assertIn(
+            "not a separate `AskUserQuestion` platform question", interview
+        )
+        self.assertIn(
+            "An extension also skips the deployment-platform question", interview
+        )
+        self.assertIn(
+            "or a browser-extension surface, whose release path is an app store, a signed installer, or a browser add-on store",
+            interview,
+        )
+        self.assertIn("## Browser Extension Pattern", architecture)
+        for marker in (
+            "Manifest V3",
+            "service worker",
+            "Content scripts",
+            "extension pages",
+            "Permissions model",
+            "chrome.runtime",
+            "Chrome Web Store",
+        ):
+            self.assertIn(marker, architecture)
+        self.assertIn("## Browser Extension Stacks", frontend)
+        for marker in ("CRXJS", "WXT", "UI framework: optional", "Manifest V3"):
+            self.assertIn(marker, frontend)
+
+    def test_market_research_findings_can_land_in_stack_decisions(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/market-research-guide.md")
+
+        self.assertIn(
+            "Evidence that strengthens or contradicts a named technology choice",
+            guide,
+        )
+        self.assertIn(
+            "`stack-decisions.md` `Frontend Technology Decision`, "
+            "`Mobile/Desktop Technology Decision`, or `Backend and Data Technology Decision` "
+            "table (Why It Fits), citing the `MR-*` ID",
+            guide,
+        )
+        self.assertIn(
+            "| An alternative the market evidence speaks to | "
+            "`stack-decisions.md` shared `Alternatives Considered` table",
+            guide,
+        )
+        self.assertIn(
+            "including evidence that strengthens or contradicts a "
+            "`stack-decisions.md` layer row or alternative",
+            skill,
+        )
+
+    def test_architecture_contract_has_frontend_and_backend_sections(self) -> None:
+        contract = self.read("references/output-contract.md")
+
+        component = contract.index("## Component Architecture")
+        frontend = contract.index("## Frontend Architecture")
+        backend = contract.index("## Backend Architecture")
+        data_model = contract.index("## Data Model")
+        self.assertLess(component, frontend)
+        self.assertLess(frontend, backend)
+        self.assertLess(backend, data_model)
+
+        architecture_block = contract[component:data_model]
+        for marker in (
+            "surface composition",
+            "state and data-fetch approach",
+            "routing",
+            "build/bundling",
+            "`stack-decisions.md`",
+        ):
+            self.assertIn(marker, architecture_block)
+        self.assertIn("Omit this section only when the product ships no frontend", architecture_block)
+        self.assertIn("service boundaries, API style, data access, and background jobs", architecture_block)
+        self.assertIn("one line stating that there is no backend and why", architecture_block)
+
+    def test_provisional_stack_rows_gate_publication(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn(
+            "every `stack-decisions.md` layer row must be `Required`, `Selected`, or `Recommended`",
+            skill,
+        )
+        self.assertIn(
+            "a `Provisional` row blocks publication until it is resolved with the user "
+            "or the user explicitly accepts it as `Provisional`",
+            skill,
+        )
+        self.assertIn(
+            "that acceptance is recorded in `stack-decisions.md`", skill
+        )
+        self.assertIn(
+            "Before publishing, every `stack-decisions.md` layer row is "
+            "`Required`, `Selected`, or `Recommended`",
+            contract,
+        )
+        self.assertIn(
+            "explicitly accepted it as `Provisional`, and that acceptance is recorded in "
+            "`stack-decisions.md`",
+            contract,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

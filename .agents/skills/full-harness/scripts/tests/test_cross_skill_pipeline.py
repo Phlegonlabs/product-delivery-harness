@@ -244,6 +244,25 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("owner confirmation", design_updates)
         self.assertIn("Repository-discovered images remain non-canonical", product_design)
 
+    def test_implementation_plan_sequencing_intent_survives_into_the_plan(self) -> None:
+        contract = self.read(
+            "full-harness/references/contract-and-traceability.md"
+        )
+
+        # A present implementation-plan.md's sequencing intent is mandatory
+        # input: adopt it or record a divergence reason — never a silent drop.
+        self.assertIn(
+            "either adopt it in the drafted graph or record a one-line "
+            "divergence reason in the PLAN",
+            contract,
+        )
+        self.assertIn(
+            "Coverage and trace-ID authority stay with `PRD.md`, "
+            "`architecture.md`, and `stack-decisions.md`",
+            contract,
+        )
+
+
     def test_frontend_review_binds_to_the_host_provider_with_plan_selected_model(self) -> None:
         plan = valid_graph_plan()
         review = graph_node(

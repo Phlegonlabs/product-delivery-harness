@@ -82,6 +82,8 @@ Typical landing sites:
 | Pricing or business-model reference points | `PRD.md` `## Metrics` or `## Business Rules` |
 | A question research could not settle | `PRD.md` `## Open Questions` |
 | An integration the category expects | `architecture.md` `## Integrations` |
+| Evidence that strengthens or contradicts a named technology choice | `stack-decisions.md` `Frontend Technology Decision`, `Mobile/Desktop Technology Decision`, or `Backend and Data Technology Decision` table (Why It Fits), citing the `MR-*` ID |
+| An alternative the market evidence speaks to | `stack-decisions.md` shared `Alternatives Considered` table, citing the `MR-*` ID |
 
 The role reports findings. It does not edit any file — the parent applies them, then reruns the quality checklist.
 

@@ -306,7 +306,7 @@ Use this structure:
 Technology selections and their rationale live in `stack-decisions.md`.
 
 ## Product Archetype
-[Web app, mobile app, desktop app, internal tool, automation or agent workflow, API or hybrid. For a mobile app, name the resolved platform: native iOS, native Android, Flutter, or React Native. For a desktop app, name the resolved platform: macOS, Windows, or cross-platform.]
+[Web app, mobile app, desktop app, browser extension, internal tool, automation or agent workflow, API or hybrid. For a mobile app, name the resolved platform: native iOS, native Android, Flutter, or React Native. For a desktop app, name the resolved platform: macOS, Windows, or cross-platform. For a browser extension, name the resolved browser target: Chrome with Manifest V3 by default; Firefox or Safari as explicit alternatives.]
 
 ## System Context
 [Actors, systems, dependencies.]
@@ -314,6 +314,12 @@ Technology selections and their rationale live in `stack-decisions.md`.
 ## Component Architecture
 | ARCH ID | Component | Responsibility | Upstream trace IDs | Notes |
 | --- | --- | --- | --- | --- |
+
+## Frontend Architecture
+For every product that ships a frontend, describe in a few lines: surface composition (which surfaces exist and how they group), the state and data-fetch approach, routing, and build/bundling. Reference the recorded layers in `stack-decisions.md` instead of restating them. Omit this section only when the product ships no frontend at all.
+
+## Backend Architecture
+Describe in a few lines: service boundaries, API style, data access, and background jobs when they exist, referencing `stack-decisions.md` rather than duplicating its decisions. For a product with no backend, this section is one line stating that there is no backend and why.
 
 ## Data Model
 | Entity | Key Fields | Relationships | Notes |
@@ -579,6 +585,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Every mobile/desktop layer row records Selection, Status, Authority / evidence, Why It Fits, and Constraint / follow-up. Status is accurate per layer, authority cites its source rather than repeating a status label, and one section may mix statuses.
 - Every rejected option for any stack decision appears once in `stack-decisions.md`'s shared `Alternatives Considered` table with its area named, rather than repeated per decision section.
 - Any unresolved frontend, backend, database, auth, or mobile/desktop decision appears in `stack-decisions.md`'s shared `Unresolved Decision Protocol` table with an owner, deadline, time-boxed spike, and pass/fail criteria; a bare `TBD` does not pass validation.
+- Before publishing, every `stack-decisions.md` layer row is `Required`, `Selected`, or `Recommended`. A `Provisional` row passes only when the user resolved it or explicitly accepted it as `Provisional`, and that acceptance is recorded in `stack-decisions.md`. A silent Provisional layer does not validate, because `full-harness` treats it as a stop condition at scaffold time.
 - When the visual-design phase was explicitly requested, the Design System Need Gate is not `blocked`. When it is `required`, the package includes the validated pair returned by `product-design-builder` and the parent records its exact staged paths and passing checks. When it is `not_required`, no placeholder pair is present and the approved page-faithful UI target, `PRD.md`, and `wireframes.html` are explicitly named as the replacement visual contract.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - The market-research gap pass either produced `market-research.md`, or the package records which reason skipped it — the user declined, no web search or fetch tool was available, the package is a trivial stub, or the role returned blocked. A silently missing pass does not validate.

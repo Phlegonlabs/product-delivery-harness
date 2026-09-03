@@ -315,6 +315,42 @@ Windows .NET:    dotnet test (unit/integration); dotnet build
 Desktop macOS:   xcodebuild test for a Swift app, or the cross-platform toolkit's own test runner
 ```
 
+## Browser Extension
+
+Use this profile when the target is a browser extension instead of a hosted web surface — a Chrome MV3 extension is the common case, and other Chromium-store targets follow the same shape. It has no URL model and no SEO metadata; its surfaces are the ones the manifest declares. Freeze the surfaces below before implementation.
+
+Freeze these surfaces:
+
+```text
+Manifest: MV3 manifest_version, name/version/icons, action (popup), options page, background service worker
+Extension surfaces: popup, options, content scripts (match patterns, injection timing), service worker, plus any devtools/side-panel/new-tab surface in scope
+Permissions: `permissions` and `host_permissions` minimal set, storage area and quota approach, cross-origin access
+Messaging: service worker <-> popup/options/content-script message contract
+Persistence: `chrome.storage` areas or an external backend, and what syncs
+Release target: store listing (typically Chrome Web Store), packaged zip built from bundler output, versioning
+```
+
+Common missions:
+
+```text
+M1 extension scaffold: TypeScript + bundler + MV3 manifest with a starting service worker
+M2 popup/options and content-script surfaces
+M3 messaging, storage, and permission-dependent capability integration
+M4 E2E across surfaces plus packaged-zip store check
+```
+
+Required E2E scenarios:
+
+- Extension loads unpacked in the target browser and the service worker starts.
+- Popup and options render and persist settings across a browser restart.
+- Content scripts inject on declared match patterns and not on others.
+- A message round-trips between the service worker and a UI surface.
+- The packaged zip builds from the bundler output and contains the built manifest.
+
+Manifest/permissions review is this profile's stop-worthy check: the frozen manifest is the contract surface the way routes are for a website. A mission that needs a permission or host not in the frozen manifest stops and asks per `contract-and-traceability.md`'s Stop And Ask Conditions instead of quietly widening the manifest.
+
+Greenfield note: the Greenfield section's JS/TS web toolchain row covers extension repositories (package.json + lockfile). The workspace-foundation mission installs the decided TypeScript + bundler stack and the MV3 manifest scaffolding; its exit criterion is a bundler build producing a loadable unpacked extension.
+
 ## Trace ID Families
 
 These are lenses on requirements that already carry a core trace ID, not a separate upstream ID space. Tag an existing `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `DS-*`, or `TEST-*` requirement with the archetype family that describes it — a tenant-isolation rule frozen as `ARCH-004` is also `TENANT-001`. A harness planner may apply a tag, because applying one mints nothing; the underlying requirement still comes from an upstream contract file, per `contract-and-traceability.md`'s Trace IDs rules. A tag inherits its requirement's coverage obligation, and the same downstream task and verification row prove both.

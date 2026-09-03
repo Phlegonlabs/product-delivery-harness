@@ -58,6 +58,16 @@ Platform is a separate, already-resolved input (see the interview's platform `As
 
 React's official guidance recommends starting new React apps with a framework and treating a from-scratch Vite setup as a deliberate choice. Therefore, do not default every production web app to bare React + Vite: use it when a SPA or custom architecture is itself the product-fit decision.
 
+## Browser Extension Stacks
+
+When the product surface is a browser extension, the same layer separation and evidence discipline apply to a different layer set: browser target, extension bundler, UI framework, and testing. Chrome with Manifest V3 is the default target today; Firefox or Safari are explicit alternatives with their own stores and API differences.
+
+- Browser target: Chrome with Manifest V3 unless the user, repository, or product evidence names another browser. Each added browser target multiplies store review and API-compatibility work — record it as its own decision, not a bundler flag.
+- Bundler: TypeScript plus an extension-aware bundler — Vite with CRXJS or WXT — so the manifest, content scripts, service worker, and extension pages build from one tool.
+- UI framework: optional, sized to the popup/options UI complexity. A small popup or options page needs none; a complex side-panel or options UI justifies React or another library, with the same product-fit reasoning as the patterns above.
+- Record the extension layers in `stack-decisions.md`'s `Frontend Technology Decision` table with per-row status and cited authority, and the store distribution in `architecture.md` per `architecture-playbook.md`'s Browser Extension Pattern.
+- Verify current Manifest V3 requirements, API surface, and store policy against official documentation on the PRD date and record the check date — MV3 rules and store policy move. Start with [Chrome Extensions docs](https://developer.chrome.com/docs/extensions/) and [Chrome Web Store](https://developer.chrome.com/docs/webstore/); cite the equivalent official docs for any other named browser.
+
 ## Platform Decision Rules
 
 Verify these rules against current official documentation on the date the PRD is written.

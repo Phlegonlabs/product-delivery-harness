@@ -130,6 +130,17 @@ Use for an installable desktop application on macOS, Windows, or both.
 - Security: OS keychain/credential store for secrets, code-signing integrity, update-channel integrity (signed updates), and PII minimization.
 - Operations and required verification: signed auto-update delivery, per-OS minimum-version support, crash reporting, and staged rollout where the update framework supports it. Rollback means shipping a prior signed version through the same update channel. Record the verification date and the official sources above on `stack-decisions.md`'s `Compatibility checked on:` line; signing, distribution, and rollout stay in `architecture.md`.
 
+## Browser Extension Pattern
+
+Use for a browser extension. Chrome with Manifest V3 is the default target today; Firefox and Safari are explicit alternatives, each with its own store and API differences.
+
+- Toolchain: TypeScript plus an extension-aware bundler such as Vite with CRXJS or WXT, so the manifest, content scripts, service worker, and extension pages build from one tool (see `frontend-stack-selection.md`).
+- Client architecture: a `manifest.json` (V3) declares the entry points. A service worker is the event-driven background context — there is no persistent background page. Content scripts run inside web pages with only partial extension-API access; extension pages (popup, options, side panel) are ordinary HTML/TypeScript documents with full API access. Assign each workflow to the context that owns it and define how contexts communicate (`chrome.runtime` messaging, long-lived ports, or storage events).
+- Permissions model: declare the narrowest host and API permissions that work. `host_permissions` drive install-time warnings and store review; use optional permissions with runtime requests where the UX allows.
+- Backend and data: `chrome.storage` for settings and local state. When sync, accounts, or shared data need a companion backend, resolve its hosting separately like any other server surface, and define the requests the extension may make and how its auth tokens are stored.
+- Distribution: the release path is the Chrome Web Store developer dashboard (one-time registration fee — confirm the current amount live), store review before publication, versioned uploads, and staged rollouts; the browser itself delivers updates. Firefox (addons.mozilla.org) and Safari (App Store as a Safari Web Extension) each need their own listing and review when targeted. Record each store destination in `architecture.md`'s provider-neutral `## Release Targets`, like a native store target; the hosted two-row environment table does not apply.
+- Operations and required verification: extension version pinning by the store, review turnaround for each update, and a forward-fix through the same store review rather than instant rollback. Verify current manifest requirements, permission policy, fees, and store rules at [Chrome Extensions docs](https://developer.chrome.com/docs/extensions/) and [Chrome Web Store](https://developer.chrome.com/docs/webstore/) on the PRD date; do not copy limits, review timing, or fees from memory.
+
 ## Internal Tool Pattern
 
 Use for admin panels, operations consoles, review queues, workflow tools, and back-office systems.
