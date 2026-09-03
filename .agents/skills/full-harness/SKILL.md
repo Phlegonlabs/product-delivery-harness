@@ -1,6 +1,6 @@
 ---
 name: full-harness
-description: "Route engineering work to the lightest safe delivery path, then plan, authorize, execute, verify, and integrate it. Use direct parent-owned delivery when one writer and one coherent verification pass are enough. Use PLAN-v6/RUN-v11 only for work that needs durable coordination, isolated mission integration, or a bounded correction graph. Load exactly one Codex, Claude Code, or Pi adapter only when that managed route needs host-specific orchestration."
+description: "Route engineering work to the lightest safe delivery path, then plan, authorize, execute, verify, and integrate it. Use direct parent-owned delivery when one writer and one coherent verification pass are enough. Use PLAN-v6/RUN-v11 only for work that needs durable coordination, isolated mission integration, or a bounded correction graph. Apply the runtime adapter reference for the detected host only when that managed route needs host-specific orchestration."
 ---
 
 # Full Harness
@@ -103,6 +103,7 @@ Read only what the current decision needs:
 - `references/graph-orchestration.md`: typed graph, provider policy, retries, and correction loops.
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
+- `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
@@ -115,13 +116,9 @@ Read only what the current decision needs:
 
 ## Adapter Routing
 
-Load no adapter for direct work. For a large managed run, load exactly one adapter after System Review And Route:
+Load no adapter for direct work. For a large managed run, apply `references/runtime-adapters.md` after System Review And Route: its shared adapter contract plus the one provider section for the detected host.
 
-- Codex: `../fullstack-harness-codex/SKILL.md`
-- Claude Code: `../fullstack-harness-claude-code/SKILL.md`
-- Pi: `../fullstack-harness-pi/SKILL.md`
-
-Adapters select launch mechanics and provider-specific model options. They grant no authorization and do not redefine shared state, review, integration, handoff, or cleanup rules.
+The adapter layer selects launch mechanics and provider-specific model options. It grants no authorization and does not redefine shared state, review, integration, handoff, or cleanup rules. Adding a host adds one provider section to that reference, not a new skill.
 
 ## Repository Context Contract
 
@@ -139,7 +136,7 @@ Discover the effective instruction chain from repository root to the selected ch
 Apply this only to large plan-backed work:
 
 1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch.
-2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. A Codex route that may select two writers needs the complete per-surface `capability_probe`; a provably sequential route records only the selected driver facts.
+2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. A Codex route that may select two writers needs the complete per-surface `capability_probe`; a provably sequential route records only the selected driver facts. For a web review that must inspect the live page, add `review.required_tools: ["chrome_devtools"]` in PLAN and record the exact selected driver's fresh reviewer-session probe under `runtime_capabilities.reviewer_tools.chrome_devtools`. Parent-session access, an installed package, or a CLI flag alone is not enough. A capability-probe child is read-only discovery, never review evidence, and still needs the matching launch authorization; its result cannot update review state.
 3. Do not cap `max_parallel_workers` at a small fixed number. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
 4. Before selection, record `observed.captured_at`, live Git facts, and `integration.batch_base_sha`. A green validator with empty `dispatchable_nodes` and `deferred_nodes` reasons `parent_state_unreconciled` or `batch_base_missing` means the live snapshot is incomplete; these are dispatch-time reasons, not an empty graph.
 5. Enable scheduler fan-out only when at least two dependency-ready, nonconflicting write missions have isolated workspaces and exact authorization. Never run parallel writers in `shared_checkout`.
@@ -157,7 +154,7 @@ Apply this only to large plan-backed work:
 8. Verify repository, branch, base HEAD, and empty `git status --porcelain` before dispatch.
 9. Render `WORKER_GOAL.template.md`; attach only the host contract and result fields that mission needs.
 10. Validate returned identity, changed files, scope, verifier evidence, atomic task-commit attribution, commit order, and ancestry against live Git.
-11. Require one exact-head pre-integration reviewer per applicable surface for every mission. Render its bounded packet with `scripts/render_review_packet.py`; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Group related findings into one root-cause failure family before repair. If another variant of that family appears after repair, stop example-by-example patching and require one structural repair with a complete acceptance matrix or return `REFINEMENT_REQUEST` / `contract_gap`. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it.
+11. Require one exact-head pre-integration reviewer per applicable surface for every mission. Render its bounded packet with `scripts/render_review_packet.py`; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Group related findings into one root-cause failure family before repair. If another variant of that family appears after repair, stop example-by-example patching and require one structural repair with a complete acceptance matrix or return `REFINEMENT_REQUEST` / `contract_gap`. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it. A web `visual` review declares `required_tools: ["chrome_devtools"]`. A `frontend_code` review declares it when DOM state, console, network, runtime JavaScript, accessibility, or rendered behavior is part of its evidence. Backend-only and source-only reviews do not acquire a browser requirement. The selector defers a required tool as `reviewer_tool_unobserved:<tool>` or `reviewer_tool_unavailable:<tool>`; never replace the missing reviewer tool with the parent's browser session.
 12. Dispatch one planned parent-owned read-only reviewer per applicable integration surface against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate. The unified-head review is the final synthesis; do not dispatch another same-scope review while the SHA is unchanged.
 
 Managed runs carry no wall-time percentage target. The objective is to stop paying for the same work twice: repeated reviewer dispatches, repeated deterministic verifier runs, needless serialization, and finished work waiting on a slower sibling. Follow `references/runtime-performance.md`. Removing repetition never licenses weakening authorization, exact-head review, evidence, or final validation, and no reduction may be claimed without a comparable measured baseline.

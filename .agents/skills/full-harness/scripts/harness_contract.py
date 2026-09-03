@@ -14,9 +14,6 @@ from pathlib import Path
 
 SKILL_NAMES = (
     "full-harness",
-    "fullstack-harness-codex",
-    "fullstack-harness-claude-code",
-    "fullstack-harness-pi",
     "prd-builder",
     "product-design-builder",
 )

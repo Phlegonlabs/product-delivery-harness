@@ -1,6 +1,6 @@
 # Plan: <feature or product slice>
 
-Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one exact-head pre-integration review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. Builder UX Direction remains an upstream contract when a product has one; this neutral example has no UI surface.
+Use this template as `docs/goal/PLAN.md` for managed work that needs durable coordination, even when the selected execution route is sequential. Direct small work creates no PLAN/RUN artifacts. This example intentionally shows one neutral mission, one isolated writer, one exact-head pre-integration review, and local final gates; it is not a UI repair graph or a promise of parallel fan-out. Builder UX Direction remains an upstream contract when a product has one; this neutral example has no UI surface. A web visual review adds `"required_tools": ["chrome_devtools"]` inside its `review` object; a frontend-code review adds it only when live browser state is part of the required evidence.
 
 ## Harness Plan Manifest
 

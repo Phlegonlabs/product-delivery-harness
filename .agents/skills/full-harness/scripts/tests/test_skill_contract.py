@@ -4,7 +4,6 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
-SKILLS_ROOT = SKILL_ROOT.parent
 SCRIPTS_DIR = SKILL_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
@@ -91,12 +90,12 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         transition = self.read("scripts/harness_transition.py")
-        pi = self.read_sibling_skill("fullstack-harness-pi")
+        adapters = self.read("references/runtime-adapters.md")
 
-        for content in (skill, graph, state, runbook, pi):
+        for content in (skill, graph, state, runbook, adapters):
             self.assertIn("reserve-review-dispatch", content)
         self.assertIn("independent_reviewer_unavailable", graph)
-        self.assertIn("cannot satisfy a fresh independent review node", pi)
+        self.assertIn("cannot satisfy a fresh independent review node", adapters)
         self.assertIn("no matching reserved dispatch receipt", transition)
         self.assertIn("already used its one owner-granted successor", transition)
 
@@ -129,14 +128,6 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
-    def read_sibling_skill(self, name: str) -> str:
-        return (SKILLS_ROOT / name / "SKILL.md").read_text(encoding="utf-8")
-
-    def read_sibling_agent(self, name: str) -> str:
-        return (SKILLS_ROOT / name / "agents" / "openai.yaml").read_text(
-            encoding="utf-8"
-        )
-
 
     def test_project_size_gate_keeps_small_work_direct(self) -> None:
         skill = self.read("SKILL.md")
@@ -162,17 +153,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         core = self.read("SKILL.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
         result_contract = self.read("references/worker-result-contract.md")
-        adapters = (
-            self.read_sibling_skill("fullstack-harness-codex"),
-            self.read_sibling_skill("fullstack-harness-claude-code"),
-            self.read_sibling_skill("fullstack-harness-pi"),
-        )
+        runtime_adapters = self.read("references/runtime-adapters.md")
 
         self.assertLess(len(core.split()), 3500)
         self.assertLess(len(worker.split()), 1200)
-        for adapter in adapters:
-            self.assertLess(len(adapter.split()), 1400)
-            self.assertIn("This adapter adds no alternate state or handoff rules", adapter)
+        # One shared contract plus one section per provider replaces the three
+        # adapter skills; the merged file stays under what those three weighed.
+        self.assertLess(len(runtime_adapters.split()), 3400)
+        self.assertIn(
+            "This adapter adds no alternate state or handoff rules", runtime_adapters
+        )
         self.assertIn("Read this reference only while rendering or validating", result_contract)
         self.assertIn("Result contract:", worker)
 
@@ -329,39 +319,36 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("The delivery core makes one size decision", readme)
 
     def test_provider_mismatch_is_blocked_not_bridged(self) -> None:
-        codex_skill = self.read_sibling_skill("fullstack-harness-codex")
-        claude_skill = self.read_sibling_skill("fullstack-harness-claude-code")
+        adapters = self.read("references/runtime-adapters.md")
         research = self.read("references/orchestration-research-notes.md")
 
-        self.assertIn("## Provider Boundary", codex_skill)
-        self.assertIn("## Provider Boundary", claude_skill)
-        self.assertIn("There is no mechanism in this adapter to invoke Claude Code", codex_skill)
-        self.assertIn("There is no mechanism in this adapter to invoke Codex", claude_skill)
-        self.assertIn("probe for a Claude Code CLI, binary, or plugin as a substitute route", codex_skill)
-        self.assertIn("probe for an installed Codex CLI or plugin as a substitute route", claude_skill)
+        self.assertIn(
+            "There is no mechanism in the adapter layer to invoke another provider", adapters
+        )
+        self.assertIn(
+            "Do not probe for another runtime's CLI, binary, or plugin as a substitute route",
+            adapters,
+        )
         self.assertIn("there is no cross-host preflight, no bridged process, and no declared fallback", research)
         self.assertIn("blocked on provider mismatch rather than probing or launching the other runtime", research)
 
     def test_authorized_app_wave_requires_real_thread_launch(self) -> None:
-        skill = self.read_sibling_skill("fullstack-harness-codex")
+        adapters = self.read("references/runtime-adapters.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
         selector = self.read("references/parallel-mission-selection.md")
         goal = self.read("assets/templates/GOAL.template.md")
-        agent = self.read_sibling_agent("fullstack-harness-codex")
 
-        self.assertIn("Do not stop after printing a non-empty app-task wave", skill)
-        self.assertIn("consume every accepted dispatch entry", skill)
-        self.assertIn("Search the current Codex tool surface", skill)
-        self.assertIn("top-level left-sidebar app task", skill)
+        self.assertIn("Do not stop after printing a non-empty app-task wave", adapters)
+        self.assertIn("consume every accepted dispatch entry", adapters)
+        self.assertIn("Search the current Codex tool surface", adapters)
+        self.assertIn("top-level left-sidebar app task", adapters)
         self.assertIn("## Launch Selected Codex App Threads", orchestration)
         self.assertIn("one top-level worktree task/thread per mission", orchestration)
         self.assertIn("Read-only explorers and reviewers are parent-dispatched siblings", orchestration)
         self.assertIn("never children of a mission task", orchestration)
         self.assertIn("direct subagent of the coordinator is not equivalent", selector)
         self.assertIn("one top-level left-sidebar task", goal)
-        self.assertIn("probe app-task and subagent surfaces", agent)
-        self.assertIn("Never replace explicitly requested independent app tasks", skill)
-        self.assertIn("Codex-hosted managed run", agent)
+        self.assertIn("Never replace explicitly requested independent app tasks", adapters)
 
     def test_plan_backed_runs_detect_then_select_full_frontier(self) -> None:
         skill = self.read("SKILL.md")
@@ -449,7 +436,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("user explicitly requests faithful conformance", skill)
 
     def test_schema_v6_routes_claude_dynamic_workflow(self) -> None:
-        skill = self.read_sibling_skill("fullstack-harness-claude-code")
+        skill = self.read("references/runtime-adapters.md")
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
         selector_reference = self.read("references/parallel-mission-selection.md")
@@ -685,8 +672,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         skill = "\n".join(
             (
                 self.read("SKILL.md"),
-                self.read_sibling_skill("fullstack-harness-codex"),
-                self.read_sibling_skill("fullstack-harness-claude-code"),
+                self.read("references/runtime-adapters.md"),
             )
         )
         graph = self.read("references/graph-orchestration.md")
@@ -825,11 +811,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         project = self.read("assets/templates/PROJECT_AGENTS.template.md")
         ci = self.read("assets/templates/PROJECT_CI.template.yml")
-        codex_adapter = self.read_sibling_skill("fullstack-harness-codex")
+        adapters = self.read("references/runtime-adapters.md")
 
         for content in (skill, project):
             self.assertIn("never add a fixed prefix", content.lower())
-        self.assertIn("does not own shared state", codex_adapter)
+        self.assertIn("does not own shared state", adapters)
         self.assertIn("ask before branch creation", skill.lower())
         self.assertIn("- '**'", ci)
         self.assertNotIn("codex/**", ci)

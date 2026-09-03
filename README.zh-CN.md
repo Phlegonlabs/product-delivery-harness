@@ -49,16 +49,13 @@
 | --- | --- | --- |
 | `prd-builder` | 产品探索、需求、Builder UX Direction 输入、UI 产品的低保真交互线框图、架构、技术栈决策、发布目标、测试义务、草稿完成后的市场调研补缺，以及 web 路线会产出保留高保真 HTML references 的可选 UI Design Pass | `PRD.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
 | `product-design-builder` | 将已批准的 UI Design Handoff 编译成冻结的设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
-| `full-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
-| `fullstack-harness-codex` | 左侧栏中的独立 Codex 任务、每个 mission 一个应用托管的 worktree，以及由 parent 派发的同级 reviewers | 运行时启动指令和工作节点结果 |
-| `fullstack-harness-claude-code` | Claude 动态工作流（Dynamic Workflow）和父级托管的工作树 | 运行时启动指令和工作节点结果 |
-| `fullstack-harness-pi` | 在父级托管工作树中使用 Pi 子代理角色，并由 Pi 选择模型和回退方案 | 运行时启动指令、实际角色/模型证据和工作节点结果 |
+| `full-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 
 交付核心在调用托管编排之前，会先做一个规模判定：
 
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
 - 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；`tasks.md` 只是按需生成的人类视图，不是必需状态。
-- 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只加载一个宿主适配器；只有当选定的路线需要外部运行时，才会对其做预检。
+- 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只套用 runtime adapter 参考文档中对应所检测宿主的那一个 provider 章节；只有当选定的路线需要外部运行时，才会对其做预检。
 - 工作不需要等待远程 CI。运行通常以验证过的本地证据结束；只有明确的远程结果才会把验证过的集成 head 推送到这次运行自己的分支。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
@@ -100,7 +97,7 @@ flowchart TB
   Size -->|large| Plan["PLAN v6 + RUN v11<br/>frozen contracts, authorization ledger"]
   Plan --> Observe["Record observed git + batch_base_sha<br/>(the selector returns an empty frontier without it)"]
   Observe --> Frontier["Ready frontier<br/>dependencies, scope/resource conflicts, permission gates<br/>bounded by observed slots x isolation x conflicts"]
-  Frontier --> Host["One host adapter: codex, claude_code, or pi<br/>no cross-host fallback"]
+  Frontier --> Host["One host provider section: codex, claude_code, pi, or generic<br/>no cross-host fallback"]
   Host --> Work["Isolated mission worktree<br/>attempt + lease, worker tests + commits"]
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
@@ -120,14 +117,14 @@ flowchart TB
 
 ## 轻量的运行时适配器
 
-共享核心掌管唯一的 PLAN/RUN 控制平面。运行时相关的启动细节按需惰性加载：
+共享核心掌管唯一的 PLAN/RUN 控制平面。运行时相关的启动细节放在同一份参考文档 —— `full-harness/references/runtime-adapters.md` —— 内含一份共享适配契约，加上每个宿主一段 provider 章节，按需套用：
 
-- Codex 宿主只加载 `fullstack-harness-codex`，并且只执行 `codex` 提供方的 PLAN 节点。
-- Claude Code 宿主只加载 `fullstack-harness-claude-code`，并且只执行 `claude_code` 提供方的 PLAN 节点。
-- Pi 宿主只加载 `fullstack-harness-pi`，只执行 `pi` 提供方的 PLAN 节点，并沿用 Pi 已安装的角色、模型和回退设置。
-- 任何适配器都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配适配器托管的运行去处理。
+- 每个宿主只套用自己的 provider 章节，并且只执行 `allowed_providers` 包含该宿主的 PLAN 节点。
+- Pi 宿主沿用 Pi 已安装的角色、模型和回退设置。
+- 任何 provider 章节都不能调用另一个运行时。一个已就绪、但其提供方与当前宿主不匹配的节点，会被 deferred with `runtime_unavailable`，留给由匹配宿主托管的运行去处理。
+- 以后新增一个运行时宿主，只是在这份参考文档加一段 provider 章节，不需要新增 skill。
 
-共享的脚本、schema、参考文档和模板仍然放在 `full-harness` 下；各适配器链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
+共享的脚本、schema、参考文档和模板仍然放在 `full-harness` 下；各 provider 章节链接到它们，而不是各自附带一套重复的运行时。这样能让默认提示词保持精简。
 
 一次运行只有一个 active host。same-repository handoff 只有在 Host A 关闭 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 后才允许；`active_wave` 对象仍保留在 RUN 中，不能把对象缺失当作交接信号：Host B 保留 PLAN/RUN 和 graph state，重新探测 runtime，并在选取下一波前审查当前 exact SHA。若需修复，路由回 Host A 且旧 review 立即失效；除非未来 schema 增加可携带的仓库/状态身份，否则不支持 cross-machine handoff。
 
@@ -255,7 +252,7 @@ claude plugin install fullstack-harness@fullstack-goal-dev --scope user
 
 ## 常见提示词
 
-Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `fullstack-harness-pi`。
+Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `full-harness`。
 
 ```text
 Use $prd-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
@@ -286,7 +283,7 @@ Use $full-harness to implement this plan and push the verified branch. I will op
 ```
 
 ```text
-Use full-harness with fullstack-harness-pi to execute this Pi-hosted plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use full-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
 对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、移除工作树和删除分支都是彼此独立的动作。Harness 不会开 PR、不会合并、也不会部署——这些步骤由你自己完成。
@@ -297,15 +294,15 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 | 运行时 | 首选并行路线 | 回退方案 |
 | --- | --- | --- |
-| Codex 应用（`fullstack-harness-codex`） | 在隔离的、应用托管的工作树中运行应用任务 | 直接子代理，然后退到单一顺序父级 |
-| Claude Code（`fullstack-harness-claude-code`） | 采用精确基点、父级托管的 `.claude/worktrees/` 工作树的动态工作流 | 直接子代理，然后退到单一顺序父级 |
-| Pi（`fullstack-harness-pi`） | 在父级托管工作树中使用已安装的 Pi 角色，并由 Pi 选择模型和回退方案 | 单一顺序父级 |
+| Codex 应用 | 在隔离的、应用托管的工作树中运行应用任务 | 直接子代理，然后退到单一顺序父级 |
+| Claude Code | 采用精确基点、父级托管的 `.claude/worktrees/` 工作树的动态工作流 | 直接子代理，然后退到单一顺序父级 |
+| Pi | 在父级托管工作树中使用已安装的 Pi 角色，并由 Pi 选择模型和回退方案 | 单一顺序父级 |
 
 在 Codex 中，每个选中的 mission 都会在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管 worktree。任何只读 explorer 或 reviewer 都由 Harness parent 另行作为同级节点派发；mission 任务不能创建子代理。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
 目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支。运行默认以验证过的本地结果完成；只有明确远程结果并取得精确分支/head 授权后才推送该分支。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
 
-每个适配器只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要其他宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
+每个 provider 章节只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要其他宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
 
 并行实现默认没有一个小的固定上限；配置的写入工作节点上限设得足够高，实际的波宽由观察到的工作节点槽位、隔离容量，以及依赖已就绪、无冲突的前沿大小限定。一个可独立验证的目标对应一个 mission。每个写入节点都有明确的文件 ownership 和独立、干净、固定基线的 worktree。共享 API、schema 和类型必须先冻结，再开始依赖它们的并行写入。探索、写入和评审节点都由 parent 作为同级节点派发；工作节点和评审节点都不能再次分派。每个 mission 通过 exact-head 评审后，由 parent 串行整合；统一整合完成后再启动 fresh reviewers，最后只对固定候选 SHA 运行一次完整验证。工作节点绝不编辑父级的 `PLAN.md` 或 `RUN.md`，也不推送、开 PR、合并、部署或删除 worktree。集成以及每一个落地或生命周期动作都由父级负责。
 

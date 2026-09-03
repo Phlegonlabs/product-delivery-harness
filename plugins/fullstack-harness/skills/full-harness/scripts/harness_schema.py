@@ -231,3 +231,12 @@ GRAPH_NODE_PHASES = {
 }
 GRAPH_EDGE_PHASES = {"dormant", "eligible", "traversed", "exhausted", "skipped"}
 RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual"}
+REVIEWER_TOOL_KEYS = {"chrome_devtools"}
+REVIEWER_TOOL_STATUSES = {"available", "unavailable", "unobserved"}
+REVIEWER_TOOL_PROBE_SCOPES = {"reviewer_session", "parent_session", "unobserved"}
+REVIEWER_TOOL_SURFACES = {
+    "codex": "raw_cdp",
+    "claude_code": "claude_in_chrome",
+    "pi": "pi_chrome_devtools",
+    "generic": "none",
+}

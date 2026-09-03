@@ -184,6 +184,17 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
                     "evidence": "Runtime and Harness versions have not been observed yet",
                 },
             },
+            "reviewer_tools": {
+                "chrome_devtools": {
+                    "status": "unobserved",
+                    "provider": "generic",
+                    "driver": "sequential_parent",
+                    "surface": "none",
+                    "probe_scope": "unobserved",
+                    "session_id": None,
+                    "evidence": "No fresh reviewer session has probed Chrome DevTools yet",
+                }
+            },
             "permission_boundary": {
                 "selected_mode": "unknown",
                 "profile_name": None,

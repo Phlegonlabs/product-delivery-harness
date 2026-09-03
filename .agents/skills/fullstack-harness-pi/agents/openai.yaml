@@ -1,6 +1,0 @@
-interface:
-  display_name: "Full Stack Harness: Pi"
-  short_description: "Run Harness plans through Pi subagents"
-  default_prompt: "Use $fullstack-harness-pi after the shared core selects a Pi-hosted managed run; preserve Pi's installed role and model routing while the Harness parent owns scope, worktrees, validation, and integration."
-policy:
-  allow_implicit_invocation: true

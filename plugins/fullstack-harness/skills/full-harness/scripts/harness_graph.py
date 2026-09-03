@@ -24,6 +24,7 @@ from harness_schema import (
     GRAPH_NODE_PHASES,
     GRAPH_OUTCOMES,
     ID_RE,
+    REVIEWER_TOOL_KEYS,
     RUNTIME_PROVIDERS,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
@@ -176,7 +177,11 @@ def _validate_graph(
                             "required_evidence",
                             *( {"lineage_id"} if require_review_lineage else set() ),
                         },
-                        {"stage", *(set() if require_review_lineage else {"lineage_id"})},
+                        {
+                            "stage",
+                            "required_tools",
+                            *(set() if require_review_lineage else {"lineage_id"}),
+                        },
                     ):
                         lineage_id = review.get("lineage_id")
                         if lineage_id is not None and (
@@ -224,6 +229,22 @@ def _validate_graph(
                             review["required_evidence"],
                             nonempty=True,
                         )
+                        if "required_tools" in review:
+                            required_tools = _strings(
+                                errors,
+                                f"{review_path}.required_tools",
+                                review["required_tools"],
+                                nonempty=True,
+                            )
+                            unknown_tools = sorted(
+                                set(required_tools) - REVIEWER_TOOL_KEYS
+                            )
+                            if unknown_tools:
+                                _add(
+                                    errors,
+                                    f"{review_path}.required_tools",
+                                    f"unsupported reviewer tools: {', '.join(unknown_tools)}",
+                                )
                 elif review is not None:
                     _add(
                         errors,
