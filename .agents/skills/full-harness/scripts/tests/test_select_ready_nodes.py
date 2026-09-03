@@ -2497,6 +2497,55 @@ class SelectReadyNodesTests(unittest.TestCase):
                 }
                 self.assertIn(expected_reason, deferred["N-M1"])
 
+    def test_a_changed_contract_digest_defers_dispatch_end_to_end(self) -> None:
+        plan, run = self._authorized_conflict_free_pair()
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"] = {
+            "host_version": "0.146.0",
+            "minimum_host_version": None,
+            "harness_version": "0.6.0",
+            "required_harness_version": "0.6.0",
+            "session_id": "test-session",
+            "loaded_contract_digest": "a" * 64,
+            "installed_contract_digest": "b" * 64,
+            # The schema pairs a digest mismatch with restart_required, and
+            # the selector adds runtime_restart_required from both the status
+            # and the digest comparison — the exact path a plugin update takes.
+            "status": "restart_required",
+            "evidence": "an updater changed the installed contract under this session",
+        }
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertEqual([], selected["dispatchable_nodes"])
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in selected["deferred_nodes"]
+        }
+        self.assertIn("runtime_restart_required", deferred["N-M1"])
+
+    def test_a_missing_digest_observes_before_dispatch(self) -> None:
+        plan, run = self._authorized_conflict_free_pair()
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"] = {
+            "host_version": "0.146.0",
+            "minimum_host_version": None,
+            "harness_version": "0.6.0",
+            "required_harness_version": "0.6.0",
+            "session_id": "test-session",
+            "loaded_contract_digest": "a" * 64,
+            "installed_contract_digest": None,
+            "status": "unobserved",
+            "evidence": "installed digest not yet observed",
+        }
+
+        selected = select_ready_nodes(plan, run)
+
+        self.assertEqual([], selected["dispatchable_nodes"])
+        deferred = {
+            item["node_id"]: item["reason_codes"]
+            for item in selected["deferred_nodes"]
+        }
+        self.assertIn("runtime_contract_unobserved", deferred["N-M1"])
+
     def test_legacy_v10_run_without_a_version_gate_must_be_observed(self) -> None:
         plan, run = self._authorized_conflict_free_pair()
         run["runtime_capabilities"]["runtime_adapter"].pop("version_gate")

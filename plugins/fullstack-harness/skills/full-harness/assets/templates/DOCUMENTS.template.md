@@ -11,13 +11,16 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `architecture.md` | `docs/product/` | PRD | prd-builder | technical definition | |
 | `stack-decisions.md` | `docs/product/` | PRD | prd-builder | stack choices + rationale | |
 | `market-research.md` | `docs/product/` | PRD (gap pass) | prd-builder | sourced research | |
+| `implementation-plan.md` | `docs/product/` | PRD (when requested) | prd-builder | sequenced implementation outline | |
 | `design-system.md` / `design-system.json` | `docs/product/` | design (when required) | product-design-builder | frozen design pair | |
 | `DEPLOYMENT.md` | root | PRD seed, then owner | human setup + read-only verification | deployment record | |
 | `docs/goal/PLAN.md` | `docs/goal/` | managed run | harness parent | static plan manifest | |
 | `docs/goal/RUN.md` | `docs/goal/` | managed run | harness parent | coordination state | |
 | `docs/goal/tasks.md` | `docs/goal/` | managed run | rendered by `render_tasks_view.py` | non-canonical view of RUN | |
+| `docs/goal/DECISIONS.md` | `docs/goal/` | managed run | harness parent | mid-run owner-decision log | |
 | `REFINEMENT_BACKLOG.md` | `docs/goal/` | run closeout (when needed) | harness parent | deferred refinement items | |
 | `docs/goal/evidence/` | `docs/goal/evidence/` | verification | workers + parent | evidence artifacts (SHA-256 bound) | |
+| `docs/{product,design}/archived/` | `docs/*/archived/` | supersede | prd-builder / design pass | archived prior documents (move, never delete) | |
 
 Notes:
 

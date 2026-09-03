@@ -42,7 +42,7 @@ After the run's authorized push, or after the user lands a change on the default
 
 1. The expected environment URL resolves — the preview URL for the pushed head, the production URL after the landing.
 2. The deployed commit equals the expected head, read from the platform API/CLI or response headers, and recorded bound to that SHA. A mismatch or a stale build is a finding for the user or a new mission, never a redeploy order.
-3. Record evidence with the environment, URL, deployed SHA, expected SHA, and the check command — the same evidence discipline as any other gate.
+3. Record evidence with the environment, URL, deployed SHA, expected SHA, and the check command — the same evidence discipline as any other gate. `scripts/check_deployment.py --deployment <path>` structurally validates the record read-only (unresolved placeholders, missing environment rows, partially verified rows) without ever running the recorded command.
 
 ## Recording The Model In A Repository
 

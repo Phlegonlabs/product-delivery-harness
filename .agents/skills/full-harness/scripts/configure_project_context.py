@@ -11,6 +11,7 @@ from pathlib import Path
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
 DEFAULT_AGENTS_TEMPLATE = TEMPLATES_DIR / "PROJECT_AGENTS.template.md"
 DEFAULT_CLAUDE_TEMPLATE = TEMPLATES_DIR / "PROJECT_CLAUDE.template.md"
+UNRESOLVED_PLACEHOLDER_MARKERS = ("<fill>", "<bundled", "<or your own", "<hash of")
 
 
 def _present(path: Path) -> bool:
@@ -72,6 +73,22 @@ def configure_context(
     return result
 
 
+def unresolved_placeholders(root: Path) -> list[str]:
+    """Unresolved template markers in a seeded AGENTS.md, with line numbers."""
+
+    agents = root / "AGENTS.md"
+    if not _present(agents):
+        return []
+    findings: list[str] = []
+    for number, line in enumerate(
+        agents.read_text(encoding="utf-8").splitlines(), start=1
+    ):
+        for marker in UNRESOLVED_PLACEHOLDER_MARKERS:
+            if marker in line:
+                findings.append(f"line {number}: unresolved placeholder {marker!r}")
+    return findings
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path, help="Target repository root")
@@ -92,6 +109,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Report context state without writing; exit 1 when either root file is missing",
     )
+    parser.add_argument(
+        "--require-resolved",
+        action="store_true",
+        help=(
+            "with --check: also fail while a seeded AGENTS.md still carries "
+            "unresolved template placeholders (bindings, deployment record)"
+        ),
+    )
     return parser
 
 
@@ -107,8 +132,14 @@ def main() -> int:
     except (OSError, ValueError) as error:
         print(json.dumps({"error": str(error)}, ensure_ascii=False))
         return 2
+    unresolved: list[str] = []
+    if args.require_resolved:
+        unresolved = unresolved_placeholders(root)
+        result["unresolved_placeholders"] = unresolved
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    return 1 if args.check and result["missing"] else 0
+    if args.check and (result["missing"] or unresolved):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
