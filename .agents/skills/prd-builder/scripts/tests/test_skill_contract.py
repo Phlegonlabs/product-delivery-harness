@@ -437,6 +437,7 @@ async function agent(_prompt, options) {
             self.assertIn("design-taste-frontend", content)
             self.assertIn("UI Preview Gate", content)
         self.assertIn("record `applicable`, `partially_applicable`, or `n/a: <reason>`", skill)
+        self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
         self.assertIn("imagegen-frontend-web", guide)
         self.assertIn("imagegen-frontend-mobile", guide)
         self.assertIn("provider/model", guide)

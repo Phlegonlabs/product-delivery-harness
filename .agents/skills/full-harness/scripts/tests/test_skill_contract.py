@@ -155,7 +155,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         result_contract = self.read("references/worker-result-contract.md")
         runtime_adapters = self.read("references/runtime-adapters.md")
 
-        self.assertLess(len(core.split()), 3500)
+        self.assertLess(len(core.split()), 3600)
         self.assertLess(len(worker.split()), 1200)
         # One shared contract plus one section per provider replaces the three
         # adapter skills; the merged file stays near what those three weighed.
@@ -313,6 +313,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("not an in-session bridge", state)
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_skill_bindings_make_the_catalog_a_project_setting(self) -> None:
+        skill = self.read("SKILL.md")
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("## Skill Bindings", project_agents)
+        self.assertIn("| design_direction |", project_agents)
+        self.assertIn("| design_compilation |", project_agents)
+        self.assertIn("| frontend_implementation |", project_agents)
+        self.assertIn("a project edit, not a harness change", project_agents)
+        self.assertIn("An unbound slot uses the bundled default", project_agents)
+        self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
+
     def test_deployment_contract_separates_preview_from_production(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")
@@ -433,7 +445,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.14.0"', runbook)
+        self.assertIn('"required_harness_version": "0.15.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

@@ -8,6 +8,18 @@ This file is ready-to-use shared repository guidance. Resolve the repository's r
 - Keep runtime-specific worker roles, model selection, subagent behavior, and launch flags in the matching Full-Stack Harness adapter. Never copy Codex, Claude Code, or Pi mechanics into another runtime's worker.
 - Rules under **Managed Full-Stack Harness Runs** apply only after the Harness routes work into PLAN/RUN. Small direct work follows the shared principles, Git safety, and verification rules without creating Harness state, missions, workers, or worktrees unless the repository or user requires them.
 
+## Skill Bindings
+
+The delivery flow binds stage slots, not fixed skill names. This table binds the project's installed skills to those slots; updating it to adopt a new skill is a project edit, not a harness change, and a bound skill inherits the same modes, frozen sources, and review gates as the default.
+
+| Slot | Stage | Bound skill |
+| --- | --- | --- |
+| design_direction | wireframes → UI direction and mockup (UI Design Pass) | <bundled Taste-aware pass (`design-taste-frontend`), or an installed taste skill> |
+| design_compilation | frozen design-system pair | <bundled `product-design-builder` + `frontend-design`, or your own> |
+| frontend_implementation | implementation missions | <bundled `frontend-design`, or your own frontend skill> |
+
+An unbound slot uses the bundled default. PLAN missions resolve their workers' skill lists from this table where a slot applies.
+
 ## Core Development Principles
 
 ### Keep It Simple (KISS / YAGNI)

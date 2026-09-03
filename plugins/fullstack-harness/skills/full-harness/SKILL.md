@@ -168,6 +168,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
 - System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved immutable UI target, scope, states, responsive coverage, and tolerance recorded in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
+- These skill names are the bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind different installed skills to the design-direction, design-compilation, and frontend-implementation slots — a project edit, not a harness change. The modes, frozen sources, and review gates above apply unchanged to whichever skill is bound.
 
 ## Workflow
 
