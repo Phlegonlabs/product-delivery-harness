@@ -204,11 +204,16 @@ Preserve failed node, lease, run id, dirty files, commits, and session evidence.
 
 A PLAN node is selectable here when its `allowed_providers` includes `generic`.
 
-A host with no dedicated section above runs the generic route from `worktree-thread-orchestration.md`'s driver priority: direct subagents with parent-owned isolation when the session exposes a fresh-child launch surface with terminal child results, otherwise the real `sequential_parent`.
+Any host without a dedicated section above runs the generic route unchanged — nothing in the harness assumes one of the named runtimes:
 
-- There is no generic model catalog. Pass PLAN-selected model and reasoning-effort options to the launch call only when the host accepts them, and record the resolved values; never substitute a different model silently.
-- Use the shared Repository Context Contract: discover the effective instruction chain from repository root to the selected checkout and keep automatic context discovery enabled. Do not inject another runtime's instruction file as this host's instructions.
-- Record `chrome_devtools` as `unavailable` unless the host exposes an in-reviewer browser surface; let selection defer rather than substituting the parent's browser session.
+- Driver: `subagents` with parent-owned isolation when the session exposes a fresh-child launch surface that selects a child by stable key and returns terminal child results; otherwise the real `sequential_parent` from `worktree-thread-orchestration.md`. Always record `sequential_parent` as fallback.
+- Version gate: record the host's own version and the loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`.
+- Models: there is no generic model catalog. Pass PLAN-selected model and reasoning-effort options to the launch call only when the host accepts them, and record the resolved values; never substitute a different model silently.
+- Context: discover the effective instruction chain from repository root to the selected checkout and keep automatic context discovery enabled. Do not inject another runtime's instruction file as this host's instructions.
+- chrome_devtools: record `unavailable` unless the host exposes an in-reviewer browser surface; let selection defer rather than substituting the parent's browser session.
+- Dispatch: launch each worker as a fresh child with the assigned worktree as `cwd` and only the bounded context packet; wait on terminal child results when the host exposes them, otherwise bounded polling recorded in `runtime_metrics`. A generic child must not delegate again. `sequential_parent` cannot satisfy a fresh independent review node; that node blocks until a capable child surface or another allowed host is available.
+
+When a generic host gains its own section through `Adding A Provider`, that section replaces this one for that host.
 
 ## Adding A Provider
 

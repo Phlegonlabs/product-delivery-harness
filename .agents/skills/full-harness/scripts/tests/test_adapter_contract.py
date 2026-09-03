@@ -72,6 +72,25 @@ class AdapterContractTests(unittest.TestCase):
             adapters,
         )
 
+    def test_generic_provider_section_is_a_complete_route_for_any_host(self) -> None:
+        adapters = self.read_adapters()
+
+        self.assertIn(
+            "Any host without a dedicated section above runs the generic route unchanged",
+            adapters,
+        )
+        self.assertIn("no generic model catalog", adapters)
+        self.assertIn("never substitute a different model silently", adapters)
+        self.assertIn(
+            "Do not inject another runtime's instruction file as this host's instructions",
+            adapters,
+        )
+        self.assertIn("in-reviewer browser surface", adapters)
+        self.assertIn("cannot satisfy a fresh independent review node", adapters)
+        self.assertIn(
+            "that section replaces this one for that host", adapters
+        )
+
     @unittest.skipIf(REPO_ROOT is None, "adapter contract requires a source checkout")
     def test_allowed_providers_alone_controls_current_host_eligibility(self) -> None:
         adapters = self.read_adapters()
