@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import io
 import json
@@ -29,9 +28,9 @@ from test_harness_manifest import (  # noqa: E402
     legacy_plan,
     legacy_run,
     mark_legacy_complete,
-    mark_complete,
-    valid_closeout_run,
-    valid_plan,
+
+
+
 )
 from test_graph_orchestration import (  # noqa: E402
     authorize,

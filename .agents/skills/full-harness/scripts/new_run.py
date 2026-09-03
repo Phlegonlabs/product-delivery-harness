@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_manifest import (
+    AUTHORIZATION_KEYS,
     ManifestError,
     load_plan,
     plan_digest,
@@ -60,21 +61,6 @@ def _harness_version() -> str:
             return version
     return "0.0.0"
 
-
-AUTHORIZATION_KEYS = (
-    "invoke_external_runtime",
-    "spawn_subagents",
-    "create_user_owned_tasks",
-    "create_local_worktrees",
-    "create_app_managed_worktrees",
-    "create_local_branches",
-    "create_local_commits",
-    "integrate_locally",
-    "push",
-    "archive_worker_tasks",
-    "remove_worktrees",
-    "delete_branches",
-)
 
 
 def _node_state() -> dict[str, Any]:

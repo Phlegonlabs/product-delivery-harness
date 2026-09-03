@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -60,12 +59,12 @@ from harness_schema import (
 from harness_core import (
     ManifestError,
     _add,
+    changed_files_digest,
+    read_git_blob,
     _branch_ref,
     _is_int,
     _keys,
     _nonempty_string,
-    _normalized_branch,
-    _optional_nonnegative_int,
     _optional_sha,
     _optional_string,
     _strings,
@@ -101,6 +100,23 @@ from harness_graph import (
     _validate_graph,
     _validate_graph_state,
 )
+__all__ = [
+    "AUTHORIZATION_KEYS",
+    "ManifestError",
+    "PLAN_HEADING",
+    "RUN_HEADING",
+    "canonical_json",
+    "load_plan",
+    "load_run",
+    "load_worker_result",
+    "mission_conflicts",
+    "topological_levels",
+    "validate_integration_head_against_git",
+    "validate_scope_claim",
+    "validate_ui_evidence_files",
+    "validate_ui_surface_design_coverage",
+]
+
 from harness_ui_evidence import (
     _validate_ui_evidence,
     validate_integration_head_against_git,
@@ -137,22 +153,12 @@ def _read_git_source_blob(
 ) -> tuple[bytes | None, str | None]:
     """Read one frozen source blob without consulting the working tree."""
 
-    try:
-        result = subprocess.run(
-            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{relative_path}"],
-            cwd=root,
-            capture_output=True,
-            text=False,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return None, str(exc)
-    if result.returncode != 0:
-        reason = result.stderr.decode("utf-8", errors="replace").lower()
-        if "not a git repository" in reason:
-            return None, "--repo-root is not a Git checkout"
-        return None, f"immutable Git blob unavailable for {revision}:{relative_path}"
-    return result.stdout, None
+    return read_git_blob(
+        root,
+        revision,
+        relative_path,
+        f"immutable Git blob unavailable for {revision}:{relative_path}",
+    )
 
 
 def validate_plan_sources(
@@ -367,57 +373,14 @@ def _is_product_staging_location(value: Any) -> bool:
     return False
 
 
-def _product_design_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]:
-    paths = set(PRODUCT_DESIGN_SOURCE_PATHS)
-    for source in sources.values():
-        location = source.get("location")
-        kind = source.get("kind")
-        if not isinstance(location, str) or "://" in location:
-            continue
-        normalized_kind = ""
-        if isinstance(kind, str):
-            normalized_kind = " ".join(
-                kind.replace("_", " ").replace("-", " ").casefold().split()
-            )
-        normalized_location = (
-            location.replace("\\", "/").removeprefix("./").strip("/")
-        )
-        filename = normalized_location.rsplit("/", 1)[-1].lower()
-        kind_is_product_design = (
-            normalized_kind in PRODUCT_DESIGN_SOURCE_KINDS
-            or normalized_kind.startswith("design system ")
-        )
-        if (
-            kind_is_product_design
-            or filename in PRODUCT_DESIGN_SOURCE_FILENAMES
-        ):
-            paths.add(normalized_location)
-    return paths
-
-
-def _scope_includes_product_design_source(
-    scope: Any, product_design_source_paths: set[str]
-) -> bool:
-    if not isinstance(scope, str):
-        return False
-    if any(path_in_scopes(path, [scope]) for path in product_design_source_paths):
-        return True
-    if not _is_product_staging_location(scope):
-        return False
-    normalized = scope.replace("\\", "/").removeprefix("./").strip("/").lower()
-    parts = normalized.split("/")
-    staging_index = next(
-        index for index, part in enumerate(parts) if part == ".prd-staging"
-    )
-    tree_scope = parts[-1] == "**"
-    tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
-    if tree_scope:
-        return len(tail) <= 1
-    return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_DESIGN_SOURCE_FILENAMES
-
-
-def _product_wireframe_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]:
-    paths = set(PRODUCT_WIREFRAME_SOURCE_PATHS)
+def _staged_product_source_paths(
+    sources: dict[str, dict[str, Any]],
+    default_paths: set[str],
+    kinds: set[str],
+    filenames: set[str],
+    kind_prefix: str | None = None,
+) -> set[str]:
+    paths = set(default_paths)
     for source in sources.values():
         location = source.get("location")
         kind = source.get("kind")
@@ -430,20 +393,20 @@ def _product_wireframe_source_paths(sources: dict[str, dict[str, Any]]) -> set[s
             )
         normalized_location = location.replace("\\", "/").removeprefix("./").strip("/")
         filename = normalized_location.rsplit("/", 1)[-1].lower()
-        if (
-            normalized_kind in PRODUCT_WIREFRAME_SOURCE_KINDS
-            or filename in PRODUCT_WIREFRAME_SOURCE_FILENAMES
-        ):
+        kind_matches = normalized_kind in kinds or (
+            kind_prefix is not None and normalized_kind.startswith(kind_prefix)
+        )
+        if kind_matches or filename in filenames:
             paths.add(normalized_location)
     return paths
 
 
-def _scope_includes_product_wireframe_source(
-    scope: Any, product_wireframe_source_paths: set[str]
+def _scope_includes_staged_product_source(
+    scope: Any, source_paths: set[str], filenames: set[str]
 ) -> bool:
     if not isinstance(scope, str):
         return False
-    if any(path_in_scopes(path, [scope]) for path in product_wireframe_source_paths):
+    if any(path_in_scopes(path, [scope]) for path in source_paths):
         return True
     if not _is_product_staging_location(scope):
         return False
@@ -456,7 +419,42 @@ def _scope_includes_product_wireframe_source(
     tail = parts[staging_index + 1 : -1] if tree_scope else parts[staging_index + 1 :]
     if tree_scope:
         return len(tail) <= 1
-    return bool(tail) and len(tail) <= 2 and tail[-1] in PRODUCT_WIREFRAME_SOURCE_FILENAMES
+    return bool(tail) and len(tail) <= 2 and tail[-1] in filenames
+
+
+def _product_design_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]:
+    return _staged_product_source_paths(
+        sources,
+        PRODUCT_DESIGN_SOURCE_PATHS,
+        PRODUCT_DESIGN_SOURCE_KINDS,
+        PRODUCT_DESIGN_SOURCE_FILENAMES,
+        kind_prefix="design system ",
+    )
+
+
+def _scope_includes_product_design_source(
+    scope: Any, product_design_source_paths: set[str]
+) -> bool:
+    return _scope_includes_staged_product_source(
+        scope, product_design_source_paths, PRODUCT_DESIGN_SOURCE_FILENAMES
+    )
+
+
+def _product_wireframe_source_paths(sources: dict[str, dict[str, Any]]) -> set[str]:
+    return _staged_product_source_paths(
+        sources,
+        PRODUCT_WIREFRAME_SOURCE_PATHS,
+        PRODUCT_WIREFRAME_SOURCE_KINDS,
+        PRODUCT_WIREFRAME_SOURCE_FILENAMES,
+    )
+
+
+def _scope_includes_product_wireframe_source(
+    scope: Any, product_wireframe_source_paths: set[str]
+) -> bool:
+    return _scope_includes_staged_product_source(
+        scope, product_wireframe_source_paths, PRODUCT_WIREFRAME_SOURCE_FILENAMES
+    )
 
 
 def _is_single_mission_v5_without_batch_verifiers(plan: Any) -> bool:
@@ -1939,7 +1937,7 @@ def _validate_verifier_executions(
         # that run_verifier copies into the retained record verbatim. They must
         # be accepted here or a run that uses them emits evidence its own
         # validator rejects.
-        if not _keys(
+        if _keys(
             errors,
             f"{path}.verifier",
             normalized_verifier,
@@ -1947,68 +1945,67 @@ def _validate_verifier_executions(
             {"execution"},
         ):
             pass
-        else:
-            if normalized_verifier["id"] != verifier_id:
-                _add(errors, f"{path}.verifier.id", "must match verifier_id")
-            declared_cache = (
-                declaration.get("cache")
-                if declaration is not None and isinstance(declaration.get("cache"), dict)
-                else {"mode": "disabled", "environment_keys": []}
-            )
-            if declaration is not None and (
-                normalized_verifier["cwd"] != declaration.get("cwd")
-                or normalized_verifier["argv"] != declaration.get("argv")
-                or normalized_verifier["pass_signal"] != declaration.get("pass_signal")
-                or normalized_verifier["cache"] != declared_cache
-            ):
-                _add(errors, f"{path}.verifier", "must exactly match the PLAN verifier declaration")
-            if _keys(
-                errors,
-                f"{path}.verifier.cache",
-                normalized_verifier["cache"],
-                {"mode", "environment_keys"},
-                {"deterministic_local"},
-            ):
-                if normalized_verifier["cache"]["mode"] not in {
-                    "disabled",
-                    "session_exact",
-                }:
-                    _add(
-                        errors,
-                        f"{path}.verifier.cache.mode",
-                        "has an unsupported value",
-                    )
-                environment_keys = _strings(
-                    errors,
-                    f"{path}.verifier.cache.environment_keys",
-                    normalized_verifier["cache"]["environment_keys"],
-                )
-                if len(environment_keys) != len(set(environment_keys)):
-                    _add(
-                        errors,
-                        f"{path}.verifier.cache.environment_keys",
-                        "must be unique",
-                    )
-                if isinstance(key_document, dict) and (
-                    key_document.get("cache_mode") != normalized_verifier["cache"]["mode"]
-                    or key_document.get("environment_keys")
-                    != sorted(normalized_verifier["cache"]["environment_keys"])
-                ):
-                    _add(errors, f"{path}.key_document", "must encode verifier cache policy")
-            if not _nonempty_string(normalized_verifier["cwd"]):
-                _add(errors, f"{path}.verifier.cwd", "must be a non-empty string")
-            _strings(errors, f"{path}.verifier.argv", normalized_verifier["argv"])
-            if not _nonempty_string(normalized_verifier["pass_signal"]):
+        if normalized_verifier["id"] != verifier_id:
+            _add(errors, f"{path}.verifier.id", "must match verifier_id")
+        declared_cache = (
+            declaration.get("cache")
+            if declaration is not None and isinstance(declaration.get("cache"), dict)
+            else {"mode": "disabled", "environment_keys": []}
+        )
+        if declaration is not None and (
+            normalized_verifier["cwd"] != declaration.get("cwd")
+            or normalized_verifier["argv"] != declaration.get("argv")
+            or normalized_verifier["pass_signal"] != declaration.get("pass_signal")
+            or normalized_verifier["cache"] != declared_cache
+        ):
+            _add(errors, f"{path}.verifier", "must exactly match the PLAN verifier declaration")
+        if _keys(
+            errors,
+            f"{path}.verifier.cache",
+            normalized_verifier["cache"],
+            {"mode", "environment_keys"},
+            {"deterministic_local"},
+        ):
+            if normalized_verifier["cache"]["mode"] not in {
+                "disabled",
+                "session_exact",
+            }:
                 _add(
                     errors,
-                    f"{path}.verifier.pass_signal",
-                    "must be a non-empty string",
+                    f"{path}.verifier.cache.mode",
+                    "has an unsupported value",
                 )
-            if isinstance(key_document, dict) and any(
-                key_document.get(key) != normalized_verifier[key]
-                for key in ("cwd", "argv", "pass_signal")
+            environment_keys = _strings(
+                errors,
+                f"{path}.verifier.cache.environment_keys",
+                normalized_verifier["cache"]["environment_keys"],
+            )
+            if len(environment_keys) != len(set(environment_keys)):
+                _add(
+                    errors,
+                    f"{path}.verifier.cache.environment_keys",
+                    "must be unique",
+                )
+            if isinstance(key_document, dict) and (
+                key_document.get("cache_mode") != normalized_verifier["cache"]["mode"]
+                or key_document.get("environment_keys")
+                != sorted(normalized_verifier["cache"]["environment_keys"])
             ):
-                _add(errors, f"{path}.key_document", "must encode the retained normalized verifier")
+                _add(errors, f"{path}.key_document", "must encode verifier cache policy")
+        if not _nonempty_string(normalized_verifier["cwd"]):
+            _add(errors, f"{path}.verifier.cwd", "must be a non-empty string")
+        _strings(errors, f"{path}.verifier.argv", normalized_verifier["argv"])
+        if not _nonempty_string(normalized_verifier["pass_signal"]):
+            _add(
+                errors,
+                f"{path}.verifier.pass_signal",
+                "must be a non-empty string",
+            )
+        if isinstance(key_document, dict) and any(
+            key_document.get(key) != normalized_verifier[key]
+            for key in ("cwd", "argv", "pass_signal")
+        ):
+            _add(errors, f"{path}.key_document", "must encode the retained normalized verifier")
         context = item["context"]
         context_keys = {
             "run_id",
@@ -2176,14 +2173,7 @@ def _validate_verifier_executions(
                 for key in key_context_fields:
                     if key_document.get(key) != context[key]:
                         _add(errors, f"{path}.key_document.{key}", "must match context")
-                changed_digest = hashlib.sha256(
-                    json.dumps(
-                        changed_files,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                        ensure_ascii=False,
-                    ).encode("utf-8")
-                ).hexdigest()
+                changed_digest = changed_files_digest(changed_files)
                 if key_document.get("changed_files_digest") != changed_digest:
                     _add(errors, f"{path}.key_document.changed_files_digest", "must match context")
         status = item["status"]
@@ -5404,4 +5394,3 @@ def validate_current_plan_run(
 
 # Keep a descriptive alias for callers that name the pair rather than the
 # persisted files. Both names intentionally share the same strict entrypoint.
-validate_current_manifests = validate_current_plan_run

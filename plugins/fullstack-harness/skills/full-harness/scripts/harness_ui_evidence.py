@@ -14,6 +14,7 @@ from typing import Any
 
 from harness_core import (
     _add,
+    read_git_blob,
     _keys,
     _nonempty_string,
     _optional_sha,
@@ -114,28 +115,21 @@ def _read_git_artifact_blob(
 ) -> tuple[bytes | None, str | None]:
     """Read an accepted UI artifact from one Git commit/ref, never the worktree."""
 
-    try:
-        result = subprocess.run(
-            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{artifact_path}"],
-            cwd=root,
-            capture_output=True,
-            text=False,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return None, str(exc)
-    if result.returncode != 0:
-        reason = result.stderr.decode("utf-8", errors="replace").lower()
-        if "not a git repository" in reason:
-            return None, (
-                f"--repo-root {root} is not a Git checkout "
-                "(pass the correct --repo-root)"
-            )
-        return None, (
+    payload, reason = read_git_blob(
+        root,
+        revision,
+        artifact_path,
+        (
             f"accepted Git commit/ref {revision!r} does not contain a readable "
             f"artifact blob at {artifact_path}"
+        ),
+    )
+    if payload is None and reason == "--repo-root is not a Git checkout":
+        return None, (
+            f"--repo-root {root} is not a Git checkout "
+            "(pass the correct --repo-root)"
         )
-    return result.stdout, None
+    return payload, reason
 
 
 def _validate_ui_evidence(

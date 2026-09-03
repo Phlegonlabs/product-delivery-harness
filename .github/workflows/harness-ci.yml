@@ -43,6 +43,10 @@ jobs:
       - name: Validate Agent Skills specification compliance
         run: python .agents/skills/full-harness/scripts/check_skill_spec.py
 
+      - name: Check for dead code with pyflakes
+        run: |
+          python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
+
       - name: Run harness unit, contract, and E2E tests
         run: python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 

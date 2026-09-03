@@ -1151,7 +1151,7 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("acquire-run-lock", "release-run-lock", "heartbeat-run-lock"):
         lock_command = subparsers.add_parser(name)
         lock_command.add_argument("--owner")
-    observation = subparsers.add_parser("record-observation")
+    subparsers.add_parser("record-observation")
     wave_command = subparsers.add_parser("accept-wave")
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)

@@ -16,17 +16,12 @@ if str(SCRIPTS_DIR) not in sys.path:
 from harness_core import mission_dependencies, resolve_runtime_options  # noqa: E402
 from harness_graph import _validate_graph  # noqa: E402
 from harness_manifest import (  # noqa: E402
-    AUTHORIZATION_KEYS,
-    load_plan,
-    load_run,
     plan_digest,
     topological_levels,
     validate_plan,
     validate_run,
 )
 from select_ready_nodes import (  # noqa: E402
-    GraphSelectionError,
-    _current_authorized_head,
     _runtime_binding,
     select_ready_nodes,
 )
@@ -38,7 +33,6 @@ from test_harness_manifest import (  # noqa: E402
     legacy_graph_plan,
     legacy_graph_run,
     mark_legacy_complete,
-    mark_complete,
     retained_gate_execution,
     valid_plan,
     valid_run,

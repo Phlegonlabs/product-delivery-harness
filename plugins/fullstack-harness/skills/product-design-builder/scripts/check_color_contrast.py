@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import sys
 
 HEX_RE = re.compile(r"^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
 AA_NORMAL_THRESHOLD = 4.5

@@ -359,12 +359,6 @@ def authorization_covers(
         or (isinstance(targets, list) and any(_is_main_branch_target(t) for t in targets))
     ):
         return False
-    historical_completed_push = (
-        action == "push"
-        and preserve_completed_run_expiry
-        and run.get("status") == "complete"
-        and entry.get("expires_when") == "run_complete"
-    )
     if action == "push" and run.get("schema_version") in {10, 11}:
         # A completed RUN may retain a run_complete grant as historical
         # evidence, but that expiry exception never relaxes remote intent or
@@ -456,7 +450,7 @@ def _closed_wave_pairs(run: dict[str, Any]) -> set[tuple[str, str]] | None:
     return pairs
 
 
-def _wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
+def wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
     """Return whether a wave-scoped grant is bound to the live wave identity.
 
     A wave grant is intentionally tied to both the wave ID and the immutable
@@ -498,12 +492,6 @@ def _wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
     return (wave_id, batch_base_sha) not in closed_pairs
 
 
-def wave_scope_matches_current(run: dict[str, Any], scope: Any) -> bool:
-    """Public validation helper for a wave-closed authorization scope."""
-
-    return _wave_scope_matches_current(run, scope)
-
-
 def _authorization_not_expired(
     run: dict[str, Any], boundary: Any, scope: dict[str, Any] | None = None
 ) -> bool:
@@ -512,5 +500,5 @@ def _authorization_not_expired(
     if boundary == "run_complete":
         return run.get("status") != "complete"
     if boundary == "wave_closed":
-        return _wave_scope_matches_current(run, scope)
+        return wave_scope_matches_current(run, scope)
     return False

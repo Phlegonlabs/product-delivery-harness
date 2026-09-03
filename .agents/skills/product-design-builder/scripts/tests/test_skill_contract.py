@@ -61,7 +61,6 @@ class ProductDesignBuilderSkillContractTests(unittest.TestCase):
 
     def test_style_intake_pauses_before_reference_informed_directions(self) -> None:
         directions = self.read("references/visual-direction-guide.md")
-        agent = self.read("agents/openai.yaml")
 
         self.assertIn("### Style And Reference Intake", directions)
         self.assertIn("### Reference-Informed Direction Recommendations", directions)

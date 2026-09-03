@@ -18,7 +18,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_core import classify_execution_route  # noqa: E402
 from harness_manifest import (  # noqa: E402
-    validate_current_manifests,
     validate_current_plan_run,
     validate_plan,
     validate_run,
@@ -51,7 +50,6 @@ class CurrentValidationAndRoutingTests(unittest.TestCase):
         run = valid_graph_run(plan)
 
         self.assertEqual([], validate_current_plan_run(plan, run))
-        self.assertEqual([], validate_current_manifests(plan, run))
 
     def test_legacy_validators_keep_accepted_shapes(self) -> None:
         plan = legacy_plan()

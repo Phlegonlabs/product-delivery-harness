@@ -14,18 +14,10 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from manifest_fixtures import git  # noqa: E402
 from harness_manifest import validate_integration_head_against_git  # noqa: E402
 
 
-def _run_git(args: list[str], cwd: Path) -> None:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    assert result.returncode == 0, f"git {' '.join(args)} failed: {result.stderr}"
 
 
 def _head_sha(cwd: Path, branch: str) -> str:
@@ -55,12 +47,12 @@ class ValidateIntegrationHeadAgainstGitTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.repo_root = Path(self._tmp.name)
-        _run_git(["init"], self.repo_root)
-        _run_git(["config", "user.name", "Harness Test"], self.repo_root)
-        _run_git(["config", "user.email", "harness@example.invalid"], self.repo_root)
+        git(self.repo_root, *["init"])
+        git(self.repo_root, *["config", "user.name", "Harness Test"])
+        git(self.repo_root, *["config", "user.email", "harness@example.invalid"])
         (self.repo_root / "file.txt").write_text("first\n", encoding="utf-8")
-        _run_git(["add", "file.txt"], self.repo_root)
-        _run_git(["commit", "-m", "first commit"], self.repo_root)
+        git(self.repo_root, *["add", "file.txt"])
+        git(self.repo_root, *["commit", "-m", "first commit"])
         result = subprocess.run(
             ["git", "branch", "--show-current"],
             cwd=self.repo_root,
@@ -80,8 +72,8 @@ class ValidateIntegrationHeadAgainstGitTests(unittest.TestCase):
     def test_stale_recorded_head_reports_mismatch(self) -> None:
         run = _make_run(self.branch, self.first_sha)
         (self.repo_root / "file.txt").write_text("second\n", encoding="utf-8")
-        _run_git(["add", "file.txt"], self.repo_root)
-        _run_git(["commit", "-m", "second commit"], self.repo_root)
+        git(self.repo_root, *["add", "file.txt"])
+        git(self.repo_root, *["commit", "-m", "second commit"])
 
         errors = validate_integration_head_against_git(run, self.repo_root)
         self.assertEqual(len(errors), 1)

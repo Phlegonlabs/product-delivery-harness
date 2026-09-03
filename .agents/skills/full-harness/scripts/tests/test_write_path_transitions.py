@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,18 +18,12 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import harness_transition  # noqa: E402
-from harness_core import ManifestError, is_full_sha  # noqa: E402
+from harness_core import ManifestError  # noqa: E402
+from manifest_fixtures import git  # noqa: E402
 from test_select_ready_nodes import (  # noqa: E402
-    authorize_execution,
+
     current_preintegration_review_state,
 )
-
-
-def git(root: Path, *args: str) -> str:
-    result = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise AssertionError(result.stderr)
-    return result.stdout.strip()
 
 
 def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:

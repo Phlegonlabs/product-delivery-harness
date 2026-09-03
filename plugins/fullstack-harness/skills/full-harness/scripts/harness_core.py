@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -509,11 +510,41 @@ def _optional_string(errors: list[str], path: str, value: Any) -> None:
         _add(errors, path, "must be null or a non-empty string")
 
 
+def read_git_blob(
+    root: Path, revision: str, relative_path: str, unavailable_message: str
+) -> tuple[bytes | None, str | None]:
+    """Read one blob from a commit/ref without consulting the working tree."""
+
+    try:
+        result = subprocess.run(
+            ["git", "show", "--no-ext-diff", "--format=", f"{revision}:{relative_path}"],
+            cwd=root,
+            capture_output=True,
+            text=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, str(exc)
+    if result.returncode != 0:
+        reason = result.stderr.decode("utf-8", errors="replace").lower()
+        if "not a git repository" in reason:
+            return None, "--repo-root is not a Git checkout"
+        return None, unavailable_message
+    return result.stdout, None
+
+
+def changed_files_digest(files: list[str]) -> str:
+    """One canonical digest over the sorted changed-file list.
+
+    Both the manifest validator and the worker-result validator key evidence
+    on this value; a single definition keeps them from drifting apart.
+    """
+
+    return hashlib.sha256(
+        json.dumps(files, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
 def _optional_sha(errors: list[str], path: str, value: Any) -> None:
     if value is not None and not is_full_sha(value):
         _add(errors, path, "must be null or a full lowercase Git SHA")
-
-
-def _optional_nonnegative_int(errors: list[str], path: str, value: Any) -> None:
-    if value is not None and (not _is_int(value) or value < 0):
-        _add(errors, path, "must be null or a non-negative integer")

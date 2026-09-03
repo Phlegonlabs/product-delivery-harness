@@ -1,4 +1,3 @@
-import copy
 import sys
 import unittest
 from pathlib import Path
@@ -17,7 +16,6 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import load_plan, load_run  # noqa: E402
-from harness_manifest import validate_plan, validate_run  # noqa: E402
 
 
 class SchemaV6V11ContractTests(unittest.TestCase):

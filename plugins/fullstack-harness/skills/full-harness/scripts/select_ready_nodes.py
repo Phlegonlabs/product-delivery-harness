@@ -21,21 +21,21 @@ from harness_manifest import (
     resolve_runtime_options,
     route_runtime_driver,
     validate_current_plan_run,
+
+
     validate_plan,
     validate_run,
 )
+
+# Test patch seams: tests patch these module attributes by name, so the
+# imports stay although this module calls only validate_current_plan_run.
+_ = (validate_plan, validate_run)
+
 from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS, RUN_DISPATCH_STATUSES
 
 
 class GraphSelectionError(ValueError):
     """Raised when canonical graph state cannot produce a safe frontier."""
-
-
-TOOL_PROFILES = {
-    "mission_write",
-    "code_review_readonly",
-    "visual_review_readonly",
-}
 
 
 def _tool_profile(node: dict[str, Any]) -> str:
@@ -543,13 +543,7 @@ def _logical_reasons(
     return sorted(reasons)
 
 
-def _current_authorized_head(
-    run: dict[str, Any],
-    action: str,
-    *,
-    plan: dict[str, Any] | None = None,
-    target: str | None = None,
-) -> str | None:
+def _current_authorized_head(run: dict[str, Any]) -> str | None:
     """Resolve the live candidate head for one head-bound lifecycle action.
 
     `push` is the only head-bound action, and the only head it can publish is
@@ -804,12 +798,7 @@ def _dispatch_reasons(
         # (authored before this field existed) unchanged.
         target = node.get("target") or "*"
         mission_ids = sorted(run["mission_states"])
-        current_head = _current_authorized_head(
-            run,
-            node["ref"],
-            plan=plan,
-            target=target,
-        )
+        current_head = _current_authorized_head(run)
         if any(
             not authorization_covers(run, node["ref"], mission_id, target)
             for mission_id in mission_ids

@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 
+from harness_core import changed_files_digest
 from harness_manifest import (
     ManifestError,
     NESTED_SUBAGENT_ROLES,
@@ -572,14 +572,7 @@ def _retained_verifier_results(
                     for field in key_context_fields
                 }
                 retained_context = {field: context.get(field) for field in key_context}
-                changed_digest = hashlib.sha256(
-                    json.dumps(
-                        context.get("changed_files"),
-                        sort_keys=True,
-                        separators=(",", ":"),
-                        ensure_ascii=False,
-                    ).encode("utf-8")
-                ).hexdigest()
+                changed_digest = changed_files_digest(context.get("changed_files"))
                 if key_context != retained_context or key_document.get("changed_files_digest") != changed_digest:
                     _issue(errors, "retained_verifier_context_mismatch", f"{path}.key_document", "does not encode the retained verifier context")
         normalized = item.get("verifier")

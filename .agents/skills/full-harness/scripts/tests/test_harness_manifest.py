@@ -36,7 +36,6 @@ from harness_manifest import (  # noqa: E402
     validate_scope_claim,
 )
 from harness_authorization import authorization_covers, execution_covers  # noqa: E402
-from harness_schema import action_target_kind_allowed  # noqa: E402
 
 
 SHA_A = "a" * 40

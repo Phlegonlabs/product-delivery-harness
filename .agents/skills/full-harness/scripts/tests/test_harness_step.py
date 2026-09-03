@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +19,7 @@ if str(TESTS_DIR) not in sys.path:
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from manifest_fixtures import git  # noqa: E402
 import harness_step  # noqa: E402
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
 
@@ -37,8 +37,6 @@ def write_manifest(directory: Path, name: str, payload: object) -> Path:
     return path
 
 
-def git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True)
 
 
 class HarnessStepTests(unittest.TestCase):
