@@ -139,6 +139,15 @@ UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # commit. Every other action either mutates local state or cleans it up.
 HEAD_BOUND_AUTHORIZATION_ACTIONS = {"push"}
 RUNTIME_PROVIDERS = {"codex", "claude_code", "pi", "generic"}
+# Only the four ids above ship a dedicated adapter section. Any other
+# lowercase id is still a schema-valid provider -- a market runtime such as
+# gemini_cli or cursor -- and runs the generic route and driver ladder until
+# a dedicated section exists.
+PROVIDER_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def is_valid_provider_id(value: object) -> bool:
+    return isinstance(value, str) and PROVIDER_ID_RE.match(value) is not None
 RUNTIME_REASONING_EFFORTS = {
     "none",
     "minimal",
@@ -204,6 +213,15 @@ RUNTIME_DRIVER_PRIORITY = {
     "pi": ("subagents", "sequential_parent"),
     "generic": ("subagents", "sequential_parent"),
 }
+
+
+def runtime_driver_priority(provider: object) -> tuple[str, ...]:
+    """Dedicated providers have their own ladder; any other valid id runs the
+    generic one, so an unlisted host is never structurally unrunnable."""
+
+    if not isinstance(provider, str):
+        return ()
+    return RUNTIME_DRIVER_PRIORITY.get(provider, RUNTIME_DRIVER_PRIORITY["generic"])
 GRAPH_NODE_KINDS = {"mission", "verifier", "approval", "external_wait", "lifecycle"}
 GRAPH_EXECUTORS = {
     "runtime_worker",

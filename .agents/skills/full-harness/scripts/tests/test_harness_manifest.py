@@ -2907,6 +2907,38 @@ class RunValidationTests(unittest.TestCase):
         self.assertTrue(any("detection_source: has an unsupported value" in error for error in errors))
         self.assertEqual(route_runtime_driver(run["runtime_capabilities"]), "sequential_parent")
 
+    def test_market_provider_ids_run_validate_with_generic_ladder(self) -> None:
+        plan = legacy_plan()
+        run = legacy_run(plan, 6)
+        adapter = {
+            "provider": "gemini_cli",
+            # The generic ladder must supply this fallback: an unknown
+            # provider with an empty ladder would reject every driver.
+            "available_drivers": ["sequential_parent"],
+            "detection_source": "observed",
+        }
+        run["runtime_capabilities"]["runtime_adapter"] = adapter
+        errors = validate_run(plan, run)
+        self.assertFalse(
+            any("runtime_adapter" in error for error in errors), errors
+        )
+        self.assertEqual(
+            "sequential_parent", route_runtime_driver(run["runtime_capabilities"])
+        )
+
+        adapter["available_drivers"] = ["app_threads"]
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("drivers do not match provider" in error for error in errors)
+        )
+
+        adapter["provider"] = "Gemini CLI"
+        adapter["available_drivers"] = ["subagents", "sequential_parent"]
+        errors = validate_run(plan, run)
+        self.assertTrue(
+            any("provider: has an unsupported value" in error for error in errors)
+        )
+
     def test_runtime_adapter_rejects_external_runtimes_key(self) -> None:
         # The guarded cross-runtime escape hatch (Codex <-> Claude Code) is
         # fully removed: runtime_adapter no longer has any concept of an

@@ -534,6 +534,21 @@ class GraphManifestTests(unittest.TestCase):
             errors,
         )
 
+    def test_market_provider_ids_plan_validate_without_schema_changes(self) -> None:
+        plan = valid_graph_plan()
+        for node in mission_nodes(plan):
+            node["runtime"]["allowed_providers"] = ["gemini_cli", "generic"]
+
+        self.assertEqual([], validate_plan(plan))
+
+        plan = valid_graph_plan()
+        for node in mission_nodes(plan):
+            node["runtime"]["allowed_providers"] = ["Gemini CLI", "copilot"]
+        errors = validate_plan(plan)
+        self.assertTrue(
+            any("providers must be lowercase ids" in error for error in errors)
+        )
+
     def test_plan_v4_and_v5_project_the_same_graph_dependencies(self) -> None:
         current_plan = valid_graph_plan()
         expected = mission_dependencies(current_plan)

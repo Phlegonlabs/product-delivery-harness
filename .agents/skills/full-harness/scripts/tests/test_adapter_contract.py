@@ -66,7 +66,11 @@ class AdapterContractTests(unittest.TestCase):
         adapters = self.read_adapters()
 
         self.assertIn("## Adding A Provider", adapters)
-        self.assertIn("`RUNTIME_PROVIDERS` and `RUNTIME_DRIVER_PRIORITY`", adapters)
+        self.assertIn("needs no schema change", adapters)
+        self.assertIn(
+            "runs the Provider: generic route with the generic driver ladder", adapters
+        )
+        self.assertIn("`RUNTIME_DRIVER_PRIORITY` in `scripts/harness_schema.py`", adapters)
         self.assertIn(
             "never adds authorization keys, alternate state, handoff, or upgrade rules",
             adapters,
@@ -79,6 +83,8 @@ class AdapterContractTests(unittest.TestCase):
             "Any host without a dedicated section above runs the generic route unchanged",
             adapters,
         )
+        self.assertIn("Any lowercase provider id is schema-valid", adapters)
+        self.assertIn("the names are illustrative, not a support list", adapters)
         self.assertIn("no generic model catalog", adapters)
         self.assertIn("never substitute a different model silently", adapters)
         self.assertIn(

@@ -6,6 +6,8 @@ Use this reference only for a large managed run. Read `../SKILL.md` first, then 
 
 The adapter layer selects launch mechanics and provider-specific model options. It grants no authorization and does not own shared state, review, integration, handoff, or cleanup.
 
+Any lowercase provider id is schema-valid. `codex`, `claude_code`, `pi`, and `generic` are the ids with dedicated sections; every other id runs the generic route below unchanged.
+
 A PLAN node is selectable here when its `allowed_providers` includes the current host. `preferred_provider` is advisory ordering among allowed hosts; it never blocks the current host.
 
 There is no mechanism in the adapter layer to invoke another provider. Do not probe for another runtime's CLI, binary, or plugin as a substitute route. Report an ineligible node as `runtime_unavailable`; before readiness, a node with no planned host is a blocking gap unless the user accepts later deferral.
@@ -204,7 +206,7 @@ Preserve failed node, lease, run id, dirty files, commits, and session evidence.
 
 A PLAN node is selectable here when its `allowed_providers` includes `generic`.
 
-Any host without a dedicated section above runs the generic route unchanged — nothing in the harness assumes one of the named runtimes:
+Any host without a dedicated section above runs the generic route unchanged — nothing in the harness assumes one of the named runtimes. Current market hosts — Gemini CLI, Cursor, GitHub Copilot, Cline, Aider, Windsurf, OpenCode, and whatever comes next — run this route as-is; the names are illustrative, not a support list.
 
 - Driver: `subagents` with parent-owned isolation when the session exposes a fresh-child launch surface that selects a child by stable key and returns terminal child results; otherwise the real `sequential_parent` from `worktree-thread-orchestration.md`. Always record `sequential_parent` as fallback.
 - Version gate: record the host's own version and the loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`.
@@ -217,9 +219,13 @@ When a generic host gains its own section through `Adding A Provider`, that sect
 
 ## Adding A Provider
 
-Adding a runtime host is one section, not one skill:
+Running a new runtime needs no schema change at all:
 
-1. Add the provider id to `RUNTIME_PROVIDERS` and `RUNTIME_DRIVER_PRIORITY` in `scripts/harness_schema.py`.
+1. Use its lowercase id — for example `gemini_cli` or `cursor` — in each runtime node's `allowed_providers`. Any such id is schema-valid, records as `runtime_adapter.provider`, and runs the Provider: generic route with the generic driver ladder.
+
+Give a host its own section only when it has native mechanics worth pinning — a dedicated driver, model catalog, probe surface, or context chain:
+
+1. Add the provider id to `RUNTIME_DRIVER_PRIORITY` in `scripts/harness_schema.py`.
 2. Add one `## Provider: <id>` section above: the eligibility sentence, capability facts and probe surfaces, the driver ladder, provider model defaults, the launch procedure, and the context-file chain. It must reuse the shared contract instead of restating it.
 3. Extend the adapter contract tests to pin the new section's rules.
 4. Run `scripts/sync_plugin_skills.py` and the full verification suite from the repository root.

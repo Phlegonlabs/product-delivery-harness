@@ -24,8 +24,8 @@ from harness_schema import (
     GRAPH_NODE_PHASES,
     GRAPH_OUTCOMES,
     ID_RE,
+    is_valid_provider_id,
     REVIEWER_TOOL_KEYS,
-    RUNTIME_PROVIDERS,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
     TARGET_RE,
@@ -316,25 +316,29 @@ def _validate_graph(
                 ):
                     # allowed_providers is intentionally schema-valid even when it excludes
                     # whatever provider happens to host the current RUN: a PLAN may target a
-                    # host chosen later. No further "can this ever run anywhere" check is
-                    # added beyond nonempty + RUNTIME_PROVIDERS membership (just below):
-                    # every member of RUNTIME_PROVIDERS has a native driver in
-                    # RUNTIME_DRIVER_PRIORITY, so there is no provider combination that is
-                    # structurally unrunnable on every host. A host/provider mismatch is a
-                    # RUN-time "runtime_unavailable" outcome (see select_ready_nodes.py),
-                    # not a PLAN authoring error.
+                    # host chosen later. Membership is also not restricted to the four
+                    # providers with a dedicated adapter section: any lowercase id -- for
+                    # example a market runtime like gemini_cli or cursor -- is valid, and
+                    # every id without its own ladder runs the generic driver priority, so
+                    # there is no provider combination that is structurally unrunnable on
+                    # its host. A host/provider mismatch is a RUN-time
+                    # "runtime_unavailable" outcome (see select_ready_nodes.py), not a
+                    # PLAN authoring error.
                     providers = _strings(
                         errors,
                         f"{runtime_path}.allowed_providers",
                         runtime["allowed_providers"],
                         nonempty=True,
                     )
-                    unknown_providers = sorted(set(providers) - RUNTIME_PROVIDERS)
-                    if unknown_providers:
+                    invalid_providers = sorted(
+                        p for p in set(providers) if not is_valid_provider_id(p)
+                    )
+                    if invalid_providers:
                         _add(
                             errors,
                             f"{runtime_path}.allowed_providers",
-                            f"unsupported providers: {', '.join(unknown_providers)}",
+                            "providers must be lowercase ids like codex or gemini_cli: "
+                            + ", ".join(invalid_providers),
                         )
                     preferred = runtime["preferred_provider"]
                     if preferred is not None and preferred not in providers:

@@ -12,7 +12,7 @@ from harness_schema import (
     MODEL_TOKEN_RE,
     PLAN_HEADING,
     RUN_HEADING,
-    RUNTIME_DRIVER_PRIORITY,
+    runtime_driver_priority,
     SHA_RE,
     WORKER_HEADING,
 )
@@ -58,7 +58,7 @@ def route_runtime_driver(runtime: dict[str, Any]) -> str:
     if not isinstance(available, list):
         return "sequential_parent"
     provider = adapter.get("provider")
-    priority = RUNTIME_DRIVER_PRIORITY.get(provider, ()) if isinstance(provider, str) else ()
+    priority = runtime_driver_priority(provider)
     for driver in priority:
         if driver in available:
             return driver

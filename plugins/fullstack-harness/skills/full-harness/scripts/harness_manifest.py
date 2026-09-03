@@ -40,7 +40,8 @@ from harness_schema import (
     RUNTIME_DETECTION_SOURCES,
     RUNTIME_DRIVER_PRIORITY,
     RUNTIME_DRIVERS,
-    RUNTIME_PROVIDERS,
+    is_valid_provider_id,
+    runtime_driver_priority,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_VERSION_STATUSES,
@@ -1591,7 +1592,7 @@ def _validate_runtime_metrics(errors: list[str], run: dict[str, Any]) -> None:
             _add(errors, f"{path}.event_id", "must be unique")
         else:
             event_ids.add(event_id)
-        if event["provider"] not in RUNTIME_PROVIDERS:
+        if not is_valid_provider_id(event["provider"]):
             _add(errors, f"{path}.provider", "has an unsupported value")
         for key in ("node_id", "attempt_id", "started_at", "completed_at"):
             _optional_string(errors, f"{path}.{key}", event[key])
@@ -2650,7 +2651,7 @@ def _validate_current_runtime_binding(
     expected_provider = adapter.get("provider")
     expected_driver = route_runtime_driver(runtime)
     if (
-        expected_provider in RUNTIME_PROVIDERS
+        is_valid_provider_id(expected_provider)
         and binding.get("provider") != expected_provider
     ):
         _add(
@@ -3195,7 +3196,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             {"capability_probe", "version_gate"} if schema_version in {10, 11} else set(),
         ):
             provider = adapter["provider"]
-            provider_valid = isinstance(provider, str) and provider in RUNTIME_PROVIDERS
+            provider_valid = is_valid_provider_id(provider)
             if not provider_valid:
                 _add(errors, f"{adapter_path}.provider", "has an unsupported value")
             drivers = _strings(
@@ -3211,7 +3212,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"{adapter_path}.available_drivers",
                     f"unsupported drivers: {', '.join(unknown_drivers)}",
                 )
-            allowed_drivers = set(RUNTIME_DRIVER_PRIORITY.get(provider, ())) if provider_valid else set()
+            allowed_drivers = set(runtime_driver_priority(provider)) if provider_valid else set()
             incompatible_drivers = sorted(set(drivers) - allowed_drivers)
             if provider_valid and incompatible_drivers:
                 _add(
@@ -3267,7 +3268,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         session_id = capability["session_id"]
                         if status not in REVIEWER_TOOL_STATUSES:
                             _add(errors, f"{capability_path}.status", "has an unsupported value")
-                        if capability_provider not in RUNTIME_PROVIDERS:
+                        if not is_valid_provider_id(capability_provider):
                             _add(errors, f"{capability_path}.provider", "has an unsupported value")
                         if capability_driver not in RUNTIME_DRIVERS:
                             _add(errors, f"{capability_path}.driver", "has an unsupported value")
@@ -4077,7 +4078,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "option_source",
                 },
             ):
-                if runtime_binding["provider"] not in RUNTIME_PROVIDERS:
+                if not is_valid_provider_id(runtime_binding["provider"]):
                     _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
                 if not _nonempty_string(runtime_binding["driver"]):
                     _add(errors, f"{path}.runtime_binding.driver", "must be a non-empty string")
@@ -4651,7 +4652,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 ):
                     review_provider = binding["provider"]
                     review_policy = node.get("runtime") if isinstance(node, dict) else None
-                    if review_provider not in RUNTIME_PROVIDERS:
+                    if not is_valid_provider_id(review_provider):
                         _add(errors, f"{path}.runtime_binding.provider", "has an unsupported value")
                     if not isinstance(review_policy, dict) or review_provider not in review_policy.get(
                         "allowed_providers", []
