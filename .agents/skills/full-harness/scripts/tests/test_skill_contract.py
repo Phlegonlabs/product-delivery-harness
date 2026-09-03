@@ -329,6 +329,34 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("An unbound slot uses the bundled default", project_agents)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
 
+    def test_recently_added_tooling_is_documented(self) -> None:
+        gates = self.read("references/verification-gates.md")
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        state = self.read("references/execution-state-model.md")
+        packet_guide = self.read("references/graph-orchestration.md")
+        updates = self.read("references/design-input-updates.md")
+        documents = self.read("assets/templates/DOCUMENTS.template.md")
+
+        self.assertIn("skip-integration-review", gates)
+        self.assertIn("--tree-sha", gates)
+        for command in (
+            "skip-integration-review",
+            "acquire-run-lock",
+            "release-run-lock",
+            "heartbeat-run-lock",
+            "watchdog",
+        ):
+            self.assertIn(command, runbook)
+        self.assertIn('"runtime_metrics": null', runbook)
+        self.assertIn("inspect_harness_run.py", state)
+        self.assertIn("check_skill_bindings.py", state)
+        self.assertIn("--max-diff-bytes", packet_guide)
+        self.assertIn("REFINEMENT_BACKLOG.template.md", updates)
+        self.assertIn(
+            "| `design-system.md` / `design-system.json` | `docs/product/` |", documents
+        )
+        self.assertIn("- `tasks.md` is a rendered view", documents)
+
     def test_deployment_contract_separates_preview_from_production(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")
@@ -449,7 +477,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.17.0"', runbook)
+        self.assertIn('"required_harness_version": "0.17.1"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

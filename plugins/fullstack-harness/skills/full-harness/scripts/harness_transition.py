@@ -55,7 +55,9 @@ def _lock_age_minutes(run: dict[str, Any]) -> float | None:
     return (datetime.now(timezone.utc) - heartbeat).total_seconds() / 60
 
 
-def _ensure_run_lock_free(run: dict[str, Any], session_id: str | None) -> None:
+def _ensure_run_lock_free(
+    run: dict[str, Any], session_id: str | None, stale_after: float = DEFAULT_LOCK_STALE_MINUTES
+) -> None:
     """Refuse to mutate a RUN another live parent session holds.
 
     A missing lock is the historical behavior and stays valid; a fresh lock
@@ -72,14 +74,16 @@ def _ensure_run_lock_free(run: dict[str, Any], session_id: str | None) -> None:
     if session_id is not None and holder == session_id:
         return
     age = _lock_age_minutes(run)
-    if age is not None and age <= DEFAULT_LOCK_STALE_MINUTES:
+    if age is not None and age <= stale_after:
         raise ManifestError(
             f"run lock is held by session {holder!r} "
-            f"(heartbeat {age:.1f}m ago); pass its --session-id or release the lock"
+            f"(heartbeat {age:.1f}m ago, stale after {stale_after:.0f}m); "
+            "pass --session-id <id> before the subcommand or release the lock"
         )
 
 
 def _acquire_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    _require_session_id(args)
     _ensure_run_lock_free(run, args.session_id)
     now = _now()
     lock = {
@@ -93,6 +97,7 @@ def _acquire_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
 
 
 def _release_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    _require_session_id(args)
     lock = run.get("run_lock")
     if not isinstance(lock, dict):
         raise ManifestError("run has no lock to release")
@@ -103,7 +108,15 @@ def _release_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
     del run["run_lock"]
 
 
+def _require_session_id(args: argparse.Namespace) -> None:
+    if not getattr(args, "session_id", None):
+        raise ManifestError(
+            "lock commands require --session-id <id>, placed before the subcommand"
+        )
+
+
 def _heartbeat_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    _require_session_id(args)
     lock = run.get("run_lock")
     if not isinstance(lock, dict):
         raise ManifestError("run has no lock to heartbeat")
@@ -876,7 +889,6 @@ def build_parser() -> argparse.ArgumentParser:
     skip.add_argument("--worker-id", required=True)
     for name in ("acquire-run-lock", "release-run-lock", "heartbeat-run-lock"):
         lock_command = subparsers.add_parser(name)
-        lock_command.add_argument("--session-id", required=True)
         lock_command.add_argument("--owner")
     watchdog = subparsers.add_parser("watchdog")
     watchdog.add_argument("--stale-after-minutes", type=float, default=DEFAULT_LOCK_STALE_MINUTES)
@@ -896,7 +908,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "watchdog":
             report = _watchdog_report(run, args.stale_after_minutes)
             if args.reclaim:
-                _ensure_run_lock_free(run, args.session_id)
+                if not isinstance(run.get("run_lock"), dict):
+                    for line in report:
+                        print(line)
+                    return 0
+                _ensure_run_lock_free(run, args.session_id, args.stale_after_minutes)
                 run.pop("run_lock", None)
             else:
                 for line in report:

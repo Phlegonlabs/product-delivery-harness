@@ -61,7 +61,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.17.0",
+          "required_harness_version": "0.17.1",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
@@ -198,12 +198,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
     },
     "workflow_runs": [],
     "verifier_executions": [],
-    "runtime_metrics": {
-      "baseline_wall_time_ms": null,
-      "run_wall_time_ms": null,
-      "critical_path_ms": null,
-      "events": []
-    },
+    "runtime_metrics": null,
     "attempt_log": []
   }
 }
@@ -211,7 +206,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
 
 The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN.
 
-Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch`, `record-review-attempt`, and `grant-review-attempts`. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically. A resume fails while a worker is still recorded active. Use `scripts/render_review_packet.py` to produce the exact-head reviewer handoff with a bounded diff.
+Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch`, `record-review-attempt`, `grant-review-attempts`, `skip-integration-review`, `acquire-run-lock`, `release-run-lock`, `heartbeat-run-lock`, and `watchdog`. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically. A resume fails while a worker is still recorded active. Use `scripts/render_review_packet.py` to produce the exact-head reviewer handoff with a bounded diff.
 
 RUN schema v11 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes the exact action and its target. `push` remains separate, exact-branch/head-bound, and remote intent is never implied by local execution; a separate explicit remote intent is required. `integration_push` is the remote end state and `landing.pushed_head_sha` records the verified branch head. A separate explicit remote instruction is required before moving there; keep the phrase separate remote intent in the checkpoint. Legacy RUN schemas remain readable with their historical ledger and result shapes; do not copy their weaker fields into a new run. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes. The dynamic_workflow and app_threads adapters are transport choices, not execution routes; their typed `mission_write` profile, `EnterWorktree` handoff, and task creation `model`/`thinking` fields remain adapter-specific. App task creation passes the task creation `model` and `thinking` values only after the parent proves the route.
 

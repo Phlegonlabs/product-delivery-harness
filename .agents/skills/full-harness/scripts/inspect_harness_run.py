@@ -107,10 +107,16 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         )
 
     wave = run.get("active_wave")
+    lock = run.get("run_lock")
+    control = run.get("control")
     return {
         "run_id": run.get("run_id"),
         "schema_version": run.get("schema_version"),
         "status": run.get("status"),
+        "control_desired_state": control.get("desired_state")
+        if isinstance(control, dict)
+        else None,
+        "run_lock": lock if isinstance(lock, dict) else None,
         "active_wave": {
             "wave_id": wave.get("wave_id"),
             "status": wave.get("status"),
@@ -129,8 +135,16 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
 def render_text(summary: dict[str, Any]) -> str:
     wave = summary.get("active_wave") or {}
     version_gate = summary.get("runtime_version_gate") or {}
+    lock = summary.get("run_lock") or {}
     lines = [
         f"Run: {summary.get('run_id')} ({summary.get('status')})",
+        f"Control: {summary.get('control_desired_state') or '-'}",
+        "Run lock: "
+        + (
+            f"session={lock.get('session_id')} heartbeat={lock.get('heartbeat_at')}"
+            if lock
+            else "none"
+        ),
         f"Wave: {wave.get('wave_id') or '-'} ({wave.get('status') or '-'})",
         "Runtime processes: not inspected",
         "Runtime version gate: "

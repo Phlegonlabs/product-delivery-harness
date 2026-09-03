@@ -38,6 +38,11 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], int] | None:
         if ":" in line:
             key, _, value = line.partition(":")
             fields[key.strip()] = value.strip().strip("\"'")
+        elif line.startswith((" ", "	")) and fields:
+            # A folded continuation extends the previous value; append it so
+            # multi-line descriptions are measured at their true length.
+            last = next(reversed(fields))
+            fields[last] = fields[last] + " " + line.strip()
         index += 1
     if index >= len(lines):
         return None

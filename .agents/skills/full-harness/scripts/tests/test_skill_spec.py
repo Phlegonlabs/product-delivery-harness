@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -26,8 +27,6 @@ def write_skill(root: Path, name: str, frontmatter: str, body: str = "# Skill\n"
 
 class SkillSpecTests(unittest.TestCase):
     def test_checker_accepts_a_conforming_skill(self) -> None:
-        import tempfile
-
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             write_skill(
@@ -38,8 +37,6 @@ class SkillSpecTests(unittest.TestCase):
             self.assertEqual([], check_skill_spec.check_skills_root(root))
 
     def test_checker_rejects_spec_violations(self) -> None:
-        import tempfile
-
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             write_skill(

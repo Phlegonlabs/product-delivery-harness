@@ -62,11 +62,11 @@ class AdapterContractTests(unittest.TestCase):
             )
 
     def test_every_schema_provider_has_one_documented_section(self) -> None:
-        from harness_schema import RUNTIME_PROVIDERS
+        from harness_schema import RUNTIME_DRIVER_PRIORITY
 
         adapters = self.read_adapters()
 
-        for provider in sorted(RUNTIME_PROVIDERS):
+        for provider in sorted(RUNTIME_DRIVER_PRIORITY):
             with self.subTest(provider=provider):
                 self.assertIn(f"## Provider: {provider}", adapters)
 

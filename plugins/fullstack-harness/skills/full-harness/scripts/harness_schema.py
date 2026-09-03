@@ -138,11 +138,10 @@ UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # `push` is the only action bound to an exact head SHA: it publishes one verified
 # commit. Every other action either mutates local state or cleans it up.
 HEAD_BOUND_AUTHORIZATION_ACTIONS = {"push"}
-RUNTIME_PROVIDERS = {"codex", "claude_code", "pi", "generic"}
-# Only the four ids above ship a dedicated adapter section. Any other
-# lowercase id is still a schema-valid provider -- a market runtime such as
-# gemini_cli or cursor -- and runs the generic route and driver ladder until
-# a dedicated section exists.
+# Only the ids with their own RUNTIME_DRIVER_PRIORITY entry ship a dedicated
+# adapter section. Any other lowercase id is still a schema-valid provider --
+# a market runtime such as gemini_cli or cursor -- and runs the generic route
+# and driver ladder until a dedicated section exists.
 PROVIDER_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 

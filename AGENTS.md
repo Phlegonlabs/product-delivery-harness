@@ -29,6 +29,7 @@
 Edit only the canonical sources in `.agents/skills/`, then run all of this from the repository root:
 
 ```text
+python -m pip install -r .agents/skills/full-harness/requirements-test.txt
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python .agents/skills/full-harness/scripts/check_skill_spec.py

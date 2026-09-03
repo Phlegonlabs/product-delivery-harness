@@ -11,7 +11,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `architecture.md` | `docs/product/` | PRD | prd-builder | technical definition | |
 | `stack-decisions.md` | `docs/product/` | PRD | prd-builder | stack choices + rationale | |
 | `market-research.md` | `docs/product/` | PRD (gap pass) | prd-builder | sourced research | |
-| `design-system.md` / `design-system.json` | `docs/design/` | design (when required) | product-design-builder | frozen design pair | |
+| `design-system.md` / `design-system.json` | `docs/product/` | design (when required) | product-design-builder | frozen design pair | |
 | `DEPLOYMENT.md` | root | PRD seed, then owner | human setup + read-only verification | deployment record | |
 | `docs/goal/PLAN.md` | `docs/goal/` | managed run | harness parent | static plan manifest | |
 | `docs/goal/RUN.md` | `docs/goal/` | managed run | harness parent | coordination state | |
@@ -23,5 +23,5 @@ Notes:
 
 - The PRD family lives under `docs/product/` with its own artifact lifecycle (staging, publish, archive); run state and evidence live under `docs/goal/`; root carries the durable operational documents a person or agent needs during delivery: governance, deployment, and this manifest.
 - `PLAN.md` and `RUN.md` exist only for the managed route; small direct work creates none of the run documents.
-- `TASKS.md` is a rendered view: never edit it to change state — change RUN and re-render.
+- `tasks.md` is a rendered view: never edit it to change state — change RUN and re-render.
 - Evidence artifacts bind to exact SHAs with lowercase SHA-256 records; they are the only accepted proof for UI and verification gates.

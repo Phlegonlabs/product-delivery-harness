@@ -85,6 +85,38 @@ class RunLockTests(unittest.TestCase):
         harness_transition._release_run_lock(self.run, Namespace(session_id="s1"))
         self.assertNotIn("run_lock", self.run)
 
+    def test_the_staleness_threshold_is_the_operators(self) -> None:
+        self.run["run_lock"]["heartbeat_at"] = _iso(
+            datetime.now(timezone.utc) - timedelta(minutes=30)
+        )
+        # At a 10-minute threshold the 30-minute lock is stale: takeover is
+        # allowed. At 60 minutes it still counts as fresh: a foreign session
+        # is blocked. The operator's knob decides, not a hardcoded constant.
+        harness_transition._ensure_run_lock_free(self.run, "session-b", stale_after=10)
+        with self.assertRaises(ManifestError):
+            harness_transition._ensure_run_lock_free(
+                self.run, "session-b", stale_after=60
+            )
+
+    def test_parser_accepts_session_id_before_the_subcommand(self) -> None:
+        args = harness_transition.build_parser().parse_args(
+            [
+                "--plan", "PLAN.md",
+                "--run", "RUN.md",
+                "--session-id", "s1",
+                "acquire-run-lock",
+            ]
+        )
+        self.assertEqual("s1", args.session_id)
+        self.assertEqual("acquire-run-lock", args.command)
+
+    def test_lock_commands_reject_a_missing_session_id(self) -> None:
+        del self.run["run_lock"]
+        with self.assertRaises(ManifestError):
+            harness_transition._acquire_run_lock(
+                self.run, Namespace(session_id=None, owner=None)
+            )
+
     def test_watchdog_reports_staleness_and_running_candidates(self) -> None:
         self.run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]["phase"] = "running"
         live = harness_transition._watchdog_report(self.run, stale_after=15)
