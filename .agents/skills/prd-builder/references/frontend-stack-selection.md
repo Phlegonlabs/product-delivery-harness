@@ -21,10 +21,13 @@ Never compare `Cloudflare vs Astro vs Vite vs React` as though they solve the sa
 | Rendering model | When and where does HTML render? | Static, SSG, SSR, on-demand, SPA/CSR, islands, hybrid by route |
 | Web framework | What owns routes, rendering conventions, and app structure? | Astro, React Router, TanStack Start |
 | UI library | What expresses interactive component behavior? | React, Preact, Vue, none |
+| Styling approach | How are styles authored and scoped? | Tailwind CSS utilities, CSS Modules, vanilla modern CSS (cascade layers, container queries), component-library-managed styles |
 | Build tool | What provides development, transforms, and production builds? | Vite, framework-managed Vite |
 | Supporting choices | How are product concerns implemented? | Routing/data loading, state, forms, styling, components, tests |
 
 Astro is a framework and uses Vite as part of its toolchain. React is a UI library and can be used inside Astro islands, with Vite in a custom SPA, or through a React framework. Cloudflare is the hosting/runtime target for any of those valid combinations.
+
+Record the styling approach as its own layer row, not a footnote inside supporting choices. Tailwind utilities, CSS Modules, and vanilla modern CSS (cascade layers, container queries) each change how the codebase scales: utility-first converges fast and pairs naturally with headless component kits, CSS Modules keep scoping explicit inside component frameworks, and vanilla modern CSS suits content-led sites with few components. When the chosen UI library or component kit already implies one — a shadcn-style kit implies Tailwind — the row cites that constraint as its authority instead of inventing a free choice. Verify the chosen approach's current official documentation and record the check date, the same as every other layer.
 
 ## Collect Decision Evidence
 

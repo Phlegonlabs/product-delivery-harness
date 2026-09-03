@@ -1585,8 +1585,37 @@ async function agent(_prompt, options) {
         )
         self.assertIn("Iconography:", contract)
         self.assertIn(
-            "a visual package with no iconography line does not validate",
+            "a visual package missing any of these three lines does not validate",
             contract,
+        )
+
+    def test_typography_color_and_styling_layers_are_decided_with_evidence(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+        frontend = self.read("references/frontend-stack-selection.md")
+
+        for marker in (
+            "Choose typography through the same online-lookup discipline",
+            "Latin plus CJK coverage",
+            "Noto Sans TC/SC class family or the platform system-font stack",
+            "self-host versus CDN, subsetting, `font-display`",
+            "handoff's `Typography:` line",
+            "an unevidenced pick is `UNVALIDATED`",
+        ):
+            self.assertIn(marker, guide)
+        for marker in (
+            "handoff's `Color & dark mode:` line",
+            "whether dark mode is in scope for this pass or a named later scope",
+            "check_color_contrast.py",
+        ):
+            self.assertIn(marker, guide)
+        self.assertIn("Typography:", contract)
+        self.assertIn("Color & dark mode:", contract)
+        self.assertIn("UI library, styling approach, build tool", skill)
+        self.assertIn("| Styling approach |", frontend)
+        self.assertIn(
+            "Record the styling approach as its own layer row", frontend
         )
 
 
