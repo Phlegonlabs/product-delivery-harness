@@ -1618,6 +1618,40 @@ async function agent(_prompt, options) {
             "Record the styling approach as its own layer row", frontend
         )
 
+    def test_native_surfaces_get_wireframes_and_html_previews(self) -> None:
+        skill = self.read("SKILL.md")
+        wireframe = self.read("references/wireframe-guide.md")
+        guide = self.read("references/ui-design-pass.md")
+
+        self.assertIn(
+            "A native mobile or desktop app is UI-bearing without a browser frontend",
+            skill,
+        )
+        self.assertIn(
+            "gets the same single `wireframes.html` deliverable", wireframe
+        )
+        self.assertIn(
+            "with the product's own size classes standing in as the viewport toggle",
+            wireframe,
+        )
+        self.assertIn(
+            "the default route for every UI-bearing surface: web, native or "
+            "cross-platform mobile, and desktop",
+            guide,
+        )
+        self.assertIn(
+            "mock the screen as simple HTML at its size class", guide
+        )
+        self.assertIn(
+            "when HTML cannot represent the surface, such as platform chrome",
+            guide,
+        )
+        self.assertIn(
+            "Default every UI-bearing surface — web, native or cross-platform "
+            "mobile, and desktop — to high-fidelity HTML",
+            skill,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

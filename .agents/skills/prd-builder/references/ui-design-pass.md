@@ -42,9 +42,9 @@ Record the color decision in the handoff's `Color & dark mode:` line: how the pa
 
 Choose the provider-neutral preview route whose approved artifact can serve directly as the Harness implementation reference:
 
-1. rendered HTML or temporary React for a compatible web surface — the default web route. Produce it with the already loaded design skill (`design-taste-frontend` when applicable, otherwise `frontend-design`) as one self-contained high-fidelity file per representative `UI-*` screen, or one multi-page file when the owner prefers, because the retained approved file becomes the HTML reference Harness implements each page from;
+1. rendered HTML or temporary React — the default route for every UI-bearing surface: web, native or cross-platform mobile, and desktop. Produce it with the already loaded design skill (`design-taste-frontend` when applicable, otherwise `frontend-design`) as one self-contained high-fidelity file per representative `UI-*` screen, or one multi-page file when the owner prefers, because the retained approved file becomes the HTML reference Harness implements each page from. For a native mobile or desktop surface, mock the screen as simple HTML at its size class — a plain device-sized page, optionally inside a drawn device frame — and record in the handoff that the native implementation translates the retained HTML reference within the recorded tolerance;
 2. `imagegen-frontend-web` for a website section or page image when no HTML rendering capability exists;
-3. `imagegen-frontend-mobile` for a native or cross-platform mobile screen image; or
+3. `imagegen-frontend-mobile` for a native or cross-platform mobile screen image when HTML cannot represent the surface, such as platform chrome or native-only interaction; or
 4. another named image-generation, design, or external provider.
 
 This flow does not require Codex. Before generation, record the available tool and provider/model. If no suitable preview capability exists, return a complete reusable prompt package and pause until the resulting preview is supplied. Continue without a preview only when the human owner explicitly waives visual review and records why.

@@ -6,6 +6,7 @@ Use this guide after the `PRD.md` UI Surface Contract is complete. `prd-builder`
 
 - `PRD.md` owns product scope, routes, screen purpose, content responsibilities, actions, flows, states, responsive behavior, and `UI-*` / `UX-*` traces.
 - `wireframes.html` is the interactive low-fidelity projection of that contract. It owns no new behavior and never changes product scope.
+- A native mobile or desktop app is UI-bearing without a browser frontend and gets the same single `wireframes.html` deliverable: every `UI-*` screen in one file, with the product's own size classes standing in as the viewport toggle. The product ships no browser surface; the file exists purely as the review projection.
 - When the HTML exposes a gap, update `PRD.md` first, then regenerate only the affected `UI-*` page.
 - Later visual or implementation work consumes the approved HTML but does not edit it. Structural changes return to `prd-builder`.
 
