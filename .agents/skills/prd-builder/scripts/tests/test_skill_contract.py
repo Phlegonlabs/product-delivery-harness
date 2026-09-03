@@ -438,6 +438,14 @@ async function agent(_prompt, options) {
             self.assertIn("UI Preview Gate", content)
         self.assertIn("record `applicable`, `partially_applicable`, or `n/a: <reason>`", skill)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
+        self.assertIn(
+            "list the locally installed skills visible to this session", skill
+        )
+        self.assertIn(
+            "confirm the bindings with the owner in one `AskUserQuestion`", skill
+        )
+        self.assertIn("stay at the bundled default", skill)
+        self.assertIn("never reopened for this", skill)
         self.assertIn("imagegen-frontend-web", guide)
         self.assertIn("imagegen-frontend-mobile", guide)
         self.assertIn("provider/model", guide)

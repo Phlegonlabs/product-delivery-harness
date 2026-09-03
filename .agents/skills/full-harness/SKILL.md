@@ -126,7 +126,7 @@ The adapter layer selects launch mechanics and provider-specific model options. 
 Discover the effective instruction chain from repository root to the selected checkout.
 
 - Existing `AGENTS.md`, `AGENTS.override.md`, and `CLAUDE.md` files are user-owned authority. Never overwrite, merge, normalize, or silently copy them.
-- On an authorized first bootstrap, run `scripts/configure_project_context.py --root <target-root>`. It creates only missing root files from `PROJECT_AGENTS.template.md` and `PROJECT_CLAUDE.template.md`; the generated files are intentionally different.
+- On an authorized first bootstrap, run `scripts/configure_project_context.py --root <target-root>`. It creates only missing root files from `PROJECT_AGENTS.template.md` and `PROJECT_CLAUDE.template.md`; the generated files are intentionally different. The seeding flow fills the new `AGENTS.md`'s Skill Bindings table from locally observed skills with the owner's confirmation; an established file is never reopened for it.
 - Codex receives the effective `AGENTS.override.md` / `AGENTS.md` chain and never receives `CLAUDE.md` as Codex instructions.
 - Claude Code receives its effective `CLAUDE.md` chain plus shared `AGENTS.md` governance.
 - Pi uses Pi's native per-directory priority: `AGENTS.override.md`, then `AGENTS.md`, then `CLAUDE.md`.

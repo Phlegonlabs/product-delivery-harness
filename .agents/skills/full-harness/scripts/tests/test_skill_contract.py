@@ -317,6 +317,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
 
+        self.assertIn(
+            "fills the new `AGENTS.md`'s Skill Bindings table from locally observed skills",
+            skill,
+        )
         self.assertIn("## Skill Bindings", project_agents)
         self.assertIn("| design_direction |", project_agents)
         self.assertIn("| design_compilation |", project_agents)
@@ -445,7 +449,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.15.0"', runbook)
+        self.assertIn('"required_harness_version": "0.16.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
