@@ -345,8 +345,21 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "release-run-lock",
             "heartbeat-run-lock",
             "watchdog",
+            "record-observation",
+            "accept-wave",
+            "lease-worker",
+            "record-integration",
+            "--packet-out",
         ):
             self.assertIn(command, runbook)
+        self.assertIn(
+            "Hand-editing the RUN JSON for these steps is the path the transitions replaced",
+            self.read("references/worktree-thread-orchestration.md"),
+        )
+        self.assertIn(
+            "manifest_already_validated",
+            self.read("references/runtime-performance.md"),
+        )
         self.assertIn('"runtime_metrics": null', runbook)
         self.assertIn("inspect_harness_run.py", state)
         self.assertIn("check_skill_bindings.py", state)
@@ -480,7 +493,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.18.1"', runbook)
+        self.assertIn('"required_harness_version": "0.19.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

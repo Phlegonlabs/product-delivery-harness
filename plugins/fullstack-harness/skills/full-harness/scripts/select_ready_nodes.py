@@ -901,8 +901,17 @@ def select_ready_nodes(
     run: dict[str, Any],
     *,
     repo_root: str | Path | None = None,
+    manifest_already_validated: bool = False,
 ) -> dict[str, Any]:
-    validation_errors = validate_current_plan_run(plan, run, repo_root=repo_root)
+    # Callers that just validated the identical on-disk pair (for example the
+    # reserve transition, which validates once before selection and once after
+    # its mutation) pass the flag to skip the redundant walk. The load-bearing
+    # post-mutation gate still refuses to write an invalid RUN.
+    validation_errors = (
+        []
+        if manifest_already_validated
+        else validate_current_plan_run(plan, run, repo_root=repo_root)
+    )
     if validation_errors:
         schema_pair = (
             plan.get("schema_version") if isinstance(plan, dict) else None,

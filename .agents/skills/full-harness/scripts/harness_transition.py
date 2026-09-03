@@ -163,6 +163,254 @@ def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
     return lines
 
 
+def _git_out(repo_root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=repo_root, capture_output=True, text=True, timeout=30
+    )
+    if result.returncode != 0:
+        raise ManifestError(f"git {' '.join(args)} failed in {repo_root}")
+    return result.stdout
+
+
+def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
+    """Write exactly what the parent observes: live Git facts plus a timestamp.
+
+    This replaces hand-transcribing `harness_step.py`'s printed snapshot into
+    RUN.observed — the observation `_write_launch_reasons` requires before any
+    write dispatch clears.
+    """
+
+    if args.repo_root is None:
+        raise ManifestError("record-observation requires --repo-root")
+    root = args.repo_root
+    head = _git_out(root, "rev-parse", "HEAD").strip()
+    branch = _git_out(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    porcelain = _git_out(root, "status", "--porcelain")
+    worktrees_raw = _git_out(root, "worktree", "list", "--porcelain")
+
+    worktrees: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for line in worktrees_raw.splitlines():
+        if line.startswith("worktree "):
+            if current is not None:
+                worktrees.append(current)
+            current = {"path": line.split(" ", 1)[1]}
+        elif current is not None and line.startswith("HEAD "):
+            current["head_sha"] = line.split(" ", 1)[1]
+        elif current is not None and line.startswith("branch "):
+            current["branch_ref"] = line.split(" ", 1)[1]
+    if current is not None:
+        worktrees.append(current)
+    for entry in worktrees:
+        path = entry.get("path")
+        dirty = False
+        if isinstance(path, str):
+            status = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            dirty = bool(status.stdout.strip())
+        entry.setdefault("head_sha", None)
+        entry.setdefault("branch_ref", None)
+        entry["managed_by"] = "parent"
+        entry["dirty"] = dirty
+
+    run["observed"]["captured_at"] = _now()
+    run["observed"]["git"].update(
+        {
+            "parent_worktree_path": str(root.resolve()),
+            "parent_branch": branch,
+            "parent_head_sha": head,
+            "parent_dirty": bool(porcelain.strip()),
+            "worktrees": worktrees,
+        }
+    )
+
+
+def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
+    wave = run.get("active_wave")
+    if not isinstance(wave, dict):
+        raise ManifestError("run has no active_wave object")
+    if wave.get("status") == "active" and wave.get("wave_id") != args.wave_id:
+        raise ManifestError(
+            f"wave {wave.get('wave_id')!r} is still active; close it before accepting another"
+        )
+    if not is_full_sha(args.batch_base_sha):
+        raise ManifestError("accept-wave requires a full batch base SHA")
+    plan_missions = {
+        item.get("id")
+        for item in plan.get("missions", [])
+        if isinstance(item, dict)
+    }
+    unknown = [mid for mid in args.mission_id if mid not in plan_missions]
+    if unknown:
+        raise ManifestError(f"accept-wave names unknown missions: {', '.join(unknown)}")
+    integrated = {
+        mid
+        for mid, state in run.get("mission_states", {}).items()
+        if isinstance(state, dict) and state.get("phase") == "integrated"
+    }
+    already = [mid for mid in args.mission_id if mid in integrated]
+    if already:
+        raise ManifestError(f"accept-wave selects already-integrated missions: {', '.join(already)}")
+    run["integration"]["batch_base_sha"] = args.batch_base_sha
+    wave.update(
+        {
+            "wave_id": args.wave_id,
+            "status": "active",
+            "plan_revision": plan.get("revision"),
+            "plan_digest_sha256": (run.get("plan") or {}).get("digest_sha256"),
+            "batch_base_sha": args.batch_base_sha,
+            "selected_missions": list(args.mission_id),
+            "deferred_missions": [],
+            "conflict_edges": [],
+        }
+    )
+
+
+def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
+    wave = run.get("active_wave")
+    if not isinstance(wave, dict) or wave.get("status") != "active":
+        raise ManifestError("lease-worker requires an accepted active wave")
+    if args.mission_id not in wave.get("selected_missions", []):
+        raise ManifestError("lease-worker mission is not in the active wave")
+    if any(
+        isinstance(item, dict) and item.get("worker_id") == args.worker_id
+        for item in run.get("workers", [])
+    ):
+        raise ManifestError(f"worker id {args.worker_id!r} already exists")
+    if any(
+        isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
+        for item in run.get("attempt_log", [])
+    ):
+        raise ManifestError(f"duplicate attempt ID {args.attempt_id!r}")
+    node_states = run.get("graph_state", {}).get("node_states", {})
+    node_state = node_states.get(args.node_id)
+    if not isinstance(node_state, dict):
+        raise ManifestError(f"no graph state for node {args.node_id!r}")
+    mission_state = run.get("mission_states", {}).get(args.mission_id)
+    if not isinstance(mission_state, dict):
+        raise ManifestError(f"no mission state for {args.mission_id!r}")
+    if mission_state.get("phase") not in {"queued", "ready", "failed"}:
+        raise ManifestError(
+            f"mission {args.mission_id!r} is {mission_state.get('phase')!r}; "
+            "only queued, ready, or failed missions accept a new lease"
+        )
+    base_sha = wave.get("batch_base_sha")
+    digest = (run.get("plan") or {}).get("digest_sha256")
+    task_id = next(
+        (
+            tid
+            for tid, state in run.get("task_states", {}).items()
+            if tid.startswith(f"{args.mission_id}-")
+            or tid in {
+                task.get("id")
+                for mission in plan.get("missions", [])
+                if isinstance(mission, dict) and mission.get("id") == args.mission_id
+                for task in mission.get("tasks", [])
+                if isinstance(task, dict)
+            }
+            if isinstance(state, dict) and state.get("phase") in {"queued", "ready"}
+        ),
+        None,
+    )
+    node_state.update(
+        {
+            "phase": "running",
+            "attempts": int(node_state.get("attempts") or 0) + 1,
+            "last_attempt_id": args.attempt_id,
+            "bound_worker_id": args.worker_id,
+        }
+    )
+    mission_state.update(
+        {
+            "phase": "worker_running",
+            "lease_id": args.lease_id,
+            "lease_plan_revision": plan.get("revision"),
+            "lease_plan_digest_sha256": digest,
+            "worker_id": args.worker_id,
+            "base_sha": base_sha,
+        }
+    )
+    if task_id is not None:
+        task_state = run["task_states"][task_id]
+        task_state.update(
+            {"phase": "running", "attempts": int(task_state.get("attempts") or 0) + 1}
+        )
+    run["workers"].append(
+        {
+            "worker_id": args.worker_id,
+            "mission_id": args.mission_id,
+            "lease_id": args.lease_id,
+            "plan_revision": plan.get("revision"),
+            "plan_digest_sha256": digest,
+            "batch_base_sha": base_sha,
+            "worker_runtime": args.worker_runtime,
+            "workspace_mode": args.workspace_mode,
+            "completion_channel": args.completion_channel,
+            "runtime_binding": {
+                "provider": args.provider,
+                "driver": args.driver,
+                "source": "host",
+                "model": None,
+                "reasoning_effort": None,
+                "option_source": "provider_default",
+            },
+            "task_thread_id": None,
+            "worktree_path": args.worktree_path,
+            "branch_ref": args.branch_ref,
+            "report_path": None,
+            "phase": "worker_running",
+            "worker_head_sha": None,
+        }
+    )
+    run["attempt_log"].append(
+        {
+            "attempt_id": args.attempt_id,
+            "mission_id": args.mission_id,
+            "task_id": task_id,
+            "lease_id": args.lease_id,
+            "kind": "dispatch",
+            "result": "dispatched",
+            "evidence": [f"leased worker {args.worker_id} on {args.branch_ref}"],
+        }
+    )
+
+
+def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
+    mission_state = run.get("mission_states", {}).get(args.mission_id)
+    if not isinstance(mission_state, dict):
+        raise ManifestError(f"no mission state for {args.mission_id!r}")
+    if mission_state.get("phase") not in {"worker_passed", "integrating"}:
+        raise ManifestError(
+            f"mission {args.mission_id!r} is {mission_state.get('phase')!r}; "
+            "integration records require worker_passed or integrating"
+        )
+    if not is_full_sha(args.integrated_sha):
+        raise ManifestError("record-integration requires a full integrated SHA")
+    if args.repo_root is not None:
+        live_head = _git_out(args.repo_root, "rev-parse", "HEAD").strip()
+        if live_head != args.integrated_sha:
+            raise ManifestError(
+                f"integration branch HEAD is {live_head}, not {args.integrated_sha}; "
+                "integrate first, then record"
+            )
+    mission_state.update(
+        {
+            "phase": "integrated",
+            "integration_gate": "PASS",
+            "integrated_sha": args.integrated_sha,
+        }
+    )
+    node_state = run.get("graph_state", {}).get("node_states", {}).get(f"N-{args.mission_id}")
+    if isinstance(node_state, dict):
+        node_state.update({"phase": "succeeded", "last_outcome": "pass"})
+    run["integration"]["integration_head_sha"] = args.integrated_sha
+
+
 def _git_tree(repo_root: Path, sha: str) -> str:
     """Resolve a commit's tree SHA from live Git; the skip proof is real or absent."""
 
@@ -547,7 +795,15 @@ def _reserve_review_dispatch(
     repo_root: Path | None,
 ) -> dict[str, Any]:
     try:
-        selection = select_ready_nodes(plan, run, repo_root=repo_root)
+        pre_errors = validate_current_plan_run(plan, run, repo_root=repo_root)
+        if pre_errors:
+            raise ManifestError(
+                "reserve-review-dispatch requires a valid PLAN/RUN pair:"
+                "\\n" + "\\n".join(f"- {item}" for item in pre_errors)
+            )
+        selection = select_ready_nodes(
+            plan, run, repo_root=repo_root, manifest_already_validated=True
+        )
     except GraphSelectionError as exc:
         raise ManifestError(str(exc)) from exc
     directive = next(
@@ -871,6 +1127,11 @@ def build_parser() -> argparse.ArgumentParser:
     reserve_review.add_argument("--worker-id", required=True)
     reserve_review.add_argument("--attempt-id", required=True)
     reserve_review.add_argument("--report-path")
+    reserve_review.add_argument(
+        "--packet-out",
+        type=Path,
+        help="also render the reviewer packet from the in-memory reserved run",
+    )
     review = subparsers.add_parser("record-review-attempt")
     review.add_argument("--lineage", required=True)
     review.add_argument("--attempt-id", required=True)
@@ -890,6 +1151,27 @@ def build_parser() -> argparse.ArgumentParser:
     for name in ("acquire-run-lock", "release-run-lock", "heartbeat-run-lock"):
         lock_command = subparsers.add_parser(name)
         lock_command.add_argument("--owner")
+    observation = subparsers.add_parser("record-observation")
+    wave_command = subparsers.add_parser("accept-wave")
+    wave_command.add_argument("--wave-id", required=True)
+    wave_command.add_argument("--mission-id", action="append", required=True)
+    wave_command.add_argument("--batch-base-sha", required=True)
+    lease = subparsers.add_parser("lease-worker")
+    lease.add_argument("--mission-id", required=True)
+    lease.add_argument("--node-id", required=True)
+    lease.add_argument("--worker-id", required=True)
+    lease.add_argument("--lease-id", required=True)
+    lease.add_argument("--attempt-id", required=True)
+    lease.add_argument("--branch-ref", required=True)
+    lease.add_argument("--worktree-path", required=True)
+    lease.add_argument("--provider", required=True)
+    lease.add_argument("--driver", required=True)
+    lease.add_argument("--worker-runtime", default="subagent")
+    lease.add_argument("--workspace-mode", default="parent_managed_worktree")
+    lease.add_argument("--completion-channel", default="agent_result")
+    integration = subparsers.add_parser("record-integration")
+    integration.add_argument("--mission-id", required=True)
+    integration.add_argument("--integrated-sha", required=True)
     watchdog = subparsers.add_parser("watchdog")
     watchdog.add_argument("--stale-after-minutes", type=float, default=DEFAULT_LOCK_STALE_MINUTES)
     watchdog.add_argument("--reclaim", action="store_true")
@@ -934,8 +1216,25 @@ def main(argv: list[str] | None = None) -> int:
             receipt = _reserve_review_dispatch(
                 plan, run, args, repo_root=args.repo_root
             )
+            if getattr(args, "packet_out", None):
+                from render_review_packet import render_packet
+
+                if args.packet_out.exists():
+                    raise ManifestError(f"refusing to overwrite {args.packet_out}")
+                packet = render_packet(
+                    plan, run, args.node_id, args.repo_root
+                )
+                args.packet_out.write_text(packet, encoding="utf-8", newline="\n")
         elif args.command == "skip-integration-review":
             _skip_integration_review(plan, run, args)
+        elif args.command == "record-observation":
+            _record_observation(run, args)
+        elif args.command == "accept-wave":
+            _accept_wave(plan, run, args)
+        elif args.command == "lease-worker":
+            _lease_worker(plan, run, args)
+        elif args.command == "record-integration":
+            _record_integration(plan, run, args)
         elif args.command == "acquire-run-lock":
             _acquire_run_lock(run, args)
         elif args.command == "release-run-lock":

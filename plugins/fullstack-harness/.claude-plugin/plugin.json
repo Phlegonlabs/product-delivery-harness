@@ -1,6 +1,6 @@
 {
   "name": "fullstack-harness",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "description": "Plan full-stack delivery with one shared runtime adapter layer.",
   "author": {
     "name": "Phlegonlabs"

@@ -6,7 +6,9 @@ The goal is to stop paying for the same work twice, not to hit a number. This fi
 
 Repeated work, in the order it usually costs the most:
 
-1. Re-dispatching a reviewer against a commit an earlier review already passed.
+1. The scripted write path removes the hand-authored RUN edits between selection and integration: one `record-observation` replaces transcribing `harness_step.py`'s printed snapshot, one `accept-wave` plus one `lease-worker` per mission replace the wave/lease hand edits, and `record-integration` closes each mission. Each is a single validated atomic write, so parent output stays flat instead of growing with RUN history. `reserve-review-dispatch --packet-out <path>` renders the reviewer packet from the in-memory reserved run in the same command, removing the separate render pass and its repeated validation; the selector accepts `manifest_already_validated` from callers that just validated the identical pair.
+
+Re-dispatching a reviewer against a commit an earlier review already passed.
 2. Re-running a deterministic local verifier whose inputs did not change.
 3. Serializing verifiers that never contend for a resource.
 4. Making a finished mission wait on a slower sibling before it can integrate.

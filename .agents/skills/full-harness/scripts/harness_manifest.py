@@ -1378,6 +1378,7 @@ def _validate_workflow_runs(
         "result_evidence",
         "metrics",
     }
+    workflow_plan_digest = plan_digest(plan)
     for index, item in enumerate(value):
         path = f"run.workflow_runs[{index}]"
         if not _keys(errors, path, item, entry_keys):
@@ -1474,7 +1475,7 @@ def _validate_workflow_runs(
                     _add(errors, f"{path}.tool_profile", "does not match its review node types")
             if item["plan_revision"] != plan.get("revision"):
                 _add(errors, f"{path}.plan_revision", "running workflow must match PLAN")
-            if item["plan_digest_sha256"] != plan_digest(plan):
+            if item["plan_digest_sha256"] != workflow_plan_digest:
                 _add(errors, f"{path}.plan_digest_sha256", "running workflow must match PLAN")
             raw_graph_state = run.get("graph_state")
             graph_state = raw_graph_state if isinstance(raw_graph_state, dict) else {}
@@ -4439,6 +4440,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         if not isinstance(review_workers, list):
             _add(errors, "run.review_workers", "must be a list")
         else:
+            review_plan_digest = plan_digest(plan)
             for index, worker in enumerate(review_workers):
                 path = f"run.review_workers[{index}]"
                 if not _keys(errors, path, worker, review_worker_keys, {"tree_sha"}):
@@ -4480,7 +4482,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 if worker["plan_revision"] != plan.get("revision"):
                     _add(errors, f"{path}.plan_revision", "must match the current PLAN")
                 _optional_sha(errors, f"{path}.plan_digest_sha256", worker["plan_digest_sha256"])
-                if worker["plan_digest_sha256"] != plan_digest(plan):
+                if worker["plan_digest_sha256"] != review_plan_digest:
                     _add(errors, f"{path}.plan_digest_sha256", "must match the current PLAN")
                 if worker["graph_revision"] != run["graph_state"]["graph_revision"]:
                     _add(errors, f"{path}.graph_revision", "must match the current graph revision")
