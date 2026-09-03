@@ -58,7 +58,7 @@ For UI work, inspect only `docs/design/`, a user-named design folder, and obviou
 
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python .agents/skills/full-harness/scripts/inspect_harness_run.py --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
 
-After capability detection, apply `references/runtime-upgrades.md`. An old compatible runtime may finish only its already-active wave; an incompatible or restarted runtime dispatches nothing until a fresh session re-probes successfully. Never hot-upgrade a live worker or silently mutate installed runtime software.
+After capability detection, apply `references/runtime-upgrades.md`. An old compatible runtime may finish only its already-active wave; an incompatible or restarted runtime dispatches nothing until a fresh session re-probes successfully. After that re-probe, the fresh session re-orchestrates every remaining task onto the new runtime through new attempts and bindings; a provider change goes through an explicit replan, never a bridge. Never hot-upgrade a live worker or silently mutate installed runtime software.
 
 ## Non-Negotiable Boundaries
 

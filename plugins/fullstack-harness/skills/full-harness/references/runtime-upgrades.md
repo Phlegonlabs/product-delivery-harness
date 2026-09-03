@@ -32,6 +32,15 @@ Never hot-upgrade a live worker or transfer its lease to a replacement process.
 6. Re-run capability and version probes. Replace the old capability snapshot; do not merge it into the new one. Set `current` only when the new session exposes every selected-driver capability.
 7. Validate preserved heads and evidence. Accept already-terminal exact-bound results normally. Create a new graph attempt and lease for unfinished work; never revive the old lease.
 
+## Re-Orchestrate Remaining Work Onto The New Runtime
+
+An upgrade does not resume the old orchestration. Once the fresh session records `current`, it owns every remaining task in the run:
+
+1. Run the Resume Reconciliation Gate from `execution-state-model.md`: reconcile interrupted mission workers and review workers, re-observe canonical state against live Git heads and dirty worktrees, and only then select work. Start with `scripts/inspect_harness_run.py` to see how much of the run is already terminal — only the non-terminal remainder is re-orchestrated.
+2. The selector re-derives the frontier from the preserved PLAN/RUN state. Every not-yet-succeeded node gets a new attempt and a new runtime binding on the new runtime; old bindings stay as history. Succeeded and integrated nodes keep their evidence and bound SHAs and are never re-executed — an upgrade re-binds work, it does not redo it.
+3. A provider change is a re-orchestration boundary, not a bridge. When the fresh session's provider is not in a remaining node's `allowed_providers`, either replan — revise `allowed_providers` to include the new provider, which bumps the PLAN revision, rebinds the digest, and requires re-granting the affected ledger actions — or leave those nodes deferred with `runtime_unavailable` for a later run on an allowed host. The replan is the only way remaining tasks follow the newest runtime, and it needs the user's explicit instruction; a provider switch is never inferred from an upgrade alone.
+4. Record the upgrade and each re-dispatch in `runtime_metrics`, and copy the fresh version-gate observation forward for later runs in the same session.
+
 ## Version Decisions
 
 - Do not compare against an assumed latest public version during every run. Use the installed package metadata, the selected driver's documented minimum when one exists, and fresh capability probes.

@@ -159,7 +159,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertLess(len(worker.split()), 1200)
         # One shared contract plus one section per provider replaces the three
         # adapter skills; the merged file stays near what those three weighed.
-        self.assertLess(len(runtime_adapters.split()), 3600)
+        self.assertLess(len(runtime_adapters.split()), 3700)
         self.assertIn(
             "This adapter adds no alternate state or handoff rules", runtime_adapters
         )
@@ -386,7 +386,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("references/runtime-upgrades.md", skill)
         self.assertIn("Never hot-upgrade a live worker", upgrades)
         self.assertIn("runtime_adapter.version_gate", upgrades)
-        self.assertIn('"required_harness_version": "0.12.0"', runbook)
+        self.assertIn("## Re-Orchestrate Remaining Work Onto The New Runtime", upgrades)
+        self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
+        self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
+        self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
+        self.assertIn('"required_harness_version": "0.12.1"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

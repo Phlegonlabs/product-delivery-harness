@@ -22,7 +22,7 @@ Observe the current host session and record the result under `runtime_adapter` i
 
 ### Version Gate
 
-Record the normalized host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`. A `compatible_old` session may finish its already-active wave but cannot start the next wave. After a host or plugin update, mark `restart_required`, start a fresh session, and re-probe from it; never hot-upgrade a live worker or workflow. Provider-specific restart mechanics live in each provider section.
+Record the normalized host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`. A `compatible_old` session may finish its already-active wave but cannot start the next wave. After a host or plugin update, mark `restart_required`, start a fresh session, and re-probe from it; never hot-upgrade a live worker or workflow. After re-probing, re-orchestrate the remaining work onto the new runtime per `runtime-upgrades.md`. Provider-specific restart mechanics live in each provider section.
 
 ### chrome_devtools Reviewer Probe
 
