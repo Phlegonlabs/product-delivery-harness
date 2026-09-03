@@ -1564,15 +1564,23 @@ async function agent(_prompt, options) {
 
         for marker in (
             "Choose iconography through an online lookup, not from memory",
-            "currently maintained icon libraries",
+            "exactly four maintained icon libraries: Lucide, Phosphor, "
+            "Heroicons, and Tabler",
+            "Pick the primary set and the named fallback from this closed "
+            "candidate set",
             "license, framework support, and maintenance status",
-            "one primary icon set plus a named fallback",
+            "Do not widen the candidate set with other libraries",
             "mark an unevidenced pick `UNVALIDATED`",
             "never silently default to a remembered library",
         ):
             self.assertIn(marker, guide)
         self.assertIn(
             "Choose iconography through `references/ui-design-pass.md`'s online lookup",
+            skill,
+        )
+        self.assertIn(
+            "from the closed candidate set — Lucide, Phosphor, Heroicons, "
+            "and Tabler —",
             skill,
         )
         self.assertIn("Iconography:", contract)
