@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.20.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.20.2-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -76,6 +76,104 @@ flowchart LR
 ```
 
 你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`prd-builder` 定义产品并止于批准的 `wireframes.html`，可选的 UI Design Pass 与 `product-design-builder` 定义视觉契约——在 web 上，pass 会把批准的高保真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的组合移入 `docs/design/archived/`——Harness 实现已冻结的结果。
+
+### 完整技能生命周期
+
+三个 skill 的完整生命周期，包含每个闸门与横切机制：
+
+```mermaid
+flowchart TB
+    user([用户想法或变更请求])
+
+    subgraph PRD["prd-builder — 产品定义"]
+        direction TB
+        interview[结构化访谈<br/>3 段 free-text + AskUserQuestion]
+        pkg["核心套件起草<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
+        wf["wireframes.html<br/>单一互动式低保真档（UI 产品）"]
+        wgate{{"Wireframe Approval Gate<br/>（人工核准 = 完整停点）"}}
+        interview --> pkg --> wf --> wgate
+        mr["market-research.md<br/>（gap pass，可跳过）"]
+        pkg -.-> mr
+    end
+
+    subgraph DESIGN["视觉设计（可选；owner 明确要求才进场）"]
+        direction TB
+        taste["UI Design Pass<br/>依 Skill Bindings 槽位选 taste skill"]
+        handoff[UI Design Handoff]
+        dgate{{"Design System Need Gate"}}
+        pair["product-design-builder<br/>design-system.md + design-system.json"]
+        taste --> handoff --> dgate
+        dgate -->|required| pair
+        dgate -->|not_required| target[核准的 page-faithful target]
+    end
+
+    subgraph HARNESS["full-harness — 交付核心"]
+        direction TB
+        route["System Review And Route<br/>（parent-only、read-only）"]
+        size{{"Project Size Gate"}}
+
+        subgraph DIRECT["Direct 路线（small）"]
+            direct_impl["直接实现 -> 本地验证<br/>-> 审查 -> 授权 Git 动作"]
+        end
+
+        subgraph MANAGED["Managed 路线（large）"]
+            direction TB
+            plan["PLAN v6<br/>typed graph：missions / reviews / gates<br/>allowed_providers + 原子 task commit"]
+            newrun["new_run.py 产生<br/>RUN v11 + 12 键授权 ledger"]
+
+            subgraph LOOP["执行循环（每个 wave）"]
+                direction TB
+                lock["--session-id acquire-run-lock<br/>（run lock + heartbeat）"]
+                obs["record-observation<br/>live-Git 快照"]
+                sel["select_ready_nodes.py<br/>确定性 frontier 选择"]
+                accept["accept-wave<br/>（batch base 绑定）"]
+                adapters["runtime-adapters.md<br/>侦测 host -> 加载对应 provider 段"]
+                lease["lease-worker<br/>（worktree + lease + graph 绑定）"]
+                workers["fresh bounded workers<br/>（Codex / Claude Code / Pi / generic）"]
+                vr["validate_result.py<br/>对 live Git 事实验证"]
+                review["exact-head review<br/>（reserve -> reviewer -> record）"]
+                integ["record-integration<br/>（序列集成；同 tree 可跳过 unified review）"]
+                lock --> obs --> sel --> accept --> adapters --> lease --> workers --> vr --> review --> integ
+            end
+
+            plan --> newrun --> LOOP
+            gates2["广域 final validation<br/>（E2E / 回归 / UI 证据矩阵）"]
+            LOOP --> gates2
+        end
+
+        route --> size
+        size -->|small| DIRECT
+        size -->|large| MANAGED
+    end
+
+    subgraph DEPLOY["部署（git-connected 平台）"]
+        direction TB
+        push["授权 push<br/>run 分支"]
+        preview["Preview 自动部署<br/>（平台按 push 构建）"]
+        merge([用户合并到 main])
+        prod["Production 部署<br/>（平台从 main 构建）"]
+        check["部署后验证（只读）<br/>check_deployment.py"]
+        push --> preview --> merge --> prod --> check
+    end
+
+    subgraph CROSS["横切机制（贯穿各阶段）"]
+        bindings["Skill Bindings<br/>（AGENTS.md 槽位表 + SHA-256 pin）"]
+        ledger["授权 ledger<br/>12 个独立动作键"]
+        ver["版本闸 + contract digest<br/>（compatible_old 波界）"]
+        watch["watchdog + reconcile<br/>（中断恢复）"]
+    end
+
+    user --> interview
+    wgate -->|继续视觉设计| DESIGN
+    wgate -->|止于此| HARNESS
+    pair --> route
+    target --> route
+    mr --> route
+    DIRECT --> push
+    gates2 --> push
+```
+
+两个人工停点框住 agent 可执行的范围：Wireframe Approval 与合并到 `main`。执行循环是系统的心脏——其中每一步都是原子、验证过的 RUN 写入。
 
 ## 交付模型
 
@@ -349,6 +447,7 @@ git diff --check
 
 每次发布都要更新本节，同时完成上文所述的版本号提升。
 
+- **0.20.2** — 三份 README 新增完整技能生命周期图：一张 mermaid 涵盖 prd-builder → 选用视觉设计 → full-harness 的路由与每波执行循环（lock、observe、select、accept、adapters、lease、workers、validate、review、integrate）→ git-connected 部署，并标出横切机制（skill 绑定、授权 ledger、版本闸、watchdog）与两个人工停点。
 - **0.20.1** — 审查后强化。lease-worker 接受真实的失败 phase（`worker_failed`、`blocked`）并清除残留的 `last_outcome`/`blockers`——失败或 reconciled 的 mission 不再需要手改即可重试，`reconcile-interrupted` 不再是死路。畸形 verifier 改为回报键值错误而非 crash 验证器。`--packet-out` 只在转移后验证闸通过后渲染。Run lock 在持有者自己的成功转移时刷新心跳、时区天真/无法解析的心跳 fail-closed、非 dict `run_lock` 过不了 schema。`record-integration` 从 PLAN 图解析节点而非命名惯例；`accept-wave` 同 id 也拒绝活跃 wave；`record-observation` 容忍死 worktree 并依 workspace 模式推导 `managed_by`。文件与闸门：AGENTS.md 验证清单补 pyflakes、种入检查器涵盖自己模板的占位符、锁文件更正 `--session-id` 位置、driver 阶梯补回 Pi、`cursor_wait` 改为 schema 标签 `thread_poll`、worker 回报标题/File-Size-Limit 指向/种入文件清单/E2E 与 CI 模板引用修正。六个回归测试钉住这些修复。
 - **0.20.0** — 结构分解，行为全程保持（550 测试不变）。四处近似相同的 verifier-group 循环合并为单一 `_validate_verifier_group`；`validate_plan`（约 680 行）分解为九个 section helper；`validate_run` 瘦身约 700 行进五个 helper（`observed`、`attempt_log`、`waves`、约 400 行的 `workers`、`review_lineages`），共用局部变量显式传递——剩余的 `review_workers` 与 `runtime_capabilities` 段留待专门批次。Selector 改为每次选择只建一次索引（`nodes_by_id`、workers-by-mission、review-workers-by-node），不再逐节点重建。每一步都以全套测试绿灯为闸。
 - **0.19.1** — 代码简化批次，行为完全不变（550 测试原样通过）。移除死码（TOOL_PROFILES、未使用的 helper/import/局部变量）；`new_run.py` 改 import 12 键帐本而非重复宣告；穿隧包装器与倒装守卫移除；source-path 四个函数合并为两个参数化 helper；git blob 读取器收敛至 `harness_core.read_git_blob`；`changed_files_digest` 由两个 validator 共用；测试 git 管线收进 `manifest_fixtures`；`harness_manifest` 以 `__all__` 明示 re-export API；CI 加入 pyflakes 步骤（45 项清到 0），死码无法再悄悄回归。

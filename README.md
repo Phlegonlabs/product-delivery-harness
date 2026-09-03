@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.20.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.20.2-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -76,6 +76,104 @@ flowchart LR
 ```
 
 You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines the product and stops at the approved `wireframes.html`, the optional UI Design Pass and `product-design-builder` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/` — and the Harness implements the frozen result.
+
+### Full skill lifecycle
+
+The complete lifecycle across all three skills, with every gate and the cross-cutting mechanisms:
+
+```mermaid
+flowchart TB
+    user([User idea or change request])
+
+    subgraph PRD["prd-builder — product definition"]
+        direction TB
+        interview[Structured interview<br/>3 free-text segments + AskUserQuestion]
+        pkg["Core package draft<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
+        wf["wireframes.html<br/>one interactive low-fidelity file (UI products)"]
+        wgate{{"Wireframe Approval Gate<br/>(human approval = a complete stop point)"}}
+        interview --> pkg --> wf --> wgate
+        mr["market-research.md<br/>(gap pass, skippable)"]
+        pkg -.-> mr
+    end
+
+    subgraph DESIGN["Visual design (optional; only on explicit owner request)"]
+        direction TB
+        taste["UI Design Pass<br/>taste skill via the Skill Bindings slot"]
+        handoff[UI Design Handoff]
+        dgate{{"Design System Need Gate"}}
+        pair["product-design-builder<br/>design-system.md + design-system.json"]
+        taste --> handoff --> dgate
+        dgate -->|required| pair
+        dgate -->|not_required| target[Approved page-faithful target]
+    end
+
+    subgraph HARNESS["full-harness — delivery core"]
+        direction TB
+        route["System Review And Route<br/>(parent-only, read-only)"]
+        size{{"Project Size Gate"}}
+
+        subgraph DIRECT["Direct route (small)"]
+            direct_impl["Implement directly -> local verify<br/>-> review -> authorized Git actions"]
+        end
+
+        subgraph MANAGED["Managed route (large)"]
+            direction TB
+            plan["PLAN v6<br/>typed graph: missions / reviews / gates<br/>allowed_providers + atomic task commits"]
+            newrun["new_run.py generates<br/>RUN v11 + the 12-key authorization ledger"]
+
+            subgraph LOOP["Execution loop (per wave)"]
+                direction TB
+                lock["--session-id acquire-run-lock<br/>(run lock + heartbeat)"]
+                obs["record-observation<br/>live-Git snapshot"]
+                sel["select_ready_nodes.py<br/>deterministic frontier selection"]
+                accept["accept-wave<br/>(batch base binding)"]
+                adapters["runtime-adapters.md<br/>detect host -> load its provider section"]
+                lease["lease-worker<br/>(worktree + lease + graph binding)"]
+                workers["fresh bounded workers<br/>(Codex / Claude Code / Pi / generic)"]
+                vr["validate_result.py<br/>verification against live Git facts"]
+                review["exact-head review<br/>(reserve -> reviewer -> record)"]
+                integ["record-integration<br/>(serial; byte-identical tree may skip the unified review)"]
+                lock --> obs --> sel --> accept --> adapters --> lease --> workers --> vr --> review --> integ
+            end
+
+            plan --> newrun --> LOOP
+            gates2["Broad final validation<br/>(E2E / regression / UI evidence matrix)"]
+            LOOP --> gates2
+        end
+
+        route --> size
+        size -->|small| DIRECT
+        size -->|large| MANAGED
+    end
+
+    subgraph DEPLOY["Deployment (git-connected platform)"]
+        direction TB
+        push["Authorized push<br/>of the run branch"]
+        preview["Preview builds automatically<br/>(platform builds per push)"]
+        merge([User merges to main])
+        prod["Production deployment<br/>(platform builds from main)"]
+        check["Post-deploy verification (read-only)<br/>check_deployment.py"]
+        push --> preview --> merge --> prod --> check
+    end
+
+    subgraph CROSS["Cross-cutting mechanisms (all stages)"]
+        bindings["Skill Bindings<br/>(AGENTS.md slot table + SHA-256 pins)"]
+        ledger["Authorization ledger<br/>12 independent action keys"]
+        ver["Version gate + contract digest<br/>(compatible_old wave boundary)"]
+        watch["watchdog + reconcile<br/>(interruption recovery)"]
+    end
+
+    user --> interview
+    wgate -->|continue into visual design| DESIGN
+    wgate -->|stop here| HARNESS
+    pair --> route
+    target --> route
+    mr --> route
+    DIRECT --> push
+    gates2 --> push
+```
+
+Two human stop points bracket the agent-executable span: the Wireframe Approval and the merge to `main`. The execution loop is the heart of the system — every step in it is an atomic, validated RUN write.
 
 ## Delivery model
 
@@ -349,6 +447,7 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
+- **0.20.2** — Added the full skill lifecycle diagram to all three READMEs: one mermaid covering prd-builder → optional visual design → the full-harness routing and per-wave execution loop (lock, observe, select, accept, adapters, lease, workers, validate, review, integrate) → git-connected deployment, with the cross-cutting mechanisms (skill bindings, authorization ledger, version gate, watchdog) and the two human stop points called out.
 - **0.20.1** — Review hardening. lease-worker accepts the real failure phases (`worker_failed`, `blocked`) and clears stale `last_outcome`/`blockers`, so a failed or reconciled mission can retry without hand edits; `reconcile-interrupted` no longer dead-ends. A malformed verifier in `verifier_executions` reports key errors instead of crashing the validator. `reserve-review-dispatch --packet-out` renders only after the post-transition validation gate. The run lock refreshes its heartbeat on the holder's own successful transitions, fails closed on naive/unparseable heartbeats, and a non-dict `run_lock` now fails schema. `record-integration` resolves the mission node from the PLAN graph instead of a naming convention; `accept-wave` refuses a live wave even with the same id; `record-observation` tolerates dead worktrees and derives `managed_by` from recorded workspace modes. Docs/gates: AGENTS.md's verification list gains the pyflakes step; the seeded-record checkers cover their own templates' placeholders; the lock doc shows the correct `--session-id` position; the driver ladder regains its Pi line; `cursor_wait` becomes the schema label `thread_poll`; the worker-report heading, File-Size-Limit pointers, seeded-document checklist coverage, and E2E/CI template routing are fixed. Six regression tests pin the fixes.
 - **0.20.0** — Structural decomposition with behavior preserved (550 tests unchanged throughout). The four near-identical verifier-group loops merge into one `_validate_verifier_group` helper; `validate_plan` (~680 lines) decomposes into nine section helpers; `validate_run` sheds its first ~700 lines into five helpers (`observed`, `attempt_log`, `waves`, `workers` at ~400 lines, `review_lineages`) with shared locals threaded explicitly — the remaining `review_workers` and `runtime_capabilities` sections stay inline for a dedicated future pass. The selector builds its per-pass indexes (`nodes_by_id`, workers-by-mission, review-workers-by-node) once per selection instead of per node. Every step was gated on the full suite staying green.
 - **0.19.1** — Code simplification pass, behavior-preserving (550 tests unchanged). Dead code removed (TOOL_PROFILES, unused helpers/imports/locals); `new_run.py` imports the 12-key ledger instead of re-declaring it; the pass-through wrapper and an inverted guard are gone; the source-path quartet merges into two parameterized helpers; git blob readers consolidate into `harness_core.read_git_blob`; `changed_files_digest` is shared by both validators; test git plumbing moves into `manifest_fixtures`; `harness_manifest` declares its re-export API via `__all__`; and a pyflakes step (45 findings cleaned to zero) joins CI so dead code cannot silently return.
