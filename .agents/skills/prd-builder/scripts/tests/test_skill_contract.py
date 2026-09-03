@@ -1557,6 +1557,30 @@ async function agent(_prompt, options) {
             contract,
         )
 
+    def test_iconography_is_researched_not_remembered(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+
+        for marker in (
+            "Choose iconography through an online lookup, not from memory",
+            "currently maintained icon libraries",
+            "license, framework support, and maintenance status",
+            "one primary icon set plus a named fallback",
+            "mark an unevidenced pick `UNVALIDATED`",
+            "never silently default to a remembered library",
+        ):
+            self.assertIn(marker, guide)
+        self.assertIn(
+            "Choose iconography through `references/ui-design-pass.md`'s online lookup",
+            skill,
+        )
+        self.assertIn("Iconography:", contract)
+        self.assertIn(
+            "a visual package with no iconography line does not validate",
+            contract,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
