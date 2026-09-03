@@ -313,6 +313,34 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("not an in-session bridge", state)
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
+    def test_deployment_contract_separates_preview_from_production(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/deployment-contract.md")
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
+
+        self.assertIn("references/deployment-contract.md", skill)
+        for phrase in (
+            "Production tracks the repository's resolved default branch",
+            "Preview tracks the run branch",
+            "A preview PASS never proves production",
+            "adds no authorization keys",
+            "never triggers, rolls back, or reconfigures a deployment",
+            "## Platform: cloudflare",
+            "## Platform: vercel",
+            "## Platform: aws",
+            "## Platform: generic",
+            "never invent a platform capability",
+            "Migrating",
+        ):
+            self.assertIn(phrase, contract)
+        self.assertIn("## Deployment", project_agents)
+        self.assertIn("deployment-contract.md", project_agents)
+        self.assertIn("Protected resources preview must never bind", project_agents)
+        self.assertIn(
+            "runtime adapter reference (Claude Code section)", project_claude
+        )
+
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -390,7 +418,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.12.1"', runbook)
+        self.assertIn('"required_harness_version": "0.13.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

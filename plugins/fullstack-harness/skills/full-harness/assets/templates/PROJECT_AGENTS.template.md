@@ -57,6 +57,16 @@ This file is ready-to-use shared repository guidance. Resolve the repository's r
 - Push requires separate explicit remote intent for the exact non-default branch and current verified head.
 - Preserve unrelated dirty files, branches, and worktrees. Cleanup, worktree removal, task archival, and branch deletion require their own exact authorization.
 
+## Deployment
+
+- Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Full-Stack Harness `deployment-contract.md`.
+- Platform and mode: the deploy platform id (for example `cloudflare`, `vercel`, `aws`) and `git_connected` or `manual`.
+- Production deploys only from the resolved default branch; preview builds track non-default branch pushes. They are separate environments with separate URLs and stateful resources, and a preview PASS never proves production.
+- Preview mechanism or URL pattern: <fill>
+- Production URL: <fill>
+- Deployed-commit check (platform API/CLI command or response header): <fill>
+- Protected resources preview must never bind: <databases, buckets, secrets, domains>
+
 ## Managed Full-Stack Harness Runs
 
 The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not convert small direct work into a managed run.

@@ -104,6 +104,7 @@ Read only what the current decision needs:
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
 - `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
+- `references/deployment-contract.md`: the preview/production deployment model, per-platform mechanics, and read-only post-deploy verification — after a run-branch push or a default-branch landing, never during run execution.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
@@ -203,4 +204,4 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 ### 6. Complete
 
-New runs default to `local_only`, which completes after authorized local work, required gates, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested.
+New runs default to `local_only`, which completes after authorized local work, required gates, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, and both environments verify read-only.
