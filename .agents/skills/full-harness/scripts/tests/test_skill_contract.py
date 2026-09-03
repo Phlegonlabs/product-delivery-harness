@@ -386,7 +386,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("references/runtime-upgrades.md", skill)
         self.assertIn("Never hot-upgrade a live worker", upgrades)
         self.assertIn("runtime_adapter.version_gate", upgrades)
-        self.assertIn('"required_harness_version": "0.9.0"', runbook)
+        self.assertIn('"required_harness_version": "0.10.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

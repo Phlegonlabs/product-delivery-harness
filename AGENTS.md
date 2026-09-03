@@ -40,6 +40,8 @@ git diff --check
 
 CI runs the same set. Running only the engineering suite passes locally and then fails CI at the sync check, because the generated plugin bundle was never regenerated.
 
+Every flow that lands on `main` bumps the release version in the same change: `package.json`, both plugin manifests (`plugins/fullstack-harness/.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`), `.claude-plugin/marketplace.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version asserts in `test_private_marketplace.py` and `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version.
+
 ## Review Guidelines
 
 Treat these as blocking findings:
