@@ -77,7 +77,7 @@ def check_deployment_text(text: str) -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--deployment", type=Path, default=Path("DEPLOYMENT.md"))
+    parser.add_argument("--deployment", type=Path, default=Path("docs/DEPLOYMENT.md"))
     args = parser.parse_args(argv)
     path: Path = args.deployment
     if not path.is_file():

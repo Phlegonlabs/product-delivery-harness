@@ -21,7 +21,7 @@ A staging directory describing a *different* product is left untouched and repor
 - Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `wireframes.html`, `design-system.md`, `design-system.json`, and `market-research.md` in full before drafting anything.
 - Treat their content, decisions, and trace IDs (`PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `DS-*`, `MR-*`) as the baseline. Carry forward every section the new request does not touch, unchanged.
 - Draft only the additions, edits, or removals the new discovery actually requires. Never regenerate the whole package from a blank slate because a new idea came up.
-- The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, and `implementation-plan.md`, all directly under `docs/product/`. The seeded root operational documents — `DEPLOYMENT.md` and `DOCUMENTS.md` — publish to the repository root in the same move. Enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
+- The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, and `implementation-plan.md`, all directly under `docs/product/`. The seeded operational documents — `docs/DEPLOYMENT.md` and `docs/DOCUMENTS.md` — publish under `docs/` in the same move. Enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
 - Enhancement mode still uses the staging, validation, and archive steps below: the prior version is archived for history once the enhanced draft is validated, even though its content already carried forward into that draft.
 
 ## Handle an Unrelated Document at a Fixed Publish Path
@@ -49,7 +49,7 @@ In the Approval Gate, label this path explicitly as "existing unrelated content 
 - For a UI-bearing product, publish approved `wireframes.html` plus `PRD.md`'s `### Wireframe Approval` in the same whole-package move. A changed PRD UI contract with a stale wireframe artifact is not a complete package. A later explicitly requested visual-design handoff and design-system pair join a future approved move only when they apply.
 - High-fidelity UI preview images, preview HTML, React prototypes, prompt packages, and `brandkit` boards stay outside `docs/product/`. The low-fidelity `wireframes.html` review projection is the sole HTML exception. When the owner later requests retention of high-fidelity preview evidence, use a disclosed path under `docs/design/ui-references/<run-id>/` — the dedicated live folder for approved HTML implementation references — and obtain exact write approval. Only the selected immutable preview becomes binding through the optional `PRD.md` UI Design Handoff; the preview artifact itself still does not move into `docs/product/`.
 - A later approved UI target that supersedes retained UI references archives the superseded files under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/`, mirroring how superseded product documents move to `docs/product/archived/`. Move, never delete, and update the UI Design Handoff to the replacement live paths so no live contract points at an archived reference.
-- Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`. The seeded root operational documents (`DEPLOYMENT.md`, `DOCUMENTS.md`) are the one deliberate exception: they publish to the repository root, refreshed in place — a previously published copy occupies a publish path of this run, so list it in the inventory and overwrite it; root operational documents are refreshed, never archived.
+- Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`. The seeded operational documents (`docs/DEPLOYMENT.md`, `docs/DOCUMENTS.md`) publish flat under `docs/`, refreshed in place — a previously published copy occupies a publish path of this run, so list it in the inventory and overwrite it; they are refreshed, never archived.
 - Never use `docs/product/archived/` as an input or output location for the current package.
 
 ## Inventory Superseded Documents
@@ -91,7 +91,7 @@ After the entire staged package passes validation and the exact mutation list is
 
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>/`.
 2. Move only the previously inventoried superseded documents into that directory. Preserve recognizable filenames; when basenames collide, include the original parent directory or a numeric suffix.
-3. Move the validated staged artifacts into their final paths under `docs/product/`, and publish the seeded `DEPLOYMENT.md`/`DOCUMENTS.md` to the repository root.
+3. Move the validated staged artifacts into their final paths under `docs/product/`, and publish the seeded `DEPLOYMENT.md`/`DOCUMENTS.md` to `docs/`.
 4. Remove the now-empty run-specific staging directory. Remove `docs/product/.prd-staging/` only when it is empty.
 5. If an archive or publish move fails, restore moved files when safe, keep every recoverable copy, stop, and report the exact state.
 
@@ -102,7 +102,7 @@ Do not delete superseded documents. Do not overwrite an archive directory. Do no
 List:
 
 - Every artifact published under `docs/product/`.
-- The root operational documents published or refreshed (`DEPLOYMENT.md`, `DOCUMENTS.md`).
+- The operational documents published or refreshed under `docs/` (`DEPLOYMENT.md`, `DOCUMENTS.md`).
 - Every document moved under `docs/product/archived/`.
 - Any ambiguous legacy document deliberately left untouched.
 - Whether publication was completed or the validated staging package is awaiting explicit approval.

@@ -394,7 +394,10 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             deployment_template,
         )
         self.assertIn("## Environment Status", deployment_template)
-        self.assertIn("`DEPLOYMENT.md` at the repository root", contract)
+        self.assertIn("`docs/DEPLOYMENT.md`, seeded during PRD creation", contract)
+        self.assertIn("| `docs/DEPLOYMENT.md` | `docs/` |", documents_template)
+        self.assertIn("| `docs/DOCUMENTS.md` | `docs/` |", documents_template)
+        self.assertIn("root carries only what runtimes auto-discover", documents_template)
         self.assertIn("# Documents", documents_template)
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
@@ -477,7 +480,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.18.0"', runbook)
+        self.assertIn('"required_harness_version": "0.18.1"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

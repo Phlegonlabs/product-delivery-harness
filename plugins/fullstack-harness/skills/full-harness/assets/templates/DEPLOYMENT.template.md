@@ -1,6 +1,6 @@
 # Deployment
 
-The deployment record for this repository: the platform model, the setup only a human performs, and the live environment status. The governing semantics live in the Full-Stack Harness `deployment-contract.md`; this file is the project's filled-in instance. Keep it at the repository root and update it whenever the platform, environments, or verification method change.
+The deployment record for this repository: the platform model, the setup only a human performs, and the live environment status. The governing semantics live in the Full-Stack Harness `deployment-contract.md`; this file is the project's filled-in instance. Keep it at `docs/DEPLOYMENT.md` and update it whenever the platform, environments, or verification method change.
 
 ## Record
 
