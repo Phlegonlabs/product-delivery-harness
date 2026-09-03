@@ -158,6 +158,7 @@ If any item is missing and the user did not authorize assumptions, ask follow-up
 
 When `docs/product/PRD.md` (or another document clearly describing the same product) already exists, this run enhances it instead of starting fresh. Read the existing package in full first, then run a delta interview:
 
+- First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (screens, regions, flows, or states change), `style` (the visual direction or design system is affected), or `both`. Never assume `none` because the request reads backend- or data-side — most enhancements are design-side. Record the classification; it drives the wireframe revision and style-review rules in `wireframe-guide.md`'s Enhancement Revisions.
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
 - Preserve existing `TEST-*` IDs for unchanged obligations. Add a new TEST ID only when the delta creates an uncovered obligation; do not renumber or replace existing tests during cleanup.

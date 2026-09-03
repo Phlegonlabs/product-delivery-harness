@@ -9,6 +9,16 @@ Use this guide after the `PRD.md` UI Surface Contract is complete. `prd-builder`
 - When the HTML exposes a gap, update `PRD.md` first, then regenerate only the affected `UI-*` page.
 - Later visual or implementation work consumes the approved HTML but does not edit it. Structural changes return to `prd-builder`.
 
+## Reference Pass
+
+Before drafting the HTML, look up how comparable products structure the same kind of screens. Do not invent screen composition from nothing when the industry has a settled pattern for the archetype.
+
+- Run it inline as part of wireframe drafting; it needs no separate delegation. Skip it only when the user declined it, no web search or fetch tool is available, or the package is a trivial stub, and record which reason applied.
+- Fetch the mainstream sites first: use the web fetch tool on two to four of the best-known live products in this product's category, and read how their relevant pages are actually composed — region order, navigation shape, and how each common flow (for example search and results, wizard, dashboard and detail, feed, checkout) is laid out. A fetched real page outranks any secondhand summary of it.
+- Then pull composition references from a design gallery such as Dribbble for the main `UI-*` surfaces: search by surface type (landing page, dashboard, onboarding, settings) and read the shots for layout composition and region grouping only — color, typography, and imagery belong to the later visual phase, not the low-fidelity wireframe. A gallery shot ranks below a live mainstream product, because it shows an isolated screen without the flow between screens.
+- Record every consulted source in `PRD.md`'s `### Wireframe Approval` as `Wireframe references consulted:` — one line per source with its URL, publisher, retrieval date, and the structural pattern adopted or rejected. A reference with no URL is recorded `UNVALIDATED`, the same rule as market research.
+- References inform structure only. They never create scope, mint `UI-*` entries, or override the Builder UX Direction Decision. When a reference conflicts with `PRD.md`, `PRD.md` wins and the divergence is recorded as a revision note.
+
 ## HTML Requirements
 
 Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset.
@@ -53,6 +63,14 @@ Approval confirms only:
 Approval does not prove usability and does not select a visual style. Record the owner, decision, date, approved `UI-*` scope, and unresolved items in `PRD.md`'s `### Wireframe Approval`. The HTML `approvalStatus` uses the same decision vocabulary as that record: `draft` before the gate, then `approved`, `revision_requested`, or `blocked` matching the owner's latest decision — never a different wording.
 
 An approved `wireframes.html` completes the wireframe stage. Do not run Taste, high-fidelity preview generation, Product Design Builder, or Harness unless the owner separately asks to continue.
+
+## Enhancement Revisions
+
+An enhancement run first classifies the delta's UI impact with the owner — `none`, `structure`, `style`, or `both` — per `interview-guide.md`'s Enhancement Mode. Never assume `none` because the request reads backend- or data-side; most enhancements are design-side.
+
+- `none`: preserve `wireframes.html` and any approved UI target verbatim.
+- `structure` or `both`: update the affected `UI-*` entries in `PRD.md` first, then regenerate the affected pages in `wireframes.html`, then re-run the Wireframe Approval Gate on the changed scope and refresh `### Wireframe Approval`. A changed PRD UI contract with a stale wireframe artifact is not a complete package.
+- `style` or `both`: ask the owner to either re-run `references/ui-design-pass.md` for the affected scope or explicitly confirm the existing direction still applies, and record that decision. When a `### UI Design Handoff` or a design-system pair exists, keeping them unchanged through a style-impacting enhancement requires the owner's explicit confirmation — a stale visual contract never publishes silently. A `required` design-system pair is recompiled or explicitly retired per `references/artifact-lifecycle.md`, never left stale by omission.
 
 ## Quality Check
 

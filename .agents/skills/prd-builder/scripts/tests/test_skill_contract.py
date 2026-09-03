@@ -1481,6 +1481,82 @@ async function agent(_prompt, options) {
             contract,
         )
 
+    def test_wireframe_reference_pass_consults_comparable_structures(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn("## Reference Pass", guide)
+        for marker in (
+            "two to four of the best-known live products",
+            "A fetched real page outranks any secondhand summary of it",
+            "design gallery such as Dribbble",
+            "A gallery shot ranks below a live mainstream product",
+            "structural pattern adopted or rejected",
+            "They never create scope",
+            "override the Builder UX Direction Decision",
+            "UNVALIDATED",
+        ):
+            self.assertIn(marker, guide)
+        self.assertIn(
+            "Run `references/wireframe-guide.md`'s Reference Pass before drafting the HTML",
+            skill,
+        )
+        self.assertIn(
+            "fetch the structures of mainstream comparable sites", skill
+        )
+        self.assertIn(
+            "record them in `PRD.md`'s `### Wireframe Approval` as "
+            "`Wireframe references consulted:`",
+            skill,
+        )
+        self.assertIn("Wireframe references consulted:", contract)
+        self.assertIn(
+            "reason the Reference Pass was skipped",
+            contract,
+        )
+
+    def test_enhancement_classifies_ui_impact_before_drafting(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+        guide = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn(
+            "classify the delta's UI impact explicitly with the owner", interview
+        )
+        self.assertIn(
+            "`none` (no UI change), `structure` (screens, regions, flows, or states "
+            "change), `style` (the visual direction or design system is affected), "
+            "or `both`",
+            interview,
+        )
+        self.assertIn(
+            "Never assume `none` because the request reads backend- or data-side",
+            interview,
+        )
+        self.assertIn("## Enhancement Revisions", guide)
+        for marker in (
+            "re-run the Wireframe Approval Gate on the changed scope",
+            "re-run `references/ui-design-pass.md` for the affected scope",
+            "a stale visual contract never publishes silently",
+        ):
+            self.assertIn(marker, guide)
+        self.assertIn(
+            "first classify the delta's UI impact with the owner", skill
+        )
+        self.assertIn(
+            "a stale visual contract never publishes silently", skill
+        )
+        self.assertIn(
+            "An enhancement package records its UI-impact classification", contract
+        )
+        self.assertIn(
+            "a style-impacting enhancement with an unchanged handoff or design-system "
+            "pair and no recorded owner decision does not validate",
+            contract,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
