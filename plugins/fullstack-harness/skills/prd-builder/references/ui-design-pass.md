@@ -16,6 +16,8 @@ The pass may explore typography, color, composition, imagery, texture, and motio
 
 ## Taste Applicability Gate
 
+The standard recipe is both skills, working from the approved PRD package: `design-taste-frontend` leads the overall design direction for the surfaces it covers, and `frontend-design` executes the surfaces Taste excludes. Decide the split first, then run the whole pass as one combined effort — Taste first for the overall direction, `frontend-design` filling its named surfaces. Neither skill reopens product scope; both start from the frozen inputs below.
+
 Load `design-taste-frontend`, read its scope, and record one result:
 
 - `applicable`: landing, portfolio, editorial, public marketing, or compatible redesign surfaces;

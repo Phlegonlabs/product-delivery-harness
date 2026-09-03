@@ -1659,6 +1659,33 @@ async function agent(_prompt, options) {
             skill,
         )
 
+    def test_visual_phase_opens_with_taste_plus_frontend_design(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/ui-design-pass.md")
+
+        for marker in (
+            "The standard recipe is both skills, working from the approved "
+            "PRD package",
+            "`design-taste-frontend` leads the overall design direction for "
+            "the surfaces it covers",
+            "`frontend-design` executes the surfaces Taste excludes",
+            "run the whole pass as one combined effort",
+            "Taste first for the overall direction",
+            "Neither skill reopens product scope",
+        ):
+            self.assertIn(marker, guide)
+        self.assertIn(
+            "The visual phase opens from the approved PRD package and runs as "
+            "one combined pass with both skills",
+            skill,
+        )
+        self.assertIn(
+            "the design-direction skill leads the overall direction, and the "
+            "frontend-implementation skill covers the direction skill's "
+            "excluded surfaces",
+            skill,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
