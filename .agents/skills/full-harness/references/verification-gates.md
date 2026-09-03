@@ -79,7 +79,7 @@ Final/current-head gate:
 
 E2E gate:
 
-- Proves the primary user journey works through UI, API, auth/permissions, data, and error handling.
+- Proves the primary user journey works through UI, API, auth/permissions, data, and error handling. When the matrix becomes materially difficult to scan or needs separate ownership, expand it into `assets/templates/E2E_VERIFICATION.template.md` and link it from `RUN.md`.
 - Blocks final PASS unless the user accepts named residual risk.
 
 ## Full-Stack E2E Matrix
@@ -152,7 +152,7 @@ Only PASS with exit code 0 is reusable. A changed input, dirty checkout, malform
 
 ## Automated E2E And Smoke Reuse
 
-Make deterministic automated E2E the normal proof for every primary journey. Record its command, CI check name, environment, covered journey, expected pass signal, artifact or retained log, and commit SHA before execution.
+Make deterministic automated E2E the normal proof for every primary journey. Record its command, CI check name, environment, covered journey, expected pass signal, artifact or retained log, and commit SHA before execution. A target repository that wants the same checks in CI seeds its workflow from `assets/templates/PROJECT_CI.template.yml`; CI results are retained evidence the harness may cite but never waits on, and CI and the harness share the single E2E command definition from the contract.
 
 A current-head E2E PASS replaces a duplicate manual smoke only when all of these are true:
 

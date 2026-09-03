@@ -2043,14 +2043,16 @@ def _validate_verifier_executions(
         # that run_verifier copies into the retained record verbatim. They must
         # be accepted here or a run that uses them emits evidence its own
         # validator rejects.
-        if _keys(
+        if not _keys(
             errors,
             f"{path}.verifier",
             normalized_verifier,
             {"id", "cwd", "argv", "pass_signal", "cache"},
             {"execution"},
         ):
-            pass
+            # A malformed verifier reports its key errors here and skips the
+            # field reads below instead of crashing on a non-dict shape.
+            continue
         if normalized_verifier["id"] != verifier_id:
             _add(errors, f"{path}.verifier.id", "must match verifier_id")
         declared_cache = (
@@ -3619,6 +3621,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         optional_run_keys.add("run_lock")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
+    if schema_version == 11 and "run_lock" in run and not isinstance(
+        run["run_lock"], dict
+    ):
+        _add(errors, "run.run_lock", "must be an object or absent")
     if schema_version == 11 and isinstance(run.get("run_lock"), dict):
         lock = run["run_lock"]
         if _keys(

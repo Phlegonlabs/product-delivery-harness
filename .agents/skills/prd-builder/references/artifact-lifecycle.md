@@ -77,7 +77,7 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
 ## Stage and Validate
 
 1. Create a run-specific staging directory under `docs/product/.prd-staging/` — unless Detect Enhancement Mode found a staged package for this product and the user chose to resume it, in which case reuse that directory instead of opening a second one.
-2. Write the complete new package there using the final artifact filenames, including the drafted root `DEPLOYMENT.md` and `DOCUMENTS.md`.
+2. Write the complete new package there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` (published under `docs/`).
 3. Run the output-contract quality checklist against the staged files.
 4. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 

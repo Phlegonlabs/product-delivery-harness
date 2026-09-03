@@ -16,7 +16,7 @@ import re
 import sys
 from pathlib import Path
 
-PLACEHOLDER_MARKERS = ("<fill>", "<cloudflare |", "<pattern>", "<url>", "<databases")
+PLACEHOLDER_MARKERS = ("<fill>", "<cloudflare |", "<pattern>", "<url>", "<databases", "<platform")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ENVIRONMENT_ROWS = ("preview", "production")
 

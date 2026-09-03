@@ -17,7 +17,7 @@ Read this reference only while rendering or validating a delegated worker's term
 - Report `worker_passed`, never integrated.
 - A passing worker result is an integration candidate, not proof of review or integration.
 - RUN-v11 workers never delegate. `subagent_activity` is `not_applicable` with an empty `children` list.
-- For `report_file`, write the exact fenced JSON to the parent-supplied temporary path.
+- For `report_file`, write the exact fenced JSON under the heading `## Worker Result Manifest` to the parent-supplied temporary path — that heading plus one fenced `worker_result` JSON block is the exact shape `load_worker_result` parses; a report without it is unreadable to the validators.
 - Worker and task states are `worker_passed`, `blocked`, or `worker_failed`.
 
 ## Verifier Execution Context

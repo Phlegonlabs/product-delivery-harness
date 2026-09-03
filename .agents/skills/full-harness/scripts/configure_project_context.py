@@ -11,7 +11,13 @@ from pathlib import Path
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
 DEFAULT_AGENTS_TEMPLATE = TEMPLATES_DIR / "PROJECT_AGENTS.template.md"
 DEFAULT_CLAUDE_TEMPLATE = TEMPLATES_DIR / "PROJECT_CLAUDE.template.md"
-UNRESOLVED_PLACEHOLDER_MARKERS = ("<fill>", "<bundled", "<or your own", "<hash of")
+UNRESOLVED_PLACEHOLDER_MARKERS = (
+    "<fill>",
+    "<bundled",
+    "<or your own",
+    "<hash of",
+    "<databases",
+)
 
 
 def _present(path: Path) -> bool:

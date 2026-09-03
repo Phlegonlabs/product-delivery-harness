@@ -33,6 +33,7 @@ python -m pip install -r .agents/skills/full-harness/requirements-test.txt
 python scripts/sync_plugin_skills.py
 python scripts/sync_plugin_skills.py --check
 python .agents/skills/full-harness/scripts/check_skill_spec.py
+python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v

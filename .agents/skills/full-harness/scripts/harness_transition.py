@@ -40,9 +40,14 @@ def _parse_ts(value: object) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    # A naive stamp cannot be compared against now(timezone.utc); treat it as
+    # unparseable so the gate fails closed (stale) rather than crashing.
+    if parsed.tzinfo is None:
+        return None
+    return parsed
 
 
 def _lock_age_minutes(run: dict[str, Any]) -> float | None:
@@ -201,21 +206,36 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
             current["branch_ref"] = line.split(" ", 1)[1]
     if current is not None:
         worktrees.append(current)
+    # managed_by derives from the recorded workers' workspace modes, not a
+    # blanket assumption.
+    app_managed_paths = {
+        worker.get("worktree_path")
+        for worker in run.get("workers", [])
+        if isinstance(worker, dict)
+        and worker.get("workspace_mode") == "app_managed_worktree"
+    }
     for entry in worktrees:
         path = entry.get("path")
-        dirty = False
+        dirty: bool | None = False
         if isinstance(path, str):
-            status = subprocess.run(
-                ["git", "status", "--porcelain"],
-                cwd=path,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            dirty = bool(status.stdout.strip())
+            try:
+                status = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=path,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                dirty = bool(status.stdout.strip())
+            except (OSError, subprocess.SubprocessError):
+                # A pruned/dead worktree must not abort the mandatory
+                # observation; record it as unavailable rather than crash.
+                dirty = None
         entry.setdefault("head_sha", None)
         entry.setdefault("branch_ref", None)
-        entry["managed_by"] = "parent"
+        entry["managed_by"] = (
+            "app" if path in app_managed_paths else "parent"
+        )
         entry["dirty"] = dirty
 
     run["observed"]["captured_at"] = _now()
@@ -234,7 +254,9 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
     wave = run.get("active_wave")
     if not isinstance(wave, dict):
         raise ManifestError("run has no active_wave object")
-    if wave.get("status") == "active" and wave.get("wave_id") != args.wave_id:
+    if wave.get("status") == "active":
+        # Refuse regardless of wave_id: re-accepting the same id would rewrite
+        # selected_missions and batch_base_sha under live workers.
         raise ManifestError(
             f"wave {wave.get('wave_id')!r} is still active; close it before accepting another"
         )
@@ -294,10 +316,15 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
     mission_state = run.get("mission_states", {}).get(args.mission_id)
     if not isinstance(mission_state, dict):
         raise ManifestError(f"no mission state for {args.mission_id!r}")
-    if mission_state.get("phase") not in {"queued", "ready", "failed"}:
+    if mission_state.get("phase") not in {
+        "queued",
+        "ready",
+        "worker_failed",
+        "blocked",
+    }:
         raise ManifestError(
             f"mission {args.mission_id!r} is {mission_state.get('phase')!r}; "
-            "only queued, ready, or failed missions accept a new lease"
+            "only queued, ready, worker_failed, or blocked missions accept a new lease"
         )
     base_sha = wave.get("batch_base_sha")
     digest = (run.get("plan") or {}).get("digest_sha256")
@@ -305,8 +332,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         (
             tid
             for tid, state in run.get("task_states", {}).items()
-            if tid.startswith(f"{args.mission_id}-")
-            or tid in {
+            if tid in {
                 task.get("id")
                 for mission in plan.get("missions", [])
                 if isinstance(mission, dict) and mission.get("id") == args.mission_id
@@ -323,6 +349,10 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "attempts": int(node_state.get("attempts") or 0) + 1,
             "last_attempt_id": args.attempt_id,
             "bound_worker_id": args.worker_id,
+            # A fresh attempt clears the prior attempt's terminal residue,
+            # mirroring the review reservation's reset.
+            "last_outcome": None,
+            "blockers": [],
         }
     )
     mission_state.update(
@@ -333,6 +363,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "lease_plan_digest_sha256": digest,
             "worker_id": args.worker_id,
             "base_sha": base_sha,
+            "blockers": [],
         }
     )
     if task_id is not None:
@@ -405,7 +436,23 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
             "integrated_sha": args.integrated_sha,
         }
     )
-    node_state = run.get("graph_state", {}).get("node_states", {}).get(f"N-{args.mission_id}")
+    # Resolve the mission's node from the PLAN graph by kind+ref — node ids
+    # are only conventionally N-<MISSION>, never enforced by the schema.
+    mission_node_ids = [
+        node.get("id")
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict)
+        and node.get("kind") == "mission"
+        and node.get("ref") == args.mission_id
+    ]
+    if len(mission_node_ids) != 1:
+        raise ManifestError(
+            f"mission {args.mission_id!r} must map to exactly one graph mission node; "
+            f"found {len(mission_node_ids)}"
+        )
+    node_state = run.get("graph_state", {}).get("node_states", {}).get(
+        mission_node_ids[0]
+    )
     if isinstance(node_state, dict):
         node_state.update({"phase": "succeeded", "last_outcome": "pass"})
     run["integration"]["integration_head_sha"] = args.integrated_sha
@@ -1216,15 +1263,6 @@ def main(argv: list[str] | None = None) -> int:
             receipt = _reserve_review_dispatch(
                 plan, run, args, repo_root=args.repo_root
             )
-            if getattr(args, "packet_out", None):
-                from render_review_packet import render_packet
-
-                if args.packet_out.exists():
-                    raise ManifestError(f"refusing to overwrite {args.packet_out}")
-                packet = render_packet(
-                    plan, run, args.node_id, args.repo_root
-                )
-                args.packet_out.write_text(packet, encoding="utf-8", newline="\n")
         elif args.command == "skip-integration-review":
             _skip_integration_review(plan, run, args)
         elif args.command == "record-observation":
@@ -1243,11 +1281,31 @@ def main(argv: list[str] | None = None) -> int:
             _heartbeat_run_lock(run, args)
         else:
             _record_review_attempt(plan, run, args)
+        # A session holding the lock keeps it fresh through its own
+        # transitions, so a long integration no longer lets the lock go
+        # stale mid-flight.
+        lock = run.get("run_lock")
+        if (
+            isinstance(lock, dict)
+            and getattr(args, "session_id", None)
+            and lock.get("session_id") == args.session_id
+        ):
+            lock["heartbeat_at"] = _now()
         errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
         if errors:
             raise ManifestError("transition would create an invalid RUN:\n" + "\n".join(f"- {item}" for item in errors))
         _replace_run_document(args.run, run)
-    except (ManifestError, OSError, ValueError) as exc:
+        # The packet renders only after the reservation has passed the
+        # post-mutation validation gate, so a rejected transition never
+        # leaves a packet describing a dispatch that was never recorded.
+        if receipt is not None and getattr(args, "packet_out", None):
+            from render_review_packet import render_packet
+
+            if args.packet_out.exists():
+                raise ManifestError(f"refusing to overwrite {args.packet_out}")
+            packet = render_packet(plan, run, args.node_id, args.repo_root)
+            args.packet_out.write_text(packet, encoding="utf-8", newline="\n")
+    except (ManifestError, OSError, ValueError, TypeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     if receipt is not None:

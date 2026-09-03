@@ -39,6 +39,7 @@ Always include `sequential_parent` as the safe fallback. Select the first observ
 ```text
 codex: app_threads -> subagents -> sequential_parent
 claude_code: dynamic_workflow -> subagents -> sequential_parent
+pi: subagents -> sequential_parent
 generic: subagents -> sequential_parent
 ```
 

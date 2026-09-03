@@ -64,7 +64,7 @@ Record the observable Codex host version and loaded Harness release in `runtime_
 Prefer the strongest observed and authorized route:
 
 ```text
-app_task + app_managed_worktree + cursor_wait
+app_task + app_managed_worktree + thread_poll (cursor-based wait)
 -> direct subagents with parent-owned isolation
 -> sequential_parent
 ```
