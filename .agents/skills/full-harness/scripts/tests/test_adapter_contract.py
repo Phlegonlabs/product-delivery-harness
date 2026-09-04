@@ -13,8 +13,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 def find_repo_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (
-            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
-            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+            (candidate / ".agents" / "skills" / "full-harness" / "SKILL.md").is_file()
+            and (candidate / "package.json").is_file()
         ):
             return candidate
     return None
@@ -95,6 +95,25 @@ class AdapterContractTests(unittest.TestCase):
         self.assertIn("the names are illustrative, not a support list", adapters)
         self.assertIn("no generic model catalog", adapters)
         self.assertIn("never substitute a different model silently", adapters)
+        self.assertIn(
+            "Selecting `generic` needs no host-detection pass", adapters
+        )
+        self.assertIn(
+            "never probe for another runtime's CLI, binary, or plugin just to identify the host",
+            adapters,
+        )
+        self.assertIn(
+            "A host with no observable own-version is never deferred for that reason alone",
+            adapters,
+        )
+        upgrades = self.read("references/runtime-upgrades.md")
+        self.assertIn(
+            "A generic host with no observable own-version is not `unobserved` for that reason",
+            upgrades,
+        )
+        self.assertIn(
+            "A missing host-version string alone never defers a node", upgrades
+        )
         self.assertIn(
             "Do not inject another runtime's instruction file as this host's instructions",
             adapters,

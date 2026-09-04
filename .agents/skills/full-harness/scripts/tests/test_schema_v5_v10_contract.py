@@ -9,7 +9,7 @@ REPO_ROOT = next(
     candidate
     for candidate in (SKILL_ROOT, *SKILL_ROOT.parents)
     if (candidate / "README.md").is_file()
-    and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+    and (candidate / "package.json").is_file()
 )
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:

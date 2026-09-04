@@ -179,6 +179,14 @@ Reconcile the current host and loaded Harness release through `runtime_capabilit
 
 Resume also rejects any mission worker or review worker still recorded as `leased` or `worker_running`. After a stopped review fan-out, use `harness_transition.py reconcile-interrupted-reviews` once with every affected review worker ID. The transition records each interrupted attempt as blocked, restores lineage counts from the append-only attempt log, resets the current review nodes, removes incoming edge traversals that have no current or retained source attempt, and persists `control.desired_state: paused`. It does not grant another review attempt or resume dispatch.
 
+## Mid-Run Modification Recording
+
+The drift rules above fire at resume; the same duty applies while the run is live. Un-checkpointed work of an existing task is drift and stays with that task under the rules above; review-driven repair likewise stays inside the mission it repairs, as a new attempt on the same work. Everything else that appears during the run — an extra fix, a follow-up edit, or a change the user reports mid-run — is new content, never folded into a mission that happens to be nearby.
+
+Record each such modification as its own mission: open it through a plan revision before the edits continue (`contract-and-traceability.md`), give it its own tasks and verifier, and run it through the normal lease, worker, and integration phases. Then regenerate `docs/tasks.md` with `scripts/render_tasks_view.py`. The view groups one section per mission, newest mission first, so every extra modification appears as its own mission section — the newest work at the top, M1 at the bottom — with its own task rows.
+
+A mid-run modification is not done when the edit lands; it is done when it is recorded in RUN and visible in the tasks view. `docs/tasks.md` ends the run listing every modification the run made — nothing stays only in the working tree or only in the conversation.
+
 ## Typed Graph State
 
 PLAN v6 and RUN v11 carry the typed-graph contract: typed nodes, explicit dependency/route edges, and one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.

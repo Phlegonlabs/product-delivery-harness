@@ -160,7 +160,7 @@ A PLAN node is selectable here when its `allowed_providers` includes `pi`. This 
 
 Observe the current Pi session and record the result under `runtime_adapter` independently from authorization.
 
-Record `pi --version` and the loaded Harness release in `runtime_adapter.version_gate`. Update Pi with its native updater and a packaged Harness source with Pi's package updater only after an explicit user instruction; then mark `restart_required`, start a fresh Pi session, and re-probe. Never overwrite standalone skills or change installed roles, models, fallbacks, credentials, or unrelated packages as part of this gate.
+Record `pi --version` and the loaded Harness release in `runtime_adapter.version_gate`. Update Pi with its native updater and update the installed Harness skill copies only after an explicit user instruction, per `runtime-upgrades.md`; then mark `restart_required`, start a fresh Pi session, and re-probe. Never overwrite standalone skills or change installed roles, models, fallbacks, credentials, or unrelated packages as part of this gate.
 
 - Record `subagents` only when the session exposes a role-aware Pi launch surface and terminal child results. The launch call must select the installed role by name and leave its base model unset. If a generic `agents.spawn` surface accepts `runner` and `model` but lacks a Pi role selector, it does not satisfy this capability; use `sequential_parent` instead of simulating a role with a name, prompt, tool list, or model override.
 - Always record `sequential_parent` as fallback.
@@ -208,8 +208,10 @@ A PLAN node is selectable here when its `allowed_providers` includes `generic`.
 
 Any host without a dedicated section above runs the generic route unchanged — nothing in the harness assumes one of the named runtimes. Current market hosts — Gemini CLI, Cursor, GitHub Copilot, Cline, Aider, Windsurf, OpenCode, and whatever comes next — run this route as-is; the names are illustrative, not a support list.
 
+Selecting `generic` needs no host-detection pass. A session that is not evidently one of the three named hosts records `provider: generic` and runs this route directly; never probe for another runtime's CLI, binary, or plugin just to identify the host.
+
 - Driver: `subagents` with parent-owned isolation when the session exposes a fresh-child launch surface that selects a child by stable key and returns terminal child results; otherwise the real `sequential_parent` from `worktree-thread-orchestration.md`. Always record `sequential_parent` as fallback.
-- Version gate: record the host's own version and the loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`.
+- Version gate: record the host's own version when the host reports one, and always record the loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`. A host with no observable own-version is never deferred for that reason alone — the gate's required observation is the loaded Harness release and the selected driver's live capability probe.
 - Models: there is no generic model catalog. Pass PLAN-selected model and reasoning-effort options to the launch call only when the host accepts them, and record the resolved values; never substitute a different model silently.
 - Context: discover the effective instruction chain from repository root to the selected checkout and keep automatic context discovery enabled. Do not inject another runtime's instruction file as this host's instructions.
 - chrome_devtools: record `unavailable` unless the host exposes an in-reviewer browser surface; let selection defer rather than substituting the parent's browser session.
@@ -228,6 +230,6 @@ Give a host its own section only when it has native mechanics worth pinning — 
 1. Add the provider id to `RUNTIME_DRIVER_PRIORITY` in `scripts/harness_schema.py`.
 2. Add one `## Provider: <id>` section above: the eligibility sentence, capability facts and probe surfaces, the driver ladder, provider model defaults, the launch procedure, and the context-file chain. It must reuse the shared contract instead of restating it.
 3. Extend the adapter contract tests to pin the new section's rules.
-4. Run `scripts/sync_plugin_skills.py` and the full verification suite from the repository root.
+4. Run the full verification suite from the repository root.
 
 A provider section never adds authorization keys, alternate state, handoff, or upgrade rules; those live in the shared contract and the core references.

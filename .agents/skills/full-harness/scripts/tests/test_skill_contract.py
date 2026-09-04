@@ -12,8 +12,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 def find_repo_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (
-            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
-            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+            (candidate / ".agents" / "skills" / "full-harness" / "SKILL.md").is_file()
+            and (candidate / "package.json").is_file()
         ):
             return candidate
     return None
@@ -66,6 +66,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never an unrelated fix, cleanup, or formatting", convention)
         self.assertIn("never product code", convention)
         self.assertIn("never folded into the merge body", convention)
+
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        self.assertIn("### Commit Messages", project_agents)
+        self.assertIn(
+            "follows `full-harness/references/commit-convention.md`", project_agents
+        )
+        self.assertIn("<type>(<scope>): <imperative summary>", project_agents)
+        self.assertIn("One commit holds one kind of change", project_agents)
+        self.assertIn("exactly one task ID", project_agents)
+        self.assertIn("never a fake task body", project_agents)
         orchestration = self.read("references/worktree-thread-orchestration.md")
         self.assertIn(
             "Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule",
@@ -424,6 +434,20 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`UNVALIDATED`", gates)
         self.assertIn("page-quality-verification slots", skill)
 
+    def test_seo_metadata_is_bound_through_implementation(self) -> None:
+        contract = self.read("references/ui-implementation-contract.md")
+        gates = self.read("references/verification-gates.md")
+
+        self.assertIn("records SEO metadata implements exactly that", contract)
+        self.assertIn("the rendered `<head>` is part of the deliverable", contract)
+        self.assertIn(
+            "PRD contract gap routed to `prd-builder`, never an implementation-time invention",
+            contract,
+        )
+        self.assertIn("the rendered `<head>` on the integration head", gates)
+        self.assertIn("its `<title>` and meta description match the PRD record", gates)
+        self.assertIn("A mismatch is a failing check, not a style preference", gates)
+
     def test_deployment_contract_separates_preview_from_production(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")
@@ -496,6 +520,63 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
         self.assertIn("render `docs/tasks.md`", skill)
+
+    def test_adding_a_binding_runbook_orders_resource_before_declaration(self) -> None:
+        contract = self.read("references/deployment-contract.md")
+        deployment_template = self.read("assets/templates/DEPLOYMENT.template.md")
+
+        for phrase in (
+            "create the resource, then write the declaration",
+            "a preview PASS never proves production",
+            "fake or dedicated values on preview",
+            "migrates the preview database first",
+            'seeded `docs/DEPLOYMENT.md`\'s "Adding A Binding" section',
+            "The order is portable; the commands are not",
+        ):
+            self.assertIn(phrase, contract)
+        # The wrangler procedure is cloudflare-scoped: it lives inside the
+        # cloudflare platform section, never in the portable model.
+        self.assertLess(
+            contract.index("## Platform: cloudflare"),
+            contract.index("Adding a binding follows"),
+        )
+        self.assertLess(
+            contract.index("Adding a binding follows"),
+            contract.index("## Platform: vercel"),
+        )
+        for phrase in (
+            "## Adding A Binding",
+            "### cloudflare",
+            "### vercel, aws, generic",
+            "Do not reuse the cloudflare steps",
+            "the app's own binding listing (for example `/health`)",
+            "never in the wrangler config",
+            "a preview PASS never proves production",
+        ):
+            self.assertIn(phrase, deployment_template)
+        self.assertLess(
+            deployment_template.index("## Adding A Binding"),
+            deployment_template.index("### cloudflare"),
+        )
+        # The wrangler environment names are the convention: development for
+        # the non-production side, production for the production side.
+        self.assertIn("env.development", deployment_template)
+        self.assertIn("env.production", deployment_template)
+        for retired in ("env.preview", "env.platform", "--env preview"):
+            self.assertNotIn(retired, deployment_template)
+        self.assertIn("env.development", contract)
+        # The hard constraint, machine-checked: each declaration step comes
+        # after its resource-creation step.
+        self.assertLess(
+            deployment_template.index("Create the preview-side resource"),
+            deployment_template.index(
+                "Declare the binding in the development environment"
+            ),
+        )
+        self.assertLess(
+            deployment_template.index("Create the production-side resource"),
+            deployment_template.index("Add the production environment's declaration"),
+        )
 
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -574,7 +655,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.11"', runbook)
+        self.assertIn('"required_harness_version": "0.22.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -959,6 +1040,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Runtime Boundary", project_agents)
         self.assertIn("Codex and Pi load it as their native project context", project_agents)
         self.assertIn("## Core Development Principles", project_agents)
+        self.assertIn("### First Principles", project_agents)
+        self.assertIn(
+            "not from habit, inherited patterns, or how another project solved it",
+            project_agents,
+        )
+        self.assertIn("### File Size Limit", project_agents)
+        self.assertIn("deleted and rewritten from scratch", project_agents)
+        self.assertIn(
+            "no compatibility shim keeps the replaced module alive", project_agents
+        )
         self.assertIn("## Managed Full-Stack Harness Runs", project_agents)
         self.assertIn("Small bounded work may proceed directly", project_agents)
         self.assertNotIn("<verification-command>", project_agents)

@@ -24,26 +24,30 @@
 - Landing the pushed branch on `main` is the user's own step. Do not open a pull request, request review, merge, or deploy unless the user asks for that exact thing in its own instruction.
 - Branch deletion and worktree removal are separate actions. Do not infer approval for them from implementation or from a successful push.
 
+## Update Local Skills
+
+- Every push that changes `.agents/skills/` is followed by the local skills update, in the same turn: replace `full-harness`, `prd-builder`, and `product-design-builder` under `~/.agents/skills/` with this repository's `.agents/skills/` copies. This step is mandatory, never deferred to a later request.
+- Per-runtime copies (Codex plugin, Claude plugin, Pi extension) stay retired. Do not install, update, or reinstall them.
+
 ## Required Verification
 
 Edit only the canonical sources in `.agents/skills/`, then run all of this from the repository root:
 
 ```text
 python -m pip install -r .agents/skills/full-harness/requirements-test.txt
-python scripts/sync_plugin_skills.py
-python scripts/sync_plugin_skills.py --check
 python .agents/skills/full-harness/scripts/check_skill_spec.py
 python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 
-CI runs the same set. Running only the engineering suite passes locally and then fails CI at the sync check, because the generated plugin bundle was never regenerated.
+CI runs the same set.
 
-Every flow that lands on `main` bumps the release version in the same change: `package.json`, both plugin manifests (`plugins/fullstack-harness/.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`), `.claude-plugin/marketplace.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version asserts in `test_private_marketplace.py` and `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version.
+Every flow that lands on `main` bumps the release version in the same change: `package.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version assert in `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version. After the user lands the release on `main`, tag that release commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
+
+Any change that adds or alters a skill, rule, or documented flow also updates the READMEs' descriptive sections in the same change, in all three languages — the README is documentation-of-record, not a release-time artifact.
 
 ## Review Guidelines
 

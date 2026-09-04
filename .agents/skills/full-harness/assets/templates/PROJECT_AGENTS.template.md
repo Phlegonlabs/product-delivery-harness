@@ -29,9 +29,15 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - Prefer the simplest thing that works. Don't over-engineer.
 - Don't "improve" code you weren't asked to touch.
 
+### First Principles
+
+- Reason from the problem's actual constraints, not from habit, inherited patterns, or how another project solved it.
+- When a decision is non-obvious, derive it from what the product must do, then choose the simplest structure that satisfies it.
+
 ### File Size Limit
 
 - A module must not exceed 500 lines. When an implementation would cross that limit, split it before committing — check and split at the moment the task's own file would cross the limit (via the task-refinement protocol in the Full-Stack Harness's `execution-task-decomposition.md`), not as a later end-of-project audit.
+- Keep every module small, self-contained, and single-purpose. A module that proves problematic is deleted and rewritten from scratch rather than patched around; no compatibility shim keeps the replaced module alive.
 - Exceptions require stating the reason in the same commit: generated code/migrations, configuration files, schema/type-definition files, and a package's own re-export/entrypoint module.
 
 ### Compatibility Changes
@@ -109,6 +115,22 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - With matching explicit remote intent and `push` authorization, push only the verified resolved integration branch and current head. The current RUN push guard requires one exact branch target, the authorized integration head, and known `observed.git.default_branch`; refuse any target or integration branch that resolves to the observed default branch, with literal `main` retained as a fail-safe refusal.
 - Remove only an authorized clean linked worktree, then delete only the authorized local worker branch. Never remove the primary checkout, and never delete the run branch the user still has to read.
 - Task archival, worktree removal, and branch deletion remain separate ledger actions even when several are approved in one explicit readiness statement.
+
+### Commit Messages
+
+Every commit in a managed run follows `full-harness/references/commit-convention.md`. The message shape:
+
+```text
+<type>(<scope>): <imperative summary>
+
+Task: <mission-id>/<task-token>
+Trace: <TRACE-ID>[, <TRACE-ID>]
+Verified: <command or action> (<pass signal>)
+```
+
+- Write in English. Keep the subject at 72 characters or fewer, lowercase `type` and `scope`, imperative summary, no final period. `type` is one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `build`, `ci`; `scope` is a stable area such as `auth` or `ui`, never a filename.
+- One commit holds one kind of change: a task commit carries one verified outcome, a repair commit one root-cause fix, an integration commit reviewed heads and coordination state only, a bookkeeping commit `PLAN.md`/`RUN.md` only. Two kinds of change land as two commits in dependency order.
+- Every commit names exactly one task ID, its upstream traces, and the actual verifier with its literal pass signal. A merge or integration-only commit uses the mission-level form (`chore(integration): integrate mission M2` with `Mission`, `Plan-Revision`, `Integrated-Head`), never a fake task body.
 
 ## Review Guidelines
 

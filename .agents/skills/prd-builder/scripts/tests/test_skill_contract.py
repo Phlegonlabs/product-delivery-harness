@@ -208,6 +208,20 @@ async function agent(_prompt, options) {
         self.assertIn("Wireframe Approval Gate", skill)
         self.assertIn("Design System Need Gate", contract)
 
+    def test_seo_metadata_is_part_of_the_ui_surface_contract(self) -> None:
+        contract = self.read("references/output-contract.md")
+
+        self.assertIn(
+            "- SEO metadata: [Per-route `<title>` and meta description", contract
+        )
+        self.assertIn(
+            "canonical URL or `n/a — <reason>`", contract
+        )
+        self.assertIn("not an implementation-time invention", contract)
+        self.assertIn("unique `<title>` and meta description", contract)
+        self.assertIn("sitemap and robots policy", contract)
+        self.assertIn("traces to its own `TEST-*` row", contract)
+
     def test_prd_builder_owns_approved_low_fidelity_wireframes(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")

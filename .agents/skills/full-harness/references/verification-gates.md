@@ -187,6 +187,8 @@ For every PLAN surface with `evidence_gate: required`, capture one screenshot fo
 
 Capture the full matrix once on the mission's worktree head. After serial integration, recapture the full matrix bound to the integration head only when the integration diff intersects that surface's write scope; when it does not, rebind the existing evidence to the integration head and record why. A merge that touched only backend files cannot change a rendered UI surface, and recapturing the whole route-by-breakpoint-by-state matrix to prove that is the slowest verifier class in the ladder. A merge that did touch the surface recaptures in full. Schema-v9 `ui_evidence` records the surface ID, route, breakpoint, state, repo-relative image path under `docs/goal/evidence/`, lowercase SHA-256, exact integration head SHA, and status. The closeout validator checks the matrix, current-head binding, file existence, non-empty image signature, and hash.
 
+For a route whose `UI-*` entry records SEO metadata, the same evidence set includes the rendered `<head>` on the integration head: its `<title>` and meta description match the PRD record. A mismatch is a failing check, not a style preference; a route with no PRD SEO record is a contract gap routed to `prd-builder`, not a verifier skip.
+
 ### Capture Mechanism By Platform
 
 Only the capture mechanism changes with the resolved platform; the evidence discipline above is identical everywhere. Every platform must still produce a real binary screenshot under `docs/goal/evidence/`, record a lowercase SHA-256, bind it to the exact integration head, and cover the full breakpoint-by-state (native: device/OS-by-state) matrix. Placeholder, fabricated, or hand-drawn images never satisfy the gate.

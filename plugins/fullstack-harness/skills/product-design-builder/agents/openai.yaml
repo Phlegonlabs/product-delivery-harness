@@ -1,4 +1,0 @@
-interface:
-  display_name: "Product Design Builder"
-  short_description: "Create a frozen design-system contract"
-  default_prompt: "Use $product-design-builder with $frontend-design only after an explicitly requested visual-design phase has produced an approved UI Design Handoff and PRD.md records Design System Need Gate: required. Compile that handoff plus approved wireframes.html into design-system.md and design-system.json without reopening Taste, concept generation, or preview selection by default."
