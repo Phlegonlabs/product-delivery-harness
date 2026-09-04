@@ -369,6 +369,24 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("- `tasks.md` is a rendered view", documents)
 
+    def test_final_visual_parity_loop_is_documented(self) -> None:
+        skill = self.read("SKILL.md")
+        gates = self.read("references/verification-gates.md")
+        contract = self.read("references/ui-implementation-contract.md")
+
+        self.assertIn("Final Visual Parity Loop", skill)
+        for phrase in (
+            "### Final Visual Parity Loop",
+            "`html_target`",
+            "`design_system`",
+            "parity/<route>-<state>-<breakpoint>-target.png",
+            "target_comparison",
+            "Stop after two failed repair rounds",
+        ):
+            self.assertIn(phrase, gates)
+        self.assertIn("never widen the tolerance", gates)
+        self.assertIn("Final Visual Parity Loop", contract)
+
     def test_deployment_contract_separates_preview_from_production(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")

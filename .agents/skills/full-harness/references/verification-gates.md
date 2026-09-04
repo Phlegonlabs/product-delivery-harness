@@ -204,6 +204,19 @@ For a native iOS/Android/Flutter/macOS/Windows mission, capture through the plat
 
 When the design source's mockup HTML is styled to a different platform than the resolved target (for example web-styled mockups for a native mission), do not silently implement against it or guess the capture mechanism; stop and ask per `contract-and-traceability.md`'s mismatch condition.
 
+### Final Visual Parity Loop
+
+Every run with at least one PLAN `ui_surfaces` entry closes its UI evidence with a final visual parity loop, bound to the exact integration head. The loop compares the implemented surface against the run's visual authority — this applies to both conformance modes, not only target-conformance runs.
+
+For each planned route-by-breakpoint-by-state combination:
+
+- **Target-conformance mode (HTML target):** open the route's approved HTML reference file in the browser at the same breakpoint and state, capture it, and capture the implemented route at that same combination. Store both under `docs/goal/evidence/` (for example `parity/<route>-<state>-<breakpoint>-target.png` and `-actual.png`). Compare layout, element inventory, and observable visual values item by item within the PRD handoff's recorded tolerance. The reference render is the comparison source, not an aspiration.
+- **System-conformance mode:** the baseline is the frozen design-system pair. The comparison evidence is a clean `scripts/check_ui_contract.py` run against the product's real source at the integration head (a zero-file or `--rule`-filtered run is not a baseline) plus the full screenshot matrix checked against the pair's tokens and variants.
+
+Record the comparison on each `ui_evidence` row as a `target_comparison` object: `baseline` (`html_target` or `design_system`), `baseline_artifact` (the reference-render image path under `docs/goal/evidence/` for `html_target`, or the contract-check evidence key for `design_system`), and `verdict` (`pass` or `deviation`). A `deviation` verdict must list every observed difference in `differences`, and each difference must either fall inside the PRD handoff's allowed deviations or trigger a repair.
+
+Repair cycle: a missing element, a structural difference, or any difference outside the recorded tolerance is not a `pass`. Repair the surface, recapture the affected matrix entries, and rebind the evidence to the new integration head SHA. Stop after two failed repair rounds and report the remaining differences as-is; never widen the tolerance or relabel an unresolved difference to close the run. Screenshots from an older head or placeholder images never satisfy the loop.
+
 ## UX Direction And Usability Evidence
 
 Keep these proofs separate:
