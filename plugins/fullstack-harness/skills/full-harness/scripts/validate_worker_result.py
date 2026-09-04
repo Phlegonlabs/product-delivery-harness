@@ -15,6 +15,7 @@ from harness_manifest import (
     NESTED_SUBAGENT_ROLES,
     SHA256_RE,
     authorization_covers,
+    is_current_pair,
     is_full_sha,
     execution_covers,
     load_plan,
@@ -629,10 +630,7 @@ def validate_worker_result_data(
     """
 
     errors: list[dict[str, str]] = []
-    if not manifest_already_validated and (
-        plan.get("schema_version"),
-        run.get("schema_version"),
-    ) == (6, 11):
+    if not manifest_already_validated and is_current_pair(plan, run):
         for message in validate_current_plan_run(plan, run):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
         if errors:
@@ -1158,7 +1156,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(_result_document("FAIL", errors), sort_keys=True, separators=(",", ":")))
         return 1
 
-    if (plan.get("schema_version"), run.get("schema_version")) == (6, 11):
+    if is_current_pair(plan, run):
         for message in validate_current_plan_run(plan, run):
             _issue(errors, "invalid_current_manifest", "harness_plan_run", message)
     else:

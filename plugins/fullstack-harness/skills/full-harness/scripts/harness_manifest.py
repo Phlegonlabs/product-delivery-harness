@@ -15,6 +15,7 @@ from harness_schema import (
     CAPABILITY_PROBE_STATUSES,
     CODEX_CAPABILITY_PROBE_KEYS,
     CODEX_DRIVER_CAPABILITY_REQUIREMENTS,
+    CURRENT_SCHEMA_PAIR,
     EXPIRY_BOUNDARIES,
     GATE_VALUES,
     HEAD_BOUND_AUTHORIZATION_ACTIONS,
@@ -39,6 +40,7 @@ from harness_schema import (
     RUNTIME_DETECTION_SOURCES,
     RUNTIME_DRIVER_PRIORITY,
     RUNTIME_DRIVERS,
+    is_current_pair,
     is_valid_provider_id,
     runtime_driver_priority,
     RUNTIME_REVIEW_TYPES,
@@ -100,29 +102,35 @@ from harness_graph import (
     _validate_graph,
     _validate_graph_state,
 )
-__all__ = [
-    "AUTHORIZATION_KEYS",
-    "ManifestError",
-    "PLAN_HEADING",
-    "RUN_HEADING",
-    "canonical_json",
-    "load_plan",
-    "load_run",
-    "load_worker_result",
-    "mission_conflicts",
-    "topological_levels",
-    "validate_integration_head_against_git",
-    "validate_scope_claim",
-    "validate_ui_evidence_files",
-    "validate_ui_surface_design_coverage",
-]
-
 from harness_ui_evidence import (
     _validate_ui_evidence,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
     validate_ui_surface_design_coverage,
 )
+
+__all__ = [
+    "AUTHORIZATION_KEYS",
+    "CURRENT_SCHEMA_PAIR",
+    "ManifestError",
+    "PLAN_HEADING",
+    "RUN_HEADING",
+    "canonical_json",
+    "is_current_pair",
+    "load_plan",
+    "load_run",
+    "load_worker_result",
+    "mission_conflicts",
+    "plan_digest",
+    "topological_levels",
+    "validate_current_plan_run",
+    "validate_integration_head_against_git",
+    "validate_plan",
+    "validate_run",
+    "validate_scope_claim",
+    "validate_ui_evidence_files",
+    "validate_ui_surface_design_coverage",
+]
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
@@ -5552,7 +5560,7 @@ def validate_current_plan_run(
 
     if not isinstance(plan, dict) or not isinstance(run, dict):
         return ["current PLAN/RUN validation requires PLAN v6 with RUN v11"]
-    if (plan.get("schema_version"), run.get("schema_version")) != (6, 11):
+    if not is_current_pair(plan, run):
         return ["current PLAN/RUN validation requires PLAN v6 with RUN v11"]
     plan_errors = (
         validate_plan(plan)

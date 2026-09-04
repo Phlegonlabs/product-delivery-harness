@@ -290,7 +290,7 @@ def _validate_ui_evidence(
             _add(
                 errors,
                 path,
-                "RUN-v11 UI evidence requires a recorded accepted Git commit/ref in head_sha",
+                "RUN-v10/v11 UI evidence requires a recorded accepted Git commit/ref in head_sha",
             )
         if run.get("schema_version") == 11:
             _validate_target_comparison(errors, path, item)
@@ -489,7 +489,7 @@ def validate_ui_surface_design_coverage(
 def validate_ui_evidence_files(
     run: dict[str, Any], repo_root: str | Path
 ) -> list[str]:
-    """Verify screenshot bytes and hashes for RUN-v9/v10.
+    """Verify screenshot bytes and hashes for RUN-v9/v10/v11.
 
     RUN-v9 retains its historical working-tree binding. RUN-v11 reads the
     artifact blob from each row's accepted ``head_sha`` first, then decodes and
@@ -517,7 +517,7 @@ def validate_ui_evidence_files(
                 _add(
                     errors,
                     path,
-                    "RUN-v11 evidence requires a recorded accepted Git commit/ref in head_sha",
+                    "RUN-v10/v11 evidence requires a recorded accepted Git commit/ref in head_sha",
                 )
                 continue
             artifact_bytes, reason = _read_git_artifact_blob(
@@ -600,20 +600,28 @@ def validate_integration_head_against_git(
         return []
     path = "run.integration.integration_head_sha"
     errors: list[str] = []
+
+    def _run_git(*args: str) -> subprocess.CompletedProcess[str] | None:
+        # Every git call on this path must degrade into an error entry, never a
+        # traceback: this validator's whole job is to report problems as data.
+        try:
+            return subprocess.run(
+                ["git", *args],
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            _add(errors, path, f"could not be verified against live Git: {exc}")
+            return None
+
     branch = integration.get("branch")
     if not isinstance(branch, str) or not _nonempty_string(branch):
         _add(errors, path, "could not be verified against live Git: run.integration.branch is not set")
         return sorted(set(errors))
-    try:
-        result = subprocess.run(
-            ["git", "rev-parse", branch],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        _add(errors, path, f"could not be verified against live Git: {exc}")
+    result = _run_git("rev-parse", branch)
+    if result is None:
         return sorted(set(errors))
     if result.returncode != 0:
         reason = result.stderr.strip() or f"git rev-parse exited {result.returncode}"
@@ -634,20 +642,10 @@ def validate_integration_head_against_git(
         return sorted(set(errors))
     actual = result.stdout.strip()
     if actual != recorded and run.get("schema_version") == 11:
-        ancestry = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", recorded, actual],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        changed = subprocess.run(
-            ["git", "diff", "--name-only", f"{recorded}..{actual}"],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
+        ancestry = _run_git("merge-base", "--is-ancestor", recorded, actual)
+        changed = _run_git("diff", "--name-only", f"{recorded}..{actual}")
+        if ancestry is None or changed is None:
+            return sorted(set(errors))
         coordination_paths = set(integration.get("coordination_paths", []))
         changed_paths = {
             line.strip().replace("\\", "/")

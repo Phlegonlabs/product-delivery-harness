@@ -20,7 +20,7 @@ The selector reads only canonical machine data. In RUN schema v6 and later, prov
 
 It must not parse Markdown tables, inspect UI labels, guess resource ownership, or mutate Git/Codex state.
 
-When routing selects `sequential_parent`, the selector emits at most one mission directive at a time for the existing PLAN `executor: runtime_worker` node. The accepted directive binds RUN to a parent-owned executor/worker record with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation. It does not require `spawn_subagents` or `create_user_owned_tasks`, and it is not a delegated launch. Parent-managed worktree creation is required; if it is unavailable or unauthorized, defer/block the route rather than using `shared_checkout`. Keep the same PLAN/RUN, review, integration, and exact-head gates as delegated execution.
+When routing selects `sequential_parent`, the selector emits at most one mission directive at a time for the existing PLAN `executor: runtime_worker` node, bound per `execution-state-model.md`'s Sequential Parent Route; the route does not require `spawn_subagents` or `create_user_owned_tasks` and is not a delegated launch. Keep the same PLAN/RUN, review, integration, and exact-head gates as delegated execution.
 
 The output is canonical sorted JSON with no timestamps. Its top-level keys are exactly:
 
@@ -147,6 +147,8 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `dependency_not_satisfied` — a dependency source has not succeeded with `pass` (and no pre-integration review source is ready).
 - `execution_not_authorized` — run-level execution authorization is missing or does not cover the mission.
 - `incomplete_resource_inventory` — the plan mission's `resource_inventory_complete` is not true.
+- `independent_reviewer_unavailable` — a sequential-parent review node requires an independent reviewer and no role-aware fresh-reviewer driver or other allowed host is available.
+- `integration_not_unified` — a review node's source missions are not all integrated under one integration head.
 - `mission_phase_not_ready` — the mission state is not `queued` or `ready`.
 - `node_phase_not_ready` — the node is not `dormant` or `ready`, and no re-arm applies.
 - `over_budget` — the mission fell outside the write-worker budget.
@@ -155,11 +157,22 @@ Unary ineligibility or deferral belongs on the node entry, not on a graph edge. 
 - `permission_boundary_not_ready` — the recorded permission boundary status is not `ready`.
 - `plan_not_ready` — `plan_readiness` is not `ready`.
 - `review_head_unchanged` — a `fix_required` review's source head has not changed.
+- `review_lineage_exhausted` — the review lineage's base plus granted allowance is fully consumed.
+- `review_result_dissent` — the node's current review result disagrees with the recorded worker outcome.
+- `reviewer_tool_unobserved:<tool>` — a review's required reviewer tool has no observed capability record.
+- `reviewer_tool_unavailable:<tool>` — a review's required reviewer tool is observed but not available.
 - `route_not_activated` — no incoming route edge has activated the node.
 - `runtime_capacity_unavailable` — observed worker slots or isolation capacity are exhausted.
 - `capability_unprobed` — independent, conflict-free, authorized missions were held back only by a write budget, and `runtime_adapter.detection_source` is still `fallback`. The selector withholds the whole proposal in that state rather than dispatching one mission: `fallback` means the capability was never determined, so a sequential wave there is a guess presented as a decision, and it looks exactly like a deliberate cap. Resolve it by probing the host and recording real capacity (`observed`), or by declaring the sequential route on purpose (`explicit`). A genuine observed capacity of one is a real answer and dispatches normally.
+- `run_cancelled` — RUN-v11 control records a cancelled desired state.
+- `run_paused` — RUN-v11 control records a paused desired state.
 - `run_status_not_dispatchable` — RUN status is terminal or otherwise not one of the executable `ready`/`running` states.
+- `runtime_contract_unobserved` — the installed harness contract digest is not observed for the loaded runtime.
+- `runtime_restart_required` — the runtime upgraded but has not restarted onto the loaded contract.
 - `runtime_unavailable` — the node's allowed providers exclude the current host.
+- `runtime_upgrade_pending` — the runtime is compatible-but-old and no wave is active, so the upgrade should run first.
+- `runtime_upgrade_required` — the recorded runtime version is below the minimum the harness requires.
+- `runtime_version_unobserved` — no runtime version evidence is recorded (or the version gate itself is missing).
 - `worker_state_unreconciled` — a live worker's worktree, branch, or head does not match observation.
 - `worktree_ineligible` — the plan mission's `worktree_eligible` is not true.
 - `worktree_state_unreconciled` — observed worktree facts are missing, dirty, duplicated, or unmatched.

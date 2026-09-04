@@ -43,7 +43,7 @@ pi: subagents -> sequential_parent
 generic: subagents -> sequential_parent
 ```
 
-The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to the existing PLAN `runtime_worker` mission plus a parent-owned RUN binding of `parent` + `parent_managed_worktree` + `agent_result` solely for lease/state validation. It is not a delegated or spawned worker, does not require `spawn_subagents`, and blocks when the required parent-managed worktree is unavailable or unauthorized; `shared_checkout` is not a fallback for this route. Do not route from a product label alone; record how the capability was observed and block if the selected primitive is missing at launch.
+The selected driver must match the axes recorded in RUN. `app_threads` maps to `app_task` + `app_managed_worktree` + `thread_poll`. `dynamic_workflow` maps to `subagent` + `parent_managed_worktree` + `agent_result`. Direct `subagents` use a supported shared or parent-managed workspace and result/report channel. `sequential_parent` maps to the existing PLAN `runtime_worker` mission plus the parent-owned RUN binding defined in `execution-state-model.md`'s Sequential Parent Route; `shared_checkout` is not a fallback for this route. Do not route from a product label alone; record how the capability was observed and block if the selected primitive is missing at launch.
 
 Detect the host that is executing the Harness. Current-session Codex project/thread tools prove `app_threads`; the Claude Code `Workflow` tool and a supported runtime prove `dynamic_workflow`; current-session child-agent tools prove `subagents`. In Pi, the installed subagent workflow must also return a terminal child result before `subagents` is recorded. Codex task tools may be lazy-loaded, so use the current tool-discovery surface to search for project listing, top-level task creation, messaging, and thread waiting before declaring `app_threads` missing. Do not select a provider merely because its CLI is installed or its config directory exists. When native host identity is unavailable, use an explicit provider only from a user/config source; otherwise record `generic` fallback.
 
@@ -89,7 +89,6 @@ Reserve `shared_checkout` for genuinely small direct work (see the Project Size 
 
 - Do not assign a plan-backed write lease in this checkout. Read-only inspection may run concurrently when it does not mutate shared state.
 - Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
-- Task completion may integrate immediately only after the same worker-result and integration gates are applied.
 
 ### Parent-managed worktree
 

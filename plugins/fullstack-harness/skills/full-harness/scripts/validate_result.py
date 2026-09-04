@@ -22,6 +22,7 @@ from harness_manifest import (
     load_plan,
     load_run,
     validate_current_plan_run,
+    is_current_pair,
     validate_plan,
     validate_run,
 )
@@ -90,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False))
         return 2
 
-    current_pair = (plan.get("schema_version"), run.get("schema_version")) == (6, 11)
+    current_pair = is_current_pair(plan, run)
     if current_pair:
         errors.extend(validate_current_plan_run(plan, run))
     else:

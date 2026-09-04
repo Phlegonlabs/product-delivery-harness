@@ -41,7 +41,7 @@ When a planned review requires `chrome_devtools`, launch one read-only capabilit
 
 ### Context And Handoff
 
-Use the shared Repository Context Contract and the Serialized Same-Repository Host Handoff in `execution-state-model.md`, plus `runtime-performance.md` and `runtime-upgrades.md`. Record queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v11 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
+Use the shared Repository Context Contract in `../SKILL.md` and the Serialized Same-Repository Host Handoff in `execution-state-model.md`, plus `runtime-performance.md` and `runtime-upgrades.md`. Record queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v11 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
 
 ### Failure
 
