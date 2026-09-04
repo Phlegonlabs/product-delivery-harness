@@ -340,6 +340,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("| design_direction |", project_agents)
         self.assertIn("| design_compilation |", project_agents)
         self.assertIn("| frontend_implementation |", project_agents)
+        self.assertIn("| ui_quality_verification |", project_agents)
         self.assertIn("a project edit, not a harness change", project_agents)
         self.assertIn("An unbound slot uses the bundled default", project_agents)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
@@ -404,6 +405,24 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A parity repair is an ordinary candidate-changing repair", gates)
         self.assertIn("does not add attempts on top of that budget", gates)
         self.assertIn("Final Visual Parity Loop", contract)
+
+    def test_final_page_quality_pass_is_documented(self) -> None:
+        skill = self.read("SKILL.md")
+        gates = self.read("references/verification-gates.md")
+        contract = self.read("references/ui-implementation-contract.md")
+
+        for content in (skill, gates, contract):
+            self.assertIn("page-quality pass", content)
+        self.assertIn("### Final Page-Quality Pass", gates)
+        self.assertIn("follows the Final Visual Parity Loop", gates)
+        self.assertIn("`ui_quality_verification`", gates)
+        self.assertIn("`impeccable` by default", gates)
+        self.assertIn("adds no review attempts of its own", gates)
+        self.assertIn("never authorizes a local change", gates)
+        self.assertIn("Evaluate commands only", gates)
+        self.assertIn("route it to `prd-builder` as a design-input delta", gates)
+        self.assertIn("`UNVALIDATED`", gates)
+        self.assertIn("page-quality-verification slots", skill)
 
     def test_deployment_contract_separates_preview_from_production(self) -> None:
         skill = self.read("SKILL.md")
@@ -555,7 +574,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.10"', runbook)
+        self.assertIn('"required_harness_version": "0.21.11"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
