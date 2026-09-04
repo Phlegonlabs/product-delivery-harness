@@ -89,7 +89,6 @@ Reserve `shared_checkout` for genuinely small direct work (see the Project Size 
 
 - Do not assign a plan-backed write lease in this checkout. Read-only inspection may run concurrently when it does not mutate shared state.
 - Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
-- Task completion may integrate immediately only after the same worker-result and integration gates are applied.
 
 ### Parent-managed worktree
 

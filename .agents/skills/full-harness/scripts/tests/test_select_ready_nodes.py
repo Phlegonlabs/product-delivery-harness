@@ -2603,5 +2603,44 @@ class SelectReadyNodesTests(unittest.TestCase):
 
 
 
+
+class DeferralCodeDocumentationTests(unittest.TestCase):
+    """Bind the documented deferral-code list to what the selector emits.
+
+    `parallel-mission-selection.md` claims the selector emits "exactly these
+    deferral codes"; this test keeps that word true. When a new code is added
+    to select_ready_nodes.py, its doc entry lands in the same change.
+    """
+
+    def test_documented_deferral_codes_match_emitted_codes(self) -> None:
+        import re
+
+        source = (SCRIPTS_DIR / "select_ready_nodes.py").read_text(encoding="utf-8")
+        emitted = set(re.findall(r'reasons\.add\("([a-z_]+)"\)', source))
+        for group in re.findall(r'"reason_codes": \[([^\]]*)\]', source):
+            emitted.update(re.findall(r'"([a-z_]+)"', group))
+        for group in re.findall(r'(?:return|else) \[([a-z_", ]+)\]', source):
+            emitted.update(re.findall(r'[a-z_]+', group))
+        # f-string prefixed codes carry a dynamic tool name after the colon.
+        prefixed = set(re.findall(r'reasons\.add\(f"([a-z_]+):', source))
+        self.assertTrue(emitted, "code extraction found no emitted codes")
+        self.assertTrue(prefixed)
+
+        doc = (
+            SCRIPTS_DIR.parent / "references" / "parallel-mission-selection.md"
+        ).read_text(encoding="utf-8")
+        marker = "The selector emits exactly these deferral codes:"
+        section = doc.split(marker, 1)[1]
+        documented = {
+            entry.split(":", 1)[0]
+            for entry in re.findall(r"- `([a-z_]+(?::<tool>)?)`", section)
+        }
+        self.assertEqual(
+            documented,
+            emitted | prefixed,
+            "documented deferral codes and emitted codes must stay identical",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
