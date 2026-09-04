@@ -399,6 +399,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "`wrangler d1 create <name>-preview`",
             "is a blocker, not a configuration preference",
             "shares that Worker's live bindings",
+            "any production ID appearing in a preview binding",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",
@@ -421,6 +422,12 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("### CI connection", deployment_template)
         self.assertIn("ci_connected", deployment_template)
         self.assertIn("ci_connected", project_agents)
+        self.assertIn("## Resource Isolation", deployment_template)
+        self.assertIn(
+            "| Binding class | Production resource | Preview resource |",
+            deployment_template,
+        )
+        self.assertIn("fully separate D1/KV/R2/Durable-Object resources", project_agents)
         self.assertIn(
             "the Harness never performs, triggers, or reconfigures them",
             deployment_template,
@@ -512,7 +519,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.5"', runbook)
+        self.assertIn('"required_harness_version": "0.21.6"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

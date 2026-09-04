@@ -4,9 +4,11 @@
 Validates that the deployment record is resolved (no template placeholders)
 and that its Environment Status table is coherent: both preview and
 production rows exist with a URL, and any verified row carries full lowercase
-SHAs and a status. Executing the platform's deployed-commit check command
-stays with the parent or operator — this tool never runs recorded commands
-and never touches the platform.
+SHAs and a status. Also validates the Resource Isolation table: no binding
+class may list the same resource ID in both the production and preview
+columns. Executing the platform's deployed-commit check command stays with
+the parent or operator — this tool never runs recorded commands and never
+touches the platform.
 """
 
 from __future__ import annotations
@@ -19,6 +21,8 @@ from pathlib import Path
 PLACEHOLDER_MARKERS = ("<fill>", "<cloudflare |", "<pattern>", "<url>", "<databases", "<platform")
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ENVIRONMENT_ROWS = ("preview", "production")
+BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
+ABSENT_VALUES = {"", "-", "n/a"}
 
 
 def parse_status_table(text: str) -> dict[str, dict[str, str]]:
@@ -72,6 +76,19 @@ def check_deployment_text(text: str) -> list[str]:
                 findings.append(
                     f"Environment Status: {environment} is checked but has no status"
                 )
+    for line in text.splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or cells[0].lower() not in BINDING_CLASSES:
+            continue
+        production, preview = cells[1].lower(), cells[2].lower()
+        if production in ABSENT_VALUES or preview in ABSENT_VALUES:
+            continue
+        if production == preview:
+            findings.append(
+                f"Resource Isolation: {cells[0]} must not share one resource between production and preview"
+            )
     return findings
 
 

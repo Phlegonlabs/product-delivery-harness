@@ -29,11 +29,43 @@ GOOD_DEPLOYMENT = f"""# Deployment
 - Deployed-commit check: wrangler pages deployment list
 - Protected resources preview must never bind: prod-db
 
+## Resource Isolation
+
+| Binding class | Production resource | Preview resource |
+| --- | --- | --- |
+| D1 database | d1-prod-001 | d1-preview-001 |
+| KV namespace | kv-prod-001 | kv-preview-001 |
+| R2 bucket | n/a | n/a |
+
 ## Environment Status
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
 | --- | --- | --- | --- | --- | --- |
 | preview | https://abc.example.pages.dev | {"a" * 40} | {"a" * 40} | 2026-09-03 | PASS |
+| production | | | | | |
+"""
+
+SHARED_RESOURCE_DEPLOYMENT = """# Deployment
+
+## Record
+
+- Platform: cloudflare
+- Mode: ci_connected
+- Production URL: https://example.com
+- Deployed-commit check: wrangler deployments list
+
+## Resource Isolation
+
+| Binding class | Production resource | Preview resource |
+| --- | --- | --- |
+| D1 database | d1-prod-001 | d1-prod-001 |
+| KV namespace | kv-prod-001 | kv-preview-001 |
+
+## Environment Status
+
+| Environment | URL | Expected head | Deployed SHA | Checked | Status |
+| --- | --- | --- | --- | --- | --- |
+| preview | | | | | |
 | production | | | | | |
 """
 
@@ -79,6 +111,13 @@ class DeploymentRecordTests(unittest.TestCase):
     def test_a_ci_connected_record_passes_the_same_checks(self) -> None:
         findings = check_deployment.check_deployment_text(CI_CONNECTED_DEPLOYMENT)
         self.assertEqual([], findings)
+
+    def test_a_shared_resource_id_fails_the_isolation_check(self) -> None:
+        findings = check_deployment.check_deployment_text(SHARED_RESOURCE_DEPLOYMENT)
+        joined = "\n".join(findings)
+        self.assertIn(
+            "must not share one resource between production and preview", joined
+        )
 
     def test_placeholders_and_incoherent_rows_fail(self) -> None:
         findings = check_deployment.check_deployment_text(BAD_DEPLOYMENT)

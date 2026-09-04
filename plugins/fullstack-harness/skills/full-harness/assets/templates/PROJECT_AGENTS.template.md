@@ -74,6 +74,7 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Full-Stack Harness `deployment-contract.md`.
 - Platform and mode: the deploy platform id (for example `cloudflare`, `vercel`, `aws`) and `git_connected`, `ci_connected`, or `manual`.
 - Production deploys only from the resolved default branch; preview builds track non-default branch pushes. They are separate environments with separate URLs and stateful resources, and a preview PASS never proves production.
+- Production and preview bind fully separate D1/KV/R2/Durable-Object resources: the preview environment declares its complete binding set, never references a production resource ID, and the deployment record's Resource Isolation table carries both ID sets.
 - Preview mechanism or URL pattern: <fill>
 - Production URL: <fill>
 - Deployed-commit check (platform API/CLI command or response header): <fill>

@@ -13,6 +13,17 @@ The deployment record for this repository: the platform model, the setup only a 
 - Deployed-commit check: <platform API/CLI command or response header>
 - Protected resources preview must never bind: <databases, buckets, secrets, domains>
 
+## Resource Isolation
+
+Production and preview use fully separate stateful resources. Record every binding class this project uses; an identical ID in both columns is a blocker. Mark a class the project does not use `n/a`.
+
+| Binding class | Production resource | Preview resource |
+| --- | --- | --- |
+| D1 database | <fill> | <fill> |
+| KV namespace | <fill> | <fill> |
+| R2 bucket | <fill> | <fill> |
+| Durable Objects | <fill> | <fill> |
+
 ## Human Setup Checklist
 
 These steps are performed by a person with platform access; the Harness never performs, triggers, or reconfigures them. Check them off as completed.
@@ -37,6 +48,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 - [ ] Create separate preview and production environments with separate variables and secrets.
 - [ ] Point preview at non-production databases, buckets, and auth providers; never bind a production resource to preview.
+- [ ] Fill the Resource Isolation table with both resource-ID sets and confirm no ID appears in both columns.
 - [ ] Attach the production domain to the production environment only.
 
 ### Verification access
