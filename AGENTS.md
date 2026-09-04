@@ -35,20 +35,17 @@ Edit only the canonical sources in `.agents/skills/`, then run all of this from 
 
 ```text
 python -m pip install -r .agents/skills/full-harness/requirements-test.txt
-python scripts/sync_plugin_skills.py
-python scripts/sync_plugin_skills.py --check
 python .agents/skills/full-harness/scripts/check_skill_spec.py
 python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 
-CI runs the same set. Running only the engineering suite passes locally and then fails CI at the sync check, because the generated plugin bundle was never regenerated.
+CI runs the same set.
 
-Every flow that lands on `main` bumps the release version in the same change: `package.json`, both plugin manifests (`plugins/fullstack-harness/.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`), `.claude-plugin/marketplace.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version asserts in `test_private_marketplace.py` and `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version.
+Every flow that lands on `main` bumps the release version in the same change: `package.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version assert in `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version.
 
 ## Review Guidelines
 

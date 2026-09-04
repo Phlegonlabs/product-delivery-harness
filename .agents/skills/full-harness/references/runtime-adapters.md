@@ -160,7 +160,7 @@ A PLAN node is selectable here when its `allowed_providers` includes `pi`. This 
 
 Observe the current Pi session and record the result under `runtime_adapter` independently from authorization.
 
-Record `pi --version` and the loaded Harness release in `runtime_adapter.version_gate`. Update Pi with its native updater and a packaged Harness source with Pi's package updater only after an explicit user instruction; then mark `restart_required`, start a fresh Pi session, and re-probe. Never overwrite standalone skills or change installed roles, models, fallbacks, credentials, or unrelated packages as part of this gate.
+Record `pi --version` and the loaded Harness release in `runtime_adapter.version_gate`. Update Pi with its native updater and update the installed Harness skill copies only after an explicit user instruction, per `runtime-upgrades.md`; then mark `restart_required`, start a fresh Pi session, and re-probe. Never overwrite standalone skills or change installed roles, models, fallbacks, credentials, or unrelated packages as part of this gate.
 
 - Record `subagents` only when the session exposes a role-aware Pi launch surface and terminal child results. The launch call must select the installed role by name and leave its base model unset. If a generic `agents.spawn` surface accepts `runner` and `model` but lacks a Pi role selector, it does not satisfy this capability; use `sequential_parent` instead of simulating a role with a name, prompt, tool list, or model override.
 - Always record `sequential_parent` as fallback.
@@ -230,6 +230,6 @@ Give a host its own section only when it has native mechanics worth pinning — 
 1. Add the provider id to `RUNTIME_DRIVER_PRIORITY` in `scripts/harness_schema.py`.
 2. Add one `## Provider: <id>` section above: the eligibility sentence, capability facts and probe surfaces, the driver ladder, provider model defaults, the launch procedure, and the context-file chain. It must reuse the shared contract instead of restating it.
 3. Extend the adapter contract tests to pin the new section's rules.
-4. Run `scripts/sync_plugin_skills.py` and the full verification suite from the repository root.
+4. Run the full verification suite from the repository root.
 
 A provider section never adds authorization keys, alternate state, handoff, or upgrade rules; those live in the shared contract and the core references.

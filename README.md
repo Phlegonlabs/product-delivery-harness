@@ -8,17 +8,16 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.21.12-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.22.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
 
-Private skill marketplace for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, or Pi.
+Private skills repository for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, Pi, or any host that discovers a user skills directory.
 
-It is not a prompt collection. The plugin separates product definition, visual design, and engineering execution so each stage has one source of truth, a bounded handoff, and its own verification.
+It is not a prompt collection. The skill suite separates product definition, visual design, and engineering execution so each stage has one source of truth, a bounded handoff, and its own verification.
 
 > Define the product. Make the design concrete. Execute only the work that is ready. Verify the exact result before it moves.
 
@@ -249,7 +248,7 @@ A graph node's `allowed_providers` must include the host that is actually runnin
 
 ## Install
 
-This is a private GitHub marketplace. You need access to `Phlegonlabs/fullstack-goal-dev`, GitHub CLI authentication, and at least one supported host: Codex, Claude Code, or Pi.
+This is a private repository. You need access to `Phlegonlabs/fullstack-goal-dev`, GitHub CLI authentication, and at least one host that discovers a user skills directory such as `~/.agents/skills/` — Codex, Claude Code, Pi, or any other.
 
 ```bash
 gh auth login
@@ -273,53 +272,14 @@ On Windows, `Copy-Item -Recurse` does the same. Replacing those three directorie
 
 ### Zero-to-one flow
 
-1. Install one supported host (Codex, Claude Code, or Pi) and this plugin, then use that host for the run.
-2. Start a fresh host session, confirm the plugin, and invoke `$full-harness`.
+1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the three harness skills, then use that host for the run.
+2. Start a fresh host session, confirm the skill is visible, and invoke `full-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
 
-### Install directly in Codex
-
-```bash
-codex plugin marketplace add Phlegonlabs/fullstack-goal-dev --ref main
-codex plugin add fullstack-harness@fullstack-goal-dev
-codex plugin list
-```
-
-### Install directly in Claude Code
-
-```bash
-claude plugin marketplace add Phlegonlabs/fullstack-goal-dev --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-claude plugin list
-```
-
-Run `/reload-plugins` or restart Claude Code once the plugin is installed.
-
-### Install directly in Pi
-
-```bash
-pi install git:github.com/Phlegonlabs/fullstack-goal-dev@main --no-approve
-pi list --no-approve
-```
-
-Start a fresh Pi session after installing or updating. Existing standalone skills under `~/.pi/agent/skills` are user data and are never removed silently.
-
-### Use a local checkout during development
-
-Use a local marketplace when testing changes in this repository. Do not register the local and GitHub marketplace under the same name at the same time.
-
-```powershell
-$repo = (Resolve-Path .).Path
-codex plugin marketplace add $repo
-codex plugin add fullstack-harness@fullstack-goal-dev
-claude plugin marketplace add $repo --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-```
-
 ## Typical prompts
 
-Codex accepts the `$skill-name` form below. In Claude Code, invoke the installed namespaced skill, such as `/fullstack-harness:prd-builder`, or ask for it by name. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `full-harness` by name.
+Codex accepts the `$skill-name` form below. In Claude Code or any other host, ask for the skill by name, such as `prd-builder`. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `full-harness` by name.
 
 ```text
 Use $prd-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
@@ -378,44 +338,36 @@ Parallel implementation has no small fixed cap by default; the configured write-
 
 ```text
 .agents/skills/                                      Canonical skill sources
-plugins/fullstack-harness/skills/                    Generated plugin copies; do not edit directly
-plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code plugin manifest
-plugins/fullstack-harness/.codex-plugin/plugin.json  Codex plugin manifest
-.agents/plugins/marketplace.json                     Codex marketplace definition
-.claude-plugin/marketplace.json                      Claude Code marketplace definition
 assets/                                              README covers
-scripts/sync_plugin_skills.py                        Copies canonical skills into the plugin bundle
 .github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
 ```
 
-## Maintain the marketplace
+## Maintain the skills
 
-Edit only the canonical sources in `.agents/skills/`, then sync and verify the generated plugin bundle.
+Edit only the canonical sources in `.agents/skills/`, then run the verification suite.
 
 ```bash
-python scripts/sync_plugin_skills.py
-python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 
-Before a release, update the matching version in both plugin manifests and `.claude-plugin/marketplace.json`, and inspect the entire diff. Do not push directly to `main`.
+Before a release, update the version in `package.json`, the README badges and version-history entries in all three languages, and the RUNBOOK `required_harness_version` default, then inspect the entire diff. Do not push directly to `main`.
 
 ## Security and data safety
 
 - Keep GitHub tokens and other credentials out of this repository.
-- The updater uses your existing GitHub CLI session; it does not store a token in the project.
-- Do not delete old standalone skill copies until the plugin is confirmed to load correctly.
+- Do not delete old installed skill copies until the new ones are confirmed to load correctly.
 - The orchestration skill requires explicit authorization for every state-changing Git or lifecycle action.
 
 ## Version history
 
 Update this section with each release, alongside the version bump described above.
 
-- **0.21.12** — SEO metadata is now part of the PRD surface contract. Every `UI-*` entry records its route's unique `<title>` and meta description plus canonical URL, Open Graph/social, robots, and structured-data decisions (or an explicit `n/a — <reason>`); site-level SEO (indexing strategy, sitemap and robots policy, canonical policy, default structured data) is recorded in Frontend Delivery Requirements with its own `TEST-*` traces. The harness side binds it through: implementation must render the recorded `<head>` exactly, a missing SEO record is a PRD contract gap routed to `prd-builder`, and UI evidence includes a rendered-head check where `<title>` and meta description must match the PRD record on the integration head. The retired `update-private-skills.ps1` one-command updater is also removed in this change: per-runtime copies were deliberately dropped on 2026-09-03, so setup and updates are now the plain skills sync — copy the three harness skills from `.agents/skills/` into `~/.agents/skills/` — and the READMEs no longer teach the script. Running on a host outside the three named runtimes is now detection-free: a session that is not evidently Codex, Claude Code, or Pi records `provider: generic` outright with no probing for another runtime's CLI, and the version gate no longer defers a generic host for lacking an observable own-version — the loaded Harness release and the selected driver's live capability probe complete the observation.
+- **0.22.0** — The private marketplace and plugin bundle are retired. `plugins/`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `scripts/sync_plugin_skills.py` are gone; `.agents/skills/` is the only source, and installing or updating means copying the three harness skills into your user skills directory (`~/.agents/skills/`), exactly as the Fastest setup already described. The READMEs drop the marketplace badge, the per-host plugin install commands, and the local-marketplace section; `runtime-upgrades.md` now names the skills sync as the only Harness update surface and trims the per-host update notes to host-owned installers plus restart.
+
+- **0.21.12** — SEO metadata is now part of the PRD surface contract. Every `UI-*` entry records its route's unique `<title>` and meta description plus canonical URL, Open Graph/social, robots, and structured-data decisions (or an explicit `n/a — <reason>`); site-level SEO (indexing strategy, sitemap and robots policy, canonical policy, default structured data) is recorded in Frontend Delivery Requirements with its own `TEST-*` traces. The harness side binds it through: implementation must render the recorded `<head>` exactly, a missing SEO record is a PRD contract gap routed to `prd-builder`, and UI evidence includes a rendered-head check where `<title>` and meta description must match the PRD record on the integration head. The retired `update-private-skills.ps1` one-command updater is also removed in this change: per-runtime copies were deliberately dropped on 2026-09-03, so setup and updates are now the plain skills sync — copy the three harness skills from `.agents/skills/` into `~/.agents/skills/` — and the READMEs no longer teach the script. Running on a host outside the three named runtimes is now detection-free: a session that is not evidently Codex, Claude Code, or Pi records `provider: generic` outright with no probing for another runtime's CLI, and the version gate no longer defers a generic host for lacking an observable own-version — the loaded Harness release and the selected driver's live capability probe complete the observation. The seeded `AGENTS.md` also gains a Commit Messages section stating the message shape (`<type>(<scope>): <imperative summary>` with `Task`/`Trace`/`Verified` trailers), the one-kind-of-change-per-commit rule, and the mission-level integration form, so every runtime writes commits the same way at commit-and-push time.
 - **0.21.11** — UI runs now close with a Final Page-Quality Pass. After the Final Visual Parity Loop, the skill bound to the new `ui_quality_verification` slot — `impeccable` by default — runs one `critique` and one `audit` per delivered high-fidelity page on the exact integration head. Blocking findings enter the ordinary repair budget; a finding that conflicts with the frozen PRD, wireframes, or visual sources routes to `prd-builder` as a design-input delta instead of a local change; the pass uses evaluate commands only and creates no competing product authority; an unavailable bound skill records the gate `UNVALIDATED` and blocks closeout unless the user accepts the descope. The seeded `AGENTS.md` Skill Bindings table carries the new slot.
 - **0.21.10** — The rendered tasks view now lives at `docs/tasks.md`, not `docs/goal/tasks.md`. `docs/goal/` keeps only canonical run state (PLAN, RUN, DECISIONS, evidence); the non-canonical human view sits under `docs/` beside `DOCUMENTS.md` and `DEPLOYMENT.md`. SKILL routing, the DOCUMENTS manifest row, the renderer's help text, the stray-checklist wording, and the pinned contract tests all follow the new path. The seeded project `AGENTS.md` now states the goal-complete archival rule directly: once the owner declares the goal complete and the Closeout Bar has passed, the finished plan runtime (`PLAN.md`/`RUN.md` plus its evidence) archives into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/` — a move, never a delete, and never touching `docs/product/`.
 - **0.21.9** — Review-hardening cleanup from a four-lens architecture review. A real bug fix: the RUN-v11 head cross-check's follow-up git calls (merge-base, diff) now degrade into error entries instead of crashing the validator. `CURRENT_SCHEMA_PAIR`/`is_current_pair` replace eight hand-typed `(6, 11)` literals; fake test-patch seams and a stale `__all__` are gone. The selector's "exactly these deferral codes" list is complete again (it was missing eleven codes plus the reviewer-tool prefixes) and a new test binds the doc list to the emitted codes. The sequential-parent binding is defined once under an anchored heading (it was restated seven times) and the review-attempt budget once in Root-Cause Repair Escalation; contract tests pin the single definitions plus pointers instead of freezing the restatements. The integration/bookkeeping commit split is settled (merge commit, then paired bookkeeping commit) and parity repairs are stated to be ordinary candidate-changing repairs under the existing budget. The ~1200-line fixture library moved from test_harness_manifest.py into manifest_fixtures.py with re-exports, canonical fixtures read schema versions from harness_schema, and contract_digest's CRLF/LF normalization and tests/__pycache__ exclusion gained direct tests.

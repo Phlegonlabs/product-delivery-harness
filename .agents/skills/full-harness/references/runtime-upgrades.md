@@ -26,8 +26,8 @@ Never hot-upgrade a live worker or transfer its lease to a replacement process.
 
 1. Stop new runtime dispatch. If the old version is `compatible_old`, allow only the current active wave and its dependency-ready streaming reviews to finish.
 2. Preserve PLAN/RUN, terminal results, leases, worktrees, dirty files, commits, exact heads, and session evidence. If an incompatible worker is still active, request a checkpoint after its current tool call and quiesce it at that boundary.
-3. Close or supersede the active wave before replacing the host runtime or Harness package. Updating installed software is a separate machine mutation and requires an explicit user instruction; the 12 RUN ledger actions do not silently authorize it.
-4. Use the host-owned updater. Update the Full Stack Harness package with the repository updater. Do not alter Pi roles, model selection, fallback order, provider credentials, or unrelated packages.
+3. Close or supersede the active wave before replacing the host runtime or the installed Harness skills. Updating installed software is a separate machine mutation and requires an explicit user instruction; the 12 RUN ledger actions do not silently authorize it.
+4. Update the host through the installer that owns that binary. Update the Harness skills by copying the three skill directories from a current repository checkout over the installed copies in the user skills directory (for example `~/.agents/skills/`). Do not alter Pi roles, model selection, fallback order, provider credentials, or unrelated packages.
 5. Recompute the installed contract digest, mark `restart_required` when it differs from the loaded digest, then start a fresh host session. Installed files changing on disk does not update an existing Codex task, Claude Code Workflow/session, or Pi session.
 6. Re-run capability and version probes. Replace the old capability snapshot; do not merge it into the new one. Set `current` only when the new session exposes every selected-driver capability.
 7. Validate preserved heads and evidence. Accept already-terminal exact-bound results normally. Create a new graph attempt and lease for unfinished work; never revive the old lease.
@@ -52,6 +52,7 @@ An upgrade does not resume the old orchestration. Once the fresh session records
 
 ## Host Update Boundaries
 
-- Codex: update the Full Stack Harness marketplace/plugin, then open a new top-level task. Update the Codex host itself only through the installation method that owns that binary.
-- Claude Code: update the marketplace/plugin, then run `/reload-plugins` or restart. Dynamic Workflow also requires the currently documented minimum Claude Code version.
-- Pi: update Pi with its native updater and update a packaged Harness source with Pi's package updater. Start a fresh Pi session afterward. Standalone skill copies are separate user data and must not be overwritten or removed silently.
+- Codex: update the Codex host only through the installation method that owns that binary, then open a new top-level task.
+- Claude Code: update Claude Code with its own installer, then restart. Dynamic Workflow also requires the currently documented minimum Claude Code version.
+- Pi: update Pi with its native updater and start a fresh Pi session afterward. Standalone skill copies are separate user data and must not be overwritten or removed silently.
+- Every host loads the Harness skills from the user skills directory, so the shared copy there is the only Harness update surface: replace it from a current repository checkout, then start a fresh session.

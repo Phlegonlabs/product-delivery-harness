@@ -6,8 +6,8 @@ from pathlib import Path
 def find_repo_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (
-            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
-            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+            (candidate / ".agents" / "skills" / "full-harness" / "SKILL.md").is_file()
+            and (candidate / "package.json").is_file()
         ):
             return candidate
     return None
