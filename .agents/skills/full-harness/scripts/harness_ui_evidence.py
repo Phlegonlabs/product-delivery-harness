@@ -132,6 +132,72 @@ def _read_git_artifact_blob(
     return payload, reason
 
 
+UI_TARGET_COMPARISON_BASELINES = {"html_target", "design_system"}
+UI_TARGET_COMPARISON_VERDICTS = {"pass", "deviation"}
+
+
+def _validate_target_comparison(errors: list[str], path: str, item: dict[str, Any]) -> None:
+    """Check one RUN-v11 ui_evidence row's Final Visual Parity Loop record.
+
+    Every v11 row must state what it was compared against (an approved HTML
+    reference render, or the frozen design-system contract) and the verdict;
+    a deviation that lists no differences cannot be judged against the PRD
+    handoff's allowed deviations.
+    """
+
+    comparison = item.get("target_comparison")
+    comparison_path = f"{path}.target_comparison"
+    if not isinstance(comparison, dict):
+        _add(errors, comparison_path, "must be an object")
+        return
+    baseline = comparison.get("baseline")
+    if baseline not in UI_TARGET_COMPARISON_BASELINES:
+        _add(
+            errors,
+            f"{comparison_path}.baseline",
+            f"must be one of {'|'.join(sorted(UI_TARGET_COMPARISON_BASELINES))}",
+        )
+        return
+    baseline_artifact = comparison.get("baseline_artifact")
+    if baseline == "html_target":
+        if not _valid_ui_artifact_path(baseline_artifact):
+            _add(
+                errors,
+                f"{comparison_path}.baseline_artifact",
+                "must be a repo-relative image under docs/goal/evidence/",
+            )
+    elif not _nonempty_string(baseline_artifact):
+        _add(
+            errors,
+            f"{comparison_path}.baseline_artifact",
+            "must be a non-empty contract-check evidence key",
+        )
+    verdict = comparison.get("verdict")
+    if verdict not in UI_TARGET_COMPARISON_VERDICTS:
+        _add(
+            errors,
+            f"{comparison_path}.verdict",
+            f"must be one of {'|'.join(sorted(UI_TARGET_COMPARISON_VERDICTS))}",
+        )
+        return
+    differences = comparison.get("differences")
+    has_differences = isinstance(differences, list) and any(
+        _nonempty_string(difference) for difference in differences
+    )
+    if verdict == "deviation" and not has_differences:
+        _add(
+            errors,
+            f"{comparison_path}.differences",
+            "a deviation verdict must list every observed difference",
+        )
+    if verdict == "pass" and differences not in (None, []):
+        _add(
+            errors,
+            f"{comparison_path}.differences",
+            "a pass verdict must not list differences",
+        )
+
+
 def _validate_ui_evidence(
     errors: list[str], plan: dict[str, Any], run: dict[str, Any]
 ) -> None:
@@ -168,7 +234,12 @@ def _validate_ui_evidence(
     )
     for index, item in enumerate(evidence_items):
         path = f"run.ui_evidence[{index}]"
-        if not _keys(errors, path, item, evidence_keys):
+        # RUN-v11 adds the Final Visual Parity Loop's target_comparison record
+        # to each row; older schemas keep their frozen key set.
+        optional_keys = (
+            ("target_comparison",) if run.get("schema_version") == 11 else ()
+        )
+        if not _keys(errors, path, item, evidence_keys, optional_keys):
             continue
         scalar_fields_valid = True
         for key in ("surface_id", "route", "breakpoint", "state"):
@@ -221,6 +292,8 @@ def _validate_ui_evidence(
                 path,
                 "RUN-v11 UI evidence requires a recorded accepted Git commit/ref in head_sha",
             )
+        if run.get("schema_version") == 11:
+            _validate_target_comparison(errors, path, item)
         if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
         elif item["status"] == "PASS":
@@ -481,6 +554,36 @@ def validate_ui_evidence_files(
             actual = hashlib.sha256(artifact_bytes).hexdigest()
             if actual != item["artifact_sha256"]:
                 _add(errors, path, "sha256 does not match artifact_sha256")
+
+        # The Final Visual Parity Loop's reference render gets the same
+        # immutable-blob treatment as the actual screenshot: read it from the
+        # recorded accepted commit and decode those bytes, never the worktree.
+        comparison = item.get("target_comparison")
+        if (
+            schema_version == 11
+            and isinstance(comparison, dict)
+            and comparison.get("baseline") == "html_target"
+            and _valid_ui_artifact_path(comparison.get("baseline_artifact"))
+        ):
+            baseline_path = (
+                f"run.ui_evidence[{index}].target_comparison.baseline_artifact"
+            )
+            baseline_bytes, reason = _read_git_artifact_blob(
+                root, head_sha, comparison["baseline_artifact"]
+            )
+            if baseline_bytes is None:
+                _add(
+                    errors,
+                    baseline_path,
+                    f"does not exist in accepted Git commit/ref {head_sha!r}: "
+                    f"{reason or 'git show could not read the blob'}",
+                )
+            elif not baseline_bytes:
+                _add(errors, baseline_path, "must not be empty")
+            elif baseline_error := _ui_image_decode_error(
+                baseline_bytes, comparison["baseline_artifact"]
+            ):
+                _add(errors, baseline_path, baseline_error)
     return sorted(set(errors))
 
 

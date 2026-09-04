@@ -233,6 +233,224 @@ class UiEvidenceGitBindingTests(unittest.TestCase):
         self.assertTrue(any("accepted Git commit" in error for error in errors), errors)
 
 
+class TargetComparisonSchemaTests(unittest.TestCase):
+    @staticmethod
+    def row(**target_comparison: object) -> dict[str, object]:
+        return {
+            "surface_id": "home",
+            "route": "/home",
+            "breakpoint": "mobile-390",
+            "state": "ready",
+            "artifact_path": "docs/goal/evidence/home-mobile-390-ready.png",
+            "artifact_sha256": "a" * 64,
+            "head_sha": "b" * 40,
+            "status": "PASS",
+            "target_comparison": target_comparison,
+        }
+
+    def validate(self, schema_version: int, item: dict[str, object]) -> list[str]:
+        plan = {
+            "ui_surfaces": [
+                {
+                    "id": "home",
+                    "route": "/home",
+                    "breakpoints": ["mobile-390"],
+                    "states": ["ready"],
+                    "evidence_gate": "required",
+                }
+            ]
+        }
+        run = {
+            "schema_version": schema_version,
+            "ui_evidence": [item],
+            "integration": {"integration_head_sha": "b" * 40},
+        }
+        errors: list[str] = []
+        subject._validate_ui_evidence(errors, plan, run)
+        return errors
+
+    def test_v11_row_without_target_comparison_is_rejected(self) -> None:
+        item = self.row()
+        item.pop("target_comparison")
+        errors = self.validate(11, item)
+        self.assertTrue(
+            any("target_comparison" in error for error in errors), errors
+        )
+
+    def test_v9_row_without_target_comparison_still_passes_schema(self) -> None:
+        item = self.row()
+        item.pop("target_comparison")
+        self.assertEqual(self.validate(9, item), [])
+
+    def test_valid_html_target_pass_row_is_accepted(self) -> None:
+        self.assertEqual(
+            self.validate(
+                11,
+                self.row(
+                    baseline="html_target",
+                    baseline_artifact=(
+                        "docs/goal/evidence/parity-home-ready-mobile-390-target.png"
+                    ),
+                    verdict="pass",
+                ),
+            ),
+            [],
+        )
+
+    def test_valid_design_system_deviation_row_is_accepted(self) -> None:
+        self.assertEqual(
+            self.validate(
+                11,
+                self.row(
+                    baseline="design_system",
+                    baseline_artifact="check_ui_contract:clean-run",
+                    verdict="deviation",
+                    differences=["link underline token differs from registry"],
+                ),
+            ),
+            [],
+        )
+
+    def test_unknown_baseline_is_rejected(self) -> None:
+        errors = self.validate(
+            11, self.row(baseline="wireframe", baseline_artifact="x", verdict="pass")
+        )
+        self.assertTrue(
+            any("baseline" in error for error in errors), errors
+        )
+
+    def test_html_target_requires_an_evidence_image_path(self) -> None:
+        errors = self.validate(
+            11,
+            self.row(
+                baseline="html_target",
+                baseline_artifact="docs/design/ui-references/run-1/home.html",
+                verdict="pass",
+            ),
+        )
+        self.assertTrue(
+            any("baseline_artifact" in error for error in errors), errors
+        )
+
+    def test_deviation_without_differences_is_rejected(self) -> None:
+        errors = self.validate(
+            11,
+            self.row(
+                baseline="design_system",
+                baseline_artifact="check_ui_contract:clean-run",
+                verdict="deviation",
+            ),
+        )
+        self.assertTrue(
+            any("differences" in error for error in errors), errors
+        )
+
+    def test_pass_verdict_must_not_list_differences(self) -> None:
+        errors = self.validate(
+            11,
+            self.row(
+                baseline="design_system",
+                baseline_artifact="check_ui_contract:clean-run",
+                verdict="pass",
+                differences=["one lingering difference"],
+            ),
+        )
+        self.assertTrue(
+            any("differences" in error for error in errors), errors
+        )
+
+
+class TargetComparisonArtifactTests(unittest.TestCase):
+    @staticmethod
+    def git(root: Path, *args: str) -> str:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise AssertionError(
+                f"git {' '.join(args)} failed:\n{result.stdout}\n{result.stderr}"
+            )
+        return result.stdout.strip()
+
+    def test_v11_reads_html_target_baseline_from_accepted_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.git(root, "init")
+            self.git(root, "config", "user.name", "Harness Test")
+            self.git(root, "config", "user.email", "harness@example.invalid")
+            actual = io.BytesIO()
+            Image.new("RGB", (3, 2), "blue").save(actual, format="PNG")
+            artifact = write_artifact(root, "actual.png", actual.getvalue())
+            target = io.BytesIO()
+            Image.new("RGB", (3, 2), "red").save(target, format="PNG")
+            target_path = write_artifact(root, "parity-target.png", target.getvalue())
+            self.git(root, "add", "docs")
+            self.git(root, "commit", "-m", "accepted screenshots")
+            accepted_sha = self.git(root, "rev-parse", "HEAD")
+
+            run = evidence_run(root, artifact, 11)
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
+            run["ui_evidence"][0]["target_comparison"] = {
+                "baseline": "html_target",
+                "baseline_artifact": target_path.relative_to(root).as_posix(),
+                "verdict": "pass",
+            }
+            self.assertEqual([], subject.validate_ui_evidence_files(run, root))
+
+            # A reference render that only exists in the working tree, never in
+            # the accepted commit, is not parity evidence.
+            uncommitted = io.BytesIO()
+            Image.new("RGB", (3, 2), "green").save(uncommitted, format="PNG")
+            worktree_only = write_artifact(root, "worktree-only-target.png", uncommitted.getvalue())
+            run["ui_evidence"][0]["target_comparison"]["baseline_artifact"] = (
+                worktree_only.relative_to(root).as_posix()
+            )
+            errors = subject.validate_ui_evidence_files(run, root)
+            self.assertTrue(
+                any(
+                    "target_comparison.baseline_artifact" in error
+                    and "accepted Git commit" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+    def test_v11_rejects_undecodable_html_target_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.git(root, "init")
+            self.git(root, "config", "user.name", "Harness Test")
+            self.git(root, "config", "user.email", "harness@example.invalid")
+            actual = io.BytesIO()
+            Image.new("RGB", (3, 2), "blue").save(actual, format="PNG")
+            artifact = write_artifact(root, "actual.png", actual.getvalue())
+            target = write_artifact(root, "parity-target.png", b"not an image")
+            self.git(root, "add", "docs")
+            self.git(root, "commit", "-m", "accepted screenshots")
+            accepted_sha = self.git(root, "rev-parse", "HEAD")
+
+            run = evidence_run(root, artifact, 11)
+            run["ui_evidence"][0]["head_sha"] = accepted_sha
+            run["ui_evidence"][0]["target_comparison"] = {
+                "baseline": "html_target",
+                "baseline_artifact": target.relative_to(root).as_posix(),
+                "verdict": "pass",
+            }
+            errors = subject.validate_ui_evidence_files(run, root)
+            self.assertTrue(
+                any(
+                    "target_comparison.baseline_artifact" in error
+                    and "cannot be decoded" in error
+                    for error in errors
+                ),
+                errors,
+            )
+
+
 class IntegrationHeadGitCrossCheckTests(unittest.TestCase):
     def test_repo_root_that_is_not_a_git_checkout_reports_a_distinct_cause(self) -> None:
         # The CLI uses the current directory for legacy live-Git checks when

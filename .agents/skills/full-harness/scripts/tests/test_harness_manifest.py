@@ -2447,6 +2447,11 @@ class RunValidationTests(unittest.TestCase):
                         "artifact_sha256": "c" * 64,
                         "head_sha": run["integration"]["integration_head_sha"],
                         "status": "PASS",
+                        "target_comparison": {
+                            "baseline": "design_system",
+                            "baseline_artifact": "check_ui_contract:clean-run",
+                            "verdict": "pass",
+                        },
                     }
                 )
         self.assertEqual(validate_run(plan, run), [])
