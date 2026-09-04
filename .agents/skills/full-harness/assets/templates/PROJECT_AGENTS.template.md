@@ -17,6 +17,7 @@ The delivery flow binds stage slots, not fixed skill names. This table binds the
 | design_direction | wireframes → UI direction and mockup (UI Design Pass) | <bundled Taste-aware pass (`design-taste-frontend`), or an installed taste skill> | <hash of the bound skill's SKILL.md> |
 | design_compilation | frozen design-system pair | <bundled `product-design-builder` + `frontend-design`, or your own> | n/a for defaults |
 | frontend_implementation | implementation missions | <bundled `frontend-design`, or your own frontend skill> | <hash of the bound skill's SKILL.md> |
+| ui_quality_verification | final page-quality pass after all high-fidelity pages are implemented | <bundled `impeccable` evaluate pass (`critique` + `audit`), or an installed UI-quality skill> | <hash of the bound skill's SKILL.md> |
 
 An unbound slot uses the bundled default. A non-default bound skill pins the SHA-256 of its SKILL.md; `full-harness/scripts/check_skill_bindings.py` recomputes it and fails on a mismatch, so changing a bound skill's content is a deliberate, reviewed pin update — never a silent swap. PLAN missions resolve their workers' skill lists from this table where a slot applies.
 
