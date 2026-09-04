@@ -225,7 +225,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--out",
         type=Path,
         help=(
-            "write the view here (normally docs/goal/tasks.md); refuses to "
+            "write the view here (normally docs/tasks.md); refuses to "
             "overwrite a file this tool did not generate"
         ),
     )
