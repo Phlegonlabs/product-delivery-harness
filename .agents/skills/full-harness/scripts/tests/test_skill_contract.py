@@ -228,15 +228,15 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         for content in (skill, state, selector, orchestration, runbook, goal):
             self.assertIn("sequential_parent", content)
-            self.assertIn("parent", content)
-            self.assertIn("one mission at a time", content)
-        self.assertIn("no `spawn_subagents`", skill)
+        # The full binding rules live once in execution-state-model.md's
+        # anchored section; every other file points at that heading.
+        self.assertIn("## Sequential Parent Route", state)
+        self.assertIn("one mission at a time", state)
         self.assertIn("no `spawn_subagents`", state)
         self.assertIn("parent-managed worktree", state)
-        self.assertIn("does not require `spawn_subagents`", orchestration)
-        self.assertIn("blocks when the required parent-managed worktree is unavailable or unauthorized", orchestration)
-        self.assertIn("does not require `spawn_subagents`", selector)
-        self.assertIn("required large no-agent path", runbook)
+        self.assertIn("one mission at a time", skill)
+        for content in (skill, selector, orchestration, runbook, goal):
+            self.assertIn("Sequential Parent Route", content)
 
     def test_sequential_parent_records_parent_executor_binding_without_shared_fallback(self) -> None:
         skill = self.read("SKILL.md")
@@ -246,22 +246,25 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         goal = self.read("assets/templates/GOAL.template.md")
 
-        # The binding is defined once, in execution-state-model.md. Every other
-        # file names the route and points at that definition instead of
-        # restating it; a restatement is what drifts.
-        for content in (skill, state, graph, selector, runbook, goal):
-            self.assertIn("runtime_worker", content)
-        for content in (skill, state, runbook, goal):
-            self.assertIn("parent-owned", content)
-            self.assertIn("parent_managed_worktree", content)
-            self.assertIn("agent_result", content)
+        # The binding is defined once, under an anchored heading in
+        # execution-state-model.md. Every other file points at that heading;
+        # a restatement is what drifts.
+        self.assertIn("## Sequential Parent Route", state)
         self.assertIn("parent-owned executor/worker binding solely for lease/state validation", state)
+        self.assertIn("worker_runtime: parent", state)
+        self.assertIn("parent_managed_worktree", state)
+        self.assertIn("agent_result", state)
+        self.assertIn("route blocks rather than writing in `shared_checkout`", state)
+        for content in (skill, selector, runbook, goal):
+            self.assertIn("Sequential Parent Route", content)
+            # The backticked binding spelling belongs to the definition only;
+            # GOAL's plain option menu (worker_runtime: parent | ...) is not a
+            # restatement.
+            self.assertNotIn("`worker_runtime: parent`", content)
         for content in (graph, selector):
             self.assertIn(
                 "`execution-state-model.md`'s `sequential_parent` definition", content
             )
-        self.assertIn("does not require `spawn_subagents`", selector)
-        self.assertIn("route blocks rather than writing in `shared_checkout`", skill)
         self.assertNotIn("no worker identity", state.lower())
         self.assertNotIn("no worker record", selector.lower())
         self.assertNotIn("shared-checkout fallback", runbook.lower())

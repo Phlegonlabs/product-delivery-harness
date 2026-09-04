@@ -20,7 +20,7 @@ The selector reads only canonical machine data. In RUN schema v6 and later, prov
 
 It must not parse Markdown tables, inspect UI labels, guess resource ownership, or mutate Git/Codex state.
 
-When routing selects `sequential_parent`, the selector emits at most one mission directive at a time for the existing PLAN `executor: runtime_worker` node. The accepted directive binds RUN to a parent-owned executor/worker record with `worker_runtime: parent`, `workspace_mode: parent_managed_worktree`, and `completion_channel: agent_result` solely for lease/state validation. It does not require `spawn_subagents` or `create_user_owned_tasks`, and it is not a delegated launch. Parent-managed worktree creation is required; if it is unavailable or unauthorized, defer/block the route rather than using `shared_checkout`. Keep the same PLAN/RUN, review, integration, and exact-head gates as delegated execution.
+When routing selects `sequential_parent`, the selector emits at most one mission directive at a time for the existing PLAN `executor: runtime_worker` node, bound per `execution-state-model.md`'s Sequential Parent Route; the route does not require `spawn_subagents` or `create_user_owned_tasks` and is not a delegated launch. Keep the same PLAN/RUN, review, integration, and exact-head gates as delegated execution.
 
 The output is canonical sorted JSON with no timestamps. Its top-level keys are exactly:
 
