@@ -376,6 +376,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
 
         self.assertIn("references/deployment-contract.md", skill)
+        self.assertIn("preview URL in the conversation", skill)
         for phrase in (
             "Production tracks the repository's resolved default branch",
             "Preview tracks the run branch",
@@ -390,6 +391,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "`wrangler versions upload`",
             "never touch production traffic",
             "The default Cloudflare route is Workers with Static Assets",
+            "Report the pushed head's preview URL to the user in the conversation",
+            "never construct or guess a URL",
+            "wrangler versions upload` output or `wrangler versions list",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",
