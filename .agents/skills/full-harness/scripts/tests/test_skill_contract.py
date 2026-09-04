@@ -983,6 +983,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Runtime Boundary", project_agents)
         self.assertIn("Codex and Pi load it as their native project context", project_agents)
         self.assertIn("## Core Development Principles", project_agents)
+        self.assertIn("### First Principles", project_agents)
+        self.assertIn(
+            "not from habit, inherited patterns, or how another project solved it",
+            project_agents,
+        )
+        self.assertIn("### File Size Limit", project_agents)
+        self.assertIn("deleted and rewritten from scratch", project_agents)
+        self.assertIn(
+            "no compatibility shim keeps the replaced module alive", project_agents
+        )
         self.assertIn("## Managed Full-Stack Harness Runs", project_agents)
         self.assertIn("Small bounded work may proceed directly", project_agents)
         self.assertNotIn("<verification-command>", project_agents)

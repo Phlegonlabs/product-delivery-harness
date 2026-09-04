@@ -29,9 +29,15 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - Prefer the simplest thing that works. Don't over-engineer.
 - Don't "improve" code you weren't asked to touch.
 
+### First Principles
+
+- Reason from the problem's actual constraints, not from habit, inherited patterns, or how another project solved it.
+- When a decision is non-obvious, derive it from what the product must do, then choose the simplest structure that satisfies it.
+
 ### File Size Limit
 
 - A module must not exceed 500 lines. When an implementation would cross that limit, split it before committing — check and split at the moment the task's own file would cross the limit (via the task-refinement protocol in the Full-Stack Harness's `execution-task-decomposition.md`), not as a later end-of-project audit.
+- Keep every module small, self-contained, and single-purpose. A module that proves problematic is deleted and rewritten from scratch rather than patched around; no compatibility shim keeps the replaced module alive.
 - Exceptions require stating the reason in the same commit: generated code/migrations, configuration files, schema/type-definition files, and a package's own re-export/entrypoint module.
 
 ### Compatibility Changes
