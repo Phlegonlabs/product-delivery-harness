@@ -93,6 +93,7 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
 - After serial integration, use fresh read-only reviewers on the exact unified integration SHA, then run one broad final validation on the fixed candidate SHA.
 - The run defaults to verified local completion; only an explicit remote outcome pushes the verified integration head to the run branch. Landing the run branch on the default branch is the user's own step, done outside this harness.
+- When the owner declares the goal complete and its run has passed the Closeout Bar, archive the finished plan runtime — `docs/goal/PLAN.md`, `RUN.md`, and their `docs/goal/evidence/` — into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/` (`contract-and-traceability.md`). Archival moves those exact files on the owner's completion instruction; it never deletes and never moves anything under `docs/product/`. A later plan starts only after the completed pair is archived, never by overwriting it.
 - Later work cuts a fresh run branch from the then-current default branch.
 
 ### Action Authorization

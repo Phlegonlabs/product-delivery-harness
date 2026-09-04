@@ -54,6 +54,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
         harness = self.read(
             "full-harness/references/contract-and-traceability.md"
         )
+        project_agents = self.read(
+            "full-harness/assets/templates/PROJECT_AGENTS.template.md"
+        )
 
         self.assertIn("declares the project or initiative complete", harness)
         self.assertIn(
@@ -61,6 +64,16 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         self.assertIn("Closeout Bar", harness)
         self.assertIn("Never move anything under `docs/product/`", harness)
+
+        # The seeded project AGENTS.md states the same rule directly, so every
+        # runtime sees goal-complete archival without loading the reference.
+        self.assertIn("archive the finished plan runtime", project_agents)
+        self.assertIn(
+            "docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/",
+            project_agents,
+        )
+        self.assertIn("Closeout Bar", project_agents)
+        self.assertIn("never moves anything under `docs/product/`", project_agents)
 
     def test_design_system_pair_publishes_and_freezes_together(self) -> None:
         design = self.read("product-design-builder/references/output-contract.md")
