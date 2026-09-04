@@ -92,4 +92,4 @@ Integrated-Head: <sha>
 Verified: <integration verifier> (<pass signal>)
 ```
 
-An integration commit may reference several task commits from the same mission. It stays atomic per the Run-Wide Atomicity rule above: reviewed heads and coordination state only. Record the exact integrated SHA in `RUN.md`; downstream missions are not unblocked by a worker commit that has not passed this integration boundary.
+An integration commit may reference several task commits from the same mission. It stays atomic per the Run-Wide Atomicity rule above: reviewed heads and coordination state only. The integration commit is the merge itself; the checkpoint's `PLAN.md`/`RUN.md` update lands as its paired bookkeeping commit immediately after it, never folded into the merge body. Record the exact integrated SHA in `RUN.md`; downstream missions are not unblocked by a worker commit that has not passed this integration boundary.

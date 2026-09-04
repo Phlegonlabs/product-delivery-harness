@@ -65,6 +65,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Run-Wide Atomicity", convention)
         self.assertIn("never an unrelated fix, cleanup, or formatting", convention)
         self.assertIn("never product code", convention)
+        self.assertIn("never folded into the merge body", convention)
         orchestration = self.read("references/worktree-thread-orchestration.md")
         self.assertIn(
             "Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule",
@@ -400,6 +401,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, gates)
         self.assertIn("never widen the tolerance", gates)
+        self.assertIn("A parity repair is an ordinary candidate-changing repair", gates)
+        self.assertIn("does not add attempts on top of that budget", gates)
         self.assertIn("Final Visual Parity Loop", contract)
 
     def test_deployment_contract_separates_preview_from_production(self) -> None:
