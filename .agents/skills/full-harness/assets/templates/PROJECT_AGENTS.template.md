@@ -110,6 +110,22 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - Remove only an authorized clean linked worktree, then delete only the authorized local worker branch. Never remove the primary checkout, and never delete the run branch the user still has to read.
 - Task archival, worktree removal, and branch deletion remain separate ledger actions even when several are approved in one explicit readiness statement.
 
+### Commit Messages
+
+Every commit in a managed run follows `full-harness/references/commit-convention.md`. The message shape:
+
+```text
+<type>(<scope>): <imperative summary>
+
+Task: <mission-id>/<task-token>
+Trace: <TRACE-ID>[, <TRACE-ID>]
+Verified: <command or action> (<pass signal>)
+```
+
+- Write in English. Keep the subject at 72 characters or fewer, lowercase `type` and `scope`, imperative summary, no final period. `type` is one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `build`, `ci`; `scope` is a stable area such as `auth` or `ui`, never a filename.
+- One commit holds one kind of change: a task commit carries one verified outcome, a repair commit one root-cause fix, an integration commit reviewed heads and coordination state only, a bookkeeping commit `PLAN.md`/`RUN.md` only. Two kinds of change land as two commits in dependency order.
+- Every commit names exactly one task ID, its upstream traces, and the actual verifier with its literal pass signal. A merge or integration-only commit uses the mission-level form (`chore(integration): integrate mission M2` with `Mission`, `Plan-Revision`, `Integrated-Head`), never a fake task body.
+
 ## Review Guidelines
 
 Treat authorization bypasses, writes to the default branch, stale review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.

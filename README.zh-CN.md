@@ -8,17 +8,16 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
-  <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.21.12-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.22.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
 
-私有技能市场，用于借助 Codex、Claude Code 或 Pi 把产品想法或变更需求变成一条经过验证的交付流程。
+私有技能仓库，用于借助 Codex、Claude Code、Pi 或任何会发现用户 skills 目录的宿主，把产品想法或变更需求变成一条经过验证的交付流程。
 
-它不是提示词集合。这个插件把产品定义、视觉设计和工程执行拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
+它不是提示词集合。这套技能把产品定义、视觉设计和工程执行拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
 
 > 定义产品。把设计做具体。只执行已就绪的工作。每次移交前，都验证实际结果。
 
@@ -249,7 +248,7 @@ Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 ## 安装
 
-这是一个私有的 GitHub 市场。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且至少安装一个受支持的宿主：Codex、Claude Code 或 Pi。
+这是一个私有仓库。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且至少有一个会发现 `~/.agents/skills/` 这类用户 skills 目录的宿主——Codex、Claude Code、Pi 或其他都可以。
 
 ```bash
 gh auth login
@@ -273,53 +272,14 @@ Windows 上改用 `Copy-Item -Recurse` 即可。之后更新就是把 `~/.agents
 
 ### Zero-to-one 流程（从零开始）
 
-1. 安装一个受支持的宿主（Codex、Claude Code 或 Pi）和本插件，并用该宿主运行本次交付。
-2. 开启新的宿主会话，确认插件可见，然后调用 `$full-harness`。
+1. 安装一个受支持的宿主（Codex、Claude Code、Pi 或任何会发现 `~/.agents/skills/` 的宿主）和三个 harness skills，并用该宿主运行本次交付。
+2. 开启新的宿主会话，确认技能可见，然后调用 `full-harness`。
 3. 让规模闸决定直接工作还是 PLAN/RUN；小型工作不要预先创建工作节点。
 4. 大型运行一次只保留一个 active host，并在 same-repository handoff 前关闭和审查每个 wave。
 
-### 直接在 Codex 中安装
-
-```bash
-codex plugin marketplace add Phlegonlabs/fullstack-goal-dev --ref main
-codex plugin add fullstack-harness@fullstack-goal-dev
-codex plugin list
-```
-
-### 直接在 Claude Code 中安装
-
-```bash
-claude plugin marketplace add Phlegonlabs/fullstack-goal-dev --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-claude plugin list
-```
-
-插件安装完成后，运行 `/reload-plugins` 或重启 Claude Code。
-
-### 直接在 Pi 中安装
-
-```bash
-pi install git:github.com/Phlegonlabs/fullstack-goal-dev@main --no-approve
-pi list --no-approve
-```
-
-安装或更新后请启动新的 Pi 会话。`~/.pi/agent/skills` 中现有的 standalone skill 属于用户数据，绝不会被静默移除。
-
-### 开发时使用本地检出
-
-在本仓库中测试改动时，使用本地市场。不要同时以相同名称注册本地市场和 GitHub 市场。
-
-```powershell
-$repo = (Resolve-Path .).Path
-codex plugin marketplace add $repo
-codex plugin add fullstack-harness@fullstack-goal-dev
-claude plugin marketplace add $repo --scope user
-claude plugin install fullstack-harness@fullstack-goal-dev --scope user
-```
-
 ## 常见提示词
 
-Codex 接受下面的 `$skill-name` 形式。在 Claude Code 中，调用已安装的带命名空间的技能，例如 `/fullstack-harness:prd-builder`，或者按名称请求它。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `full-harness`。
+Codex 接受下面的 `$skill-name` 形式。在 Claude Code 或其他宿主中，直接按名称请求技能，例如 `prd-builder`。在 Pi 中，可以使用自动发现的项目技能，或通过 `--skill` 传入技能目录，然后按名称请求 `full-harness`。
 
 ```text
 Use $prd-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
@@ -378,44 +338,36 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 ```text
 .agents/skills/                                      规范的技能源
-plugins/fullstack-harness/skills/                    生成的插件副本；请勿直接编辑
-plugins/fullstack-harness/.claude-plugin/plugin.json Claude Code 插件清单
-plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 插件清单
-.agents/plugins/marketplace.json                     Codex 市场定义
-.claude-plugin/marketplace.json                      Claude Code 市场定义
 assets/                                              README 封面
-scripts/sync_plugin_skills.py                        把规范技能复制到插件包
 .github/workflows/harness-ci.yml                     契约、单元和 E2E 检查
 ```
 
-## 维护市场
+## 维护技能
 
-只编辑 `.agents/skills/` 中的规范源，然后同步并校验生成的插件包。
+只编辑 `.agents/skills/` 中的规范源，然后运行校验套件。
 
 ```bash
-python scripts/sync_plugin_skills.py
-python scripts/sync_plugin_skills.py --check
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
-python -m unittest discover -s plugins/fullstack-harness/skills/full-harness/scripts/tests -p "test_packaged_*.py" -v
 git diff --check
 ```
 
-发布前，请在两个插件清单和 `.claude-plugin/marketplace.json` 中更新一致的版本号，检查整个 diff，并走仓库的 PR 流程。不要直接推送到 `main`。
+发布前，请更新 `package.json` 的版本号、三种语言 README 的 badge 与版本历史，以及 RUNBOOK 的 `required_harness_version` 默认值，检查整个 diff，并走仓库的 PR 流程。不要直接推送到 `main`。
 
 ## 安全与数据安全
 
 - 不要把 GitHub 令牌和其他凭据留在本仓库中。
-- 更新脚本使用你现有的 GitHub CLI 会话；它不会在项目中存储令牌。
-- 在确认插件能正确加载之前，不要删除旧的独立技能副本。
+- 在确认新的技能副本能正确加载之前，不要删除旧的安装副本。
 - 编排技能对每一个改变状态的 GitHub 或生命周期动作都要求明确授权。
 
 ## 版本历史
 
 每次发布都要更新本节，同时完成上文所述的版本号提升。
 
-- **0.21.12** — SEO metadata 现在是 PRD surface contract 的一部分。每个 `UI-*` 条目记录该 route 专属且不重复的 `<title>` 与 meta description，加上 canonical URL、Open Graph/社交、robots 与 structured-data 决策（或明确的 `n/a — <reason>`）；整站 SEO（索引策略、sitemap 与 robots 政策、canonical 政策、默认 structured data）记在 Frontend Delivery Requirements 并带自己的 `TEST-*` 追踪。harness 端绑到底：实现必须如实渲染记录的 `<head>`，缺少 SEO 记录是改道 `prd-builder` 的 PRD 契约缺口，UI 证据新增 rendered-head 检查——integration head 上的 `<title>` 与 meta description 必须与 PRD 记录一致。这批同时移除已退休的 `update-private-skills.ps1` 一条命令更新器：per-runtime 副本已于 2026-09-03 刻意移除，安装与更新从此就是单纯的 skills 同步——把 `.agents/skills/` 的三个 harness skills 复制进 `~/.agents/skills/`——README 也不再教这个脚本。在三个具名 runtime 之外的宿主上运行现在免检测：不是明确的 Codex、Claude Code 或 Pi 的会话直接记 `provider: generic`，不去探测其他 runtime 的 CLI；版本闸门也不再以「拿不到宿主自身版本号」挡通用宿主——加载中的 Harness release 加上所选 driver 的即时能力探测即完成观察。
+- **0.22.0** — 私有市场与插件包正式退休。`plugins/`、`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 和 `scripts/sync_plugin_skills.py` 全部移除；`.agents/skills/` 是唯一来源，安装与更新就是把三个 harness skills 复制进用户 skills 目录（`~/.agents/skills/`），与「最快安装方式」描述的完全一致。README 移除市场 badge、各宿主的插件安装命令和本地市场章节；`runtime-upgrades.md` 改为把技能同步定位成唯一的 Harness 更新面，各宿主的更新说明缩减为宿主自属安装器与重启。
+
+- **0.21.12** — SEO metadata 现在是 PRD surface contract 的一部分。每个 `UI-*` 条目记录该 route 专属且不重复的 `<title>` 与 meta description，加上 canonical URL、Open Graph/社交、robots 与 structured-data 决策（或明确的 `n/a — <reason>`）；整站 SEO（索引策略、sitemap 与 robots 政策、canonical 政策、默认 structured data）记在 Frontend Delivery Requirements 并带自己的 `TEST-*` 追踪。harness 端绑到底：实现必须如实渲染记录的 `<head>`，缺少 SEO 记录是改道 `prd-builder` 的 PRD 契约缺口，UI 证据新增 rendered-head 检查——integration head 上的 `<title>` 与 meta description 必须与 PRD 记录一致。这批同时移除已退休的 `update-private-skills.ps1` 一条命令更新器：per-runtime 副本已于 2026-09-03 刻意移除，安装与更新从此就是单纯的 skills 同步——把 `.agents/skills/` 的三个 harness skills 复制进 `~/.agents/skills/`——README 也不再教这个脚本。在三个具名 runtime 之外的宿主上运行现在免检测：不是明确的 Codex、Claude Code 或 Pi 的会话直接记 `provider: generic`，不去探测其他 runtime 的 CLI；版本闸门也不再以「拿不到宿主自身版本号」挡通用宿主——加载中的 Harness release 加上所选 driver 的即时能力探测即完成观察。种子化的 `AGENTS.md` 另新增 Commit Messages 一节，写明消息格式（`<type>(<scope>): <imperative summary>` 加 `Task`/`Trace`/`Verified` 尾行）、一个提交一种变更的规则与 mission 层级的 integration 提交格式，让每个 runtime 在 commit 与 push 时写法一致。
 - **0.21.11** — UI run 现在以 Final Page-Quality Pass 收尾。Final Visual Parity Loop 之后，绑定在新增 `ui_quality_verification` 槽位的 skill（默认 `impeccable`）会在确切的 integration head 上，对每个交付的高保真页面各跑一次 `critique` 与一次 `audit`。阻断性发现进入既有修复预算；与冻结的 PRD、wireframes 或视觉来源冲突的发现改道 `prd-builder` 处理为 design-input delta，而不是本地改动；此步骤只用 evaluate 指令、不建立任何竞争性 product authority；绑定的 skill 不可用时该 gate 记为 `UNVALIDATED`，除非用户明确接受否则挡下 closeout。种子化的 `AGENTS.md` Skill Bindings 表带有这个新槽位。
 - **0.21.10** — 渲染产生的 tasks view 改放在 `docs/tasks.md`，不再位于 `docs/goal/tasks.md`。`docs/goal/` 只保留权威 run 状态（PLAN、RUN、DECISIONS、evidence）；非权威的人类阅读 view 与 `DOCUMENTS.md`、`DEPLOYMENT.md` 同放在 `docs/`。SKILL 路由、DOCUMENTS manifest 行、renderer 说明文字、stray 检查措辞与 pin 住的契约测试都改用新路径。种子化的项目 `AGENTS.md` 现在直接写明 goal 完成后的归档规则：所有者宣布 goal 完成且 Closeout Bar 通过后，完成的 plan runtime（`PLAN.md`/`RUN.md` 加 evidence）即移入 `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/`——只搬移、不删除，也不动 `docs/product/`。
 - **0.21.9** — 来自四视角架构评审的加固清理。真实 bug 修复：RUN-v11 head 交叉检查的后续 git 调用（merge-base、diff）现在会降级为错误条目，而不是让 validator 崩溃。`CURRENT_SCHEMA_PAIR`/`is_current_pair` 取代八处手打的 `(6, 11)` 字面量；删除了假的测试 patch seam 与过期的 `__all__`。selector 的「只会发出这些 deferral code」清单补齐了缺失的十一个 code 与 reviewer-tool 前缀，并有新测试把文档清单绑定到实际发出的 code。sequential-parent 绑定改为在锚点标题下定义一次（原先重复七处）、review 尝试预算收敛到 Root-Cause Repair Escalation 一处；契约测试改为 pin 单一定义加指标句，不再冻结重复陈述。integration/bookkeeping 提交拆分定案（先 merge commit，随后配对 bookkeeping commit），parity 修复明写为既有预算下的普通 candidate-changing repair。约 1200 行 fixture 库从 test_harness_manifest.py 移入 manifest_fixtures.py 并保留 re-export，canonical fixture 改从 harness_schema 读版本号，contract_digest 的 CRLF/LF 正规化与 tests/__pycache__ 排除新增直接测试。

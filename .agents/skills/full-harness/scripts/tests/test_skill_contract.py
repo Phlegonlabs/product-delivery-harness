@@ -12,8 +12,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 def find_repo_root(start: Path) -> Path | None:
     for candidate in (start, *start.parents):
         if (
-            (candidate / ".agents" / "plugins" / "marketplace.json").is_file()
-            and (candidate / "scripts" / "sync_plugin_skills.py").is_file()
+            (candidate / ".agents" / "skills" / "full-harness" / "SKILL.md").is_file()
+            and (candidate / "package.json").is_file()
         ):
             return candidate
     return None
@@ -66,6 +66,16 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never an unrelated fix, cleanup, or formatting", convention)
         self.assertIn("never product code", convention)
         self.assertIn("never folded into the merge body", convention)
+
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        self.assertIn("### Commit Messages", project_agents)
+        self.assertIn(
+            "follows `full-harness/references/commit-convention.md`", project_agents
+        )
+        self.assertIn("<type>(<scope>): <imperative summary>", project_agents)
+        self.assertIn("One commit holds one kind of change", project_agents)
+        self.assertIn("exactly one task ID", project_agents)
+        self.assertIn("never a fake task body", project_agents)
         orchestration = self.read("references/worktree-thread-orchestration.md")
         self.assertIn(
             "Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule",
@@ -588,7 +598,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.12"', runbook)
+        self.assertIn('"required_harness_version": "0.22.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
