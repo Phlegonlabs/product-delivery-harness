@@ -470,6 +470,18 @@ async function agent(_prompt, options) {
         )
         self.assertIn("A durable target binding requires retention", guide)
         self.assertIn(
+            "regenerate the affected screens' style layer from the current direction",
+            guide,
+        )
+        self.assertIn(
+            "a reference that accumulates styles from previous versions is not approvable",
+            guide,
+        )
+        self.assertIn(
+            "refresh the handoff's recorded SHA-256 for that file in the same run",
+            guide,
+        )
+        self.assertIn(
             "Selected direction: [VD-* ID and one-line visual intent, "
             "with confirmed REF-* / RP-* IDs or none]",
             contract,

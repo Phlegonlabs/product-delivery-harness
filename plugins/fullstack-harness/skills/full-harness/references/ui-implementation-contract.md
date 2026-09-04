@@ -19,6 +19,7 @@ If a mission's planned `required_skills` includes `frontend-design`, the worker 
 4. Treat unapproved screenshots, Figma frames, generated images, exploration or preview HTML, UI Preview Gate outputs, and design inspiration as non-canonical evidence. Approved low-fidelity `wireframes.html` is structural review evidence only. Only the approved target recorded in the PRD handoff binds target-conformance visual implementation; approved HTML reference files named by that handoff are binding target evidence, not previews to reinterpret.
 5. Run visual verification across the recorded responsive set and states, in normal and reduced motion, and record evidence using `references/verification-gates.md`.
 6. Stop when implementation requires a route, action, state, structure, visual value, component, or tolerance the active source does not support. Route PRD, wireframe, or UI-target changes to `prd-builder`; route formal design-system changes to `product-design-builder`.
+7. Implement a changed route from its current approved source only. Mixing values from a superseded source version into the new implementation is a contract violation, not a merge.
 
 ## System-Conformance Mode
 
@@ -37,5 +38,6 @@ If a mission's planned `required_skills` includes `frontend-design`, the worker 
 4. Derive visual choices only from observable target evidence — for an HTML target, the reference file's markup, styles, assets, and rendered behavior — the PRD handoff's allowed deviations, the approved brand source, and platform conventions. Mark non-observable motion or interaction as a gap instead of guessing.
 5. Verify page-to-target conformance with the recorded comparison method and tolerance. Do not run `check_ui_contract.py` or claim design-system conformance when no registry exists.
 6. When implementation reveals genuine cross-surface token, closed-variant, multi-theme, multi-platform, or automated-conformance needs, stop and return a Design System Need Gate delta to `prd-builder`; do not grow an undeclared design system inside the code mission.
+7. When a route's approved HTML reference changes, port the new file's observable style values and remove the styles and classes the new reference no longer contains — from that route, and from the shared style source when no other route's current reference still uses them. Never graft the new reference onto the previous implementation's CSS; the previous version's styles survive only where the new reference still shows them.
 
 For design-system source work, load `product-design-builder` and `frontend-design` in compilation mode. For UI implementation, load `frontend-design` only when the user explicitly selected it for the new or high-impact visual surface and use conformance mode. Do not reopen concept generation or Taste direction selection during implementation.

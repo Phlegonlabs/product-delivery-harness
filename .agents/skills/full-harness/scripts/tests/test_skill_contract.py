@@ -507,7 +507,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.3"', runbook)
+        self.assertIn('"required_harness_version": "0.21.4"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

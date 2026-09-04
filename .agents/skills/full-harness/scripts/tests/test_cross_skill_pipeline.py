@@ -152,6 +152,35 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Only the approved target recorded in the PRD handoff", ui_contract)
         self.assertIn("never invoke them automatically", references)
         self.assertIn("design inspiration never enters this matrix", design_updates.lower())
+        self.assertIn(
+            "regenerate the affected screens' style layer from the current direction",
+            ui_pass,
+        )
+        self.assertIn(
+            "a reference that accumulates styles from previous versions is not approvable",
+            ui_pass,
+        )
+        self.assertIn(
+            "refresh the handoff's recorded SHA-256 for that file in the same run",
+            ui_pass,
+        )
+        self.assertIn(
+            "Never graft the new reference onto the previous implementation's CSS",
+            ui_contract,
+        )
+        self.assertIn(
+            "Implement a changed route from its current approved source only",
+            ui_contract,
+        )
+        self.assertIn(
+            "Carrying a superseded style into the accepted delta's implementation "
+            "is a contract violation",
+            design_updates,
+        )
+        self.assertIn(
+            "The stale-carryover check is the after-side companion", design_updates
+        )
+        self.assertIn("including removal of superseded styles", design_updates)
 
     def test_wireframes_and_ui_previews_have_separate_authority(self) -> None:
         prd = self.read("prd-builder/SKILL.md")
