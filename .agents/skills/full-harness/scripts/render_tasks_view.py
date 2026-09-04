@@ -3,11 +3,12 @@
 
 `tasks.md` is a non-canonical human view: `RUN.md`'s JSON manifest stays the
 only coordination authority. This command reads a validated PLAN/RUN pair and
-renders one deterministic Markdown listing grouped by mission, so a human can
-see which tasks each mission carries and where the run currently stands
-without reading JSON. It writes no canonical state, refuses a pair whose plan
-revision/digest no longer matches, and refuses to overwrite a file it did not
-generate itself.
+renders one deterministic Markdown listing grouped by mission — newest mission
+first, so plan revisions that append missions surface at the top and M1 sits at
+the bottom — so a human can see which tasks each mission carries and where the
+run currently stands without reading JSON. It writes no canonical state,
+refuses a pair whose plan revision/digest no longer matches, and refuses to
+overwrite a file it did not generate itself.
 """
 
 from __future__ import annotations
@@ -211,7 +212,7 @@ def build_view(plan: dict[str, Any], run: dict[str, Any]) -> str:
         f"`{(run.get('graph_state') or {}).get('graph_revision', '-')}` · wave "
         f"`{(run.get('active_wave') or {}).get('wave_id') or '-'}`",
     ]
-    for mission in plan.get("missions", []):
+    for mission in reversed(plan.get("missions", [])):
         if isinstance(mission, dict) and isinstance(mission.get("id"), str):
             lines.append(_mission_section(mission, plan, run, dependencies))
     return "\n".join(lines) + "\n"

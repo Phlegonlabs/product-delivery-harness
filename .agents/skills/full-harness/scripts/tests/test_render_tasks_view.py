@@ -153,6 +153,14 @@ class RenderTasksViewTests(unittest.TestCase):
         )
         self.assertIn("| M2/T01 | Do \\| T01 | M1/T01 | running | planned | 1 |  |", view)
 
+    def test_mission_sections_render_newest_first(self) -> None:
+        plan = two_mission_plan()
+        run = progressed_run()
+
+        view = render_tasks_view.build_view(plan, run)
+
+        self.assertLess(view.index("## M2"), view.index("## M1"))
+
     def test_blocked_mission_lists_blockers_in_frontier(self) -> None:
         plan = two_mission_plan()
         run = progressed_run(phase="blocked", blockers=["lease unavailable"])
