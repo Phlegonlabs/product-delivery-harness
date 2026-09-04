@@ -24,6 +24,11 @@
 - Landing the pushed branch on `main` is the user's own step. Do not open a pull request, request review, merge, or deploy unless the user asks for that exact thing in its own instruction.
 - Branch deletion and worktree removal are separate actions. Do not infer approval for them from implementation or from a successful push.
 
+## Update Local Skills
+
+- Every push that changes `.agents/skills/` is followed by the local skills update, in the same turn: replace `full-harness`, `prd-builder`, and `product-design-builder` under `~/.agents/skills/` with this repository's `.agents/skills/` copies. This step is mandatory, never deferred to a later request.
+- Per-runtime copies (Codex plugin, Claude plugin, Pi extension) stay retired. Do not install, update, or reinstall them.
+
 ## Required Verification
 
 Edit only the canonical sources in `.agents/skills/`, then run all of this from the repository root:
