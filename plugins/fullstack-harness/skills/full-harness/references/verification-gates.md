@@ -217,6 +217,15 @@ Record the comparison on each `ui_evidence` row as a `target_comparison` object:
 
 Repair cycle: a missing element, a structural difference, or any difference outside the recorded tolerance is not a `pass`. Repair the surface, recapture the affected matrix entries, and rebind the evidence to the new integration head SHA. A parity repair is an ordinary candidate-changing repair: it invalidates the final-gate PASS and every integration-stage PASS whose scope intersects the repair diff, and it consumes review-lineage attempts under `graph-orchestration.md`'s Root-Cause Repair Escalation — the loop's two-round cap does not add attempts on top of that budget. Stop after two failed repair rounds and report the remaining differences as-is; never widen the tolerance or relabel an unresolved difference to close the run. Screenshots from an older head or placeholder images never satisfy the loop.
 
+### Final Page-Quality Pass
+
+Every run with at least one PLAN `ui_surfaces` entry follows the Final Visual Parity Loop with one final page-quality pass over the delivered high-fidelity pages, bound to the exact integration head. The pass runs the skill bound to the project's `ui_quality_verification` slot — `impeccable` by default — in evaluate mode: one `critique` (heuristic UX review) and one `audit` (accessibility, responsive, and performance checks) per delivered route, batched in a single round.
+
+- Findings are ordinary review findings. A blocking defect enters the repair cycle under the same Root-Cause Repair Escalation budget as a parity repair; the pass adds no review attempts of its own. Record the pass, every finding, and its verdict as evidence rows bound to the integration head, and never relabel an unresolved finding to close the run.
+- The pass verifies quality, not direction. A finding that conflicts with the frozen `PRD.md` UI contract, approved `wireframes.html`, or the active visual source never authorizes a local change; route it to `prd-builder` as a design-input delta.
+- Evaluate commands only. The pass never runs the bound skill's build, init, document, or live flows, and never creates `PRODUCT.md`, `DESIGN.md`, or another competing product authority in the repository.
+- If the bound skill is unavailable in the delivery environment, record the gate `UNVALIDATED` with the named residual risk; it blocks final completion unless the user explicitly accepts the descoped gate.
+
 ## UX Direction And Usability Evidence
 
 Keep these proofs separate:
