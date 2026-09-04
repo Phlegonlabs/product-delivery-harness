@@ -198,7 +198,7 @@ Use the verification ladder:
 2. exact-head mission review;
 3. mission integration and interaction checks;
 4. fresh exact-SHA unified review, skipped when its tree is byte-identical to an already-passed review's tree;
-5. one final applicable set of broad regression, browser E2E, breakpoint-by-state UI evidence, visual, and migration checks;
+5. one final applicable set of broad regression, browser E2E, breakpoint-by-state UI evidence, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
 6. `git diff --check` and complete final-diff review.
 
 Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Integration, cross-mission, UI, and migration gates refuse reuse by default; one may opt in with `cache.deterministic_local: true` only when it is a pure local deterministic command, never for a browser capture, migration, mutable-environment smoke, or network check. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
