@@ -14,14 +14,8 @@ from harness_manifest import (
     load_run,
     plan_digest,
     validate_current_plan_run,
-
-
-    validate_plan,
-    validate_run,
+    is_current_pair,
 )
-
-# Test patch seams; see select_ready_nodes for the rationale.
-_ = (validate_plan, validate_run)
 
 
 
@@ -62,11 +56,7 @@ def validate_node_result(
 
     errors = [] if manifest_already_validated else validate_current_plan_run(plan, run)
     if errors:
-        schema_pair = (
-            plan.get("schema_version") if isinstance(plan, dict) else None,
-            run.get("schema_version") if isinstance(run, dict) else None,
-        )
-        if schema_pair != (6, 11):
+        if not is_current_pair(plan, run):
             return ["node result validation requires PLAN v6 with RUN v11"]
         return sorted(set(errors))
     if not isinstance(result, dict):

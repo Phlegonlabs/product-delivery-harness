@@ -12,6 +12,7 @@ from harness_manifest import (
     load_plan,
     load_run,
     plan_digest,
+    is_current_pair,
     validate_current_plan_run,
     validate_integration_head_against_git,
     validate_plan,
@@ -44,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         run = None
         if args.run:
             run = load_run(args.run)
-            if (plan.get("schema_version"), run.get("schema_version")) == (6, 11):
+            if is_current_pair(plan, run):
                 errors = validate_current_plan_run(
                     plan, run, repo_root=args.repo_root
                 )

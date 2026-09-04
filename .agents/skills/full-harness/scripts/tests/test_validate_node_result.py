@@ -182,10 +182,7 @@ class ValidateNodeResultTests(unittest.TestCase):
                 plan["schema_version"] = plan_version
                 run["schema_version"] = run_version
 
-                with patch("validate_node_result.validate_plan", return_value=[]), patch(
-                    "validate_node_result.validate_run", return_value=[]
-                ):
-                    errors = validate_node_result(plan, run, result)
+                errors = validate_node_result(plan, run, result)
 
                 self.assertIn(
                     "node result validation requires PLAN v6 with RUN v11",
@@ -197,10 +194,7 @@ class ValidateNodeResultTests(unittest.TestCase):
         run = valid_graph_run(plan)
         result = running_result(plan, run)
 
-        with patch("validate_node_result.validate_plan", return_value=[]), patch(
-            "validate_node_result.validate_run", return_value=[]
-        ):
-            errors = validate_node_result(plan, run, result)
+        errors = validate_node_result(plan, run, result)
 
         self.assertEqual([], errors)
 

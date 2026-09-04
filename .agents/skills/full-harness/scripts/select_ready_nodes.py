@@ -22,15 +22,8 @@ from harness_manifest import (
     resolve_runtime_options,
     route_runtime_driver,
     validate_current_plan_run,
-
-
-    validate_plan,
-    validate_run,
+    is_current_pair,
 )
-
-# Test patch seams: tests patch these module attributes by name, so the
-# imports stay although this module calls only validate_current_plan_run.
-_ = (validate_plan, validate_run)
 
 from harness_schema import HEAD_BOUND_AUTHORIZATION_ACTIONS, RUN_DISPATCH_STATUSES
 
@@ -953,11 +946,7 @@ def select_ready_nodes(
         else validate_current_plan_run(plan, run, repo_root=repo_root)
     )
     if validation_errors:
-        schema_pair = (
-            plan.get("schema_version") if isinstance(plan, dict) else None,
-            run.get("schema_version") if isinstance(run, dict) else None,
-        )
-        if schema_pair != (6, 11):
+        if not is_current_pair(plan, run):
             raise GraphSelectionError(
                 "typed graph selection requires PLAN v6 with RUN v11"
             )

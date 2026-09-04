@@ -2574,8 +2574,7 @@ class SelectReadyNodesTests(unittest.TestCase):
             "conflict_edges": [],
         }
 
-        with patch("select_ready_nodes.validate_run", return_value=[]):
-            selected = select_ready_nodes(plan, run)
+        selected = select_ready_nodes(plan, run)
 
         deferred = {
             item["node_id"]: item["reason_codes"]
@@ -2584,8 +2583,8 @@ class SelectReadyNodesTests(unittest.TestCase):
         self.assertIn("blocker_present", deferred["N-M1"])
 
     def test_schema_mismatch_is_rejected_before_selection(self) -> None:
-        # Structural validation normally rejects the pair first. Stub it so
-        # this test guards select_ready_nodes's own defense-in-depth gate.
+        # Structural validation rejects the pair first; this test guards
+        # select_ready_nodes's own defense-in-depth gate on top of it.
         plan = valid_graph_plan()
         run = valid_graph_run(plan)
 
@@ -2594,11 +2593,8 @@ class SelectReadyNodesTests(unittest.TestCase):
                 plan["schema_version"] = plan_version
                 run["schema_version"] = run_version
 
-                with patch("select_ready_nodes.validate_plan", return_value=[]), patch(
-                    "select_ready_nodes.validate_run", return_value=[]
-                ):
-                    with self.assertRaises(GraphSelectionError) as ctx:
-                        select_ready_nodes(plan, run)
+                with self.assertRaises(GraphSelectionError) as ctx:
+                    select_ready_nodes(plan, run)
 
                 self.assertIn(
                     "typed graph selection requires PLAN v6 with RUN v11",

@@ -133,6 +133,20 @@ SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
 CURRENT_PLAN_SCHEMA_VERSION = 6
 CURRENT_RUN_SCHEMA_VERSION = 11
 CURRENT_SCHEMA_PAIR = (CURRENT_PLAN_SCHEMA_VERSION, CURRENT_RUN_SCHEMA_VERSION)
+
+
+def schema_pair_of(plan: object, run: object) -> tuple[object, object]:
+    """Read the (plan, run) schema-version pair, tolerating non-dict input."""
+
+    if isinstance(plan, dict) and isinstance(run, dict):
+        return (plan.get("schema_version"), run.get("schema_version"))
+    return (None, None)
+
+
+def is_current_pair(plan: object, run: object) -> bool:
+    """True only when the pair is the current authoring pair (now PLAN v6 / RUN v11)."""
+
+    return schema_pair_of(plan, run) == CURRENT_SCHEMA_PAIR
 RUN_CONTROL_STATES = {"running", "paused", "cancelled"}
 UI_EVIDENCE_IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png", ".webp"}
 # `push` is the only action bound to an exact head SHA: it publishes one verified
