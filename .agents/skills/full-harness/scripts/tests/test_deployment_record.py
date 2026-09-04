@@ -51,10 +51,33 @@ BAD_DEPLOYMENT = """# Deployment
 | production | https://example.com | short | nope | 2026-09-03 | |
 """
 
+CI_CONNECTED_DEPLOYMENT = f"""# Deployment
+
+## Record
+
+- Platform: cloudflare
+- Mode: ci_connected
+- Production URL: https://example.com
+- Preview URL pattern: <hash>.example.pages.dev
+- Deployed-commit check: wrangler pages deployment list
+- Protected resources preview must never bind: prod-db
+
+## Environment Status
+
+| Environment | URL | Expected head | Deployed SHA | Checked | Status |
+| --- | --- | --- | --- | --- | --- |
+| preview | https://abc.example.pages.dev | {"b" * 40} | {"b" * 40} | 2026-09-03 | PASS |
+| production | | | | | |
+"""
+
 
 class DeploymentRecordTests(unittest.TestCase):
     def test_a_resolved_record_with_one_verified_row_passes(self) -> None:
         findings = check_deployment.check_deployment_text(GOOD_DEPLOYMENT)
+        self.assertEqual([], findings)
+
+    def test_a_ci_connected_record_passes_the_same_checks(self) -> None:
+        findings = check_deployment.check_deployment_text(CI_CONNECTED_DEPLOYMENT)
         self.assertEqual([], findings)
 
     def test_placeholders_and_incoherent_rows_fail(self) -> None:

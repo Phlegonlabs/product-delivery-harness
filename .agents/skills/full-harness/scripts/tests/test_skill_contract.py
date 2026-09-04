@@ -382,6 +382,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "A preview PASS never proves production",
             "adds no authorization keys",
             "never triggers, rolls back, or reconfigures a deployment",
+            "`ci_connected` mode records a workflow",
+            "A CI deployment adds no authorization keys",
+            "the production branch to production, every non-default branch to a preview URL",
+            "wrangler pages project create",
+            "can never be converted to git-connected",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",
@@ -401,6 +406,9 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
 
         self.assertIn("## Human Setup Checklist", deployment_template)
         self.assertIn("### Git connection", deployment_template)
+        self.assertIn("### CI connection", deployment_template)
+        self.assertIn("ci_connected", deployment_template)
+        self.assertIn("ci_connected", project_agents)
         self.assertIn(
             "the Harness never performs, triggers, or reconfigures them",
             deployment_template,
@@ -492,7 +500,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.2"', runbook)
+        self.assertIn('"required_harness_version": "0.21.3"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

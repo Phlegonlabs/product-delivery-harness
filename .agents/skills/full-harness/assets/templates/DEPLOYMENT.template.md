@@ -5,7 +5,7 @@ The deployment record for this repository: the platform model, the setup only a 
 ## Record
 
 - Platform: <cloudflare | vercel | aws | any lowercase id>
-- Mode: git_connected | manual
+- Mode: git_connected (the platform builds on push) | ci_connected (a repository CI workflow deploys on push) | manual (a recorded deploy command the user runs)
 - Production branch: the repository's resolved default branch (what lands there is the production candidate)
 - Preview: tracks non-default branch pushes; a preview PASS never proves production
 - Production URL: <url>
@@ -17,11 +17,18 @@ The deployment record for this repository: the platform model, the setup only a 
 
 These steps are performed by a person with platform access; the Harness never performs, triggers, or reconfigures them. Check them off as completed.
 
-### Git connection
+### Git connection (git_connected mode)
 
 - [ ] Connect the repository to the platform (Cloudflare Pages/Workers, Vercel project, or AWS Amplify app).
 - [ ] Set the production branch to the repository's default branch.
 - [ ] Enable automatic preview builds for non-default branches.
+
+### CI connection (ci_connected mode)
+
+- [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch <default-branch>`) and run the first deploy yourself.
+- [ ] Add the repository workflow that deploys on push: the production branch to production, every other branch to a preview URL.
+- [ ] Store the platform API token as a repository secret; never place it in the repository itself.
+- [ ] Keep preview and production variables and secrets separate in the workflow, exactly as in a git-connected project.
 
 ### Environments
 
@@ -36,7 +43,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ## Platform Notes
 
-- cloudflare: prefer native Preview URLs; per-branch disposable Workers only when a feature such as Durable Objects requires them, with a reserved name prefix and a protected list of permanent Workers. Production is a separately gated environment, never a side effect of preview.
+- cloudflare: prefer native Preview URLs; per-branch disposable Workers only when a feature such as Durable Objects requires them, with a reserved name prefix and a protected list of permanent Workers. Production is a separately gated environment, never a side effect of preview. `ci_connected` bootstraps the same model with `wrangler pages project create` plus a push-triggered CI workflow; a Wrangler-created Direct Upload project can never be converted to git-connected.
 - vercel: preview per push, production on the default branch; environment scoping in project settings is the protected-production boundary.
 - aws: Amplify branch mapping — default branch to production, non-default branches to automatic previews; separate backend environments and secrets per branch mapping.
 - generic: record branch-build semantics when the platform supports them; otherwise record `manual` with the deploy command and the read-only check that follows.
