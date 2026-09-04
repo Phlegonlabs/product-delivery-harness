@@ -387,6 +387,8 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "the production branch to production, every non-default branch to a preview URL",
             "wrangler pages project create",
             "can never be converted to git-connected",
+            "`wrangler versions upload`",
+            "never touch production traffic",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",

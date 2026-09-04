@@ -27,6 +27,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch <default-branch>`) and run the first deploy yourself.
 - [ ] Add the repository workflow that deploys on push: the production branch to production, every other branch to a preview URL.
+- [ ] On Workers, the workflow runs `wrangler deploy` for the production branch and `wrangler versions upload` (with `preview_urls` enabled) for every other branch; preview versions bind only non-production resources and never touch production traffic.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.
 - [ ] Keep preview and production variables and secrets separate in the workflow, exactly as in a git-connected project.
 
