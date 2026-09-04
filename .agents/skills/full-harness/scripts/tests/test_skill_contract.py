@@ -394,6 +394,11 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "Report the pushed head's preview URL to the user in the conversation",
             "never construct or guess a URL",
             "wrangler versions upload` output or `wrangler versions list",
+            "Version previews inherit the Worker's existing bindings",
+            "named environments do not inherit bindings",
+            "`wrangler d1 create <name>-preview`",
+            "is a blocker, not a configuration preference",
+            "shares that Worker's live bindings",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",
@@ -507,7 +512,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.4"', runbook)
+        self.assertIn('"required_harness_version": "0.21.5"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

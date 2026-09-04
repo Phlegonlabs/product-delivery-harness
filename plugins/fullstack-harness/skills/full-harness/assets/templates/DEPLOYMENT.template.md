@@ -27,7 +27,9 @@ These steps are performed by a person with platform access; the Harness never pe
 
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch <default-branch>`) and run the first deploy yourself.
 - [ ] Add the repository workflow that deploys on push: the production branch to production, every other branch to a preview URL.
-- [ ] On Workers, the workflow runs `wrangler deploy` for the production branch and `wrangler versions upload` (with `preview_urls` enabled) for every other branch; preview versions bind only non-production resources and never touch production traffic.
+- [ ] On Workers, the workflow runs `wrangler deploy` for the production branch and targets the named preview environment (`wrangler deploy --env preview`, or `wrangler versions upload --env preview` for a per-push preview URL) for every other branch.
+- [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with a `-preview` name — and bind them through the named preview environment with its full binding set declared explicitly; named environments do not inherit bindings.
+- [ ] Confirm a version preview of the production Worker is never used for stateful preview traffic: it shares that Worker's live bindings, so its writes reach production resources.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.
 - [ ] Keep preview and production variables and secrets separate in the workflow, exactly as in a git-connected project.
 
