@@ -389,6 +389,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
             "can never be converted to git-connected",
             "`wrangler versions upload`",
             "never touch production traffic",
+            "The default Cloudflare route is Workers with Static Assets",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",

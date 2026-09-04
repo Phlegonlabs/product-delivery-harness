@@ -83,7 +83,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Cloudflare
 
-1. Prefer Cloudflare Workers with Static Assets for new Cloudflare-hosted static sites, SPAs, and full-stack apps unless an existing Pages workflow or a specific Pages capability materially changes the decision.
+1. Prefer Cloudflare Workers with Static Assets for new Cloudflare-hosted static sites, SPAs, and full-stack apps. Cloudflare Pages is not a default option: it enters a stack decision only when the owner explicitly chooses it for that project, and the choice is recorded in `stack-decisions.md`.
 2. Use Astro static output when every relevant route can be pre-rendered. Add the Cloudflare adapter only for on-demand rendering or server features, and verify build/runtime requirements.
 3. Use React + Vite for an interaction-heavy SPA when client rendering is intentional. Define SPA asset fallback and the Worker API/auth boundary.
 4. Use Astro + React islands when most pages are content-led and only named regions need hydration.
