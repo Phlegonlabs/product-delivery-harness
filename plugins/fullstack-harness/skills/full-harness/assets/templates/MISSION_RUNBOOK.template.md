@@ -61,7 +61,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.21.7",
+          "required_harness_version": "0.21.8",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
@@ -255,3 +255,5 @@ Commits:
 Residual risk:
 Landing state:
 ```
+
+Every commit this run lands stays atomic per `commit-convention.md` — one verified task outcome, one repair, one mission integration, or one bookkeeping change per commit; the closeout itself never lands a mixed catch-all commit.

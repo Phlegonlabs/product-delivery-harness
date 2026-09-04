@@ -239,7 +239,7 @@ Integrate selected missions serially, one at a time. A mission integrates as soo
 2. Confirm the lease, plan revision/digest, batch base, and observed worker head.
 3. Validate ancestry, actual changed paths, denied paths, parent-owned files, resource claims, commits, and worker verifiers.
 4. Transition `worker_passed -> integrating` only after result validation succeeds.
-5. Integrate onto the current integration head when `integrate_locally` is authorized.
+5. Integrate onto the current integration head when `integrate_locally` is authorized. Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule — reviewed mission heads and coordination state only, never an unrelated fix.
 6. Rerun the mission integration verifier on the new head.
 7. Record `integrated_sha` and `integration_gate: PASS`, then transition to `integrated`; otherwise record `integration_failed` and stop dependent work.
 8. After the wave closes and every selected mission has integrated, run the PLAN-level batch verifiers; stop the next wave if any fail.
