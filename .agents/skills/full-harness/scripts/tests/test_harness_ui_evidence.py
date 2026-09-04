@@ -452,6 +452,35 @@ class TargetComparisonArtifactTests(unittest.TestCase):
 
 
 class IntegrationHeadGitCrossCheckTests(unittest.TestCase):
+    def test_v11_followup_git_failures_report_as_errors_not_tracebacks(self) -> None:
+        # The coordination-path tolerance follow-ups (merge-base, diff) must
+        # degrade into an error entry exactly like the first rev-parse; an
+        # environment failure here is data, never a crash.
+        run = {
+            "schema_version": 11,
+            "integration": {
+                "branch": "development",
+                "integration_head_sha": "a" * 40,
+            },
+        }
+
+        class FakeCompleted:
+            returncode = 0
+            stderr = ""
+            stdout = "b" * 40  # live head differs, so v11 follow-ups fire
+
+        def fake_run(args, **kwargs):
+            if "rev-parse" in args:
+                return FakeCompleted()
+            raise OSError("git vanished")
+
+        with mock.patch.object(subject.subprocess, "run", side_effect=fake_run):
+            errors = subject.validate_integration_head_against_git(run, ".")
+        self.assertTrue(
+            any("could not be verified against live Git" in error for error in errors),
+            errors,
+        )
+
     def test_repo_root_that_is_not_a_git_checkout_reports_a_distinct_cause(self) -> None:
         # The CLI uses the current directory for legacy live-Git checks when
         # --repo-root is omitted, so a wrong working directory must not look like
