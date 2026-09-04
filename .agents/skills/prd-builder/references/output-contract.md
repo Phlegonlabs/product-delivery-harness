@@ -118,13 +118,16 @@ Omit this section only when the product has no shipped UI surface. Define one en
 - Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
 - States: [ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, mobile-reflow; mark inapplicable states `n/a — <reason>`]
 - Responsive behavior: [Order, stacking, never-drop content, and platform-specific behavior]
-- Accessibility and SEO: [Focus, labels, announcements, heading order, metadata, and alt text as applicable]
+- Accessibility: [Focus, labels, announcements, heading order, and alt text as applicable]
+- SEO metadata: [Per-route `<title>` and meta description; canonical URL or `n/a — <reason>`; Open Graph/social, robots, and structured-data decisions as applicable or `n/a — <reason>`]
 - Trace IDs: [PRD-*, UX-*, ARCH-*, TEST-*]
 
 Every route maps to exactly one `UI-*` entry. Every region states what it displays, where the content comes from, what the user should understand or do, and any ordering, format, count, or length constraint. Do not use generic placeholders such as `Main content`, `Feature section`, or `Card 1`.
 
+SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description, written for that page's actual content, plus the applicable extras or an explicit `n/a — <reason>`. Site-level SEO obligations — indexing strategy, sitemap and robots policy, canonical policy, default structured data — are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement.
+
 ## Frontend Delivery Requirements
-- [Target devices and browsers, content/interactivity profile, SEO, rendering, performance, accessibility, localization, offline, and deployment constraints]
+- [Target devices and browsers, content/interactivity profile, rendering, performance, accessibility, localization, offline, and deployment constraints; site-level SEO — indexing strategy, sitemap and robots policy, canonical policy, default structured data — while each route's own `<title>` and meta description live in its `UI-*` entry]
 
 Omit this section only when the product has no browser frontend.
 
