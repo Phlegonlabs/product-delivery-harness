@@ -1,6 +1,6 @@
 # Deployment
 
-The deployment record for this repository: the platform model, the setup only a human performs, and the live environment status. The governing semantics live in the Full-Stack Harness `deployment-contract.md`; this file is the project's filled-in instance. Keep it at `docs/DEPLOYMENT.md` and update it whenever the platform, environments, or verification method change.
+The deployment record for this repository: the platform model, the setup only a human performs, the runbook for adding a binding, and the live environment status. The governing semantics live in the Full-Stack Harness `deployment-contract.md`; this file is the project's filled-in instance. Keep it at `docs/DEPLOYMENT.md` and update it whenever the platform, environments, or verification method change.
 
 ## Record
 
@@ -24,6 +24,25 @@ Production and preview use fully separate stateful resources. Record every bindi
 | R2 bucket | <fill> | <fill> |
 | Durable Objects | <fill> | <fill> |
 
+## Adding A Binding
+
+Per-platform runbook. The order behind every platform's steps is the same: the resource exists before any config references it, the preview side is verified before anything lands on the default branch, and each production landing is verified again on the production URL. The commands are not the same — use this project's platform section, and never apply another platform's steps.
+
+### cloudflare
+
+For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Objects). The order is a hard constraint on both sides: create the resource first, then write the declaration — a declaration naming a missing resource fails deploy validation and turns the pipeline red.
+
+1. Create the preview-side resource with the project's `-preview` naming and record its ID. Any ID the wrangler config needs must exist before the declaration is written.
+2. Declare the binding in the development environment (for example `env.development`) and push the run branch; the preview pipeline deploys it automatically. Acceptance on the branch preview URL: the app's own binding listing (for example `/health`) shows the new binding name and the feature works. Add the new binding class row to the Resource Isolation table above.
+3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
+4. Add the production environment's declaration (for example `env.production`) together with the other preview-verified changes and land it on the default branch. After the production deploy, verify the new binding on every production URL — a preview PASS never proves production.
+5. Secrets for the new binding: fake or dedicated values on the preview worker, real values only in production, never in the wrangler config.
+6. With a D1 schema change: apply the migration to the preview database and verify it there first; coordinate the production database migration with the default-branch deploy so new code never ships before the production schema exists.
+
+### vercel, aws, generic
+
+Do not reuse the cloudflare steps. Record this project's own steps in the same order: create the resource, attach it to the preview environment and verify on the preview URL, attach the production environment only with the default-branch landing, then verify on the production URL. Vercel attaches stores and integrations as per-environment settings in the project; AWS Amplify wires resources into the branch mapping's backend environments. Values and secrets stay scoped per environment and never enter the repository.
+
 ## Human Setup Checklist
 
 These steps are performed by a person with platform access; the Harness never performs, triggers, or reconfigures them. Check them off as completed.
@@ -38,7 +57,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch <default-branch>`) and run the first deploy yourself.
 - [ ] Add the repository workflow that deploys on push: the production branch to production, every other branch to a preview URL.
-- [ ] On Workers, the workflow runs `wrangler deploy` for the production branch and targets the named preview environment (`wrangler deploy --env preview`, or `wrangler versions upload --env preview` for a per-push preview URL) for every other branch.
+- [ ] On Workers, the workflow runs `wrangler deploy` for the production branch and targets the named development environment (`wrangler deploy --env development`, or `wrangler versions upload --env development` for a per-push preview URL) for every other branch.
 - [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with a `-preview` name — and bind them through the named preview environment with its full binding set declared explicitly; named environments do not inherit bindings.
 - [ ] Confirm a version preview of the production Worker is never used for stateful preview traffic: it shares that Worker's live bindings, so its writes reach production resources.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.

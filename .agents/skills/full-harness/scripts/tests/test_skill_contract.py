@@ -521,6 +521,63 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`docs/product/`", documents_template)
         self.assertIn("render `docs/tasks.md`", skill)
 
+    def test_adding_a_binding_runbook_orders_resource_before_declaration(self) -> None:
+        contract = self.read("references/deployment-contract.md")
+        deployment_template = self.read("assets/templates/DEPLOYMENT.template.md")
+
+        for phrase in (
+            "create the resource, then write the declaration",
+            "a preview PASS never proves production",
+            "fake or dedicated values on preview",
+            "migrates the preview database first",
+            'seeded `docs/DEPLOYMENT.md`\'s "Adding A Binding" section',
+            "The order is portable; the commands are not",
+        ):
+            self.assertIn(phrase, contract)
+        # The wrangler procedure is cloudflare-scoped: it lives inside the
+        # cloudflare platform section, never in the portable model.
+        self.assertLess(
+            contract.index("## Platform: cloudflare"),
+            contract.index("Adding a binding follows"),
+        )
+        self.assertLess(
+            contract.index("Adding a binding follows"),
+            contract.index("## Platform: vercel"),
+        )
+        for phrase in (
+            "## Adding A Binding",
+            "### cloudflare",
+            "### vercel, aws, generic",
+            "Do not reuse the cloudflare steps",
+            "the app's own binding listing (for example `/health`)",
+            "never in the wrangler config",
+            "a preview PASS never proves production",
+        ):
+            self.assertIn(phrase, deployment_template)
+        self.assertLess(
+            deployment_template.index("## Adding A Binding"),
+            deployment_template.index("### cloudflare"),
+        )
+        # The wrangler environment names are the convention: development for
+        # the non-production side, production for the production side.
+        self.assertIn("env.development", deployment_template)
+        self.assertIn("env.production", deployment_template)
+        for retired in ("env.preview", "env.platform", "--env preview"):
+            self.assertNotIn(retired, deployment_template)
+        self.assertIn("env.development", contract)
+        # The hard constraint, machine-checked: each declaration step comes
+        # after its resource-creation step.
+        self.assertLess(
+            deployment_template.index("Create the preview-side resource"),
+            deployment_template.index(
+                "Declare the binding in the development environment"
+            ),
+        )
+        self.assertLess(
+            deployment_template.index("Create the production-side resource"),
+            deployment_template.index("Add the production environment's declaration"),
+        )
+
     def test_readme_explains_the_project_size_gate(self) -> None:
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
