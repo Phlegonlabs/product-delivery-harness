@@ -255,3 +255,5 @@ Commits:
 Residual risk:
 Landing state:
 ```
+
+Every commit this run lands stays atomic per `commit-convention.md` — one verified task outcome, one repair, one mission integration, or one bookkeeping change per commit; the closeout itself never lands a mixed catch-all commit.

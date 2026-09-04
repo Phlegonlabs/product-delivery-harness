@@ -62,6 +62,18 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Expected merge conflicts are scheduling facts", decomposition)
         self.assertIn("Before readiness, apply", plan)
         self.assertIn("Every executable task gets its own initial atomic commit", convention)
+        self.assertIn("## Run-Wide Atomicity", convention)
+        self.assertIn("never an unrelated fix, cleanup, or formatting", convention)
+        self.assertIn("never product code", convention)
+        orchestration = self.read("references/worktree-thread-orchestration.md")
+        self.assertIn(
+            "Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule",
+            orchestration,
+        )
+        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        self.assertIn(
+            "the closeout itself never lands a mixed catch-all commit", runbook
+        )
         self.assertIn("only then begin the next task", worker)
         self.assertIn("commit_order_mismatch", result_validator)
 

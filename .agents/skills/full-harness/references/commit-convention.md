@@ -1,6 +1,17 @@
 # Atomic Commit Convention
 
-Use this convention for every harness-managed task commit. Commit permission is an independent authorization action; implementation permission alone does not grant it.
+Use this convention for every harness-managed commit — created by a worker or by the parent. Commit permission is an independent authorization action; implementation permission alone does not grant it.
+
+## Run-Wide Atomicity
+
+Atomicity binds the whole run, not only worker task commits. Every commit any participant creates holds exactly one kind of change:
+
+- a worker task commit: one verified task outcome, per the Atomic Boundary below;
+- a repair commit: one root-cause fix attributed to exactly one task;
+- an integration commit: reviewed mission heads and coordination state only — never an unrelated fix, cleanup, or formatting;
+- a bookkeeping commit: `PLAN.md`/`RUN.md` and other coordination files only, never product code.
+
+No layer of the run — task, repair, integration, wave close, or closeout — lands a catch-all or mixed commit. When two kinds of change are needed, land two commits in dependency order.
 
 ## Atomic Boundary
 
@@ -81,4 +92,4 @@ Integrated-Head: <sha>
 Verified: <integration verifier> (<pass signal>)
 ```
 
-An integration commit may reference several task commits from the same mission. Record the exact integrated SHA in `RUN.md`; downstream missions are not unblocked by a worker commit that has not passed this integration boundary.
+An integration commit may reference several task commits from the same mission. It stays atomic per the Run-Wide Atomicity rule above: reviewed heads and coordination state only. Record the exact integrated SHA in `RUN.md`; downstream missions are not unblocked by a worker commit that has not passed this integration boundary.
