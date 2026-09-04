@@ -45,7 +45,9 @@ git diff --check
 
 CI runs the same set.
 
-Every flow that lands on `main` bumps the release version in the same change: `package.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version assert in `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version.
+Every flow that lands on `main` bumps the release version in the same change: `package.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version assert in `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version. After the user lands the release on `main`, tag that release commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
+
+Any change that adds or alters a skill, rule, or documented flow also updates the READMEs' descriptive sections in the same change, in all three languages — the README is documentation-of-record, not a release-time artifact.
 
 ## Review Guidelines
 

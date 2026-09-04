@@ -353,7 +353,20 @@ python -m unittest discover -s .agents/skills/product-design-builder/scripts/tes
 git diff --check
 ```
 
-发布前，请更新 `package.json` 的版本号、三种语言 README 的 badge 与版本历史，以及 RUNBOOK 的 `required_harness_version` 默认值，检查整个 diff，并走仓库的 PR 流程。不要直接推送到 `main`。
+## 保持 README 与代码同步
+
+README 是记录文档：每个新增或改动 skill、规则、表格、图或文档化流程的变更，都要在同一份变更里更新 README 的对应描述部分，三种语言一起改。版本 badge 与版本历史条目属于发布时的工作，按下面《发布》的规则走。
+
+## 发布
+
+每个落在 `main` 的流程就是一次 release，版本号提升要在同一份变更里完成——默认升 patch，skill bundle 有破坏性变更升 minor。以下几个地方要一起更新：
+
+1. `package.json` 的 `version` 字段。
+2. 三份 README（`README.md`、`README.zh-TW.md`、`README.zh-CN.md`）的版本 badge 与版本历史条目。
+3. `.agents/skills/full-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 默认值。
+4. `.agents/skills/full-harness/scripts/tests/test_skill_contract.py` 中钉住的版本断言。
+
+然后跑完上面的完整验证、检查整个 diff，走仓库的 PR 流程落地——不要直接推送到 `main`。落地之后，在 `main` 的 release commit 上打上对应的 `v<版本>` tag（例如 `v0.22.1`）；tag 是 release 的一部分，不是可有可无的附加动作。每个发布的版本都要有它的 tag——`git tag` 和 `package.json` 必须讲同一个故事。
 
 ## 安全与数据安全
 
@@ -363,7 +376,7 @@ git diff --check
 
 ## 版本历史
 
-每次发布都要更新本节，同时完成上文所述的版本号提升。
+每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
 - **0.22.0** — 私有市场与插件包正式退休。`plugins/`、`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 和 `scripts/sync_plugin_skills.py` 全部移除；`.agents/skills/` 是唯一来源，安装与更新就是把三个 harness skills 复制进用户 skills 目录（`~/.agents/skills/`），与「最快安装方式」描述的完全一致。README 移除市场 badge、各宿主的插件安装命令和本地市场章节；`runtime-upgrades.md` 改为把技能同步定位成唯一的 Harness 更新面，各宿主的更新说明缩减为宿主自属安装器与重启。
 

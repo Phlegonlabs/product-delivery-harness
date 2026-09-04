@@ -353,7 +353,20 @@ python -m unittest discover -s .agents/skills/product-design-builder/scripts/tes
 git diff --check
 ```
 
-Before a release, update the version in `package.json`, the README badges and version-history entries in all three languages, and the RUNBOOK `required_harness_version` default, then inspect the entire diff. Do not push directly to `main`.
+## Keeping the READMEs current
+
+The READMEs are documentation-of-record: every change that adds or alters a skill, rule, table, diagram, or documented flow updates the README's descriptive sections in the same change, in all three languages. The version badge and version-history entries are the release-time part and follow Releasing below.
+
+## Releasing
+
+Every flow that lands on `main` is one release, and the version bump rides in the same change — patch by default, minor for a breaking skill-bundle change. Update all of these together:
+
+1. The `version` field in `package.json`.
+2. The version badge and the version-history entry in all three READMEs (`README.md`, `README.zh-TW.md`, `README.zh-CN.md`).
+3. The RUNBOOK `required_harness_version` default in `.agents/skills/full-harness/assets/templates/MISSION_RUNBOOK.template.md`.
+4. The pinned version assert in `.agents/skills/full-harness/scripts/tests/test_skill_contract.py`.
+
+Then run the full verification above, review the entire diff, and land through the repository's PR flow — never a direct push to `main`. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.22.1`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
 
 ## Security and data safety
 
@@ -363,7 +376,7 @@ Before a release, update the version in `package.json`, the README badges and ve
 
 ## Version history
 
-Update this section with each release, alongside the version bump described above.
+Update this section with each release, as part of the version bump and tag described in Releasing above.
 
 - **0.22.0** — The private marketplace and plugin bundle are retired. `plugins/`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `scripts/sync_plugin_skills.py` are gone; `.agents/skills/` is the only source, and installing or updating means copying the three harness skills into your user skills directory (`~/.agents/skills/`), exactly as the Fastest setup already described. The READMEs drop the marketplace badge, the per-host plugin install commands, and the local-marketplace section; `runtime-upgrades.md` now names the skills sync as the only Harness update surface and trims the per-host update notes to host-owned installers plus restart.
 
