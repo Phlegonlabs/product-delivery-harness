@@ -61,7 +61,7 @@ class PrivateMarketplaceContractTests(unittest.TestCase):
         self.assertEqual(codex["version"], claude["version"])
         self.assertEqual(codex["version"], marketplace["metadata"]["version"])
         self.assertEqual(codex["version"], marketplace_plugin["version"])
-        self.assertEqual(codex["version"], "0.21.9")
+        self.assertEqual(codex["version"], "0.21.10")
         self.assertEqual(marketplace_plugin["source"], "./plugins/fullstack-harness")
 
         pi_package = self.load_json("package.json")
