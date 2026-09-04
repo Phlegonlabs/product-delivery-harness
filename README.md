@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.21.11-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.21.12-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -259,21 +259,17 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 
 ### Fastest setup
 
-```powershell
+Clone the repository and copy the three harness skills into your user skills directory:
+
+```bash
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-Set-Location .\fullstack-goal-dev
-powershell -File .\scripts\update-private-skills.ps1
+cp -r fullstack-goal-dev/.agents/skills/full-harness \
+      fullstack-goal-dev/.agents/skills/prd-builder \
+      fullstack-goal-dev/.agents/skills/product-design-builder \
+      ~/.agents/skills/
 ```
 
-The clone only gives you the script. The updater always installs from GitHub — `Phlegonlabs/fullstack-goal-dev` at `main` by default — and never reads your working directory. Local edits are not installed this way; use [Use a local checkout during development](#use-a-local-checkout-during-development) for that.
-
-Then open a new Codex task, reload Claude Code, or start a fresh Pi session. Confirm the package is visible:
-
-```powershell
-codex plugin list
-claude plugin list
-pi list
-```
+On Windows, `Copy-Item -Recurse` does the same. Replacing those three directories under `~/.agents/skills/` with a newer checkout's copies is the whole update — there is no separate updater script. Hosts that discover `~/.agents/skills/` pick the skills up in the next fresh session; to test local edits, copy from your checkout the same way.
 
 ### Zero-to-one flow
 
@@ -281,33 +277,6 @@ pi list
 2. Start a fresh host session, confirm the plugin, and invoke `$full-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
-
-### One-command updater
-
-The shared updater detects Codex, Claude Code, and Pi; adds or updates the marketplace/package; and leaves unrelated runtime settings alone. Re-run the same command when this repository changes. Add `-UpdateHostRuntimes` only when you explicitly want the hosts themselves updated. If legacy standalone Pi Harness skills shadow the package, add `-ReplacePiStandaloneSkills`; it backs up and replaces only the named Harness skill directories.
-
-Windows with PowerShell 7 (`pwsh`):
-
-```powershell
-Set-Location .\fullstack-goal-dev
-pwsh -File .\scripts\update-private-skills.ps1
-```
-
-`pwsh` is a separate install. Windows PowerShell 5.1, which ships with Windows, also runs the script:
-
-```powershell
-Set-Location .\fullstack-goal-dev
-powershell -File .\scripts\update-private-skills.ps1
-```
-
-macOS or Linux shell with PowerShell 7:
-
-```bash
-cd fullstack-goal-dev
-pwsh -File ./scripts/update-private-skills.ps1
-```
-
-Open a new Codex task, reload or restart Claude Code, and start a fresh Pi session after updating. An active session does not hot-reload a changed runtime or Harness release.
 
 ### Install directly in Codex
 
@@ -416,7 +385,6 @@ plugins/fullstack-harness/.codex-plugin/plugin.json  Codex plugin manifest
 .claude-plugin/marketplace.json                      Claude Code marketplace definition
 assets/                                              README covers
 scripts/sync_plugin_skills.py                        Copies canonical skills into the plugin bundle
-scripts/update-private-skills.ps1                    Updates Codex, Claude Code, and Pi packages; host updates are opt-in
 .github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
 ```
 
@@ -447,6 +415,7 @@ Before a release, update the matching version in both plugin manifests and `.cla
 
 Update this section with each release, alongside the version bump described above.
 
+- **0.21.12** — SEO metadata is now part of the PRD surface contract. Every `UI-*` entry records its route's unique `<title>` and meta description plus canonical URL, Open Graph/social, robots, and structured-data decisions (or an explicit `n/a — <reason>`); site-level SEO (indexing strategy, sitemap and robots policy, canonical policy, default structured data) is recorded in Frontend Delivery Requirements with its own `TEST-*` traces. The harness side binds it through: implementation must render the recorded `<head>` exactly, a missing SEO record is a PRD contract gap routed to `prd-builder`, and UI evidence includes a rendered-head check where `<title>` and meta description must match the PRD record on the integration head. The retired `update-private-skills.ps1` one-command updater is also removed in this change: per-runtime copies were deliberately dropped on 2026-09-03, so setup and updates are now the plain skills sync — copy the three harness skills from `.agents/skills/` into `~/.agents/skills/` — and the READMEs no longer teach the script. Running on a host outside the three named runtimes is now detection-free: a session that is not evidently Codex, Claude Code, or Pi records `provider: generic` outright with no probing for another runtime's CLI, and the version gate no longer defers a generic host for lacking an observable own-version — the loaded Harness release and the selected driver's live capability probe complete the observation.
 - **0.21.11** — UI runs now close with a Final Page-Quality Pass. After the Final Visual Parity Loop, the skill bound to the new `ui_quality_verification` slot — `impeccable` by default — runs one `critique` and one `audit` per delivered high-fidelity page on the exact integration head. Blocking findings enter the ordinary repair budget; a finding that conflicts with the frozen PRD, wireframes, or visual sources routes to `prd-builder` as a design-input delta instead of a local change; the pass uses evaluate commands only and creates no competing product authority; an unavailable bound skill records the gate `UNVALIDATED` and blocks closeout unless the user accepts the descope. The seeded `AGENTS.md` Skill Bindings table carries the new slot.
 - **0.21.10** — The rendered tasks view now lives at `docs/tasks.md`, not `docs/goal/tasks.md`. `docs/goal/` keeps only canonical run state (PLAN, RUN, DECISIONS, evidence); the non-canonical human view sits under `docs/` beside `DOCUMENTS.md` and `DEPLOYMENT.md`. SKILL routing, the DOCUMENTS manifest row, the renderer's help text, the stray-checklist wording, and the pinned contract tests all follow the new path. The seeded project `AGENTS.md` now states the goal-complete archival rule directly: once the owner declares the goal complete and the Closeout Bar has passed, the finished plan runtime (`PLAN.md`/`RUN.md` plus its evidence) archives into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/` — a move, never a delete, and never touching `docs/product/`.
 - **0.21.9** — Review-hardening cleanup from a four-lens architecture review. A real bug fix: the RUN-v11 head cross-check's follow-up git calls (merge-base, diff) now degrade into error entries instead of crashing the validator. `CURRENT_SCHEMA_PAIR`/`is_current_pair` replace eight hand-typed `(6, 11)` literals; fake test-patch seams and a stale `__all__` are gone. The selector's "exactly these deferral codes" list is complete again (it was missing eleven codes plus the reviewer-tool prefixes) and a new test binds the doc list to the emitted codes. The sequential-parent binding is defined once under an anchored heading (it was restated seven times) and the review-attempt budget once in Root-Cause Repair Escalation; contract tests pin the single definitions plus pointers instead of freezing the restatements. The integration/bookkeeping commit split is settled (merge commit, then paired bookkeeping commit) and parity repairs are stated to be ordinary candidate-changing repairs under the existing budget. The ~1200-line fixture library moved from test_harness_manifest.py into manifest_fixtures.py with re-exports, canonical fixtures read schema versions from harness_schema, and contract_digest's CRLF/LF normalization and tests/__pycache__ exclusion gained direct tests.

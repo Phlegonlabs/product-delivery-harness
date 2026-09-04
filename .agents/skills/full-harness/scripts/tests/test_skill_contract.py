@@ -424,6 +424,20 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("`UNVALIDATED`", gates)
         self.assertIn("page-quality-verification slots", skill)
 
+    def test_seo_metadata_is_bound_through_implementation(self) -> None:
+        contract = self.read("references/ui-implementation-contract.md")
+        gates = self.read("references/verification-gates.md")
+
+        self.assertIn("records SEO metadata implements exactly that", contract)
+        self.assertIn("the rendered `<head>` is part of the deliverable", contract)
+        self.assertIn(
+            "PRD contract gap routed to `prd-builder`, never an implementation-time invention",
+            contract,
+        )
+        self.assertIn("the rendered `<head>` on the integration head", gates)
+        self.assertIn("its `<title>` and meta description match the PRD record", gates)
+        self.assertIn("A mismatch is a failing check, not a style preference", gates)
+
     def test_deployment_contract_separates_preview_from_production(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")
@@ -574,7 +588,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.21.11"', runbook)
+        self.assertIn('"required_harness_version": "0.21.12"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

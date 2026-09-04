@@ -11,7 +11,7 @@
   <img alt="Private marketplace" src="https://img.shields.io/badge/marketplace-private-111827?style=flat-square">
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.21.11-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.21.12-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -259,21 +259,17 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 
 ### 最快安裝方式
 
-```powershell
+clone 儲存庫，把三個 harness skills 複製進你的使用者 skills 目錄：
+
+```bash
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-Set-Location .\fullstack-goal-dev
-powershell -File .\scripts\update-private-skills.ps1
+cp -r fullstack-goal-dev/.agents/skills/full-harness \
+      fullstack-goal-dev/.agents/skills/prd-builder \
+      fullstack-goal-dev/.agents/skills/product-design-builder \
+      ~/.agents/skills/
 ```
 
-clone 只是為了拿到這個腳本。更新器一律從 GitHub 安裝（預設是 `Phlegonlabs/fullstack-goal-dev` 的 `main`），不會讀取你目前的工作目錄。本機的修改不會透過這個方式安裝；要測試本機修改，請看下面的「開發期間使用本機 checkout」。
-
-接著開啟新的 Codex 任務、重新載入 Claude Code，或啟動新的 Pi session。確認 package 已出現在清單中：
-
-```powershell
-codex plugin list
-claude plugin list
-pi list
-```
+Windows 上改用 `Copy-Item -Recurse` 即可。之後更新就是把 `~/.agents/skills/` 下那三個目錄換成新版 checkout 的副本——沒有另外的更新腳本。會讀 `~/.agents/skills/` 的 host 在下一個新 session 就能載入；要測試本機修改，同樣從你的 checkout 複製即可。
 
 ### Zero-to-one 流程（從零開始）
 
@@ -281,33 +277,6 @@ pi list
 2. 開啟新的 host session，確認外掛可見，然後呼叫 `$full-harness`。
 3. 讓規模閘決定直接工作或 PLAN/RUN；小型工作不要預先建立 worker。
 4. 大型執行一次只保留一個 active host，並在 same-repository handoff 前關閉與審查每個 wave。
-
-### 單一指令更新器
-
-共用更新器會偵測 Codex、Claude Code 與 Pi，新增或更新市集／package，並保留不相關的 runtime 設定。這個儲存庫更新後，重跑同一個指令即可。只有明確要更新 host 本身時才加入 `-UpdateHostRuntimes`。如果舊的 standalone Pi Harness skill 蓋過 package，可加入 `-ReplacePiStandaloneSkills`；它只會備份並替換具名的 Harness skill 目錄。
-
-搭配 PowerShell 7（`pwsh`）的 Windows：
-
-```powershell
-Set-Location .\fullstack-goal-dev
-pwsh -File .\scripts\update-private-skills.ps1
-```
-
-`pwsh` 要另外安裝。Windows 內建的 Windows PowerShell 5.1 也能執行這個腳本：
-
-```powershell
-Set-Location .\fullstack-goal-dev
-powershell -File .\scripts\update-private-skills.ps1
-```
-
-搭配 PowerShell 7 的 macOS 或 Linux shell：
-
-```bash
-cd fullstack-goal-dev
-pwsh -File ./scripts/update-private-skills.ps1
-```
-
-更新後請開一個新的 Codex 任務、重新載入或重啟 Claude Code，並啟動新的 Pi session。現有 session 不會熱載入已變更的 runtime 或 Harness release。
 
 ### 直接在 Codex 中安裝
 
@@ -416,7 +385,6 @@ plugins/fullstack-harness/.codex-plugin/plugin.json  Codex 外掛 manifest
 .claude-plugin/marketplace.json                      Claude Code 市集定義
 assets/                                              README 封面
 scripts/sync_plugin_skills.py                        把標準技能複製進外掛套件
-scripts/update-private-skills.ps1                    更新 Codex、Claude Code 與 Pi package；host 更新需明確開啟
 .github/workflows/harness-ci.yml                     契約、單元與 E2E 檢查
 ```
 
@@ -447,6 +415,7 @@ git diff --check
 
 每次發佈都要更新這一節，並搭配上面說明的版本號提升。
 
+- **0.21.12** — SEO metadata 現在是 PRD surface contract 的一部分。每個 `UI-*` 條目記錄該 route 專屬且不重複的 `<title>` 與 meta description，加上 canonical URL、Open Graph/社交、robots 與 structured-data 決策（或明確的 `n/a — <reason>`）；整站 SEO（索引策略、sitemap 與 robots 政策、canonical 政策、預設 structured data）記在 Frontend Delivery Requirements 並帶自己的 `TEST-*` 追蹤。harness 端綁到底：實作必須如實渲染記錄的 `<head>`，缺少 SEO 紀錄是改道 `prd-builder` 的 PRD 契約缺口，UI 證據新增 rendered-head 檢查——integration head 上的 `<title>` 與 meta description 必須與 PRD 紀錄一致。這批同時移除已退休的 `update-private-skills.ps1` 單一指令更新器：per-runtime 副本已於 2026-09-03 刻意移除，安裝與更新從此就是單純的 skills 同步——把 `.agents/skills/` 的三個 harness skills 複製進 `~/.agents/skills/`——README 也不再教這個腳本。在三個具名 runtime 之外的 host 上執行現在免檢測：不是明確的 Codex、Claude Code 或 Pi 的 session 直接記 `provider: generic`，不去探測其他 runtime 的 CLI；版本閘門也不再用「拿不到 host 自身版本號」擋通用 host——載入中的 Harness release 加上所選 driver 的即時能力探測即完成觀察。
 - **0.21.11** — UI run 現在以 Final Page-Quality Pass 收尾。Final Visual Parity Loop 之後，綁定在新增 `ui_quality_verification` 槽位的 skill（預設 `impeccable`）會在確切的 integration head 上，對每個交付的高保真頁面各跑一次 `critique` 與一次 `audit`。阻斷性發現進入既有修復預算；與凍結的 PRD、wireframes 或視覺來源衝突的發現改道 `prd-builder` 處理為 design-input delta，而不是本地改動；此步驟只用 evaluate 指令、不建立任何競爭性 product authority；綁定的 skill 不可用時該 gate 記為 `UNVALIDATED`，除非使用者明確接受否則擋下 closeout。種子化的 `AGENTS.md` Skill Bindings 表帶有這個新槽位。
 - **0.21.10** — 渲染產生的 tasks view 改放在 `docs/tasks.md`，不再位於 `docs/goal/tasks.md`。`docs/goal/` 只保留權威 run 狀態（PLAN、RUN、DECISIONS、evidence）；非權威的人類閱讀 view 與 `DOCUMENTS.md`、`DEPLOYMENT.md` 同放在 `docs/`。SKILL 路由、DOCUMENTS manifest 列、renderer 說明文字、stray 檢查措辭與 pin 住的契約測試都改用新路徑。種子化的專案 `AGENTS.md` 現在直接寫明 goal 完成後的歸檔規則：擁有者宣告 goal 完成且 Closeout Bar 通過後，完成的 plan runtime（`PLAN.md`/`RUN.md` 加 evidence）即移入 `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/`——只搬移、不刪除，也不動 `docs/product/`。
 - **0.21.9** — 來自四視角架構评审的加固清理。真實 bug 修復：RUN-v11 head 交叉檢查的後續 git 呼叫（merge-base、diff）現在會降級為錯誤條目，而不是讓 validator 崩潰。`CURRENT_SCHEMA_PAIR`/`is_current_pair` 取代八處手打的 `(6, 11)` 字面值；刪除了假的測試 patch seam 與過期的 `__all__`。selector 的「只會發出這些 deferral code」清單補齊了缺失的十一個 code 與 reviewer-tool 前綴，並有新測試把文件清單綁定到實際發出的 code。sequential-parent 綁定改為在錨點標題下定義一次（原先重複七處）、review 嘗試預算收斂到 Root-Cause Repair Escalation 一處；契約測試改為 pin 單一定義加指標句，不再凍結重複陳述。integration/bookkeeping 提交拆分定案（先 merge commit，隨後配對 bookkeeping commit），parity 修復明寫為既有預算下的普通 candidate-changing repair。約 1200 行 fixture 庫從 test_harness_manifest.py 移入 manifest_fixtures.py 並保留 re-export，canonical fixture 改從 harness_schema 讀版本號，contract_digest 的 CRLF/LF 正規化與 tests/__pycache__ 排除新增直接測試。
