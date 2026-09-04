@@ -655,7 +655,7 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.22.0"', runbook)
+        self.assertIn('"required_harness_version": "0.23.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1098,6 +1098,19 @@ class FullstackHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("ask before branch creation", skill.lower())
         self.assertIn("- '**'", ci)
         self.assertNotIn("codex/**", ci)
+
+    def test_repo_ci_workflow_verifies_every_pushed_branch(self) -> None:
+        # The template promises `'**'`; this pins the repository's own workflow
+        # to the same filter so a governance-legal branch push can never skip
+        # CI. Standalone installs (no repo checkout) have no workflow to read.
+        if REPO_ROOT is None:
+            self.skipTest("no repository checkout around the skill")
+        workflow = REPO_ROOT / ".github" / "workflows" / "harness-ci.yml"
+        if not workflow.is_file():
+            self.skipTest("repository has no harness-ci workflow")
+        content = workflow.read_text(encoding="utf-8")
+        self.assertIn("- '**'", content)
+        self.assertNotIn("codex/**", content)
 
 
 if __name__ == "__main__":

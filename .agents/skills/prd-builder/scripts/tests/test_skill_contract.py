@@ -310,6 +310,55 @@ async function agent(_prompt, options) {
                 check=False,
             )
 
+    def test_prd_cross_check_requires_matching_ui_sets(self) -> None:
+        data = self.minimal_wireframe_data()
+        with tempfile.TemporaryDirectory() as tmp:
+            html_template = self.read("assets/templates/WIREFRAMES.template.html")
+            marker = '<script id="wireframe-data" type="application/json">'
+            original_payload = html_template.split(marker, 1)[1].split(
+                "</script>", 1
+            )[0]
+            modified = html_template.replace(
+                original_payload, "\n" + json.dumps(data) + "\n", 1
+            )
+            html_path = Path(tmp) / "wireframes.html"
+            html_path.write_text(modified, encoding="utf-8")
+            prd_path = Path(tmp) / "PRD.md"
+            prd_path.write_text(
+                "## UI Surface Contract\n\n- UI-001 Dashboard\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    "--html", str(html_path),
+                    "--prd", str(prd_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            prd_path.write_text(
+                "## UI Surface Contract\n\n- UI-001 Dashboard\n- UI-002 Settings\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SKILL_ROOT / "scripts/check_wireframe_html.py"),
+                    "--html", str(html_path),
+                    "--prd", str(prd_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("absent from the wireframe", result.stderr)
+
     def minimal_wireframe_data(self) -> dict:
         return {
             "product": "P",
@@ -783,11 +832,13 @@ async function agent(_prompt, options) {
         self.assertIn(
             "The closed-set questions fit three `AskUserQuestion` calls", interview
         )
-        self.assertIn("Never ask a call-3 question in call 1", interview)
+        self.assertIn(
+            "Never ask a final-phase question in the archetype call", interview
+        )
         for slotted_bullet in (
-            "React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, in call 3",
-            "cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion, in call 3",
-            "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, in call 3",
+            "React Native (cross-platform), or undecided and need a recommendation? (AskUserQuestion, final phase",
+            "cross-platform (e.g. Electron or Tauri), or undecided and need a recommendation? (AskUserQuestion, final phase",
+            "Cloudflare, Vercel, AWS, or self-hosted? (AskUserQuestion, final phase",
         ):
             self.assertIn(slotted_bullet, interview)
         self.assertIn("first to drop when the closed-set budget is full", interview)
@@ -1386,11 +1437,14 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
         skill = self.read("SKILL.md")
 
-        self.assertIn("four-question cap means exactly one question drops", interview)
+        self.assertIn("means exactly one question drops", interview)
         self.assertIn(
-            "No archetype combination produces a sixth call-3 question", interview
+            "No archetype combination produces a sixth final-phase question",
+            interview,
         )
-        self.assertIn("five against a four-question cap drops exactly one", skill)
+        self.assertIn(
+            "five against the closed-question call budget drops exactly one", skill
+        )
 
     def test_browser_extension_is_a_supported_archetype(self) -> None:
         skill = self.read("SKILL.md")

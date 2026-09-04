@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.22.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.23.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -270,6 +270,8 @@ cp -r fullstack-goal-dev/.agents/skills/full-harness \
 
 Windows 上改用 `Copy-Item -Recurse` 即可。之后更新就是把 `~/.agents/skills/` 下那三个目录换成新版 checkout 的副本——没有另外的更新脚本。会读 `~/.agents/skills/` 的宿主在下一个新会话就能加载；要测试本地修改，同样从你的 checkout 复制即可。
 
+三个 harness skills 本身自足，但视觉阶段会在运行期加载外部 skills：`product-design-builder` 需要 `frontend-design`，缺了就停止；prd-builder 的 UI Design Pass 则配对一个 design-direction skill（默认 `design-taste-frontend`）和一个 frontend-implementation skill（默认 `frontend-design`）。要让交付继续跑过 wireframe 核准时，把它们装进同一个用户 skills 目录。
+
 ### Zero-to-one 流程（从零开始）
 
 1. 安装一个受支持的宿主（Codex、Claude Code、Pi 或任何会发现 `~/.agents/skills/` 的宿主）和三个 harness skills，并用该宿主运行本次交付。
@@ -344,9 +346,12 @@ assets/                                              README 封面
 
 ## 维护技能
 
-只编辑 `.agents/skills/` 中的规范源，然后运行校验套件。
+只编辑 `.agents/skills/` 中的规范源，然后运行校验套件（与 CI 同一组）：
 
 ```bash
+python -m pip install -r .agents/skills/full-harness/requirements-test.txt
+python .agents/skills/full-harness/scripts/check_skill_spec.py
+python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
@@ -377,6 +382,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.23.0** — 写入路径加固与第一批跨产物检查。`harness_transition.py` 新增 `close-wave`：附加持久化的 `{wave_id, batch_base_sha}` tombstone、把 wave 翻成 `closed`、重置所有以 `wave_closed` 为边界的授权，多波 run 与 host handoff 从此不需要手改 RUN JSON；配套的校验器修正让已关 wave 的证据保留自己的 batch base，不再对当前 base 失配。写入路径的 guard 补上完整 review 重现过的缺口：`accept-wave` 要求覆盖每个 selected mission 的整体执行授权、plan 已 ready、且已有 observation 记录；`lease-worker` 绑定 mission 自己的 graph node，并拒绝越过未满足 dependency frontier 的租约；`record-integration` 必带 `--repo-root`、验证 batch base 是整合 HEAD 的祖先，不再接受凭空捏造的 SHA。仓库 CI 改为验证每个被推送的分支——与项目 template 相同的 `'**'` 过滤器——并由 contract test 直接读实际 workflow 文件钉住。prd-builder 的封闭式问答阶段改为按宿主工具的每次提问数与选项上限自适应（Codex CLI 每次三题），不再是固定的四题，并加上四调用上限与选项压缩规则。跨产物 join 到位：`check_wireframe_html.py --prd` 证明 wireframe 页面与 PRD `UI-*` 契约是同一组；design-system pair checker 校验 `DS-COMP-*` id 格式、唯一性与 Markdown 对 JSON 的可解析性；`validate_harness_plan.py --prd` 证明 PLAN 的 `ui_surfaces` 等于 PRD 的 `UI-*` 契约。README 维护清单补齐完整校验套件，安装章节写明视觉阶段加载的外部设计 skills。
 
 - **0.22.0** — 私有市场与插件包正式退休。`plugins/`、`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 和 `scripts/sync_plugin_skills.py` 全部移除；`.agents/skills/` 是唯一来源，安装与更新就是把三个 harness skills 复制进用户 skills 目录（`~/.agents/skills/`），与「最快安装方式」描述的完全一致。README 移除市场 badge、各宿主的插件安装命令和本地市场章节；`runtime-upgrades.md` 改为把技能同步定位成唯一的 Harness 更新面，各宿主的更新说明缩减为宿主自属安装器与重启。同一版同时扩充了 run 记录与部署契约：mid-run 的修改——额外修复、后续编辑、用户报告的改动——一律通过 plan revision 记录成自己的 mission（`execution-state-model.md` 的 Mid-Run Modification Recording），`docs/tasks.md` 改为最新 mission 在上、M1 在下，run 结束时这份视图列出 run 做过的每一项修改。部署面新增跨平台的「Adding A Binding」runbook（seed 进 `docs/DEPLOYMENT.md`）：两侧都是先开资源再写声明、preview 验证先于 default branch 落地、secrets 永不进 wrangler 配置、D1 migration 先套 preview 库——wrangler 步骤限 cloudflare，具名环境统一为 `env.development`/`env.production`。README 并补上发布流程本身：版本提升清单、落地后打 `v<版本>` tag，以及「任何 skill、规则或文档化流程的变更，都要在同一份变更里更新三语 README 的描述部分」的规则。
 

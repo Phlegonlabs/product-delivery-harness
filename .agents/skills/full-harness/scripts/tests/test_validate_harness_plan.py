@@ -41,6 +41,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         run_path: Path | None,
         design_system: Path | None = None,
         repo_root: Path | None = None,
+        prd: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         command = [sys.executable, str(SCRIPTS_DIR / "validate_harness_plan.py"), "--plan", str(plan_path)]
         if run_path is not None:
@@ -51,6 +52,8 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             command.extend(["--repo-root", str(repo_root)])
         if design_system is not None:
             command.extend(["--design-system", str(design_system)])
+        if prd is not None:
+            command.extend(["--prd", str(prd)])
         return subprocess.run(command, check=False, capture_output=True, text=True)
 
     def cross_check(self, registry: dict[str, object]) -> dict[str, object]:
@@ -229,6 +232,41 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             result = self.run_cli(plan_path, None)
 
         self.assertEqual(0, result.returncode)
+
+    def test_prd_cross_check_requires_matching_ui_surface_sets(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [dict(HOME_SURFACE, id="UI-001")]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            prd_path = root / "PRD.md"
+            prd_path.write_text(
+                "## UI Surface Contract\n\n- UI-001 Dashboard\n",
+                encoding="utf-8",
+            )
+
+            result = self.run_cli(plan_path, None, prd=prd_path)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("PASS", json.loads(result.stdout)["status"])
+
+            prd_path.write_text(
+                "## UI Surface Contract\n\n- UI-001 Dashboard\n- UI-002 Settings\n",
+                encoding="utf-8",
+            )
+            result = self.run_cli(plan_path, None, prd=prd_path)
+            self.assertEqual(1, result.returncode)
+            payload = json.loads(result.stdout)
+            self.assertEqual("FAIL", payload["status"])
+            self.assertTrue(
+                any(
+                    "PRD surfaces absent from the PLAN: UI-002" in error
+                    for error in payload["errors"]
+                )
+            )
 
     def test_malformed_manifest_reports_error_with_exit_code_two(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

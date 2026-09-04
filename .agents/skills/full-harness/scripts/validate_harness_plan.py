@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
+from pathlib import Path
 
 from harness_manifest import (
     ManifestError,
@@ -22,6 +24,40 @@ from harness_manifest import (
 )
 
 
+PRD_UI_RE = re.compile(r"\bUI-[A-Z0-9]+(?:-[A-Z0-9]+)*\b")
+
+
+def validate_ui_surface_prd_coverage(
+    plan: dict, prd_path: str
+) -> list[str]:
+    """The PLAN's UI surfaces must name exactly the PRD's `UI-*` contract."""
+
+    try:
+        prd_text = Path(prd_path).read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"prd: cannot read {prd_path}: {exc}"]
+    prd_ids = set(PRD_UI_RE.findall(prd_text))
+    surfaces = plan.get("ui_surfaces")
+    plan_ids = {
+        surface.get("id")
+        for surface in (surfaces if isinstance(surfaces, list) else [])
+        if isinstance(surface, dict) and isinstance(surface.get("id"), str)
+    }
+    missing = sorted(prd_ids - plan_ids)
+    extra = sorted(plan_ids - prd_ids)
+    errors: list[str] = []
+    if missing:
+        errors.append(
+            "plan.ui_surfaces: PRD surfaces absent from the PLAN: " + ", ".join(missing)
+        )
+    if extra:
+        errors.append(
+            "plan.ui_surfaces: PLAN surfaces absent from the PRD UI contract: "
+            + ", ".join(extra)
+        )
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--plan", required=True, help="Path to PLAN.md")
@@ -29,6 +65,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--repo-root",
         help="Optional repository root used to bind PLAN-v6 sources and verify UI artifacts",
+    )
+    parser.add_argument(
+        "--prd",
+        help="Optional path to the product's PRD.md. When given, the PLAN's "
+        "ui_surfaces must name exactly the PRD's `UI-*` surface contract.",
     )
     parser.add_argument(
         "--design-system",
@@ -56,6 +97,8 @@ def main(argv: list[str] | None = None) -> int:
                 run_errors = validate_run(plan, run)
         else:
             errors = validate_plan(plan, repo_root=args.repo_root)
+        if args.prd:
+            errors.extend(validate_ui_surface_prd_coverage(plan, args.prd))
         if args.design_system:
             errors.extend(validate_ui_surface_design_coverage(plan, args.design_system))
         elif any(

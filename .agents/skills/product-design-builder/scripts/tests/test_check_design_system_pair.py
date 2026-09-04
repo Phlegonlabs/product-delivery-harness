@@ -216,6 +216,40 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         self.assertEqual([], problems)
         self.assertEqual(0, code)
 
+    def test_malformed_or_duplicate_ds_ids_fail(self) -> None:
+        data = registry()
+        data["productComponents"]["OrderCard"]["dsId"] = "comp-1"
+        _, problems = self.run_pair(MATCHING_MARKDOWN, data)
+        self.assertTrue(
+            any("must match DS-COMP-<number>" in problem for problem in problems)
+        )
+
+        data = registry()
+        data["productComponents"]["InvoiceRow"] = {
+            "dsId": "DS-COMP-001",
+            "requiredContentOrder": ["title"],
+            "composes": ["Stack"],
+            "states": ["ready"],
+        }
+        _, problems = self.run_pair(MATCHING_MARKDOWN, data)
+        self.assertTrue(
+            any("duplicates DS-COMP-001" in problem for problem in problems)
+        )
+
+    def test_markdown_naming_an_unregistered_ds_comp_fails(self) -> None:
+        markdown = MATCHING_MARKDOWN.replace(
+            "### OrderCard\nComposes `Stack`.",
+            "### OrderCard\nComposes `Stack` and DS-COMP-777.",
+        )
+        _, problems = self.run_pair(markdown, registry())
+        self.assertTrue(
+            any(
+                "DS-COMP ids missing from design-system.json" in problem
+                and "DS-COMP-777" in problem
+                for problem in problems
+            )
+        )
+
     def test_real_templates_match_and_product_drift_fails(self) -> None:
         template = (
             SKILL_ROOT / "assets/templates/DESIGN_SYSTEM.template.md"

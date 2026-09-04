@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from harness_authorization import execution_covers
 from harness_core import is_full_sha, plan_digest
 from harness_manifest import (
     ManifestError,
@@ -26,6 +27,7 @@ from harness_manifest import (
     load_run,
     validate_current_plan_run,
 )
+from harness_schema import RUN_DISPATCH_STATUSES
 from select_ready_nodes import GraphSelectionError, select_ready_nodes
 
 
@@ -260,6 +262,20 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
         raise ManifestError(
             f"wave {wave.get('wave_id')!r} is still active; close it before accepting another"
         )
+    if run.get("execution_authorized") is not True:
+        raise ManifestError("accept-wave requires overall execution authorization")
+    if run.get("status") not in RUN_DISPATCH_STATUSES:
+        raise ManifestError(
+            f"run status is {run.get('status')!r}; a wave is accepted only on a ready or running run"
+        )
+    if run.get("plan_readiness") != "ready":
+        raise ManifestError("accept-wave requires plan_readiness ready")
+    observed = run.get("observed")
+    captured_at = observed.get("captured_at") if isinstance(observed, dict) else None
+    if not isinstance(captured_at, str) or not captured_at:
+        raise ManifestError(
+            "accept-wave requires a recorded observation; run record-observation first"
+        )
     if not is_full_sha(args.batch_base_sha):
         raise ManifestError("accept-wave requires a full batch base SHA")
     plan_missions = {
@@ -270,6 +286,11 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
     unknown = [mid for mid in args.mission_id if mid not in plan_missions]
     if unknown:
         raise ManifestError(f"accept-wave names unknown missions: {', '.join(unknown)}")
+    for mission_id in args.mission_id:
+        if not execution_covers(run, mission_id):
+            raise ManifestError(
+                f"execution authorization does not cover mission {mission_id!r}"
+            )
     integrated = {
         mid
         for mid, state in run.get("mission_states", {}).items()
@@ -293,6 +314,97 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
     )
 
 
+def _close_wave(run: dict[str, Any], args: argparse.Namespace) -> None:
+    """Retire the current wave at its `wave_closed` authorization boundary.
+
+    Appends the durable tombstone, flips the wave to `closed`, and resets every
+    wave-bounded grant to the unauthorized shape, exactly as
+    `references/execution-state-model.md` describes. `run_complete` grants are
+    retained as closeout evidence.
+    """
+
+    wave = run.get("active_wave")
+    if not isinstance(wave, dict):
+        raise ManifestError("run has no active_wave object")
+    if wave.get("status") not in {"active", "proposed"}:
+        raise ManifestError(
+            f"wave {wave.get('wave_id')!r} is {wave.get('status')!r}; "
+            "only an active or proposed wave can close"
+        )
+    wave_id = wave.get("wave_id")
+    batch_base_sha = wave.get("batch_base_sha")
+    if not isinstance(wave_id, str) or not wave_id:
+        raise ManifestError("close-wave requires the wave's wave_id")
+    if not is_full_sha(batch_base_sha):
+        raise ManifestError("close-wave requires the wave's full batch_base_sha")
+    closed_waves = run.setdefault("closed_waves", [])
+    if any(
+        isinstance(item, dict)
+        and item.get("wave_id") == wave_id
+        and item.get("batch_base_sha") == batch_base_sha
+        for item in closed_waves
+    ):
+        raise ManifestError(
+            f"wave pair ({wave_id}, {batch_base_sha}) is already recorded in closed_waves"
+        )
+    live_workers = sorted(
+        worker.get("worker_id")
+        for worker in [*run.get("workers", []), *run.get("review_workers", [])]
+        if isinstance(worker, dict) and worker.get("phase") in {"leased", "worker_running"}
+    )
+    if live_workers:
+        raise ManifestError(
+            "cannot close a wave with live workers; reconcile them first: "
+            + ", ".join(live_workers)
+        )
+    # A `worker_passed` mission still owes integration, and the validator
+    # requires retained execution coverage for it — so it must integrate (or
+    # fail and be reconciled) before the wave's boundary grants expire.
+    unresolved = [
+        mission_id
+        for mission_id in wave.get("selected_missions", [])
+        if not (
+            isinstance(run.get("mission_states", {}).get(mission_id), dict)
+            and run["mission_states"][mission_id].get("phase")
+            in {"integrated", "worker_failed", "blocked"}
+        )
+    ]
+    if unresolved:
+        raise ManifestError(
+            "cannot close a wave whose selected missions are unresolved "
+            "(integrate, fail, or reconcile them first): " + ", ".join(unresolved)
+        )
+    closed_waves.append({"wave_id": wave_id, "batch_base_sha": batch_base_sha})
+    wave["status"] = "closed"
+    for action, entry in list(run.get("authorizations", {}).items()):
+        if (
+            isinstance(entry, dict)
+            and entry.get("authorized")
+            and entry.get("expires_when") == "wave_closed"
+        ):
+            run["authorizations"][action] = {"authorized": False, "source": None}
+    scope = run.get("execution_authorization_scope")
+    if (
+        run.get("execution_authorized")
+        and isinstance(scope, dict)
+        and scope.get("expires_when") == "wave_closed"
+    ):
+        run["execution_authorized"] = False
+        run["execution_authorization_source"] = None
+        run["execution_authorization_scope"] = None
+    run["attempt_log"].append(
+        {
+            "attempt_id": f"WAVE-CLOSE-{wave_id}-{len(run['attempt_log']) + 1}",
+            "mission_id": None,
+            "task_id": None,
+            "lease_id": None,
+            "kind": "wave_close",
+            "result": "closed",
+            "evidence": [f"closed wave {wave_id} at base {batch_base_sha}", args.source],
+        }
+    )
+
+
 def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
     wave = run.get("active_wave")
     if not isinstance(wave, dict) or wave.get("status") != "active":
@@ -309,6 +421,26 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         for item in run.get("attempt_log", [])
     ):
         raise ManifestError(f"duplicate attempt ID {args.attempt_id!r}")
+    # A mission lease binds the mission's own graph node; node ids are only
+    # conventionally N-<MISSION>, so resolve the node by kind+ref and require
+    # the exact match instead of trusting the caller's node id.
+    mission_node_ids = [
+        node.get("id")
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict)
+        and node.get("kind") == "mission"
+        and node.get("ref") == args.mission_id
+    ]
+    if len(mission_node_ids) != 1:
+        raise ManifestError(
+            f"mission {args.mission_id!r} must map to exactly one graph mission node; "
+            f"found {len(mission_node_ids)}"
+        )
+    if args.node_id != mission_node_ids[0]:
+        raise ManifestError(
+            f"node {args.node_id!r} is not mission {args.mission_id!r}'s node "
+            f"{mission_node_ids[0]!r}"
+        )
     node_states = run.get("graph_state", {}).get("node_states", {})
     node_state = node_states.get(args.node_id)
     if not isinstance(node_state, dict):
@@ -326,6 +458,39 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             f"mission {args.mission_id!r} is {mission_state.get('phase')!r}; "
             "only queued, ready, worker_failed, or blocked missions accept a new lease"
         )
+    # The dependency frontier must actually be ready: every graph dependency
+    # into this mission node must have succeeded, and every mission-level
+    # dependency must be integrated.
+    for edge in plan.get("graph", {}).get("edges", []):
+        if (
+            not isinstance(edge, dict)
+            or edge.get("kind") != "dependency"
+            or edge.get("to") != args.node_id
+        ):
+            continue
+        source_state = node_states.get(edge.get("from"))
+        if not isinstance(source_state, dict) or source_state.get("phase") != "succeeded":
+            raise ManifestError(
+                f"dependency {edge.get('from')!r} -> {args.node_id!r} is not satisfied; "
+                "the frontier is not ready for this lease"
+            )
+    mission_record = next(
+        (
+            mission
+            for mission in plan.get("missions", [])
+            if isinstance(mission, dict) and mission.get("id") == args.mission_id
+        ),
+        None,
+    )
+    for dependency in (mission_record or {}).get("depends_on", []):
+        dependency_state = run.get("mission_states", {}).get(dependency)
+        if (
+            not isinstance(dependency_state, dict)
+            or dependency_state.get("phase") != "integrated"
+        ):
+            raise ManifestError(
+                f"mission {dependency!r} must be integrated before leasing {args.mission_id!r}"
+            )
     base_sha = wave.get("batch_base_sha")
     digest = (run.get("plan") or {}).get("digest_sha256")
     task_id = next(
@@ -422,13 +587,28 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
         )
     if not is_full_sha(args.integrated_sha):
         raise ManifestError("record-integration requires a full integrated SHA")
-    if args.repo_root is not None:
-        live_head = _git_out(args.repo_root, "rev-parse", "HEAD").strip()
-        if live_head != args.integrated_sha:
-            raise ManifestError(
-                f"integration branch HEAD is {live_head}, not {args.integrated_sha}; "
-                "integrate first, then record"
-            )
+    if args.repo_root is None:
+        raise ManifestError("record-integration requires --repo-root")
+    batch_base_sha = run.get("integration", {}).get("batch_base_sha")
+    if not is_full_sha(batch_base_sha):
+        raise ManifestError("record-integration requires the run's integration batch_base_sha")
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", batch_base_sha, args.integrated_sha],
+        cwd=args.repo_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if ancestor.returncode != 0:
+        raise ManifestError(
+            f"batch base {batch_base_sha} is not an ancestor of {args.integrated_sha}"
+        )
+    live_head = _git_out(args.repo_root, "rev-parse", "HEAD").strip()
+    if live_head != args.integrated_sha:
+        raise ManifestError(
+            f"integration branch HEAD is {live_head}, not {args.integrated_sha}; "
+            "integrate first, then record"
+        )
     mission_state.update(
         {
             "phase": "integrated",
@@ -1203,6 +1383,8 @@ def build_parser() -> argparse.ArgumentParser:
     wave_command.add_argument("--wave-id", required=True)
     wave_command.add_argument("--mission-id", action="append", required=True)
     wave_command.add_argument("--batch-base-sha", required=True)
+    close_wave = subparsers.add_parser("close-wave")
+    close_wave.add_argument("--source", required=True)
     lease = subparsers.add_parser("lease-worker")
     lease.add_argument("--mission-id", required=True)
     lease.add_argument("--node-id", required=True)
@@ -1269,6 +1451,8 @@ def main(argv: list[str] | None = None) -> int:
             _record_observation(run, args)
         elif args.command == "accept-wave":
             _accept_wave(plan, run, args)
+        elif args.command == "close-wave":
+            _close_wave(run, args)
         elif args.command == "lease-worker":
             _lease_worker(plan, run, args)
         elif args.command == "record-integration":

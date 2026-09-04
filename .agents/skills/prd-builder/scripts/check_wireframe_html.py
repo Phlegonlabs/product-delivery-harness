@@ -18,6 +18,7 @@ DATA_BLOCK_RE = re.compile(
     re.IGNORECASE,
 )
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
+PRD_UI_RE = re.compile(r"\bUI-[A-Z0-9]+(?:-[A-Z0-9]+)*\b")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 VALID_PRIORITIES = {"primary", "secondary", "quiet"}
 
@@ -253,6 +254,7 @@ def validate(
     *,
     require_filled: bool = False,
     require_approved: bool = False,
+    prd_path: Path | None = None,
 ) -> list[str]:
     problems: list[str] = []
     try:
@@ -269,6 +271,33 @@ def validate(
         return [f"{html_path}: wireframe-data is invalid JSON: {exc}"]
 
     problems.extend(_validate_data(data, require_filled=require_filled))
+
+    if prd_path is not None:
+        try:
+            prd_text = prd_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            return [f"{prd_path}: cannot read PRD: {exc}"]
+        prd_ids = set(PRD_UI_RE.findall(prd_text))
+        screen_ids = {
+            screen.get("id")
+            for screen in (data.get("screens") or [])
+            if isinstance(screen, dict) and isinstance(screen.get("id"), str)
+        }
+        missing = sorted(prd_ids - screen_ids)
+        extra = sorted(screen_ids - prd_ids)
+        if missing:
+            _add(
+                problems,
+                str(prd_path),
+                "UI surfaces absent from the wireframe: " + ", ".join(missing),
+            )
+        if extra:
+            _add(
+                problems,
+                str(html_path),
+                "wireframe screens absent from the PRD UI surface contract: "
+                + ", ".join(extra),
+            )
 
     for required in (
         'id="page-list"',
@@ -303,6 +332,7 @@ def validate(
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--html", required=True, type=Path)
+    parser.add_argument("--prd", type=Path, help="cross-check the PRD UI-* surface contract")
     parser.add_argument("--require-filled", action="store_true")
     parser.add_argument("--require-approved", action="store_true")
     return parser.parse_args(argv)
@@ -314,6 +344,7 @@ def main(argv: list[str] | None = None) -> int:
         args.html,
         require_filled=args.require_filled,
         require_approved=args.require_approved,
+        prd_path=args.prd,
     )
     if problems:
         for problem in problems:

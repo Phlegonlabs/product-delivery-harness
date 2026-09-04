@@ -42,6 +42,8 @@ GENERATED_BLOCK_RE = re.compile(
     re.DOTALL,
 )
 PLACEHOLDER_RE = re.compile(r"^<.*>$", re.DOTALL)
+DS_COMP_ID_RE = re.compile(r"^DS-COMP-[0-9]+$")
+DS_COMP_TOKEN_RE = re.compile(r"\bDS-COMP-[0-9]+\b")
 
 
 def is_placeholder(value: str) -> bool:
@@ -232,6 +234,7 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
 
     components = registry.get("productComponents")
     if isinstance(components, dict):
+        seen_ds_ids: set[str] = set()
         for name, spec in components.items():
             path = f"productComponents.{name}"
             if not isinstance(spec, dict):
@@ -239,6 +242,17 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
                 continue
             if not isinstance(spec.get("dsId"), str) or not spec["dsId"].strip():
                 problems.append(f"design-system.json {path}.dsId must be a non-empty string")
+            elif not DS_COMP_ID_RE.match(spec["dsId"]):
+                problems.append(
+                    f"design-system.json {path}.dsId must match DS-COMP-<number>, "
+                    f"got {spec['dsId']!r}"
+                )
+            elif spec["dsId"] in seen_ds_ids:
+                problems.append(
+                    f"design-system.json {path}.dsId duplicates {spec['dsId']}"
+                )
+            else:
+                seen_ds_ids.add(spec["dsId"])
             for field in ("requiredContentOrder", "composes", "states"):
                 _string_list(
                     problems,
@@ -331,6 +345,26 @@ def compare(
             generated,
             "generated contract",
             problems,
+        )
+    # Every DS-COMP id the Markdown names — prose or generated block — must
+    # resolve to a registered product component.
+    components = registry.get("productComponents")
+    registered = {
+        spec.get("dsId")
+        for spec in (components.values() if isinstance(components, dict) else [])
+        if isinstance(spec, dict) and isinstance(spec.get("dsId"), str)
+    }
+    unregistered = sorted(
+        {
+            token
+            for token in DS_COMP_TOKEN_RE.findall(markdown_text)
+            if token not in registered
+        }
+    )
+    if unregistered:
+        problems.append(
+            "design-system.md names DS-COMP ids missing from design-system.json: "
+            + ", ".join(unregistered)
         )
     return problems
 

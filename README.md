@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.22.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.23.0-059669?style=flat-square">
 </p>
 
 # Full Stack Harness
@@ -270,6 +270,8 @@ cp -r fullstack-goal-dev/.agents/skills/full-harness \
 
 On Windows, `Copy-Item -Recurse` does the same. Replacing those three directories under `~/.agents/skills/` with a newer checkout's copies is the whole update — there is no separate updater script. Hosts that discover `~/.agents/skills/` pick the skills up in the next fresh session; to test local edits, copy from your checkout the same way.
 
+The three harness skills are self-contained, but the visual phases load external skills at runtime: `product-design-builder` requires `frontend-design` and stops without it, and prd-builder's UI Design Pass pairs a design-direction skill (default `design-taste-frontend`) with a frontend-implementation skill (default `frontend-design`). Install those into the same user skills directory when a run will continue past approved wireframes.
+
 ### Zero-to-one flow
 
 1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the three harness skills, then use that host for the run.
@@ -344,9 +346,12 @@ assets/                                              README covers
 
 ## Maintain the skills
 
-Edit only the canonical sources in `.agents/skills/`, then run the verification suite.
+Edit only the canonical sources in `.agents/skills/`, then run the verification suite (the same set CI runs):
 
 ```bash
+python -m pip install -r .agents/skills/full-harness/requirements-test.txt
+python .agents/skills/full-harness/scripts/check_skill_spec.py
+python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
 python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
@@ -377,6 +382,8 @@ Then run the full verification above, review the entire diff, and land through t
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.23.0** — Write-path hardening and the first cross-artifact checks. `harness_transition.py` gains `close-wave`: it appends the durable `{wave_id, batch_base_sha}` tombstone, flips the wave to `closed`, and resets every `wave_closed`-bounded grant, so multi-wave runs and host handoffs no longer require hand-edited RUN JSON; a matching validator fix lets evidence from closed waves keep its own batch base instead of failing against the current one. The write-path guards now close the gaps a full review reproduced: `accept-wave` requires overall execution authorization covering every selected mission, a ready plan, and a recorded observation; `lease-worker` binds the mission's own graph node and refuses leases past an unsatisfied dependency frontier; `record-integration` requires `--repo-root`, proves the batch base is an ancestor of the integrated HEAD, and no longer accepts a fabricated SHA. The repository CI now verifies every pushed branch — same `'**'` filter the project template pins — with a contract test reading the actual workflow file. prd-builder's closed-question phase adapts to the host tool's per-call question and option limits (Codex CLI asks three questions per call) instead of a fixed four, with a four-call cap and an option-compression rule. Cross-artifact joins arrive: `check_wireframe_html.py --prd` proves the wireframe screens and the PRD `UI-*` contract name the same set; the design-system pair checker validates `DS-COMP-*` id format, uniqueness, and Markdown-to-JSON resolution; `validate_harness_plan.py --prd` proves the PLAN's `ui_surfaces` equal the PRD's `UI-*` contract. The README maintenance list now names the full verification suite, and the install section names the external design skills the visual phases load.
 
 - **0.22.0** — The private marketplace and plugin bundle are retired. `plugins/`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `scripts/sync_plugin_skills.py` are gone; `.agents/skills/` is the only source, and installing or updating means copying the three harness skills into your user skills directory (`~/.agents/skills/`), exactly as the Fastest setup already described. The READMEs drop the marketplace badge, the per-host plugin install commands, and the local-marketplace section; `runtime-upgrades.md` now names the skills sync as the only Harness update surface and trims the per-host update notes to host-owned installers plus restart. The same release widens the run record and the deployment contract: mid-run modifications — extra fixes, follow-up edits, or user-reported changes — are recorded as their own missions through a plan revision (`execution-state-model.md`'s "Mid-Run Modification Recording"), and `docs/tasks.md` renders newest mission first so the view ends the run listing every modification the run made. Deployment gains a per-platform "Adding A Binding" runbook in the seeded `docs/DEPLOYMENT.md`: create the resource before writing the declaration on both sides, verify preview before the default-branch landing, secrets never in the wrangler config, D1 migrations preview-first — the wrangler steps scoped to cloudflare, and the named Wrangler environments renamed `env.development`/`env.production`. The READMEs also document the release flow itself: the version-bump checklist, the `v<version>` tag after landing, and the rule that any change to a skill, rule, or documented flow updates the READMEs' descriptive sections in all three languages in the same change.
 

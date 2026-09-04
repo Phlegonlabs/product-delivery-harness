@@ -5,9 +5,9 @@ on:
   merge_group:
   push:
     branches:
-      - main
-      # A harness run ends by pushing its work branch, so verify that push too.
-      - 'codex/**'
+      # Governance allows any explicitly named non-default run branch, so
+      # verify every pushed branch — same filter the project template pins.
+      - '**'
 
 permissions:
   contents: read

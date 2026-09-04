@@ -44,10 +44,10 @@ Inline CSS and JavaScript may implement the reviewer shell, page switching, view
 After filling and approving the HTML, validate it from the repository root:
 
 ```text
-python .agents/skills/prd-builder/scripts/check_wireframe_html.py --html <staged wireframes.html> --require-filled --require-approved
+python .agents/skills/prd-builder/scripts/check_wireframe_html.py --html <staged wireframes.html> --prd <staged PRD.md> --require-filled --require-approved
 ```
 
-A passing check proves internal structure and self-containment, not usability or visual quality.
+A passing check proves internal structure, self-containment, and that the wireframe screens and the PRD `UI-*` surface contract name the same set — not usability or visual quality.
 
 ## Wireframe Approval Gate
 
@@ -83,7 +83,7 @@ An enhancement run first classifies the delta's UI impact with the owner — `no
 - Compact rearrangement preserves all never-drop content and actions.
 - The page switcher, overview, viewport control, state control, and visible section-purpose labels work from a local file.
 - No high-fidelity styling, generated imagery, design-system token, or product implementation code appears.
-- `check_wireframe_html.py` passes with `--require-filled --require-approved`.
+- `check_wireframe_html.py` passes with `--prd <staged PRD.md> --require-filled --require-approved`.
 - `PRD.md` records the human owner, approval status, date, approved `UI-*` scope, and unresolved items.
 
 If any check fails, keep the package staged and repair the PRD or HTML before approval.

@@ -148,6 +148,9 @@ class WritePathTransitionTests(unittest.TestCase):
                 ),
             )
 
+        harness_transition._record_observation(
+            self.run, Namespace(repo_root=self.root)
+        )
         harness_transition._accept_wave(
             self.plan,
             self.run,

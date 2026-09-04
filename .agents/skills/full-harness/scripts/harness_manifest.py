@@ -2227,7 +2227,18 @@ def _validate_verifier_executions(
                         "must match the parent-observed shared checkout",
                     )
             elif isinstance(integration, dict):
-                if context["batch_base_sha"] != integration.get("batch_base_sha"):
+                # An unbound execution names the batch it ran against. The
+                # current base covers live evidence; the closed_waves history
+                # covers evidence retained from earlier waves of the same run.
+                historical_bases = {
+                    item.get("batch_base_sha")
+                    for item in run.get("closed_waves", [])
+                    if isinstance(item, dict)
+                }
+                if context["batch_base_sha"] not in {
+                    integration.get("batch_base_sha"),
+                    *historical_bases,
+                }:
                     _add(
                         errors,
                         f"{path}.context.batch_base_sha",
