@@ -44,6 +44,7 @@ An upgrade does not resume the old orchestration. Once the fresh session records
 ## Version Decisions
 
 - Do not compare against an assumed latest public version during every run. Use the installed package metadata, the selected driver's documented minimum when one exists, and fresh capability probes.
+- A generic host with no observable own-version is not `unobserved` for that reason: checking the loaded Harness release and the selected driver's live capability probe completes the observation, and the host-version field stays null with its evidence. A missing host-version string alone never defers a node.
 - A missing optional feature does not force an upgrade when the selected route does not use it.
 - A version at or above a documented minimum can still be `upgrade_required` when its observable capability or completion behavior is broken.
 - A lower version can be `compatible_old` only when every capability needed by the active wave is observed and the active result channel remains usable.

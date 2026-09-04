@@ -117,7 +117,7 @@ Read only what the current decision needs:
 
 ## Adapter Routing
 
-Load no adapter for direct work. For a large managed run, apply `references/runtime-adapters.md` after System Review And Route: its shared adapter contract plus the one provider section for the detected host.
+Load no adapter for direct work. For a large managed run, apply `references/runtime-adapters.md` after System Review And Route: its shared adapter contract plus the one provider section for the detected host. A session not evidently Codex, Claude Code, or Pi is `generic` outright — no detection pass, no probing another runtime's CLI.
 
 The adapter layer selects launch mechanics and provider-specific model options. It grants no authorization and does not redefine shared state, review, integration, handoff, or cleanup rules. Adding a host adds one provider section to that reference, not a new skill.
 
@@ -168,7 +168,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
 - System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved immutable UI target, scope, states, responsive coverage, and tolerance recorded in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- After all UI missions integrate and the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
+- After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
 - These skill names are the bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind different installed skills to the design-direction, design-compilation, frontend-implementation, and page-quality-verification slots — a project edit, not a harness change. The modes, frozen sources, and review gates above apply unchanged to whichever skill is bound.
 
 ## Workflow
