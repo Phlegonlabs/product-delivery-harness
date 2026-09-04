@@ -180,7 +180,22 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn(
             "The stale-carryover check is the after-side companion", design_updates
         )
-        self.assertIn("including removal of superseded styles", design_updates)
+        self.assertIn(
+            "including removal of superseded styles, endpoints, rules, and flags",
+            design_updates,
+        )
+        self.assertIn(
+            "Silently carrying a superseded endpoint, rule, or flag forward "
+            "alongside its replacement is a contract violation",
+            design_updates,
+        )
+        self.assertIn(
+            "The same check covers backend and app surfaces", design_updates
+        )
+        self.assertIn(
+            "unless the delta records an explicit compatibility retention",
+            design_updates,
+        )
 
     def test_wireframes_and_ui_previews_have_separate_authority(self) -> None:
         prd = self.read("prd-builder/SKILL.md")

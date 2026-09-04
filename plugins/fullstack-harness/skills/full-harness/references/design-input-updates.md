@@ -66,6 +66,7 @@ Rules:
 - A delta can add, modify, or explicitly remove behavior.
 - Superseded requirements must be recorded; do not silently drop existing behavior.
 - A UI delta that changes visual values must record the styles, classes, and values it supersedes and name every call site where the implementation removes them. Carrying a superseded style into the accepted delta's implementation is a contract violation, not a compatibility nicety.
+- A backend or app delta must record the endpoints, business rules, queries, migrations, flags, jobs, and configuration it supersedes and name every call site where the implementation removes them — or record an explicit owner-accepted reason when a superseded surface is retained for compatibility. Silently carrying a superseded endpoint, rule, or flag forward alongside its replacement is a contract violation.
 - Design inspiration must return to the PRD UI Design Pass; only accepted, frozen consequences in the UI Design Handoff may enter implementation.
 - Page-faithful targets must map to routes/screens, states, responsive breakpoints, source version, and acceptance tolerance.
 - Design-system deltas must map to affected components and variants.
@@ -127,7 +128,7 @@ For an existing app with an updated PRD, design system, or page-faithful target:
 ```text
 M1 baseline current app and source map
 M2 delta audit: old behavior vs updated input
-M3 accepted delta implementation, including removal of superseded styles
+M3 accepted delta implementation, including removal of superseded styles, endpoints, rules, and flags
 M4 before/after conformance evidence plus the stale-carryover check
 M5 regression checks for preserved behavior
 ```
@@ -135,6 +136,8 @@ M5 regression checks for preserved behavior
 Use before/after captures for UI changes. The "before" side proves the current state; the "after" side proves the accepted delta was implemented without broad rewrite.
 
 The stale-carryover check is the after-side companion: an affected surface's after state must not show any visual element, style, or class the previous version had that the accepted delta supersedes. Old-version remnants surviving into the new version are a failed delta, whether they come from a production stylesheet that was never cleaned or from a reference file that accumulated superseded CSS.
+
+The same check covers backend and app surfaces: the after state must not route to a removed endpoint, apply a superseded business rule, read a retired flag or config key, or keep a superseded query or job running. An enhancement that leaves the old path in place beside the new one has not finished; superseded behavior survives only where the accepted delta explicitly records a compatibility retention.
 
 This flow is primary whenever an updated input exists. When no updated PRD, design system, or page UI reference exists — an open-ended "make it better", where an audit has to establish the work in the first place — use the Open-Ended Refinement section below instead. When both conditions hold, run this flow and fold that section into it. Do not run two mission sets:
 
@@ -164,7 +167,7 @@ Stop and ask when:
 Design-input verification should include:
 
 - Trace coverage: every accepted delta has implementation and evidence.
-- Stale-carryover: affected surfaces show no superseded style, class, or previous-version element, and the implementation's style sources no longer contain styles the updated reference removed.
+- Stale-carryover: affected surfaces show no superseded style, class, or previous-version element, and the implementation's style sources no longer contain styles the updated reference removed. Backend and app surfaces route no superseded endpoint, rule, flag, query, or job, unless the delta records an explicit compatibility retention.
 - Visual conformance: when a page-faithful target exists, the page/component matches its frozen source, scope, and tolerance; inspiration alone creates no pixel-faithful claim.
 - State coverage: required states and breakpoints are checked.
 - Behavior conformance: PRD workflow and data/API behavior still pass.
