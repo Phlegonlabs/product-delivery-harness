@@ -21,8 +21,9 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_manifest import plan_digest  # noqa: E402
 from harness_design_contract import generated_contract_block  # noqa: E402
+from harness_contract_join import full_wireframe_checker_errors  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
-from manifest_fixtures import manifest_markdown  # noqa: E402
+from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
 
 
 HOME_SURFACE = {
@@ -425,20 +426,8 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "evidence_gate": "required",
             }
         ]
-        wireframes = (
-            '<script id="wireframe-data" type="application/json">'
-            + json.dumps(
-                {
-                    "screens": [
-                        {
-                            "id": "UI-001",
-                            "route": "/home",
-                            "states": [{"id": "ready"}],
-                        }
-                    ]
-                }
-            )
-            + "</script>"
+        wireframes = wireframes_html(
+            [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -484,8 +473,8 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("PASS", json.loads(result.stdout)["status"])
 
-            drifted = wireframes.replace('"/home"', '"/dashboard"').replace(
-                '"states": [{"id": "ready"}]', '"states": [{"id": "ready"}, {"id": "empty"}]'
+            drifted = wireframes_html(
+                [{"id": "UI-001", "route": "/dashboard", "states": ["ready", "empty"]}]
             )
             wireframes_path.write_text(drifted, encoding="utf-8")
             plan["sources"][-1]["content_sha256"] = hashlib.sha256(
@@ -506,6 +495,68 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             joined = " ".join(payload["errors"])
             self.assertIn("route", joined)
             self.assertIn("states", joined)
+
+    def test_wireframes_join_runs_the_full_builder_checker(self) -> None:
+        """Frozen wireframes must pass the sibling skill's checker, not just the
+        reduced PLAN join: reviewer shell, self-containment, and approved
+        status are enforced on the frozen bytes."""
+
+        valid = wireframes_html(
+            [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
+        ).encode("utf-8")
+        prd = (
+            "<!-- ui-surface-contract:start -->\n"
+            "## UI Surface Contract\n\n"
+            "### UI-001 — Home\n\n"
+            "- `route`: /home\n"
+            "- `states`: ready\n"
+            "<!-- ui-surface-contract:end -->\n"
+        ).encode("utf-8")
+        self.assertEqual([], full_wireframe_checker_errors(valid, prd))
+
+        bare_block = (
+            '<script id="wireframe-data" type="application/json">'
+            + json.dumps(
+                {
+                    "screens": [
+                        {
+                            "id": "UI-001",
+                            "route": "/home",
+                            "states": [{"id": "ready"}],
+                        }
+                    ]
+                }
+            )
+            + "</script>"
+        ).encode("utf-8")
+        joined = " ".join(full_wireframe_checker_errors(bare_block, prd))
+        self.assertIn("reviewer-shell marker", joined)
+        self.assertIn("wireframe-data.product", joined)
+        self.assertIn("approvalStatus", joined)
+
+        draft = wireframes_html(
+            [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
+            approval_status="draft",
+        ).encode("utf-8")
+        joined = " ".join(full_wireframe_checker_errors(draft, prd))
+        self.assertIn("wireframe-data.approvalStatus", joined)
+        self.assertIn("must be 'approved'", joined)
+
+        external = valid.replace(
+            b"<main></main>", b'<main><img src="https://example.invalid/x.png"></main>'
+        )
+        joined = " ".join(full_wireframe_checker_errors(external, prd))
+        self.assertIn("must not load external resources", joined)
+
+        drifted_prd = prd.replace(b"- `route`: /home", b"- `route`: /alias")
+        joined = " ".join(full_wireframe_checker_errors(valid, drifted_prd))
+        self.assertIn("differs from the PRD route", joined)
+
+        missing = full_wireframe_checker_errors(
+            valid, prd, sibling_scripts=Path("nowhere") / "product-definition-builder"
+        )
+        self.assertEqual(1, len(missing))
+        self.assertIn("full wireframe checker is unavailable", missing[0])
 
     def test_prd_join_uses_only_structured_entries_and_compares_semantics(self) -> None:
         plan = valid_plan()

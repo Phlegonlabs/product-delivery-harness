@@ -28,7 +28,7 @@ import new_run  # noqa: E402
 from harness_core import load_run, plan_digest  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
 from harness_ui_evidence import validate_integration_head_against_git  # noqa: E402
-from manifest_fixtures import manifest_markdown  # noqa: E402
+from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
 from select_ready_nodes import select_ready_nodes  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
@@ -591,19 +591,9 @@ class HarnessV11Tests(unittest.TestCase):
         )
         wireframes = root / "docs" / "goal" / "wireframes.html"
         wireframes.write_text(
-            '<script id="wireframe-data" type="application/json">\n'
-            + json.dumps(
-                {
-                    "screens": [
-                        {
-                            "id": "UI-001",
-                            "route": "/review",
-                            "states": [{"id": "ready"}],
-                        }
-                    ]
-                }
-            )
-            + "\n</script>\n",
+            wireframes_html(
+                [{"id": "UI-001", "route": "/review", "states": ["ready"]}]
+            ),
             encoding="utf-8",
         )
         plan["sources"] = [

@@ -27,6 +27,7 @@ from harness_manifest import (
 from harness_contract_join import (
     DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS,
     frozen_sources as shared_frozen_sources,
+    full_wireframe_checker_errors,
     parse_prd_ui_contract as shared_parse_prd_ui_contract,
     parse_wireframe_data,
     required_design_system_source_errors,
@@ -117,7 +118,7 @@ def validate_ui_surface_prd_coverage(
 
 
 def validate_ui_surface_wireframe_coverage(
-    plan: dict, wireframes_path: str
+    plan: dict, wireframes_path: str, prd_path: str | None = None
 ) -> list[str]:
     """PLAN ui_surfaces and wireframes.html screens agree beyond the id set."""
 
@@ -128,6 +129,12 @@ def validate_ui_surface_wireframe_coverage(
     data, errors = parse_wireframe_data(html, label=f"wireframes: {wireframes_path}")
     if data is not None:
         errors.extend(validate_plan_wireframe_data(plan, data))
+    errors.extend(
+        full_wireframe_checker_errors(
+            Path(wireframes_path).read_bytes(),
+            Path(prd_path).read_bytes() if prd_path else None,
+        )
+    )
     return errors
 
 
@@ -149,8 +156,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--wireframes",
         help="Optional path to wireframes.html. Required when the PLAN freezes "
-        "that source: its bytes must match the frozen hash, and its screen ids, "
-        "routes, and states must agree with the PLAN's ui_surfaces.",
+        "that source: its bytes must match the frozen hash, its screen ids, "
+        "routes, and states must agree with the PLAN's ui_surfaces, and it must "
+        "pass product-definition-builder's full wireframe checker (reviewer "
+        "shell, self-containment, approved status, PRD join).",
     )
     parser.add_argument(
         "--design-system",
@@ -215,7 +224,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.wireframes:
             errors.extend(
-                validate_ui_surface_wireframe_coverage(plan, args.wireframes)
+                validate_ui_surface_wireframe_coverage(
+                    plan, args.wireframes, args.prd
+                )
             )
         design_system_sources = _frozen_sources(
             plan,

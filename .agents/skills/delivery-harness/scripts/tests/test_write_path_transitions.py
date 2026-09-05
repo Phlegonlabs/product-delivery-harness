@@ -490,10 +490,9 @@ class WritePathTransitionTests(unittest.TestCase):
         ).hexdigest()
         wireframe_path = self.root / "docs/product/wireframes.html"
         wireframe_path.write_text(
-            '<script id="wireframe-data" type="application/json">'
-            '{"screens":[{"id":"UI-001","route":"/home",'
-            '"states":[{"id":"ready"}]}]}'
-            "</script>",
+            mf.wireframes_html(
+                [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
+            ),
             encoding="utf-8",
         )
         self.plan["sources"].append(

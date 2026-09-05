@@ -7,6 +7,8 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
+import tempfile
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -477,6 +479,82 @@ def _resolve_source_bytes(
     return contents, []
 
 
+_FULL_WIREFRAME_CHECKERS: dict[Path, Any] = {}
+
+
+def sibling_builder_scripts_dir() -> Path:
+    """The product-definition-builder scripts dir shipped next to this skill."""
+
+    return Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
+
+
+def _load_full_wireframe_checker(sibling_scripts: Path) -> Any:
+    """Import the sibling skill's canonical checker once per resolved dir."""
+
+    key = sibling_scripts
+    if key in _FULL_WIREFRAME_CHECKERS:
+        return _FULL_WIREFRAME_CHECKERS[key]
+    checker: Any = None
+    if (key / "check_wireframe_html.py").is_file():
+        sys.path.insert(0, str(key))
+        try:
+            import check_wireframe_html as checker_module
+        finally:
+            try:
+                sys.path.remove(str(key))
+            except ValueError:
+                pass
+        checker = checker_module.validate
+    _FULL_WIREFRAME_CHECKERS[key] = checker
+    return checker
+
+
+def full_wireframe_checker_errors(
+    wireframe_bytes: bytes,
+    prd_bytes: bytes | None = None,
+    *,
+    sibling_scripts: Path | None = None,
+) -> list[str]:
+    """Run product-definition-builder's full wireframe checker on frozen bytes.
+
+    The harness's own PLAN-side join stays; this adds the checker's wireframe
+    structure, reviewer-shell, self-containment, approval, and PRD join rules
+    so "approved wireframes.html" means the same thing in both skills. The
+    check runs on the resolved bytes written to a temp file, so a source
+    frozen at a git revision is still checked as frozen, not as the working
+    tree.
+    """
+
+    scripts = sibling_scripts or sibling_builder_scripts_dir()
+    validate_wireframes = _load_full_wireframe_checker(scripts)
+    if validate_wireframes is None:
+        return [
+            "wireframes: the full wireframe checker is unavailable — install "
+            "product-definition-builder next to delivery-harness "
+            f"(missing {scripts / 'check_wireframe_html.py'})"
+        ]
+    with tempfile.TemporaryDirectory() as directory:
+        html_path = Path(directory) / "wireframes.html"
+        html_path.write_bytes(wireframe_bytes)
+        prd_path: Path | None = None
+        if prd_bytes is not None:
+            prd_path = Path(directory) / "PRD.md"
+            prd_path.write_bytes(prd_bytes)
+        problems = validate_wireframes(
+            html_path,
+            require_filled=True,
+            require_approved=True,
+            prd_path=prd_path,
+        )
+    rewritten: list[str] = []
+    for problem in problems:
+        problem = problem.replace(f"{html_path}: ", "wireframes: ")
+        if prd_path is not None:
+            problem = problem.replace(f"{prd_path}: ", "prd: ")
+        rewritten.append(problem)
+    return rewritten
+
+
 def validate_frozen_contract_joins(
     plan: dict[str, Any], repo_root: str | Path
 ) -> list[str]:
@@ -537,15 +615,19 @@ def validate_frozen_contract_joins(
             errors.append(f"prd: is not valid UTF-8 ({exc})")
     if "wireframes" in resolved:
         try:
-            data, parse_errors = parse_wireframe_data(
-                resolved["wireframes"].decode("utf-8")
-            )
+            wireframe_text = resolved["wireframes"].decode("utf-8")
         except UnicodeDecodeError as exc:
             errors.append(f"wireframes: is not valid UTF-8 ({exc})")
         else:
+            data, parse_errors = parse_wireframe_data(wireframe_text)
             errors.extend(parse_errors)
             if data is not None:
                 errors.extend(validate_plan_wireframe_data(plan, data))
+            errors.extend(
+                full_wireframe_checker_errors(
+                    resolved["wireframes"], resolved.get("PRD")
+                )
+            )
     registry: Any = None
     if "design-system.json" in resolved:
         try:

@@ -32,6 +32,79 @@ def manifest_markdown(
     return f"# Harness fixture\n\n{heading}\n\n```json\n{encoded}\n```\n"
 
 
+def wireframes_html(
+    screens: list[dict[str, object]],
+    *,
+    product: str = "Fixture Product",
+    approval_status: str = "approved",
+) -> str:
+    """A wireframes.html that passes product-definition-builder's full checker.
+
+    Each screen dict carries the PLAN surface's ``id``, ``route``, and
+    ``states``; the shell carries every reviewer marker and stays
+    self-contained.
+    """
+
+    data_screens: list[dict[str, object]] = []
+    for screen in screens:
+        screen_id = str(screen["id"])
+        region_id = f"{screen_id}-R1"
+        states = [str(state) for state in (screen.get("states") or ["ready"])]
+        data_screens.append(
+            {
+                "id": screen_id,
+                "name": f"{screen_id} screen",
+                "route": screen["route"],
+                "goal": "fixture screen",
+                "regions": [
+                    {
+                        "id": region_id,
+                        "section": "Main",
+                        "purpose": "Primary content",
+                        "priority": "primary",
+                        "span": 12,
+                        "elements": ["Fixture element"],
+                        "actions": [],
+                    }
+                ],
+                "compactOrder": [region_id],
+                "states": [
+                    {
+                        "id": state,
+                        "label": state,
+                        "treatments": {region_id: "unchanged"},
+                    }
+                    for state in states
+                ],
+            }
+        )
+    data = {
+        "product": product,
+        "approvalStatus": approval_status,
+        "source": "PRD.md#UI-Surface-Contract",
+        "screens": data_screens,
+    }
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head><meta charset=\"utf-8\"><title>Wireframes</title></head>\n"
+        "<body>\n"
+        '<nav id="page-list" aria-label="All pages"></nav>\n'
+        '<div id="state-controls"></div>\n'
+        '<button type="button" data-viewport="expanded">Expanded</button>\n'
+        '<button type="button" data-viewport="compact">Compact</button>\n'
+        "<h2>All pages</h2>\n"
+        "<main></main>\n"
+        "<script>\n"
+        "document.getElementById('page-list').textContent = 'All pages';\n"
+        "</script>\n"
+        '<script id="wireframe-data" type="application/json">\n'
+        + json.dumps(data)
+        + "\n</script>\n"
+        "</body>\n</html>\n"
+    )
+
+
 def git(root: Path, *args: str) -> str:
     """Run git in `root`; raise with stderr on failure; return stripped stdout."""
 
