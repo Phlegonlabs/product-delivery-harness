@@ -1,6 +1,0 @@
-interface:
-  display_name: "Full Harness"
-  short_description: "Plan, authorize, verify, and integrate delivery work"
-  default_prompt: "Use $full-harness to route this work to the lightest safe direct or PLAN-v6/RUN-v11 delivery path, preserving exact authorization, isolated ownership, exact-SHA review, and the repository's branch rules."
-policy:
-  allow_implicit_invocation: true

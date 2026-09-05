@@ -1,4 +1,4 @@
-# Keep full-harness delegation shallow: one app-task parent plus up to three direct children.
+# Keep delivery-harness delegation shallow: one app-task parent plus up to three direct children.
 [features]
 multi_agent = true
 
