@@ -2592,6 +2592,30 @@ def _validate_v10_execution_records(
             if prior_branch_owner != mission_id:
                 _add(errors, f"{path}.branch_ref", "must be unique per write mission")
 
+    # Two missions with live workers may never conflict: the selector defers
+    # such pairs, and this invariant must hold for hand-recorded states too.
+    active_missions = sorted(
+        {
+            worker.get("mission_id")
+            for worker in workers
+            if isinstance(worker, dict)
+            and worker.get("phase") in {"leased", "worker_running"}
+            and isinstance(worker.get("mission_id"), str)
+        }
+    )
+    for index, left_id in enumerate(active_missions):
+        for right_id in active_missions[index + 1 :]:
+            reasons = mission_conflicts(
+                missions.get(left_id, {}), missions.get(right_id, {})
+            )
+            if reasons:
+                _add(
+                    errors,
+                    "run.workers",
+                    f"missions {left_id} and {right_id} hold live workers but "
+                    f"conflict ({', '.join(reasons)})",
+                )
+
     integration = run.get("integration")
     integration_branch = (
         integration.get("branch") if isinstance(integration, dict) else None

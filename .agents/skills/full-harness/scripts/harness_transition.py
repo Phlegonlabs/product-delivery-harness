@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_authorization import execution_covers
-from harness_core import is_full_sha, plan_digest
+from harness_core import is_full_sha, mission_conflicts, plan_digest
 from harness_manifest import (
     ManifestError,
     load_plan,
@@ -36,6 +36,16 @@ def _now() -> str:
 
 
 DEFAULT_LOCK_STALE_MINUTES = 15
+
+# Dispatching the write path is single-writer work: these commands require
+# the calling session to already hold the run lock.
+DISPATCH_COMMANDS = {
+    "accept-wave",
+    "lease-worker",
+    "reserve-review-dispatch",
+    "record-integration",
+    "close-wave",
+}
 
 
 def _parse_ts(value: object) -> datetime | None:
@@ -86,6 +96,41 @@ def _ensure_run_lock_free(
             f"run lock is held by session {holder!r} "
             f"(heartbeat {age:.1f}m ago, stale after {stale_after:.0f}m); "
             "pass --session-id <id> before the subcommand or release the lock"
+        )
+
+
+def _ensure_no_foreign_lock(run: dict[str, Any], session_id: str | None) -> None:
+    """Mutating transitions refuse any foreign lock, fresh or stale.
+
+    Stale takeover is an explicit operator action (``watchdog --reclaim`` or
+    ``acquire-run-lock``), never a side effect of an ordinary transition, so
+    an unparseable or aged-out heartbeat still blocks instead of failing open.
+    """
+
+    lock = run.get("run_lock")
+    if not isinstance(lock, dict):
+        return
+    holder = lock.get("session_id")
+    if not isinstance(holder, str) or not holder:
+        return
+    if session_id is not None and holder == session_id:
+        return
+    raise ManifestError(
+        f"run lock is held by session {holder!r}; mutations require that session "
+        "or an explicit watchdog --reclaim / acquire-run-lock takeover"
+    )
+
+
+def _require_held_run_lock(run: dict[str, Any], args: argparse.Namespace) -> None:
+    if not getattr(args, "session_id", None):
+        raise ManifestError(
+            f"{args.command} requires --session-id <id>, placed before the subcommand"
+        )
+    lock = run.get("run_lock")
+    if not isinstance(lock, dict) or lock.get("session_id") != args.session_id:
+        raise ManifestError(
+            f"{args.command} requires this session's run lock; take it with "
+            "--session-id <id> acquire-run-lock first"
         )
 
 
@@ -241,9 +286,14 @@ def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
         entry["dirty"] = dirty
 
     run["observed"]["captured_at"] = _now()
+    # The parent worktree is recorded exactly as `git worktree list` prints
+    # it, so the selector's path-identity comparison against the sibling
+    # entries matches on every platform (a resolved local Path string would
+    # differ from Git's own spelling on Windows).
+    parent_path = worktrees[0]["path"] if worktrees else str(root.resolve())
     run["observed"]["git"].update(
         {
-            "parent_worktree_path": str(root.resolve()),
+            "parent_worktree_path": parent_path,
             "parent_branch": branch,
             "parent_head_sha": head,
             "parent_dirty": bool(porcelain.strip()),
@@ -268,6 +318,13 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
         raise ManifestError(
             f"run status is {run.get('status')!r}; a wave is accepted only on a ready or running run"
         )
+    control = run.get("control")
+    desired_state = control.get("desired_state") if isinstance(control, dict) else None
+    if desired_state != "running":
+        raise ManifestError(
+            f"run control desired_state is {desired_state!r}; "
+            "a wave is accepted only while the run is not paused or cancelled"
+        )
     if run.get("plan_readiness") != "ready":
         raise ManifestError("accept-wave requires plan_readiness ready")
     observed = run.get("observed")
@@ -276,8 +333,20 @@ def _accept_wave(plan: dict[str, Any], run: dict[str, Any], args: argparse.Names
         raise ManifestError(
             "accept-wave requires a recorded observation; run record-observation first"
         )
-    if not is_full_sha(args.batch_base_sha):
-        raise ManifestError("accept-wave requires a full batch base SHA")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    observed_head = (
+        observed_git.get("parent_head_sha") if isinstance(observed_git, dict) else None
+    )
+    if not is_full_sha(observed_head):
+        raise ManifestError(
+            "accept-wave requires the observation's parent head SHA; "
+            "run record-observation first"
+        )
+    if args.batch_base_sha != observed_head:
+        raise ManifestError(
+            f"batch base {args.batch_base_sha} does not match the observed parent "
+            f"head {observed_head}; re-observe before accepting a wave"
+        )
     plan_missions = {
         item.get("id")
         for item in plan.get("missions", [])
@@ -358,22 +427,42 @@ def _close_wave(run: dict[str, Any], args: argparse.Namespace) -> None:
             + ", ".join(live_workers)
         )
     # A `worker_passed` mission still owes integration, and the validator
-    # requires retained execution coverage for it — so it must integrate (or
-    # fail and be reconciled) before the wave's boundary grants expire.
+    # requires retained execution coverage for it. A `run_complete` boundary
+    # survives the close and keeps covering it; a `wave_closed` boundary dies
+    # at close, so those missions must integrate, fail, or reconcile first.
+    scope = run.get("execution_authorization_scope")
+    wave_bounded_execution = (
+        run.get("execution_authorized")
+        and isinstance(scope, dict)
+        and scope.get("expires_when") == "wave_closed"
+    )
+
+    def mission_phase(mission_id: str) -> Any:
+        state = run.get("mission_states", {}).get(mission_id)
+        return state.get("phase") if isinstance(state, dict) else None
+
     unresolved = [
         mission_id
         for mission_id in wave.get("selected_missions", [])
-        if not (
-            isinstance(run.get("mission_states", {}).get(mission_id), dict)
-            and run["mission_states"][mission_id].get("phase")
-            in {"integrated", "worker_failed", "blocked"}
-        )
+        if mission_phase(mission_id)
+        not in {"integrated", "worker_failed", "blocked", "worker_passed"}
     ]
     if unresolved:
         raise ManifestError(
-            "cannot close a wave whose selected missions are unresolved "
-            "(integrate, fail, or reconcile them first): " + ", ".join(unresolved)
+            "cannot close a wave whose selected missions are still queued or "
+            "running (validate their worker results first): " + ", ".join(unresolved)
         )
+    if wave_bounded_execution:
+        pending_integration = [
+            mission_id
+            for mission_id in wave.get("selected_missions", [])
+            if mission_phase(mission_id) == "worker_passed"
+        ]
+        if pending_integration:
+            raise ManifestError(
+                "cannot clear a wave_closed execution boundary while missions "
+                "still await integration: " + ", ".join(pending_integration)
+            )
     closed_waves.append({"wave_id": wave_id, "batch_base_sha": batch_base_sha})
     wave["status"] = "closed"
     for action, entry in list(run.get("authorizations", {}).items()):
@@ -383,12 +472,7 @@ def _close_wave(run: dict[str, Any], args: argparse.Namespace) -> None:
             and entry.get("expires_when") == "wave_closed"
         ):
             run["authorizations"][action] = {"authorized": False, "source": None}
-    scope = run.get("execution_authorization_scope")
-    if (
-        run.get("execution_authorized")
-        and isinstance(scope, dict)
-        and scope.get("expires_when") == "wave_closed"
-    ):
+    if wave_bounded_execution:
         run["execution_authorized"] = False
         run["execution_authorization_source"] = None
         run["execution_authorization_scope"] = None
@@ -491,6 +575,31 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             raise ManifestError(
                 f"mission {dependency!r} must be integrated before leasing {args.mission_id!r}"
             )
+    # The wave may not run two conflicting writers at once: check the leased
+    # mission against every mission with a live worker, using the same
+    # conflict rules the selector applies (write-scope overlap, serialized
+    # resources, exclusive runtime resources).
+    plan_missions = {
+        item.get("id"): item
+        for item in plan.get("missions", [])
+        if isinstance(item, dict)
+    }
+    active_mission_ids = {
+        worker.get("mission_id")
+        for worker in run.get("workers", [])
+        if isinstance(worker, dict)
+        and worker.get("phase") in {"leased", "worker_running"}
+    }
+    for other_id in sorted(active_mission_ids):
+        other_mission = plan_missions.get(other_id)
+        if other_mission is None or other_id == args.mission_id:
+            continue
+        reasons = mission_conflicts(mission_record or {}, other_mission)
+        if reasons:
+            raise ManifestError(
+                f"mission {args.mission_id!r} conflicts with active mission "
+                f"{other_id!r} ({', '.join(reasons)}); the wave may not run both at once"
+            )
     base_sha = wave.get("batch_base_sha")
     digest = (run.get("plan") or {}).get("digest_sha256")
     task_id = next(
@@ -589,6 +698,33 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
         raise ManifestError("record-integration requires a full integrated SHA")
     if args.repo_root is None:
         raise ManifestError("record-integration requires --repo-root")
+    expected_branch = run.get("integration", {}).get("branch")
+    live_branch = _git_out(args.repo_root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    if live_branch != expected_branch:
+        raise ManifestError(
+            f"--repo-root is on branch {live_branch!r}, not the integration branch "
+            f"{expected_branch!r}"
+        )
+    if _git_out(args.repo_root, "status", "--porcelain").strip():
+        raise ManifestError(
+            "--repo-root working tree is dirty; record integration from a clean checkout"
+        )
+    worker_head = mission_state.get("head_sha")
+    if not is_full_sha(worker_head):
+        raise ManifestError("record-integration requires the mission's worker head SHA")
+    if worker_head != args.integrated_sha:
+        worker_ancestor = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", worker_head, args.integrated_sha],
+            cwd=args.repo_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if worker_ancestor.returncode != 0:
+            raise ManifestError(
+                f"worker head {worker_head} is not contained in {args.integrated_sha}; "
+                "integrate the mission's work first"
+            )
     batch_base_sha = run.get("integration", {}).get("batch_base_sha")
     if not is_full_sha(batch_base_sha):
         raise ManifestError("record-integration requires the run's integration batch_base_sha")
@@ -654,7 +790,15 @@ def _git_tree(repo_root: Path, sha: str) -> str:
     return tree
 
 
-def _replace_run_document(path: Path, run: dict[str, Any]) -> None:
+def _replace_run_document(
+    path: Path, run: dict[str, Any], expected_text: str | None = None
+) -> None:
+    # Compare-and-swap: if another writer replaced the document between this
+    # process's load and now, refuse instead of silently clobbering its work.
+    if expected_text is not None and path.read_text(encoding="utf-8") != expected_text:
+        raise ManifestError(
+            "RUN.md changed during this transition; re-load the manifest and retry"
+        )
     text = path.read_text(encoding="utf-8")
     heading = "## Harness Run State"
     start = text.find(heading)
@@ -1413,6 +1557,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         plan = load_plan(args.plan)
         original = load_run(args.run)
+        original_text = args.run.read_text(encoding="utf-8")
         run = copy.deepcopy(original)
         receipt = None
         report: list[str] | None = None
@@ -1430,7 +1575,17 @@ def main(argv: list[str] | None = None) -> int:
                     print(line)
                 return 0
         else:
-            _ensure_run_lock_free(run, getattr(args, "session_id", None))
+            # The lock commands carry their own holder rules (acquire is the
+            # documented stale-takeover path); every other mutation refuses
+            # any foreign lock outright.
+            if args.command not in {
+                "acquire-run-lock",
+                "release-run-lock",
+                "heartbeat-run-lock",
+            }:
+                _ensure_no_foreign_lock(run, getattr(args, "session_id", None))
+            if args.command in DISPATCH_COMMANDS:
+                _require_held_run_lock(run, args)
         if args.command in {"pause", "resume", "cancel"}:
             _control(run, {"pause": "paused", "resume": "running", "cancel": "cancelled"}[args.command], args.source)
         elif args.command == "grant-review-attempts":
@@ -1478,7 +1633,7 @@ def main(argv: list[str] | None = None) -> int:
         errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
         if errors:
             raise ManifestError("transition would create an invalid RUN:\n" + "\n".join(f"- {item}" for item in errors))
-        _replace_run_document(args.run, run)
+        _replace_run_document(args.run, run, expected_text=original_text)
         # The packet renders only after the reservation has passed the
         # post-mutation validation gate, so a rejected transition never
         # leaves a packet describing a dispatch that was never recorded.

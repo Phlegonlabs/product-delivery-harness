@@ -244,11 +244,65 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         _, problems = self.run_pair(markdown, registry())
         self.assertTrue(
             any(
-                "DS-COMP ids missing from design-system.json" in problem
+                "DS ids missing from design-system.json" in problem
                 and "DS-COMP-777" in problem
                 for problem in problems
             )
         )
+
+    def test_unregistered_signature_rule_id_fails(self) -> None:
+        markdown = MATCHING_MARKDOWN.replace(
+            "### OrderCard\nComposes `Stack`.",
+            "### OrderCard\nComposes `Stack` per signature rule DS-999.",
+        )
+        _, problems = self.run_pair(markdown, registry())
+        self.assertTrue(
+            any(
+                "DS ids missing from design-system.json" in problem
+                and "DS-999" in problem
+                for problem in problems
+            )
+        )
+
+    def test_registered_signature_rule_id_passes(self) -> None:
+        data = registry(signatureRules=["DS-010"])
+        markdown = checker.replace_generated_contract(
+            MATCHING_MARKDOWN.replace(
+                "### OrderCard\nComposes `Stack`.",
+                "### OrderCard\nComposes `Stack` per signature rule DS-010.",
+            ),
+            data,
+        )
+        code, problems = self.run_pair(markdown, data)
+        self.assertEqual([], problems)
+        self.assertEqual(0, code)
+
+    def test_primitive_ds_ids_validate_and_must_be_unique(self) -> None:
+        data = registry()
+        data["primitives"]["Stack"]["dsId"] = "stack-1"
+        _, problems = self.run_pair(MATCHING_MARKDOWN, data)
+        self.assertTrue(
+            any("must match DS-<family>-<number>" in problem for problem in problems)
+        )
+
+        data = registry()
+        data["primitives"]["Stack"]["dsId"] = "DS-LAY-001"
+        data["primitives"]["Cluster"] = dict(data["primitives"]["Stack"])
+        data["primitives"]["Cluster"]["dsId"] = "DS-LAY-001"
+        _, problems = self.run_pair(MATCHING_MARKDOWN, data)
+        self.assertTrue(
+            any("duplicates DS-LAY-001" in problem for problem in problems)
+        )
+
+        data = registry()
+        data["primitives"]["Stack"]["dsId"] = "DS-LAY-001"
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        markdown = markdown.replace(
+            "### Stack\nVariants",
+            "### Stack (DS-LAY-001)\nVariants",
+        )
+        code, problems = self.run_pair(markdown, data)
+        self.assertEqual(0, code)
 
     def test_real_templates_match_and_product_drift_fails(self) -> None:
         template = (

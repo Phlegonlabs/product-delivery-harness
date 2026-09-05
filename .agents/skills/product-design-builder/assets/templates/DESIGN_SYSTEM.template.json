@@ -103,6 +103,9 @@
     }
   },
 
+  "$comment:signatureRules": "The registered ids for the signature visual rules table in design-system.md. Every DS-* id named in the Markdown must be registered here, as a primitive dsId, or as a product component dsId — the Markdown never mints ids.",
+  "signatureRules": ["DS-001"],
+
   "motionVariants": ["<variant name>", "<variant name>"],
 
   "stateMatrix": [

@@ -154,5 +154,5 @@ Before publication:
 3. Confirm every required PRD UI element maps to a registered primitive or product component.
 4. Confirm no page-local value or control is required.
 5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write`.
-6. Validate it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`.
+6. Validate it with `scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check also resolves every `DS-*` ID named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON's registered IDs, so an ID minted only in prose fails.
 7. Run the contrast and type-scale checks.

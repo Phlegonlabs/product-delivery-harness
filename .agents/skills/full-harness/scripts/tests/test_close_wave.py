@@ -26,6 +26,9 @@ from harness_core import ManifestError  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 
 
+SESSION = "close-wave-tests"
+
+
 def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
     temp = tempfile.TemporaryDirectory()
     root = Path(temp.name)
@@ -75,7 +78,10 @@ class CloseWaveCliTests(unittest.TestCase):
         mf.git(self.gitroot, "add", ".")
         mf.git(self.gitroot, "commit", "-qm", "work")
         self.head = mf.git(self.gitroot, "rev-parse", "HEAD")
-        self.wt1 = str(self.root / "wt-m1")
+        self.wt1 = (self.root / "wt-m1").as_posix()
+        # A real isolated worktree, so record-observation captures the exact
+        # parent-observed worktree the worker record must bind to.
+        mf.git(self.gitroot, "worktree", "add", "-b", "wt/m1", self.wt1, self.head)
 
         self.plan = mf.valid_plan()
         self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
@@ -93,25 +99,17 @@ class CloseWaveCliTests(unittest.TestCase):
         mf.authorize_action(
             run, "create_local_worktrees", ["M1"], [f"worktree:{self.wt1}"]
         )
-        mf.authorize_action(run, "create_local_branches", ["M1"], ["branch:wt/m1"])
-        mf.authorize_action(run, "create_local_commits", ["M1"], ["branch:wt/m1"])
+        mf.authorize_action(run, "create_local_branches", ["M1"], ["branch:refs/heads/wt/m1"])
+        mf.authorize_action(run, "create_local_commits", ["M1"], ["branch:refs/heads/wt/m1"])
         mf.authorize_action(
-            run, "integrate_locally", ["M1"], ["branch:codex/test"]
+            run, "integrate_locally", ["M1"], ["branch:main"]
         )
-        run["observed"]["captured_at"] = "2026-01-01T00:00:00Z"
+        run["integration"]["branch"] = "main"
+        run["landing"]["continuity"]["branch_ref"] = "refs/heads/main"
         adapter = run["runtime_capabilities"]["runtime_adapter"]
         adapter["available_drivers"] = ["sequential_parent", "subagents"]
         run["runtime_capabilities"]["worker_runtime"] = "subagent"
         run["runtime_capabilities"]["max_parallel_workers"] = 2
-        run["observed"]["git"]["worktrees"] = [
-            {
-                "path": self.wt1,
-                "head_sha": None,
-                "branch_ref": "wt/m1",
-                "managed_by": "parent",
-                "dirty": False,
-            }
-        ]
         self.plan_path = self.root / "PLAN.md"
         self.run_path = self.root / "RUN.md"
         self.plan_path.write_text(
@@ -124,6 +122,8 @@ class CloseWaveCliTests(unittest.TestCase):
             mf.manifest_markdown("## Harness Run State", "harness_run", run),
             encoding="utf-8",
         )
+        self.cli("--session-id", SESSION, "acquire-run-lock")
+        self.cli("--repo-root", str(self.gitroot), "record-observation")
 
     def tearDown(self) -> None:
         self._temp.cleanup()
@@ -137,6 +137,8 @@ class CloseWaveCliTests(unittest.TestCase):
                 str(self.plan_path),
                 "--run",
                 str(self.run_path),
+                "--session-id",
+                SESSION,
                 *extra,
             ],
             capture_output=True,
@@ -146,14 +148,14 @@ class CloseWaveCliTests(unittest.TestCase):
     def _integrate_m1(self) -> None:
         result = self.cli(
             "accept-wave", "--wave-id", "W-1", "--mission-id", "M1",
-            "--batch-base-sha", self.base,
+            "--batch-base-sha", self.head,
         )
         self.assertEqual(0, result.returncode, result.stderr)
         result = self.cli(
             "lease-worker",
             "--mission-id", "M1", "--node-id", "N-M1",
             "--worker-id", "W-M1-A", "--lease-id", "L-M1",
-            "--attempt-id", "A-M1", "--branch-ref", "wt/m1",
+            "--attempt-id", "A-M1", "--branch-ref", "refs/heads/wt/m1",
             "--worktree-path", self.wt1,
             "--provider", "codex", "--driver", "subagents",
         )
@@ -165,7 +167,6 @@ class CloseWaveCliTests(unittest.TestCase):
         )
         worker = next(w for w in live["workers"] if w["worker_id"] == "W-M1-A")
         worker.update({"phase": "worker_passed", "worker_head_sha": self.head})
-        live["observed"]["git"]["worktrees"][0]["head_sha"] = self.head
         live["attempt_log"].append(
             {
                 "attempt_id": "A-M1-RESULT",
@@ -221,13 +222,13 @@ class CloseWaveCliTests(unittest.TestCase):
         live = load_run_block(self.run_path)
         self.assertEqual("closed", live["active_wave"]["status"])
         self.assertEqual(
-            [{"wave_id": "W-1", "batch_base_sha": self.base}],
+            [{"wave_id": "W-1", "batch_base_sha": self.head}],
             live["closed_waves"],
         )
         self.assertTrue(
             any(a["kind"] == "wave_close" for a in live["attempt_log"])
         )
-        # The next wave may open on a fresh base with the tombstone retained.
+        # The next wave may open on a fresh identity with the tombstone kept.
         result = self.cli(
             "accept-wave", "--wave-id", "W-2", "--mission-id", "M2",
             "--batch-base-sha", self.head,
@@ -238,17 +239,37 @@ class CloseWaveCliTests(unittest.TestCase):
         self.assertEqual(["M2"], live["active_wave"]["selected_missions"])
         self.assertEqual(1, len(live["closed_waves"]))
 
+    def test_worker_passed_mission_closes_under_a_run_complete_boundary(self) -> None:
+        self._integrate_m1()
+        live = load_run_block(self.run_path)
+        # Rewind M1 to worker_passed: its result is validated and the
+        # execution grant is run_complete-bounded, so the wave may close with
+        # integration still owed.
+        live["mission_states"]["M1"]["phase"] = "worker_passed"
+        live["mission_states"]["M1"]["integration_gate"] = "planned"
+        live["mission_states"]["M1"]["integrated_sha"] = None
+        live["integration"]["integration_head_sha"] = None
+        live["graph_state"]["node_states"]["N-M1"]["phase"] = "running"
+        live["graph_state"]["node_states"]["N-M1"]["last_outcome"] = None
+        save_run_block(self.run_path, live)
+        result = self.cli("close-wave", "--source", "results validated")
+        self.assertEqual(0, result.returncode, result.stderr)
+        live = load_run_block(self.run_path)
+        self.assertEqual("closed", live["active_wave"]["status"])
+        self.assertEqual("worker_passed", live["mission_states"]["M1"]["phase"])
+        self.assertTrue(live["execution_authorized"])
+
     def test_close_wave_refuses_then_recovers_after_reconcile(self) -> None:
         result = self.cli(
             "accept-wave", "--wave-id", "W-1", "--mission-id", "M1",
-            "--batch-base-sha", self.base,
+            "--batch-base-sha", self.head,
         )
         self.assertEqual(0, result.returncode, result.stderr)
         result = self.cli(
             "lease-worker",
             "--mission-id", "M1", "--node-id", "N-M1",
             "--worker-id", "W-M1-A", "--lease-id", "L-M1",
-            "--attempt-id", "A-M1", "--branch-ref", "wt/m1",
+            "--attempt-id", "A-M1", "--branch-ref", "refs/heads/wt/m1",
             "--worktree-path", self.wt1,
             "--provider", "codex", "--driver", "subagents",
         )
@@ -279,6 +300,48 @@ class CloseWaveCliTests(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_dispatch_requires_this_sessions_lock(self) -> None:
+        result = self.cli(
+            "accept-wave", "--wave-id", "W-1", "--mission-id", "M1",
+            "--batch-base-sha", self.head,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        # A second session takes over the stale lock through the watchdog and
+        # must not be silently blocked; but a *fresh* foreign lock blocks any
+        # mutation, and dispatch refuses outright without a held lock.
+        live = load_run_block(self.run_path)
+        live["run_lock"]["session_id"] = "OTHER"
+        live["run_lock"]["heartbeat_at"] = "2020-01-01T00:00:00Z"
+        save_run_block(self.run_path, live)
+        result = subprocess.run(
+            [
+                sys.executable, str(SCRIPTS_DIR / "harness_transition.py"),
+                "--plan", str(self.plan_path), "--run", str(self.run_path),
+                "pause", "--source", "x",
+            ],
+            capture_output=True, text=True,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("run lock is held by session 'OTHER'", result.stderr)
+        # Restore our own lock, release it, and dispatch must then refuse:
+        # the write path is single-writer and requires a held lock.
+        live = load_run_block(self.run_path)
+        live["run_lock"] = {
+            "session_id": SESSION,
+            "acquired_at": "2026-01-01T00:00:00Z",
+            "heartbeat_at": "2026-01-01T00:00:00Z",
+        }
+        save_run_block(self.run_path, live)
+        self.assertEqual(
+            0, self.cli("release-run-lock").returncode
+        )
+        result = self.cli(
+            "accept-wave", "--wave-id", "W-9", "--mission-id", "M2",
+            "--batch-base-sha", self.head,
+        )
+        self.assertEqual(2, result.returncode)
+        self.assertIn("requires this session's run lock", result.stderr)
+
 
 class AcceptWaveGuardTests(unittest.TestCase):
     """accept-wave refuses an unauthorized, unready, or unobserved RUN."""
@@ -290,27 +353,43 @@ class AcceptWaveGuardTests(unittest.TestCase):
             wave_id="W-1", mission_id=["M1"], batch_base_sha="a" * 40
         )
 
-    def test_unauthorized_draft_run_is_refused(self) -> None:
+    def test_unauthorized_draft_paused_or_unbound_run_is_refused(self) -> None:
+        run = self.run
         for field, value in (
             ("execution_authorized", False),
             ("status", "draft"),
             ("plan_readiness", "draft"),
         ):
-            original = self.run[field]
-            self.run[field] = value
+            original = run[field]
+            run[field] = value
             with self.assertRaises(ManifestError):
                 harness_transition._accept_wave(
-                    self.plan, self.run, Namespace(**self.args)
+                    self.plan, run, Namespace(**self.args)
                 )
-            self.run[field] = original
-        self.run["observed"]["captured_at"] = None
+            run[field] = original
+        run["observed"]["captured_at"] = None
         with self.assertRaises(ManifestError):
+            harness_transition._accept_wave(self.plan, run, Namespace(**self.args))
+        # A paused or cancelled run accepts no wave.
+        mf.authorize_execution(run, ["M1"])
+        run["observed"]["captured_at"] = "2026-01-01T00:00:00Z"
+        run["observed"]["git"]["parent_head_sha"] = "a" * 40
+        run["control"]["desired_state"] = "paused"
+        with self.assertRaises(ManifestError) as caught:
+            harness_transition._accept_wave(self.plan, run, Namespace(**self.args))
+        self.assertIn("paused or cancelled", str(caught.exception))
+        run["control"]["desired_state"] = "running"
+        # The base must be the observed parent head, not any well-formed SHA.
+        with self.assertRaises(ManifestError) as caught:
             harness_transition._accept_wave(
-                self.plan, self.run, Namespace(**self.args)
+                self.plan, run, Namespace(**{**self.args, "batch_base_sha": "c" * 40})
             )
+        self.assertIn("does not match the observed parent head", str(caught.exception))
+        harness_transition._accept_wave(self.plan, run, Namespace(**self.args))
 
     def test_authorized_but_uncovered_mission_is_refused(self) -> None:
         mf.authorize_execution(self.run, ["M2"])
+        self.run["observed"]["captured_at"] = "2026-01-01T00:00:00Z"
         with self.assertRaises(ManifestError):
             harness_transition._accept_wave(
                 self.plan, self.run, Namespace(**self.args)
@@ -381,15 +460,37 @@ class LeaseWorkerGuardTests(unittest.TestCase):
             "worker_running", self.run["mission_states"]["M2"]["phase"]
         )
 
+    def test_conflicting_parallel_mission_is_refused(self) -> None:
+        # Break the M1 -> M2 dependency so both are frontier-ready, then make
+        # them compete for the same exclusive runtime resource.
+        for mission in self.plan["missions"]:
+            if mission["id"] == "M2":
+                mission.pop("depends_on", None)
+                mission["runtime_resources"] = [
+                    {"key": "port:3000", "access": "exclusive"}
+                ]
+        self.plan["graph"]["edges"] = [
+            edge
+            for edge in self.plan["graph"]["edges"]
+            if edge["id"] != "E-M1-M2"
+        ]
+        self.plan["graph"]["entry_nodes"] = ["N-M1", "N-M2"]
+        self.lease("M1", "N-M1")
+        with self.assertRaises(ManifestError) as caught:
+            self.lease("M2", "N-M2")
+        self.assertIn("conflicts with active mission", str(caught.exception))
+
 
 class RecordIntegrationGuardTests(unittest.TestCase):
-    """record-integration proves the SHA against live Git."""
+    """record-integration proves the SHA, branch, and tree against live Git."""
 
     def setUp(self) -> None:
         self._temp, self.root, self.base, self.head = make_repo()
         self.plan = mf.valid_plan()
         self.run = mf.valid_run(self.plan)
         mf.authorize_execution(self.run, ["M1"])
+        self.run["integration"]["branch"] = "integration"
+        self.run["integration"]["batch_base_sha"] = self.base
         self.run["mission_states"]["M1"].update(
             {"phase": "worker_passed", "head_sha": self.head}
         )
@@ -398,6 +499,16 @@ class RecordIntegrationGuardTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._temp.cleanup()
 
+    def record(self, **overrides: object) -> None:
+        harness_transition._record_integration(
+            self.plan,
+            self.run,
+            Namespace(
+                repo_root=self.root,
+                **{**self.args, **overrides},
+            ),
+        )
+
     def test_missing_repo_root_is_refused(self) -> None:
         with self.assertRaises(ManifestError) as caught:
             harness_transition._record_integration(
@@ -405,23 +516,33 @@ class RecordIntegrationGuardTests(unittest.TestCase):
             )
         self.assertIn("--repo-root", str(caught.exception))
 
-    def test_non_ancestor_sha_is_refused(self) -> None:
-        other = mf.git(self.root, "rev-parse", "HEAD~1")
-        self.run["integration"]["batch_base_sha"] = self.head
-        self.args["integrated_sha"] = other
+    def test_wrong_branch_is_refused(self) -> None:
+        mf.git(self.root, "checkout", "-q", "-b", "elsewhere")
         with self.assertRaises(ManifestError) as caught:
-            harness_transition._record_integration(
-                self.plan, self.run, Namespace(repo_root=self.root, **self.args)
-            )
-        self.assertIn("ancestor", str(caught.exception))
+            self.record()
+        self.assertIn("not the integration branch", str(caught.exception))
+
+    def test_dirty_tree_is_refused(self) -> None:
+        (self.root / "scratch.txt").write_text("dirty\n", encoding="utf-8")
+        with self.assertRaises(ManifestError) as caught:
+            self.record()
+        self.assertIn("dirty", str(caught.exception))
+
+    def test_worker_head_outside_the_integration_is_refused(self) -> None:
+        with self.assertRaises(ManifestError) as caught:
+            self.record(integrated_sha=self.base)
+        self.assertIn("is not contained in", str(caught.exception))
+
+    def test_fabricated_batch_base_is_refused(self) -> None:
+        self.run["integration"]["batch_base_sha"] = "f" * 40
+        with self.assertRaises(ManifestError) as caught:
+            self.record()
+        self.assertIn("is not an ancestor of", str(caught.exception))
 
     def test_head_mismatch_is_refused(self) -> None:
-        self.run["integration"]["batch_base_sha"] = self.base
-        self.args["integrated_sha"] = self.base
+        self.run["mission_states"]["M1"]["head_sha"] = self.base
         with self.assertRaises(ManifestError) as caught:
-            harness_transition._record_integration(
-                self.plan, self.run, Namespace(repo_root=self.root, **self.args)
-            )
+            self.record(integrated_sha=self.base)
         self.assertIn("HEAD", str(caught.exception))
 
 
@@ -450,7 +571,7 @@ class CloseWaveUnitTests(unittest.TestCase):
                 "plan_revision": self.run["plan"]["revision"],
                 "plan_digest_sha256": self.run["plan"]["digest_sha256"],
                 "mission_ids": ["M1"],
-                "targets": ["branch:wt/m1"],
+                "targets": ["branch:refs/heads/wt/m1"],
                 "wave_id": "W-1",
                 "batch_base_sha": base,
             },
@@ -477,6 +598,27 @@ class CloseWaveUnitTests(unittest.TestCase):
         # authorize_execution wrote a run_complete boundary: it survives.
         self.assertTrue(self.run["execution_authorized"])
 
+    def test_worker_passed_closes_under_run_complete_but_not_wave_closed(self):
+        self.run["mission_states"]["M1"]["phase"] = "worker_passed"
+        self.close()
+        self.assertEqual("closed", self.run["active_wave"]["status"])
+        self.assertTrue(self.run["execution_authorized"])
+
+        # A wave_closed execution boundary cannot cover a pending integration
+        # past its own expiry, so that combination is refused instead.
+        self.run["active_wave"].update(
+            {"wave_id": "W-2", "status": "active", "selected_missions": ["M1"]}
+        )
+        self.run["closed_waves"] = []
+        self.run["mission_states"]["M1"]["phase"] = "worker_passed"
+        scope = self.run["execution_authorization_scope"]
+        scope["expires_when"] = "wave_closed"
+        scope["wave_id"] = "W-2"
+        scope["batch_base_sha"] = self.base
+        with self.assertRaises(ManifestError) as caught:
+            self.close()
+        self.assertIn("still await integration", str(caught.exception))
+
     def test_wave_bounded_execution_authorization_clears(self) -> None:
         scope = self.run["execution_authorization_scope"]
         scope["expires_when"] = "wave_closed"
@@ -497,11 +639,40 @@ class CloseWaveUnitTests(unittest.TestCase):
         with self.assertRaises(ManifestError):
             self.close()
 
-    def test_worker_passed_mission_blocks_close(self) -> None:
-        self.run["mission_states"]["M1"]["phase"] = "worker_passed"
+    def test_running_mission_blocks_close(self) -> None:
+        self.run["mission_states"]["M1"]["phase"] = "worker_running"
         with self.assertRaises(ManifestError) as caught:
             self.close()
-        self.assertIn("unresolved", str(caught.exception))
+        self.assertIn("queued or running", str(caught.exception))
+
+
+class RunLockGateTests(unittest.TestCase):
+    """Mutations refuse foreign locks; replaces compare-and-swap."""
+
+    def test_foreign_lock_blocks_regardless_of_age_or_parseability(self) -> None:
+        run = {"run_lock": {"session_id": "OTHER", "acquired_at": "x",
+                            "heartbeat_at": "not-a-date"}}
+        with self.assertRaises(ManifestError):
+            harness_transition._ensure_no_foreign_lock(run, "MINE")
+        with self.assertRaises(ManifestError):
+            harness_transition._ensure_no_foreign_lock(run, None)
+        harness_transition._ensure_no_foreign_lock(
+            {"run_lock": {"session_id": "MINE"}}, "MINE"
+        )
+        harness_transition._ensure_no_foreign_lock({}, None)
+
+    def test_replace_refuses_when_the_document_changed_under_us(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "RUN.md"
+            original = "# f\n\n## Harness Run State\n\n```json\n{}\n```\n"
+            path.write_text(original, encoding="utf-8")
+            with self.assertRaises(ManifestError) as caught:
+                harness_transition._replace_run_document(
+                    path, {"touched": True}, expected_text=original + "drift\n"
+                )
+            self.assertIn("changed during this transition", str(caught.exception))
+            # The clobbered write never landed.
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

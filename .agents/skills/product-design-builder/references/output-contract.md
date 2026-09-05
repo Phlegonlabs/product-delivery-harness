@@ -26,7 +26,7 @@ Keep it the sole structured authority for:
 - exactly one responsive verification set: `viewports` or `sizeClasses`;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
-- signature visual rules with stable `DS-*` IDs;
+- signature visual rules with stable `DS-*` IDs, registered in `signatureRules` — every `DS-*` ID the Markdown names (rule, primitive `dsId`, or `DS-COMP-*`) must resolve to a registered entry in this file, and the pair checker enforces it;
 - recurring product components with `DS-COMP-*`, required content order, composition, and states;
 - registered motion variants; and
 - the UI state matrix.

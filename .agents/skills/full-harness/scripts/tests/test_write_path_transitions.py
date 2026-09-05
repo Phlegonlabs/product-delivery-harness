@@ -49,7 +49,8 @@ class WritePathTransitionTests(unittest.TestCase):
         plan, run = current_preintegration_review_state()
         plan["revision"] = run["plan"]["revision"]
         run["plan"]["digest_sha256"] = __import__("harness_manifest").plan_digest(plan)
-        run["integration"]["batch_base_sha"] = self.base
+        run["integration"]["branch"] = "integration"
+        run["integration"]["batch_base_sha"] = self.head
         run["integration"]["integration_head_sha"] = None
         run["active_wave"].update(
             {
@@ -79,12 +80,12 @@ class WritePathTransitionTests(unittest.TestCase):
         harness_transition._accept_wave(
             self.plan,
             self.run,
-            Namespace(wave_id="B-1", mission_id=["M1"], batch_base_sha=self.base),
+            Namespace(wave_id="B-1", mission_id=["M1"], batch_base_sha=self.head),
         )
         wave = self.run["active_wave"]
         self.assertEqual("active", wave["status"])
         self.assertEqual(["M1"], wave["selected_missions"])
-        self.assertEqual(self.base, self.run["integration"]["batch_base_sha"])
+        self.assertEqual(self.head, self.run["integration"]["batch_base_sha"])
 
         self.run["mission_states"]["M1"]["phase"] = "queued"
         harness_transition._lease_worker(
@@ -135,7 +136,7 @@ class WritePathTransitionTests(unittest.TestCase):
             harness_transition._accept_wave(
                 self.plan,
                 self.run,
-                Namespace(wave_id="B-1", mission_id=["M1"], batch_base_sha=self.base),
+                Namespace(wave_id="B-1", mission_id=["M1"], batch_base_sha=self.head),
             )
 
         self.run["active_wave"].update({"status": "idle", "wave_id": None})
@@ -144,7 +145,7 @@ class WritePathTransitionTests(unittest.TestCase):
                 self.plan,
                 self.run,
                 Namespace(
-                    wave_id="B-1", mission_id=["M1"], batch_base_sha="not-a-sha"
+                    wave_id="B-1", mission_id=["M1"], batch_base_sha="not-the-observed-head"
                 ),
             )
 
@@ -154,7 +155,7 @@ class WritePathTransitionTests(unittest.TestCase):
         harness_transition._accept_wave(
             self.plan,
             self.run,
-            Namespace(wave_id="B-1", mission_id=["M1"], batch_base_sha=self.base),
+            Namespace(wave_id="B-1", mission_id=["M1"], batch_base_sha=self.head),
         )
         self.run["mission_states"]["M1"]["phase"] = "queued"
         lease_args = dict(

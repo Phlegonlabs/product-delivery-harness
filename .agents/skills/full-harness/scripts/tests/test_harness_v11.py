@@ -630,12 +630,31 @@ class HarnessV11Tests(unittest.TestCase):
             ["git", *arguments], cwd=root, check=True, capture_output=True, text=True
         )
 
+    def _acquire_review_lock(self, plan_path: Path, run_path: Path) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(
+                0,
+                harness_transition.main(
+                    [
+                        "--plan",
+                        str(plan_path),
+                        "--run",
+                        str(run_path),
+                        "--session-id",
+                        "review-cli-tests",
+                        "acquire-run-lock",
+                    ]
+                ),
+            )
+
     def _reserve_frontend_review(self, plan_path: Path, run_path: Path) -> list[str]:
         return [
             "--plan",
             str(plan_path),
             "--run",
             str(run_path),
+            "--session-id",
+            "review-cli-tests",
             "--repo-root",
             str(plan_path.parent),
             "reserve-review-dispatch",
@@ -658,6 +677,7 @@ class HarnessV11Tests(unittest.TestCase):
             plan_path, run_path = self._write_review_cli_fixture(root)
             self._git(root, "add", "docs/goal/PRD.md", "PLAN.md", "RUN.md")
             self._git(root, "commit", "-qm", "fixture")
+            self._acquire_review_lock(plan_path, run_path)
             before = run_path.read_text(encoding="utf-8")
 
             with contextlib.redirect_stderr(io.StringIO()) as stderr:
@@ -667,6 +687,8 @@ class HarnessV11Tests(unittest.TestCase):
                         str(plan_path),
                         "--run",
                         str(run_path),
+                        "--session-id",
+                        "review-cli-tests",
                         "reserve-review-dispatch",
                         "--node-id",
                         "N-FRONTEND-REVIEW",
@@ -712,6 +734,7 @@ class HarnessV11Tests(unittest.TestCase):
             self._git(root, "config", "user.email", "test@example.com")
             self._git(root, "config", "user.name", "Harness Test")
             plan_path, run_path = self._write_review_cli_fixture(root)
+            self._acquire_review_lock(plan_path, run_path)
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(
                     0, harness_transition.main(
@@ -726,6 +749,8 @@ class HarnessV11Tests(unittest.TestCase):
                         str(plan_path),
                         "--run",
                         str(run_path),
+                        "--session-id",
+                        "review-cli-tests",
                         "record-review-attempt",
                         "--lineage",
                         "REVIEW-N-FRONTEND-REVIEW",

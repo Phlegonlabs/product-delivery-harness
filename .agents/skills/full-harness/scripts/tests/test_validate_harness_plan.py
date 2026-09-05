@@ -42,6 +42,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         design_system: Path | None = None,
         repo_root: Path | None = None,
         prd: Path | None = None,
+        wireframes: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         command = [sys.executable, str(SCRIPTS_DIR / "validate_harness_plan.py"), "--plan", str(plan_path)]
         if run_path is not None:
@@ -54,6 +55,8 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             command.extend(["--design-system", str(design_system)])
         if prd is not None:
             command.extend(["--prd", str(prd)])
+        if wireframes is not None:
+            command.extend(["--wireframes", str(wireframes)])
         return subprocess.run(command, check=False, capture_output=True, text=True)
 
     def cross_check(self, registry: dict[str, object]) -> dict[str, object]:
@@ -267,6 +270,102 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                     for error in payload["errors"]
                 )
             )
+
+    def test_frozen_prd_source_requires_a_hash_matching_prd_argument(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [dict(HOME_SURFACE, id="UI-001")]
+        plan["sources"][0]["location"] = "docs/product/PRD.md"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            prd_path = root / "PRD.md"
+            prd_path.write_text(
+                "## UI Surface Contract\n\n- UI-001 Dashboard\n",
+                encoding="utf-8",
+            )
+
+            # A frozen PRD source without --prd fails outright.
+            result = self.run_cli(plan_path, None)
+            payload = json.loads(result.stdout)
+            self.assertEqual("FAIL", payload["status"])
+            self.assertTrue(
+                any("requires --prd" in error for error in payload["errors"])
+            )
+
+            # A decoy file with the same ids but different bytes fails the
+            # frozen hash, so the join cannot be redirected.
+            plan["sources"][0]["content_sha256"] = hashlib.sha256(
+                b"the real frozen bytes\n"
+            ).hexdigest()
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            result = self.run_cli(plan_path, None, prd=prd_path)
+            payload = json.loads(result.stdout)
+            self.assertEqual("FAIL", payload["status"])
+            self.assertTrue(
+                any(
+                    "does not match the frozen PRD source content hash" in error
+                    for error in payload["errors"]
+                )
+            )
+
+    def test_wireframes_join_compares_routes_and_states(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "UI-001",
+                "trace_ids": ["REQ-001"],
+                "route": "/home",
+                "breakpoints": ["390"],
+                "states": ["ready"],
+                "evidence_gate": "required",
+            }
+        ]
+        wireframes = (
+            '<script id="wireframe-data" type="application/json">'
+            + json.dumps(
+                {
+                    "screens": [
+                        {
+                            "id": "UI-001",
+                            "route": "/home",
+                            "states": [{"id": "ready"}],
+                        }
+                    ]
+                }
+            )
+            + "</script>"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            plan_path = root / "PLAN.md"
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            wireframes_path = root / "wireframes.html"
+            wireframes_path.write_text(wireframes, encoding="utf-8")
+
+            result = self.run_cli(plan_path, None, wireframes=wireframes_path)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("PASS", json.loads(result.stdout)["status"])
+
+            drifted = wireframes.replace('"/home"', '"/dashboard"').replace(
+                '"states": [{"id": "ready"}]', '"states": [{"id": "ready"}, {"id": "empty"}]'
+            )
+            wireframes_path.write_text(drifted, encoding="utf-8")
+            result = self.run_cli(plan_path, None, wireframes=wireframes_path)
+            payload = json.loads(result.stdout)
+            self.assertEqual("FAIL", payload["status"])
+            joined = " ".join(payload["errors"])
+            self.assertIn("route", joined)
+            self.assertIn("states", joined)
 
     def test_malformed_manifest_reports_error_with_exit_code_two(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

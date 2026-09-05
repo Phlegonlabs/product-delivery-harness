@@ -34,6 +34,7 @@ CONTRACT_FIELDS = (
     "tokens",
     "primitives",
     "productComponents",
+    "signatureRules",
     "motionVariants",
     "stateMatrix",
 )
@@ -43,7 +44,9 @@ GENERATED_BLOCK_RE = re.compile(
 )
 PLACEHOLDER_RE = re.compile(r"^<.*>$", re.DOTALL)
 DS_COMP_ID_RE = re.compile(r"^DS-COMP-[0-9]+$")
-DS_COMP_TOKEN_RE = re.compile(r"\bDS-COMP-[0-9]+\b")
+DS_PRIMITIVE_ID_RE = re.compile(r"^DS-[A-Z]+-[0-9]+$")
+DS_RULE_ID_RE = re.compile(r"^DS-(?:[A-Z]+-)?[0-9]+$")
+DS_TOKEN_RE = re.compile(r"\bDS-(?:[A-Z]+-)?[0-9]+\b")
 
 
 def is_placeholder(value: str) -> bool:
@@ -222,6 +225,7 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     _string_list(problems, "primitiveSources", registry.get("primitiveSources"), nonempty=False)
 
     primitives = registry.get("primitives")
+    seen_ds_ids: set[str] = set()
     if isinstance(primitives, dict):
         for name, spec in primitives.items():
             path = f"primitives.{name}"
@@ -231,6 +235,17 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
                 problems.append(
                     f"design-system.json {path}.layer must be layout, surface, typography, or control"
                 )
+            if isinstance(spec, dict) and spec.get("dsId") is not None:
+                ds_id = spec["dsId"]
+                if not isinstance(ds_id, str) or not DS_PRIMITIVE_ID_RE.match(ds_id):
+                    problems.append(
+                        f"design-system.json {path}.dsId must match DS-<family>-<number>, "
+                        f"got {ds_id!r}"
+                    )
+                elif ds_id in seen_ds_ids:
+                    problems.append(f"design-system.json {path}.dsId duplicates {ds_id}")
+                else:
+                    seen_ds_ids.add(ds_id)
 
     components = registry.get("productComponents")
     if isinstance(components, dict):
@@ -270,6 +285,24 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
                             f"design-system.json {path}.composes names '{entry}', "
                             "which is not a key in primitives"
                         )
+
+    if "signatureRules" in registry:
+        rules = registry["signatureRules"]
+        if not isinstance(rules, list):
+            problems.append("design-system.json signatureRules must be a list")
+        else:
+            for rule in rules:
+                if not isinstance(rule, str) or not DS_RULE_ID_RE.match(rule):
+                    problems.append(
+                        f"design-system.json signatureRules entry must match "
+                        f"DS-<number> or DS-<family>-<number>, got {rule!r}"
+                    )
+                elif rule in seen_ds_ids:
+                    problems.append(
+                        f"design-system.json signatureRules entry duplicates {rule}"
+                    )
+                else:
+                    seen_ds_ids.add(rule)
     return problems
 
 
@@ -346,24 +379,38 @@ def compare(
             "generated contract",
             problems,
         )
-    # Every DS-COMP id the Markdown names — prose or generated block — must
-    # resolve to a registered product component.
+    # Every DS-* id the Markdown names — prose, tables, or generated block —
+    # must resolve to a registered id: a product component dsId, a primitive
+    # dsId, or a signatureRules entry. The Markdown never mints ids.
     components = registry.get("productComponents")
+    primitives = registry.get("primitives")
     registered = {
         spec.get("dsId")
         for spec in (components.values() if isinstance(components, dict) else [])
         if isinstance(spec, dict) and isinstance(spec.get("dsId"), str)
+    } | {
+        spec.get("dsId")
+        for spec in (primitives.values() if isinstance(primitives, dict) else [])
+        if isinstance(spec, dict) and isinstance(spec.get("dsId"), str)
+    } | {
+        rule
+        for rule in (
+            registry.get("signatureRules")
+            if isinstance(registry.get("signatureRules"), list)
+            else []
+        )
+        if isinstance(rule, str)
     }
     unregistered = sorted(
         {
             token
-            for token in DS_COMP_TOKEN_RE.findall(markdown_text)
+            for token in DS_TOKEN_RE.findall(markdown_text)
             if token not in registered
         }
     )
     if unregistered:
         problems.append(
-            "design-system.md names DS-COMP ids missing from design-system.json: "
+            "design-system.md names DS ids missing from design-system.json: "
             + ", ".join(unregistered)
         )
     return problems
