@@ -34,6 +34,11 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import RUN_DISPATCH_STATUSES, RUN_HEADING
+from harness_worker_result_transition import (
+    record_worker_result,
+    reject_worker_result,
+    verify_worker_observation,
+)
 from select_ready_nodes import GraphSelectionError, select_ready_nodes
 
 
@@ -48,6 +53,8 @@ DEFAULT_LOCK_STALE_MINUTES = 15
 DISPATCH_COMMANDS = {
     "accept-wave",
     "lease-worker",
+    "record-worker-result",
+    "reject-worker-result",
     "reserve-review-dispatch",
     "record-integration",
     "close-wave",
@@ -770,14 +777,24 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         )
     if args.mission_id not in wave.get("selected_missions", []):
         raise ManifestError("lease-worker mission is not in the active wave")
+    report_path = getattr(args, "report_path", None)
+    if args.completion_channel == "report_file" and not (
+        isinstance(report_path, str) and report_path.strip()
+    ):
+        raise ManifestError("lease-worker with report_file requires --report-path")
     if any(
         isinstance(item, dict) and item.get("worker_id") == args.worker_id
         for item in run.get("workers", [])
     ):
         raise ManifestError(f"worker id {args.worker_id!r} already exists")
     if any(
+        isinstance(item, dict) and item.get("lease_id") == args.lease_id
+        for item in run.get("workers", [])
+    ):
+        raise ManifestError(f"lease id {args.lease_id!r} already exists")
+    if any(
         isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
-        for item in run.get("attempt_log", [])
+        for item in [*run.get("attempt_log", []), *run.get("review_workers", [])]
     ):
         raise ManifestError(f"duplicate attempt ID {args.attempt_id!r}")
     # A mission lease binds the mission's own graph node; node ids are only
@@ -968,7 +985,7 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "task_thread_id": None,
             "worktree_path": args.worktree_path,
             "branch_ref": args.branch_ref,
-            "report_path": None,
+            "report_path": report_path,
             "phase": "worker_running",
             "worker_head_sha": None,
         }
@@ -1167,6 +1184,13 @@ def _replace_run_document(
         except OSError:
             pass
         raise
+
+
+def _ensure_plan_unchanged(path: Path, expected_text: str | None) -> None:
+    if expected_text is not None and path.read_text(encoding="utf-8") != expected_text:
+        raise ManifestError(
+            "PLAN.md changed during this transition; re-load the manifest and retry"
+        )
 
 
 def _control(run: dict[str, Any], state: str, source: str) -> None:
@@ -1888,6 +1912,18 @@ def build_parser() -> argparse.ArgumentParser:
     lease.add_argument("--worker-runtime", default="subagent")
     lease.add_argument("--workspace-mode", default="parent_managed_worktree")
     lease.add_argument("--completion-channel", default="agent_result")
+    lease.add_argument("--report-path")
+    worker_result = subparsers.add_parser("record-worker-result")
+    worker_result.add_argument("--node-result", required=True, type=Path)
+    worker_result.add_argument("--worker-result", type=Path)
+    worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
+    rejected = subparsers.add_parser("reject-worker-result")
+    rejected.add_argument("--node-id", required=True)
+    rejected.add_argument("--worker-id", required=True)
+    rejected.add_argument(
+        "--outcome", choices=("retryable_failure", "blocked"), required=True
+    )
+    rejected.add_argument("--reason", action="append", required=True)
     integration = subparsers.add_parser("record-integration")
     integration.add_argument("--mission-id", required=True)
     integration.add_argument("--integrated-sha", required=True)
@@ -1899,7 +1935,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _transition_under_lock(
-    args: argparse.Namespace, plan: dict[str, Any]
+    args: argparse.Namespace,
+    plan: dict[str, Any],
+    *,
+    expected_plan_text: str | None = None,
 ) -> tuple[dict[str, Any] | None, list[str] | None, bool]:
     original_text = args.run.read_text(encoding="utf-8")
     original = extract_json_manifest_text(
@@ -1960,6 +1999,10 @@ def _transition_under_lock(
         _close_wave(run, args)
     elif args.command == "lease-worker":
         _lease_worker(plan, run, args)
+    elif args.command == "record-worker-result":
+        receipt = record_worker_result(plan, run, args)
+    elif args.command == "reject-worker-result":
+        receipt = reject_worker_result(plan, run, args)
     elif args.command == "record-integration":
         _record_integration(plan, run, args)
     elif args.command == "acquire-run-lock":
@@ -1994,6 +2037,10 @@ def _transition_under_lock(
             raise ManifestError(f"refusing to overwrite {args.packet_out}")
         packet = render_packet(plan, run, args.node_id, args.repo_root)
 
+    observation = getattr(args, "worker_observation", None)
+    if isinstance(observation, dict):
+        verify_worker_observation(observation)
+    _ensure_plan_unchanged(args.plan, expected_plan_text)
     _replace_run_document(args.run, run, expected_text=original_text)
     if packet is not None:
         args.packet_out.write_text(packet, encoding="utf-8", newline="\n")
@@ -2003,9 +2050,12 @@ def _transition_under_lock(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        plan = load_plan(args.plan)
         with _run_transition_lock(args.run):
-            receipt, report, updated = _transition_under_lock(args, plan)
+            plan_text = args.plan.read_text(encoding="utf-8")
+            plan = load_plan(args.plan)
+            receipt, report, updated = _transition_under_lock(
+                args, plan, expected_plan_text=plan_text
+            )
     except (ManifestError, OSError, ValueError, TypeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2

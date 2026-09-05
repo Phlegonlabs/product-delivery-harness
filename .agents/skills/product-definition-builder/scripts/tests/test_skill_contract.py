@@ -2010,6 +2010,12 @@ async function agent(_prompt, options) {
             "cross-platform mobile, and desktop",
             guide,
         )
+        self.assertIn(
+            "A web or cross-platform surface uses one self-contained "
+            "high-fidelity file per representative `UI-*` screen",
+            guide,
+        )
+        self.assertNotIn("one multi-page file when the owner prefers", guide)
         for marker in (
             "one self-contained high-fidelity HTML containing every `UI-*` "
             "screen of that surface",

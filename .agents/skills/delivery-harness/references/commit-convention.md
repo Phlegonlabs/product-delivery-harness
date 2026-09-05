@@ -62,7 +62,7 @@ Rules:
 
 ## RUN.md Recording
 
-After the commit succeeds and its task verifier passes, the worker reports the task as `worker_passed`. The parent then confirms the commit is reachable from the reported mission head and represented in the worker result/report before recording the task as `mission_recorded` in RUN. The task itself is never marked `integrated`; only its mission may become `integrated` after worker-result validation, integration onto the current head, and the mission integration gate.
+After the commit succeeds and its task verifier passes, the worker reports the task as `worker_passed`. `record-worker-result` observes the bound worktree, confirms the commit is represented in the accepted mission result, and records the task as `mission_recorded` in RUN. The task itself is never marked `integrated`; only its mission may become `integrated` after exact-head review, integration onto the current head, and the mission integration gate.
 
 ```text
 `a1b2c3d` — `feat(auth): implement password login` — PASS

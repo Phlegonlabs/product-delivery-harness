@@ -271,8 +271,8 @@ Current Claude Code can support nested subagents, but current RUN-v11 deliberate
 One wave lifecycle has a fixed mutation order. Worker-result validation accepts a result only while its wave is active. The selector still blocks new writers and every integration/lifecycle mutation while `run.active_wave.status` is `active`, but it may stream a dependency-ready, read-only pre-integration review for one selected mission that has already reached `worker_passed`. So:
 
 1. Launch the selected workers.
-2. Validate each selected mission's worker result against the still-active wave. As each mission reaches `worker_passed`, re-run selection and dispatch its ready read-only pre-integration review while sibling workers continue.
-3. Close the wave once all selected missions' worker results are validated. A mission whose exact-head pre-integration review has PASSed may integrate before this transition, one at a time; a straggling writer must not hold finished work hostage. Batch gates still wait for wave close.
+2. Record each selected mission through `record-worker-result` against the still-active wave. As each mission reaches `worker_passed`, re-run selection and dispatch its ready read-only pre-integration review while sibling workers continue.
+3. Close the wave once all selected missions' worker results are recorded. A mission whose exact-head pre-integration review has PASSed may integrate before this transition, one at a time; a straggling writer must not hold finished work hostage. Batch gates still wait for wave close.
 4. Re-run selection and dispatch any remaining review nodes. Run each review to a PASS bound to the exact current worktree head, repairing findings in that worktree and re-reviewing the changed head.
 5. Integrate the passing missions serially in declared merge order (steps below).
 6. Run the batch gates, then recompute.

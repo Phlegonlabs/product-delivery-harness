@@ -244,7 +244,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         self.assertIn("already loaded design skill", preview)
         self.assertIn(
-            "becomes the HTML reference Harness implements each page from", preview
+            "Harness implements each recorded route from its own approved reference",
+            preview,
         )
         self.assertIn("request retention by default", preview)
         self.assertIn("cannot implement from an HTML reference", preview)

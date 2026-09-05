@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
+import json
 import sys
 import subprocess
 import tempfile
@@ -23,8 +25,15 @@ if str(SCRIPTS_DIR) not in sys.path:
 import harness_transition  # noqa: E402
 from harness_core import ManifestError, plan_digest  # noqa: E402
 from harness_manifest import load_run  # noqa: E402
+from harness_worker_result_transition import (  # noqa: E402
+    _observe_bound_worker,
+    record_worker_result,
+    reject_worker_result,
+    verify_worker_observation,
+)
 import manifest_fixtures as mf  # noqa: E402
 from manifest_fixtures import git  # noqa: E402
+from verifier_runtime import run_verifier  # noqa: E402
 
 
 def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
@@ -173,6 +182,25 @@ class WritePathTransitionTests(unittest.TestCase):
         self.assertTrue(
             any(a["attempt_id"] == "ATT-M1-A" for a in self.run["attempt_log"])
         )
+        with self.assertRaisesRegex(ManifestError, "lease id 'LEASE-M1-A' already exists"):
+            harness_transition._lease_worker(
+                self.plan,
+                self.run,
+                Namespace(
+                    mission_id="M1",
+                    node_id="N-M1",
+                    worker_id="W-M1-B",
+                    lease_id="LEASE-M1-A",
+                    attempt_id="ATT-M1-B",
+                    branch_ref="feature/m1-retry",
+                    worktree_path=str(self.root / "wt-m1-retry"),
+                    provider="codex",
+                    driver="subagents",
+                    worker_runtime="subagent",
+                    workspace_mode="parent_managed_worktree",
+                    completion_channel="agent_result",
+                ),
+            )
 
         self.run["mission_states"]["M1"]["phase"] = "worker_passed"
         self.run["mission_states"]["M1"]["head_sha"] = self.head
@@ -185,6 +213,377 @@ class WritePathTransitionTests(unittest.TestCase):
         self.assertEqual("integrated", mission["phase"])
         self.assertEqual("PASS", mission["integration_gate"])
         self.assertEqual(self.head, self.run["integration"]["integration_head_sha"])
+
+    def test_record_worker_result_stages_the_validated_handoff(self) -> None:
+        mission = self.plan["missions"][0]
+        declarations = [
+            (mission["tasks"][0]["verifiers"][0], "task", "M1/T01", "ATT-T01"),
+            (mission["tasks"][1]["verifiers"][0], "task", "M1/T02", "ATT-T02"),
+            (mission["worker_verifiers"][0], "worker", None, "ATT-WORKER"),
+        ]
+        for declaration, _, _, _ in declarations:
+            declaration["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
+        self._sync_plan_digest()
+        harness_transition._record_observation(
+            self.run, Namespace(repo_root=self.root)
+        )
+        harness_transition._accept_wave(
+            self.plan,
+            self.run,
+            Namespace(
+                wave_id="B-RESULT",
+                mission_id=["M1"],
+                batch_base_sha=self.head,
+                repo_root=self.root,
+            ),
+        )
+        worker_root = self.root / "wt-m1"
+        git(
+            self.root,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feature/m1-result",
+            str(worker_root),
+            self.head,
+        )
+        harness_transition._lease_worker(
+            self.plan,
+            self.run,
+            Namespace(
+                mission_id="M1",
+                node_id="N-M1",
+                worker_id="W-M1-RESULT",
+                lease_id="LEASE-M1-RESULT",
+                attempt_id="ATT-M1-RESULT",
+                branch_ref="feature/m1-result",
+                worktree_path=str(worker_root),
+                provider="codex",
+                driver="subagents",
+                worker_runtime="subagent",
+                workspace_mode="parent_managed_worktree",
+                completion_channel="agent_result",
+                report_path=None,
+            ),
+        )
+
+        changed_files = ["src/a/one.py", "src/a/two.py"]
+        source_root = worker_root / "src" / "a"
+        source_root.mkdir(parents=True)
+        (source_root / "one.py").write_text("ONE = 1\n", encoding="utf-8")
+        git(worker_root, "add", "src/a/one.py")
+        git(worker_root, "commit", "-qm", "task one")
+        task_one_head = git(worker_root, "rev-parse", "HEAD")
+        (source_root / "two.py").write_text("TWO = 2\n", encoding="utf-8")
+        git(worker_root, "add", "src/a/two.py")
+        git(worker_root, "commit", "-qm", "task two")
+        worker_head = git(worker_root, "rev-parse", "HEAD")
+        retained = []
+        for declaration, layer, task_id, attempt_id in declarations:
+            context = {
+                "run_id": self.run["run_id"],
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": plan_digest(self.plan),
+                "graph_revision": self.run["graph_state"]["graph_revision"],
+                "batch_base_sha": self.head,
+                "head_sha": worker_head,
+                "changed_files": changed_files,
+                "trust_domain": "parent_local",
+                "checkout_role": "worker",
+                "checkout_dirty": False,
+                "cache_safe": False,
+                "layer": layer,
+                "mission_id": "M1",
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "lease_id": "LEASE-M1-RESULT",
+            }
+            retained.append(
+                run_verifier(
+                    declaration,
+                    context,
+                    checkout_root=worker_root,
+                    environment={},
+                )
+            )
+        by_id = {result["verifier_id"]: result for result in retained}
+        worker_result = {
+            "type": "WORKER_RESULT",
+            "run_id": self.run["run_id"],
+            "plan_id": self.plan["plan_id"],
+            "mission_id": "M1",
+            "lease_id": "LEASE-M1-RESULT",
+            "status": "worker_passed",
+            "current_task_id": None,
+            "plan_revision": self.plan["revision"],
+            "plan_digest_sha256": plan_digest(self.plan),
+            "base_sha": self.head,
+            "head_sha": worker_head,
+            "diff_summary": "Completed both atomic tasks.",
+            "changed_files": changed_files,
+            "task_results": [
+                {
+                    "task_id": "M1/T01",
+                    "status": "worker_passed",
+                    "head_sha": task_one_head,
+                    "verifier_ids": ["verify-m1-1"],
+                    "commits": [task_one_head],
+                    "evidence_paths": ["evidence/t01.txt"],
+                },
+                {
+                    "task_id": "M1/T02",
+                    "status": "worker_passed",
+                    "head_sha": worker_head,
+                    "verifier_ids": ["verify-m1-2"],
+                    "commits": [worker_head],
+                    "evidence_paths": ["evidence/t02.txt"],
+                },
+            ],
+            "verifiers": [
+                {
+                    "id": verifier_id,
+                    "status": "PASS",
+                    "evidence": by_id[verifier_id]["execution_key"],
+                }
+                for verifier_id in ("verify-m1-1", "verify-m1-2", "worker-m1")
+            ],
+            "commits": [task_one_head, worker_head],
+            "evidence_paths": ["evidence/mission.txt"],
+            "blockers": [],
+            "residual_risks": [],
+            "integration_notes": "",
+            "subagent_activity": {
+                "status": "not_applicable",
+                "skip_reason": "flat mission worker",
+                "children": [],
+            },
+        }
+        node_result = {
+            "run_id": self.run["run_id"],
+            "node_id": "N-M1",
+            "attempt_id": "ATT-M1-RESULT",
+            "plan_id": self.plan["plan_id"],
+            "plan_revision": self.plan["revision"],
+            "plan_digest_sha256": plan_digest(self.plan),
+            "graph_revision": self.run["graph_state"]["graph_revision"],
+            "batch_base_sha": self.head,
+            "status": "succeeded",
+            "outcome": "pass",
+            "worker_result": worker_result,
+            "refinement_request": None,
+            "evidence_paths": ["evidence/node.txt"],
+        }
+        node_path = self.root / "node-result.json"
+        node_path.write_text(json.dumps({"node_result": node_result}), encoding="utf-8")
+        retained_paths = []
+        for index, result in enumerate(retained, start=1):
+            path = self.root / f"verifier-{index}.json"
+            path.write_text(json.dumps(result), encoding="utf-8")
+            retained_paths.append(path)
+        mf.authorize_action(
+            self.run,
+            "spawn_subagents",
+            ["M1"],
+            ["worker:W-M1-RESULT"],
+        )
+        mf.authorize_action(
+            self.run,
+            "create_local_worktrees",
+            ["M1"],
+            [f"worktree:{worker_root}"],
+        )
+        for action in ("create_local_branches", "create_local_commits"):
+            mf.authorize_action(
+                self.run,
+                action,
+                ["M1"],
+                ["branch:feature/m1-result"],
+            )
+
+        rejected_run = copy.deepcopy(self.run)
+        rejected_worker_result = copy.deepcopy(worker_result)
+        rejected_worker_result["changed_files"] = ["src/a/one.py"]
+        rejected_node_result = copy.deepcopy(node_result)
+        rejected_node_result["worker_result"] = rejected_worker_result
+        rejected_path = self.root / "rejected-node-result.json"
+        rejected_path.write_text(
+            json.dumps({"node_result": rejected_node_result}), encoding="utf-8"
+        )
+        rejected_receipt = record_worker_result(
+            self.plan,
+            rejected_run,
+            Namespace(
+                repo_root=self.root,
+                node_result=rejected_path,
+                worker_result=None,
+                verifier_result=retained_paths,
+            ),
+        )
+        self.assertEqual(
+            "worker_failed", rejected_run["mission_states"]["M1"]["phase"]
+        )
+        self.assertEqual("worker_failed", rejected_receipt["phase"])
+        self.assertTrue(rejected_run["mission_states"]["M1"]["blockers"])
+        self.assertEqual(
+            [], harness_transition.validate_current_plan_run(self.plan, rejected_run)
+        )
+        self.assertEqual("worker_running", self.run["mission_states"]["M1"]["phase"])
+
+        record_args = Namespace(
+            repo_root=self.root,
+            node_result=node_path,
+            worker_result=None,
+            verifier_result=retained_paths,
+        )
+        passing_receipt = record_worker_result(
+            self.plan,
+            self.run,
+            record_args,
+        )
+
+        self.assertEqual("worker_passed", self.run["mission_states"]["M1"]["phase"])
+        self.assertEqual("worker_passed", passing_receipt["phase"])
+        self.assertEqual(worker_head, self.run["mission_states"]["M1"]["head_sha"])
+        self.assertEqual("worker_passed", self.run["workers"][-1]["phase"])
+        self.assertEqual("running", self.run["graph_state"]["node_states"]["N-M1"]["phase"])
+        self.assertTrue(
+            all(
+                self.run["task_states"][task_id]["phase"] == "mission_recorded"
+                for task_id in ("M1/T01", "M1/T02")
+            )
+        )
+        self.assertEqual(3, len(self.run["verifier_executions"]))
+        self.assertEqual([], harness_transition.validate_current_plan_run(self.plan, self.run))
+        (source_root / "three.py").write_text("THREE = 3\n", encoding="utf-8")
+        git(worker_root, "add", "src/a/three.py")
+        git(worker_root, "commit", "-qm", "move worker head")
+        with self.assertRaisesRegex(ManifestError, "worker worktree changed"):
+            verify_worker_observation(record_args.worker_observation)
+        git(worker_root, "mv", "docs/product/prd.md", "src/a/moved-prd.py")
+        git(worker_root, "commit", "-qm", "rename an out-of-scope source")
+        rename_observation = _observe_bound_worker(
+            self.plan, self.run, node_result, self.root
+        )
+        self.assertIn("docs/product/prd.md", rename_observation["changed_files"])
+        self.assertIn("src/a/moved-prd.py", rename_observation["changed_files"])
+
+    def test_record_worker_result_retains_a_retryable_failure(self) -> None:
+        harness_transition._record_observation(
+            self.run, Namespace(repo_root=self.root)
+        )
+        harness_transition._accept_wave(
+            self.plan,
+            self.run,
+            Namespace(
+                wave_id="B-FAIL",
+                mission_id=["M1"],
+                batch_base_sha=self.head,
+                repo_root=self.root,
+            ),
+        )
+        worker_root = self.root / "wt-m1-failed"
+        git(
+            self.root,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "feature/m1-failed",
+            str(worker_root),
+            self.head,
+        )
+        harness_transition._lease_worker(
+            self.plan,
+            self.run,
+            Namespace(
+                mission_id="M1",
+                node_id="N-M1",
+                worker_id="W-M1-FAILED",
+                lease_id="LEASE-M1-FAILED",
+                attempt_id="ATT-M1-FAILED",
+                branch_ref="feature/m1-failed",
+                worktree_path=str(worker_root),
+                provider="codex",
+                driver="subagents",
+                worker_runtime="subagent",
+                workspace_mode="parent_managed_worktree",
+                completion_channel="agent_result",
+                report_path=None,
+            ),
+        )
+        mf.authorize_action(
+            self.run, "spawn_subagents", ["M1"], ["worker:W-M1-FAILED"]
+        )
+        mf.authorize_action(
+            self.run,
+            "create_local_worktrees",
+            ["M1"],
+            [f"worktree:{worker_root}"],
+        )
+        for action in ("create_local_branches", "create_local_commits"):
+            mf.authorize_action(
+                self.run,
+                action,
+                ["M1"],
+                ["branch:feature/m1-failed"],
+            )
+        node_result = {
+            "run_id": self.run["run_id"],
+            "node_id": "N-M1",
+            "attempt_id": "ATT-M1-FAILED",
+            "plan_id": self.plan["plan_id"],
+            "plan_revision": self.plan["revision"],
+            "plan_digest_sha256": plan_digest(self.plan),
+            "graph_revision": self.run["graph_state"]["graph_revision"],
+            "batch_base_sha": self.head,
+            "status": "failed",
+            "outcome": "retryable_failure",
+            "worker_result": None,
+            "refinement_request": None,
+            "evidence_paths": ["evidence/worker-failure.txt"],
+        }
+        node_path = self.root / "failed-node-result.json"
+        node_path.write_text(json.dumps({"node_result": node_result}), encoding="utf-8")
+
+        explicitly_rejected = copy.deepcopy(self.run)
+        rejection_receipt = reject_worker_result(
+            self.plan,
+            explicitly_rejected,
+            Namespace(
+                repo_root=self.root,
+                node_id="N-M1",
+                worker_id="W-M1-FAILED",
+                outcome="retryable_failure",
+                reason=["parent rejected stale worker evidence"],
+            ),
+        )
+        self.assertEqual(
+            "worker_failed", explicitly_rejected["mission_states"]["M1"]["phase"]
+        )
+        self.assertEqual("worker_failed", rejection_receipt["phase"])
+        self.assertIn(
+            "parent rejected stale worker evidence",
+            explicitly_rejected["mission_states"]["M1"]["blockers"],
+        )
+
+        record_worker_result(
+            self.plan,
+            self.run,
+            Namespace(
+                repo_root=self.root,
+                node_result=node_path,
+                worker_result=None,
+                verifier_result=[],
+            ),
+        )
+
+        self.assertEqual("worker_failed", self.run["mission_states"]["M1"]["phase"])
+        self.assertEqual("worker_failed", self.run["workers"][-1]["phase"])
+        node_state = self.run["graph_state"]["node_states"]["N-M1"]
+        self.assertEqual("failed", node_state["phase"])
+        self.assertEqual("retryable_failure", node_state["last_outcome"])
+        self.assertEqual([], harness_transition.validate_current_plan_run(self.plan, self.run))
 
     def test_guards_refuse_the_wrong_states(self) -> None:
         with self.assertRaises(ManifestError):
@@ -262,6 +661,15 @@ class WritePathTransitionTests(unittest.TestCase):
                     mission_id="M1", integrated_sha=self.head, repo_root=self.root
                 ),
             )
+
+    def test_plan_compare_and_swap_rejects_a_changed_plan(self) -> None:
+        plan_path = self.root / "PLAN.md"
+        plan_path.write_text("original\n", encoding="utf-8")
+        harness_transition._ensure_plan_unchanged(plan_path, "original\n")
+        plan_path.write_text("changed\n", encoding="utf-8")
+
+        with self.assertRaisesRegex(ManifestError, "PLAN.md changed"):
+            harness_transition._ensure_plan_unchanged(plan_path, "original\n")
 
     def test_accept_wave_uses_the_selector_frontier(self) -> None:
         harness_transition._record_observation(

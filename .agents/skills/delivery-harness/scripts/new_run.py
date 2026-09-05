@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -29,18 +30,26 @@ from harness_manifest import (
     ManifestError,
     load_plan,
     plan_digest,
+    validate_current_plan_run,
     validate_plan,
 )
 from harness_contract import contract_digest
 
 def _harness_version() -> str:
-    """Read the packaged Harness version from the nearest package.json.
+    """Read the Harness version from skill-local or package metadata.
 
-    The depth differs between the canonical `.agents/skills/...` tree and the
-    generated plugin bundle, so walk up instead of counting parents: a fixed
-    depth silently recorded "0.0.0" for every plugin user, in the very field
-    the runtime upgrade gate checks against.
+    A normal installation copies only the three skill directories, so the
+    delivery-harness directory carries its own VERSION file. Package metadata
+    remains a compatibility fallback for older packaged layouts.
     """
+
+    version_pattern = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
+    skill_version = Path(__file__).resolve().parent.parent / "VERSION"
+    if skill_version.is_file():
+        version = skill_version.read_text(encoding="utf-8").strip()
+        if version_pattern.fullmatch(version):
+            return version
+        raise ManifestError(f"invalid Harness VERSION value in {skill_version}: {version!r}")
 
     for directory in Path(__file__).resolve().parents:
         package = directory / "package.json"
@@ -57,9 +66,11 @@ def _harness_version() -> str:
             version = json.loads(package.read_text(encoding="utf-8"))["version"]
         except (OSError, ValueError, KeyError):
             continue
-        if isinstance(version, str) and version:
+        if isinstance(version, str) and version_pattern.fullmatch(version):
             return version
-    return "0.0.0"
+    raise ManifestError(
+        "cannot determine the Harness version; install delivery-harness with its VERSION file"
+    )
 
 
 
@@ -235,7 +246,7 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
             },
         },
         "graph_state": {
-            "graph_revision": 1,
+            "graph_revision": plan["revision"],
             "node_states": {
                 node["id"]: _node_state()
                 for node in nodes
@@ -343,7 +354,19 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {message}", file=sys.stderr)
         return 2
 
-    document = render(build_run(plan, run_id=args.run_id, branch=args.branch))
+    try:
+        run = build_run(plan, run_id=args.run_id, branch=args.branch)
+        run_errors = validate_current_plan_run(plan, run)
+    except (ManifestError, OSError) as exc:
+        print(f"cannot generate run: {exc}", file=sys.stderr)
+        return 2
+    if run_errors:
+        print("generated run does not validate:", file=sys.stderr)
+        for message in run_errors:
+            print(f"  {message}", file=sys.stderr)
+        return 2
+
+    document = render(run)
     if args.out is None:
         print(document, end="")
         return 0

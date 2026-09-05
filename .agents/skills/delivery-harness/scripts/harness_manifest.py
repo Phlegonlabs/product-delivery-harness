@@ -2825,6 +2825,7 @@ def _validate_run_attempt_log(
         _add(errors, "run.attempt_log", "must be a list")
     else:
         attempt_keys = {"attempt_id", "mission_id", "task_id", "lease_id", "kind", "result", "evidence"}
+        seen_attempt_ids: set[str] = set()
         for index, attempt in enumerate(run["attempt_log"]):
             path = f"run.attempt_log[{index}]"
             optional_attempt_keys = (
@@ -2837,6 +2838,12 @@ def _validate_run_attempt_log(
             for key in ("attempt_id", "kind", "result"):
                 if not _nonempty_string(attempt[key]):
                     _add(errors, f"{path}.{key}", "must be a non-empty string")
+            attempt_id = attempt.get("attempt_id")
+            if _nonempty_string(attempt_id):
+                if attempt_id in seen_attempt_ids:
+                    _add(errors, f"{path}.attempt_id", "must be unique")
+                else:
+                    seen_attempt_ids.add(attempt_id)
             # A final-gate or closeout-gate attempt belongs to no mission, so
             # mission_id is nullable here rather than laundered through an
             # arbitrary mission.
@@ -2851,6 +2858,49 @@ def _validate_run_attempt_log(
             if schema_version == 11:
                 _optional_string(errors, f"{path}.review_lineage_id", attempt.get("review_lineage_id"))
                 _strings(errors, f"{path}.failure_family_ids", attempt.get("failure_family_ids", []))
+
+
+def _validate_lease_identity(errors: list[str], run: dict[str, Any]) -> None:
+    """Require one lease identity to belong to exactly one mission."""
+
+    owners: dict[str, str] = {}
+
+    def bind(path: str, lease_id: Any, mission_id: Any) -> None:
+        if not _nonempty_string(lease_id) or not _nonempty_string(mission_id):
+            return
+        prior = owners.get(lease_id)
+        if prior is not None and prior != mission_id:
+            _add(
+                errors,
+                path,
+                f"lease {lease_id!r} is already bound to mission {prior!r}",
+            )
+        else:
+            owners[lease_id] = mission_id
+
+    mission_states = run.get("mission_states")
+    if isinstance(mission_states, dict):
+        for mission_id, state in mission_states.items():
+            if isinstance(state, dict):
+                bind(
+                    f"run.mission_states.{mission_id}.lease_id",
+                    state.get("lease_id"),
+                    mission_id,
+                )
+    for collection, label in (
+        (run.get("workers"), "workers"),
+        (run.get("attempt_log"), "attempt_log"),
+        (run.get("verifier_executions"), "verifier_executions"),
+    ):
+        if not isinstance(collection, list):
+            continue
+        for index, item in enumerate(collection):
+            if isinstance(item, dict):
+                bind(
+                    f"run.{label}[{index}].lease_id",
+                    item.get("lease_id"),
+                    item.get("mission_id"),
+                )
 
 
 
@@ -3231,6 +3281,7 @@ def _validate_run_workers(
     if not isinstance(workers, list):
         _add(errors, "run.workers", "must be a list")
     else:
+        lease_owners: dict[str, str] = {}
         for index, worker in enumerate(workers):
             path = f"run.workers[{index}]"
             if not _keys(
@@ -3251,6 +3302,17 @@ def _validate_run_workers(
             if worker["worker_id"] in worker_ids:
                 _add(errors, f"{path}.worker_id", "must be unique")
             worker_ids.add(worker["worker_id"])
+            lease_id = worker.get("lease_id")
+            if _nonempty_string(lease_id):
+                prior_owner = lease_owners.get(lease_id)
+                if prior_owner is not None:
+                    _add(
+                        errors,
+                        f"{path}.lease_id",
+                        f"must be unique across workers; already used by {prior_owner}",
+                    )
+                elif _nonempty_string(worker.get("worker_id")):
+                    lease_owners[lease_id] = worker["worker_id"]
             if worker["mission_id"] not in mission_ids:
                 _add(errors, f"{path}.mission_id", "is unknown")
             if not _is_int(worker["plan_revision"]) or worker["plan_revision"] < 1:
@@ -4860,6 +4922,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(errors, "run.review_workers", "must be a list")
         else:
             review_plan_digest = plan_digest(plan)
+            review_attempt_ids: set[str] = set()
             for index, worker in enumerate(review_workers):
                 path = f"run.review_workers[{index}]"
                 if not _keys(errors, path, worker, review_worker_keys, {"tree_sha"}):
@@ -4874,6 +4937,44 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 ):
                     if not _nonempty_string(worker[key]):
                         _add(errors, f"{path}.{key}", "must be a non-empty string")
+                attempt_id = worker.get("attempt_id")
+                if _nonempty_string(attempt_id):
+                    if attempt_id in review_attempt_ids:
+                        _add(
+                            errors,
+                            f"{path}.attempt_id",
+                            "must be unique across review workers",
+                        )
+                    else:
+                        review_attempt_ids.add(attempt_id)
+                    attempt_matches = [
+                        attempt
+                        for attempt in (
+                            run.get("attempt_log")
+                            if isinstance(run.get("attempt_log"), list)
+                            else []
+                        )
+                        if isinstance(attempt, dict)
+                        and attempt.get("attempt_id") == attempt_id
+                    ]
+                    if attempt_matches and worker.get("phase") in {
+                        "leased",
+                        "worker_running",
+                    }:
+                        _add(
+                            errors,
+                            f"{path}.attempt_id",
+                            "active review attempt must not collide with attempt_log",
+                        )
+                    elif any(
+                        attempt.get("kind") != "review"
+                        for attempt in attempt_matches
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.attempt_id",
+                            "terminal review attempt may match only its review log entry",
+                        )
                 _optional_sha(errors, f"{path}.tree_sha", worker.get("tree_sha"))
                 if worker["worker_id"] in worker_ids:
                     _add(errors, f"{path}.worker_id", "must be unique across all workers")
@@ -5381,6 +5482,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "transition to integrating requires every planned pre-integration review node and current-head review worker to retain an exact-head PASS",
                 )
     _validate_run_attempt_log(errors, run, schema_version, mission_ids, task_ids)
+    _validate_lease_identity(errors, run)
     _validate_run_review_lineages(errors, plan, run, schema_version, mission_ids)
     if schema_version in {9, 10, 11}:
         _validate_gate_results(

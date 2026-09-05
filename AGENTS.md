@@ -38,6 +38,7 @@ python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
 python .agents/skills/delivery-harness/scripts/check_skill_spec.py
 python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
+HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
 git diff --check
@@ -45,7 +46,7 @@ git diff --check
 
 CI runs the same set.
 
-Every flow that lands on `main` bumps the release version in the same change: `package.json`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version assert in `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version. After the user lands the release on `main`, tag that release commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
+Every flow that lands on `main` bumps the release version in the same change: `package.json`, `.agents/skills/delivery-harness/VERSION`, the README badges and version-history entries in all three languages, the RUNBOOK `required_harness_version` default, and the pinned version asserts in `test_skill_contract.py`. A breaking skill-bundle change bumps the minor version. After the user lands the release on `main`, tag that release commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
 
 Any change that adds or alters a skill, rule, or documented flow also updates the READMEs' descriptive sections in the same change, in all three languages — the README is documentation-of-record, not a release-time artifact.
 
