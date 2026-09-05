@@ -22,6 +22,7 @@ The role receives the frozen discovery context and the candidate package bodies.
 
 - product name, archetypes, and the interview summary;
 - the drafted `PRD.md` body, which is what it checks;
+- `research-assessment.md` when the pre-draft research-first assessment ran: this pass is a reconciliation, so carry still-valid `RA-*` findings and their sources forward unchanged, re-check what the draft changed, and research only what the assessment left `UNVALIDATED` or what the draft newly raises;
 - whether the product is public-facing or internal, because that changes what "the market" means — an internal tool competes with spreadsheets, existing internal systems, and doing nothing, not with commercial products.
 
 ## What To Research

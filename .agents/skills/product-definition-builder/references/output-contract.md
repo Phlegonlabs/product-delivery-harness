@@ -32,11 +32,12 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
+| `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, and what actually deployed |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 | `design-system.md` + `design-system.json` (only after an explicitly requested visual-design phase whose Design System Need Gate is `required`) | A designer or frontend engineer styling reusable surfaces | The binding token, primitive, component, and state contract; read alongside `PRD.md` and `wireframes.html` |
 
-Core reading order is `PRD.md` → `wireframes.html` → `architecture.md` → `stack-decisions.md`. Read the optional visual-design handoff and design-system pair only when that later phase was requested and completed. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it.
+Core reading order is `PRD.md` → `wireframes.html` → `architecture.md` → `stack-decisions.md`. Read the optional visual-design handoff and design-system pair only when that later phase was requested and completed. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it. `research-assessment.md` is the same kind of evidence for the pre-draft decision: read it when a statement cites an `RA-*` ID.
 
 Two rules keep the package readable:
 
@@ -50,6 +51,7 @@ Length budget. These are targets, not caps — say less when the product is simp
 - `architecture.md`: about 250 lines.
 - `stack-decisions.md`: about 150 lines.
 - `market-research.md`: about 150 lines. Findings and sources, not an industry report.
+- `research-assessment.md`: about 80 lines. Evidence and the gate decision, not a duplicate of the post-draft research.
 
 When a section runs past its share, the usual cause is detail that belongs in a different artifact. Move it before expanding the file.
 
@@ -186,6 +188,11 @@ This is the single recorded home for the interview's validation-depth answer, so
 
 Builder direction is a product input, not usability proof. Record any conflict with user evidence or accessibility requirements as a hypothesis or open question.
 
+### Research Gate
+
+Research Gate: [go / clarify / stop] — assessed [YYYY-MM-DD], findings in [research-assessment.md path]
+[For `clarify`, the questions asked and their resolutions, and the final gate value after re-assessment. For a skipped assessment, which recorded reason applied: the user declined it, no web search or fetch tool was available, or the package is a trivial stub. Enhancement packages cite the prior package's gate unchanged instead of re-running it.]
+
 ### Wireframe Approval
 
 Artifact: [wireframes.html path]
@@ -310,6 +317,52 @@ Omit this section when the product has no commercial surface.
 ```
 
 `Lands in` names the artifact and section a finding affects, so the parent can apply it without re-reading the whole package. A finding that would widen product scope is recorded as a recommendation and raised with the user; the research role never decides scope.
+
+## `research-assessment.md`
+
+Produced by the pre-draft research-first assessment in `research-first-guide.md`. Omit the whole file when that pass was skipped; `PRD.md`'s `### Research Gate` then records which skip reason applied instead of citing the artifact.
+
+Every factual row follows `market-research-guide.md`'s source rules: a source ID, or `UNVALIDATED` with what was searched. The post-draft `market-research.md` reconciles against this file rather than researching the same ground twice.
+
+Use this structure, keeping only the sections that apply to this product:
+
+```markdown
+# Research Assessment: [Product Name]
+
+## Scope of This Assessment
+[What was assessed and what was deliberately left out.]
+
+Researched on: [YYYY-MM-DD]
+
+## Segment And Jobs Evidence
+| Finding | Evidence | Confidence | Sources |
+| --- | --- | --- | --- |
+
+## Existing Alternatives
+| Alternative | What it is | Who uses it | Where it falls short | Confidence | Sources |
+| --- | --- | --- | --- | --- | --- |
+
+## Integration And Adoption Baseline
+[Prose or table: table-stakes integrations, adoption signals, switching costs.]
+
+## Market Risks
+| Risk | Why it applies here | Confidence | Sources |
+| --- | --- | --- | --- |
+
+## Findings
+| RA ID | Finding | Confidence | Sources |
+| --- | --- | --- | --- |
+
+## Unresolved
+| Question | What was searched | What would settle it |
+| --- | --- | --- |
+
+## Sources
+| Source ID | Publisher | Title | URL | Retrieved | Type |
+| --- | --- | --- | --- | --- | --- |
+```
+
+The gate itself is recorded in `PRD.md`'s `### Research Gate`; this file holds the evidence behind it. A `stop` gate leaves this file in the staging directory with no drafted package.
 
 ## `architecture.md`
 
@@ -608,6 +661,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 - When the visual-design phase was explicitly requested, the Design System Need Gate is not `blocked`. When it is `required`, the package includes the validated pair returned by `design-system-compiler` and the parent records its exact staged paths and passing checks. When it is `not_required`, no placeholder pair is present and the approved page-faithful UI target, `PRD.md`, and `wireframes.html` are explicitly named as the replacement visual contract.
 - If produced, `implementation-plan.md` includes milestones, dependency order, non-canonical Harness handoff signals, test strategy, release plan, rollback plan, and unresolved decisions. Its test strategy reuses the canonical `TEST-*` IDs from `PRD.md`; it does not replace them with anonymous checks or newly numbered duplicates. Its release plan reuses the stable release target IDs from `architecture.md`.
 - The market-research gap pass either produced `market-research.md`, or the package records which reason skipped it — the user declined, no web search or fetch tool was available, the package is a trivial stub, or the role returned blocked. A silently missing pass does not validate.
+- For a new package, `PRD.md` records a `### Research Gate` with a `go`, `clarify`, or `stop` value, and either `research-assessment.md` is staged with the package or the gate records which skip reason applied — the user declined the assessment, no web search or fetch tool was available, or the package is a trivial stub. An enhancement package cites the prior package's gate unchanged instead of re-running the assessment. A silently missing gate does not validate.
+- When `research-assessment.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date, or is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
 - When `market-research.md` is present, every factual row cites a source ID resolving to a `## Sources` row with publisher, URL, and retrieval date. Any claim without one is marked `UNVALIDATED` with what was searched. No competitor, price, funding figure, user count, or market size appears without a source.
 - When the pass was skipped or blocked, `PRD.md`'s `## Assumptions` records that the market context is unvalidated.
 - Findings that changed the package cite their `MR-*` IDs in the sections they changed, and `PRD.md` states conclusions rather than restating the competitor table, sources, or retrieval dates. Findings that would widen product scope are recorded as open questions or recommendations, not applied silently.
@@ -617,5 +672,5 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 - No current-package artifact will be published outside `docs/product/` unless the user explicitly requested another location.
 - The superseded-document inventory excludes `docs/product/archived/`, unrelated documents, and ambiguous candidates.
-- In enhancement mode, unaffected sections, `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `MR-*` IDs, and stable release target IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed; new TEST IDs cover only obligations that were previously uncovered, and new release target IDs cover only destinations that were previously uncovered.
+- In enhancement mode, unaffected sections, `PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `MR-*`, `RA-*` IDs, and stable release target IDs from the prior package were carried forward unchanged rather than regenerated, and the diff is scoped to what the new discovery actually added, changed, or removed; new TEST IDs cover only obligations that were previously uncovered, and new release target IDs cover only destinations that were previously uncovered.
 - Validation does not trigger publication by itself. Exact overwrite and archive moves are already authorized, or the staged package remains unchanged while approval is requested.

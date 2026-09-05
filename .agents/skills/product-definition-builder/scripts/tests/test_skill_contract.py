@@ -715,8 +715,8 @@ async function agent(_prompt, options) {
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
 
-        research = skill.index("13. Run the market-research gap pass")
-        design = skill.index("14. Only when the owner explicitly requests visual design")
+        research = skill.index("14. Run the market-research gap pass")
+        design = skill.index("15. Only when the owner explicitly requests visual design")
         self.assertLess(research, design)
         self.assertIn("valid `MR-*` evidence", skill)
         self.assertIn("Ask the human owner once for style preferences and visual references", skill)
@@ -982,8 +982,8 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
 
         self.assertIn("Keep the deployment platform out of this call", skill)
-        self.assertIn("depend on step 4's archetype answer", skill)
-        self.assertIn("see Workflow step 6, after the archetype is known", skill)
+        self.assertIn("depend on step 5's archetype answer", skill)
+        self.assertIn("see Workflow step 7, after the archetype is known", skill)
         self.assertIn("question tool's actual per-call question and option limits", interview)
         self.assertIn("There is no host-specific or cross-phase total-call cap", interview)
         self.assertIn(
@@ -1501,6 +1501,68 @@ async function agent(_prompt, options) {
         )
         self.assertIn("do not archive a prior `market-research.md` at all", lifecycle)
         self.assertIn("the market context is unvalidated", contract)
+
+    def test_research_first_gate_runs_before_any_closed_set_decision(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/research-first-guide.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        market = self.read("references/market-research-guide.md")
+
+        # The assessment is its own workflow step, ordered between the
+        # free-text interview and the first AskUserQuestion batch.
+        self.assertIn("4. Run the research-first assessment", skill)
+        interview_at = skill.index("Conduct a complete but concise product interview")
+        assessment_at = skill.index("4. Run the research-first assessment")
+        first_batch_at = skill.index("5. After all applicable free-text segments")
+        self.assertLess(interview_at, assessment_at)
+        self.assertLess(assessment_at, first_batch_at)
+        self.assertIn(
+            "before any closed-set decision", skill,
+        )
+        self.assertIn("In enhancement mode, skip this step entirely", skill)
+
+        # The gate vocabulary, owner, and stop behavior are pinned.
+        self.assertIn("`go | clarify | stop`", skill)
+        self.assertIn("The researcher recommends; the human owner decides", guide)
+        self.assertIn("Draft nothing. Report the findings", guide)
+        self.assertIn("recorded as `clarify` with the decisive question stated", guide)
+
+        # Source discipline is reused from the market-research guide, not duplicated.
+        self.assertIn(
+            "Apply `references/market-research-guide.md`'s Source Rules", guide
+        )
+        self.assertIn("never invent a competitor, price, user count, or market figure", guide)
+
+        # The artifact, its publish path, and its trace family are contracted.
+        self.assertIn("`RA-*` for research-first assessment findings", skill)
+        self.assertIn("## `research-assessment.md`", contract)
+        self.assertIn("| RA ID | Finding | Confidence | Sources |", contract)
+        self.assertIn(
+            "`docs/product/research-assessment.md` when the research-first assessment produced it",
+            lifecycle,
+        )
+        self.assertIn("never while keeping a `PRD.md` that cites its `RA-*` IDs", lifecycle)
+        self.assertIn("`RA-*` IDs follow the `MR-*` discipline", guide)
+
+        # PRD records the gate; a silently missing gate does not validate.
+        self.assertIn("### Research Gate", contract)
+        self.assertIn(
+            "Research Gate: [go / clarify / stop] — assessed [YYYY-MM-DD]",
+            contract,
+        )
+        self.assertIn("A silently missing gate does not validate", contract)
+        self.assertIn("`research-assessment.md` in full", skill)
+
+        # The post-draft pass reconciles the assessment instead of
+        # researching the same ground twice.
+        self.assertIn("plus `research-assessment.md` when the research-first pass ran", skill)
+        self.assertIn("The pass is a reconciliation", skill)
+        self.assertIn(
+            "`research-assessment.md` when the pre-draft research-first assessment ran",
+            market,
+        )
+        self.assertIn("carry still-valid `RA-*` findings", market)
 
     def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")
