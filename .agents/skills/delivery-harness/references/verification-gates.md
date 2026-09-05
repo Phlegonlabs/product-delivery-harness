@@ -280,7 +280,7 @@ No denied path or undeclared runtime resource was touched
 Required worker verifiers are PASS with `evidence` equal to the literal `execution_key` produced by `verifier_runtime.py`
 ```
 
-If any check fails, set `worker_failed` or `blocked`; do not integrate. A clean worker result transitions through `integrating`, then either `integrated` after the integration gate passes or `integration_failed` if it does not.
+If candidate validation fails after its current node binding is accepted, `record-worker-result` retains the issues as `worker_failed` or `blocked`; use `reject-worker-result` when the candidate itself is stale or untrusted. Do not integrate either outcome. A clean result reaches `worker_passed`, then transitions through `integrating` to either `integrated` after the integration gate passes or `integration_failed` if it does not.
 
 Dependency readiness is strict: only a dependency in phase `integrated`, with `integration_gate: PASS` and a recorded integrated SHA reachable from the current integration head, is satisfied. `worker_passed`, a green branch, or a finished thread is insufficient.
 

@@ -18,7 +18,7 @@ Read this reference only while rendering or validating a delegated worker's term
 - A passing worker result is an integration candidate, not proof of review or integration.
 - RUN-v11 workers never delegate. `subagent_activity` is `not_applicable` with an empty `children` list.
 - For `report_file`, write the exact fenced JSON under the heading `## Worker Result Manifest` to the parent-supplied temporary path — that heading plus one fenced `worker_result` JSON block is the exact shape `load_worker_result` parses; a report without it is unreadable to the validators.
-- Worker and task states are `worker_passed`, `blocked`, or `worker_failed`.
+- A passing mission returns the complete worker result below. A non-passing mission returns a graph node result with `worker_result: null`; `record-worker-result` retains that terminal outcome without pretending a partial payload passed the worker contract.
 
 ## Verifier Execution Context
 
@@ -95,7 +95,9 @@ For a worker-level verifier, use `"layer": "worker"` and `"task_id": null`. Use 
 }
 ```
 
-A passing mission lists every executable, non-superseded task in `task_results`. A blocked or failed result sets `current_task_id` and preserves completed task results. List commits in actual Git order. Every SHA appears exactly once in the mission `commits` list and under exactly one task result; the order of each task's commit list must match that mission sequence. The final commit must equal `head_sha`.
+A passing mission lists every executable, non-superseded task in `task_results`. List commits in actual Git order. Every SHA appears exactly once in the mission `commits` list and under exactly one task result; the order of each task's commit list must match that mission sequence. The final commit must equal `head_sha`.
+
+The parent records this payload with the matching graph node result, independently observed head/diff/ancestry, and retained verifier execution files through `harness_transition.py ... record-worker-result`. The transition revalidates all of them under the RUN lock before changing canonical state.
 
 ## Graph Node Result
 

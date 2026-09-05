@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.25.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.25.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -29,7 +29,7 @@
 | 已核准線框稿、需要視覺設計的套件 | `product-definition-builder` UI Design Pass；gate 判定 required 時再進 `design-system-compiler` + `frontend-design` | 核准的視覺方向——在 web 上是保留於 `docs/design/ui-references/` 的高擬真 HTML references——以及需要時具約束力的設計系統契約 |
 | 既有儲存庫中的明確變更 | `delivery-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 
-這些技能可以單獨使用。不是每個任務都要跑完整條流程。
+三個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
 
 ## 核心保證
 
@@ -129,13 +129,13 @@ flowchart TB
                 obs["record-observation<br/>live-Git 快照"]
                 sel["select_ready_nodes.py<br/>確定性 frontier 選擇"]
                 accept["accept-wave<br/>（batch base 綁定）"]
-                adapters["runtime-adapters.md<br/>偵測 host -> 載入對應 provider 段"]
+                adapters["依共用契約解析<br/>可用的 agent driver"]
                 lease["lease-worker<br/>（worktree + lease + graph 綁定）"]
-                workers["fresh bounded workers<br/>（Codex / Claude Code / Pi / generic）"]
-                vr["validate_result.py<br/>對 live Git 事實驗證"]
+                workers["fresh bounded agent workers"]
+                record["record-worker-result<br/>重驗證佐證 + 原子 RUN 更新"]
                 review["exact-head review<br/>（reserve -> reviewer -> record）"]
                 integ["record-integration<br/>（序列整合；同 tree 可跳過 unified review）"]
-                lock --> obs --> sel --> accept --> adapters --> lease --> workers --> vr --> review --> integ
+                lock --> obs --> sel --> accept --> adapters --> lease --> workers --> record --> review --> integ
             end
 
             plan --> newrun --> LOOP
@@ -286,7 +286,7 @@ Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。�
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到六個觸發範圍重疊的 skills。
 
-三個 Product Delivery Harness skills 本身自足，但視覺階段會在執行期載入外部 skills：`design-system-compiler` 需要 `frontend-design`，缺了就停止；product-definition-builder 的 UI Design Pass 則配對一個 design-direction skill（預設 `design-taste-frontend`）與一個 frontend-implementation skill（預設 `frontend-design`）。要繼續跑超過 wireframe 核可的交付時，把它們裝進同一個使用者 skills 目錄。
+三個內建技能都可以獨立呼叫，但跨技能模式會驗證各自的依賴。凍結 wireframe 驗證會使用 `delivery-harness` 旁的 `product-definition-builder` checker；`design-system-compiler` 需要已核准的 PRD UI Design Handoff、已核准的 `wireframes.html` 與 `frontend-design`；選用的 UI Design Pass 則需要 design-direction skill 與 frontend-implementation skill。只需安裝所選模式要求的依賴。
 
 ### Zero-to-one 流程（從零開始）
 
@@ -362,7 +362,7 @@ assets/                                              README 封面
 
 ## 維護技能
 
-只編輯 `.agents/skills/` 中的標準來源，接著跑驗證套件（與 CI 同一組）：
+只編輯 `.agents/skills/` 中的標準來源，接著跑核心驗證套件：
 
 ```bash
 python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
@@ -374,7 +374,7 @@ python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tes
 git diff --check
 ```
 
-CI 之外另有一個 opt-in 的端到端主幹檢查：`HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v` 會用一個合成產品套件走真實 CLI 主幹（`new_run.py` → 含 sibling skill 完整 wireframe checker 的凍結 join → `validate_result.py --repo-root`），讓跨 skill 契約漂移一次爆紅。
+CI 也會執行端到端主幹檢查。本機可用 `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v` 執行；它會用一個合成產品套件走真實 CLI 主幹（`new_run.py` → 含 sibling skill 完整 wireframe checker 的凍結 join → `validate_result.py --repo-root`），讓跨 skill 契約漂移一次爆紅。
 
 ## 維持 README 與時俱進
 
@@ -384,7 +384,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每個落在 `main` 的流程就是一次 release，版本號提升要在同一份變更裏完成——預設升 patch，skill bundle 有破壞性變更升 minor。以下幾個地方要一起更新：
 
-1. `package.json` 的 `version` 欄位。
+1. `package.json` 的 `version` 欄位與 `.agents/skills/delivery-harness/VERSION` 中會隨技能目錄複製的版本。
 2. 三份 README（`README.md`、`README.zh-TW.md`、`README.zh-CN.md`）的版本 badge 與版本紀錄條目。
 3. `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 預設值。
 4. `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py` 裏釘住的版本斷言。
@@ -400,6 +400,8 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.25.1** — 修正受管 run 與佐證寫入。`new_run.py` 現在把 graph revision 綁到實際 PLAN revision，從會隨技能目錄複製的 `VERSION` 讀取 release identity，並在寫檔前驗證產生的 RUN。`record-worker-result` 會直接觀察綁定 worktree 的 live branch、head、dirty state、diff 與 ancestry，再原子記錄接受或被 validator 拒絕的佐證；`reject-worker-result` 可記錄 parent 拒絕的目前 candidate，不必手改 RUN。寫入前還會重查 worker HEAD 與 PLAN。Attempt 與 lease identity 遇到模糊重用時會 fail closed。真實跨 skill golden path 現在是必要 CI step，安裝說明也已區分可獨立呼叫的階段與明確依賴。
 
 - **0.25.0** — Research-first 把關、outcome review、單一 wireframe checker。`delivery-harness` 的凍結 wireframe join 現在直接對凍結 bytes 執行 `product-definition-builder` 的完整 `check_wireframe_html.py`（reviewer shell、自包含、填寫完成、approved 狀態、PRD 對 wireframe 的 join），取代原本的縮減重實作；`validate_harness_plan.py --wireframes` 走同一個 checker，sibling skill 缺失時回明確錯誤。`validate_result.py` 新增 `--repo-root`，在單次 manifest walk 內重跑 凍結 source 的 byte 與語意 join。`product-definition-builder` 新增起草前的 research-first 評估（workflow 步驟 4，早於任何封閉選項決策）：人工 `go | clarify | stop` Research Gate 記錄在 `PRD.md`，發布含穩定 `RA-*` ID 的 `research-assessment.md`，草稿後的 market-research 改為對帳而非冷啟研究；並新增部署後的 `outcome-review.md`——部署 SHA、每個 metric 的 baseline/target/actual、`no_change | enhancement | incident` 判定——下一次 enhancement run 會完整讀取。可部署套件同時播種只含名稱的 `docs/DEPLOYMENT.md` 操作交接（Required Secrets and Variables 與 External Console Setup），由 `delivery-harness` 在首次可部署 push 前與部署後透過 `check_deployment.py` 對帳。另新增 opt-in 的 golden-path E2E（`HARNESS_GOLDEN_PATH=1`，不在 CI 內），以一個合成套件走真實 CLI 主幹，讓跨 skill 漂移一次爆紅。
 

@@ -25,7 +25,7 @@ All three adapters use the same four invariants:
 
 1. Launch each mission or review with a fresh bounded context capsule. Keep automatic repository instruction discovery enabled, but do not replay the parent transcript or copy full PLAN/RUN manifests.
 2. Consume host terminal events. Prefer a subscription, cursor wait, workflow result, or child completion event over repeated status reads. Poll only when the host has no wait/event surface, and record that fallback.
-3. As soon as one active-wave mission reaches `worker_passed`, reserve its dependency-ready read-only pre-integration review in RUN, dispatch only from that receipt, and integrate that mission once the same reserved attempt PASSes. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is validated and the wave closes.
+3. Record each terminal mission with `record-worker-result`. As soon as one active-wave mission reaches `worker_passed`, reserve its dependency-ready read-only pre-integration review in RUN, dispatch only from that receipt, and integrate that mission once the same reserved attempt PASSes. Integration stays serial: at most one mission is `integrating` at a time. Do not launch another writer, and do not run batch gates, until every selected worker result is recorded and the wave closes.
 4. Run independent local-command verifiers through `scripts/verifier_runtime.py` as a resource-safe batch. Batching is the default: a verifier that declares no resource cannot contend with another that declares none. Serialization is opt-in, through a resource claim or an explicit `execution.parallel_safe: false`. Use batch mode at the task and worker gates too, not only the batch gate.
 
 ## Parent Turn Boundaries
@@ -35,13 +35,13 @@ The contract fixes the order of mutating actions. It does not fix how many paren
 Batch into one turn:
 
 - the pre-launch re-observation list, plus authorization recheck, plus node selection — one `scripts/harness_step.py` call;
-- validating a returned node result and worker result — one `scripts/validate_result.py` call;
+- validating and recording a returned mission result — one `scripts/harness_transition.py ... record-worker-result` call; use `scripts/validate_result.py` only for read-only preflight;
 - the selector re-run that a terminal result triggers, folded into the same turn that validated that result;
 - serial merges of several already-review-PASSed missions — several Git operations, one parent decision.
 
 These stay their own stop, because the parent must look at new evidence before deciding:
 
-- a worker result checked against live Git facts;
+- a worker result recorded against parent-observed Git facts;
 - a review verdict, PASS or `fix_required`;
 - each gate result.
 

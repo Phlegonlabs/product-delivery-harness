@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Opt-in golden-path E2E: the real CLI spine over one frozen product package.
 
-Not part of the default discovery verification. Run explicitly with:
+CI enables this test explicitly. Run it locally with:
 
     HARNESS_GOLDEN_PATH=1 python -m unittest discover \
         -s .agents/skills/delivery-harness/scripts/tests \

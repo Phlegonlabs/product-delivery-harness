@@ -9,6 +9,7 @@ guards at their edges.
 
 from __future__ import annotations
 
+import copy
 import sys
 import tempfile
 import unittest
@@ -24,6 +25,12 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_core import _keys  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
+from manifest_fixtures import (  # noqa: E402
+    mark_complete,
+    valid_plan as valid_current_plan,
+    valid_run as valid_current_run,
+)
+import new_run  # noqa: E402
 from new_run import _harness_version  # noqa: E402
 from select_ready_nodes import _active_wave_allows_streaming_review  # noqa: E402
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
@@ -161,15 +168,13 @@ class StreamingGuardTests(unittest.TestCase):
 
 
 class HarnessVersionTests(unittest.TestCase):
-    def test_version_ignores_an_unrelated_package_json(self) -> None:
+    def test_version_refuses_an_unrelated_package_json_without_skill_metadata(self) -> None:
         # A standalone skill install has no package.json above it. Walking on
         # would record whatever app owns the user's home directory into
         # version_gate.required_harness_version.
         import json
         import tempfile
         from pathlib import Path
-
-        import new_run
 
         root = Path(tempfile.mkdtemp())
         (root / "package.json").write_text(
@@ -180,18 +185,133 @@ class HarnessVersionTests(unittest.TestCase):
         original = new_run.__file__
         try:
             new_run.__file__ = str(standalone / "new_run.py")
-            self.assertEqual("0.0.0", new_run._harness_version())
+            with self.assertRaisesRegex(
+                new_run.ManifestError, "install delivery-harness with its VERSION file"
+            ):
+                new_run._harness_version()
         finally:
             new_run.__file__ = original
 
-    def test_version_resolves_from_the_nearest_package_json(self) -> None:
-        # A fixed parent depth resolved correctly only in the canonical tree;
-        # the shipped plugin copy silently recorded "0.0.0" in the very field
-        # the runtime upgrade gate checks.
+    def test_version_resolves_from_skill_local_metadata(self) -> None:
         version = _harness_version()
 
-        self.assertNotEqual("0.0.0", version)
         self.assertRegex(version, r"^\d+\.\d+\.\d+")
+
+    def test_version_resolves_from_a_standalone_skill_copy(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        root = Path(tempfile.mkdtemp())
+        standalone = root / "agent" / "skills" / "delivery-harness"
+        scripts = standalone / "scripts"
+        scripts.mkdir(parents=True)
+        (standalone / "VERSION").write_text("7.8.9\n", encoding="utf-8")
+        original = new_run.__file__
+        try:
+            new_run.__file__ = str(scripts / "new_run.py")
+            self.assertEqual("7.8.9", new_run._harness_version())
+        finally:
+            new_run.__file__ = original
+
+
+class ManifestIdentityTests(unittest.TestCase):
+    def test_attempt_ids_are_unique(self) -> None:
+        plan = valid_current_plan()
+        run = valid_current_run(plan)
+        attempt = {
+            "attempt_id": "ATT-DUPLICATE",
+            "mission_id": None,
+            "task_id": None,
+            "lease_id": None,
+            "kind": "closeout",
+            "result": "PASS",
+            "evidence": [],
+            "review_lineage_id": None,
+            "failure_family_ids": [],
+        }
+        run["attempt_log"] = [attempt, copy.deepcopy(attempt)]
+
+        self.assertIn(
+            "run.attempt_log[1].attempt_id: must be unique",
+            validate_run(plan, run),
+        )
+
+    def test_worker_lease_ids_are_unique(self) -> None:
+        plan = valid_current_plan()
+        run = valid_current_run(plan)
+        mark_complete(plan, run)
+        duplicate = copy.deepcopy(run["workers"][0])
+        duplicate["worker_id"] = "W-DUPLICATE-LEASE"
+        run["workers"].append(duplicate)
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                error.startswith("run.workers[2].lease_id: must be unique across workers")
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_lease_id_cannot_bind_two_missions(self) -> None:
+        plan = valid_current_plan()
+        run = valid_current_run(plan)
+        mark_complete(plan, run)
+        first_lease = run["mission_states"]["M1"]["lease_id"]
+        run["mission_states"]["M2"]["lease_id"] = first_lease
+
+        self.assertIn(
+            "run.mission_states.M2.lease_id: "
+            f"lease {first_lease!r} is already bound to mission 'M1'",
+            validate_run(plan, run),
+        )
+
+    def test_review_worker_attempt_ids_are_unique(self) -> None:
+        plan = valid_current_plan()
+        run = valid_current_run(plan)
+        mark_complete(plan, run)
+        duplicate_index = len(run["review_workers"])
+        duplicate = copy.deepcopy(run["review_workers"][0])
+        duplicate["worker_id"] = "RW-DUPLICATE-ATTEMPT"
+        run["review_workers"].append(duplicate)
+
+        self.assertIn(
+            f"run.review_workers[{duplicate_index}].attempt_id: "
+            "must be unique across review workers",
+            validate_run(plan, run),
+        )
+
+    def test_active_review_attempt_cannot_collide_with_attempt_log(self) -> None:
+        plan = valid_current_plan()
+        run = valid_current_run(plan)
+        mark_complete(plan, run)
+        worker = run["review_workers"][0]
+        worker["phase"] = "worker_running"
+        worker["outcome"] = None
+        worker["findings"] = []
+        node_state = run["graph_state"]["node_states"][worker["node_id"]]
+        node_state["phase"] = "running"
+        node_state["last_outcome"] = None
+        run["attempt_log"].append(
+            {
+                "attempt_id": worker["attempt_id"],
+                "mission_id": "M1",
+                "task_id": None,
+                "lease_id": run["mission_states"]["M1"]["lease_id"],
+                "kind": "worker_verifier",
+                "result": "PASS",
+                "evidence": [],
+                "review_lineage_id": None,
+                "failure_family_ids": [],
+            }
+        )
+
+        self.assertIn(
+            "run.review_workers[0].attempt_id: "
+            "active review attempt must not collide with attempt_log",
+            validate_run(plan, run),
+        )
 
 
 if __name__ == "__main__":

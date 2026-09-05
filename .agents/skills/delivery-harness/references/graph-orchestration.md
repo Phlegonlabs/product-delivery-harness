@@ -218,7 +218,7 @@ validate PLAN/RUN
 -> allocate mission attempt and workspace when applicable
 -> execute adapter
 -> validate node result
--> validate worker result and actual diff
+-> record-worker-result validates evidence and atomically updates RUN
 -> integrate serially
 -> run integration and batch verifiers
 -> update RUN graph and mission state

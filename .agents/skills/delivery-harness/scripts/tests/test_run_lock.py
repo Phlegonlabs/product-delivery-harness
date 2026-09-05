@@ -109,6 +109,24 @@ class RunLockTests(unittest.TestCase):
         )
         self.assertEqual("s1", args.session_id)
         self.assertEqual("acquire-run-lock", args.command)
+        self.assertIn("record-worker-result", harness_transition.DISPATCH_COMMANDS)
+
+    def test_parser_accepts_the_worker_result_transition(self) -> None:
+        args = harness_transition.build_parser().parse_args(
+            [
+                "--plan", "PLAN.md",
+                "--run", "RUN.md",
+                "--session-id", "s1",
+                "record-worker-result",
+                "--node-result", "node.json",
+                "--worker-result", "worker.md",
+                "--verifier-result", "verifier.json",
+            ]
+        )
+
+        self.assertEqual("record-worker-result", args.command)
+        self.assertEqual(Path("node.json"), args.node_result)
+        self.assertIn("reject-worker-result", harness_transition.DISPATCH_COMMANDS)
 
     def test_lock_commands_reject_a_missing_session_id(self) -> None:
         del self.run["run_lock"]

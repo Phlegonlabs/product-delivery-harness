@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import sys
 import tempfile
 import unittest
@@ -67,6 +68,20 @@ class NewRunTests(unittest.TestCase):
         self.assertEqual(plan_edges, set(run["graph_state"]["edge_states"]))
         self.assertEqual(plan_missions, set(run["mission_states"]))
         self.assertEqual(plan_digest(self.plan), run["plan"]["digest_sha256"])
+
+    def test_graph_revision_follows_a_revised_plan(self) -> None:
+        revised = copy.deepcopy(self.plan)
+        revised["revision"] = 2
+
+        run = new_run.build_run(
+            revised,
+            run_id="RUN-revised",
+            branch="refs/heads/test-revised-run",
+        )
+
+        self.assertEqual(2, run["graph_state"]["graph_revision"])
+        self.assertEqual(2, run["active_wave"]["plan_revision"])
+        self.assertEqual([], validate_current_plan_run(revised, run))
 
     def test_generated_run_grants_nothing(self) -> None:
         run = load_run(self.generate())

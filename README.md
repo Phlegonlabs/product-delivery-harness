@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.25.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.25.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -29,7 +29,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | An approved visual direction — on web, retained high-fidelity HTML references under `docs/design/ui-references/` — plus a binding design-system pair when required |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 
-The skills can be used independently. You do not need to run the entire pipeline for every task.
+Each bundled skill can be invoked on its own; the full pipeline is optional. Each mode still enforces its declared inputs and dependencies.
 
 ## Core guarantees
 
@@ -129,13 +129,13 @@ flowchart TB
                 obs["record-observation<br/>live-Git snapshot"]
                 sel["select_ready_nodes.py<br/>deterministic frontier selection"]
                 accept["accept-wave<br/>(batch base binding)"]
-                adapters["runtime-adapters.md<br/>detect host -> load its provider section"]
+                adapters["resolve the available agent driver<br/>under the shared contract"]
                 lease["lease-worker<br/>(worktree + lease + graph binding)"]
-                workers["fresh bounded workers<br/>(Codex / Claude Code / Pi / generic)"]
-                vr["validate_result.py<br/>verification against live Git facts"]
+                workers["fresh bounded agent workers"]
+                record["record-worker-result<br/>revalidate evidence + atomic RUN update"]
                 review["exact-head review<br/>(reserve -> reviewer -> record)"]
                 integ["record-integration<br/>(serial; byte-identical tree may skip the unified review)"]
-                lock --> obs --> sel --> accept --> adapters --> lease --> workers --> vr --> review --> integ
+                lock --> obs --> sel --> accept --> adapters --> lease --> workers --> record --> review --> integ
             end
 
             plan --> newrun --> LOOP
@@ -286,7 +286,7 @@ On Windows, `Copy-Item -Recurse` does the same. There is no separate updater scr
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler`. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
-The three Product Delivery Harness skills are self-contained, but the visual phases load external skills at runtime: `design-system-compiler` requires `frontend-design` and stops without it, and product-definition-builder's UI Design Pass pairs a design-direction skill (default `design-taste-frontend`) with a frontend-implementation skill (default `frontend-design`). Install those into the same user skills directory when a run will continue past approved wireframes.
+The three bundled skills are independently invocable, but cross-skill modes enforce their dependencies. Frozen wireframe validation uses `product-definition-builder`'s checker next to `delivery-harness`; `design-system-compiler` requires an approved PRD UI Design Handoff, approved `wireframes.html`, and `frontend-design`; and the optional UI Design Pass uses a design-direction skill plus a frontend-implementation skill. Install the dependencies required by the mode you run.
 
 ### Zero-to-one flow
 
@@ -362,7 +362,7 @@ assets/                                              README covers
 
 ## Maintain the skills
 
-Edit only the canonical sources in `.agents/skills/`, then run the verification suite (the same set CI runs):
+Edit only the canonical sources in `.agents/skills/`, then run the core verification suite:
 
 ```bash
 python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
@@ -374,7 +374,7 @@ python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tes
 git diff --check
 ```
 
-An opt-in end-to-end spine check lives outside CI: `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v` walks the real CLI spine (`new_run.py` → frozen joins including the sibling skill's full wireframe checker → `validate_result.py --repo-root`) over one synthetic product package, so cross-skill contract drift surfaces as one red test.
+CI also runs the end-to-end spine check. Run it locally with `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`; it walks the real CLI spine (`new_run.py` → frozen joins including the sibling skill's full wireframe checker → `validate_result.py --repo-root`) over one synthetic product package, so cross-skill contract drift surfaces as one red test.
 
 ## Keeping the READMEs current
 
@@ -384,10 +384,10 @@ The READMEs are documentation-of-record: every change that adds or alters a skil
 
 Every flow that lands on `main` is one release, and the version bump rides in the same change — patch by default, minor for a breaking skill-bundle change. Update all of these together:
 
-1. The `version` field in `package.json`.
+1. The `version` field in `package.json` and the copied-skill version in `.agents/skills/delivery-harness/VERSION`.
 2. The version badge and the version-history entry in all three READMEs (`README.md`, `README.zh-TW.md`, `README.zh-CN.md`).
 3. The RUNBOOK `required_harness_version` default in `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
-4. The pinned version assert in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
+4. The pinned version asserts in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
 Then run the full verification above, review the entire diff, and land through the repository's PR flow — never a direct push to `main`. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.22.1`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
 
@@ -400,6 +400,8 @@ Then run the full verification above, review the entire diff, and land through t
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.25.1** — Managed-run correctness and evidence recording. `new_run.py` now binds graph revision to the actual PLAN revision, reads release identity from a skill-local `VERSION` file that survives directory-copy installation, and validates its generated RUN before writing. `record-worker-result` observes the bound worktree's live branch, head, dirty state, diff, and ancestry before atomically recording accepted or validator-rejected evidence; `reject-worker-result` records a parent-rejected current candidate without hand-editing RUN. The transition rechecks both worker HEAD and PLAN before replacement. Attempt and lease identities now fail closed on ambiguous reuse. The real cross-skill golden path is a required CI step, and installation text now distinguishes independently invocable stages from their explicit dependencies.
 
 - **0.25.0** — Research-first gating, outcome review, and one wireframe checker. `delivery-harness`'s frozen wireframe join now runs `product-definition-builder`'s full `check_wireframe_html.py` on the frozen bytes — reviewer shell, self-containment, filled data, approved status, and the PRD-to-wireframe join — instead of a reduced reimplementation, with `validate_harness_plan.py --wireframes` routed through the same checker and a missing sibling skill reported as an explicit error. `validate_result.py` gains `--repo-root`, re-running the frozen-source byte and semantic joins inside its single manifest walk. `product-definition-builder` gains a pre-draft research-first assessment (workflow step 4, before any closed-set decision) with a human `go | clarify | stop` Research Gate recorded in `PRD.md`, a published `research-assessment.md` with stable `RA-*` IDs, and a post-draft market-research pass that reconciles the assessment instead of researching cold; plus a post-deploy `outcome-review.md` — deployed SHA, per-metric baseline/target/actual, and a `no_change | enhancement | incident` verdict — that the next enhancement run reads in full. Deployable packages also seed a names-only `docs/DEPLOYMENT.md` operator handoff (Required Secrets and Variables plus External Console Setup) that `delivery-harness` reconciles before the first deployable push and against observed status after deployment via `check_deployment.py`. An opt-in golden-path E2E (`HARNESS_GOLDEN_PATH=1`, outside CI) walks the real CLI spine over one synthetic package so cross-skill drift surfaces as one red test.
 
