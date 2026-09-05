@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Read-only structural check of a project's DEPLOYMENT.md record.
 
-Validates that the deployment record is resolved (no template placeholders)
-and that its Environment Status table is coherent: both preview and
-production rows exist with a URL, and any verified row carries full lowercase
-SHAs and a status. Also validates the Resource Isolation table: no binding
-class may list the same resource ID in both the production and preview
-columns. Executing the platform's deployed-commit check command stays with
-the parent or operator — this tool never runs recorded commands and never
+Validates that the deployment record is resolved (no template placeholders),
+that its name-only human configuration handoff is structurally complete, and
+that its Environment Status table is coherent: both preview and production
+rows exist with a URL, and any verified row carries full lowercase SHAs and a
+status. Also validates the Resource Isolation table: no binding class may
+list the same resource ID in both the production and preview columns.
+Executing the platform's deployed-commit check command stays with the parent
+or operator — this tool never runs recorded commands, reads secret values, or
 touches the platform.
 """
 
@@ -18,11 +19,39 @@ import re
 import sys
 from pathlib import Path
 
-PLACEHOLDER_MARKERS = ("<fill>", "<cloudflare |", "<pattern>", "<url>", "<databases", "<platform")
+PLACEHOLDER_MARKERS = (
+    "<fill>",
+    "<cloudflare |",
+    "<pattern>",
+    "<url>",
+    "<databases",
+    "<platform",
+    "<secret or variable name>",
+    "<service>",
+    "<setting or account task>",
+)
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ENVIRONMENT_ROWS = ("preview", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
+HANDOFF_STATUSES = {"pending", "configured", "verified", "n/a"}
+SECRET_HEADERS = (
+    "name",
+    "kind",
+    "consumer",
+    "preview placement",
+    "production placement",
+    "source / owner",
+    "status",
+)
+EXTERNAL_SETUP_HEADERS = (
+    "service",
+    "setting",
+    "preview / non-production",
+    "production",
+    "owner",
+    "status",
+)
 
 
 def parse_status_table(text: str) -> dict[str, dict[str, str]]:
@@ -47,6 +76,72 @@ def parse_status_table(text: str) -> dict[str, dict[str, str]]:
     return rows
 
 
+def parse_section_table(text: str, heading: str) -> tuple[list[str], list[list[str]]]:
+    """Return one level-two section's Markdown table header and data rows."""
+
+    lines = text.splitlines()
+    try:
+        start = next(
+            index for index, line in enumerate(lines) if line.strip() == heading
+        )
+    except StopIteration:
+        return [], []
+    end = next(
+        (
+            index
+            for index in range(start + 1, len(lines))
+            if lines[index].startswith("## ")
+        ),
+        len(lines),
+    )
+    table_rows = [
+        [cell.strip() for cell in line.strip().strip("|").split("|")]
+        for line in lines[start + 1 : end]
+        if line.strip().startswith("|")
+    ]
+    if not table_rows:
+        return [], []
+    header = [cell.lower() for cell in table_rows[0]]
+    data_rows = [
+        row
+        for row in table_rows[1:]
+        if not all(set(cell) <= {"-", ":", " "} for cell in row)
+    ]
+    return header, data_rows
+
+
+def check_handoff_table(
+    text: str,
+    heading: str,
+    expected_headers: tuple[str, ...],
+) -> tuple[list[str], list[list[str]]]:
+    """Validate one required name-only human handoff table."""
+
+    findings: list[str] = []
+    header, rows = parse_section_table(text, heading)
+    label = heading.removeprefix("## ")
+    if not header:
+        return [f"{label}: missing section or Markdown table"], []
+    if any(cell in {"value", "secret value"} for cell in header):
+        findings.append(f"{label}: must not include a secret-value column")
+    if tuple(header) != expected_headers:
+        findings.append(f"{label}: expected columns {' | '.join(expected_headers)}")
+        return findings, []
+    if not rows:
+        findings.append(
+            f"{label}: keep at least one filled row or an explicit none / n/a row"
+        )
+    valid_rows: list[list[str]] = []
+    for row in rows:
+        if len(row) != len(expected_headers):
+            findings.append(
+                f"{label}: each row must have {len(expected_headers)} columns"
+            )
+            continue
+        valid_rows.append(row)
+    return findings, valid_rows
+
+
 def check_deployment_text(text: str) -> list[str]:
     findings: list[str] = []
     for number, line in enumerate(text.splitlines(), start=1):
@@ -55,6 +150,55 @@ def check_deployment_text(text: str) -> list[str]:
                 findings.append(
                     f"line {number}: unresolved placeholder {marker!r} — fill the record from the live project"
                 )
+
+    secret_findings, secret_rows = check_handoff_table(
+        text, "## Required Secrets and Variables", SECRET_HEADERS
+    )
+    findings.extend(secret_findings)
+    for row in secret_rows:
+        name, kind, consumer, preview, production, source, status = row
+        if name.lower() in {"none", "n/a"}:
+            continue
+        if kind.lower() not in {"secret", "variable"}:
+            findings.append(
+                f"Required Secrets and Variables: {name} kind must be secret or variable"
+            )
+        for label, value in (
+            ("consumer", consumer),
+            ("preview placement", preview),
+            ("production placement", production),
+            ("source / owner", source),
+        ):
+            if value.lower() in ABSENT_VALUES:
+                findings.append(
+                    f"Required Secrets and Variables: {name} has no {label}"
+                )
+        if status.lower() not in HANDOFF_STATUSES:
+            findings.append(
+                f"Required Secrets and Variables: {name} has invalid status {status!r}"
+            )
+
+    external_findings, external_rows = check_handoff_table(
+        text, "## External Console Setup", EXTERNAL_SETUP_HEADERS
+    )
+    findings.extend(external_findings)
+    for row in external_rows:
+        service, setting, preview, production, owner, status = row
+        if service.lower() in {"none", "n/a"}:
+            continue
+        for label, value in (
+            ("setting", setting),
+            ("preview / non-production target", preview),
+            ("production target", production),
+            ("owner", owner),
+        ):
+            if value.lower() in ABSENT_VALUES:
+                findings.append(f"External Console Setup: {service} has no {label}")
+        if status.lower() not in HANDOFF_STATUSES:
+            findings.append(
+                f"External Console Setup: {service} has invalid status {status!r}"
+            )
+
     rows = parse_status_table(text)
     for environment in ENVIRONMENT_ROWS:
         row = rows.get(environment)
@@ -105,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{path}: {finding}")
     if findings:
         return 1
-    print(f"{path} is resolved and its environment rows are coherent")
+    print(f"{path} is resolved and its handoff and environment rows are coherent")
     return 0
 
 

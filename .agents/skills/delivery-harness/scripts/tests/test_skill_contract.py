@@ -582,6 +582,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         documents_template = self.read("assets/templates/DOCUMENTS.template.md")
 
         self.assertIn("## Human Setup Checklist", deployment_template)
+        self.assertIn("## Required Secrets and Variables", deployment_template)
+        self.assertIn("## External Console Setup", deployment_template)
+        self.assertIn("never record a secret value", deployment_template)
+        self.assertIn(
+            "Reconcile every required secret and variable name", deployment_template
+        )
         self.assertIn("### Git connection", deployment_template)
         self.assertIn("### CI connection", deployment_template)
         self.assertIn("ci_connected", deployment_template)
@@ -597,6 +603,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             deployment_template,
         )
         self.assertIn("## Environment Status", deployment_template)
+        self.assertIn("## Human Configuration Handoff", contract)
+        self.assertIn("Before every deployable push", contract)
+        self.assertIn("Never open value-bearing local files", contract)
+        self.assertIn("exact pending names and console tasks", contract)
+        self.assertIn("does not authorize or require another push", contract)
         self.assertIn("`docs/DEPLOYMENT.md`, seeded during PRD creation", contract)
         self.assertIn("| `docs/DEPLOYMENT.md` | `docs/` |", documents_template)
         self.assertIn("| `docs/DOCUMENTS.md` | `docs/` |", documents_template)

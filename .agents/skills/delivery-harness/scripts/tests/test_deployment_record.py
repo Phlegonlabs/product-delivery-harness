@@ -37,6 +37,19 @@ GOOD_DEPLOYMENT = f"""# Deployment
 | KV namespace | kv-prod-001 | kv-preview-001 |
 | R2 bucket | n/a | n/a |
 
+## Required Secrets and Variables
+
+| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| AUTH_SECRET | secret | app runtime | Cloudflare preview Worker secret | Cloudflare production Worker secret | operator-generated | verified |
+| PUBLIC_APP_URL | variable | app runtime | Cloudflare preview Worker variable | Cloudflare production Worker variable | deployment URL | configured |
+
+## External Console Setup
+
+| Service | Setting | Preview / non-production | Production | Owner | Status |
+| --- | --- | --- | --- | --- | --- |
+| Auth provider | callback URL | https://abc.example.pages.dev/callback | https://example.com/callback | operator | verified |
+
 ## Environment Status
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
@@ -60,6 +73,18 @@ SHARED_RESOURCE_DEPLOYMENT = """# Deployment
 | --- | --- | --- |
 | D1 database | d1-prod-001 | d1-prod-001 |
 | KV namespace | kv-prod-001 | kv-preview-001 |
+
+## Required Secrets and Variables
+
+| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| none | n/a | n/a | n/a | n/a | n/a | n/a |
+
+## External Console Setup
+
+| Service | Setting | Preview / non-production | Production | Owner | Status |
+| --- | --- | --- | --- | --- | --- |
+| none | n/a | n/a | n/a | n/a | n/a |
 
 ## Environment Status
 
@@ -94,6 +119,18 @@ CI_CONNECTED_DEPLOYMENT = f"""# Deployment
 - Deployed-commit check: wrangler pages deployment list
 - Protected resources preview must never bind: prod-db
 
+## Required Secrets and Variables
+
+| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| none | n/a | n/a | n/a | n/a | n/a | n/a |
+
+## External Console Setup
+
+| Service | Setting | Preview / non-production | Production | Owner | Status |
+| --- | --- | --- | --- | --- | --- |
+| none | n/a | n/a | n/a | n/a | n/a |
+
 ## Environment Status
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
@@ -126,6 +163,22 @@ class DeploymentRecordTests(unittest.TestCase):
         self.assertIn("unresolved placeholder", joined)
         self.assertIn("must be a full lowercase SHA once checked", joined)
         self.assertIn("checked but has no status", joined)
+
+    def test_missing_handoff_sections_fail(self) -> None:
+        findings = check_deployment.check_deployment_text(BAD_DEPLOYMENT)
+        joined = "\n".join(findings)
+        self.assertIn("Required Secrets and Variables: missing section", joined)
+        self.assertIn("External Console Setup: missing section", joined)
+
+    def test_secret_value_column_fails(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |",
+            "| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Secret value | Status |",
+        )
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn(
+            "must not include a secret-value column", "\n".join(findings)
+        )
 
 
 class ConfigurePlaceholderTests(unittest.TestCase):

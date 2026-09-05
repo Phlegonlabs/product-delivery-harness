@@ -1,6 +1,6 @@
 # Deployment
 
-The deployment record for this repository: the platform model, the setup only a human performs, the runbook for adding a binding, and the live environment status. The governing semantics live in the Product Delivery Harness `deployment-contract.md`; this file is the project's filled-in instance. Keep it at `docs/DEPLOYMENT.md` and update it whenever the platform, environments, or verification method change.
+The deployment record for this repository: the platform model, the exact configuration a human must supply, the runbook for adding a binding, and the live environment status. The governing semantics live in the Product Delivery Harness `deployment-contract.md`; this file is the project's filled-in instance. Keep it at `docs/DEPLOYMENT.md`, reconcile it against the implementation before every deployable push, and update its status after deployment.
 
 ## Record
 
@@ -23,6 +23,24 @@ Production and preview use fully separate stateful resources. Record every bindi
 | KV namespace | <fill> | <fill> |
 | R2 bucket | <fill> | <fill> |
 | Durable Objects | <fill> | <fill> |
+
+## Required Secrets and Variables
+
+This is the human configuration handoff. Inventory names and destinations only — never record a secret value in this file, a commit, a command transcript, or deployment evidence. Reconcile the rows from tracked declarations and code references such as `.env.example`, the environment schema, platform config, CI workflows, and auth or integration code. Do not open local value-bearing files such as `.env`, `.env.local`, or `.dev.vars` to prepare this table. If the project needs no secrets or variables, keep one `none` / `n/a` row instead of deleting the section.
+
+| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| <secret or variable name> | <secret or variable> | <runtime, build, CI, or external service> | <fill> | <fill> | <fill> | pending |
+
+Placement means the exact control surface a human opens. Examples: a Cloudflare Worker's named development or production environment; Vercel Project Settings scoped to Preview or Production; or repository Actions secrets for a CI deploy token. Classify browser-exposed configuration as `variable`, not `secret`. Include deploy credentials used by CI as well as application runtime keys.
+
+## External Console Setup
+
+Record every non-code task required in another system, especially auth setup: create the application or tenant, register preview and production callback/redirect URLs, set allowed origins and logout URLs, configure webhook endpoints, attach domains or DNS, and grant required roles. Put any credential name created by these steps in the inventory above, but never its value. If no external setup is required, keep one `none` / `n/a` row.
+
+| Service | Setting | Preview / non-production | Production | Owner | Status |
+| --- | --- | --- | --- | --- | --- |
+| <service> | <setting or account task> | <fill> | <fill> | <fill> | pending |
 
 ## Adding A Binding
 
@@ -65,6 +83,9 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ### Environments
 
+- [ ] Reconcile every required secret and variable name against the implemented code and tracked configuration; do not copy values into this document.
+- [ ] Complete or explicitly leave `pending` every Required Secrets and Variables row, with the exact preview and production placement named.
+- [ ] Complete the External Console Setup rows, including auth callback URLs, allowed origins, webhook endpoints, domains, and required roles when applicable.
 - [ ] Create separate preview and production environments with separate variables and secrets.
 - [ ] Point preview at non-production databases, buckets, and auth providers; never bind a production resource to preview.
 - [ ] Fill the Resource Isolation table with both resource-ID sets and confirm no ID appears in both columns.

@@ -104,7 +104,7 @@ Read only what the current decision needs:
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
 - `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
-- `references/deployment-contract.md`: the preview/production deployment model, per-platform mechanics, and read-only post-deploy verification — after a run-branch push or a default-branch landing, never during run execution.
+- `references/deployment-contract.md`: the deployment handoff, platform mechanics, and read-only post-deploy verification — after a run-branch push or a default-branch landing, never during run execution.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.

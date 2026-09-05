@@ -13,7 +13,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `market-research.md` | `docs/product/` | PRD (gap pass) | product-definition-builder | sourced research | |
 | `implementation-plan.md` | `docs/product/` | PRD (when requested) | product-definition-builder | sequenced implementation outline | |
 | `design-system.md` / `design-system.json` | `docs/product/` | design (when required) | design-system-compiler | frozen design pair | |
-| `docs/DEPLOYMENT.md` | `docs/` | PRD seed, then owner | human setup + read-only verification | deployment record | |
+| `docs/DEPLOYMENT.md` | `docs/` | PRD seed, implementation reconciliation, deployment check | product-definition-builder + delivery-harness + owner | name-only configuration handoff + deployment record | |
 | `docs/DOCUMENTS.md` | `docs/` | PRD seed, then owner | product-definition-builder + owner edits | this manifest | |
 | `docs/tasks.md` | `docs/` | managed run | rendered by `render_tasks_view.py` | non-canonical view of RUN | |
 | `docs/goal/PLAN.md` | `docs/goal/` | managed run | harness parent | static plan manifest | |

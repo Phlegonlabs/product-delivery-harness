@@ -147,12 +147,14 @@ flowchart TB
 
     subgraph DEPLOY["部署（git-connected 平台）"]
         direction TB
+        handoff["更新 docs/DEPLOYMENT.md<br/>（secret 名稱 + 外部 console 任務）"]
         push["授權 push<br/>run 分支"]
         preview["Preview 自動部署<br/>（平台按 push 建置）"]
         merge([使用者合併到 main])
         prod["Production 部署<br/>（平台從 main 建置）"]
         check["部署後驗證（唯讀）<br/>check_deployment.py"]
-        push --> preview --> merge --> prod --> check
+        status["核對 deployment 紀錄<br/>（狀態 + 尚待人工處理項目）"]
+        handoff --> push --> preview --> merge --> prod --> check --> status
     end
 
     subgraph CROSS["橫切機制（貫穿各階段）"]
@@ -168,11 +170,13 @@ flowchart TB
     pair --> route
     target --> route
     mr --> route
-    DIRECT --> push
-    gates2 --> push
+    DIRECT --> handoff
+    gates2 --> handoff
 ```
 
 兩個人工停點框住 agent 可執行的範圍：Wireframe Approval 與合併到 `main`。執行迴圈是系統的心臟——其中每一步都是原子、驗證過的 RUN 寫入。
+
+每個可部署版本都以 `docs/DEPLOYMENT.md` 作為操作交接文件。Product Definition 先建立骨架；Delivery Harness 在 push 前按已追蹤的環境宣告、CI 與 auth／integration 程式碼補實，部署後再以唯讀結果更新狀態。文件會列出精確的 secret 與 variable 名稱、preview／production 放置位置，以及 auth callback URL 等外部 console 任務，但永遠不保存 secret 值。
 
 ## 交付模型
 

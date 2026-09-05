@@ -173,6 +173,22 @@ async function agent(_prompt, options) {
         self.assertIn("do not invoke or automatically offer either", skill)
         self.assertIn("If the owner later requests Harness work", skill)
 
+    def test_deployment_document_seeds_the_human_configuration_handoff(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        for phrase in (
+            "Required Secrets and Variables",
+            "External Console Setup",
+            "Record names and destinations only, never values",
+            "delivery-harness` to reconcile from the finished code",
+        ):
+            self.assertIn(phrase, skill)
+        self.assertIn("Which secret and variable names go where", contract)
+        self.assertIn("records names and destinations but no values", contract)
+        self.assertIn("before a deployable push", lifecycle)
+
     def test_publish_uses_distinct_repository_context_templates(self) -> None:
         skill = self.read("SKILL.md")
 

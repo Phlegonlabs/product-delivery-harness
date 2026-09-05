@@ -147,12 +147,14 @@ flowchart TB
 
     subgraph DEPLOY["Deployment (git-connected platform)"]
         direction TB
+        handoff["Refresh docs/DEPLOYMENT.md<br/>(secret names + external-console tasks)"]
         push["Authorized push<br/>of the run branch"]
         preview["Preview builds automatically<br/>(platform builds per push)"]
         merge([User merges to main])
         prod["Production deployment<br/>(platform builds from main)"]
         check["Post-deploy verification (read-only)<br/>check_deployment.py"]
-        push --> preview --> merge --> prod --> check
+        status["Reconcile deployment record<br/>(status + pending human actions)"]
+        handoff --> push --> preview --> merge --> prod --> check --> status
     end
 
     subgraph CROSS["Cross-cutting mechanisms (all stages)"]
@@ -168,11 +170,13 @@ flowchart TB
     pair --> route
     target --> route
     mr --> route
-    DIRECT --> push
-    gates2 --> push
+    DIRECT --> handoff
+    gates2 --> handoff
 ```
 
 Two human stop points bracket the agent-executable span: the Wireframe Approval and the merge to `main`. The execution loop is the heart of the system — every step in it is an atomic, validated RUN write.
+
+For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. It lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
 
 ## Delivery model
 

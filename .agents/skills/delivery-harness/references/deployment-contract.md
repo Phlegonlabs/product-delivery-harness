@@ -14,6 +14,20 @@ Use this reference when a delivery will be deployed, when verifying a deployed e
 
 Any lowercase platform id is valid. Each section below names that platform's native preview and production mechanics; `generic` covers everything else. Adding a platform adds one section, not a new flow — the model above does not change.
 
+## Human Configuration Handoff
+
+`docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every human-owned task truthfully `pending`, `configured`, `verified`, or `n/a`.
+
+The reconciliation is name-only and read-only:
+
+1. Inspect tracked declaration surfaces: `.env.example` or another committed example, typed environment schemas, platform config, CI workflows, and the code paths that read configuration or call auth and external services.
+2. Never open value-bearing local files such as `.env`, `.env.local`, `.dev.vars`, exported platform secrets, or credential stores to populate the document. Never copy a value into Markdown, Git, logs, command transcripts, or evidence.
+3. In **Required Secrets and Variables**, record each exact key name, classify it as a secret or non-secret variable, name its consumer, identify the exact preview and production placement, name where the human obtains it, and record status. Include CI deploy credentials as well as application runtime configuration. Browser-exposed keys are variables even when their provider calls them keys.
+4. In **External Console Setup**, record every non-code action with its exact system and environment: auth application or tenant creation, callback and logout URLs, allowed origins, webhook registration, domain/DNS attachment, role grants, payment mode, or another provider-side setting.
+5. When no rows apply, keep an explicit `none` / `n/a` row. Never omit either section, and never invent a key or callback URL that the product or implementation has not defined.
+
+A `pending` row is allowed in the record because it is an honest human handoff. It is also an availability gate: if the row is required for the target environment, that environment cannot be reported ready until the human finishes it and a behavior-level smoke check passes. The Harness reports the exact pending names and console tasks; it never fills, rotates, reveals, or guesses their values and never reconfigures the platform.
+
 ## Platform: cloudflare
 
 - The default Cloudflare route is Workers with Static Assets. Pages enters a project only when the owner explicitly decides it, recorded in that project's deployment record and `stack-decisions.md`.
@@ -48,12 +62,15 @@ After the run's authorized push, or after the user lands a change on the default
 
 1. The expected environment URL resolves — the preview URL for the pushed head, the production URL after the landing.
 2. The deployed commit equals the expected head, read from the platform API/CLI or response headers, and recorded bound to that SHA. A mismatch or a stale build is a finding for the user or a new mission, never a redeploy order.
-3. Record evidence with the environment, URL, deployed SHA, expected SHA, and the check command — the same evidence discipline as any other gate. `scripts/check_deployment.py --deployment <path>` structurally validates the record read-only (unresolved placeholders, missing environment rows, partially verified rows) without ever running the recorded command.
-4. Report the pushed head's preview URL to the user in the conversation as part of this gate — the URL the platform or CI workflow actually produced, observed read-only from the workflow run output or the platform's version/deployment listing. When the build has not finished or the URL cannot be observed, say exactly that and leave the record pending; never construct or guess a URL.
+3. Verify required human configuration through non-secret evidence: platform metadata that exposes names but not values, plus behavior-level checks such as a completed auth redirect or integration smoke. Never print or retrieve a secret value. Keep an unverified requirement `pending` even when the build itself succeeded.
+4. Record evidence with the environment, URL, deployed SHA, expected SHA, and the check command — the same evidence discipline as any other gate. Reconcile the Required Secrets and Variables and External Console Setup statuses with what was actually verified. `scripts/check_deployment.py --deployment <path>` structurally validates the record read-only (unresolved placeholders, missing handoff sections, invalid handoff rows, missing environment rows, partially verified rows) without ever running the recorded command.
+5. Report the pushed head's preview URL to the user in the conversation, together with every remaining human action, as part of this gate — the URL the platform or CI workflow actually produced, observed read-only from the workflow run output or the platform's version/deployment listing. When the build has not finished or the URL cannot be observed, say exactly that and leave the record pending; never construct or guess a URL.
+
+Writing the observed result into the tracked deployment record does not authorize or require another push. A later commit of that operational update is a new change under the ordinary branch, verification, commit, and push boundaries; its status row describes the deployment it observed and never pretends to be a self-reference to the document commit.
 
 ## Recording The Model In A Repository
 
-Two records carry the model. `docs/DEPLOYMENT.md`, seeded during PRD creation from `assets/templates/DEPLOYMENT.template.md`, is the detailed instance: the platform record, the human setup checklist (git connection, environments, verification access), and the environment status table. The seeded `AGENTS.md` deployment section (imported by `CLAUDE.md`) is the governance summary agents follow: platform, mode, production branch, preview mechanism, production URL, deployed-commit check, and protected resources. Keep both filled from the live project; an unfilled record means the deployment model is unknown, not "deploy whatever".
+Two records carry the model. `docs/DEPLOYMENT.md`, seeded during PRD creation from `assets/templates/DEPLOYMENT.template.md` and reconciled against the implementation before deployable pushes, is the detailed instance: platform record, name-only secret and variable inventory, external-console tasks, human setup checklist, and environment status. The seeded `AGENTS.md` deployment section (imported by `CLAUDE.md`) is the governance summary agents follow: platform, mode, production branch, preview mechanism, production URL, deployed-commit check, and protected resources. Keep both filled from the live project; an unfilled record means the deployment model is unknown, not "deploy whatever".
 
 ## Moving Between Platforms
 

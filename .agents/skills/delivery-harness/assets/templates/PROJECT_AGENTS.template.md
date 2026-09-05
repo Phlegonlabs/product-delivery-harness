@@ -82,6 +82,7 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - Platform and mode: the deploy platform id (for example `cloudflare`, `vercel`, `aws`) and `git_connected`, `ci_connected`, or `manual`.
 - Production deploys only from the resolved default branch; preview builds track non-default branch pushes. They are separate environments with separate URLs and stateful resources, and a preview PASS never proves production.
 - Production and preview bind fully separate D1/KV/R2/Durable-Object resources: the preview environment declares its complete binding set, never references a production resource ID, and the deployment record's Resource Isolation table carries both ID sets.
+- Before a deployable push, reconcile `docs/DEPLOYMENT.md` against tracked environment declarations, platform config, CI workflows, and auth/integration code. List exact secret and variable names, preview/production placement, source owner, and external-console tasks; never read or record secret values. After deployment, update only from read-only evidence and report every pending human action.
 - Preview mechanism or URL pattern: <fill>
 - Production URL: <fill>
 - Deployed-commit check (platform API/CLI command or response header): <fill>
