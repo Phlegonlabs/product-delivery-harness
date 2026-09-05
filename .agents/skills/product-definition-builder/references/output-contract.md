@@ -33,6 +33,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `stack-decisions.md` | An engineer choosing or reviewing technology | Which stack, and why that one |
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
 | `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |
+| `outcome-review.md` | The owner deciding what happens after a release | What actually happened post-deployment, measured against the targets, and the verdict |
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, and what actually deployed |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 | `design-system.md` + `design-system.json` (only after an explicitly requested visual-design phase whose Design System Need Gate is `required`) | A designer or frontend engineer styling reusable surfaces | The binding token, primitive, component, and state contract; read alongside `PRD.md` and `wireframes.html` |
@@ -52,6 +53,7 @@ Length budget. These are targets, not caps — say less when the product is simp
 - `stack-decisions.md`: about 150 lines.
 - `market-research.md`: about 150 lines. Findings and sources, not an industry report.
 - `research-assessment.md`: about 80 lines. Evidence and the gate decision, not a duplicate of the post-draft research.
+- `outcome-review.md`: about 60 lines. Deployed facts and the verdict, not a status report.
 
 When a section runs past its share, the usual cause is detail that belongs in a different artifact. Move it before expanding the file.
 
@@ -363,6 +365,45 @@ Researched on: [YYYY-MM-DD]
 ```
 
 The gate itself is recorded in `PRD.md`'s `### Research Gate`; this file holds the evidence behind it. A `stop` gate leaves this file in the staging directory with no drafted package.
+
+## `outcome-review.md`
+
+Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal.
+
+Use this structure:
+
+```markdown
+# Outcome Review: [Product Name]
+
+## Deployed
+Deployed SHA: [full Git SHA]
+Release reference: [run branch head / release tag — where this SHA came from]
+Deployed on: [YYYY-MM-DD]
+Targets: [each architecture.md release target this deployment reached, or the subset it covered]
+
+## Measurements
+| Metric | Baseline | Target | Window | Actual | Source |
+| --- | --- | --- | --- | --- | --- |
+| [PRD `## Metrics` metric or `TEST-*` expected signal] | [pre-deploy value or "none recorded"] | [the recorded target] | [measurement window] | [measured value or "pending"] | [how the number was produced: analytics, log query, manual count] |
+
+## Feedback
+[Observed post-deployment facts: usage, friction, failures, owner remarks. Facts with sources, not wishes.]
+
+## Verdict
+Verdict: [no_change / enhancement / incident] — [one-line reason]
+[Routing: `enhancement` findings become the next enhancement request's input; `incident` findings enter the next run's `PRD.md` `## Risks` and `## Open Questions`; `no_change` schedules nothing.]
+
+## Open Follow-ups
+| Follow-up | Route |
+| --- | --- |
+| [Item] | [enhancement request / open question / risk] |
+```
+
+Rules:
+
+- Record actual against target for every `PRD.md` `## Metrics` metric and every `TEST-*` expected signal the deployment was supposed to move; an empty Measurements table means the review is not done.
+- The measurement window is real elapsed time after deployment. A review written at deploy time with "pending" actuals is a stub, not a verdict.
+- The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
 
 ## `architecture.md`
 

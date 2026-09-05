@@ -18,7 +18,7 @@ A staged package for the same product is **newer than the published one** and is
 
 A staging directory describing a *different* product is left untouched and reported; start this run's own staging directory beside it.
 
-- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, and `research-assessment.md` in full before drafting anything.
+- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, `research-assessment.md`, and `outcome-review.md` in full before drafting anything.
 - Treat their content, decisions, and trace IDs (`PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `DS-*`, `MR-*`, `RA-*`) as the baseline. Carry forward every section the new request does not touch, unchanged.
 - Draft only the additions, edits, or removals the new discovery actually requires. Never regenerate the whole package from a blank slate because a new idea came up.
 - The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, `research-assessment.md`, and `implementation-plan.md`, all directly under `docs/product/`. The seeded operational documents — `docs/DEPLOYMENT.md` and `docs/DOCUMENTS.md` — publish under `docs/` in the same move. Enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
@@ -26,7 +26,7 @@ A staging directory describing a *different* product is left untouched and repor
 
 ## Handle an Unrelated Document at a Fixed Publish Path
 
-If `docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-decisions.md`, `docs/product/wireframes.html`, `docs/product/design-system.md`, `docs/product/design-system.json`, `docs/product/market-research.md`, or `docs/product/research-assessment.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
+If `docs/product/PRD.md`, `docs/product/architecture.md`, `docs/product/stack-decisions.md`, `docs/product/wireframes.html`, `docs/product/design-system.md`, `docs/product/design-system.json`, `docs/product/market-research.md`, `docs/product/research-assessment.md`, or `docs/product/outcome-review.md` already exists but its content clearly describes a different, unrelated product, this is not enhancement mode: draft the new package from scratch instead of carrying forward its content or trace IDs.
 
 The publish step still overwrites that exact path regardless of whether it enhances or replaces it, so the existing file must still be archived for safety — add it to the superseded-document inventory even though it is an unrelated product document. The general exclusion for unrelated product documents in "Inventory Superseded Documents" below applies to other documents found elsewhere in the repository, not to one already occupying a path this run will publish to.
 
@@ -45,6 +45,7 @@ In the Approval Gate, label this path explicitly as "existing unrelated content 
   - `docs/product/design-system.json` when that gate is `required`
   - `docs/product/market-research.md` when the market-research gap pass produced it
   - `docs/product/research-assessment.md` when the research-first assessment produced it
+  - `docs/product/outcome-review.md` after a deployed release's outcome review
   - `docs/product/implementation-plan.md` when requested
 - When the Design System Need Gate is `required`, `design-system.md` and `design-system.json` publish together in the same approved move set. The JSON is the allowlist `delivery-harness`'s contract check reads, so publishing one without the other leaves that check pointing at a stale allowlist. If only one is validated, stage both and wait rather than publishing half a pair. When the gate is `not_required`, publish neither file.
 - For a UI-bearing product, publish approved `wireframes.html` plus `PRD.md`'s `### Wireframe Approval` in the same whole-package move. A changed PRD UI contract with a stale wireframe artifact is not a complete package. A later explicitly requested visual-design handoff and design-system pair join a future approved move only when they apply.
@@ -73,6 +74,8 @@ Exclude:
   `market-research.md` is also this package's own artifact, not the general "research" the exclusion means. A superseded `market-research.md` is archived with the rest of the package. Never archive it while keeping a `PRD.md` that cites its `MR-*` IDs, and — when this run's research pass was skipped or blocked — do not archive a prior `market-research.md` at all: leave it published, since nothing replaces it.
 
   `research-assessment.md` follows the same rule: archive it with the rest of the package, never while keeping a `PRD.md` that cites its `RA-*` IDs, and — when this run's research-first assessment was skipped — leave the prior one published, since nothing replaces it.
+
+  `outcome-review.md` is a post-deployment record, not part of the drafting package. A superseded review archives with the rest of the package; a package that ships without a new review leaves the prior one published, since it still describes the last observed outcome.
 - Any ambiguous candidate. Leave it in place and mention it to the user instead of guessing.
 
 Record the candidate paths before creating staged artifacts. Do not archive or overwrite them yet.

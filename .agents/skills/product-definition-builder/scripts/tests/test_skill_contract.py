@@ -1552,7 +1552,7 @@ async function agent(_prompt, options) {
             contract,
         )
         self.assertIn("A silently missing gate does not validate", contract)
-        self.assertIn("`research-assessment.md` in full", skill)
+        self.assertIn("`research-assessment.md`, and `outcome-review.md` in full", skill)
 
         # The post-draft pass reconciles the assessment instead of
         # researching the same ground twice.
@@ -1563,6 +1563,39 @@ async function agent(_prompt, options) {
             market,
         )
         self.assertIn("carry still-valid `RA-*` findings", market)
+
+    def test_outcome_review_closes_the_loop_after_deployment(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+
+        # The review is an owner-initiated post-publish step with a closed
+        # verdict vocabulary and real measurement windows.
+        self.assertIn("21. When the owner asks for an outcome review", skill)
+        self.assertIn("`no_change`, `enhancement`, or `incident`", skill)
+        self.assertIn("never leave a run open waiting for adoption", skill)
+        self.assertIn("Verdict: [no_change / enhancement / incident]", contract)
+        self.assertIn(
+            "| Metric | Baseline | Target | Window | Actual | Source |", contract
+        )
+        self.assertIn(
+            "The measurement window is real elapsed time after deployment", contract
+        )
+        self.assertIn(
+            'A review written at deploy time with "pending" actuals is a stub',
+            contract,
+        )
+
+        # It publishes at a fixed path and feeds the next enhancement run.
+        self.assertIn(
+            "`docs/product/outcome-review.md` after a deployed release's outcome review",
+            lifecycle,
+        )
+        self.assertIn(
+            "`research-assessment.md`, and `outcome-review.md` in full", skill
+        )
+        self.assertIn("reads `outcome-review.md` in full", skill)
+        self.assertIn("`outcome-review.md` is a post-deployment record", lifecycle)
 
     def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")
