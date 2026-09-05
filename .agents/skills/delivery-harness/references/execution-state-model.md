@@ -70,7 +70,7 @@ Author PLAN by hand: its objective, sources and digests, traces, scopes, verifie
 
 Generate RUN with `scripts/new_run.py --plan <PLAN.md> --run-id <id> --branch <exact ref> --out <RUN.md>`. Everything a new RUN can derive from PLAN it derives: the mirrored graph state, seeded mission and task states, gate result ids, and the plan digest. Everything it cannot derive stays at its safe unset value — authorizations false, `observed` null, `batch_base_sha` unset, `plan_readiness: draft`. Generating a RUN grants nothing, and the command refuses to overwrite an existing file.
 
-Validate a returned graph-backed payload with one call: `scripts/validate_result.py --plan <PLAN.md> --run <RUN.md> --node-result <file> --worker-result <file>`. A graph-backed run returns both documents together, so validating them separately walked the same manifests three times and cost two parent turns. The merged command loads the pair once, validates it once, and returns one error list. The single-document CLIs remain for the cases that return only one.
+Validate a returned graph-backed payload with one call: `scripts/validate_result.py --plan <PLAN.md> --run <RUN.md> --node-result <file> --worker-result <file>`; pass `--repo-root <root>` to also re-run the frozen-source byte and semantic contract joins under that root during the same single walk. A graph-backed run returns both documents together, so validating them separately walked the same manifests three times and cost two parent turns. The merged command loads the pair once, validates it once, and returns one error list. The single-document CLIs remain for the cases that return only one.
 
 ## Plan Revisions And Snapshots
 

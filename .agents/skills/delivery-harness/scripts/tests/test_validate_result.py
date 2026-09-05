@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -20,6 +21,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import harness_manifest  # noqa: E402
 import validate_result  # noqa: E402
+from harness_manifest import plan_digest  # noqa: E402
 from test_graph_orchestration import valid_graph_plan, valid_graph_run  # noqa: E402
 from test_validate_node_result import running_result  # noqa: E402
 
@@ -98,6 +100,41 @@ class ValidateResultTests(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual("PASS", payload["status"])
         self.assertEqual(1, spy.call_count)
+
+    def test_repo_root_reruns_frozen_source_joins(self) -> None:
+        root = self.dir / "repo"
+        (root / "docs" / "product").mkdir(parents=True)
+        prd_path = root / "docs" / "product" / "prd.md"
+        prd_path.write_text("# Product contract\n", encoding="utf-8")
+        architecture_path = root / "docs" / "product" / "architecture.md"
+        architecture_path.write_text("# Architecture\n", encoding="utf-8")
+        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
+            prd_path.read_bytes()
+        ).hexdigest()
+        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
+            architecture_path.read_bytes()
+        ).hexdigest()
+        self.run["plan"]["digest_sha256"] = plan_digest(self.plan)
+        self.result = running_result(self.plan, self.run)
+        self.plan_path = write(self.dir, "PLAN.md", {"harness_plan": self.plan})
+        self.run_path = write(self.dir, "RUN.md", {"harness_run": self.run})
+        node_path = write(self.dir, "node.json", {"node_result": self.result})
+
+        code, payload = self.run_cli("--node-result", str(node_path), "--repo-root", str(root))
+        self.assertEqual(0, code)
+        self.assertEqual("PASS", payload["status"])
+
+        prd_path.write_text("# Product contract (drifted)\n", encoding="utf-8")
+        code, payload = self.run_cli("--node-result", str(node_path))
+        self.assertEqual(0, code)
+        self.assertEqual("PASS", payload["status"])
+
+        code, payload = self.run_cli("--node-result", str(node_path), "--repo-root", str(root))
+        self.assertEqual(2, code)
+        self.assertTrue(
+            any("content_sha256" in error for error in payload["errors"]),
+            payload["errors"],
+        )
 
 
 if __name__ == "__main__":

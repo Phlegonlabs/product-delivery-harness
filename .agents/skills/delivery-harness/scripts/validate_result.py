@@ -54,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--observed-changed-file", action="append", default=None)
     parser.add_argument("--ancestry-confirmed", action="store_true")
     parser.add_argument("--verifier-result", action="append", default=[], type=Path)
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        help="Optional repository root; re-runs the frozen-source byte and "
+        "semantic contract joins under that root during PLAN/RUN validation",
+    )
     return parser
 
 
@@ -93,11 +99,13 @@ def main(argv: list[str] | None = None) -> int:
 
     current_pair = is_current_pair(plan, run)
     if current_pair:
-        errors.extend(validate_current_plan_run(plan, run))
+        errors.extend(
+            validate_current_plan_run(plan, run, repo_root=args.repo_root)
+        )
     else:
         if args.node_result:
             errors.append("node result validation requires PLAN v6 with RUN v11")
-        errors.extend(validate_plan(plan))
+        errors.extend(validate_plan(plan, repo_root=args.repo_root))
         errors.extend(validate_run(plan, run))
 
     if not errors:
