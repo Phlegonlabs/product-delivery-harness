@@ -5,9 +5,9 @@
 ## Claude Code Runtime Boundary
 
 - Treat `AGENTS.md` as the shared repository governance imported above. Keep Claude Code-only instructions in this file.
-- Use the Full-Stack Harness Claude Code adapter for Claude worker roles, model selection, Dynamic Workflow, and Agent Teams behavior. Do not copy Codex or Pi launch mechanics into a Claude worker.
+- Use the Product Delivery Harness Claude Code adapter for Claude worker roles, model selection, Dynamic Workflow, and Agent Teams behavior. Do not copy Codex or Pi launch mechanics into a Claude worker.
 
-The rules below apply only when this Claude session is executing a managed Full-Stack Harness PLAN/RUN mission. Direct Claude Code work follows `AGENTS.md` and the user's request without creating Harness state or worker topology.
+The rules below apply only when this Claude session is executing a managed Product Delivery Harness PLAN/RUN mission. Direct Claude Code work follows `AGENTS.md` and the user's request without creating Harness state or worker topology.
 
 ## Managed Harness Missions
 

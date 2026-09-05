@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme-cover-en.png" alt="Full Stack Harness — plan, build, verify, and land" width="100%">
+  <img src="./assets/readme-cover-en.png" alt="Product Delivery Harness — define, design, deliver, and verify" width="100%">
 </p>
 
 <p align="center">
@@ -10,24 +10,24 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.23.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.24.0-059669?style=flat-square">
 </p>
 
-# Full Stack Harness
+# Product Delivery Harness
 
 Private skills repository for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, Pi, or any host that discovers a user skills directory.
 
 It is not a prompt collection. The skill suite separates product definition, visual design, and engineering execution so each stage has one source of truth, a bounded handoff, and its own verification.
 
-> Define the product. Make the design concrete. Execute only the work that is ready. Verify the exact result before it moves.
+> Define the product. Compile the design. Deliver verified software.
 
 ## Start here
 
 | If you have... | Start with | What you get |
 | --- | --- | --- |
-| A product idea | `prd-builder` | Requirements, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, tests, and sourced market research |
-| An approved wireframe package that needs visual design | `prd-builder` UI Design Pass, then `product-design-builder` + `frontend-design` when the gate requires it | An approved visual direction — on web, retained high-fidelity HTML references under `docs/design/ui-references/` — plus a binding design-system pair when required |
-| A scoped change in an existing repository | `full-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
+| A product idea | `product-definition-builder` | Requirements, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, tests, and sourced market research |
+| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | An approved visual direction — on web, retained high-fidelity HTML references under `docs/design/ui-references/` — plus a binding design-system pair when required |
+| A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 
 The skills can be used independently. You do not need to run the entire pipeline for every task.
 
@@ -46,9 +46,9 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `prd-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, the post-draft market-research gap pass, and the optional UI Design Pass whose web route renders retained high-fidelity HTML references | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
-| `product-design-builder` | Compiling an approved UI Design Handoff into the frozen design-system pair. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
-| `full-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
+| `product-definition-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, the post-draft market-research gap pass, and the optional UI Design Pass whose web route renders retained high-fidelity HTML references | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
+| `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
+| `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
@@ -63,18 +63,18 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 
 ```mermaid
 flowchart LR
-  Idea["Product idea or change request"] --> PRD["prd-builder\nProduct and technical definition"]
+  Idea["Product idea or change request"] --> PRD["product-definition-builder\nProduct and technical definition"]
   PRD --> Wireframe["wireframes.html\ninteractive low-fidelity projection"]
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
-  Gate -->|"approved, visual design requested"| Design["UI Design Pass\nproduct-design-builder when required"]
-  Gate -->|"approved, no visual phase"| Harness["full-harness\nShared delivery core"]
+  Gate -->|"approved, visual design requested"| Design["UI Design Pass\ndesign-system-compiler when required"]
+  Gate -->|"approved, no visual phase"| Harness["delivery-harness\nShared delivery core"]
   Design -->|"approved HTML references or design-system pair"| Harness
   Harness --> Runtime["One host provider section\nCodex, Claude Code, Pi, or generic"]
   Runtime --> Evidence["Local tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `prd-builder` defines the product and stops at the approved `wireframes.html`, the optional UI Design Pass and `product-design-builder` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/` — and the Harness implements the frozen result.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`, the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/` — and the Harness implements the frozen result.
 
 ### Full skill lifecycle
 
@@ -84,7 +84,7 @@ The complete lifecycle across all three skills, with every gate and the cross-cu
 flowchart TB
     user([User idea or change request])
 
-    subgraph PRD["prd-builder — product definition"]
+    subgraph PRD["product-definition-builder — product definition"]
         direction TB
         interview[Structured interview<br/>3 free-text segments + AskUserQuestion]
         pkg["Core package draft<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
@@ -100,13 +100,13 @@ flowchart TB
         taste["UI Design Pass<br/>taste skill via the Skill Bindings slot"]
         handoff[UI Design Handoff]
         dgate{{"Design System Need Gate"}}
-        pair["product-design-builder<br/>design-system.md + design-system.json"]
+        pair["design-system-compiler<br/>design-system.md + design-system.json"]
         taste --> handoff --> dgate
         dgate -->|required| pair
         dgate -->|not_required| target[Approved page-faithful target]
     end
 
-    subgraph HARNESS["full-harness — delivery core"]
+    subgraph HARNESS["delivery-harness — delivery core"]
         direction TB
         route["System Review And Route<br/>(parent-only, read-only)"]
         size{{"Project Size Gate"}}
@@ -187,6 +187,8 @@ The Harness is built around explicit boundaries:
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v11 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
 
+Before a wave is accepted, the Harness rechecks the observed clean product tree on the non-default integration branch, binds the batch to that exact head, reruns the selector, and accepts only its complete current frontier. The clean-tree gate excludes only the exact tracked RUN file that transitions necessarily update; every other change still blocks. A linked integration checkout is recorded as the parent while Git's clean primary checkout remains a recognized sibling. The durable run lock owns dispatch; a short operating-system lock serializes each RUN read/validate/write transaction. Frozen PRD, wireframe, and design-system sources are byte-hash-bound in both standalone validation and the transition write path. Every frozen PRD is parsed even when PLAN claims zero UI surfaces. Every structured PRD surface owns one literal route; a UI-bearing localized PRD keeps exactly one language-neutral boundary pair and one `route` and `states` anchor per entry; IDs, routes, and states agree exactly across artifacts. The design-system pair keeps separate Markdown and JSON source rows, its generated contract and compiler namespaces must agree, and every PLAN `DS-*` trace resolves through the same globally unique JSON registry. product-definition-builder batches every applicable closed decision to the question tool's actual per-call capacity; it has no Codex-specific call target and drops no decision to fit a host count.
+
 ```mermaid
 flowchart TB
   Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
@@ -214,14 +216,14 @@ flowchart TB
 
 ## Lightweight runtime adapters
 
-The shared core owns the one PLAN/RUN control plane. Host-specific launch details live in one reference — `full-harness/references/runtime-adapters.md` — with a shared adapter contract and one provider section per host, applied lazily:
+The shared core owns the one PLAN/RUN control plane. Host-specific launch details live in one reference — `delivery-harness/references/runtime-adapters.md` — with a shared adapter contract and one provider section per host, applied lazily:
 
 - A host applies only its own provider section and executes only PLAN nodes whose `allowed_providers` includes that host.
 - A Pi host leaves role/model/fallback selection to Pi's installed configuration.
 - No provider section can invoke another runtime. A ready node whose provider does not match the current host is deferred with `runtime_unavailable` and left for a run hosted by a matching host.
 - Adding a new runtime host adds one provider section to that reference, not a new skill.
 
-Shared scripts, schemas, references, and templates remain under `full-harness`; the provider sections link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
+Shared scripts, schemas, references, and templates remain under `delivery-harness`; the provider sections link to them rather than shipping duplicate runtimes. This keeps the default prompt small.
 
 One run has one active host. A same-repository handoff is allowed only after Host A closes its wave and `RUN.active_wave.status` is neither `active` nor `proposed`; the `active_wave` object remains in RUN, so its absence is not a handoff signal. Host B preserves PLAN/RUN and graph state, re-probes its runtime, and reviews the current exact SHA before selecting the next wave. A repair routes back to Host A and invalidates the old review; cross-machine handoff is unsupported until a future schema adds portable repository/state identity.
 
@@ -258,61 +260,63 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 
 ### Fastest setup
 
-Clone the repository and copy the three harness skills into your user skills directory:
+Clone the repository and copy the three Product Delivery Harness skills into your user skills directory:
 
 ```bash
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-cp -r fullstack-goal-dev/.agents/skills/full-harness \
-      fullstack-goal-dev/.agents/skills/prd-builder \
-      fullstack-goal-dev/.agents/skills/product-design-builder \
+cp -r fullstack-goal-dev/.agents/skills/delivery-harness \
+      fullstack-goal-dev/.agents/skills/product-definition-builder \
+      fullstack-goal-dev/.agents/skills/design-system-compiler \
       ~/.agents/skills/
 ```
 
-On Windows, `Copy-Item -Recurse` does the same. Replacing those three directories under `~/.agents/skills/` with a newer checkout's copies is the whole update — there is no separate updater script. Hosts that discover `~/.agents/skills/` pick the skills up in the next fresh session; to test local edits, copy from your checkout the same way.
+On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the three current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
 
-The three harness skills are self-contained, but the visual phases load external skills at runtime: `product-design-builder` requires `frontend-design` and stops without it, and prd-builder's UI Design Pass pairs a design-direction skill (default `design-taste-frontend`) with a frontend-implementation skill (default `frontend-design`). Install those into the same user skills directory when a run will continue past approved wireframes.
+When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler`. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
+
+The three Product Delivery Harness skills are self-contained, but the visual phases load external skills at runtime: `design-system-compiler` requires `frontend-design` and stops without it, and product-definition-builder's UI Design Pass pairs a design-direction skill (default `design-taste-frontend`) with a frontend-implementation skill (default `frontend-design`). Install those into the same user skills directory when a run will continue past approved wireframes.
 
 ### Zero-to-one flow
 
-1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the three harness skills, then use that host for the run.
-2. Start a fresh host session, confirm the skill is visible, and invoke `full-harness`.
+1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the three Product Delivery Harness skills, then use that host for the run.
+2. Start a fresh host session, confirm the skill is visible, and invoke `delivery-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
 
 ## Typical prompts
 
-Codex accepts the `$skill-name` form below. In Claude Code or any other host, ask for the skill by name, such as `prd-builder`. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `full-harness` by name.
+Codex accepts the `$skill-name` form below. In Claude Code or any other host, ask for the skill by name, such as `product-definition-builder`. In Pi, use its discovered project skill or pass the skill directory with `--skill`, then ask for `delivery-harness` by name.
 
 ```text
-Use $prd-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
+Use $product-definition-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
 ```
 
 ```text
-Use $prd-builder to review the staged wireframes.html with me and record the Wireframe Approval decision before any visual or implementation work.
+Use $product-definition-builder to review the staged wireframes.html with me and record the Wireframe Approval decision before any visual or implementation work.
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $prd-builder's UI Design Pass. Render the web previews as high-fidelity HTML and retain the approved references under docs/design/ui-references/, invoking $product-design-builder only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render the web previews as high-fidelity HTML and retain the approved references under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
 ```
 
 ```text
-Use $full-harness to implement the approved plan, building each page from its approved HTML reference in docs/design/ui-references/ within the recorded tolerance.
+Use $delivery-harness to implement the approved plan, building each page from its approved HTML reference in docs/design/ui-references/ within the recorded tolerance.
 ```
 
 ```text
-Use $full-harness to review the existing app, plan the required work, and stop before implementation.
+Use $delivery-harness to review the existing app, plan the required work, and stop before implementation.
 ```
 
 ```text
-Use $full-harness to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
+Use $delivery-harness to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
 ```text
-Use $full-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+Use $delivery-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
 ```text
-Use full-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
 For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.
@@ -349,12 +353,12 @@ assets/                                              README covers
 Edit only the canonical sources in `.agents/skills/`, then run the verification suite (the same set CI runs):
 
 ```bash
-python -m pip install -r .agents/skills/full-harness/requirements-test.txt
-python .agents/skills/full-harness/scripts/check_skill_spec.py
-python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
-python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
-python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
-python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
+python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
+python .agents/skills/delivery-harness/scripts/check_skill_spec.py
+python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
+python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
 git diff --check
 ```
 
@@ -368,8 +372,8 @@ Every flow that lands on `main` is one release, and the version bump rides in th
 
 1. The `version` field in `package.json`.
 2. The version badge and the version-history entry in all three READMEs (`README.md`, `README.zh-TW.md`, `README.zh-CN.md`).
-3. The RUNBOOK `required_harness_version` default in `.agents/skills/full-harness/assets/templates/MISSION_RUNBOOK.template.md`.
-4. The pinned version assert in `.agents/skills/full-harness/scripts/tests/test_skill_contract.py`.
+3. The RUNBOOK `required_harness_version` default in `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
+4. The pinned version assert in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
 Then run the full verification above, review the entire diff, and land through the repository's PR flow — never a direct push to `main`. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.22.1`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
 
@@ -383,7 +387,9 @@ Then run the full verification above, review the entire diff, and land through t
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
-- **0.23.0** — Write-path hardening and the first cross-artifact checks. `harness_transition.py` gains `close-wave`: it appends the durable `{wave_id, batch_base_sha}` tombstone, flips the wave to `closed`, and resets every `wave_closed`-bounded grant, so multi-wave runs and host handoffs no longer require hand-edited RUN JSON; a matching validator fix lets evidence from closed waves keep its own batch base instead of failing against the current one. The write-path guards now close the gaps a full review reproduced: `accept-wave` requires overall execution authorization covering every selected mission, a ready plan, and a recorded observation; `lease-worker` binds the mission's own graph node and refuses leases past an unsatisfied dependency frontier; `record-integration` requires `--repo-root`, proves the batch base is an ancestor of the integrated HEAD, and no longer accepts a fabricated SHA. The repository CI now verifies every pushed branch — same `'**'` filter the project template pins — with a contract test reading the actual workflow file. prd-builder's closed-question phase adapts to the host tool's per-call question and option limits (Codex CLI asks three questions per call) instead of a fixed four, with a four-call cap and an option-compression rule. Cross-artifact joins arrive: `check_wireframe_html.py --prd` proves the wireframe screens and the PRD `UI-*` contract name the same set; the design-system pair checker validates `DS-COMP-*` id format, uniqueness, and Markdown-to-JSON resolution; `validate_harness_plan.py --prd` proves the PLAN's `ui_surfaces` equal the PRD's `UI-*` contract. A follow-up review pass closed the remaining gaps: `accept-wave` also refuses a paused or cancelled run and binds the batch base to the observed parent head; `lease-worker` — and the validator — refuse two conflicting missions (write scope, serialized resources, or exclusive runtime resources) running at once; `close-wave` follows the documented lifecycle, closing a `worker_passed` mission under a `run_complete` boundary; `record-integration` proves the integration branch, a clean tree, and the worker head's containment in the integrated HEAD. The run lock fails closed: every mutation refuses a foreign lock regardless of age or heartbeat parseability, the five dispatch commands require the session's held lock, document replacement is compare-and-swap, and `record-observation` records the parent worktree exactly as Git prints it (fixing path-identity checks on Windows). The interview call cap is honest on every host (three calls at four questions per call, five at three). The DS join covers every `DS-*` family through the new `signatureRules` registry and primitive `dsId` fields, and the PRD join cannot be skipped or redirected: a frozen PRD source requires `--prd` with byte-matching content, and `--wireframes` deepens the join to routes and states. The README maintenance list now names the full verification suite, and the install section names the external design skills the visual phases load.
+- **0.24.0** — Renamed the complete skill suite to Product Delivery Harness. `prd-builder` is now `product-definition-builder`, `product-design-builder` is now `design-system-compiler`, and `full-harness` is now `delivery-harness`. Canonical folders, skill frontmatter, UI metadata, templates, CI, tests, setup commands, cover art, and all three READMEs use the new names. Existing installs now have a recoverable migration: quiesce active sessions, archive legacy and existing destination directories outside the discovery root, copy and byte-verify the three current skills, confirm the legacy IDs are no longer discoverable, and restore the backup on failure. The package id is now `product-delivery-harness`; the existing GitHub repository slug remains unchanged until it is renamed separately.
+
+- **0.23.0** — Write-path hardening and cross-artifact validation. `close-wave` records durable wave tombstones and preserves `run_complete` authorization for validated `worker_passed` closeout while `wave_closed` grants still require resolution first. `accept-wave` now runs only while control is `running`, requires a live clean non-default integration checkout at `observed.git.parent_head_sha`, reruns the selector, and accepts exactly its complete dispatchable mission frontier; `lease-worker` refuses overlapping write scopes and serialized or exclusive resources, and only explicit retryable failures or interrupted-worker reconciliation can re-arm a blocked mission. `record-integration` proves the observed integration checkout and branch, clean product tree, batch-base and prior-integration-head ancestry, and worker-head containment, so integration cannot move onto a fork that drops earlier work. These clean-tree gates exclude only the exact tracked RUN file that transitions necessarily update; linked integration checkouts select themselves as the parent while retaining Git's clean primary checkout as a recognized sibling. Every mutation refuses foreign locks regardless of staleness or heartbeat parseability; the five dispatch commands require the held durable lock, and an operating-system lock plus exact-text comparison serializes the full RUN read/validate/write transaction. prd-builder now uses a stable closed-decision inventory and the question tool's actual per-call capacity, asks every applicable decision, and has no Codex-specific total-call target. The design-system registry accepts optional primitive `dsId` values and enforces one global namespace for every exact `DS-[A-Z]+-\d+` token, while PLAN traces must all resolve; the frozen Markdown generated block, filled values, and exact compiler namespaces must also agree with JSON. Frozen PRD, wireframe, and separate design-system Markdown/JSON rows require matching byte hashes in standalone and transition validation; every frozen PRD is parsed even when PLAN claims no UI, every UI contract has one matched boundary pair and one `route`/`states` anchor per entry, and PRD/PLAN/wireframe IDs, routes, and states join exactly. CI and the three-language documentation are pinned to the same behavior.
 
 - **0.22.0** — The private marketplace and plugin bundle are retired. `plugins/`, `.claude-plugin/marketplace.json`, `.agents/plugins/marketplace.json`, and `scripts/sync_plugin_skills.py` are gone; `.agents/skills/` is the only source, and installing or updating means copying the three harness skills into your user skills directory (`~/.agents/skills/`), exactly as the Fastest setup already described. The READMEs drop the marketplace badge, the per-host plugin install commands, and the local-marketplace section; `runtime-upgrades.md` now names the skills sync as the only Harness update surface and trims the per-host update notes to host-owned installers plus restart. The same release widens the run record and the deployment contract: mid-run modifications — extra fixes, follow-up edits, or user-reported changes — are recorded as their own missions through a plan revision (`execution-state-model.md`'s "Mid-Run Modification Recording"), and `docs/tasks.md` renders newest mission first so the view ends the run listing every modification the run made. Deployment gains a per-platform "Adding A Binding" runbook in the seeded `docs/DEPLOYMENT.md`: create the resource before writing the declaration on both sides, verify preview before the default-branch landing, secrets never in the wrangler config, D1 migrations preview-first — the wrangler steps scoped to cloudflare, and the named Wrangler environments renamed `env.development`/`env.production`. The READMEs also document the release flow itself: the version-bump checklist, the `v<version>` tag after landing, and the rule that any change to a skill, rule, or documented flow updates the READMEs' descriptive sections in all three languages in the same change.
 

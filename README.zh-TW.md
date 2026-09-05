@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme-cover-zh-TW.png" alt="全端交付控制框架：規劃、建置、驗證、落地" width="100%">
+  <img src="./assets/readme-cover-zh-TW.png" alt="產品交付控制框架：定義、設計、交付、驗證" width="100%">
 </p>
 
 <p align="center">
@@ -10,24 +10,24 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.23.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.24.0-059669?style=flat-square">
 </p>
 
-# Full Stack Harness
+# Product Delivery Harness
 
 私有技能儲存庫，讓你用 Codex、Claude Code、Pi 或任何會探索使用者 skills 目錄的 host，把產品構想或變更需求轉化為經過驗證的交付流程。
 
 它不是提示詞集合。這套技能把產品定義、視覺設計與工程執行拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
 
-> 定義產品。把設計做具體。只執行已就緒的工作。每次移交前，都驗證實際結果。
+> 定義產品。編譯設計。交付已驗證的軟體。
 
 ## 從這裡開始
 
 | 你目前有什麼 | 從哪個技能開始 | 會得到什麼 |
 | --- | --- | --- |
-| 一個產品構想 | `prd-builder` | 需求、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務，以及附來源的市場研究 |
-| 已核准線框稿、需要視覺設計的套件 | `prd-builder` UI Design Pass；gate 判定 required 時再進 `product-design-builder` + `frontend-design` | 核准的視覺方向——在 web 上是保留於 `docs/design/ui-references/` 的高擬真 HTML references——以及需要時具約束力的設計系統契約 |
-| 既有儲存庫中的明確變更 | `full-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
+| 一個產品構想 | `product-definition-builder` | 需求、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務，以及附來源的市場研究 |
+| 已核准線框稿、需要視覺設計的套件 | `product-definition-builder` UI Design Pass；gate 判定 required 時再進 `design-system-compiler` + `frontend-design` | 核准的視覺方向——在 web 上是保留於 `docs/design/ui-references/` 的高擬真 HTML references——以及需要時具約束力的設計系統契約 |
+| 既有儲存庫中的明確變更 | `delivery-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
 
 這些技能可以單獨使用。不是每個任務都要跑完整條流程。
 
@@ -46,9 +46,9 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `prd-builder` | 產品探索、需求、Builder UX Direction 輸入、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務、草稿完成後的市場研究補缺，以及 web 路線會產出保留高擬真 HTML references 的選用 UI Design Pass | `PRD.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
-| `product-design-builder` | 將已核准的 UI Design Handoff 編譯成凍結的設計系統契約。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
-| `full-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
+| `product-definition-builder` | 產品探索、需求、Builder UX Direction 輸入、UI 產品的低擬真互動線框稿、架構、技術選型、發佈目標、測試義務、草稿完成後的市場研究補缺，以及 web 路線會產出保留高擬真 HTML references 的選用 UI Design Pass | `PRD.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md` |
+| `design-system-compiler` | 將已核准的 UI Design Handoff 編譯成凍結的設計系統契約。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
+| `delivery-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
 
 交付核心在啟動受管編排之前，會先做一個規模決策：
 
@@ -63,18 +63,18 @@
 
 ```mermaid
 flowchart LR
-  Idea["產品構想或變更需求"] --> PRD["prd-builder\n產品與技術定義"]
+  Idea["產品構想或變更需求"] --> PRD["product-definition-builder\n產品與技術定義"]
   PRD --> Wireframe["wireframes.html\n可互動的低擬真投影"]
   Wireframe --> Gate{"Wireframe Approval Gate\n人類 owner"}
-  Gate -->|"核准且要求視覺設計"| Design["UI Design Pass\n需要時進 product-design-builder"]
-  Gate -->|"核准、不進視覺階段"| Harness["full-harness\n共用交付核心"]
+  Gate -->|"核准且要求視覺設計"| Design["UI Design Pass\n需要時進 design-system-compiler"]
+  Gate -->|"核准、不進視覺階段"| Harness["delivery-harness\n共用交付核心"]
   Design -->|"核可的 HTML references 或設計系統契約"| Harness
   Harness --> Runtime["單一 host 轉接器\nCodex、Claude Code 或 Pi"]
   Runtime --> Evidence["本機測試與 UI 佐證"]
   Evidence --> Push["推送到這次執行自己的分支\n合進預設分支是你自己的步驟"]
 ```
 
-你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app。各技能各司其職：`prd-builder` 定義產品並止於核准的 `wireframes.html`，選用的 UI Design Pass 與 `product-design-builder` 定義視覺契約——在 web 上，pass 會把核可的高擬真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的組合搬進 `docs/design/archived/`——Harness 實作已凍結的結果。
+你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app。各技能各司其職：`product-definition-builder` 定義產品並止於核准的 `wireframes.html`，選用的 UI Design Pass 與 `design-system-compiler` 定義視覺契約——在 web 上，pass 會把核可的高擬真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的組合搬進 `docs/design/archived/`——Harness 實作已凍結的結果。
 
 ### 完整技能生命週期
 
@@ -84,7 +84,7 @@ flowchart LR
 flowchart TB
     user([使用者想法或變更請求])
 
-    subgraph PRD["prd-builder — 產品定義"]
+    subgraph PRD["product-definition-builder — 產品定義"]
         direction TB
         interview[結構化訪談<br/>3 段 free-text + AskUserQuestion]
         pkg["核心套件起草<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
@@ -100,13 +100,13 @@ flowchart TB
         taste["UI Design Pass<br/>依 Skill Bindings 槽位選 taste skill"]
         handoff[UI Design Handoff]
         dgate{{"Design System Need Gate"}}
-        pair["product-design-builder<br/>design-system.md + design-system.json"]
+        pair["design-system-compiler<br/>design-system.md + design-system.json"]
         taste --> handoff --> dgate
         dgate -->|required| pair
         dgate -->|not_required| target[核可的 page-faithful target]
     end
 
-    subgraph HARNESS["full-harness — 交付核心"]
+    subgraph HARNESS["delivery-harness — 交付核心"]
         direction TB
         route["System Review And Route<br/>（parent-only、read-only）"]
         size{{"Project Size Gate"}}
@@ -187,6 +187,8 @@ Harness 是圍繞明確的邊界所打造的：
 
 對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。RUN-v11 的推送還需要明確的遠端意圖、唯一的整合分支目標與目前 head 授權；若預設分支身分未知，推送會安全失敗，但不會阻止無關的本機執行。
 
+wave 接受前，Harness 會重新檢查觀測到的非預設整合分支及乾淨產品樹，把 batch 綁到該精確 head，重跑 selector，並且只接受完整的目前 frontier。clean-tree gate 只排除 transition 必然更新的那個精確 tracked RUN 檔案；其他任何變更仍會阻斷。整合分支位於 linked worktree 時，該 checkout 會正確記錄為 parent，Git 的乾淨主要 checkout 則保留為已識別的同層項目。持久 run lock 負責 dispatch；短期作業系統鎖會序列化每一次 RUN 的讀取、驗證與寫入交易。凍結的 PRD、wireframe 與 design-system source 會在獨立驗證和 transition 寫入路徑中按位元組 hash 綁定；即使 PLAN 聲稱 UI surface 為空，凍結的 PRD 仍會被解析。每個結構化 PRD surface 只擁有一個 literal route；帶 UI 的翻譯 PRD 只能有一對語言無關的邊界標記，並且每個條目各有一個 `route` 與 `states` 錨點；各產物的 ID、route 與 state 必須完全一致。design-system 的 Markdown 與 JSON 各有獨立 source row，其 generated contract 與 compiler namespace 必須一致；每個 PLAN `DS-*` trace 也必須在同一個全域唯一的 JSON 註冊表中解析。product-definition-builder 會按問題工具實際的每次容量分批詢問所有適用的封閉決策；沒有 Codex 專屬的呼叫次數目標，也不會為了配合 host 次數而丟掉問題。
+
 ```mermaid
 flowchart TB
   Intake["Intake: request, repo, instructions"] --> Size{"small or large?"}
@@ -214,14 +216,14 @@ flowchart TB
 
 ## 輕量的執行環境轉接器
 
-共用核心掌管唯一的 PLAN/RUN 控制平面。執行環境專屬的啟動細節放在同一份參考文件 —— `full-harness/references/runtime-adapters.md` —— 內含一份共用轉接契約，加上每個 host 一段 provider 段落，按需套用：
+共用核心掌管唯一的 PLAN/RUN 控制平面。執行環境專屬的啟動細節放在同一份參考文件 —— `delivery-harness/references/runtime-adapters.md` —— 內含一份共用轉接契約，加上每個 host 一段 provider 段落，按需套用：
 
 - 每個 host 只套用自己的 provider 段落，也只執行 `allowed_providers` 包含該 host 的 PLAN 節點。
 - Pi host 沿用 Pi 已安裝的角色、模型與 fallback 設定。
 - 任何 provider 段落都無法呼叫另一個執行環境。若某個已就緒節點的 provider 與當前 host 不符，會被 deferred with `runtime_unavailable`，留給由對應 host 主持的執行去處理。
 - 未來新增一個執行環境 host，只是在這份參考文件加一段 provider 段落，不需要新增 skill。
 
-共用的 script、schema、參考文件與範本仍放在 `full-harness` 底下；各 provider 段落只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡。
+共用的 script、schema、參考文件與範本仍放在 `delivery-harness` 底下；各 provider 段落只是連結到它們，而不會各自夾帶重複的執行環境。這讓預設提示詞維持精簡。
 
 一次執行只有一個 active host。same-repository handoff 只有在 Host A 關閉 wave、且 `RUN.active_wave.status` 既不是 `active` 也不是 `proposed` 後才允許；`active_wave` 物件仍保留在 RUN 中，不能把物件缺失當成交接訊號：Host B 保留 PLAN/RUN 與 graph state，重新探測 runtime，並在選取下一波前審查目前的 exact SHA。若需要修復，路由回 Host A 且舊 review 立即失效；除非未來 schema 增加可攜式的儲存庫／狀態身分，否則不支援 cross-machine handoff。
 
@@ -258,61 +260,63 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 
 ### 最快安裝方式
 
-clone 儲存庫，把三個 harness skills 複製進你的使用者 skills 目錄：
+clone 儲存庫，把三個 Product Delivery Harness skills 複製進你的使用者 skills 目錄：
 
 ```bash
 git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-cp -r fullstack-goal-dev/.agents/skills/full-harness \
-      fullstack-goal-dev/.agents/skills/prd-builder \
-      fullstack-goal-dev/.agents/skills/product-design-builder \
+cp -r fullstack-goal-dev/.agents/skills/delivery-harness \
+      fullstack-goal-dev/.agents/skills/product-definition-builder \
+      fullstack-goal-dev/.agents/skills/design-system-compiler \
       ~/.agents/skills/
 ```
 
-Windows 上改用 `Copy-Item -Recurse` 即可。之後更新就是把 `~/.agents/skills/` 下那三個目錄換成新版 checkout 的副本——沒有另外的更新腳本。會讀 `~/.agents/skills/` 的 host 在下一個新 session 就能載入；要測試本機修改，同樣從你的 checkout 複製即可。
+Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製之前，先把既有的新名稱目錄移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份中；該目錄位於 skills 探索目錄之外。再複製三個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
 
-三個 harness skills 本身自足，但視覺階段會在執行期載入外部 skills：`product-design-builder` 需要 `frontend-design`，缺了就停止；prd-builder 的 UI Design Pass 則配對一個 design-direction skill（預設 `design-taste-frontend`）與一個 frontend-implementation skill（預設 `frontend-design`）。要繼續跑超過 wireframe 核可的交付時，把它們裝進同一個使用者 skills 目錄。
+從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到六個觸發範圍重疊的 skills。
+
+三個 Product Delivery Harness skills 本身自足，但視覺階段會在執行期載入外部 skills：`design-system-compiler` 需要 `frontend-design`，缺了就停止；product-definition-builder 的 UI Design Pass 則配對一個 design-direction skill（預設 `design-taste-frontend`）與一個 frontend-implementation skill（預設 `frontend-design`）。要繼續跑超過 wireframe 核可的交付時，把它們裝進同一個使用者 skills 目錄。
 
 ### Zero-to-one 流程（從零開始）
 
-1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與三個 harness skills，並用該 host 執行這次交付。
-2. 開啟新的 host session，確認技能可見，然後呼叫 `full-harness`。
+1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與三個 Product Delivery Harness skills，並用該 host 執行這次交付。
+2. 開啟新的 host session，確認技能可見，然後呼叫 `delivery-harness`。
 3. 讓規模閘決定直接工作或 PLAN/RUN；小型工作不要預先建立 worker。
 4. 大型執行一次只保留一個 active host，並在 same-repository handoff 前關閉與審查每個 wave。
 
 ## 常見提示詞
 
-Codex 接受下列的 `$skill-name` 寫法。在 Claude Code 或其他 host 中，直接用名稱指定技能，例如 `prd-builder`。在 Pi 中，可以使用自動找到的 project skill，或用 `--skill` 傳入技能目錄，再直接指定 `full-harness`。
+Codex 接受下列的 `$skill-name` 寫法。在 Claude Code 或其他 host 中，直接用名稱指定技能，例如 `product-definition-builder`。在 Pi 中，可以使用自動找到的 project skill，或用 `--skill` 傳入技能目錄，再直接指定 `delivery-harness`。
 
 ```text
-Use $prd-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
+Use $product-definition-builder to turn this idea into a PRD, interactive low-fidelity wireframes for every page, architecture, stack decisions, release targets, and test obligations.
 ```
 
 ```text
-Use $prd-builder to review the staged wireframes.html with me and record the Wireframe Approval decision before any visual or implementation work.
+Use $product-definition-builder to review the staged wireframes.html with me and record the Wireframe Approval decision before any visual or implementation work.
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $prd-builder's UI Design Pass. Render the web previews as high-fidelity HTML and retain the approved references under docs/design/ui-references/, invoking $product-design-builder only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render the web previews as high-fidelity HTML and retain the approved references under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
 ```
 
 ```text
-Use $full-harness to implement the approved plan, building each page from its approved HTML reference in docs/design/ui-references/ within the recorded tolerance.
+Use $delivery-harness to implement the approved plan, building each page from its approved HTML reference in docs/design/ui-references/ within the recorded tolerance.
 ```
 
 ```text
-Use $full-harness to review the existing app, plan the required work, and stop before implementation.
+Use $delivery-harness to review the existing app, plan the required work, and stop before implementation.
 ```
 
 ```text
-Use $full-harness to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
+Use $delivery-harness to implement the approved plan. Create a branch and commit the verified change, but do not push or open a PR.
 ```
 
 ```text
-Use $full-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+Use $delivery-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
 ```
 
 ```text
-Use full-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
+Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
 若要進行多任務交付，請在需求中說清楚預期的本機與遠端結果。建立分支、提交、整合、儲存庫設定、推送、移除 worktree 與刪除分支，都是各自獨立的動作。Harness 不會開 PR、不會合併、也不會部署——這些步驟由你自己完成。
@@ -349,12 +353,12 @@ assets/                                              README 封面
 只編輯 `.agents/skills/` 中的標準來源，接著跑驗證套件（與 CI 同一組）：
 
 ```bash
-python -m pip install -r .agents/skills/full-harness/requirements-test.txt
-python .agents/skills/full-harness/scripts/check_skill_spec.py
-python -m pyflakes .agents/skills/full-harness/scripts .agents/skills/prd-builder/scripts .agents/skills/product-design-builder/scripts
-python -m unittest discover -s .agents/skills/full-harness/scripts/tests -v
-python -m unittest discover -s .agents/skills/prd-builder/scripts/tests -v
-python -m unittest discover -s .agents/skills/product-design-builder/scripts/tests -v
+python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
+python .agents/skills/delivery-harness/scripts/check_skill_spec.py
+python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
+python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
+python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
 git diff --check
 ```
 
@@ -368,8 +372,8 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 1. `package.json` 的 `version` 欄位。
 2. 三份 README（`README.md`、`README.zh-TW.md`、`README.zh-CN.md`）的版本 badge 與版本紀錄條目。
-3. `.agents/skills/full-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 預設值。
-4. `.agents/skills/full-harness/scripts/tests/test_skill_contract.py` 裏釘住的版本斷言。
+3. `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 預設值。
+4. `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py` 裏釘住的版本斷言。
 
 接著跑完上面的完整驗證、檢視整份 diff，走儲存庫的 PR 流程落地——不要直接推送到 `main`。落地之後，在 `main` 的 release commit 上打上對應的 `v<版本>` tag（例如 `v0.22.1`）；tag 是 release 的一部分，不是可有可無的附加動作。每個釋出的版本都要有它的 tag——`git tag` 和 `package.json` 必須說同一個故事。
 
@@ -383,7 +387,9 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
-- **0.23.0** — 寫入路徑加固與第一批跨產物檢查。`harness_transition.py` 新增 `close-wave`：附加持久化的 `{wave_id, batch_base_sha}` tombstone、把 wave 翻成 `closed`、重置所有以 `wave_closed` 為邊界的授權，多波 run 與 host handoff 從此不需要手改 RUN JSON；配套的驗證器修正讓已關波次的證據保留自己的 batch base，不再對目前的 base 失配。寫入路徑的 guard 補上完整 review 重現過的缺口：`accept-wave` 要求涵蓋每個 selected mission 的整體執行授權、plan 已 ready、且已有 observation 紀錄；`lease-worker` 綁定 mission 自己的 graph node，並拒絕越過未滿足 dependency frontier 的租約；`record-integration` 必帶 `--repo-root`、驗證 batch base 是整合 HEAD 的祖先，不再接受憑空捏造的 SHA。儲存庫 CI 改為驗證每個被推送的分支——與專案 template 同樣的 `'**'` 過濾器——並由 contract test 直接讀實際 workflow 檔釘住。prd-builder 的封閉式問答階段改為依 host 工具的每呼叫題數與選項上限自適應（Codex CLI 每次三題），不再是固定的四題，並加上四呼叫上限與選項壓縮規則。跨產物 join 到位：`check_wireframe_html.py --prd` 證明 wireframe 畫面與 PRD `UI-*` 契約是同一組；design-system pair checker 驗證 `DS-COMP-*` id 格式、唯一性與 Markdown 對 JSON 的可解析性；`validate_harness_plan.py --prd` 證明 PLAN 的 `ui_surfaces` 等於 PRD 的 `UI-*` 契約。後續一輪 review 補齊其餘缺口：`accept-wave` 另外拒絕暫停或取消中的 run，並把 batch base 綁定到觀察到的 parent head;`lease-worker` 與驗證器都拒絕兩個衝突 mission(write scope、serialized resources 或 exclusive runtime resources)同時執行;`close-wave` 依文件 lifecycle,在 `run_complete` 邊界下允許 `worker_passed` mission 隨波關閉;`record-integration` 證明整合分支、乾淨工作樹、以及 worker head 確實包含在整合 HEAD 內。Run lock 全面 fail-closed:任何 mutation 對外來鎖一律拒絕（不分新舊、不管 heartbeat 能否解析）、五個 dispatch 指令要求本 session 持鎖、文件覆寫改為 compare-and-swap、`record-observation` 以 Git 印出的原字串記錄 parent worktree（修正 Windows 上的路徑身分比對）。問答呼叫上限在每種 host 上算術都成立（4 題 host 三次、3 題 host 五次）。DS join 透過新的 `signatureRules` 註冊表與 primitive `dsId` 欄位涵蓋全部 `DS-*` 家族;PRD join 無法略過或轉向：凍結的 PRD source 必須帶位元組相符的 `--prd`，而 `--wireframes` 把 join 深化到 route 與 states。README 維護清單補齊完整驗證套件，安裝章節載明視覺階段載入的外部設計 skills。
+- **0.24.0** — 完整技能套件改名為 Product Delivery Harness。`prd-builder` 改為 `product-definition-builder`，`product-design-builder` 改為 `design-system-compiler`，`full-harness` 改為 `delivery-harness`。正式目錄、skill frontmatter、UI metadata、範本、CI、測試、安裝指令、封面與三語 README 都已使用新名稱。既有安裝現在有可復原的遷移流程：先結束活動中的 session，把舊 ID 與既有目標目錄備份到探索目錄之外，再複製並按位元組驗證三個目前 skills，確認舊 ID 不再被探索；失敗時還原備份。package id 改為 `product-delivery-harness`；現有 GitHub 儲存庫 slug 暫時保留，等另行改名後再更新連結。
+
+- **0.23.0** — 寫入路徑與跨產物驗證加固。`close-wave` 會記錄持久 wave tombstone；在 `run_complete` 授權邊界下，已驗證的 `worker_passed` mission 可以進入收尾，而 `wave_closed` 授權仍要求先解決 mission。`accept-wave` 現在只在 control 為 `running` 時執行，要求 live Git 位於觀測到的乾淨、非預設整合分支及 `observed.git.parent_head_sha`，重跑 selector，並且只接受完整的目前 dispatchable mission frontier；`lease-worker` 拒絕重疊的 write scope 與 serialized 或 exclusive resource，只有明確的可重試失敗或 interrupted-worker reconciliation 能重新啟用被阻塞的 mission。`record-integration` 會證明觀測到的整合 checkout 與分支、乾淨產品樹、batch base 和上一個 integration head 的祖先關係，以及 worker head 包含關係，不能切到遺失先前整合結果的分叉。clean-tree gate 只排除 transition 必然更新的那個精確 tracked RUN 檔案；linked integration checkout 會把自己記錄為 parent，同時保留 Git 的乾淨主要 checkout 為已識別的同層項目。所有 mutation 都拒絕外來 lock，不受 stale 或 heartbeat 能否解析影響；五個 dispatch 指令要求持有持久 lock，作業系統鎖加精確文字比較會序列化完整的 RUN 讀取、驗證與寫入交易。prd-builder 現在使用穩定的封閉決策清單，按問題工具實際的每次容量詢問所有適用決策，不再設定 Codex 專屬的總呼叫次數目標。design-system 註冊表接受 primitive 的選填 `dsId`，並對每個精確的 `DS-[A-Z]+-\d+` token 強制一個全域命名空間；PLAN 中的所有 DS trace 都必須解析，凍結 Markdown 的 generated block、已填寫值與精確 compiler namespace 也必須和 JSON 一致。凍結的 PRD、wireframe，以及分別記錄的 design-system Markdown/JSON source，都必須在獨立驗證與 transition 驗證中符合位元組 hash；凍結的 PRD 即使在 PLAN 聲稱沒有 UI 時仍會被解析，每份 UI contract 只能有一對邊界標記且每個條目各有一個 `route`/`states` 錨點，PRD、PLAN 與 wireframe 的 ID、route、state 必須完全一致。CI 與三語文件已釘住同一套行為。
 
 - **0.22.0** — 私有市集與外掛套件正式退休。`plugins/`、`.claude-plugin/marketplace.json`、`.agents/plugins/marketplace.json` 與 `scripts/sync_plugin_skills.py` 全數移除；`.agents/skills/` 是唯一來源，安裝與更新就是把三個 harness skills 複製進使用者 skills 目錄（`~/.agents/skills/`），跟「最快安裝方式」描述的完全一致。README 移除市集 badge、各 host 的外掛安裝指令與本機市集章節；`runtime-upgrades.md` 改為把技能同步定位成唯一的 Harness 更新面，各 host 的更新說明縮減為 host 自屬安裝器與重啟。同一版同時擴充了 run 紀錄與部署契約：mid-run 的修改——額外修復、後續編輯、使用者回報的改動——一律透過 plan revision 記錄成自己的 mission（`execution-state-model.md` 的 Mid-Run Modification Recording），`docs/tasks.md` 改為最新 mission 在上、M1 在下，run 結束時這份檢視列出 run 做過的每一項修改。部署面新增跨平台的「Adding A Binding」runbook（seed 進 `docs/DEPLOYMENT.md`）：兩側都是先開資源再寫宣告、preview 驗證先於 default branch 落地、secrets 永不進 wrangler 設定檔、D1 migration 先套 preview 庫——wrangler 步驟限 cloudflare，具名環境統一為 `env.development`/`env.production`。README 並補上發佈流程本身：版本提升清單、落地後打 `v<版本>` tag，以及「任何 skill、規則或文件化流程的變更，都要在同一份變更裏更新三語 README 的描述段落」的規則。
 

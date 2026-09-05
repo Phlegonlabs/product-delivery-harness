@@ -1,0 +1,61 @@
+interface:
+  display_name: "Product Definition Builder"
+  short_description: "Create PRDs, architecture, and product decisions"
+  default_prompt: >-
+    Use $product-definition-builder to turn this product idea into a buildable PRD package
+    with measurable requirements, architecture, stack decisions, release
+    targets, test obligations, and a sourced market-research gap pass. Run
+    open-ended discovery as three bounded free-text turns: Product and users;
+    Workflows, data, and rules; then Delivery, success, and risk. Ask one
+    segment per turn, dynamically skip answered or inapplicable prompts, and
+    wait until every applicable segment passes the coverage check before using
+    AskUserQuestion. For a UI-bearing product, ask the human product/design
+    decision owner for a Builder UX Direction covering experience priority,
+    guidance versus expert control, information density, preferred
+    layout/interaction pattern, confirmation/recovery, and validation depth.
+    Mark choices selected, provisional, or assumed, and state that builder
+    preference is not usability proof. Freeze product scope, routes, content
+    responsibilities, actions, states, trace IDs, brand constraints,
+    accessibility, platform, and performance limits as design inputs. For a
+    UI-bearing product, project every UI-* entry into one self-contained
+    low-fidelity wireframes.html. Put all pages in that HTML with an overview,
+    page switcher, expanded/compact and state controls, and visible
+    section-purpose labels. Review that file in the Wireframe Approval Gate
+    with the human owner and record the result in PRD.md. Treat approval as a
+    complete stopping point. Only when the owner explicitly continues into
+    visual design, run the UI Design Pass: load $design-taste-frontend, record
+    applicable, partially_applicable, or n/a, and use $frontend-design for
+    excluded product surfaces. Produce one recommended direction by default,
+    run a provider-neutral UI Preview Gate, obtain human visual approval, and
+    record the immutable page-faithful target in PRD.md. Then run the Design
+    System Need Gate. Use $design-system-compiler only when the gate is
+    required; otherwise pass the approved UI target directly to Harness. Stop
+    when a required dependency, preview decision, or gate decision is
+    unavailable. Recommend one explicit frontend stack when the
+    product has a browser surface. Run the market-research gap pass by default
+    unless the user declined it, no web tool is available, or the package is a
+    trivial stub, and record the reason for any skip. Every market claim
+    carries a publisher, URL, and retrieval date, or is recorded UNVALIDATED;
+    never invent a competitor, price, funding figure, user count, or market
+    size. Keep always-present measurable Non-Functional Requirements after
+    Functional Requirements and stable Test Obligations after Open Questions.
+    Map every Must functional requirement and applicable NFR to a required TEST
+    row with upstream trace IDs and an observable expected signal. For every
+    deployable web, API, mobile, or desktop surface, record a complete stable
+    surface inventory and provider-neutral development and production release
+    targets, including exact source ref, artifact, signing, channel, release
+    path, availability signal, rollout, and rollback or forward-fix. Upload,
+    submission, or approval is not availability; production availability needs
+    a serving or installable result, and native recovery may require a signed
+    forward-fix. Resolve the deployment platform via AskUserQuestion unless the
+    user or repository already names it, including Cloudflare, Vercel, AWS, or
+    self-hosted development and production targets. For a product with a
+    backend, persistent data, or auth requirement, resolve the database
+    category (Relational, Document, Key-value or cache only, or None) and auth
+    strategy (Build custom, Managed third-party provider, Platform-native, or
+    No auth needed) via AskUserQuestion unless the user or repository already
+    names them. Then record service topology first: monolith versus named
+    services and monorepo versus polyrepo, followed by backend runtime,
+    database engine, and auth provider as separate layers. Validate in staging
+    and never overwrite, move, or archive existing documents without exact
+    user authorization.
