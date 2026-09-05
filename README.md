@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.24.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.25.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -46,7 +46,7 @@ The skills can be used independently. You do not need to run the entire pipeline
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `product-definition-builder` | Product discovery, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, the post-draft market-research gap pass, and the optional UI Design Pass whose web route renders retained high-fidelity HTML references | `PRD.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md` |
+| `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, an interactive low-fidelity wireframe for UI-bearing products, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional UI Design Pass whose web route renders retained high-fidelity HTML references, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
 | `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 
@@ -90,8 +90,11 @@ flowchart TB
         pkg["Core package draft<br/>PRD.md + architecture.md<br/>+ stack-decisions.md"]
         wf["wireframes.html<br/>one interactive low-fidelity file (UI products)"]
         wgate{{"Wireframe Approval Gate<br/>(human approval = a complete stop point)"}}
-        interview --> pkg --> wf --> wgate
+        ra["research-first assessment<br/>research-assessment.md (skippable)"]
+        rgate{{"Research Gate<br/>go | clarify | stop"}}
+        interview --> ra --> rgate --> pkg --> wf --> wgate
         mr["market-research.md<br/>(gap pass, skippable)"]
+        ra -.-> mr
         pkg -.-> mr
     end
 
@@ -154,7 +157,10 @@ flowchart TB
         prod["Production deployment<br/>(platform builds from main)"]
         check["Post-deploy verification (read-only)<br/>check_deployment.py"]
         status["Reconcile deployment record<br/>(status + pending human actions)"]
-        handoff --> push --> preview --> merge --> prod --> check --> status
+        outcome["outcome-review.md<br/>(owner-requested, post measurement window)"]
+        verdict{{"Verdict: no_change | enhancement | incident"}}
+        handoff --> push --> preview --> merge --> prod --> check --> status --> outcome --> verdict
+        verdict -.->|next enhancement request| interview
     end
 
     subgraph CROSS["Cross-cutting mechanisms (all stages)"]
@@ -177,6 +183,8 @@ flowchart TB
 Two human stop points bracket the agent-executable span: the Wireframe Approval and the merge to `main`. The execution loop is the heart of the system — every step in it is an atomic, validated RUN write.
 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. It lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
+
+The loop closes at both ends. Before any closed-set decision, the research-first assessment gates drafting with a human `go | clarify | stop` Research Gate — published as `research-assessment.md` with stable `RA-*` findings and reconciled by the post-draft market-research pass. After a deployment, the owner can request `outcome-review.md`: measured actuals against the PRD's metrics and `TEST-*` expected signals, with a `no_change | enhancement | incident` verdict that feeds the next enhancement run.
 
 ## Delivery model
 
@@ -366,6 +374,8 @@ python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tes
 git diff --check
 ```
 
+An opt-in end-to-end spine check lives outside CI: `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v` walks the real CLI spine (`new_run.py` → frozen joins including the sibling skill's full wireframe checker → `validate_result.py --repo-root`) over one synthetic product package, so cross-skill contract drift surfaces as one red test.
+
 ## Keeping the READMEs current
 
 The READMEs are documentation-of-record: every change that adds or alters a skill, rule, table, diagram, or documented flow updates the README's descriptive sections in the same change, in all three languages. The version badge and version-history entries are the release-time part and follow Releasing below.
@@ -390,6 +400,8 @@ Then run the full verification above, review the entire diff, and land through t
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.25.0** — Research-first gating, outcome review, and one wireframe checker. `delivery-harness`'s frozen wireframe join now runs `product-definition-builder`'s full `check_wireframe_html.py` on the frozen bytes — reviewer shell, self-containment, filled data, approved status, and the PRD-to-wireframe join — instead of a reduced reimplementation, with `validate_harness_plan.py --wireframes` routed through the same checker and a missing sibling skill reported as an explicit error. `validate_result.py` gains `--repo-root`, re-running the frozen-source byte and semantic joins inside its single manifest walk. `product-definition-builder` gains a pre-draft research-first assessment (workflow step 4, before any closed-set decision) with a human `go | clarify | stop` Research Gate recorded in `PRD.md`, a published `research-assessment.md` with stable `RA-*` IDs, and a post-draft market-research pass that reconciles the assessment instead of researching cold; plus a post-deploy `outcome-review.md` — deployed SHA, per-metric baseline/target/actual, and a `no_change | enhancement | incident` verdict — that the next enhancement run reads in full. Deployable packages also seed a names-only `docs/DEPLOYMENT.md` operator handoff (Required Secrets and Variables plus External Console Setup) that `delivery-harness` reconciles before the first deployable push and against observed status after deployment via `check_deployment.py`. An opt-in golden-path E2E (`HARNESS_GOLDEN_PATH=1`, outside CI) walks the real CLI spine over one synthetic package so cross-skill drift surfaces as one red test.
 
 - **0.24.0** — Renamed the complete skill suite to Product Delivery Harness. `prd-builder` is now `product-definition-builder`, `product-design-builder` is now `design-system-compiler`, and `full-harness` is now `delivery-harness`. Canonical folders, skill frontmatter, UI metadata, templates, CI, tests, setup commands, cover art, and all three READMEs use the new names. Existing installs now have a recoverable migration: quiesce active sessions, archive legacy and existing destination directories outside the discovery root, copy and byte-verify the three current skills, confirm the legacy IDs are no longer discoverable, and restore the backup on failure. The package id is now `product-delivery-harness`; the existing GitHub repository slug remains unchanged until it is renamed separately.
 
