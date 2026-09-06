@@ -395,6 +395,10 @@ Then run the full verification above, review the entire diff, and land through t
 - Do not delete old installed skill copies until the new ones are confirmed to load correctly.
 - The orchestration skill requires explicit authorization for every state-changing Git or lifecycle action.
 
+## License
+
+This repository is licensed under the MIT License — see [LICENSE](LICENSE).
+
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
