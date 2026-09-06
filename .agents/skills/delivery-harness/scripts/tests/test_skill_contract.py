@@ -198,6 +198,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Repair context (omit for an initial implementation)", worker)
         self.assertIn("fix the named root-cause family", worker)
 
+    def test_scripted_transition_flag_surfaces_are_documented(self) -> None:
+        state = self.read("references/execution-state-model.md")
+        skill = self.read("SKILL.md")
+        self.assertIn("### Scripted Transition Flag Surfaces", state)
+        self.assertIn("`pause`, `resume`, `cancel`: `--source`", state)
+        self.assertIn("--additional-attempts", state)
+        self.assertIn("--ancestry-confirmed", state)
+        self.assertIn("--packet-out", state)
+        self.assertIn(
+            "`pause`, `resume`, or `cancel`, each requiring `--source`", skill
+        )
+
     def test_managed_review_dispatch_is_reserved_and_independent(self) -> None:
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
