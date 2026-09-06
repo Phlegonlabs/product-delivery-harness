@@ -12,12 +12,24 @@
 - Do not add speculative abstractions or unrelated cleanup.
 - Write short, direct documentation, comments, commit messages, and reports.
 
+## Mission Task Split
+
+- When decomposing a PRD into full-delivery missions, split each mission into more, finer tasks: one task per small, independently verifiable step, so each step is done and checked carefully.
+- Each task keeps its own atomic commit. Finer tasks never create extra parallel workers; they stay sequential checkpoints inside the mission.
+
+## Task Logging
+
+- After each step of a flow is done, add one short line to `Tasks.md` at the repo root saying what that part did, under today's date.
+- Split work into the smallest checkable actions: one line per action in `Tasks.md` (one file, one command, one decision), checked off individually as each completes.
+- Release flows: also log each of these steps — the README version-history/log and badge update in all three languages, the version bump, and the `v<version>` tag pushed to GitHub after landing on `main`.
+- Keep `Tasks.md` updates local; only commit or push it when the user asks.
+
 ## Git Flow
 
 - Do not edit, commit, merge, or push directly to the default branch (`main` in this repository).
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
 - With matching `create_local_branches` authorization, create the exact non-default branch named by repository governance or the user, cut from the current default branch. If neither source names it, ask before branch creation; never add a fixed prefix.
-- With matching `create_local_commits` authorization, commit only the verified task scope.
+- With matching `create_local_commits` authorization, commit only the verified task scope. Commit atomically: one commit per minimal logical change (matching the minimal task split), never bundling unrelated changes.
 - Worker branches and worktrees stay local. With matching `integrate_locally` authorization, the parent integrates verified worker commits into that one run branch.
 - Before push, run the required tests and review the complete diff against `main`.
 - With matching `push` authorization, push that run branch. The run ends there: report the branch and its exact head SHA.
