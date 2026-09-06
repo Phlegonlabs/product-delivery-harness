@@ -7,15 +7,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/fullstack-goal-dev/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.25.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.25.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
 
-私有技能仓库，用于借助 Codex、Claude Code、Pi 或任何会发现用户 skills 目录的宿主，把产品想法或变更需求变成一条经过验证的交付流程。
+技能仓库，用于借助 Codex、Claude Code、Pi 或任何会发现用户 skills 目录的宿主，把产品想法或变更需求变成一条经过验证的交付流程。
 
 它不是提示词集合。这套技能把产品定义、视觉设计和工程执行拆开，让每个阶段都有单一事实源、清晰的交接边界，以及自己的验证方式。
 
@@ -262,12 +262,10 @@ Claude Graph Workflow 会把 mixed frontier 按 homogeneous `tool_profile` 分�
 
 ## 安装
 
-这是一个私有仓库。你需要具备对 `Phlegonlabs/fullstack-goal-dev` 的访问权限、完成 GitHub CLI 认证，并且至少有一个会发现 `~/.agents/skills/` 这类用户 skills 目录的宿主——Codex、Claude Code、Pi 或其他都可以。
+这是公开仓库，不需要访问权限。你只需要至少有一个会发现 `~/.agents/skills/` 这类用户 skills 目录的宿主——Codex、Claude Code、Pi 或其他都可以。
 
 ```bash
-gh auth login
-gh auth setup-git
-git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
+git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 ```
 
 ### 最快安装方式
@@ -275,10 +273,10 @@ git ls-remote https://github.com/Phlegonlabs/fullstack-goal-dev.git HEAD
 克隆仓库，把三个 Product Delivery Harness skills 复制进你的用户 skills 目录：
 
 ```bash
-git clone https://github.com/Phlegonlabs/fullstack-goal-dev.git
-cp -r fullstack-goal-dev/.agents/skills/delivery-harness \
-      fullstack-goal-dev/.agents/skills/product-definition-builder \
-      fullstack-goal-dev/.agents/skills/design-system-compiler \
+git clone https://github.com/Phlegonlabs/product-delivery-harness.git
+cp -r product-delivery-harness/.agents/skills/delivery-harness \
+      product-delivery-harness/.agents/skills/product-definition-builder \
+      product-delivery-harness/.agents/skills/design-system-compiler \
       ~/.agents/skills/
 ```
 
@@ -401,6 +399,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.25.2** — 仓库由 `fullstack-goal-dev` 更名为 `product-delivery-harness`，与产品名一致。README badge、clone 命令与安装路径全部改用新名，安装说明也改为描述公开仓库；skill 行为不变。
 - **0.25.1** — 修正受管 run 与证据写入。`new_run.py` 现在把 graph revision 绑定到实际 PLAN revision，从会随技能目录复制的 `VERSION` 读取 release identity，并在写文件前校验生成的 RUN。`record-worker-result` 会直接观察绑定 worktree 的 live branch、head、dirty state、diff 与 ancestry，再原子记录接受或被 validator 拒绝的证据；`reject-worker-result` 可记录 parent 拒绝的当前 candidate，不必手改 RUN。写入前还会重查 worker HEAD 与 PLAN。Attempt 与 lease identity 遇到模糊复用时会 fail closed。真实跨 skill golden path 现在是必要 CI step，安装说明也已区分可独立调用的阶段与明确依赖。
 
 - **0.25.0** — Research-first 把关、outcome review、单一 wireframe checker。`delivery-harness` 的冻结 wireframe join 现在直接对冻结 bytes 运行 `product-definition-builder` 的完整 `check_wireframe_html.py`（reviewer shell、自包含、填写完成、approved 状态、PRD 对 wireframe 的 join），取代原先的缩减重实现；`validate_harness_plan.py --wireframes` 走同一个 checker，sibling skill 缺失时返回明确错误。`validate_result.py` 新增 `--repo-root`，在单次 manifest walk 内重跑 冻结 source 的 byte 与语义 join。`product-definition-builder` 新增起草前的 research-first 评估（workflow 步骤 4，早于任何封闭选项决策）：人工 `go | clarify | stop` Research Gate 记录在 `PRD.md`，发布含稳定 `RA-*` ID 的 `research-assessment.md`，草稿后的 market-research 改为对账而非冷启动研究；并新增部署后的 `outcome-review.md`——部署 SHA、每个 metric 的 baseline/target/actual、`no_change | enhancement | incident` 判定——下一次 enhancement run 会完整读取。可部署套件同时播种只含名称的 `docs/DEPLOYMENT.md` 操作交接（Required Secrets and Variables 与 External Console Setup），由 `delivery-harness` 在首次可部署 push 前与部署后通过 `check_deployment.py` 对账。另新增 opt-in 的 golden-path E2E（`HARNESS_GOLDEN_PATH=1`，不在 CI 内），用一个合成套件走真实 CLI 主干，让跨 skill 漂移一次爆红。
