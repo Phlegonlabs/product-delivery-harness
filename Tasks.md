@@ -45,3 +45,6 @@
 - [ ] 用戶：重啟 host 讓 skills 重新載入
 - [x] MIT 授權：LICENSE（Phlegonlabs）、三語 README 授權段、package.json license 欄位；release 0.25.3 七觸點；PR #78 squash 落地（e094dd8）、tag v0.25.3 已推、本機 skills 已同步驗證
 - [ ] 用戶：重啟 host 讓 skills 重新載入
+- [x] Tasks.md 記錄 + release 0.25.4 走 PR #79 squash 落地（e23a5aa）、tag v0.25.4 已推、本機 skills 已同步驗證
+- [ ] 用戶：重啟 host 讓 skills 重新載入
+- [x] 決定：Tasks.md 記錄累積在本機，搭下一個實際變更的 PR 落地，不單獨開 release；規則寫入 AGENTS.md，本規則變更隨 release 0.25.5 落地

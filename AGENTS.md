@@ -22,7 +22,7 @@
 - After each step of a flow is done, add one short line to `Tasks.md` at the repo root saying what that part did, under today's date.
 - Split work into the smallest checkable actions: one line per action in `Tasks.md` (one file, one command, one decision), checked off individually as each completes.
 - Release flows: also log each of these steps — the README version-history/log and badge update in all three languages, the version bump, and the `v<version>` tag pushed to GitHub after landing on `main`.
-- Keep `Tasks.md` updates local; only commit or push it when the user asks.
+- Keep `Tasks.md` updates local; they land with the next real change's branch and PR — never as a log-only release. Commit or push `Tasks.md` on its own only when the user explicitly asks.
 
 ## Git Flow
 
