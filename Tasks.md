@@ -43,3 +43,5 @@
 - [x] `main` fast-forward 合併 `rename-product-delivery-harness` 並 push
 - [x] 打 `v0.25.2` tag 並 push
 - [ ] 用戶：重啟 host 讓 skills 重新載入
+- [x] MIT 授權：LICENSE（Phlegonlabs）、三語 README 授權段、package.json license 欄位；release 0.25.3 七觸點；PR #78 squash 落地（e094dd8）、tag v0.25.3 已推、本機 skills 已同步驗證
+- [ ] 用戶：重啟 host 讓 skills 重新載入
