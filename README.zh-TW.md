@@ -280,7 +280,7 @@ cp -r product-delivery-harness/.agents/skills/delivery-harness \
       ~/.agents/skills/
 ```
 
-Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製之前，先把既有的新名稱目錄移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份中；該目錄位於 skills 探索目錄之外。再複製三個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
+如果 checkout 的 `.agents/skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製之前，先把既有的新名稱目錄移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份中；該目錄位於 skills 探索目錄之外。再複製三個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到六個觸發範圍重疊的 skills。
 
