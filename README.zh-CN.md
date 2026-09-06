@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.25.5-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.25.6-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -280,7 +280,7 @@ cp -r product-delivery-harness/.agents/skills/delivery-harness \
       ~/.agents/skills/
 ```
 
-Windows 上改用 `Copy-Item -Recurse` 即可。没有另外的更新脚本。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制之前，先把已有的新名称目录移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中；该目录位于 skills 发现目录之外。再复制三个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
+如果 checkout 的 `.agents/skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。没有另外的更新脚本。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制之前，先把已有的新名称目录移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中；该目录位于 skills 发现目录之外。再复制三个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
 
 从 0.23 或更早版本升级时，先在同一份备份中用原 ID 保存各旧目录。然后安装对应的新版本：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。复制完成后，验证 `~/.agents/skills/` 中已没有三个旧 ID；否则宿主会发现六个触发范围重叠的 skills。
 
@@ -403,6 +403,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.25.6** — 在 state-model 参考加上脚本转换的参数面文档（`pause`/`resume`/`cancel`、review-attempt、wave、lease 与验证参数），为 wireframe HTML 与 PRD 契约 checker 新增直接测试，安装说明加上了排除字节码的提示。skill 行为不变。
 - **0.25.5** — `Tasks.md` 流程记录改为累积在本机，搭下一个实际变更的分支与 PR 一起落地，不再为记录单独开 release。
 - **0.25.4** — 加入仓库流程记录档 `Tasks.md`：每个最小步骤一行、逐项勾选。skill 行为不变。
 - **0.25.3** — 仓库改用 MIT 许可证：新增 LICENSE 文件、三语 README 加上许可段落，并在 package.json 设置 `license` 字段。skill 行为不变。

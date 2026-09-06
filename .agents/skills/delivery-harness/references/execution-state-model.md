@@ -72,6 +72,21 @@ Generate RUN with `scripts/new_run.py --plan <PLAN.md> --run-id <id> --branch <e
 
 Record a returned graph-backed mission payload with one locked call: `scripts/harness_transition.py --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-worker-result --node-result <file> --worker-result <file> --verifier-result <file>`. Repeat the verifier-result flag as needed. The transition observes the bound worker worktree's live branch, head, dirty state, `base..head` diff, and ancestry; reloads and validates the current pair, node result, worker result, and retained verifier executions inside the RUN transaction; then rechecks the worker head and PLAN before replacing RUN. A non-passing mission uses the same command with its node result and no passing worker/verifier payload. When the parent cannot trust or accept the candidate itself, use guarded `reject-worker-result --node-id <id> --worker-id <id> --outcome <retryable_failure|blocked> --reason <text>`. `scripts/validate_result.py` remains the read-only preflight when no state update is requested.
 
+### Scripted Transition Flag Surfaces
+
+Required flags per `harness_transition.py` subcommand, as the parser defines them:
+
+- `pause`, `resume`, `cancel`: `--source`.
+- `accept-wave`: `--wave-id`, repeatable `--mission-id`, `--batch-base-sha`.
+- `lease-worker`: `--mission-id`, `--node-id`, `--worker-id`, `--lease-id`, `--attempt-id`, `--branch-ref`, `--worktree-path`, `--provider`, `--driver`.
+- `reserve-review-dispatch`: `--node-id`, `--worker-id`, `--attempt-id`; optional `--report-path` and `--packet-out` render the reviewer packet in the same call.
+- `record-review-attempt`: `--lineage`, `--attempt-id`, `--worker-id`, `--result`, repeatable `--evidence`; bind the reviewed tree with `--tree-sha` or `--repo-root`; optional `--mission-id`, repeatable `--finding`, `--failure-family-id`, `--failure-primitive`, repeatable `--equivalence-class`, `--strategy`.
+- `grant-review-attempts`: `--lineage`, `--decision-id`, `--source`, `--source-ref`, `--failure-family-id`, `--strategy`, repeatable `--acceptance`; optional `--additional-attempts`.
+- `reject-worker-result`: `--node-id`, `--worker-id`, `--outcome retryable_failure|blocked`, repeatable `--reason`.
+- `record-integration`: `--mission-id`, `--integrated-sha`.
+
+`scripts/validate_result.py` requires `--plan` and `--run` and accepts optional `--node-result`, `--worker-result`, repeatable `--verifier-result`, `--observed-head-sha`, repeatable `--observed-changed-file`, `--ancestry-confirmed`, and `--repo-root`. `scripts/inspect_harness_run.py` requires `--repo-root` and accepts `--json`; `scripts/harness_step.py` accepts `--observe-only`.
+
 ## Plan Revisions And Snapshots
 
 Every plan manifest has a stable `plan_id`, a positive integer `revision`, and a semantic SHA-256 digest of the `harness_plan` object. Before encoding, the shipped tools recursively canonicalize dictionaries; sort object lists with `id` by ID, resource lists by `(key, access)`, and scalar set-like lists lexically; and preserve `argv` order because command argument order is semantic. Canonical bytes are the UTF-8 encoding of `json.dumps(normalized_plan, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`. Reordering sources, missions, tasks, claims, or other set-like fields therefore does not change the digest. Any semantic change to mission/task definitions, dependencies, scopes, resources, or verifiers creates a new digest and requires an incremented revision.

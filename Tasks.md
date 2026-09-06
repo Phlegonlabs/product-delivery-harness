@@ -44,7 +44,8 @@
 - [x] 打 `v0.25.2` tag 並 push
 - [ ] 用戶：重啟 host 讓 skills 重新載入
 - [x] MIT 授權：LICENSE（Phlegonlabs）、三語 README 授權段、package.json license 欄位；release 0.25.3 七觸點；PR #78 squash 落地（e094dd8）、tag v0.25.3 已推、本機 skills 已同步驗證
-- [ ] 用戶：重啟 host 讓 skills 重新載入
 - [x] Tasks.md 記錄 + release 0.25.4 走 PR #79 squash 落地（e23a5aa）、tag v0.25.4 已推、本機 skills 已同步驗證
-- [ ] 用戶：重啟 host 讓 skills 重新載入
 - [x] 決定：Tasks.md 記錄累積在本機，搭下一個實際變更的 PR 落地，不單獨開 release；規則寫入 AGENTS.md，本規則變更隨 release 0.25.5 落地
+- [x] 規則變更 + Tasks.md 搭車走 PR #80 squash 落地（d2b5f96）、tag v0.25.5 已推、本機 skills 已同步驗證
+- [x] 多 agent 完整檢查（治理審查/bundle 完整性/文件-CLI 一致/全套測試）：四線全過、無 blocking；非 blocking 發現已彙報
+- [x] 處理審查發現：文件補旗標面小節＋契約釘住、pdb checker 直接測試（67→80 顆）、三語 README bytecode 提示

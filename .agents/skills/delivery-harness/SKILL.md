@@ -177,7 +177,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 Run System Review And Route. For a running RUN, reconcile canonical state with live Git and runtime evidence before selecting a node.
 
-If the user pauses or cancels a managed run, apply the durable control transition with `scripts/harness_transition.py`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile interrupted mission workers with `reconcile-interrupted` and stopped review workers together with `reconcile-interrupted-reviews` before any resume. Review reconciliation preserves the attempt evidence, restores lineage counters, removes ungrounded edge traversals, and leaves the run paused.
+If the user pauses or cancels a managed run, apply the durable control transition subcommand of `scripts/harness_transition.py` — `pause`, `resume`, or `cancel`, each requiring `--source`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile interrupted mission workers with `reconcile-interrupted` and stopped review workers together with `reconcile-interrupted-reviews` before any resume. Review reconciliation preserves the attempt evidence, restores lineage counters, removes ungrounded edge traversals, and leaves the run paused.
 
 ### 2. Plan Large Work
 

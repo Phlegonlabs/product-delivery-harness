@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.25.5-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.25.6-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -280,7 +280,7 @@ cp -r product-delivery-harness/.agents/skills/delivery-harness \
       ~/.agents/skills/
 ```
 
-On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the three current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
+If the checkout has local `__pycache__` directories under `.agents/skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the three current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler`. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
@@ -403,6 +403,7 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
+- **0.25.6** — Documented the scripted transition flag surfaces (`pause`/`resume`/`cancel`, review-attempt, wave, lease, and validation flags) in the state-model reference, added direct tests for the wireframe HTML and PRD contract checkers, and noted bytecode exclusion in the install docs. No skill behavior changed.
 - **0.25.5** — `Tasks.md` flow-log updates now stay local and land with the next real change's branch and PR instead of getting a log-only release.
 - **0.25.4** — Added the repository flow log `Tasks.md`: one line per minimal step, checked off as each completes. No skill behavior changed.
 - **0.25.3** — The repository is now licensed under the MIT License: a LICENSE file was added, all three READMEs gained a License section, and the package.json `license` field is set to MIT. No skill behavior changed.
