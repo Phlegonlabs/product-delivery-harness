@@ -44,6 +44,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "delivery-harness": "Delivery Harness",
             "product-definition-builder": "Product Definition Builder",
             "design-system-compiler": "Design System Compiler",
+            "product-activation": "Product Activation",
         }
         for skill_id, display_name in current.items():
             with self.subTest(skill=skill_id):
@@ -68,6 +69,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertIn("`delivery-harness`", readme)
                 self.assertIn("`product-definition-builder`", readme)
                 self.assertIn("`design-system-compiler`", readme)
+                self.assertIn("`product-activation`", readme)
 
     @unittest.skipIf(REPO_ROOT is None, "install migration requires a source checkout")
     def test_renamed_installs_have_a_recoverable_legacy_migration(self) -> None:
@@ -88,6 +90,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                     "delivery-harness",
                     "product-definition-builder",
                     "design-system-compiler",
+                    "product-activation",
                 ):
                     self.assertIn(f"`{skill_id}`", content)
                 self.assertIn(
@@ -627,19 +630,27 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             deployment_template,
         )
         self.assertIn("## Environment Status", deployment_template)
+        self.assertIn("## Product Activation Handoff", deployment_template)
         self.assertIn("## Human Configuration Handoff", contract)
+        self.assertIn("## Product Activation Handoff", contract)
+        self.assertIn("receives no authorization", contract)
         self.assertIn("Before every deployable push", contract)
         self.assertIn("Never open value-bearing local files", contract)
         self.assertIn("exact pending names and console tasks", contract)
         self.assertIn("does not authorize or require another push", contract)
         self.assertIn("`docs/DEPLOYMENT.md`, seeded during PRD creation", contract)
         self.assertIn("| `docs/DEPLOYMENT.md` | `docs/` |", documents_template)
+        self.assertIn("| `docs/ACTIVATION.md` | `docs/` |", documents_template)
         self.assertIn("| `docs/DOCUMENTS.md` | `docs/` |", documents_template)
         self.assertIn("root carries only what runtimes auto-discover", documents_template)
         self.assertIn("# Documents", documents_template)
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
         self.assertIn("render `docs/tasks.md`", skill)
+        self.assertIn("`product-activation` owns post-delivery", skill)
+        self.assertIn("only after RUN close", skill)
+        self.assertIn("## Post-Delivery Activation", project_agents)
+        self.assertIn("Capability never grants permission", project_agents)
 
     def test_adding_a_binding_runbook_orders_resource_before_declaration(self) -> None:
         contract = self.read("references/deployment-contract.md")

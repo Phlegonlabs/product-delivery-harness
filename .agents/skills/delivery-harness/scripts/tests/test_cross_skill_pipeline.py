@@ -75,6 +75,36 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Closeout Bar", project_agents)
         self.assertIn("never moves anything under `docs/product/`", project_agents)
 
+    def test_activation_is_create_once_post_delivery_and_outcome_bound(self) -> None:
+        product_skill = self.read("product-definition-builder/SKILL.md")
+        product_contract = self.read(
+            "product-definition-builder/references/output-contract.md"
+        )
+        product_lifecycle = self.read(
+            "product-definition-builder/references/artifact-lifecycle.md"
+        )
+        activation_skill = self.read("product-activation/SKILL.md")
+        activation_contract = self.read(
+            "product-activation/references/activation-contract.md"
+        )
+        delivery_skill = self.read("delivery-harness/SKILL.md")
+        deployment = self.read("delivery-harness/references/deployment-contract.md")
+        documents = self.read(
+            "delivery-harness/assets/templates/DOCUMENTS.template.md"
+        )
+
+        self.assertIn("does not already exist", product_skill)
+        self.assertIn("preserve it byte-for-byte", product_skill)
+        self.assertIn("creates it only when absent", product_contract)
+        self.assertIn("Exclude it from the superseded-document inventory", product_lifecycle)
+        self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation_skill)
+        self.assertIn("Exact Action Digest", activation_contract)
+        self.assertIn("verified `MS-*` sources", activation_skill)
+        self.assertIn("only after RUN close", delivery_skill)
+        self.assertIn("## Product Activation Handoff", deployment)
+        self.assertIn("| `docs/ACTIVATION.md` | `docs/` |", documents)
+        self.assertIn("--require-verified-sources", product_contract)
+
     def test_design_system_pair_publishes_and_freezes_together(self) -> None:
         design = self.read("design-system-compiler/references/output-contract.md")
         design_lifecycle = self.read(

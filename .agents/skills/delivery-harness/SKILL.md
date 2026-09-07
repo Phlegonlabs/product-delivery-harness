@@ -13,6 +13,7 @@ Keep upstream ownership separate:
 
 - `product-definition-builder` owns `PRD.md`, approved low-fidelity `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
 - `PRD.md` owns UI structure, behavior, and the approved UI Design Handoff; `wireframes.html` makes its low-fidelity page, section, state, and responsive map inspectable. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
+- `product-activation` owns post-delivery external setup, measurement-source verification, and `docs/ACTIVATION.md`. It starts only after the delivery boundary and never extends or edits PLAN/RUN.
 - This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
 
 ## Project Size Gate
@@ -104,7 +105,7 @@ Read only what the current decision needs:
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
 - `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
-- `references/deployment-contract.md`: the deployment handoff, platform mechanics, and read-only post-deploy verification — after a run-branch push or a default-branch landing, never during run execution.
+- `references/deployment-contract.md`: the deployment handoff, platform mechanics, read-only post-deploy verification, and the bounded handoff to the sibling `product-activation` skill — after a run-branch push or a default-branch landing, never during run execution.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
@@ -207,3 +208,5 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 ### 6. Complete
 
 New runs default to `local_only`, which completes after authorized local work, required gates, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, both environments verify read-only, and that verification reports the pushed head's preview URL in the conversation.
+
+After the RUN is formally complete, prepare a Product Activation handoff when the product has deployable surfaces. Pass the exact delivered or deployed SHA, release target IDs and URLs, deployment evidence, implemented measurement hooks, and every pending external-console row. If the user already requested post-delivery activation, start the sibling `product-activation` skill only after RUN close; otherwise report the handoff and the exact next invocation. Activation receives no RUN authorization, changes no PLAN/RUN state, and never keeps this delivery open while an external review, propagation delay, or measurement window runs.

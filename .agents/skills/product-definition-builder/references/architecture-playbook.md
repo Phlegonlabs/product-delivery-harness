@@ -24,7 +24,7 @@ Every architecture should cover:
 
 ## Provider-Neutral Release Target Pattern
 
-Use this for every deployable web, API, mobile, or desktop surface. Close an explicit inventory of expected deployable surfaces during discovery instead of leaving destinations for implementation. Give each surface a stable identity, then give each exact destination a stable target ID and a `development` or `production` stage. Each expected surface needs at least one target in each stage; reject a package that omits one. Keep `surface` separate from `provider`: the same stable surface may use different providers in development and production.
+Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close an explicit inventory of expected deployable surfaces during discovery instead of leaving destinations for implementation. Give each surface a stable identity, then give each exact destination a stable target ID and a `development` or `production` stage. Each expected surface needs at least one target in each stage; reject a package that omits one. Keep `surface` separate from `provider`: the same stable surface may use different providers in development and production.
 
 For every target, record:
 

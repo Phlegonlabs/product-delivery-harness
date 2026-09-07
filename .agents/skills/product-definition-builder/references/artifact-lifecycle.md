@@ -18,10 +18,10 @@ A staged package for the same product is **newer than the published one** and is
 
 A staging directory describing a *different* product is left untouched and reported; start this run's own staging directory beside it.
 
-- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, `research-assessment.md`, and `outcome-review.md` in full before drafting anything.
+- Read the existing `PRD.md`, `architecture.md`, `stack-decisions.md`, and — when present — `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, `research-assessment.md`, and `outcome-review.md` in full before drafting anything. Read an existing `docs/ACTIVATION.md` for operational context, but do not carry it into the product drafting package or overwrite it.
 - Treat their content, decisions, and trace IDs (`PRD-*`, `ARCH-*`, `UI-*`, `UX-*`, `TEST-*`, `DS-*`, `MR-*`, `RA-*`) as the baseline. Carry forward every section the new request does not touch, unchanged.
 - Draft only the additions, edits, or removals the new discovery actually requires. Never regenerate the whole package from a blank slate because a new idea came up.
-- The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, `research-assessment.md`, and `implementation-plan.md`, all directly under `docs/product/`. The seeded operational documents — `docs/DEPLOYMENT.md` and `docs/DOCUMENTS.md` — publish under `docs/` in the same move. Enhancement mode overwrites the existing package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
+- The final publish paths stay the same fixed locations listed in Resolve Locations below — `PRD.md`, `architecture.md`, `stack-decisions.md`, and, when they apply, `wireframes.html`, `design-system.md`, `design-system.json`, `market-research.md`, `research-assessment.md`, and `implementation-plan.md`, all directly under `docs/product/`. The seeded operational documents — `docs/DEPLOYMENT.md` and `docs/DOCUMENTS.md` — publish under `docs/` in the same move. A new `docs/ACTIVATION.md` seed joins that move only when the product is deployable, the sibling skill is available, and the live path is absent; an existing Activation record is preserved. Enhancement mode overwrites the existing product package in place. It does not create a new dated folder, a differently named file, or a parallel PRD for the same product.
 - Enhancement mode still uses the staging, validation, and archive steps below: the prior version is archived for history once the enhanced draft is validated, even though its content already carried forward into that draft.
 
 ## Handle an Unrelated Document at a Fixed Publish Path
@@ -47,11 +47,12 @@ In the Approval Gate, label this path explicitly as "existing unrelated content 
   - `docs/product/research-assessment.md` when the research-first assessment produced it
   - `docs/product/outcome-review.md` after a deployed release's outcome review
   - `docs/product/implementation-plan.md` when requested
+- Publish a create-once operational seed to `docs/ACTIVATION.md` only when the output contract says it applies and that final path is absent. Never use this workflow to refresh an existing Activation record.
 - When the Design System Need Gate is `required`, `design-system.md` and `design-system.json` publish together in the same approved move set. The JSON is the allowlist `delivery-harness`'s contract check reads, so publishing one without the other leaves that check pointing at a stale allowlist. If only one is validated, stage both and wait rather than publishing half a pair. When the gate is `not_required`, publish neither file.
 - For a UI-bearing product, publish approved `wireframes.html` plus `PRD.md`'s `### Wireframe Approval` in the same whole-package move. A changed PRD UI contract with a stale wireframe artifact is not a complete package. A later explicitly requested visual-design handoff and design-system pair join a future approved move only when they apply.
 - High-fidelity UI preview images, preview HTML, React prototypes, prompt packages, and `brandkit` boards stay outside `docs/product/`. The low-fidelity `wireframes.html` review projection is the sole HTML exception. When the owner later requests retention of high-fidelity preview evidence, use a disclosed path under `docs/design/ui-references/<run-id>/` — the dedicated live folder for approved HTML implementation references — and obtain exact write approval. Only the selected immutable preview becomes binding through the optional `PRD.md` UI Design Handoff; the preview artifact itself still does not move into `docs/product/`.
 - A later approved UI target that supersedes retained UI references archives the superseded files under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/`, mirroring how superseded product documents move to `docs/product/archived/`. Move, never delete, and update the UI Design Handoff to the replacement live paths so no live contract points at an archived reference.
-- Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`. The seeded operational documents (`docs/DEPLOYMENT.md`, `docs/DOCUMENTS.md`) publish flat under `docs/`, refreshed in place — a previously published copy occupies a publish path of this run, so list it in the inventory and overwrite it; they are refreshed, never archived. The PRD seed records known secret and variable names plus external-console work without values; `delivery-harness` later reconciles that handoff against the implemented code before a deployable push and against observed status after deployment.
+- Never publish PRD artifacts at the repository root or flat in `docs/` by default. They belong in `docs/product/`. The seeded operational documents `docs/DEPLOYMENT.md` and `docs/DOCUMENTS.md` publish flat under `docs/` and refresh in place. `docs/ACTIVATION.md` also lives flat under `docs/`, but Product Definition creates it only when absent; `product-activation` owns every later refresh. None of these operational documents is archived with the product package. The PRD seed records known secret and variable names plus external-console work without values; `delivery-harness` reconciles that deployment handoff before a deployable push, and `product-activation` reconciles post-delivery actions and measurement sources.
 - Never use `docs/product/archived/` as an input or output location for the current package.
 
 ## Inventory Superseded Documents
@@ -76,6 +77,8 @@ Exclude:
   `research-assessment.md` follows the same rule: archive it with the rest of the package, never while keeping a `PRD.md` that cites its `RA-*` IDs, and — when this run's research-first assessment was skipped — leave the prior one published, since nothing replaces it.
 
   `outcome-review.md` is a post-deployment record, not part of the drafting package. A superseded review archives with the rest of the package; a package that ships without a new review leaves the prior one published, since it still describes the last observed outcome.
+
+  `docs/ACTIVATION.md` is an operational record outside `docs/product/`. Exclude it from the superseded-document inventory. If it exists, preserve it byte-for-byte and let `product-activation` reconcile it after delivery.
 - Any ambiguous candidate. Leave it in place and mention it to the user instead of guessing.
 
 Record the candidate paths before creating staged artifacts. Do not archive or overwrite them yet.
@@ -83,7 +86,7 @@ Record the candidate paths before creating staged artifacts. Do not archive or o
 ## Stage and Validate
 
 1. Create a run-specific staging directory under `docs/product/.prd-staging/` — unless Detect Enhancement Mode found a staged package for this product and the user chose to resume it, in which case reuse that directory instead of opening a second one.
-2. Write the complete new package there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` (published under `docs/`).
+2. Write the complete new package there using the final artifact filenames, including the drafted `DEPLOYMENT.md` and `DOCUMENTS.md` (published under `docs/`) and the create-once `ACTIVATION.md` seed when applicable.
 3. Run the output-contract quality checklist against the staged files.
 4. Keep all existing documents in place if the workflow is incomplete, paused, or fails validation.
 
@@ -97,7 +100,7 @@ After the entire staged package passes validation and the exact mutation list is
 
 1. Create `docs/product/archived/<YYYYMMDD-HHMMSS>-<product-slug>/`.
 2. Move only the previously inventoried superseded documents into that directory. Preserve recognizable filenames; when basenames collide, include the original parent directory or a numeric suffix.
-3. Move the validated staged artifacts into their final paths under `docs/product/`, and publish the seeded `DEPLOYMENT.md`/`DOCUMENTS.md` to `docs/`.
+3. Move the validated staged artifacts into their final paths under `docs/product/`, publish the seeded `DEPLOYMENT.md`/`DOCUMENTS.md` to `docs/`, and create `docs/ACTIVATION.md` only when the approved move lists a new seed and the path is still absent. If that path appeared after staging, stop instead of overwriting it.
 4. Remove the now-empty run-specific staging directory. Remove `docs/product/.prd-staging/` only when it is empty.
 5. If an archive or publish move fails, restore moved files when safe, keep every recoverable copy, stop, and report the exact state.
 
@@ -108,7 +111,7 @@ Do not delete superseded documents. Do not overwrite an archive directory. Do no
 List:
 
 - Every artifact published under `docs/product/`.
-- The operational documents published or refreshed under `docs/` (`DEPLOYMENT.md`, `DOCUMENTS.md`).
+- The operational documents published or refreshed under `docs/` (`DEPLOYMENT.md`, `DOCUMENTS.md`) and whether `ACTIVATION.md` was created or preserved.
 - Every document moved under `docs/product/archived/`.
 - Any ambiguous legacy document deliberately left untouched.
 - Whether publication was completed or the validated staging package is awaiting explicit approval.

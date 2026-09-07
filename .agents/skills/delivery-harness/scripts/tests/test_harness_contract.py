@@ -63,6 +63,22 @@ class ContractDigestTests(unittest.TestCase):
             runtime_file.write_text("# new runtime file\n", encoding="utf-8")
             self.assertNotEqual(contract_digest(skills_root), before)
 
+    def test_product_activation_is_part_of_the_runtime_contract_digest(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            harness = root / "skills" / "delivery-harness"
+            harness.mkdir(parents=True)
+            (harness / "SKILL.md").write_text("# harness\n", encoding="utf-8")
+            activation = root / "skills" / "product-activation"
+            activation.mkdir(parents=True)
+            (activation / "SKILL.md").write_text("# activation\n", encoding="utf-8")
+            skills_root = root / "skills"
+            before = contract_digest(skills_root)
+            (activation / "SKILL.md").write_text("# activation changed\n", encoding="utf-8")
+            self.assertNotEqual(contract_digest(skills_root), before)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -88,6 +88,17 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - Deployed-commit check (platform API/CLI command or response header): <fill>
 - Protected resources preview must never bind: <databases, buckets, secrets, domains>
 
+## Post-Delivery Activation
+
+- Use `product-activation` only after implementation has a fixed release SHA or exact artifact identity. It owns `docs/ACTIVATION.md` and never edits or extends a delivery PLAN/RUN.
+- Product Definition may create the first Activation seed when the path is absent. Preserve an existing record; only `product-activation` reconciles its live action, source, evidence, and readiness state.
+- Probe purpose-built connector/API/CLI first, then Browser, Computer Use, and manual handoff. Capability never grants permission.
+- Bind every external write to the exact account or organization, project or property, environment, action, and current action digest. DNS, permissions, credentials, billing, production traffic, public submission, data sharing, and destructive changes require action-time confirmation.
+- Never record secret values. Password, MFA, OTP, CAPTCHA, banking, tax, legal attestation, and secret-value entry remain user handoffs.
+- Refresh and read back every change. A success toast, mutation response, upload, submission, or owner statement does not prove behavior.
+- Route a missing product hook to a new `delivery-harness` change and a missing requirement, metric, TEST ID, or release target to `product-definition-builder`. Activation never patches product code in place.
+- Activation readiness is per release target and does not keep the delivery RUN open or replace the later outcome-review measurement window.
+
 ## Managed Product Delivery Harness Runs
 
 The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not convert small direct work into a managed run.
