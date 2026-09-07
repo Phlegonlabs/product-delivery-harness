@@ -755,6 +755,26 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             self.assertEqual(1, code)
             self.assertEqual(original, md.read_bytes())
 
+    def test_atomic_write_rejects_a_symlink_without_changing_its_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "target.md"
+            link = root / "design-system.md"
+            original = b"# Original\n"
+            target.write_bytes(original)
+            try:
+                link.symlink_to(target)
+            except OSError as exc:
+                self.skipTest(f"file symlink unavailable: {exc}")
+
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError, "must not be a symbolic link"
+            ):
+                checker._write_bytes_atomic(link, b"# Replacement\n", original)
+
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(original, target.read_bytes())
+
     def test_write_aborts_when_markdown_changes_during_compare(self) -> None:
         markdown = "# Design System\n\nHuman rationale.\n"
         concurrent_edit = b"# Concurrent edit\n"

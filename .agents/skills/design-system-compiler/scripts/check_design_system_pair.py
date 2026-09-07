@@ -152,7 +152,12 @@ def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> 
 
 def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> None:
     """Replace ``path`` with ``payload`` without exposing a partial file."""
-    mode = stat.S_IMODE(path.stat().st_mode)
+    original_stat = path.lstat()
+    if stat.S_ISLNK(original_stat.st_mode):
+        raise ConcurrentModificationError(
+            f"{path} must not be a symbolic link for --write"
+        )
+    mode = stat.S_IMODE(original_stat.st_mode)
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -167,7 +172,12 @@ def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> No
             handle.flush()
             os.fsync(handle.fileno())
         os.chmod(temporary_path, mode)
-        if path.read_bytes() != expected_bytes:
+        current_stat = path.lstat()
+        if (
+            stat.S_ISLNK(current_stat.st_mode)
+            or not os.path.samestat(original_stat, current_stat)
+            or path.read_bytes() != expected_bytes
+        ):
             raise ConcurrentModificationError(
                 f"{path} changed while preparing the generated contract"
             )
