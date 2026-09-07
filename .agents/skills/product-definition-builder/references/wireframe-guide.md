@@ -4,7 +4,7 @@ Use this guide after the `PRD.md` UI Surface Contract is complete. `product-defi
 
 ## Ownership
 
-- `PRD.md` owns product scope, routes, screen purpose, content responsibilities, actions, flows, states, responsive behavior, and `UI-*` / `UX-*` traces.
+- `PRD.md` owns product scope, routes, screen purpose, content responsibilities, actions, flows, states, the platform-appropriate responsive set, per-target behavior, and `UI-*` / `UX-*` traces.
 - `wireframes.html` is the interactive low-fidelity projection of that contract. It owns no new behavior and never changes product scope.
 - A native mobile or desktop app is UI-bearing without a browser frontend and gets the same single `wireframes.html` deliverable: every `UI-*` screen in one file, with the product's own size classes standing in as the viewport toggle. The product ships no browser surface; the file exists purely as the review projection.
 - When the HTML exposes a gap, update `PRD.md` first, then regenerate only the affected `UI-*` page.
@@ -24,20 +24,23 @@ Before drafting the HTML, look up how comparable products structure the same kin
 
 Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset.
 
-The file must provide:
+The file uses schema `wireframes/2` and must provide:
 
 1. an all-pages overview plus a page switcher showing each `UI-*` ID, page name, route or surface, and primary goal;
-2. an expanded/desktop and compact/mobile or alternate-size-class toggle;
+2. controls generated from exactly one set with at least two targets: ascending positive numeric `viewports` for web, or ordered string `sizeClasses` for native or desktop, plus one positive `canvasWidths` value per target for the review projection;
 3. a state selector for every required state represented by that screen;
 4. visible section labels such as `Global Header`, `Hero Section`, `Feature Grid`, `Primary Workspace`, `Results Table`, or `CTA`, using product-fit labels rather than a fixed catalog;
 5. each section's purpose, priority, elements, actions, and state treatment; and
-6. a visible approval status.
+6. a visible approval status; and
+7. visible runtime layout QA for the selected page, responsive target, and state.
 
 Create one screen for every `UI-*` entry in `PRD.md`; do not create an untraced screen. Preserve exact copy when approved. Otherwise use a bounded display contract stating source, order, format, count, and length limits.
 
 Use the template's embedded data block as the only product-specific input. Replace its example screens with the complete surface set and escape `<`, `>`, `&`, U+2028, and U+2029 inside JSON string values before embedding untrusted or user-supplied text. Render values through `textContent`, not `innerHTML`.
 
 Project the PRD's flows and traces through the same block. `flows` lists each flow as `{from, trigger, to}`, where `from` is a screen ID and `to` is a screen ID or an external destination; the reviewer shell renders them per screen and on the overview. Per-screen or per-region `traces` list the `UX-*` IDs the surface traces to. An element is either exact approved copy as a string or a `{label, contract}` object whose contract states the bounded display contract's source, order, format, count, and length limits.
+
+Every PRD `UI-*` entry carries one invariant `` `responsive`: `` anchor whose kind and values match the HTML's global set exactly. Every screen carries a non-empty `neverDrop` list and a `responsiveLayouts` object keyed by every target. Each target entry declares `order`, `hidden`, `columns`, a `spans` value for every region, plus filled `reflow` and `interaction` rules. `order` contains every region exactly once. `hidden` may omit secondary material only; it cannot contain a never-drop region, and every primary region belongs to `neverDrop`. These fields make responsive behavior inspectable instead of treating a generic compact stack as proof.
 
 Inline CSS and JavaScript may implement the reviewer shell, page switching, viewport switching, state switching, annotations, and printing. They are not product implementation. Keep the canvas grayscale and low-fidelity: no brand palette, decorative imagery, production component library, animation concept, polished marketing treatment, or design-system token decision.
 
@@ -47,18 +50,20 @@ After filling and approving the HTML, validate it from the repository root:
 python .agents/skills/product-definition-builder/scripts/check_wireframe_html.py --html <staged wireframes.html> --prd <staged PRD.md> --require-filled --require-approved
 ```
 
-A passing check proves internal structure, self-containment, and that the wireframe screens and the PRD `UI-*` surface contract name the same set — not usability or visual quality.
+A passing static check proves internal structure, self-containment, complete responsive data, and that the wireframe screens and the PRD `UI-*` surface contract name the same IDs, routes, states, and responsive set. It does not prove rendered usability or visual quality.
 
 ## Wireframe Approval Gate
 
 Present `wireframes.html` to the human product/design decision owner. Ask for one decision: approve the structure, or return named `UI-*` pages for revision.
+
+Before approval, open the file in a real browser and exercise the full `UI-* × responsive target × non-n/a state` matrix. For every combination, the visible runtime QA must pass, no reviewer-shell or canvas element may be unintentionally overlapped, clipped, occluded, or force horizontal page scrolling, long content must stay readable, and controls must remain usable by the input modes named in `interaction`. A modal, dropdown, tooltip, sticky region, or other intended overlap passes only when the target's `interaction` rule names its stacking, focus, and dismissal behavior. Record the browser and result in `PRD.md`'s Wireframe Approval record. Missing browser capability blocks approval.
 
 Approval confirms only:
 
 - screen and route coverage;
 - region order and information hierarchy;
 - action placement and transitions;
-- state and responsive coverage; and
+- state and full responsive-matrix coverage with a passing browser layout check; and
 - agreement with the Builder UX Direction Decision.
 
 Approval does not prove usability and does not select a visual style. Record the owner, decision, date, approved `UI-*` scope, and unresolved items in `PRD.md`'s `### Wireframe Approval`. The HTML `approvalStatus` uses the same decision vocabulary as that record: `draft` before the gate, then `approved`, `revision_requested`, or `blocked` matching the owner's latest decision — never a different wording.
@@ -80,8 +85,9 @@ An enhancement run first classifies the delta's UI impact with the owner — `no
 - Every `flows` entry starts from a known screen ID and matches a PRD flow; `traces` match the `UX-*` records in `PRD.md`.
 - Every visible element has exact copy or a bounded display contract.
 - Every required state is represented or explicitly `n/a` in the PRD.
-- Compact rearrangement preserves all never-drop content and actions.
-- The page switcher, overview, viewport control, state control, and visible section-purpose labels work from a local file.
+- Every responsive layout contains every region exactly once, hides no never-drop region, and preserves all never-drop content and actions.
+- Every page-target-state combination renders without unintended overlap, clipping, occlusion, or horizontal overflow; intended overlays have documented stacking, focus, and dismissal behavior.
+- The page switcher, overview, responsive-target control, state control, runtime layout QA, and visible section-purpose labels work from a local file.
 - No high-fidelity styling, generated imagery, design-system token, or product implementation code appears.
 - `check_wireframe_html.py` passes with `--prd <staged PRD.md> --require-filled --require-approved`.
 - `PRD.md` records the human owner, approval status, date, approved `UI-*` scope, and unresolved items.

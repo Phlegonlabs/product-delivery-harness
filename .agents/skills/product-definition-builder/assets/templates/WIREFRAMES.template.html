@@ -183,8 +183,6 @@
       transition: width 160ms ease;
     }
 
-    .canvas-shell.compact { width: min(100%, 430px); }
-
     .wireframe {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -197,6 +195,7 @@
 
     .region {
       grid-column: span var(--span, 12);
+      min-width: 0;
       min-height: var(--height, 110px);
       padding: 14px;
       border: 1px dashed var(--line-strong);
@@ -207,11 +206,7 @@
         #faf9f6 10px,
         #faf9f6 20px
       );
-    }
-
-    .compact .region {
-      grid-column: 1 / -1;
-      min-height: auto;
+      overflow-wrap: anywhere;
     }
 
     .region-head {
@@ -226,11 +221,13 @@
     .region h3 { margin: 0; font-size: 15px; }
 
     .priority {
+      flex: 0 0 auto;
       padding: 2px 6px;
       border: 1px solid var(--line);
       background: var(--mark);
       color: var(--muted);
       font-size: 10px;
+      white-space: nowrap;
       text-transform: uppercase;
     }
 
@@ -245,6 +242,17 @@
       border-left: 3px solid var(--line-strong);
       background: var(--mark);
     }
+
+    .layout-qa {
+      max-width: 1120px;
+      margin: 12px auto 0;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .layout-qa[data-layout-qa="pass"] { border-left: 4px solid #276749; }
+    .layout-qa[data-layout-qa="fail"] { border-left: 4px solid #9b2c2c; }
 
     .display-contract {
       display: grid;
@@ -378,10 +386,7 @@
 
     <main class="main">
       <div class="toolbar" aria-label="Wireframe controls">
-        <div class="control-group" id="viewport-controls">
-          <button class="control" type="button" data-viewport="expanded" aria-pressed="true">Expanded</button>
-          <button class="control" type="button" data-viewport="compact" aria-pressed="false">Compact</button>
-        </div>
+        <div class="control-group" id="responsive-controls" aria-label="Responsive targets"></div>
         <div class="control-group" id="state-controls" aria-label="Screen states"></div>
         <button class="control" id="annotation-toggle" type="button" aria-pressed="true">Section notes</button>
       </div>
@@ -391,9 +396,12 @@
 
   <script id="wireframe-data" type="application/json">
   {
+    "schema": "wireframes/2",
     "product": "<Product Name>",
     "approvalStatus": "draft",
     "source": "PRD.md#UI-Surface-Contract",
+    "viewports": [390, 768, 1200],
+    "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
     "screens": [
       {
         "id": "UI-001",
@@ -456,7 +464,33 @@
             "actions": ["<Primary action → destination>"]
           }
         ],
-        "compactOrder": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
+        "neverDrop": ["global-header", "hero-content", "closing-cta"],
+        "responsiveLayouts": {
+          "390": {
+            "order": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
+            "hidden": [],
+            "columns": 1,
+            "spans": {"global-header": 1, "hero-content": 1, "hero-support": 1, "feature-grid": 1, "closing-cta": 1},
+            "reflow": "<Single-column order, wrapping, and content-priority rule>",
+            "interaction": "<Touch, keyboard, navigation, and overlay behavior at 390px>"
+          },
+          "768": {
+            "order": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
+            "hidden": [],
+            "columns": 6,
+            "spans": {"global-header": 6, "hero-content": 4, "hero-support": 2, "feature-grid": 6, "closing-cta": 6},
+            "reflow": "<Intermediate-width grouping and wrapping rule>",
+            "interaction": "<Pointer, keyboard, navigation, and overlay behavior at 768px>"
+          },
+          "1200": {
+            "order": ["global-header", "hero-content", "hero-support", "feature-grid", "closing-cta"],
+            "hidden": [],
+            "columns": 12,
+            "spans": {"global-header": 12, "hero-content": 7, "hero-support": 5, "feature-grid": 12, "closing-cta": 12},
+            "reflow": "<Expanded-width grouping and maximum readable-line rule>",
+            "interaction": "<Pointer, keyboard, navigation, and overlay behavior at 1200px>"
+          }
+        },
         "states": [
           {"id": "ready", "label": "Ready", "treatments": {}},
           {
@@ -513,7 +547,33 @@
             "actions": ["<Contextual action → result>"]
           }
         ],
-        "compactOrder": ["app-header", "task-controls", "primary-workspace"],
+        "neverDrop": ["app-header", "task-controls", "primary-workspace"],
+        "responsiveLayouts": {
+          "390": {
+            "order": ["app-header", "task-controls", "primary-workspace"],
+            "hidden": [],
+            "columns": 1,
+            "spans": {"app-header": 1, "task-controls": 1, "primary-workspace": 1},
+            "reflow": "<Single-column task flow and long-content rule>",
+            "interaction": "<Touch, keyboard, form, and overlay behavior at 390px>"
+          },
+          "768": {
+            "order": ["app-header", "task-controls", "primary-workspace"],
+            "hidden": [],
+            "columns": 6,
+            "spans": {"app-header": 6, "task-controls": 2, "primary-workspace": 4},
+            "reflow": "<Intermediate-width task-panel and workspace rule>",
+            "interaction": "<Pointer, keyboard, form, and overlay behavior at 768px>"
+          },
+          "1200": {
+            "order": ["app-header", "task-controls", "primary-workspace"],
+            "hidden": [],
+            "columns": 12,
+            "spans": {"app-header": 12, "task-controls": 4, "primary-workspace": 8},
+            "reflow": "<Expanded task-panel and workspace rule>",
+            "interaction": "<Pointer, keyboard, form, and overlay behavior at 1200px>"
+          }
+        },
         "states": [
           {"id": "ready", "label": "Ready", "treatments": {}},
           {
@@ -545,15 +605,18 @@
       "use strict";
 
       const data = JSON.parse(document.getElementById("wireframe-data").textContent);
+      const responsiveKind = Array.isArray(data.viewports) ? "viewports" : "sizeClasses";
+      const responsiveTargets = data[responsiveKind].map(String);
       const state = {
         page: location.hash.slice(1) || "overview",
-        viewport: "expanded",
+        responsiveTarget: responsiveTargets[responsiveTargets.length - 1],
         screenState: "ready",
         annotations: true
       };
 
       const pageList = document.getElementById("page-list");
       const content = document.getElementById("content");
+      const responsiveControls = document.getElementById("responsive-controls");
       const stateControls = document.getElementById("state-controls");
       const annotationToggle = document.getElementById("annotation-toggle");
 
@@ -597,9 +660,11 @@
         });
       };
 
+      const activeLayout = (screen) => screen.responsiveLayouts[state.responsiveTarget];
+
       const regionOrder = (screen) => {
-        if (state.viewport !== "compact" || !screen.compactOrder?.length) return screen.regions;
-        const order = new Map(screen.compactOrder.map((id, index) => [id, index]));
+        const layout = activeLayout(screen);
+        const order = new Map(layout.order.map((id, index) => [id, index]));
         return [...screen.regions].sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999));
       };
 
@@ -647,10 +712,10 @@
       const screenFlows = (screenId) =>
         (data.flows || []).filter((flow) => flow.from === screenId || flow.to === screenId);
 
-      const renderRegion = (region, activeState) => {
+      const renderRegion = (region, activeState, layout) => {
         const node = element("section", "region");
         node.dataset.region = region.id;
-        node.style.setProperty("--span", String(region.span || 12));
+        node.style.setProperty("--span", String(layout.spans[region.id]));
         node.style.setProperty("--height", `${region.height || 110}px`);
 
         const head = element("div", "region-head");
@@ -676,6 +741,7 @@
         screen.states.forEach((screenState) => {
           const button = element("button", "control", screenState.label);
           button.type = "button";
+          button.setAttribute("data-screen-state", screenState.id);
           button.setAttribute("aria-pressed", String(state.screenState === screenState.id));
           button.addEventListener("click", () => {
             state.screenState = screenState.id;
@@ -683,6 +749,59 @@
             renderStateControls(screen);
           });
           stateControls.append(button);
+        });
+      };
+
+      const renderResponsiveControls = () => {
+        responsiveControls.replaceChildren();
+        responsiveTargets.forEach((target) => {
+          const suffix = responsiveKind === "viewports" ? "px" : "";
+          const button = element("button", "control", `${target}${suffix}`);
+          button.type = "button";
+          button.setAttribute("data-responsive-target", target);
+          button.setAttribute("aria-pressed", String(state.responsiveTarget === target));
+          button.addEventListener("click", () => {
+            state.responsiveTarget = target;
+            renderResponsiveControls();
+            const screen = currentScreen();
+            if (screen) renderScreen(screen);
+          });
+          responsiveControls.append(button);
+        });
+      };
+
+      const rectanglesOverlap = (left, right) =>
+        Math.min(left.right, right.right) - Math.max(left.left, right.left) > 1 &&
+        Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top) > 1;
+
+      const runLayoutQa = (canvas, panel, screen) => {
+        requestAnimationFrame(() => {
+          const regions = [...canvas.querySelectorAll(":scope > [data-region]")];
+          const collisions = [];
+          for (let leftIndex = 0; leftIndex < regions.length; leftIndex += 1) {
+            for (let rightIndex = leftIndex + 1; rightIndex < regions.length; rightIndex += 1) {
+              if (rectanglesOverlap(
+                regions[leftIndex].getBoundingClientRect(),
+                regions[rightIndex].getBoundingClientRect()
+              )) {
+                collisions.push(`${regions[leftIndex].dataset.region}/${regions[rightIndex].dataset.region}`);
+              }
+            }
+          }
+          const horizontalOverflow = canvas.scrollWidth > canvas.clientWidth + 1;
+          const failures = [
+            ...(collisions.length ? [`overlap: ${collisions.join(", ")}`] : []),
+            ...(horizontalOverflow ? ["horizontal overflow"] : [])
+          ];
+          const status = failures.length ? "fail" : "pass";
+          panel.setAttribute("data-layout-qa", status);
+          panel.textContent = failures.length
+            ? `Layout QA failed — ${failures.join("; ")}`
+            : "Layout QA passed — no region overlap or unintended horizontal overflow";
+          window.wireframeQaResults ||= {};
+          window.wireframeQaResults[
+            `${screen.id}|${state.responsiveTarget}|${state.screenState}`
+          ] = {status, collisions, horizontalOverflow};
         });
       };
 
@@ -725,7 +844,7 @@
         );
         const metadata = element("div", "metadata");
         const rows = [
-          ["Viewport", state.viewport],
+          [responsiveKind === "viewports" ? "Viewport" : "Size class", state.responsiveTarget],
           ["State", state.screenState],
           ["Sections", String(screen.regions.length)]
         ];
@@ -736,13 +855,24 @@
         });
         header.append(summary, metadata);
 
-        const shell = element("div", `canvas-shell ${state.viewport} ${state.annotations ? "" : "annotation-off"}`.trim());
+        const layout = activeLayout(screen);
+        const shell = element("div", `canvas-shell ${state.annotations ? "" : "annotation-off"}`.trim());
+        shell.style.width = `min(100%, ${data.canvasWidths[state.responsiveTarget]}px)`;
         const canvas = element("div", "wireframe");
-        canvas.setAttribute("aria-label", `${screen.name}, ${state.viewport}, ${state.screenState}`);
+        canvas.style.gridTemplateColumns = `repeat(${layout.columns}, minmax(0, 1fr))`;
+        canvas.setAttribute("aria-label", `${screen.name}, ${state.responsiveTarget}, ${state.screenState}`);
         const activeState = screen.states.find((item) => item.id === state.screenState) || screen.states[0];
-        regionOrder(screen).forEach((region) => canvas.append(renderRegion(region, activeState)));
+        const hidden = new Set(layout.hidden);
+        regionOrder(screen)
+          .filter((region) => !hidden.has(region.id))
+          .forEach((region) => canvas.append(renderRegion(region, activeState, layout)));
         shell.append(canvas);
         content.append(header, shell);
+        const responsiveNotes = element("div", "layout-qa");
+        responsiveNotes.setAttribute("data-layout-qa", "pending");
+        responsiveNotes.textContent = `Checking layout · ${layout.reflow} · ${layout.interaction}`;
+        content.append(responsiveNotes);
+        runLayoutQa(canvas, responsiveNotes, screen);
         const flows = renderScreenFlows(screen);
         if (flows) content.append(flows);
       };
@@ -804,21 +934,11 @@
       const render = () => {
         if (state.page !== "overview" && !currentScreen()) state.page = "overview";
         renderNavigation();
+        renderResponsiveControls();
         const screen = currentScreen();
         renderStateControls(screen);
         if (screen) renderScreen(screen); else renderOverview();
       };
-
-      document.getElementById("viewport-controls").addEventListener("click", (event) => {
-        const button = event.target.closest("[data-viewport]");
-        if (!button) return;
-        state.viewport = button.dataset.viewport;
-        document.querySelectorAll("[data-viewport]").forEach((item) => {
-          item.setAttribute("aria-pressed", String(item === button));
-        });
-        const screen = currentScreen();
-        if (screen) renderScreen(screen);
-      });
 
       annotationToggle.addEventListener("click", () => {
         state.annotations = !state.annotations;
@@ -832,6 +952,11 @@
         const screen = currentScreen();
         state.screenState = screen?.states?.[0]?.id || "ready";
         render();
+      });
+
+      window.addEventListener("resize", () => {
+        const screen = currentScreen();
+        if (screen) renderScreen(screen);
       });
 
       render();

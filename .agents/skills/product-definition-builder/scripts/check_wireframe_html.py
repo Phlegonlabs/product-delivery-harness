@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from html.parser import HTMLParser
@@ -22,6 +23,7 @@ DATA_BLOCK_RE = re.compile(
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 VALID_PRIORITIES = {"primary", "secondary", "quiet"}
+WIREFRAME_SCHEMA = "wireframes/2"
 
 
 class ResourceParser(HTMLParser):
@@ -70,10 +72,96 @@ def _add(problems: list[str], path: str, message: str) -> None:
     problems.append(f"{path}: {message}")
 
 
+def _responsive_key(value: Any) -> str:
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _validate_responsive_data(
+    data: dict[str, Any], problems: list[str]
+) -> list[str]:
+    has_viewports = "viewports" in data
+    has_size_classes = "sizeClasses" in data
+    viewports = data.get("viewports")
+    size_classes = data.get("sizeClasses")
+    valid_viewports = (
+        isinstance(viewports, list)
+        and len(viewports) >= 2
+        and all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value > 0
+            for value in viewports
+        )
+        and len(set(viewports)) == len(viewports)
+        and all(left < right for left, right in zip(viewports, viewports[1:]))
+    )
+    valid_size_classes = (
+        isinstance(size_classes, list)
+        and len(size_classes) >= 2
+        and all(_nonempty(value) for value in size_classes)
+        and len(set(size_classes)) == len(size_classes)
+    )
+    if (
+        has_viewports == has_size_classes
+        or (has_viewports and not valid_viewports)
+        or (has_size_classes and not valid_size_classes)
+    ):
+        _add(
+            problems,
+            "wireframe-data",
+            "must declare exactly one responsive set with at least two unique "
+            "targets: ascending positive numeric viewports or string sizeClasses",
+        )
+        return []
+
+    targets = viewports if has_viewports else size_classes
+    target_keys = [_responsive_key(value) for value in targets]
+    canvas_widths = data.get("canvasWidths")
+    if not isinstance(canvas_widths, dict):
+        _add(
+            problems,
+            "wireframe-data.canvasWidths",
+            "must map every responsive target to a positive review-canvas width",
+        )
+    else:
+        actual_keys = set(canvas_widths)
+        expected_keys = set(target_keys)
+        if actual_keys != expected_keys:
+            _add(
+                problems,
+                "wireframe-data.canvasWidths",
+                "must contain exactly the responsive target keys: "
+                + ", ".join(target_keys),
+            )
+        for target, width in canvas_widths.items():
+            if (
+                not isinstance(width, (int, float))
+                or isinstance(width, bool)
+                or not math.isfinite(width)
+                or width <= 0
+            ):
+                _add(
+                    problems,
+                    f"wireframe-data.canvasWidths.{target}",
+                    "must be a positive numeric width",
+                )
+    return target_keys
+
+
 def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
     problems: list[str] = []
     if not isinstance(data, dict):
         return ["wireframe-data: must be a JSON object"]
+
+    if data.get("schema") != WIREFRAME_SCHEMA:
+        _add(
+            problems,
+            "wireframe-data.schema",
+            f"must be {WIREFRAME_SCHEMA!r}",
+        )
 
     for key in ("product", "approvalStatus", "source"):
         if not _nonempty(data.get(key)):
@@ -92,6 +180,8 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             "wireframe-data.source",
             "must be 'PRD.md#UI-Surface-Contract'",
         )
+
+    responsive_targets = _validate_responsive_data(data, problems)
 
     screens = data.get("screens")
     if not isinstance(screens, list) or not screens:
@@ -165,15 +255,119 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             if "traces" in region and not _string_list(region["traces"]):
                 _add(problems, f"{region_path}.traces", "must be a string list when present")
 
-        compact_order = screen.get("compactOrder")
-        if not _string_list(compact_order):
-            _add(problems, f"{path}.compactOrder", "must be a non-empty string list")
-        elif len(compact_order) != len(set(compact_order)) or set(compact_order) != set(region_ids):
+        never_drop = screen.get("neverDrop")
+        if not _string_list(never_drop) or not never_drop:
+            _add(problems, f"{path}.neverDrop", "must be a non-empty string list")
+            never_drop_ids: set[str] = set()
+        else:
+            never_drop_ids = set(never_drop)
+            if len(never_drop) != len(never_drop_ids):
+                _add(problems, f"{path}.neverDrop", "must not contain duplicates")
+            unknown_never_drop = sorted(never_drop_ids - set(region_ids))
+            if unknown_never_drop:
+                _add(
+                    problems,
+                    f"{path}.neverDrop",
+                    "references unknown region IDs: " + ", ".join(unknown_never_drop),
+                )
+            primary_regions = {
+                region.get("id")
+                for region in regions
+                if isinstance(region, dict)
+                and region.get("priority") == "primary"
+                and _nonempty(region.get("id"))
+            }
+            missing_primary = sorted(primary_regions - never_drop_ids)
+            if missing_primary:
+                _add(
+                    problems,
+                    f"{path}.neverDrop",
+                    "must include every primary region: " + ", ".join(missing_primary),
+                )
+
+        responsive_layouts = screen.get("responsiveLayouts")
+        if not isinstance(responsive_layouts, dict):
             _add(
                 problems,
-                f"{path}.compactOrder",
-                "must contain every region ID exactly once",
+                f"{path}.responsiveLayouts",
+                "must be an object keyed by every responsive target",
             )
+            responsive_layouts = {}
+        elif set(responsive_layouts) != set(responsive_targets):
+            _add(
+                problems,
+                f"{path}.responsiveLayouts",
+                "must contain exactly the responsive targets: "
+                + ", ".join(responsive_targets),
+            )
+        for target in responsive_targets:
+            layout = responsive_layouts.get(target)
+            layout_path = f"{path}.responsiveLayouts.{target}"
+            if not isinstance(layout, dict):
+                _add(problems, layout_path, "must be an object")
+                continue
+            order = layout.get("order")
+            if not _string_list(order):
+                _add(problems, f"{layout_path}.order", "must be a non-empty string list")
+            elif len(order) != len(set(order)) or set(order) != set(region_ids):
+                _add(
+                    problems,
+                    f"{layout_path}.order",
+                    "must contain every region ID exactly once",
+                )
+            hidden = layout.get("hidden")
+            if not isinstance(hidden, list) or not all(_nonempty(item) for item in hidden):
+                _add(problems, f"{layout_path}.hidden", "must be a string list")
+                hidden_ids: set[str] = set()
+            else:
+                hidden_ids = set(hidden)
+                if len(hidden) != len(hidden_ids):
+                    _add(problems, f"{layout_path}.hidden", "must not contain duplicates")
+                unknown_hidden = sorted(hidden_ids - set(region_ids))
+                if unknown_hidden:
+                    _add(
+                        problems,
+                        f"{layout_path}.hidden",
+                        "references unknown region IDs: " + ", ".join(unknown_hidden),
+                    )
+                hidden_never_drop = sorted(hidden_ids & never_drop_ids)
+                if hidden_never_drop:
+                    _add(
+                        problems,
+                        f"{layout_path}.hidden",
+                        "must not hide never-drop regions: "
+                        + ", ".join(hidden_never_drop),
+                    )
+            columns = layout.get("columns")
+            if (
+                not isinstance(columns, int)
+                or isinstance(columns, bool)
+                or not 1 <= columns <= 12
+            ):
+                _add(problems, f"{layout_path}.columns", "must be an integer from 1 to 12")
+                columns = 12
+            spans = layout.get("spans")
+            if not isinstance(spans, dict) or set(spans) != set(region_ids):
+                _add(
+                    problems,
+                    f"{layout_path}.spans",
+                    "must map every region ID exactly once",
+                )
+            else:
+                for region_id, span in spans.items():
+                    if (
+                        not isinstance(span, int)
+                        or isinstance(span, bool)
+                        or not 1 <= span <= columns
+                    ):
+                        _add(
+                            problems,
+                            f"{layout_path}.spans.{region_id}",
+                            f"must be an integer from 1 to {columns}",
+                        )
+            for key in ("reflow", "interaction"):
+                if not _nonempty(layout.get(key)):
+                    _add(problems, f"{layout_path}.{key}", "must be a non-empty string")
 
         states = screen.get("states")
         if not isinstance(states, list) or not states:
@@ -283,8 +477,10 @@ def validate(
     for required in (
         'id="page-list"',
         'id="state-controls"',
-        'data-viewport="expanded"',
-        'data-viewport="compact"',
+        'id="responsive-controls"',
+        "data-responsive-target",
+        "runLayoutQa",
+        "data-layout-qa",
         "All pages",
         "textContent",
     ):
