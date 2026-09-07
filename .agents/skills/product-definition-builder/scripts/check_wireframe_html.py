@@ -77,6 +77,63 @@ def _strip_css_comments(css: str) -> str:
     return "".join(output)
 
 
+def _decode_css_escapes(css: str) -> str:
+    """Decode CSS escapes before checking resource-bearing CSS tokens.
+
+    CSS permits escaped code points in identifiers and strings, including the
+    protocol prefix inside ``url()`` and the names of ``image-set`` and
+    ``@import``.  Decode the standard one-to-six hexadecimal form (including
+    its optional whitespace terminator) and the single-character form.  The
+    caller strips comments first, so decoding cannot turn comment contents into
+    active CSS, and JSON-recorded URLs never enter this CSS-only path.
+    """
+
+    output: list[str] = []
+    index = 0
+    hexadecimal = set("0123456789abcdefABCDEF")
+    whitespace = {" ", "\t", "\r", "\n", "\f"}
+    while index < len(css):
+        character = css[index]
+        if character != "\\":
+            output.append(character)
+            index += 1
+            continue
+
+        index += 1
+        if index >= len(css):
+            output.append("\ufffd")
+            break
+
+        character = css[index]
+        if character in "\r\n\f":
+            # A backslash-newline is a CSS line continuation.
+            if character == "\r" and index + 1 < len(css) and css[index + 1] == "\n":
+                index += 1
+            index += 1
+            continue
+
+        if character in hexadecimal:
+            start = index
+            while index < len(css) and index - start < 6 and css[index] in hexadecimal:
+                index += 1
+            code_point = int(css[start:index], 16)
+            if index < len(css) and css[index] in whitespace:
+                if css[index] == "\r" and index + 1 < len(css) and css[index + 1] == "\n":
+                    index += 1
+                index += 1
+            if code_point == 0 or code_point > 0x10FFFF or 0xD800 <= code_point <= 0xDFFF:
+                output.append("\ufffd")
+            else:
+                output.append(chr(code_point))
+            continue
+
+        # A non-hex escaped character represents that character literally.
+        output.append(character)
+        index += 1
+
+    return "".join(output)
+
+
 class ResourceParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -154,7 +211,7 @@ class ResourceParser(HTMLParser):
 
     def close(self) -> None:
         super().close()
-        css = _strip_css_comments("\n".join(self._css_chunks))
+        css = _decode_css_escapes(_strip_css_comments("\n".join(self._css_chunks)))
         self.css_imports = re.search(r"@import\b", css, re.IGNORECASE) is not None
         for match in REMOTE_CSS_URL_RE.finditer(css):
             resource = next(

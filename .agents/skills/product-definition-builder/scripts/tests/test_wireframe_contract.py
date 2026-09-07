@@ -232,6 +232,33 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertTrue(any("must not load external resources" in p for p in problems))
         self.assertTrue(any("CSS url" in p for p in problems))
 
+    def test_escaped_css_schemes_in_style_blocks_are_rejected(self):
+        html = render_html(wireframe_data()).replace(
+            "<title>",
+            "<style>"
+            '.hero { background-image: u\\72l("\\68 ttps://cdn.example.com/hero.svg"); }'
+            '.icon { background-image: image-\\000073et("\\000068ttps://cdn.example.com/icon.svg" 1x); }'
+            '@im\\70ort "\\000048ttps://cdn.example.com/theme.css";'
+            "</style><title>",
+        )
+
+        problems = validate_html(html)
+
+        self.assertTrue(any("CSS url" in problem for problem in problems), problems)
+        self.assertTrue(any("image-set" in problem for problem in problems), problems)
+        self.assertTrue(any("CSS @import" in problem for problem in problems), problems)
+
+    def test_escaped_css_schemes_in_inline_style_attributes_are_rejected(self):
+        html = render_html(wireframe_data()).replace(
+            "<title>",
+            '<div style="background-image: url(\\000048ttps://cdn.example.com/inline.svg)"></div>'
+            "<title>",
+        )
+
+        problems = validate_html(html)
+
+        self.assertTrue(any("CSS url" in problem for problem in problems), problems)
+
     def test_active_resource_attributes_and_image_set_urls_are_rejected(self):
         html = render_html(wireframe_data()).replace(
             "<title>",
@@ -258,6 +285,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
     def test_recorded_urls_in_json_do_not_count_as_external_resources(self):
         data = wireframe_data()
         data["recordedUrl"] = "url(https://example.com/recorded.svg)"
+        data["escapedRecordedUrl"] = r'url("\68 ttps://example.com/escaped.svg")'
         data["flows"][0]["to"] = "https://example.com/next"
         data["recordedResources"] = {
             "srcset": "https://example.com/recorded.png 1x",
