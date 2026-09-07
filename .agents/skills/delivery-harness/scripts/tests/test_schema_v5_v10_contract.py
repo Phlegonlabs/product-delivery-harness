@@ -83,8 +83,16 @@ class SchemaV6V11ContractTests(unittest.TestCase):
         self.assertEqual("preintegration", nodes["N-M1-REVIEW"]["review"]["stage"])
         self.assertEqual(["M1"], nodes["N-M1-REVIEW"]["review"]["mission_ids"])
         self.assertEqual("backend_code", nodes["N-M1-REVIEW"]["review"]["type"])
-        expected_pi_effort = {"N-M1": "high", "N-M1-REVIEW": "medium"}
-        for node_id in ("N-M1", "N-M1-REVIEW"):
+        self.assertEqual("integration", nodes["N-SECURITY-REVIEW"]["review"]["stage"])
+        self.assertEqual(["M1"], nodes["N-SECURITY-REVIEW"]["review"]["mission_ids"])
+        self.assertEqual("security", nodes["N-SECURITY-REVIEW"]["review"]["type"])
+        self.assertEqual(["security"], plan["required_reviews"])
+        expected_pi_effort = {
+            "N-M1": "high",
+            "N-M1-REVIEW": "medium",
+            "N-SECURITY-REVIEW": "medium",
+        }
+        for node_id in ("N-M1", "N-M1-REVIEW", "N-SECURITY-REVIEW"):
             runtime = nodes[node_id]["runtime"]
             self.assertIsNone(runtime["preferred_provider"])
             self.assertEqual(
@@ -100,7 +108,8 @@ class SchemaV6V11ContractTests(unittest.TestCase):
                 runtime["provider_options"]["generic"],
             )
         self.assertEqual("N-M1-REVIEW", edges["E-M1-REVIEW"]["to"])
-        self.assertEqual("N-FINAL-GATE", edges["E-M1-REVIEW-FINAL"]["to"])
+        self.assertEqual("N-SECURITY-REVIEW", edges["E-M1-REVIEW-SECURITY"]["to"])
+        self.assertEqual("N-FINAL-GATE", edges["E-SECURITY-FINAL"]["to"])
         self.assertEqual("N-CLOSEOUT-GATE", edges["E-FINAL-CLOSEOUT"]["to"])
         self.assertNotIn("execution_route", plan)
         self.assertTrue(missions["M1"]["tasks"][0]["acceptance_matrix"])

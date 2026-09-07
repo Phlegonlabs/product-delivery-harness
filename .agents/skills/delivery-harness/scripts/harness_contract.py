@@ -16,6 +16,7 @@ SKILL_NAMES = (
     "delivery-harness",
     "product-definition-builder",
     "design-system-compiler",
+    "code-security-review",
     "product-activation",
 )
 IGNORED_PARTS = {"__pycache__", "tests"}

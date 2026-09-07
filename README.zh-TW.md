@@ -10,14 +10,14 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.27.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.28.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
 
 技能儲存庫，讓你用 Codex、Claude Code、Pi 或任何會探索使用者 skills 目錄的 host，把產品構想或變更需求轉化為經過驗證的交付流程。
 
-它不是提示詞集合。這套技能把產品定義、視覺設計與工程執行拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
+它不是提示詞集合。這套技能把產品定義、視覺設計、工程執行與程式安全審查拆開，讓每個階段都有單一真實來源、清楚的交接邊界，以及自己的驗證方式。
 
 > 定義產品。編譯設計。交付已驗證的軟體。
 
@@ -28,20 +28,24 @@
 | 一個產品構想 | `product-definition-builder` | 需求、涵蓋每個 UI surface 與 state 的 responsive `wireframes/2` 審查檔、瀏覽器版面 QA、架構、技術選型、發佈目標、測試義務，以及附來源的市場研究 |
 | 已核准線框稿、需要視覺設計的套件 | `product-definition-builder` UI Design Pass；gate 判定 required 時再進 `design-system-compiler` + `frontend-design` | 通過完整 page-target-state 矩陣檢查的 responsive 高擬真 HTML targets——web 版本保留於 `docs/design/ui-references/`——以及需要時具約束力的設計系統契約 |
 | 既有儲存庫中的明確變更 | `delivery-harness` | 小型工作直接實作；大型工作進入受管的 PLAN/RUN 流程 |
+| 已固定並完成整合的程式候選 | `code-security-review` | 唯讀、綁定精確 SHA 的安全審查，包含經驗證的 source-to-sink 發現與明確的覆蓋缺口 |
 | 已交付、需要外部設定的 release | `product-activation` | 精確授權的 console 動作、已驗證的量測來源，以及逐 target 的 activation readiness |
 
-四個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
+五個內建技能都可以單獨呼叫；完整流程是選用的。不過每種模式仍會驗證明確宣告的輸入與依賴。
 
 ## 核心保證
 
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
-- **產品定義止於人工關卡。** UI 產品以一份 responsive 低擬真 `wireframes.html` 作結；每個 surface、target 與非 `n/a` state 都必須通過瀏覽器的重疊、裁切、遮擋與溢出檢查，owner 才能核准。
+- **產品定義止於人工關卡。** UI 產品以一份 responsive 低擬真 `wireframes.html` 作結；每個 surface、target 與非 `n/a` state 都必須通過瀏覽器的重疊、裁切、遮擋與溢出檢查，owner 才能核准。Self-contained checker 會先解碼 CSS escapes，再拒絕遠端資源載入。
 - **視覺目標是 responsive HTML。** 受要求的 web 視覺階段會依同一 responsive／state 矩陣渲染每個高擬真頁面，把核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除；Harness 依每頁核可的 reference 實作並複查。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
+- **每個 graph attempt 都可持久追蹤。** 非 mission 節點先保留 attempt，在 RUN lock 外執行檢查或外部動作，再記錄 outcome 與佐證；中斷的非 runtime attempt 也透過同一條結果路徑記為 `blocked`。本機 verifier 只能在 dirty-status 檢查中忽略 tracked RUN；路徑必須解析在 checkout 內，且執行與結果記錄期間都會保護其精確位元組與檔案身分。
+- **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
 - **有能力不等於有權限。** 即使執行環境能推送或清理，每個動作仍需要精確授權。
 - **Activation 必須讀回驗證。** 外部設定留在 PLAN/RUN 之外，核准綁定精確 action digest，且只有獨立 read-back 與行為證據完成後才算 verified。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
+- **程式安全是全新的最終審查。** 每個新的受管 PLAN 都要明確標記 required，或說明非程式交付為何 not applicable。Required review 會在 broad final validation 前，讓 `code-security-review` 涵蓋統一整合 SHA 上的每個 mission；其宣告 scope 必須包含每個 mission 的完整 write scope。它會驗證 agent 的結構化結果，並且不能沿用相同 tree 的早期佐證。Security PASS 不得有 exclusions，且至少一個 tool 或人工審查必須記為 `passed` 或 `findings`。Required node 不得跳過或被 supersede；reserve 與 completion 會重查 live Git。精確的 interruption receipt 只能在後續 current reviewer 提供 structured PASS 後作為歷史保留。
 - **預設只在本機完成。** Harness 負責 commit 並驗證本機結果；只有明確的遠端意圖才會授權推送這次執行自己的分支。把它合進預設分支是你自己的步驟。
 
 ## 包含的內容
@@ -51,6 +55,7 @@
 | `product-definition-builder` | 產品探索、起草前的 research-first 評估與 Research Gate、需求、Builder UX Direction 輸入、含瀏覽器版面 QA 的 responsive 低擬真線框稿、架構、技術選型、發佈目標、測試義務、負責對帳的草稿後市場研究補缺、涵蓋完整矩陣並保留高擬真 HTML references 的選用 UI Design Pass，以及部署後的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
 | `design-system-compiler` | 將已核准的 UI Design Handoff 編譯成凍結的設計系統契約，包含完全一致的已核准 responsive set 與版面安全規則。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
 | `delivery-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
+| `code-security-review` | 實作與統一整合後的唯讀安全審查，優先由 fresh sibling agent 執行；主動滲透測試與修復不屬於本技能 | 精確 SHA 決策、trust-boundary 覆蓋、驗證後的發現與修復測試 |
 | `product-activation` | Web、iOS 與 browser-extension target 的交付後設定，包含 capability routing、精確外部動作授權、read-back、量測來源與 outcome-review 交接 | `docs/ACTIVATION.md` |
 
 交付核心在啟動受管編排之前，會先做一個規模決策：
@@ -73,17 +78,18 @@ flowchart LR
   Gate -->|"核准、不進視覺階段"| Harness["delivery-harness\n共用交付核心"]
   Design -->|"核可的 HTML references 或設計系統契約"| Harness
   Harness --> Runtime["單一 host 轉接器\nCodex、Claude Code 或 Pi"]
-  Runtime --> Evidence["本機測試與 UI 佐證"]
+  Runtime --> Security["code-security-review\n全新統一 exact-SHA 審查"]
+  Security --> Evidence["完整最終測試與 UI 佐證"]
   Evidence --> Push["推送到這次執行自己的分支\n合進預設分支是你自己的步驟"]
   Push --> Activate["product-activation\n外部設定 + read-back"]
   Activate --> Outcome["已驗證量測來源\n後續 outcome review"]
 ```
 
-你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app。各技能各司其職：`product-definition-builder` 定義產品並止於核准的 `wireframes.html`，選用的 UI Design Pass 與 `design-system-compiler` 定義視覺契約——在 web 上，pass 會把核可的高擬真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的組合搬進 `docs/design/archived/`——Harness 實作已凍結的結果，而 `product-activation` 在不重開 delivery RUN 的情況下設定並驗證已交付 release。
+你可以從任何階段開始。舉例來說，可以只用 Harness 修既有的 app。各技能各司其職：`product-definition-builder` 定義產品並止於核准的 `wireframes.html`；選用的 UI Design Pass 與 `design-system-compiler` 定義視覺契約——在 web 上，pass 會把核可的高擬真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的組合搬進 `docs/design/archived/`；Harness 實作已凍結的結果；`code-security-review` 審查統一候選而不修改它；`product-activation` 則在不重開 delivery RUN 的情況下設定並驗證已交付 release。
 
 ### 完整技能生命週期
 
-四個 skill 的完整生命周期，包含每個閘門與橫切機制：
+五個 skill 的完整生命周期，包含每個閘門與橫切機制：
 
 ```mermaid
 flowchart TB
@@ -120,7 +126,7 @@ flowchart TB
         size{{"Project Size Gate"}}
 
         subgraph DIRECT["Direct 路線（small）"]
-            direct_impl["直接實作 -> 本地驗證<br/>-> 審查 -> 授權 Git 動作"]
+            direct_impl["直接實作 -> 本地驗證<br/>-> code-security 審查 -> 授權 Git 動作"]
         end
 
         subgraph MANAGED["Managed 路線（large）"]
@@ -139,13 +145,14 @@ flowchart TB
                 workers["fresh bounded agent workers"]
                 record["record-worker-result<br/>重驗證佐證 + 原子 RUN 更新"]
                 review["exact-head review<br/>（reserve -> reviewer -> record）"]
-                integ["record-integration<br/>（序列整合；同 tree 可跳過 unified review）"]
+                integ["record-integration<br/>（序列整合；統一候選 SHA）"]
                 lock --> obs --> sel --> accept --> adapters --> lease --> workers --> record --> review --> integ
             end
 
             plan --> newrun --> LOOP
+            security["code-security-review<br/>fresh sibling；全部 missions；精確 SHA"]
             gates2["廣域 final validation<br/>（E2E / 回歸 / UI 證據矩陣）"]
-            LOOP --> gates2
+            LOOP --> security --> gates2
         end
 
         route --> size
@@ -216,7 +223,7 @@ Harness 是圍繞明確的邊界所打造的：
 2. 凍結相關的契約、來源、範圍與驗證步驟。
 3. 當任務大到需要時，先規劃相依關係，再開始實作。
 4. 只有在至少兩個安全寫入 mission 實際被選中、工作彼此獨立且隔離，並且每個動作都經過明確授權時，才使用平行 worker；受管循序路線仍要證明隔離 writer、scope/head 與 review gates。
-5. 驗證任務結果、整合、相關的 UI 流程，以及最終的 diff。單一 mission 不會憑空增加跨 mission batch gate。
+5. 驗證任務結果與整合，執行全新的統一 code-security 審查，再驗證相關 UI 流程與最終 diff。單一 mission 不會憑空增加跨 mission batch gate。
 6. 預設帶著驗證過的本機佐證停下。若明確要求遠端結果，只有在明確遠端意圖以及精確的分支/head 推送授權下，才推送這次執行自己的分支。開 PR、合併與部署都是你在 Harness 之外自己做的步驟。
 
 對於有計畫支撐的工作，它會記錄任務範圍、相依關係、worker 歸屬、驗證指令，以及各動作專屬的授權。測試通過並不代表授權推送、移除 worktree 或刪除分支。RUN-v11 的推送還需要明確的遠端意圖、唯一的整合分支目標與目前 head 授權；若預設分支身分未知，推送會安全失敗，但不會阻止無關的本機執行。
@@ -235,10 +242,12 @@ flowchart TB
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
   Review -->|fix_required| Work
-  Integrate --> Gates["適用的 integration、E2E 與 UI evidence gates"]
-  Gates -->|fix_required| Repair["Bounded repair route"]
+  Integrate --> Security["全新統一 code-security 審查<br/>全部 missions；精確 integration SHA"]
+  Security -->|pass| Gates["適用的 integration、E2E 與 UI evidence gates"]
+  Security -->|fix_required| Repair["Bounded repair route"]
+  Gates -->|fix_required| Repair
   Repair --> Rereview["Re-review on the new head"]
-  Rereview --> Gates
+  Rereview --> Security
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
   Local --> Remote{"explicit remote outcome and exact push grant?"}
@@ -265,17 +274,19 @@ flowchart TB
 
 這些技能使用兩層圖：
 
-- **org 圖**是穩定的角色契約：產品、架構、UX、設計系統、mission-worker、reviewer、審批、整合，以及生命週期職責。
+- **org 圖**是穩定的角色契約：產品、架構、UX、設計系統、mission-worker、surface reviewer、security reviewer、審批、整合，以及生命週期職責。
 - **work 圖**是單次執行的暫時性任務圖。PRD 與設計工作流只有在 host 能夠強制套用 `builder_readonly` 工具設定檔時，才會使用有界的分析圖；否則會退回循序的 parent。工程流則使用標準的 PLAN v6 圖與 RUN v11 狀態。
 
 訪談與審批留在執行中的工作流之外，因為 Claude Code Dynamic Workflow 無法在執行途中向使用者索取輸入。Parent 會先凍結輸入，執行一個有界的工作流，接著掌管分階段寫入、衝突解決、審批與發佈。
 
 在工程流中，Harness 會先驗證並選出相依已就緒的 frontier，才建立或請求 worktree。原生的 Claude mission 使用位於 `.claude/worktrees/` 底下、由 parent 管理的 worktree，把每個 worker 綁到精確的批次 base，並要求在存取儲存庫前先 `EnterWorktree`。在每一條路線上，parent 都會驗證回傳的 commit 與實際的 Git diff、序列化地整合被接受的 commit，並重新計算圖的 frontier。
 
+非 runtime graph 節點採用 reserve／execute／record 順序：`reserve-node-attempt` 在 RUN lock 內建立 receipt，approval、external wait、deterministic verifier 或 lifecycle side effect 在 lock 外執行，`record-node-result` 只關閉相符的 attempt，並以宣告的 outcome 推導 graph phase。Lifecycle transition 只記錄佐證，不執行動作。`lease-worker` 把選取器衍生的 runtime binding 與精確 task／thread 身分帶入 RUN，並遵守 compatibility 檢查與既有 wildcard 授權。
+
 Claude Graph Workflow 會把 mixed frontier 按 homogeneous `tool_profile` 分成多個呼叫；同一組內可以使用不同模型與推理強度，但一次呼叫絕不混合寫入 mission 與唯讀 review。tool profile 是標籤與 prompt/result 契約，不是 permission-level tool removal。
 
 - `mission_write` 要求 `EnterWorktree` 與 mission 的有界寫入契約。
-- `code_review_readonly` 要求精確路徑審查與唯讀結果佐證；它不會移除繼承的工具。
+- `code_review_readonly` 要求 frontend、backend、integration 或 security 的精確路徑審查與唯讀結果佐證；它不會移除繼承的工具。
 - `visual_review_readonly` 使用 host 繼承的工具審查保留下來的截圖或其他既有佐證；新增瀏覽器存取必須先審核並加入設定檔契約，才能使用。
 
 當 Claude Code 回傳真實的 Workflow 執行 ID 時，RUN 狀態可以保留 workflow/task ID、script digest、node group、圖/base 綁定、工具設定檔、狀態，以及可取得的度量。同一 session 內的續跑可以沿用該綁定；跨 session 的復原則從標準的 PLAN/RUN 狀態重新啟動一次新的 workflow 嘗試。
@@ -292,26 +303,27 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安裝方式
 
-clone 儲存庫，把四個 Product Delivery Harness skills 複製進你的使用者 skills 目錄：
+clone 儲存庫，把五個 Product Delivery Harness skills 複製進你的使用者 skills 目錄：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
 cp -r product-delivery-harness/.agents/skills/delivery-harness \
       product-delivery-harness/.agents/skills/product-definition-builder \
       product-delivery-harness/.agents/skills/design-system-compiler \
+      product-delivery-harness/.agents/skills/code-security-review \
       product-delivery-harness/.agents/skills/product-activation \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `.agents/skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製之前，先把既有的新名稱目錄移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份中；該目錄位於 skills 探索目錄之外。再複製四個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
+如果 checkout 的 `.agents/skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製之前，先把既有的新名稱目錄移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份中；該目錄位於 skills 探索目錄之外。再複製五個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到重複且觸發範圍重疊的 skills。
 
-四個內建技能都可以獨立呼叫，但跨技能模式會驗證各自的依賴。凍結 wireframe 驗證會使用 `delivery-harness` 旁的 `product-definition-builder` checker；`design-system-compiler` 需要已核准的 PRD UI Design Handoff、已核准的 `wireframes.html` 與 `frontend-design`；`product-activation` 在 Delivery 後使用 release 與 deployment 交接；選用的 UI Design Pass 則需要 design-direction skill 與 frontend-implementation skill。只需安裝所選模式要求的依賴。
+五個內建技能都可以獨立呼叫，但跨技能模式會驗證各自的依賴。凍結 wireframe 驗證會使用 `delivery-harness` 旁的 `product-definition-builder` checker；`design-system-compiler` 需要已核准的 PRD UI Design Handoff、已核准的 `wireframes.html` 與 `frontend-design`；選用的 UI Design Pass 需要 design-direction skill 與 frontend-implementation skill；新的受管程式交付會在整合後透過 `code_security_verification` 槽位使用 `code-security-review`；`product-activation` 在 Delivery 後使用 release 與 deployment 交接。只需安裝所選模式要求的依賴。
 
 ### Zero-to-one 流程（從零開始）
 
-1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與四個 Product Delivery Harness skills，並用該 host 執行這次交付。
+1. 安裝一個受支援的 host（Codex、Claude Code、Pi 或任何會探索 `~/.agents/skills/` 的 host）與五個 Product Delivery Harness skills，並用該 host 執行這次交付。
 2. 開啟新的 host session，確認技能可見，然後呼叫 `delivery-harness`。
 3. 讓規模閘決定直接工作或 PLAN/RUN；小型工作不要預先建立 worker。
 4. 大型執行一次只保留一個 active host，並在 same-repository handoff 前關閉與審查每個 wave。
@@ -375,7 +387,7 @@ Harness 記錄的是實際的執行環境能力，而不是從已安裝的 CLI �
 
 每個 provider 段落只執行那些允許 provider 包含自身 host 的 PLAN 節點；沒有跨 host 的路線。若某個節點需要其他 host 的 provider，會被 deferred with `runtime_unavailable`，而不會在這裡執行。
 
-平行實作預設沒有固定的小上限；設定中的寫入 worker 上限刻意設得很高，實際波次由觀察到的 worker 名額、隔離容量，以及相依已就緒、無衝突的 frontier 大小界定。一個可獨立驗證的目標對應一個 mission。每個 writer 都有明確的檔案 ownership，以及獨立、乾淨、固定基線的 worktree。共享 API、schema 與型別必須先凍結，再開始依賴它們的平行寫入。探索、寫入與 reviewer 都由 parent 作為同層節點派發；worker 與 reviewer 都不能再次分派。每個 mission 通過 exact-head review 後，由 parent 串行整合；統一整合完成後再啟動 fresh reviewers，最後只對固定候選 SHA 執行一次完整驗證。Worker 絕不編輯 parent 的 `PLAN.md` 或 `RUN.md`，也不推送、開 PR、合併、部署或移除 worktree。Parent 掌管整合以及每一個落地或生命週期動作。
+平行實作預設沒有固定的小上限；設定中的寫入 worker 上限刻意設得很高，實際波次由觀察到的 worker 名額、隔離容量，以及相依已就緒、無衝突的 frontier 大小界定。一個可獨立驗證的目標對應一個 mission。每個 writer 都有明確的檔案 ownership，以及獨立、乾淨、固定基線的 worktree。共享 API、schema 與型別必須先凍結，再開始依賴它們的平行寫入。探索、寫入與 reviewer 都由 parent 作為同層節點派發；worker 與 reviewer 都不能再次分派。每個 mission 通過 exact-head review 後，由 parent 串行整合；統一整合完成後啟動 fresh reviewers，由 sibling agent 執行必要的 `code-security-review`，最後只對固定候選 SHA 執行一次完整驗證。Worker 絕不編輯 parent 的 `PLAN.md` 或 `RUN.md`，也不推送、開 PR、合併、部署或移除 worktree。Parent 掌管整合以及每一個落地或生命週期動作。
 
 ## 儲存庫結構
 
@@ -422,6 +434,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 - 別把 GitHub token 及其他憑證放進這個儲存庫。
 - 在確認新的技能副本能正確載入之前，別刪掉舊的安裝副本。
 - 編排技能對於每一個會改變狀態的 GitHub 或生命週期動作，都要求明確授權。
+- `code-security-review` 預設唯讀；沒有另外的明確授權時，它不會安裝 scanner、啟用網路、修復程式或探測 live target。
 
 ## 授權
 
@@ -431,6 +444,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
+- **0.28.0** — 新增 `code-security-review` 作為第五個內建 skill。每個新的受管 PLAN 都把 security 記為 `required`，或用非程式原因標記 `not_applicable`。Required review 會在序列整合後、broad final validation 前派發 fresh sibling；`security` 必須涵蓋每個 mission、包含每個 mission 的完整 write scope，且不得跳過或被 supersede。`record-review-attempt --security-result` 會驗證另一個 agent 的結構化 decision、精確 SHA 與 base、scope、trust boundaries、tools、coverage、findings，以及 PASS 的空 exclusions。Security reserve 與 completion 會重查 live Git。中斷 reviewer 以精確 receipt reconciliation；後續 current PASS 成立後可保留為歷史，但 receipt 本身不能滿足 gate。PASS 至少需要一個 tool 或人工審查記為 `passed` 或 `findings`，malformed reviewer identity 會回傳 validation errors，不會 crash。本機 verifier 會用位元組與檔案身分快照保護 tracked RUN 的 dirty exception，並在記錄結果時重新核對 hash。Design-system 原子寫入會拒絕 symlink 目標。本版也包含受守衛的非 runtime node transitions、精確 runtime bindings、可識別 CSS escapes 的 self-contained artifact checks，以及五 skill 安裝與 contract digest。
 - **0.27.0** — 新增 `product-activation` 作為第四個內建 skill。它在 Delivery 後啟動，把精確的交付後動作與已驗證量測來源記入 `docs/ACTIVATION.md`，透過 connector/API/CLI/Browser/Computer Use/manual handoff 路由工作，並把授權與 evidence 綁定到精確 target、environment、action digest、source SHA 與 artifact identity。Product Definition 只在缺少時建立 Activation seed；Delivery 會先關閉再交接；後續 outcome review 只使用相符且已驗證的 `MS-*` 來源。本版也把 browser extension 納入一級 release-target surface，並同步四 skill 安裝、contract digest、CI 與 cross-skill tests。
 - **0.26.0** — Responsive UI 契約現在從產品定義到交付全程阻擋不完整結果。每個 `UI-*` 條目宣告同一組至少兩個 web viewport 或原生／桌面 size class；`wireframes/2` 會為每個目標明確投影區域順序、可見性、網格跨度、重排、互動規則與不可捨棄區域。線框稿與高擬真 HTML 的核准要求真實瀏覽器中的 page-target-state 完整矩陣，不得出現非預期重疊、裁切、遮擋或水平溢出；刻意疊層必須記錄層級、焦點、安全區域與關閉行為。設計系統契約與 PLAN 使用同一 responsive set，Harness 會拒絕缺失、重複、單一目標、未排序、額外或漂移的覆蓋，同時維持舊 schema 可讀。
 - **0.25.7** — 移除原始碼儲存庫根目錄的 `Tasks.md` 流程記錄及其本機記錄規則。受管目標專案仍會按需渲染非權威的 `docs/tasks.md` 檢視；目標專案的 skill 行為不變。

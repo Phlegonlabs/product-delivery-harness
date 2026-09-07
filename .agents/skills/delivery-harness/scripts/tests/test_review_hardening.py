@@ -18,8 +18,10 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import harness_transition  # noqa: E402
+import test_security_review_result as security_review_tests  # noqa: E402
 from harness_core import ManifestError  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
+from test_harness_manifest import authorize_action  # noqa: E402
 from test_select_ready_nodes import current_preintegration_review_state  # noqa: E402
 
 
@@ -88,6 +90,13 @@ class ReviewHardeningTests(unittest.TestCase):
                             "evidence": ["worker stopped before completion"],
                         }
                     )
+                for action in (
+                    "spawn_subagents",
+                    "create_local_worktrees",
+                    "create_local_branches",
+                    "create_local_commits",
+                ):
+                    authorize_action(run, action, ["M1"], ["*"])
 
                 harness_transition._lease_worker(
                     plan, run, Namespace(**LEASE_ARGS)
@@ -170,6 +179,25 @@ class ReviewHardeningTests(unittest.TestCase):
         errors = validate_run(self.plan, self.run)
         self.assertIsInstance(errors, list)
         self.assertTrue(any("verifier" in error for error in errors))
+
+    def test_malformed_required_security_worker_identity_returns_errors(self) -> None:
+        fixture = security_review_tests.SecurityReviewTransitionTests(
+            "test_record_requires_and_persists_exact_structured_result"
+        )
+        try:
+            plan, run = fixture.state()
+            run["review_workers"][0]["attempt_id"] = ""
+
+            errors = validate_run(plan, run)
+
+            self.assertIsInstance(errors, list)
+            self.assertTrue(
+                any("review_workers[0].attempt_id" in error for error in errors),
+                errors,
+            )
+            self.assertEqual(errors, validate_run(plan, run))
+        finally:
+            fixture.doCleanups()
 
 
 if __name__ == "__main__":

@@ -267,6 +267,25 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertIn("merge seams", integration_packet)
             self.assertIn("cross-mission interaction", integration_packet)
 
+            review_node = next(
+                node
+                for node in plan["graph"]["nodes"]
+                if node["id"] == "N-REVIEW-M1"
+            )
+            review_node["review"]["type"] = "security"
+            review_node["review"]["mission_ids"] = ["M1", "M2"]
+            run["review_lineages"]["REVIEW-M1"]["review_type"] = "security"
+            run["review_lineages"]["REVIEW-M1"]["mission_ids"] = ["M1", "M2"]
+            security_packet = render_packet(
+                plan, run, "N-REVIEW-M1", root, max_diff_bytes=64
+            )
+
+            self.assertIn('"review_type": "security"', security_packet)
+            self.assertIn(
+                '"skill_binding_slot": "code_security_verification"',
+                security_packet,
+            )
+
     def test_transition_command_pauses_generated_run(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             run_path = Path(temp) / "RUN.md"

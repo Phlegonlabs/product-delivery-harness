@@ -291,7 +291,9 @@ class MainCliTests(unittest.TestCase):
         return path
 
     def run_cli(self, *args: str) -> int:
-        return main(["--registry", str(self.registry_path), *args])
+        return main(
+            ["--registry", str(self.registry_path), "--repo-root", str(self.root), *args]
+        )
 
     def test_clean_file_exits_zero(self) -> None:
         page = self.write("clean.html", '<section class="container"><p class="stack">x</p></section>')
@@ -359,6 +361,43 @@ class MainCliTests(unittest.TestCase):
             "responsive.css", "@media (min-width: 768px) { .grid { gap: var(--space-4); } }"
         )
         self.assertEqual(self.run_cli(str(page)), 0)
+
+    def test_role_assignment_uses_exact_normalized_repo_relative_identity(self) -> None:
+        impostor = self.write(
+            "nested/styles/tokens.css", ".theme { color: #101010; }"
+        )
+        self.assertEqual(self.run_cli(str(impostor)), 1)
+
+    def test_role_paths_that_escape_repo_root_are_rejected(self) -> None:
+        self.registry_path.write_text(
+            json.dumps(dict(REGISTRY, tokenSources=["../outside.css"])),
+            encoding="utf-8",
+        )
+        page = self.write("page.html", "<p>ok</p>")
+        self.assertEqual(self.run_cli(str(page)), 2)
+
+    def test_role_path_dot_segments_are_normalized_before_matching(self) -> None:
+        self.registry_path.write_text(
+            json.dumps(dict(REGISTRY, tokenSources=["styles/./tokens.css"])),
+            encoding="utf-8",
+        )
+        tokens = self.write("styles/tokens.css", ".theme { color: #101010; }")
+        self.assertEqual(self.run_cli(str(tokens)), 0)
+
+    def test_relative_targets_are_resolved_from_repo_root(self) -> None:
+        self.write("styles/tokens.css", ".theme { color: #101010; }")
+        self.assertEqual(
+            main(
+                [
+                    "--registry",
+                    "design-system.json",
+                    "--repo-root",
+                    str(self.root),
+                    "styles/tokens.css",
+                ]
+            ),
+            0,
+        )
 
 
 if __name__ == "__main__":

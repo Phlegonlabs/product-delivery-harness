@@ -57,6 +57,8 @@ CONTEXT_FIELDS = {
     "attempt_id",
     "lease_id",
 }
+GIT_GUARD_FIELDS = {"expected_branch", "expected_head_sha", "ignored_paths"}
+RESERVATION_FIELDS = {"node_id", "attempt_id", "nonce"}
 BATCH_JOB_FIELDS = {
     "job_id",
     "verifier",
@@ -97,6 +99,191 @@ def _require_sha(value: Any, label: str) -> str:
             f"{label} must be 40 or 64 lowercase hexadecimal characters"
         )
     return checked
+
+
+def _normalized_branch(value: str) -> str:
+    return value.removeprefix("refs/heads/")
+
+
+def _git_output(root: Path, *arguments: str, text: bool = True) -> str | bytes:
+    completed = subprocess.run(
+        ["git", *arguments],
+        cwd=root,
+        capture_output=True,
+        text=text,
+        check=False,
+        timeout=30,
+    )
+    if completed.returncode != 0:
+        raise VerifierRuntimeError(
+            f"git {' '.join(arguments)} failed while checking verifier checkout"
+        )
+    return completed.stdout
+
+
+def protected_path_sha256(
+    checkout_root: Path, relative_paths: list[str]
+) -> dict[str, str | None]:
+    """Hash allowed-dirty files without letting them escape the checkout."""
+
+    if not isinstance(relative_paths, list) or any(
+        not isinstance(relative, str)
+        or not relative
+        or relative.startswith(("/", "\\"))
+        or "\\" in relative
+        or ".." in relative.split("/")
+        or ":" in relative.split("/", 1)[0]
+        for relative in relative_paths
+    ):
+        raise VerifierRuntimeError(
+            "protected paths must be repository-relative POSIX paths"
+        )
+    root = checkout_root.resolve()
+    protected: dict[str, str | None] = {}
+    for relative in sorted(set(relative_paths)):
+        path = root / relative
+        if path.is_symlink():
+            raise VerifierRuntimeError(
+                f"git_guard protected path must not be a symlink: {relative}"
+            )
+        resolved = path.resolve(strict=False)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise VerifierRuntimeError(
+                f"git_guard protected path escapes the checkout: {relative}"
+            ) from exc
+        try:
+            value = resolved.read_bytes()
+        except FileNotFoundError:
+            protected[relative] = None
+        except (IsADirectoryError, OSError) as exc:
+            raise VerifierRuntimeError(
+                f"cannot read git_guard protected path {relative}: {exc}"
+            ) from exc
+        else:
+            protected[relative] = _sha256_bytes(value)
+    return protected
+
+
+def _protected_path_stats(
+    checkout_root: Path, relative_paths: list[str]
+) -> dict[str, tuple[int, int, int, int] | None]:
+    """Fingerprint protected file identity so write-then-restore is visible."""
+
+    root = checkout_root.resolve()
+    stats: dict[str, tuple[int, int, int, int] | None] = {}
+    for relative in sorted(set(relative_paths)):
+        path = root / relative
+        if path.is_symlink():
+            raise VerifierRuntimeError(
+                f"git_guard protected path must not be a symlink: {relative}"
+            )
+        resolved = path.resolve(strict=False)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise VerifierRuntimeError(
+                f"git_guard protected path escapes the checkout: {relative}"
+            ) from exc
+        try:
+            value = resolved.lstat()
+        except FileNotFoundError:
+            stats[relative] = None
+        else:
+            stats[relative] = (
+                value.st_size,
+                value.st_mtime_ns,
+                value.st_ctime_ns,
+                value.st_mode,
+            )
+    return stats
+
+
+def _git_guard_snapshot(
+    checkout_root: Path, guard: dict[str, Any]
+) -> dict[str, Any]:
+    """Prove the requested committed checkout and fingerprint tracked files."""
+
+    if not isinstance(guard, dict) or set(guard) != GIT_GUARD_FIELDS:
+        raise VerifierRuntimeError(
+            "git_guard must contain expected_branch, expected_head_sha, and ignored_paths"
+        )
+    expected_branch = _require_string(
+        guard["expected_branch"], "git_guard.expected_branch"
+    )
+    expected_head = _require_sha(
+        guard["expected_head_sha"], "git_guard.expected_head_sha"
+    )
+    ignored = guard["ignored_paths"]
+    if not isinstance(ignored, list) or any(
+        not isinstance(path, str)
+        or not path
+        or path.startswith(("/", "\\"))
+        or "\\" in path
+        or ".." in path.split("/")
+        for path in ignored
+    ):
+        raise VerifierRuntimeError(
+            "git_guard.ignored_paths must be repository-relative POSIX paths"
+        )
+    ignored_set = set(ignored)
+    branch = str(_git_output(checkout_root, "rev-parse", "--abbrev-ref", "HEAD")).strip()
+    if branch == "HEAD" or _normalized_branch(branch) != _normalized_branch(
+        expected_branch
+    ):
+        raise VerifierRuntimeError("verifier checkout branch differs from git_guard")
+    head = str(_git_output(checkout_root, "rev-parse", "HEAD")).strip()
+    if head != expected_head:
+        raise VerifierRuntimeError("verifier checkout HEAD differs from git_guard")
+    status_args = ["status", "--porcelain", "--untracked-files=all", "--", "."]
+    status_args.extend(
+        f":(exclude,top,literal){path}" for path in sorted(ignored_set)
+    )
+    if str(_git_output(checkout_root, *status_args)).strip():
+        raise VerifierRuntimeError("verifier checkout is dirty outside ignored paths")
+
+    raw_paths = _git_output(checkout_root, "ls-files", "-z", text=False)
+    assert isinstance(raw_paths, bytes)
+    fingerprint: dict[str, tuple[int, int, int] | None] = {}
+    for raw_path in raw_paths.split(b"\0"):
+        if not raw_path:
+            continue
+        relative = os.fsdecode(raw_path).replace("\\", "/")
+        if relative in ignored_set:
+            continue
+        try:
+            file_stat = (checkout_root / relative).lstat()
+        except FileNotFoundError:
+            fingerprint[relative] = None
+        else:
+            fingerprint[relative] = (
+                file_stat.st_size,
+                file_stat.st_mtime_ns,
+                file_stat.st_mode,
+            )
+    return {
+        "tracked_files": fingerprint,
+        "protected_path_sha256": protected_path_sha256(
+            checkout_root, sorted(ignored_set)
+        ),
+        "protected_path_stats": _protected_path_stats(
+            checkout_root, sorted(ignored_set)
+        ),
+    }
+
+
+def _validated_reservation(value: Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != RESERVATION_FIELDS:
+        raise VerifierRuntimeError(
+            "reservation must contain node_id, attempt_id, and nonce"
+        )
+    return {
+        key: _require_string(value[key], f"reservation.{key}")
+        for key in ("node_id", "attempt_id", "nonce")
+    }
 
 
 def _resolve_cwd(checkout_root: Path, declared_cwd: Any) -> Path:
@@ -431,6 +618,9 @@ def run_verifier(
     cache_root: Path | None = None,
     timeout_seconds: float = 120.0,
     environment: Mapping[str, str] | None = None,
+    git_guard: dict[str, Any] | None = None,
+    reservation: dict[str, Any] | None = None,
+    request_sha256: str | None = None,
 ) -> dict[str, Any]:
     if timeout_seconds <= 0:
         raise VerifierRuntimeError("timeout_seconds must be positive")
@@ -442,6 +632,31 @@ def run_verifier(
         effective_environment,
     )
     execution_key, key_document = _key_document(normalized_verifier, key_inputs)
+    checked_reservation = _validated_reservation(reservation)
+    dispatch_attestation = None
+    if checked_reservation is not None:
+        if git_guard is None or not isinstance(request_sha256, str) or (
+            len(request_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in request_sha256)
+        ):
+            raise VerifierRuntimeError(
+                "a reserved verifier requires git_guard and the canonical request SHA-256"
+            )
+    guard_snapshot = (
+        _git_guard_snapshot(checkout_root.resolve(), git_guard)
+        if git_guard is not None
+        else None
+    )
+    if checked_reservation is not None:
+        assert isinstance(guard_snapshot, dict)
+        dispatch_attestation = {
+            "request_sha256": request_sha256,
+            "checkout_root": str(checkout_root.resolve()),
+            "git_guard": json.loads(json.dumps(git_guard)),
+            "protected_path_sha256": dict(
+                guard_snapshot["protected_path_sha256"]
+            ),
+        }
     cache_mode = normalized_verifier["cache"]["mode"]
     cache_status = "bypassed"
     cache_reason = "cache_disabled"
@@ -495,6 +710,16 @@ def run_verifier(
                     "cache_reason": cache_reason,
                     "duration_ms": 0,
                     "metrics": {"executed": 0, "reused": 1},
+                    **(
+                        {"reservation": checked_reservation}
+                        if checked_reservation is not None
+                        else {}
+                    ),
+                    **(
+                        {"dispatch_attestation": dispatch_attestation}
+                        if dispatch_attestation is not None
+                        else {}
+                    ),
                 }
             cache_status = "miss"
         else:
@@ -526,6 +751,17 @@ def run_verifier(
         exit_code = None
         stdout = ""
         stderr = str(exc)
+    if git_guard is not None:
+        try:
+            after_snapshot = _git_guard_snapshot(checkout_root.resolve(), git_guard)
+            if after_snapshot != guard_snapshot:
+                raise VerifierRuntimeError(
+                    "tracked or protected verifier inputs changed while the command was running"
+                )
+        except VerifierRuntimeError as exc:
+            status = "ERROR"
+            exit_code = None
+            stderr = (stderr + "\n" if stderr else "") + str(exc)
     duration_ms = max(0, round((time.perf_counter() - started) * 1000))
 
     if status == "PASS" and can_reuse and cache_path is not None:
@@ -560,6 +796,16 @@ def run_verifier(
         "cache_reason": cache_reason,
         "duration_ms": duration_ms,
         "metrics": {"executed": 1, "reused": 0},
+        **(
+            {"reservation": checked_reservation}
+            if checked_reservation is not None
+            else {}
+        ),
+        **(
+            {"dispatch_attestation": dispatch_attestation}
+            if dispatch_attestation is not None
+            else {}
+        ),
     }
 
 
@@ -709,6 +955,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_parallel=request.get("max_parallel", 1),
             )
         else:
+            request_sha256 = _sha256_bytes(_canonical_json(request))
             result = run_verifier(
                 request["verifier"],
                 request["context"],
@@ -719,6 +966,9 @@ def main(argv: list[str] | None = None) -> int:
                     else None
                 ),
                 timeout_seconds=float(request.get("timeout_seconds", 120.0)),
+                git_guard=request.get("git_guard"),
+                reservation=request.get("reservation"),
+                request_sha256=request_sha256,
             )
     except (KeyError, OSError, ValueError, VerifierRuntimeError) as exc:
         print(

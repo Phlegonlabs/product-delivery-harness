@@ -22,7 +22,7 @@ Observe the current host session and record the result under `runtime_adapter` i
 
 ### Version Gate
 
-Record the normalized host version and loaded Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`. A `compatible_old` session may finish its already-active wave but cannot start the next wave. After a host or plugin update, mark `restart_required`, start a fresh session, and re-probe from it; never hot-upgrade a live worker or workflow. After re-probing, re-orchestrate the remaining work onto the new runtime per `runtime-upgrades.md`. Provider-specific restart mechanics live in each provider section.
+Record the host version and Harness release in `runtime_adapter.version_gate`, then follow `runtime-upgrades.md`. A `compatible_old` session finishes only its active wave. After an update, mark `restart_required`, start a fresh session, re-probe, and re-orchestrate remaining work; never hot-upgrade a live worker.
 
 ### chrome_devtools Reviewer Probe
 
@@ -34,14 +34,16 @@ When a planned review requires `chrome_devtools`, launch one read-only capabilit
 - Before allocating any write, verify repository, branch/ref, HEAD, and clean `git status --porcelain`.
 - Never run parallel writers in `shared_checkout`. One mission has one writer; parallel writes require separate worktrees and non-overlapping scopes.
 - Every worker and reviewer is a fresh sibling. Supply only the bounded context packet and do not replay the parent transcript.
-- Workers and reviewers do not delegate, edit PLAN/RUN, integrate, push, or clean up. Do not ask for user input inside a child; a child that needs a contract decision returns a blocked/refinement result and the parent resolves it.
-- Use one reviewer per applicable surface by default and allow only one repair re-review. After serial integration, dispatch only the planned fresh read-only reviewers against the exact unified integration SHA; that unified-head pass is the final synthesis, so do not add another same-scope review while the SHA is unchanged. Then run one planned broad final validation. Skip the unified dispatch when that head's tree is byte-identical to a tree an already-passed pre-integration review of the same type covers, and record the node as `skipped`; a dispatched unified reviewer reads a seam-scoped packet focused on what combination changed.
-- Give a reviewer only the scoped diff/paths, applicable acceptance rows, required evidence, required tools with their capability evidence, and unresolved findings; refer to PLAN/RUN by path and identity instead of copying their full manifests.
+- Workers and reviewers do not delegate, edit PLAN/RUN, integrate, push, or clean up; children return blocked/refinement for contract decisions.
+- After serial integration, dispatch fresh reviewers against the exact unified integration SHA, then one planned broad final validation. Security always runs with `code_security_verification`; only non-security review may use a recorded byte-identical skip.
+- Give each reviewer one bounded context packet: scoped diff, acceptance, evidence, tool capability, and unresolved findings. Refer to PLAN/RUN by path.
 - Validate each terminal result immediately against live worktree, branch, head, scope, commits, and verifier evidence, then stream its ready pre-integration review while sibling workers continue.
+- Reserve non-runtime nodes before their checks or actions; execute outside the RUN lock and finish with `record-node-result` evidence.
+- `lease-worker` uses selector-derived binding and axes; `--task-thread-id` is app-task-only, and wildcard receipts never grant authority.
 
 ### Context And Handoff
 
-Use the shared Repository Context Contract in `../SKILL.md` and the Serialized Same-Repository Host Handoff in `execution-state-model.md`, plus `runtime-performance.md` and `runtime-upgrades.md`. Record queue, context, dispatch, wait, execute, review, verify, and integrate events in RUN-v11 `runtime_metrics` when applicable. This adapter adds no alternate state or handoff rules. It adds no alternate upgrade rules.
+Use the Repository Context Contract, the Serialized Same-Repository Host Handoff in `execution-state-model.md`, `runtime-performance.md`, and `runtime-upgrades.md`. Record applicable RUN-v11 `runtime_metrics` events. This adapter adds no alternate state or handoff rules and no alternate upgrade rules.
 
 ### Failure
 
@@ -75,7 +77,7 @@ Preserve explicit user and PLAN choices. Otherwise:
 
 - general and backend implementation: Codex `gpt-5.6-terra`, `high`;
 - frontend/UI implementation: Codex `gpt-5.6-sol`, `high`;
-- routine deterministic `backend_code` review: Codex `gpt-5.6-terra`, `medium`;
+- routine deterministic `backend_code` or `security` review: Codex `gpt-5.6-terra`, `medium`;
 - routine frontend, visual, or integration review: Codex `gpt-5.6-sol`, `medium`;
 - final unified-head review: Codex `gpt-5.6-sol`, `xhigh`;
 - bounded exploration, documentation/API research, and test/log analysis: the fastest suitable model at `low` or `medium`.
@@ -89,22 +91,22 @@ Use each `dispatchable_nodes[].required_actions` exactly.
 Mission app tasks:
 
 1. Resolve the current Codex project once.
-2. Allocate lease, identity, exact-base app-managed worktree, and authorized branch/ref. Verify repository, HEAD, branch/ref, and clean `git status --porcelain`.
+2. Resolve the exact base and confirm the wildcard or already-exact task, worktree, branch, and commit grants needed for allocation. The app creates the managed worktree together with the task in step 4.
 3. Render `../assets/templates/WORKER_GOAL.template.md` with the mission, write/deny scope, skills, verifier, permission boundary, completion channel, result-contract path, Codex worker contract, and effective `AGENTS.override.md` / `AGENTS.md` repository context paths. Include the ordered repository context source paths. Keep `AGENTS.md` context discovery enabled; do not inject `CLAUDE.md` as Codex instructions. RUN-v11 forbids task-local child agents.
-4. Create one top-level left-sidebar app task per selected mission. Do not replace a requested app task with a coordinator subagent.
+4. Create one top-level left-sidebar app task per mission with the exact starting state. Observe its repository, HEAD, worktree path, branch/ref, and clean status, then pass the real task ID and observed worktree/branch to `lease-worker --task-thread-id`. Do not replace a requested app task with a coordinator subagent or invent an ID from the mission.
 5. Treat every top-level app task as a fresh bounded context packet. For direct sibling agents, explicitly start fresh and pass only the bounded context packet; never fork the parent conversation.
 6. Prefer App Server status subscription or cursor-based `wait_threads`. Use one bounded wait for 1-8 tasks with each task's last cursor, process the first terminal or needs-attention result, then wait again with updated cursors. Do not repeatedly read unchanged tasks. Use bounded polling only when no wait/event surface exists, and record its wait time and fallback reason in `runtime_metrics`.
 7. Observe live Git head, diff, scope, commits, and ancestry. Validate each terminal result immediately so its pre-integration review may overlap remaining workers, then integrate that mission serially once the review PASSes; only batch gates wait for wave close.
 
+`accept-wave` is the durable pre-create boundary for an app mission, but task creation returns its exact identity only after the app side effect. Put run ID, PLAN revision/digest, wave ID, and mission ID in the task packet. If the create response is lost before `lease-worker`, list and inspect existing tasks/worktrees for one exact packet and base match; bind that task when unique, and block for the user when none or several match. Never create a second task automatically and never delete an orphan as reconciliation.
+
 Do not stop after printing a non-empty app-task wave; consume every accepted dispatch entry.
 
-Read-only reviews follow one rule. A review app task needs `create_user_owned_tasks`; a direct-subagent review needs `spawn_subagents`. It needs no write worktree, branch, or commit grant. Start it with fresh bounded context, bind it to one exact SHA, and give it only the scoped packet from the shared dispatch rules. When `chrome_devtools` is required, use raw CDP inside that same reviewer session for the live evidence named by PLAN. Record its outcome, and invalidate the PASS when that SHA changes.
+Read-only reviews follow one rule. A review app task needs `create_user_owned_tasks`; a direct-subagent review needs `spawn_subagents`. They need no write worktree, branch, or commit grant. Start each with fresh bounded context, bind it to one exact SHA and scoped packet, use raw CDP when `chrome_devtools` is required, record its outcome, and invalidate PASS when the SHA changes.
 
 ### Flat Parent-Owned Delegation
 
-Codex explorers, mission workers, and reviewers are sibling nodes dispatched by the Harness parent. No worker or reviewer spawns another agent. Use one reviewer per applicable surface by default and allow only one repair re-review. After serial integration, dispatch only the planned fresh read-only reviewers against the exact unified integration SHA; that unified-head pass is the final synthesis, so do not add another same-scope review while the SHA is unchanged. Then run one planned broad final validation on the fixed candidate.
-
-Never replace explicitly requested independent app tasks with direct subagents or sequential parent execution.
+Codex explorers, mission workers, and reviewers are sibling nodes dispatched by the Harness parent. No worker or reviewer spawns another agent. Use fresh read-only reviewers on the exact unified integration SHA, then one planned broad final validation. RUN-v11 forbids task-local child agents. Never replace explicitly requested independent app tasks with direct subagents or sequential parent execution.
 
 ## Provider: claude_code
 
@@ -131,7 +133,7 @@ dynamic_workflow + parent_managed_worktree + agent_result
 Reserve the parent's premium model for the parent's own coordination and planning. Preserve explicit user and PLAN choices. Otherwise:
 
 - implementation: `sonnet`, `high`;
-- routine frontend, backend, visual, and integration review: `sonnet`, `medium`;
+- routine frontend, backend, visual, security, and integration review: `sonnet`, `medium`;
 - final unified-head review: `sonnet`, `xhigh`;
 - bounded mechanical, exploration, research, and test/log work: `haiku`, `low` or `medium`.
 

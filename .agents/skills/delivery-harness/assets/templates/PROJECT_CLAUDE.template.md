@@ -13,5 +13,5 @@ The rules below apply only when this Claude session is executing a managed Produ
 
 - A Claude mission worker is one bounded writer. It never delegates, edits parent-owned PLAN/RUN state, integrates, pushes, or cleans up. Authorization for those actions remains with the Harness parent and does not transfer to the worker.
 - Claude explorers, mission writers, and reviewers are parent-dispatched siblings. Each writer has explicit file ownership and a separate clean exact-base worktree.
-- After serial integration, the parent starts fresh reviewers on the unified head and runs one broad final validation only after those reviewers pass.
+- After serial integration, the parent starts fresh reviewers on the unified head, including the required read-only `code-security-review` sibling, and runs one broad final validation only after those reviewers pass.
 - Return the exact worktree, branch, head SHA, changed files, verifier evidence, and blocking state through the completion channel supplied by the Harness parent.

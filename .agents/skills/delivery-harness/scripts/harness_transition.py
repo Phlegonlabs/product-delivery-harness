@@ -29,7 +29,10 @@ from harness_core import (
     plan_digest,
 )
 from harness_manifest import (
+    _verifier_owners,
+    INTERRUPTED_REVIEW_RECEIPT,
     ManifestError,
+    authorization_covers,
     load_plan,
     validate_current_plan_run,
 )
@@ -40,10 +43,27 @@ from harness_worker_result_transition import (
     verify_worker_observation,
 )
 from select_ready_nodes import GraphSelectionError, select_ready_nodes
+from select_ready_nodes import _runtime_binding
+from security_review_result import (
+    SecurityReviewResultError,
+    load_security_review_result,
+    security_result_finding_summaries,
+    validate_security_review_result,
+)
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _json_sha256(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 DEFAULT_LOCK_STALE_MINUTES = 15
@@ -58,6 +78,8 @@ DISPATCH_COMMANDS = {
     "reserve-review-dispatch",
     "record-integration",
     "close-wave",
+    "reserve-node-attempt",
+    "record-node-result",
 }
 
 
@@ -270,7 +292,8 @@ def _watchdog_report(run: dict[str, Any], stale_after: float) -> list[str]:
             + ", ".join(sorted(running))
         )
         lines.append(
-            "reconcile them with reconcile-interrupted / reconcile-interrupted-reviews after reclaiming the lock"
+            "reconcile them with reconcile-interrupted / reconcile-interrupted-reviews or "
+            "record-node-result --outcome blocked after reclaiming the lock"
         )
     elif running:
         lines.append("running nodes (parent live): " + ", ".join(sorted(running)))
@@ -356,6 +379,94 @@ def _require_non_default_integration_branch(run: dict[str, Any]) -> str:
             "use a non-default run branch"
         )
     return branch
+
+
+def _validate_security_integration_checkout(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    node: dict[str, Any],
+    repo_root: Path | None,
+    *,
+    operation: str,
+    run_path: str | Path | None = None,
+) -> None:
+    """Bind a security integration review to the live parent checkout.
+
+    Security review dispatches are the final review of the unified candidate,
+    so their reservation and result recording both re-read branch, HEAD,
+    cleanliness, and base ancestry from Git.  This keeps a reviewer from being
+    reserved (or certified) against a detached, retargeted, dirty, or drifted
+    checkout.  The tracked RUN file is the sole expected transition artifact.
+    """
+
+    review = node.get("review")
+    if not (
+        isinstance(review, dict)
+        and review.get("type") == "security"
+        and review.get("stage", "preintegration") == "integration"
+    ):
+        return
+    if repo_root is None:
+        raise ManifestError(
+            f"{operation} security integration review requires --repo-root"
+        )
+    observed = run.get("observed")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    observed_path = (
+        observed_git.get("parent_worktree_path")
+        if isinstance(observed_git, dict)
+        else None
+    )
+    if not isinstance(observed_path, str) or not _same_path(repo_root, observed_path):
+        raise ManifestError(
+            f"--repo-root {repo_root} is not the observed parent worktree "
+            f"{observed_path!r}; {operation} security integration review from the observed checkout"
+        )
+    expected_branch = _require_non_default_integration_branch(run)
+    live_branch = _git_branch_name(repo_root)
+    if _normalized_branch(live_branch) != expected_branch:
+        raise ManifestError(
+            f"--repo-root is on branch {live_branch!r}, not the integration branch "
+            f"{run.get('integration', {}).get('branch')!r}"
+        )
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not is_full_sha(integration_head):
+        raise ManifestError(
+            f"{operation} security integration review requires a full integration head SHA"
+        )
+    live_head = _git_out(repo_root, "rev-parse", "HEAD").strip()
+    if live_head != integration_head:
+        raise ManifestError(
+            f"integration branch HEAD is {live_head}, not {integration_head}; "
+            f"{operation} security integration review requires the current integration head"
+        )
+    if _git_status_excluding_run(repo_root, run_path).strip():
+        raise ManifestError(
+            f"--repo-root product tree is dirty; {operation} security integration review "
+            "allows only its tracked RUN coordination file"
+        )
+    batch_base = integration.get("batch_base_sha") if isinstance(integration, dict) else None
+    if not is_full_sha(batch_base):
+        raise ManifestError(
+            f"{operation} security integration review requires a full batch_base_sha"
+        )
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", batch_base, live_head],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if ancestry.returncode != 0:
+        raise ManifestError(
+            f"batch base {batch_base} is not an ancestor of integration head {live_head}; "
+            f"{operation} security integration review cannot proceed"
+        )
 
 
 def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -702,6 +813,20 @@ def _close_wave(run: dict[str, Any], args: argparse.Namespace) -> None:
             "cannot close a wave with live workers; reconcile them first: "
             + ", ".join(live_workers)
         )
+    graph_states = run.get("graph_state", {}).get("node_states", {})
+    live_parent_nodes = sorted(
+        node_id
+        for node_id, state in graph_states.items()
+        if isinstance(state, dict)
+        and state.get("phase") == "running"
+        and not state.get("bound_worker_id")
+    )
+    if live_parent_nodes:
+        raise ManifestError(
+            "cannot close a wave with live parent-owned node attempts; record their "
+            "results first: "
+            + ", ".join(live_parent_nodes)
+        )
     # A `worker_passed` mission still owes integration, and the validator
     # requires retained execution coverage for it. A `run_complete` boundary
     # survives the close and keeps covering it; a `wave_closed` boundary dies
@@ -765,6 +890,695 @@ def _close_wave(run: dict[str, Any], args: argparse.Namespace) -> None:
     )
 
 
+def _graph_node(plan: dict[str, Any], node_id: str) -> dict[str, Any]:
+    """Resolve one graph node by exact ID for parent-owned transitions."""
+
+    matches = [
+        node
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict) and node.get("id") == node_id
+    ]
+    if len(matches) != 1:
+        raise ManifestError(
+            f"node {node_id!r} must identify exactly one PLAN graph node; found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _attempt_id_available(run: dict[str, Any], attempt_id: str) -> None:
+    if not isinstance(attempt_id, str) or not attempt_id.strip():
+        raise ManifestError("node attempt requires a non-empty --attempt-id")
+    if any(
+        isinstance(item, dict) and item.get("attempt_id") == attempt_id
+        for item in [
+            *run.get("attempt_log", []),
+            *run.get("workers", []),
+            *run.get("review_workers", []),
+        ]
+    ):
+        raise ManifestError(f"duplicate attempt ID {attempt_id!r}")
+
+
+def _node_attempt_log(
+    run: dict[str, Any], node_id: str, attempt_id: str
+) -> dict[str, Any] | None:
+    matches = [
+        item
+        for item in run.get("attempt_log", [])
+        if isinstance(item, dict)
+        and item.get("kind") == "node_attempt"
+        and item.get("node_id") == node_id
+        and item.get("attempt_id") == attempt_id
+    ]
+    if len(matches) > 1:
+        raise ManifestError(
+            f"node attempt {attempt_id!r} for {node_id!r} is ambiguous"
+        )
+    return matches[0] if matches else None
+
+
+def _local_verifier_request(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    node: dict[str, Any],
+    *,
+    attempt_id: str,
+    repo_root: Path | None,
+    run_path: Path | None = None,
+) -> dict[str, Any]:
+    """Build the exact parent-local verifier request for a reserved gate."""
+
+    if repo_root is None:
+        raise ManifestError(
+            "reserve-node-attempt local verifier requires --repo-root"
+        )
+    repo_root = repo_root.resolve()
+    observed_git = run.get("observed", {}).get("git", {})
+    if not isinstance(observed_git, dict):
+        raise ManifestError("local verifier request requires observed Git facts")
+    observed_path = observed_git.get("parent_worktree_path")
+    if not isinstance(observed_path, str) or not _same_path(repo_root, observed_path):
+        raise ManifestError(
+            "local verifier request root is not the observed integration checkout"
+        )
+    integration = run.get("integration")
+    if not isinstance(integration, dict):
+        raise ManifestError("local verifier request requires integration state")
+    expected_branch = (
+        integration.get("branch")
+    )
+    live_branch = _git_branch_name(repo_root)
+    if _normalized_branch(live_branch) != _normalized_branch(expected_branch):
+        raise ManifestError(
+            "local verifier request checkout is not on the integration branch"
+        )
+    live_head = _git_out(repo_root, "rev-parse", "HEAD").strip()
+    if live_head != integration.get("integration_head_sha"):
+        raise ManifestError(
+            "local verifier request checkout head differs from integration_head_sha"
+        )
+    dirty = _git_status_excluding_run(repo_root, run_path)
+    if dirty.strip():
+        raise ManifestError(
+            "local verifier request requires a clean integration checkout"
+        )
+    owner = _verifier_owners(plan).get(node.get("ref"))
+    if owner is None:
+        raise ManifestError(
+            f"local verifier node references unknown verifier {node.get('ref')!r}"
+        )
+    layer, mission_id, task_id, declaration = owner
+    if layer not in {"batch", "final"}:
+        raise ManifestError(
+            f"local verifier node {node.get('id')!r} must reference a batch or final verifier"
+        )
+    head_sha = integration.get("integration_head_sha")
+    batch_base_sha = integration.get("batch_base_sha")
+    if not is_full_sha(head_sha) or not is_full_sha(batch_base_sha):
+        raise ManifestError(
+            "local verifier request requires full integration and batch-base SHAs"
+        )
+    if observed_git.get("parent_dirty") is not False:
+        raise ManifestError(
+            "local verifier request requires an observed clean integration checkout"
+        )
+    checkout_dirty = False
+    ignored_paths: list[str] = []
+    if run_path is not None:
+        try:
+            relative_run = Path(run_path).resolve().relative_to(repo_root)
+        except (OSError, ValueError):
+            relative_run = None
+        if relative_run is not None:
+            ignored_paths.append(relative_run.as_posix())
+    context = {
+        "run_id": run.get("run_id"),
+        "plan_revision": plan.get("revision"),
+        "plan_digest_sha256": plan_digest(plan),
+        "graph_revision": run.get("graph_state", {}).get("graph_revision"),
+        "batch_base_sha": batch_base_sha,
+        "head_sha": head_sha,
+        "changed_files": sorted(
+            line.strip()
+            for line in _git_out(
+                repo_root, "diff", "--name-only", f"{batch_base_sha}..{head_sha}"
+            ).splitlines()
+            if line.strip()
+        ),
+        "trust_domain": "parent_local",
+        "checkout_role": "integration",
+        "checkout_dirty": checkout_dirty,
+        "cache_safe": False,
+        "layer": layer,
+        "mission_id": mission_id,
+        "task_id": task_id,
+        # Gate executions remain unbound in the retained execution record; the
+        # graph attempt ID is carried by attempt_log/node_dispatch instead.
+        "attempt_id": None,
+        "lease_id": None,
+    }
+    reservation = {
+        "node_id": node.get("id"),
+        "attempt_id": attempt_id,
+        "nonce": _json_sha256(
+            {
+                "run_id": run.get("run_id"),
+                "plan_digest_sha256": plan_digest(plan),
+                "node_id": node.get("id"),
+                "attempt_id": attempt_id,
+                "head_sha": head_sha,
+            }
+        ),
+    }
+    return {
+        "protocol": "harness-verifier-request-v1",
+        "run_id": run.get("run_id"),
+        "plan_id": plan.get("plan_id"),
+        "plan_revision": plan.get("revision"),
+        "plan_digest_sha256": plan_digest(plan),
+        "graph_revision": context["graph_revision"],
+        "node_id": node.get("id"),
+        "attempt_id": attempt_id,
+        "layer": layer,
+        "branch": _normalized_branch(expected_branch),
+        "checkout_root": str(repo_root.resolve()),
+        "head_sha": head_sha,
+        "batch_base_sha": batch_base_sha,
+        "verifier": copy.deepcopy(declaration),
+        "context": context,
+        "reservation": reservation,
+        "git_guard": {
+            "expected_branch": _normalized_branch(expected_branch),
+            "expected_head_sha": head_sha,
+            "ignored_paths": ignored_paths,
+        },
+    }
+
+
+def _materialize_authorized_target(
+    run: dict[str, Any], action: str, mission_id: str, target: str
+) -> None:
+    """Materialize an exact target from an active wildcard grant.
+
+    Wildcards remain in the ledger as the user's durable scope.  The exact
+    target is an execution receipt required by RUN-v11 validators; it may only
+    be appended when the same action already has an unexpired wildcard grant.
+    """
+
+    if run.get("schema_version") != 11:
+        return
+    entry = run.get("authorizations", {}).get(action)
+    if not isinstance(entry, dict) or entry.get("authorized") is not True:
+        raise ManifestError(f"{action} is not authorized for {mission_id!r}")
+    scope = entry.get("scope")
+    targets = scope.get("targets") if isinstance(scope, dict) else None
+    if not isinstance(targets, list):
+        raise ManifestError(
+            f"{action} exact target {target!r} cannot be materialized from a malformed scope"
+        )
+    # A caller may have already recorded this exact identity.  Preserve that
+    # narrow grant even when the original wildcard has since been removed; the
+    # materializer must not require a wildcard for an exact target that is
+    # already active.
+    if target in targets and authorization_covers(run, action, mission_id, target):
+        return
+    if "*" not in targets:
+        raise ManifestError(
+            f"{action} exact target {target!r} cannot be materialized without an active wildcard grant"
+        )
+    if not authorization_covers(run, action, mission_id, "*"):
+        raise ManifestError(
+            f"{action} wildcard grant for {mission_id!r} is not active"
+        )
+    if target not in targets:
+        targets.append(target)
+
+
+def _reserve_node_attempt(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> dict[str, Any]:
+    """Reserve a non-runtime graph node before its external side effect.
+
+    Approval, external-wait, lifecycle, and deterministic local verifier nodes
+    have no worker lease to prove that their launch was planned.  This receipt
+    is their durable attempt identity; the matching ``record-node-result``
+    transition is the only operation that can terminate it.
+    """
+
+    node = _graph_node(plan, args.node_id)
+    if node.get("kind") == "mission" or (
+        node.get("kind") == "verifier" and node.get("executor") == "runtime_worker"
+    ):
+        raise ManifestError(
+            "reserve-node-attempt is only for approval, external_wait, lifecycle, "
+            "or non-runtime verifier nodes"
+        )
+    if node.get("kind") not in {"approval", "external_wait", "lifecycle", "verifier"}:
+        raise ManifestError(f"node {args.node_id!r} is not reservable")
+    if node.get("kind") == "verifier" and node.get("executor") not in {
+        "local_command",
+        "harness_parent",
+    }:
+        raise ManifestError(
+            "reserve-node-attempt requires a local_command or harness_parent verifier"
+        )
+    _attempt_id_available(run, args.attempt_id)
+    state = run.get("graph_state", {}).get("node_states", {}).get(args.node_id)
+    if not isinstance(state, dict):
+        raise ManifestError(f"no graph state for node {args.node_id!r}")
+    if state.get("phase") not in {"dormant", "ready", "failed", "blocked"}:
+        raise ManifestError(
+            f"node {args.node_id!r} is {state.get('phase')!r}; reserve requires a dormant, "
+            "ready, failed, or blocked node"
+        )
+    if int(state.get("attempts") or 0) >= int(node.get("max_attempts") or 0):
+        raise ManifestError(f"node {args.node_id!r} has exhausted its attempt budget")
+
+    # Selection is the logical readiness authority.  Reserve a node only when
+    # the exact current frontier contains its dispatch directive.  This also
+    # enforces dependency/route activation, plan/run status, and action grants.
+    try:
+        selection = select_ready_nodes(
+            plan, run, repo_root=getattr(args, "repo_root", None)
+        )
+    except GraphSelectionError as exc:
+        raise ManifestError(f"reserve-node-attempt could not select a safe frontier: {exc}") from exc
+    directive = next(
+        (
+            item
+            for item in selection.get("dispatchable_nodes", [])
+            if isinstance(item, dict) and item.get("node_id") == args.node_id
+        ),
+        None,
+    )
+    if directive is None:
+        deferred = next(
+            (
+                item
+                for item in selection.get("deferred_nodes", [])
+                if isinstance(item, dict) and item.get("node_id") == args.node_id
+            ),
+            None,
+        )
+        reasons = deferred.get("reason_codes", []) if isinstance(deferred, dict) else []
+        detail = ", ".join(reasons) if reasons else "not in dispatchable frontier"
+        raise ManifestError(
+            f"node {args.node_id!r} is not dispatchable ({detail})"
+        )
+
+    evidence = getattr(args, "evidence", None) or []
+    if not isinstance(evidence, list) or any(
+        not isinstance(item, str) or not item.strip() for item in evidence
+    ):
+        raise ManifestError("node attempt evidence must be non-empty strings")
+    node_dispatch = None
+    verifier_dispatch = None
+    verifier_request = None
+    if node.get("kind") == "verifier" and node.get("executor") in {
+        "local_command",
+        "harness_parent",
+    }:
+        verifier_request = _local_verifier_request(
+            plan,
+            run,
+            node,
+            attempt_id=args.attempt_id,
+            repo_root=getattr(args, "repo_root", None),
+            run_path=getattr(args, "run", None),
+        )
+        verifier_dispatch = {
+            "branch": verifier_request["branch"],
+            "head_sha": verifier_request["head_sha"],
+            "checkout_root": verifier_request["checkout_root"],
+            "request_sha256": _json_sha256(verifier_request),
+            "request": copy.deepcopy(verifier_request),
+        }
+    if node.get("kind") == "lifecycle":
+        entry = run.get("authorizations", {}).get(node.get("ref"))
+        if not isinstance(entry, dict) or entry.get("authorized") is not True:
+            raise ManifestError(
+                f"lifecycle action {node.get('ref')!r} is not currently authorized"
+            )
+        node_dispatch = {
+            "target": node.get("target") or "*",
+            "authorized_head_sha": entry.get("authorized_head_sha"),
+        }
+    state.update(
+        {
+            "phase": "running",
+            "attempts": int(state.get("attempts") or 0) + 1,
+            "last_attempt_id": args.attempt_id,
+            "last_outcome": None,
+            "bound_worker_id": None,
+            "blockers": [],
+        }
+    )
+    attempt = {
+        "attempt_id": args.attempt_id,
+        "node_id": args.node_id,
+        "mission_id": None,
+        "task_id": None,
+        "lease_id": None,
+        "kind": "node_attempt",
+        "result": "reserved",
+        "evidence": list(dict.fromkeys(evidence)),
+    }
+    if node_dispatch is not None:
+        attempt["node_dispatch"] = node_dispatch
+    if verifier_dispatch is not None:
+        attempt["verifier_dispatch"] = verifier_dispatch
+    run.setdefault("attempt_log", []).append(attempt)
+    return {
+        "command": "reserve-node-attempt",
+        "node_id": args.node_id,
+        "attempt_id": args.attempt_id,
+        "kind": node.get("kind"),
+        "executor": node.get("executor"),
+        "phase": "running",
+        "attempts": state["attempts"],
+        "evidence": list(attempt["evidence"]),
+        "directive": copy.deepcopy(directive),
+        **({"verifier_request": copy.deepcopy(verifier_request)} if verifier_request is not None else {}),
+    }
+
+
+def _parse_node_result_args(
+    args: argparse.Namespace,
+) -> tuple[str, str, str | None, list[str], list[str]]:
+    node_id = getattr(args, "node_id", None)
+    attempt_id = getattr(args, "attempt_id", None)
+    outcome = getattr(args, "outcome", None)
+    evidence = getattr(args, "evidence", None) or []
+    blockers = getattr(args, "blocker", None) or []
+    if not isinstance(node_id, str) or not node_id.strip():
+        raise ManifestError("record-node-result requires --node-id")
+    if not isinstance(attempt_id, str) or not attempt_id.strip():
+        raise ManifestError("record-node-result requires --attempt-id")
+    for label, values in (("evidence", evidence), ("blocker", blockers)):
+        if not isinstance(values, list) or any(
+            not isinstance(item, str) or not item.strip() for item in values
+        ):
+            raise ManifestError(f"node result {label} values must be non-empty strings")
+    return (
+        node_id,
+        attempt_id,
+        outcome,
+        list(dict.fromkeys(evidence)),
+        list(dict.fromkeys(blockers)),
+    )
+
+
+def _record_node_result(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> dict[str, Any]:
+    """Terminate a reserved non-runtime node and traverse matching routes."""
+
+    node_id, attempt_id, outcome, evidence, blockers = _parse_node_result_args(args)
+    node = _graph_node(plan, node_id)
+    if node.get("kind") == "mission" or (
+        node.get("kind") == "verifier" and node.get("executor") == "runtime_worker"
+    ):
+        raise ManifestError(
+            "record-node-result is only for approval, external_wait, lifecycle, "
+            "or non-runtime verifier nodes"
+        )
+    if outcome not in node.get("allowed_outcomes", []):
+        raise ManifestError(
+            f"outcome {outcome!r} is not declared by node {node_id!r}"
+        )
+    if not evidence:
+        raise ManifestError("record-node-result requires at least one --evidence value")
+    if outcome in {"blocked", "contract_gap"} and not blockers:
+        raise ManifestError(
+            f"record-node-result outcome {outcome!r} requires at least one --blocker"
+        )
+    state = run.get("graph_state", {}).get("node_states", {}).get(node_id)
+    if not isinstance(state, dict):
+        raise ManifestError(f"no graph state for node {node_id!r}")
+    if (
+        state.get("phase") != "running"
+        or state.get("last_attempt_id") != attempt_id
+    ):
+        raise ManifestError(
+            "record-node-result requires the matching reserved running attempt"
+        )
+    attempt = _node_attempt_log(run, node_id, attempt_id)
+    if attempt is None:
+        raise ManifestError(
+            "record-node-result has no matching reserve-node-attempt receipt"
+        )
+    if attempt.get("result") != "reserved":
+        raise ManifestError(f"node attempt {attempt_id!r} is already terminal")
+
+    if node.get("kind") == "lifecycle":
+        dispatch = attempt.get("node_dispatch")
+        if not isinstance(dispatch, dict):
+            raise ManifestError(
+                "lifecycle result has no durable reservation target; reserve the node again"
+            )
+        expected_target = node.get("target") or "*"
+        if dispatch.get("target") != expected_target:
+            raise ManifestError(
+                "lifecycle reservation target is stale; reserve a fresh node attempt"
+            )
+        action = node.get("ref")
+        reserved_head = dispatch.get("authorized_head_sha")
+        # A successful or retryable lifecycle result still needs the exact
+        # current grant and head. A blocked/contract-gap result is recovery for
+        # an uncertain attempt and must remain recordable after revocation or
+        # head drift so the node does not stay permanently running.
+        if outcome not in {"blocked", "contract_gap"}:
+            current_entry = run.get("authorizations", {}).get(action)
+            if (
+                not isinstance(current_entry, dict)
+                or current_entry.get("authorized") is not True
+            ):
+                raise ManifestError(
+                    "lifecycle authorization is no longer active; reserve a fresh node attempt"
+                )
+            if current_entry.get("authorized_head_sha") != reserved_head:
+                raise ManifestError(
+                    "lifecycle authorized head changed after reservation; reserve a fresh node attempt"
+                )
+            current_head = run.get("integration", {}).get("integration_head_sha")
+            for mission_id in sorted(run.get("mission_states", {})):
+                if not authorization_covers(
+                    run,
+                    action,
+                    mission_id,
+                    expected_target,
+                    required_head_sha=reserved_head,
+                ):
+                    raise ManifestError(
+                        "lifecycle authorization target or head is stale; reserve a fresh node attempt"
+                    )
+            if reserved_head is not None and current_head != reserved_head:
+                raise ManifestError(
+                    "lifecycle integration head changed after reservation; reserve a fresh node attempt"
+                )
+
+    # Local verifier execution files are retained before the gate projection is
+    # written.  The worker-result transition owns the strict execution shape;
+    # import lazily to keep the transition module's existing import graph
+    # acyclic.
+    verifier_paths = [Path(path) for path in (getattr(args, "verifier_result", []) or [])]
+    retained_results: list[dict[str, Any]] = []
+    for path in verifier_paths:
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ManifestError(f"cannot read verifier result: {exc}") from exc
+        if isinstance(value, dict) and set(value) == {"verifier_execution"}:
+            value = value["verifier_execution"]
+        if not isinstance(value, dict):
+            raise ManifestError("each retained verifier result must be an object")
+        retained_results.append(value)
+    from harness_worker_result_transition import record_local_node_verifier
+
+    retained_records: list[dict[str, Any]] = []
+    local_verifier = node.get("kind") == "verifier" and node.get("executor") in {
+        "local_command",
+        "harness_parent",
+    }
+    expected_request: dict[str, Any] | None = None
+    protected_paths_at_execution: dict[str, str | None] | None = None
+    if local_verifier and retained_results:
+        dispatch = attempt.get("verifier_dispatch")
+        if not isinstance(dispatch, dict):
+            raise ManifestError(
+                "local verifier result has no durable reservation binding"
+            )
+        repo_root = getattr(args, "repo_root", None)
+        if repo_root is None:
+            raise ManifestError(
+                "record-node-result with verifier evidence requires --repo-root"
+            )
+        resolved_root = Path(repo_root).resolve()
+        for path in verifier_paths:
+            try:
+                path.resolve().relative_to(resolved_root)
+            except ValueError:
+                continue
+            raise ManifestError(
+                "local verifier result files must live outside the reviewed checkout"
+            )
+        expected_request = _local_verifier_request(
+            plan,
+            run,
+            node,
+            attempt_id=attempt_id,
+            repo_root=resolved_root,
+            run_path=getattr(args, "run", None),
+        )
+        if (
+            dispatch.get("branch") != expected_request["branch"]
+            or dispatch.get("head_sha") != expected_request["head_sha"]
+            or not _same_path(
+                dispatch.get("checkout_root", ""),
+                expected_request["checkout_root"],
+            )
+            or dispatch.get("request_sha256") != _json_sha256(expected_request)
+            or dispatch.get("request") != expected_request
+        ):
+            raise ManifestError(
+                "local verifier reservation no longer matches the current exact request"
+            )
+        if retained_results[0].get("context") != expected_request["context"]:
+            raise ManifestError(
+                "retained verifier context does not match the current exact checkout request"
+            )
+        if retained_results[0].get("reservation") != expected_request["reservation"]:
+            raise ManifestError(
+                "retained verifier reservation does not match the active node attempt"
+            )
+        retained_attestation = retained_results[0].get("dispatch_attestation")
+        protected_paths_at_execution = (
+            retained_attestation.get("protected_path_sha256")
+            if isinstance(retained_attestation, dict)
+            else None
+        )
+        expected_attestation = {
+            "request_sha256": dispatch["request_sha256"],
+            "checkout_root": expected_request["checkout_root"],
+            "git_guard": expected_request["git_guard"],
+            "protected_path_sha256": protected_paths_at_execution,
+        }
+        if retained_attestation != expected_attestation:
+            raise ManifestError(
+                "retained verifier dispatch attestation does not match the reserved checkout and request"
+            )
+        from verifier_runtime import protected_path_sha256
+
+        current_protected_paths = protected_path_sha256(
+            resolved_root,
+            expected_request["git_guard"]["ignored_paths"],
+        )
+        if current_protected_paths != protected_paths_at_execution:
+            raise ManifestError(
+                "protected coordination files changed during or after verifier execution"
+            )
+    elif local_verifier and not isinstance(attempt.get("verifier_dispatch"), dict):
+        raise ManifestError(
+            "local verifier result has no durable reservation binding"
+        )
+    if local_verifier:
+        retained_records = record_local_node_verifier(
+            plan,
+            run,
+            node,
+            attempt_id=attempt_id,
+            outcome=outcome,
+            retained_results=retained_results,
+        )
+    elif retained_results:
+        raise ManifestError(
+            "verifier execution evidence is only valid for local verifier nodes"
+        )
+    if expected_request is not None:
+        # Recheck after parsing and retaining the result so a non-cooperating
+        # checkout mutation during this short transaction cannot certify stale
+        # bytes under the reserved head.
+        _local_verifier_request(
+            plan,
+            run,
+            node,
+            attempt_id=attempt_id,
+            repo_root=Path(args.repo_root),
+            run_path=getattr(args, "run", None),
+        )
+        from verifier_runtime import protected_path_sha256
+
+        if protected_path_sha256(
+            Path(args.repo_root),
+            expected_request["git_guard"]["ignored_paths"],
+        ) != protected_paths_at_execution:
+            raise ManifestError(
+                "protected coordination files changed before recording verifier result"
+            )
+
+    phase = "succeeded" if outcome == "pass" else (
+        "blocked" if outcome in {"blocked", "contract_gap"} else "failed"
+    )
+    state.update(
+        {
+            "phase": phase,
+            "last_outcome": outcome,
+            "bound_worker_id": None,
+            "blockers": blockers if phase == "blocked" else [],
+        }
+    )
+    attempt["result"] = outcome
+    attempt["evidence"] = list(dict.fromkeys([*attempt.get("evidence", []), *evidence]))
+    attempt["evidence"] = list(
+        dict.fromkeys(
+            [
+                *attempt["evidence"],
+                *[
+                    item.get("evidence_key")
+                    for item in retained_records
+                    if isinstance(item.get("evidence_key"), str)
+                ],
+            ]
+        )
+    )
+    if blockers:
+        attempt["evidence"] = list(dict.fromkeys([*attempt["evidence"], *blockers]))
+
+    edge_receipts: list[str] = []
+    for edge in plan.get("graph", {}).get("edges", []):
+        if (
+            not isinstance(edge, dict)
+            or edge.get("from") != node_id
+            or edge.get("kind") != "route"
+            or outcome not in edge.get("on_outcomes", [])
+        ):
+            continue
+        edge_state = run["graph_state"]["edge_states"][edge["id"]]
+        traversals = int(edge_state.get("traversals") or 0)
+        bound = edge.get("max_traversals")
+        if isinstance(bound, int) and traversals >= bound:
+            edge_state["status"] = "exhausted"
+        else:
+            edge_state["status"] = "traversed"
+            edge_state["traversals"] = traversals + 1
+        edge_state["source_attempt_id"] = attempt_id
+        edge_receipts.append(edge["id"])
+
+    # A retry is a fresh reservation.  Clear the prior blocker only after a
+    # terminal outcome has been durably recorded; selector re-arm is guarded by
+    # the matching traversed route and remaining node budget.
+    return {
+        "command": "record-node-result",
+        "node_id": node_id,
+        "attempt_id": attempt_id,
+        "outcome": outcome,
+        "phase": phase,
+        "evidence": list(attempt["evidence"]),
+        "blockers": list(blockers),
+        "traversed_edges": edge_receipts,
+    }
+
+
 def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
     wave = run.get("active_wave")
     if not isinstance(wave, dict) or wave.get("status") != "active":
@@ -778,7 +1592,17 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
     if args.mission_id not in wave.get("selected_missions", []):
         raise ManifestError("lease-worker mission is not in the active wave")
     report_path = getattr(args, "report_path", None)
-    if args.completion_channel == "report_file" and not (
+    runtime_axes = run.get("runtime_capabilities", {})
+    worker_runtime = getattr(args, "worker_runtime", None) or runtime_axes.get(
+        "worker_runtime"
+    )
+    workspace_mode = getattr(args, "workspace_mode", None) or runtime_axes.get(
+        "workspace_mode"
+    )
+    completion_channel = getattr(args, "completion_channel", None) or runtime_axes.get(
+        "completion_channel"
+    )
+    if completion_channel == "report_file" and not (
         isinstance(report_path, str) and report_path.strip()
     ):
         raise ManifestError("lease-worker with report_file requires --report-path")
@@ -816,6 +1640,77 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         raise ManifestError(
             f"node {args.node_id!r} is not mission {args.mission_id!r}'s node "
             f"{mission_node_ids[0]!r}"
+        )
+    mission_node = next(
+        node
+        for node in plan.get("graph", {}).get("nodes", [])
+        if isinstance(node, dict) and node.get("id") == args.node_id
+    )
+    # The selector is the sole source of runtime/provider/driver decisions.
+    # Keep optional CLI identity fields as assertions for older launchers, but
+    # derive the binding and execution axes from the current PLAN/RUN pair.
+    expected_binding = _runtime_binding(
+        mission_node, run.get("runtime_capabilities", {})
+    )
+    if expected_binding is None:
+        raise ManifestError(
+            f"mission {args.mission_id!r} has no runtime binding on the observed host"
+        )
+    # A fallback adapter is the historical RUN-v11 seed.  Older callers may
+    # still provide an explicit launch route before the parent records a fresh
+    # host probe; preserve that compatibility while making observed/explicit
+    # bindings strict selector assertions.
+    adapter = runtime_axes.get("runtime_adapter")
+    enforce_selector_binding = not (
+        isinstance(adapter, dict) and adapter.get("detection_source") == "fallback"
+    )
+    for key in ("provider", "driver"):
+        supplied = getattr(args, key, None)
+        if enforce_selector_binding and supplied is not None and supplied != expected_binding[key]:
+            raise ManifestError(
+                f"lease-worker {key} {supplied!r} does not match selector binding "
+                f"{expected_binding[key]!r}"
+            )
+    for key in ("model", "reasoning_effort"):
+        supplied = getattr(args, key, None)
+        if enforce_selector_binding and supplied is not None and supplied != expected_binding[key]:
+            raise ManifestError(
+                f"lease-worker {key} {supplied!r} does not match selector binding "
+                f"{expected_binding[key]!r}"
+            )
+    for key in ("worker_runtime", "workspace_mode", "completion_channel"):
+        expected = runtime_axes.get(key)
+        supplied = getattr(args, key, None)
+        if enforce_selector_binding and supplied is not None and expected is not None and supplied != expected:
+            raise ManifestError(
+                f"lease-worker {key} {supplied!r} does not match selector axis "
+                f"{expected!r}"
+            )
+    task_thread_id = getattr(args, "task_thread_id", None)
+    if worker_runtime == "app_task":
+        if not isinstance(task_thread_id, str) or not task_thread_id.strip():
+            raise ManifestError(
+                "lease-worker app_task requires --task-thread-id"
+            )
+        if any(
+            isinstance(worker, dict)
+            and worker.get("task_thread_id") == task_thread_id
+            for worker in run.get("workers", [])
+        ):
+            raise ManifestError(
+                f"task thread id {task_thread_id!r} is already bound to another worker"
+            )
+    elif task_thread_id is not None:
+        raise ManifestError(
+            "--task-thread-id is only valid for an app_task worker"
+        )
+    if workspace_mode == "app_managed_worktree" and worker_runtime != "app_task":
+        raise ManifestError(
+            "app_managed_worktree requires an app_task worker"
+        )
+    if worker_runtime == "app_task" and workspace_mode != "app_managed_worktree":
+        raise ManifestError(
+            "app_task workers require an app_managed_worktree"
         )
     node_states = run.get("graph_state", {}).get("node_states", {})
     node_state = node_states.get(args.node_id)
@@ -935,6 +1830,41 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
         ),
         None,
     )
+    # Materialize concrete authorization receipts only after every lease guard
+    # has passed. A rejected phase, dependency, or conflict must not touch even
+    # this in-memory copy of the authorization ledger.
+    if run.get("schema_version") == 11:
+        if worker_runtime == "subagent":
+            _materialize_authorized_target(
+                run, "spawn_subagents", args.mission_id, f"worker:{args.worker_id}"
+            )
+        elif worker_runtime == "app_task":
+            _materialize_authorized_target(
+                run,
+                "create_user_owned_tasks",
+                args.mission_id,
+                f"task:{task_thread_id}",
+            )
+        if workspace_mode == "parent_managed_worktree":
+            worktree_action = "create_local_worktrees"
+        elif workspace_mode == "app_managed_worktree":
+            worktree_action = "create_app_managed_worktrees"
+        else:
+            worktree_action = None
+        if worktree_action is not None:
+            _materialize_authorized_target(
+                run,
+                worktree_action,
+                args.mission_id,
+                f"worktree:{args.worktree_path}",
+            )
+            for action in ("create_local_branches", "create_local_commits"):
+                _materialize_authorized_target(
+                    run,
+                    action,
+                    args.mission_id,
+                    f"branch:{args.branch_ref}",
+                )
     node_state.update(
         {
             "phase": "running",
@@ -971,18 +1901,11 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "plan_revision": plan.get("revision"),
             "plan_digest_sha256": digest,
             "batch_base_sha": base_sha,
-            "worker_runtime": args.worker_runtime,
-            "workspace_mode": args.workspace_mode,
-            "completion_channel": args.completion_channel,
-            "runtime_binding": {
-                "provider": args.provider,
-                "driver": args.driver,
-                "source": "host",
-                "model": None,
-                "reasoning_effort": None,
-                "option_source": "provider_default",
-            },
-            "task_thread_id": None,
+            "worker_runtime": worker_runtime,
+            "workspace_mode": workspace_mode,
+            "completion_channel": completion_channel,
+            "runtime_binding": copy.deepcopy(expected_binding),
+            "task_thread_id": task_thread_id,
             "worktree_path": args.worktree_path,
             "branch_ref": args.branch_ref,
             "report_path": report_path,
@@ -1183,6 +2106,25 @@ def _replace_run_document(
             os.unlink(temp_name)
         except OSError:
             pass
+        raise
+
+
+def _write_text_exclusive(path: Path, text: str) -> None:
+    """Create one derived output without overwriting a raced user file."""
+
+    created = False
+    try:
+        with path.open("x", encoding="utf-8", newline="\n") as handle:
+            created = True
+            handle.write(text)
+    except FileExistsError as exc:
+        raise ManifestError(f"refusing to overwrite {path}") from exc
+    except OSError:
+        if created:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
         raise
 
 
@@ -1412,6 +2354,7 @@ def _reconcile_interrupted_reviews(
                 "result": "blocked",
                 "evidence": [
                     args.reason,
+                    INTERRUPTED_REVIEW_RECEIPT,
                     "partial review output was not accepted; local evidence was preserved",
                 ],
                 "review_lineage_id": lineage_id,
@@ -1568,6 +2511,14 @@ def _reserve_review_dispatch(
             f"review node {args.node_id!r} is not dispatchable: {', '.join(reasons)}"
         )
     node = _review_node(plan, args.node_id)
+    _validate_security_integration_checkout(
+        plan,
+        run,
+        node,
+        repo_root,
+        operation="reserve",
+        run_path=getattr(args, "run", None),
+    )
     if directive.get("launch_kind") == "run_parent":
         raise ManifestError("a managed review requires a fresh independent reviewer")
     if any(
@@ -1581,6 +2532,9 @@ def _reserve_review_dispatch(
     ):
         raise ManifestError(f"duplicate attempt ID {args.attempt_id!r}")
     reviewed_sha, review_path = _review_target(plan, run, node, repo_root)
+    review_base_sha = run.get("integration", {}).get("batch_base_sha")
+    if node["review"].get("type") == "security" and not is_full_sha(review_base_sha):
+        raise ManifestError("security review dispatch requires a full batch_base_sha")
     report_path = args.report_path
     if directive["completion_channel"] == "report_file" and not report_path:
         raise ManifestError("--report-path is required for a report_file review")
@@ -1592,6 +2546,7 @@ def _reserve_review_dispatch(
         "plan_digest_sha256": plan_digest(plan),
         "graph_revision": run["graph_state"]["graph_revision"],
         "reviewed_sha": reviewed_sha,
+        "base_sha": review_base_sha,
         "review_path": review_path,
         "worker_runtime": directive["worker_runtime"],
         "completion_channel": directive["completion_channel"],
@@ -1622,6 +2577,7 @@ def _reserve_review_dispatch(
             "worker_id": args.worker_id,
             "attempt_id": args.attempt_id,
             "reviewed_sha": reviewed_sha,
+            "base_sha": review_base_sha,
             "review_path": review_path,
             "launch_kind": directive["launch_kind"],
             "required_actions": directive["required_actions"],
@@ -1661,6 +2617,14 @@ def _record_review_attempt(
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
+    _validate_security_integration_checkout(
+        plan,
+        run,
+        node,
+        getattr(args, "repo_root", None),
+        operation="record",
+        run_path=getattr(args, "run", None),
+    )
     if args.result not in node.get("allowed_outcomes", []):
         raise ManifestError("review result is not declared by its reserved PLAN node")
     state = run.get("graph_state", {}).get("node_states", {}).get(node["id"])
@@ -1670,7 +2634,52 @@ def _record_review_attempt(
         or state.get("bound_worker_id") != args.worker_id
     ):
         raise ManifestError("review result does not match the current reserved graph attempt")
-    findings = args.finding or []
+    is_security_review = node["review"].get("type") == "security"
+    security_result_path = getattr(args, "security_result", None)
+    security_result: dict[str, Any] | None = None
+    if is_security_review:
+        if security_result_path is None:
+            raise ManifestError(
+                "security review completion requires --security-result"
+            )
+        current_head = run.get("integration", {}).get("integration_head_sha")
+        if worker.get("reviewed_sha") != current_head:
+            raise ManifestError(
+                "security review result is stale; reserved SHA is not the current integration head"
+            )
+        if worker.get("base_sha") != run.get("integration", {}).get("batch_base_sha"):
+            raise ManifestError(
+                "security review result is stale; reserved base is not the current batch base"
+            )
+        try:
+            security_result = load_security_review_result(security_result_path)
+        except SecurityReviewResultError as exc:
+            raise ManifestError(str(exc)) from exc
+        security_errors = validate_security_review_result(
+            security_result,
+            expected_decision=args.result,
+            expected_reviewed_sha=worker.get("reviewed_sha"),
+            expected_base_sha=worker.get("base_sha"),
+            expected_scope=node["review"].get("scope", []),
+            required_tools=node["review"].get("required_tools", []),
+            allowed_decisions=node.get("allowed_outcomes", []),
+        )
+        if security_errors:
+            raise ManifestError(
+                "invalid security review result:\n"
+                + "\n".join(f"- {item}" for item in security_errors)
+            )
+        if args.finding:
+            raise ManifestError(
+                "security review findings come from --security-result, not --finding"
+            )
+        findings = security_result_finding_summaries(security_result)
+    else:
+        if security_result_path is not None:
+            raise ManifestError(
+                "--security-result applies only to a security review node"
+            )
+        findings = args.finding or []
     if args.result == "pass" and findings:
         raise ManifestError("a PASS review cannot contain findings")
     if args.result != "pass" and not findings:
@@ -1711,6 +2720,11 @@ def _record_review_attempt(
     mission_id = mission_ids[0] if len(mission_ids) == 1 else None
     if args.mission_id is not None and args.mission_id not in mission_ids:
         raise ManifestError("--mission-id is not covered by the reserved review node")
+    attempt_evidence = list(args.evidence)
+    if security_result is not None:
+        attempt_evidence.append(
+            "security_result_sha256:" + _json_sha256(security_result)
+        )
     run["attempt_log"].append(
         {
             "attempt_id": args.attempt_id,
@@ -1719,7 +2733,7 @@ def _record_review_attempt(
             "lease_id": None,
             "kind": "review",
             "result": args.result,
-            "evidence": args.evidence,
+            "evidence": attempt_evidence,
             "review_lineage_id": args.lineage,
             "failure_family_ids": family_ids,
         }
@@ -1735,6 +2749,8 @@ def _record_review_attempt(
             "findings": findings,
         }
     )
+    if security_result is not None:
+        worker["security_result"] = security_result
     if args.result == "pass":
         tree_sha = getattr(args, "tree_sha", None)
         if tree_sha is None and getattr(args, "repo_root", None) is not None:
@@ -1778,6 +2794,10 @@ def _skip_integration_review(
     node = _review_node(plan, args.node_id)
     if node["review"].get("stage", "preintegration") != "integration":
         raise ManifestError("skip-integration-review applies only to integration-stage review nodes")
+    if node["review"].get("type") == "security":
+        raise ManifestError(
+            "security integration review must run fresh on the unified candidate"
+        )
     state = run["graph_state"]["node_states"].get(args.node_id)
     if not isinstance(state, dict):
         raise ManifestError(f"no graph state for node {args.node_id!r}")
@@ -1881,6 +2901,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--result", required=True)
     review.add_argument("--evidence", action="append", required=True)
     review.add_argument("--finding", action="append")
+    review.add_argument("--security-result", type=Path)
     review.add_argument("--failure-family-id")
     review.add_argument("--failure-primitive")
     review.add_argument("--equivalence-class", action="append")
@@ -1907,12 +2928,33 @@ def build_parser() -> argparse.ArgumentParser:
     lease.add_argument("--attempt-id", required=True)
     lease.add_argument("--branch-ref", required=True)
     lease.add_argument("--worktree-path", required=True)
-    lease.add_argument("--provider", required=True)
-    lease.add_argument("--driver", required=True)
-    lease.add_argument("--worker-runtime", default="subagent")
-    lease.add_argument("--workspace-mode", default="parent_managed_worktree")
-    lease.add_argument("--completion-channel", default="agent_result")
+    lease.add_argument("--provider")
+    lease.add_argument("--driver")
+    lease.add_argument("--model")
+    lease.add_argument("--reasoning-effort")
+    lease.add_argument("--worker-runtime")
+    lease.add_argument("--workspace-mode")
+    lease.add_argument("--completion-channel")
+    lease.add_argument("--task-thread-id")
     lease.add_argument("--report-path")
+    reserve_node = subparsers.add_parser("reserve-node-attempt")
+    reserve_node.add_argument("--node-id", required=True)
+    reserve_node.add_argument("--attempt-id", required=True)
+    reserve_node.add_argument("--evidence", action="append", default=[])
+    reserve_node.add_argument(
+        "--request-out",
+        type=Path,
+        help="write the exact local-verifier request after RUN is updated",
+    )
+    record_node = subparsers.add_parser("record-node-result")
+    record_node.add_argument("--node-id", required=True)
+    record_node.add_argument("--attempt-id", required=True)
+    record_node.add_argument("--outcome", required=True, choices=(
+        "pass", "fix_required", "retryable_failure", "blocked", "contract_gap"
+    ))
+    record_node.add_argument("--evidence", action="append", default=[])
+    record_node.add_argument("--blocker", action="append", default=[])
+    record_node.add_argument("--verifier-result", action="append", type=Path, default=[])
     worker_result = subparsers.add_parser("record-worker-result")
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
@@ -1997,6 +3039,10 @@ def _transition_under_lock(
         _accept_wave(plan, run, args)
     elif args.command == "close-wave":
         _close_wave(run, args)
+    elif args.command == "reserve-node-attempt":
+        receipt = _reserve_node_attempt(plan, run, args)
+    elif args.command == "record-node-result":
+        receipt = _record_node_result(plan, run, args)
     elif args.command == "lease-worker":
         _lease_worker(plan, run, args)
     elif args.command == "record-worker-result":
@@ -2037,6 +3083,32 @@ def _transition_under_lock(
             raise ManifestError(f"refusing to overwrite {args.packet_out}")
         packet = render_packet(plan, run, args.node_id, args.repo_root)
 
+    verifier_request = None
+    request_out = getattr(args, "request_out", None)
+    if request_out is not None:
+        if not isinstance(receipt, dict) or not isinstance(
+            receipt.get("verifier_request"), dict
+        ):
+            raise ManifestError(
+                "--request-out is only valid when reserving a local verifier node"
+            )
+        repo_root = getattr(args, "repo_root", None)
+        if repo_root is not None:
+            try:
+                request_out.resolve().relative_to(Path(repo_root).resolve())
+            except ValueError:
+                pass
+            else:
+                raise ManifestError(
+                    "local verifier request files must live outside the reviewed checkout"
+                )
+        verifier_request = json.dumps(
+            receipt["verifier_request"],
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        ) + "\n"
+
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
@@ -2044,6 +3116,14 @@ def _transition_under_lock(
     _replace_run_document(args.run, run, expected_text=original_text)
     if packet is not None:
         args.packet_out.write_text(packet, encoding="utf-8", newline="\n")
+    if verifier_request is not None:
+        try:
+            _write_text_exclusive(request_out, verifier_request)
+        except (ManifestError, OSError) as exc:
+            raise ManifestError(
+                f"{exc}; the RUN reservation is durable and its exact request remains "
+                "under attempt_log[].verifier_dispatch.request"
+            ) from exc
     return receipt, report, True
 
 

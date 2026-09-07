@@ -14,8 +14,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
+import stat
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +55,10 @@ DS_TOKEN_RE = re.compile(
 DS_LIKE_TOKEN_RE = re.compile(
     r"(?<![A-Za-z0-9_-])DS-[A-Za-z0-9_-]+(?![A-Za-z0-9_-])"
 )
+
+
+class ConcurrentModificationError(RuntimeError):
+    """Raised when the destination changed after it was read for a write."""
 
 
 def is_placeholder(value: str) -> bool:
@@ -141,6 +148,47 @@ def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> 
         + block
         + newline
     )
+
+
+def _write_bytes_atomic(path: Path, payload: bytes, expected_bytes: bytes) -> None:
+    """Replace ``path`` with ``payload`` without exposing a partial file."""
+    original_stat = path.lstat()
+    if stat.S_ISLNK(original_stat.st_mode):
+        raise ConcurrentModificationError(
+            f"{path} must not be a symbolic link for --write"
+        )
+    mode = stat.S_IMODE(original_stat.st_mode)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary_path, mode)
+        current_stat = path.lstat()
+        if (
+            stat.S_ISLNK(current_stat.st_mode)
+            or not os.path.samestat(original_stat, current_stat)
+            or path.read_bytes() != expected_bytes
+        ):
+            raise ConcurrentModificationError(
+                f"{path} changed while preparing the generated contract"
+            )
+        os.replace(temporary_path, path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 def _string_list(problems: list[str], path: str, value: Any, *, nonempty: bool) -> None:
@@ -461,15 +509,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{args.registry} must contain a JSON object", file=sys.stderr)
         return 2
 
-    markdown_text = args.markdown.read_bytes().decode("utf-8")
+    original_markdown_bytes = args.markdown.read_bytes()
+    original_markdown_text = original_markdown_bytes.decode("utf-8")
+    markdown_text = original_markdown_text
+    updated_markdown = markdown_text
     if args.write:
         try:
             updated_markdown = replace_generated_contract(markdown_text, registry)
         except ValueError as error:
             print(error, file=sys.stderr)
             return 2
-        if updated_markdown != markdown_text:
-            args.markdown.write_bytes(updated_markdown.encode("utf-8"))
         markdown_text = updated_markdown
 
     problems = compare(
@@ -482,6 +531,21 @@ def main(argv: list[str] | None = None) -> int:
     if problems:
         print(f"{len(problems)} pairing problem(s) between {args.markdown} and {args.registry}")
         return 1
+
+    if args.write and updated_markdown != original_markdown_text:
+        try:
+            _write_bytes_atomic(
+                args.markdown,
+                updated_markdown.encode("utf-8"),
+                original_markdown_bytes,
+            )
+        except ConcurrentModificationError as error:
+            print(f"cannot write {args.markdown}: {error}", file=sys.stderr)
+            return 2
+        except OSError as error:
+            print(f"cannot write {args.markdown}: {error}", file=sys.stderr)
+            return 2
+
     print(f"PASS generated design-system contract agrees with {args.registry}")
     return 0
 

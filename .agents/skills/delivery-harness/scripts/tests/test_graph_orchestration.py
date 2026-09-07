@@ -16,6 +16,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from harness_core import mission_dependencies, resolve_runtime_options  # noqa: E402
 from harness_graph import _validate_graph  # noqa: E402
 from harness_manifest import (  # noqa: E402
+    INTERRUPTED_REVIEW_RECEIPT,
     plan_digest,
     topological_levels,
     validate_plan,
@@ -23,6 +24,7 @@ from harness_manifest import (  # noqa: E402
 )
 from select_ready_nodes import (  # noqa: E402
     _runtime_binding,
+    _tool_profile,
     select_ready_nodes,
 )
 from test_harness_manifest import (  # noqa: E402
@@ -33,8 +35,10 @@ from test_harness_manifest import (  # noqa: E402
     legacy_graph_plan,
     legacy_graph_run,
     mark_legacy_complete,
+    mark_complete,
     retained_gate_execution,
     valid_plan,
+    valid_closeout_run,
     valid_run,
 )
 from validate_node_result import validate_node_result  # noqa: E402
@@ -458,7 +462,79 @@ def authorize_recorded_worker(
         )
 
 
+def add_security_review(
+    plan: dict[str, object],
+    *,
+    stage: str = "integration",
+    mission_ids: list[str] | None = None,
+) -> dict[str, object]:
+    """Attach one unified security review before the existing final node."""
+    node = graph_node(
+        "N-SECURITY-REVIEW",
+        "verifier",
+        "final",
+        "runtime_worker",
+        ["pass", "retryable_failure", "blocked", "contract_gap"],
+        providers=["codex", "claude_code", "pi", "generic"],
+    )
+    node["review"] = {
+        "stage": stage,
+        "type": "security",
+        "lineage_id": "REVIEW-SECURITY",
+        "mission_ids": mission_ids
+        if mission_ids is not None
+        else [mission["id"] for mission in plan["missions"]],
+        "scope": ["src/**"],
+        "required_evidence": [
+            "reviewed_sha",
+            "source-to-sink findings",
+            "pass or blocked decision",
+        ],
+    }
+    plan["graph"]["nodes"].append(node)
+    for edge in plan["graph"]["edges"]:
+        if edge.get("to") == "N-FINAL":
+            edge["to"] = "N-SECURITY-REVIEW"
+    plan["graph"]["edges"].append(
+        {
+            "id": "E-SECURITY-FINAL",
+            "kind": "route",
+            "from": "N-SECURITY-REVIEW",
+            "to": "N-FINAL",
+            "on_outcomes": ["pass"],
+            "max_traversals": None,
+        }
+    )
+    plan["required_reviews"].append("security")
+    return node
+
+
 class GraphManifestTests(unittest.TestCase):
+    def test_explicit_security_policy_requires_a_matching_review(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any("must include security" in error for error in errors),
+            errors,
+        )
+
+    def test_non_code_plan_records_security_not_applicable_with_reason(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "not_applicable",
+            "skill_slot": "code_security_verification",
+            "reason": "documentation-only delivery with no executable surface",
+        }
+
+        self.assertEqual([], validate_plan(plan))
+
     def test_review_stage_accepts_only_preintegration_or_integration(self) -> None:
         plan = valid_plan()
         review = next(
@@ -484,6 +560,234 @@ class GraphManifestTests(unittest.TestCase):
         self.assertTrue(
             any("runtime review allows at most 2 attempts" in error for error in errors),
             errors,
+        )
+
+    def test_security_review_is_a_unified_integration_stage_code_review(self) -> None:
+        plan = valid_plan()
+        node = add_security_review(plan)
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual("code_review_readonly", _tool_profile(node))
+
+    def test_security_review_rejects_preintegration_stage(self) -> None:
+        plan = valid_plan()
+        add_security_review(plan, stage="preintegration")
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "security review must use the integration stage" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_security_review_must_cover_every_mission(self) -> None:
+        plan = valid_plan()
+        add_security_review(plan, mission_ids=["M1"])
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "security review must cover every PLAN mission" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_security_review_scope_must_contain_every_mission_write_scope(self) -> None:
+        plan = valid_plan()
+        node = add_security_review(plan)
+        node["review"]["scope"] = ["README.md"]
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "security review scope must contain every covered mission write scope"
+                in error
+                and "M1:src/a/**" in error
+                and "M2:src/ab/**" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_required_security_review_cannot_be_superseded(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        node = add_security_review(plan)
+        run = valid_run(plan)
+        run["graph_state"]["node_states"][node["id"]].update(
+            {
+                "phase": "superseded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-SECURITY-SUPERSEDED",
+                "last_outcome": "pass",
+            }
+        )
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "required security integration review cannot be skipped or superseded"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_required_security_closeout_needs_current_structured_pass(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        add_security_review(plan)
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "required security integration review needs a current worker_passed PASS result"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_required_security_closeout_reports_malformed_review_workers(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        add_security_review(plan)
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        run["review_workers"] = None
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(any("run.review_workers: must be a list" in error for error in errors))
+        self.assertTrue(
+            any(
+                "required security integration review needs its current reviewer worker"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_interrupted_security_history_allows_a_later_exact_pass(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        node = add_security_review(plan)
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        head = run["integration"]["integration_head_sha"]
+        base = run["integration"]["batch_base_sha"]
+        current = next(
+            worker
+            for worker in run["review_workers"]
+            if worker["node_id"] == node["id"]
+        )
+        current.update(
+            {
+                "reviewed_sha": head,
+                "base_sha": base,
+                "review_path": "C:/repo",
+                "worker_runtime": "subagent",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "subagents",
+                    "source": "host",
+                    "model": None,
+                    "reasoning_effort": None,
+                    "option_source": "provider_default",
+                },
+                "security_result": {
+                    "review_type": "security",
+                    "decision": "pass",
+                    "reviewed_sha": head,
+                    "base_sha": base,
+                    "scope": node["review"]["scope"],
+                    "exclusions": [],
+                    "trust_boundaries": ["request to privileged delivery state"],
+                    "tools": [
+                        {
+                            "name": "manual source review",
+                            "status": "passed",
+                            "evidence": "reviewed source-to-sink paths",
+                        }
+                    ],
+                    "coverage": {
+                        "status": "complete",
+                        "reviewed": ["full declared scope"],
+                        "gaps": [],
+                    },
+                    "findings": [],
+                    "evidence": [f"reviewed exact SHA {head}"],
+                },
+            }
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        interrupted = copy.deepcopy(current)
+        interrupted.update(
+            {
+                "worker_id": "RW-SECURITY-INTERRUPTED",
+                "attempt_id": "ATT-SECURITY-INTERRUPTED",
+                "phase": "blocked",
+                "outcome": "blocked",
+                "findings": ["review process stopped before returning a result"],
+            }
+        )
+        interrupted.pop("security_result")
+        run["review_workers"].append(interrupted)
+        run["attempt_log"].append(
+            {
+                "attempt_id": interrupted["attempt_id"],
+                "mission_id": None,
+                "task_id": None,
+                "lease_id": None,
+                "kind": "review",
+                "result": "blocked",
+                "evidence": [
+                    "review process stopped before returning a result",
+                    INTERRUPTED_REVIEW_RECEIPT,
+                ],
+                "review_lineage_id": node["review"]["lineage_id"],
+                "failure_family_ids": [],
+            }
+        )
+        run["review_lineages"][node["review"]["lineage_id"]][
+            "consumed_attempts"
+        ] = 1
+
+        self.assertEqual([], validate_run(plan, run))
+        current.pop("security_result")
+        self.assertTrue(
+            any(
+                "required security integration review needs a current worker_passed PASS result"
+                in error
+                for error in validate_run(plan, run)
+            )
         )
 
 

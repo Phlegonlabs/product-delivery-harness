@@ -37,6 +37,13 @@ Worker mission gate:
 - Runs only applicable focused worker verifiers when changed-file selection is declared. Worker-reported paths never control applicability; the parent recomputes it from the observed diff.
 - Produces a worker result candidate; it does not satisfy downstream dependencies by itself.
 
+Non-runtime node gate:
+
+- Applies to `approval`, `external_wait`, `lifecycle`, and deterministic (`local_command` or `harness_parent`) verifier nodes.
+- The parent first reserves the selected attempt with `reserve-node-attempt`, then performs the check, waits for the external state, or runs the lifecycle side effect outside the RUN lock.
+- `record-node-result` closes only the matching reserved attempt, requires evidence, traverses declared route edges, and derives the graph phase from the outcome (`pass` → `succeeded`; `blocked`/`contract_gap` → `blocked`; `fix_required`/`retryable_failure` → `failed`). A lifecycle result is an evidence receipt; the transition never runs the action itself.
+- If the non-runtime executor is interrupted, record `blocked` and the blocker through `record-node-result`; preserve the attempt evidence and use a fresh attempt for any retry.
+
 Worktree pre-integration review gate:
 
 - Runs after worker checks and before the parent merges that mission head.
@@ -106,7 +113,7 @@ Use or adapt this matrix:
 | Accessibility | interactive UI changed | no serious blockers or named residuals | checker output |
 | Visual design | UI source exists | matches the PRD UI surface contract, approved wireframe, and active visual source (required design-system pair or approved page-faithful target) within stated tolerance | screenshots or human approval |
 | Page-to-PRD conformance | a route has a `PRD.md` `UI-*` entry and matching approved wireframe | the built route matches PRD behavior and wireframe region order, grouping, element inventory, states, responsive rearrangement, actions, and exact wording or display contract, judged at every required viewport or size class; no unintended overlap, clipping, occlusion, or horizontal overflow; state the tolerance and what is allowed to differ (real data, live copy, platform chrome) | screenshots + browser geometry/reviewer note |
-| UI contract check | `design-system.json` exists and the Design System Need Gate is `required` | `scripts/check_ui_contract.py` reports no violation against the product's real source; a run that analyzed zero files is not a pass, and a `--rule`-filtered run is not a contract-clean signal | checker output |
+| UI contract check | `design-system.json` exists and the Design System Need Gate is `required` | `scripts/check_ui_contract.py --repo-root <root>` (default: current working directory) reports no violation against the product's real source; token and primitive source declarations resolve by exact normalized repo-relative identity, not filename suffix; a run that analyzed zero files is not a pass, and a `--rule`-filtered run is not a contract-clean signal | checker output |
 | Design-system pair check | `design-system.md` and `design-system.json` both exist | `python .agents/skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <design-system.md> --registry <design-system.json> --require-filled` exits 0 against the frozen pair, run from the repository root and never with `--write`; a failure is a stop condition per `contract-and-traceability.md`, not a fix-it-inline finding | checker output |
 | Content contract conformance | a product component renders contract-governed content | every field in `design-system.json`'s `requiredContentOrder` renders, in that order — those fields never drop; limits, formats, empty and long-content rules respected | screenshot or content review |
 | State matrix coverage | a UI route changed | every state in the required pair's `stateMatrix`, or in the PRD UI surface and approved target scope when the pair is `not_required`, is captured or listed as `<state>:n/a` with a reason at every required viewport or size class | `ui_evidence` rows |
@@ -128,6 +135,8 @@ The parent supplies normalized, repository-relative observed paths to `select_ve
 Pillow is imported lazily by the UI-evidence path. When it is unavailable, return a targeted UI-evidence decoding error without preventing non-UI CLIs from starting. RUN-v11 screenshot checks decode the artifact from the accepted Git `head_sha`, not from a mutable working-tree copy.
 
 Every applicable declared verifier runs through `verifier_runtime.py`'s `run_verifier()`, cache configured or not; its returned `execution_key` is the worker result's reported `evidence`. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
+
+A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution. The exact tracked RUN excluded from dirty status is not excluded from integrity checks: its bytes and file identity are snapshotted across execution, its starting SHA-256 is attested, and `record-node-result` rehashes it before accepting evidence. A different checkout, replayed nonce, retargeted request, checkout drift, protected coordination-file change, or request/result artifact inside the reviewed checkout is rejected.
 
 A local verifier may declare:
 
@@ -284,6 +293,20 @@ If candidate validation fails after its current node binding is accepted, `recor
 
 Dependency readiness is strict: only a dependency in phase `integrated`, with `integration_gate: PASS` and a recorded integrated SHA reachable from the current integration head, is satisfied. `worker_passed`, a green branch, or a finished thread is insufficient.
 
+## Unified Code-Security Review
+
+Every new managed PLAN records `security_review.status` as `required` or `not_applicable`; the latter needs a concrete non-code reason. Harness 0.28.0 and later refuse to generate or validate a new-version RUN when that policy is omitted. A required policy declares `security` in `required_reviews` and includes at least one integration-stage security reviewer covering every mission, with review scope containing each covered mission's complete write scope. The Harness parent resolves the project's `code_security_verification` Skill Binding, reserves the review attempt, and dispatches a fresh sibling reviewer with `code-security-review` against the exact `integration_head_sha`.
+
+The security reviewer is read-only, never delegates, and reports all validated findings in one pass. It receives no write scope, commit authority, scanner-install permission, network permission, or live-target penetration authority. Optional local scanners may add evidence; a required but unavailable scanner, advisory source, or independent reviewer blocks the gate rather than producing a partial PASS. Completion passes the result as `--security-result`; the transition validates and retains its exact review type, decision, SHA, base, scope, exclusions, trust boundaries, tools, coverage, findings, and evidence. A security PASS must have an empty `exclusions` list; the current contract does not allow a PASS with narrowed or omitted coverage.
+
+A security review is not eligible for `skip-integration-review`, even when a pre-integration code review covered a byte-identical tree. The unified security pass evaluates cross-mission trust boundaries and security-specific source-to-sink paths from a fresh context. PASS binds to the exact current integration SHA and declared scope. Any repair creates a new candidate, invalidates the security result and all downstream final-gate evidence, and requires a fresh security review before final validation.
+
+Security reservation and completion recheck the live integration checkout before accepting the attempt: the exact integration branch and HEAD, clean status (allowing only the exact tracked RUN exception), and ancestry from the current batch base. A mismatch blocks the attempt. Required security nodes cannot be skipped, superseded, or replaced at closeout; a missing, skipped, stale, partial, blocked, or superseded security result prevents final PASS.
+
+An interrupted security reviewer does not fabricate a structured decision. `reconcile-interrupted-reviews` retains a blocked worker without `security_result` only when the unique matching review attempt carries the `interrupted_review_reconciliation` receipt. The node returns to dormant and the run stays paused; the receipt cannot satisfy closeout. A later exact structured PASS from the current reviewer may close the gate while the receipt-bound historical worker remains. A PASS also needs at least one tool or manual source review recorded as `passed` or `findings`; skipped or unavailable tools alone are not review evidence.
+
+The neutral PLAN template does not guess an unknown repair mission. Its security node returns `blocked` when a validated finding needs code changes; the parent then refines PLAN with a bounded repair and re-review route before any mutation. A project that declares `fix_required` on the security node must declare that bounded route up front.
+
 ## Failure Handling
 
 If verification fails:
@@ -303,6 +326,7 @@ Final PASS requires:
 
 - Every must-have trace ID is covered.
 - Every required gate is PASS.
+- Every new managed code-delivery PLAN has a completed `security` review from the `code_security_verification` binding, recorded as PASS on the exact current integration head with no exclusions. The required security node cannot be skipped or superseded; a missing, skipped, stale, partial, blocked, or superseded security review prevents closeout.
 - Every visual `TEST-*` obligation `PRD.md` marks required maps to a specific verification row above and that row is PASS. A generically named visual gate does not satisfy a specific obligation (see `contract-and-traceability.md`'s Trace IDs). A required `TEST-*` ID with no matching row is an uncovered must-have trace, not an optional extra.
 - Schema-v9-and-later batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
 - Closeout runs `scripts/validate_harness_plan.py --design-system <path to design-system.json> --design-system-markdown <path to design-system.md>` whenever the Design System Need Gate is `required`, so both frozen hashes, the generated Markdown contract, compiler ID namespaces, all PLAN `DS-*` traces, `stateMatrix`, and the responsive set are cross-checked. In target-conformance mode, required screenshot coverage comes from the frozen PRD target scope and PLAN UI evidence rows; absence of both design-system arguments is expected only when PLAN does not freeze that pair.

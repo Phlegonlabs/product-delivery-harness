@@ -27,7 +27,7 @@ If a mission's planned `required_skills` includes `frontend-design`, the worker 
 2. Invent no visual value. Colors, spacing, radii, font sizes, durations, easing, and distances come from tokens; primitive props come from closed variant sets.
 3. Reimplement no control or surface. Compose registered primitives and product components and use only registered motion variants.
 4. Use `design-system.json`'s `stateMatrix` and exactly one responsive verification set: `viewports` for web or `sizeClasses` for native/desktop.
-5. Run `scripts/check_ui_contract.py` against changed files during the mission and the real product source at the final gate. A filtered or zero-file run is not a contract-clean signal.
+5. Run `scripts/check_ui_contract.py --repo-root <root>` against changed files during the mission and the real product source at the final gate (`<root>` defaults to the current working directory). Token and primitive declarations are exact normalized repo-relative paths; a same-tail or filename-suffix match does not grant a source role. A filtered or zero-file run is not a contract-clean signal.
 6. A missing token, primitive, variant, component, or motion rule is a design-system delta. Never write the frozen pair from an implementation mission.
 
 ## Target-Conformance Mode

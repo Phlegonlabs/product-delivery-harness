@@ -51,11 +51,13 @@ from harness_schema import (
     SUPPORTED_RUN_SCHEMA_VERSIONS,
     TASK_ID_RE,
     TASK_PHASES,
+    TARGET_RE,
     WORKER_PHASES,
     WORKFLOW_RUN_DRIVERS_BY_PROVIDER,
     WORKFLOW_RUN_STATUSES,
     WORKFLOW_TOOL_PROFILES,
 )
+from security_review_result import validate_security_review_result
 
 
 from harness_core import (
@@ -116,6 +118,7 @@ from harness_contract_join import (
 __all__ = [
     "AUTHORIZATION_KEYS",
     "CURRENT_SCHEMA_PAIR",
+    "INTERRUPTED_REVIEW_RECEIPT",
     "ManifestError",
     "PLAN_HEADING",
     "RUN_HEADING",
@@ -135,6 +138,41 @@ __all__ = [
     "validate_ui_evidence_files",
     "validate_ui_surface_design_coverage",
 ]
+
+
+INTERRUPTED_REVIEW_RECEIPT = "interrupted_review_reconciliation"
+
+
+def _is_reconciled_interrupted_review(
+    worker: dict[str, Any],
+    node: dict[str, Any] | None,
+    attempt_log: Any,
+) -> bool:
+    """Recognize one transition-authored historical interruption receipt."""
+
+    if (
+        worker.get("phase") != "blocked"
+        or worker.get("outcome") != "blocked"
+        or not isinstance(node, dict)
+        or not isinstance(node.get("review"), dict)
+        or not isinstance(attempt_log, list)
+    ):
+        return False
+    matches = [
+        attempt
+        for attempt in attempt_log
+        if isinstance(attempt, dict)
+        and attempt.get("attempt_id") == worker.get("attempt_id")
+    ]
+    return (
+        len(matches) == 1
+        and matches[0].get("kind") == "review"
+        and matches[0].get("result") == "blocked"
+        and matches[0].get("review_lineage_id")
+        == node["review"].get("lineage_id")
+        and isinstance(matches[0].get("evidence"), list)
+        and INTERRUPTED_REVIEW_RECEIPT in matches[0]["evidence"]
+    )
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
@@ -1199,6 +1237,76 @@ def _validate_plan_graph(
             )
 
 
+def _validate_plan_security_review(
+    errors: list[str],
+    plan: dict[str, Any],
+    required_reviews: list[str],
+) -> None:
+    policy = plan.get("security_review")
+    if policy is None:
+        return
+    if not _keys(
+        errors,
+        "plan.security_review",
+        policy,
+        {"status", "skill_slot", "reason"},
+    ):
+        return
+    status = policy["status"]
+    if not isinstance(status, str) or status not in {
+        "required",
+        "not_applicable",
+    }:
+        _add(
+            errors,
+            "plan.security_review.status",
+            "must be required or not_applicable",
+        )
+    if policy["skill_slot"] != "code_security_verification":
+        _add(
+            errors,
+            "plan.security_review.skill_slot",
+            "must equal code_security_verification",
+        )
+    reason = policy["reason"]
+    if status == "required":
+        if reason is not None:
+            _add(
+                errors,
+                "plan.security_review.reason",
+                "must be null when security review is required",
+            )
+        if "security" not in required_reviews:
+            _add(
+                errors,
+                "plan.required_reviews",
+                "must include security when plan.security_review is required",
+            )
+    elif status == "not_applicable":
+        if not _nonempty_string(reason):
+            _add(
+                errors,
+                "plan.security_review.reason",
+                "must explain why code security is not applicable",
+            )
+        if "security" in required_reviews:
+            _add(
+                errors,
+                "plan.required_reviews",
+                "must omit security when plan.security_review is not_applicable",
+            )
+
+
+def _version_at_least(value: Any, minimum: tuple[int, int, int]) -> bool:
+    if not isinstance(value, str):
+        return False
+    core = value.split("+", 1)[0].split("-", 1)[0]
+    parts = core.split(".")
+    if len(parts) != 3 or any(not part.isdigit() for part in parts):
+        return False
+    return tuple(int(part) for part in parts) >= minimum
+
+
 def validate_plan(
     plan: dict[str, Any], *, repo_root: str | Path | None = None
 ) -> list[str]:
@@ -1232,7 +1340,7 @@ def validate_plan(
     # so an empty list was always legal and omitting it is the same thing --
     # actual review coverage comes from the per-mission singleton review nodes
     # described in `contract-and-traceability.md`, not from this field.
-    plan_optional_keys = {"risks", "required_reviews"}
+    plan_optional_keys = {"risks", "required_reviews", "security_review"}
     if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
         return sorted(errors)
     if plan["schema_version"] not in {2, 3, 4, 5, 6}:
@@ -1261,6 +1369,7 @@ def validate_plan(
                 "plan.required_reviews",
                 f"unsupported review types: {', '.join(unknown_reviews)}",
             )
+    _validate_plan_security_review(errors, plan, required_reviews)
 
     sources = _validate_plan_sources(errors, plan, schema_version)
 
@@ -1603,7 +1712,7 @@ def _validate_workflow_runs(
                 allowed_reviews = (
                     {"visual"}
                     if profile == "visual_review_readonly"
-                    else {"frontend_code", "backend_code"}
+                    else {"frontend_code", "backend_code", "security"}
                 )
                 if not review_types or not review_types.issubset(allowed_reviews):
                     _add(errors, f"{path}.tool_profile", "does not match its review node types")
@@ -1850,7 +1959,12 @@ def _validate_verifier_executions(
     seen_execution_ids: set[str] = set()
     for index, item in enumerate(value):
         path = f"run.verifier_executions[{index}]"
-        if not _keys(errors, path, item, entry_keys):
+        optional_entry_keys = (
+            {"reservation", "dispatch_attestation"}
+            if run.get("schema_version") == 11
+            else set()
+        )
+        if not _keys(errors, path, item, entry_keys, optional_entry_keys):
             continue
         execution_id = item["execution_id"]
         if not _nonempty_string(execution_id):
@@ -1874,6 +1988,144 @@ def _validate_verifier_executions(
                 _add(errors, path, "layer and mission/task association must match the PLAN verifier")
         for key in ("mission_id", "task_id", "attempt_id", "lease_id"):
             _optional_string(errors, f"{path}.{key}", item[key])
+        reservation = item.get("reservation")
+        if reservation is not None:
+            if not _keys(
+                errors,
+                f"{path}.reservation",
+                reservation,
+                {"node_id", "attempt_id", "nonce"},
+            ):
+                reservation = None
+            if isinstance(reservation, dict):
+                for key in ("node_id", "attempt_id", "nonce"):
+                    if not _nonempty_string(reservation[key]):
+                        _add(
+                            errors,
+                            f"{path}.reservation.{key}",
+                            "must be a non-empty string",
+                        )
+                matches = [
+                    attempt
+                    for attempt in attempt_items
+                    if isinstance(attempt, dict)
+                    and attempt.get("kind") == "node_attempt"
+                    and attempt.get("node_id") == reservation.get("node_id")
+                    and attempt.get("attempt_id") == reservation.get("attempt_id")
+                ]
+                if len(matches) != 1:
+                    _add(
+                        errors,
+                        f"{path}.reservation",
+                        "must reference exactly one retained node attempt",
+                    )
+                else:
+                    expected_reservation = (
+                        matches[0]
+                        .get("verifier_dispatch", {})
+                        .get("request", {})
+                        .get("reservation")
+                    )
+                    if reservation != expected_reservation:
+                        _add(
+                            errors,
+                            f"{path}.reservation",
+                            "must match the persisted node-attempt reservation",
+                        )
+        dispatch_attestation = item.get("dispatch_attestation")
+        if reservation is not None and dispatch_attestation is None:
+            _add(
+                errors,
+                f"{path}.dispatch_attestation",
+                "is required for a reserved verifier execution",
+            )
+        if dispatch_attestation is not None:
+            if not _keys(
+                errors,
+                f"{path}.dispatch_attestation",
+                dispatch_attestation,
+                {
+                    "request_sha256",
+                    "checkout_root",
+                    "git_guard",
+                    "protected_path_sha256",
+                },
+            ):
+                dispatch_attestation = None
+            if isinstance(dispatch_attestation, dict):
+                if (
+                    not isinstance(dispatch_attestation["request_sha256"], str)
+                    or SHA256_RE.fullmatch(dispatch_attestation["request_sha256"])
+                    is None
+                ):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation.request_sha256",
+                        "must be a lowercase SHA-256 digest",
+                    )
+                if not _nonempty_string(dispatch_attestation["checkout_root"]):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation.checkout_root",
+                        "must be a non-empty string",
+                    )
+                protected_paths = dispatch_attestation["protected_path_sha256"]
+                guard = dispatch_attestation["git_guard"]
+                ignored_paths = (
+                    guard.get("ignored_paths") if isinstance(guard, dict) else None
+                )
+                if (
+                    not isinstance(protected_paths, dict)
+                    or not isinstance(ignored_paths, list)
+                    or set(protected_paths) != set(ignored_paths)
+                ):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation.protected_path_sha256",
+                        "keys must exactly match git_guard.ignored_paths",
+                    )
+                elif any(
+                    digest is not None
+                    and (
+                        not isinstance(digest, str)
+                        or SHA256_RE.fullmatch(digest) is None
+                    )
+                    for digest in protected_paths.values()
+                ):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation.protected_path_sha256",
+                        "values must be null or lowercase SHA-256 digests",
+                    )
+                matching_attempt = (
+                    matches[0]
+                    if reservation is not None and len(matches) == 1
+                    else None
+                )
+                persisted_dispatch = (
+                    matching_attempt.get("verifier_dispatch")
+                    if isinstance(matching_attempt, dict)
+                    else None
+                )
+                persisted_request = (
+                    persisted_dispatch.get("request")
+                    if isinstance(persisted_dispatch, dict)
+                    else None
+                )
+                if not isinstance(persisted_dispatch, dict) or (
+                    dispatch_attestation["request_sha256"]
+                    != persisted_dispatch.get("request_sha256")
+                    or dispatch_attestation["checkout_root"]
+                    != persisted_dispatch.get("checkout_root")
+                    or not isinstance(persisted_request, dict)
+                    or dispatch_attestation["git_guard"]
+                    != persisted_request.get("git_guard")
+                ):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation",
+                        "must match the persisted verifier request and checkout",
+                    )
         if item["layer"] == "mission_integration" and (
             not _nonempty_string(item["mission_id"])
             or any(item[key] is not None for key in ("task_id", "attempt_id", "lease_id"))
@@ -2833,6 +3085,7 @@ def _validate_current_runtime_binding(
 
 def _validate_run_attempt_log(
     errors: list[str],
+    plan: dict[str, Any],
     run: dict[str, Any],
     schema_version: int | None,
     mission_ids: set[str],
@@ -2847,7 +3100,13 @@ def _validate_run_attempt_log(
         for index, attempt in enumerate(run["attempt_log"]):
             path = f"run.attempt_log[{index}]"
             optional_attempt_keys = (
-                {"review_lineage_id", "failure_family_ids"}
+                {
+                    "review_lineage_id",
+                    "failure_family_ids",
+                    "node_id",
+                    "node_dispatch",
+                    "verifier_dispatch",
+                }
                 if schema_version == 11
                 else set()
             )
@@ -2870,6 +3129,222 @@ def _validate_run_attempt_log(
                 _add(errors, f"{path}.mission_id", "is unknown")
             for key in ("task_id", "lease_id"):
                 _optional_string(errors, f"{path}.{key}", attempt[key])
+            if schema_version == 11:
+                _optional_string(errors, f"{path}.node_id", attempt.get("node_id"))
+                has_node_id = attempt.get("node_id") is not None
+                if (attempt.get("kind") == "node_attempt") != has_node_id:
+                    _add(
+                        errors,
+                        f"{path}",
+                        "kind=node_attempt requires node_id and node_id is only valid for kind=node_attempt",
+                    )
+                if has_node_id:
+                    node_id = attempt.get("node_id")
+                    if any(
+                        attempt.get(key) is not None
+                        for key in ("mission_id", "task_id", "lease_id")
+                    ):
+                        _add(
+                            errors,
+                            f"{path}",
+                            "node_attempt mission_id, task_id, and lease_id must all be null",
+                        )
+                    graph_nodes = {
+                        node.get("id"): node
+                        for node in plan.get("graph", {}).get("nodes", [])
+                        if isinstance(node, dict) and _nonempty_string(node.get("id"))
+                    }
+                    node = (
+                        graph_nodes.get(node_id)
+                        if isinstance(node_id, str)
+                        else None
+                    )
+                    if node is None:
+                        _add(errors, f"{path}.node_id", "must reference a PLAN graph node")
+                    elif node.get("kind") == "mission" or (
+                        node.get("kind") == "verifier"
+                        and node.get("executor") == "runtime_worker"
+                    ) or node.get("kind") not in {
+                        "approval",
+                        "external_wait",
+                        "lifecycle",
+                        "verifier",
+                    }:
+                        _add(
+                            errors,
+                            f"{path}.node_id",
+                            "must reference a reservable non-runtime graph node",
+                        )
+                    graph_state = run.get("graph_state")
+                    current_state = (
+                        graph_state.get("node_states", {}).get(node_id)
+                        if isinstance(graph_state, dict)
+                        and isinstance(graph_state.get("node_states"), dict)
+                        else None
+                    )
+                    if isinstance(current_state, dict) and current_state.get(
+                        "last_attempt_id"
+                    ) == attempt_id:
+                        current_phase = current_state.get("phase")
+                        result = attempt.get("result")
+                        if current_phase == "running" and result != "reserved":
+                            _add(
+                                errors,
+                                f"{path}.result",
+                                "current running node attempt must remain reserved",
+                            )
+                        elif current_phase in {"succeeded", "failed", "blocked"} and result != current_state.get(
+                            "last_outcome"
+                        ):
+                            _add(
+                                errors,
+                                f"{path}.result",
+                                "terminal node attempt result must match node last_outcome",
+                            )
+                    dispatch = attempt.get("node_dispatch")
+                    verifier_dispatch = attempt.get("verifier_dispatch")
+                    if node is not None and node.get("kind") == "lifecycle":
+                        if not _keys(
+                            errors,
+                            f"{path}.node_dispatch",
+                            dispatch,
+                            {"target", "authorized_head_sha"},
+                        ):
+                            dispatch = None
+                        if isinstance(dispatch, dict):
+                            target = dispatch["target"]
+                            expected_target = node.get("target") or "*"
+                            if target != expected_target:
+                                _add(
+                                    errors,
+                                    f"{path}.node_dispatch.target",
+                                    "must match the lifecycle PLAN target",
+                                )
+                            if target != "*" and (
+                                not isinstance(target, str)
+                                or TARGET_RE.fullmatch(target) is None
+                            ):
+                                _add(
+                                    errors,
+                                    f"{path}.node_dispatch.target",
+                                    "must be an exact target or *",
+                                )
+                            _optional_sha(
+                                errors,
+                                f"{path}.node_dispatch.authorized_head_sha",
+                                dispatch["authorized_head_sha"],
+                            )
+                            if node.get("ref") == "push" and not is_full_sha(
+                                dispatch["authorized_head_sha"]
+                            ):
+                                _add(
+                                    errors,
+                                    f"{path}.node_dispatch.authorized_head_sha",
+                                    "push lifecycle attempts require a full authorized head SHA",
+                                )
+                    elif dispatch is not None:
+                        _add(
+                            errors,
+                            f"{path}.node_dispatch",
+                            "is only allowed for lifecycle node attempts",
+                        )
+                    if (
+                        node is not None
+                        and node.get("kind") == "verifier"
+                        and node.get("executor") in {"local_command", "harness_parent"}
+                    ):
+                        if not _keys(
+                            errors,
+                            f"{path}.verifier_dispatch",
+                            verifier_dispatch,
+                            {
+                                "branch",
+                                "head_sha",
+                                "checkout_root",
+                                "request_sha256",
+                                "request",
+                            },
+                        ):
+                            verifier_dispatch = None
+                        if isinstance(verifier_dispatch, dict):
+                            for key in ("branch", "checkout_root"):
+                                if not _nonempty_string(verifier_dispatch[key]):
+                                    _add(
+                                        errors,
+                                        f"{path}.verifier_dispatch.{key}",
+                                        "must be a non-empty string",
+                                    )
+                            if not is_full_sha(verifier_dispatch["head_sha"]):
+                                _add(
+                                    errors,
+                                    f"{path}.verifier_dispatch.head_sha",
+                                    "must be a full lowercase Git SHA",
+                                )
+                            if (
+                                not isinstance(verifier_dispatch["request_sha256"], str)
+                                or SHA256_RE.fullmatch(
+                                    verifier_dispatch["request_sha256"]
+                                )
+                                is None
+                            ):
+                                _add(
+                                    errors,
+                                    f"{path}.verifier_dispatch.request_sha256",
+                                    "must be a lowercase SHA-256 digest",
+                                )
+                            request = verifier_dispatch["request"]
+                            if not isinstance(request, dict):
+                                _add(
+                                    errors,
+                                    f"{path}.verifier_dispatch.request",
+                                    "must be an object",
+                                )
+                            else:
+                                request_digest = hashlib.sha256(
+                                    json.dumps(
+                                        request,
+                                        sort_keys=True,
+                                        separators=(",", ":"),
+                                        ensure_ascii=False,
+                                    ).encode("utf-8")
+                                ).hexdigest()
+                                if request_digest != verifier_dispatch["request_sha256"]:
+                                    _add(
+                                        errors,
+                                        f"{path}.verifier_dispatch.request_sha256",
+                                        "must match the persisted request",
+                                    )
+                                if (
+                                    request.get("node_id") != node_id
+                                    or request.get("attempt_id") != attempt_id
+                                    or request.get("branch") != verifier_dispatch["branch"]
+                                    or request.get("head_sha")
+                                    != verifier_dispatch["head_sha"]
+                                    or request.get("checkout_root")
+                                    != verifier_dispatch["checkout_root"]
+                                ):
+                                    _add(
+                                        errors,
+                                        f"{path}.verifier_dispatch.request",
+                                        "must match the node attempt and checkout binding",
+                                    )
+                                reservation = request.get("reservation")
+                                if not isinstance(reservation, dict) or (
+                                    reservation.get("node_id") != node_id
+                                    or reservation.get("attempt_id") != attempt_id
+                                    or not _nonempty_string(reservation.get("nonce"))
+                                ):
+                                    _add(
+                                        errors,
+                                        f"{path}.verifier_dispatch.request.reservation",
+                                        "must bind the exact node attempt",
+                                    )
+                    elif verifier_dispatch is not None:
+                        _add(
+                            errors,
+                            f"{path}.verifier_dispatch",
+                            "is only allowed for deterministic verifier node attempts",
+                        )
             if attempt["task_id"] is not None and attempt["task_id"] not in task_ids:
                 _add(errors, f"{path}.task_id", "is unknown")
             _strings(errors, f"{path}.evidence", attempt["evidence"])
@@ -3300,6 +3775,7 @@ def _validate_run_workers(
         _add(errors, "run.workers", "must be a list")
     else:
         lease_owners: dict[str, str] = {}
+        task_thread_owners: dict[str, str] = {}
         for index, worker in enumerate(workers):
             path = f"run.workers[{index}]"
             if not _keys(
@@ -3346,6 +3822,17 @@ def _validate_run_workers(
                 _add(errors, f"{path}.completion_channel", "has an unsupported value")
             for key in ("task_thread_id", "worktree_path", "branch_ref", "report_path"):
                 _optional_string(errors, f"{path}.{key}", worker[key])
+            task_thread_id = worker.get("task_thread_id")
+            if schema_version == 11 and _nonempty_string(task_thread_id):
+                prior_owner = task_thread_owners.get(task_thread_id)
+                if prior_owner is not None:
+                    _add(
+                        errors,
+                        f"{path}.task_thread_id",
+                        f"must be unique across workers; already used by {prior_owner}",
+                    )
+                elif _nonempty_string(worker.get("worker_id")):
+                    task_thread_owners[task_thread_id] = worker["worker_id"]
             if worker["phase"] not in WORKER_PHASES:
                 _add(errors, f"{path}.phase", "has an unsupported value")
             runtime_binding = worker.get("runtime_binding")
@@ -3748,6 +4235,32 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         optional_run_keys.add("run_lock")
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
+    security_runtime = run.get("runtime_capabilities")
+    security_adapter = (
+        security_runtime.get("runtime_adapter")
+        if isinstance(security_runtime, dict)
+        else None
+    )
+    security_version_gate = (
+        security_adapter.get("version_gate")
+        if isinstance(security_adapter, dict)
+        else None
+    )
+    required_harness_version = (
+        security_version_gate.get("required_harness_version")
+        if isinstance(security_version_gate, dict)
+        else None
+    )
+    if (
+        schema_version == 11
+        and _version_at_least(required_harness_version, (0, 28, 0))
+        and plan.get("security_review") is None
+    ):
+        _add(
+            errors,
+            "plan.security_review",
+            "Harness 0.28.0 and later require an explicit security review policy",
+        )
     if schema_version == 11 and "run_lock" in run and not isinstance(
         run["run_lock"], dict
     ):
@@ -4943,7 +5456,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             review_attempt_ids: set[str] = set()
             for index, worker in enumerate(review_workers):
                 path = f"run.review_workers[{index}]"
-                if not _keys(errors, path, worker, review_worker_keys, {"tree_sha"}):
+                if not _keys(
+                    errors,
+                    path,
+                    worker,
+                    review_worker_keys,
+                    {"tree_sha", "base_sha", "security_result"},
+                ):
                     continue
                 for key in (
                     "worker_id",
@@ -4956,6 +5475,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if not _nonempty_string(worker[key]):
                         _add(errors, f"{path}.{key}", "must be a non-empty string")
                 attempt_id = worker.get("attempt_id")
+                attempt_matches = []
                 if _nonempty_string(attempt_id):
                     if attempt_id in review_attempt_ids:
                         _add(
@@ -4994,6 +5514,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             "terminal review attempt may match only its review log entry",
                         )
                 _optional_sha(errors, f"{path}.tree_sha", worker.get("tree_sha"))
+                _optional_sha(errors, f"{path}.base_sha", worker.get("base_sha"))
                 if worker["worker_id"] in worker_ids:
                     _add(errors, f"{path}.worker_id", "must be unique across all workers")
                 worker_ids.add(worker["worker_id"])
@@ -5007,6 +5528,68 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 ):
                     _add(errors, f"{path}.outcome", "is not declared by the reviewed node")
                 findings = _strings(errors, f"{path}.findings", worker["findings"])
+                is_security_review = (
+                    isinstance(node, dict)
+                    and isinstance(node.get("review"), dict)
+                    and node["review"].get("type") == "security"
+                )
+                security_result = worker.get("security_result")
+                if is_security_review:
+                    terminal_security_phases = {
+                        "worker_passed",
+                        "blocked",
+                        "worker_failed",
+                    }
+                    interrupted_without_result = _is_reconciled_interrupted_review(
+                        worker,
+                        node,
+                        run.get("attempt_log"),
+                    )
+                    if (
+                        worker.get("phase") in terminal_security_phases
+                        and security_result is None
+                        and not interrupted_without_result
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.security_result",
+                            "terminal security review requires its structured result",
+                        )
+                    if (
+                        worker.get("phase") in terminal_security_phases
+                        and not is_full_sha(worker.get("base_sha"))
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.base_sha",
+                            "terminal security review requires its reserved base SHA",
+                        )
+                    if (
+                        security_result is not None
+                        and worker.get("phase") not in terminal_security_phases
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.security_result",
+                            "is allowed only after the security review is terminal",
+                        )
+                    if security_result is not None:
+                        for issue in validate_security_review_result(
+                            security_result,
+                            expected_decision=outcome,
+                            expected_reviewed_sha=worker.get("reviewed_sha"),
+                            expected_base_sha=worker.get("base_sha"),
+                            expected_scope=node["review"].get("scope", []),
+                            required_tools=node["review"].get("required_tools", []),
+                            allowed_decisions=node.get("allowed_outcomes", []),
+                        ):
+                            _add(errors, f"{path}.security_result", issue)
+                elif security_result is not None:
+                    _add(
+                        errors,
+                        f"{path}.security_result",
+                        "is allowed only for a security review",
+                    )
                 if outcome not in (None, "pass") and not findings:
                     _add(errors, f"{path}.findings", "is required when outcome is not pass")
                 if worker["phase"] in {"worker_passed", "blocked", "worker_failed"} and outcome is None:
@@ -5499,7 +6082,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     f"run.mission_states.{mission_id}.integration_gate",
                     "transition to integrating requires every planned pre-integration review node and current-head review worker to retain an exact-head PASS",
                 )
-    _validate_run_attempt_log(errors, run, schema_version, mission_ids, task_ids)
+    _validate_run_attempt_log(errors, plan, run, schema_version, mission_ids, task_ids)
     _validate_lease_identity(errors, run)
     _validate_run_review_lineages(errors, plan, run, schema_version, mission_ids)
     if schema_version in {9, 10, 11}:
@@ -5633,6 +6216,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.graph_state.edge_states",
                     "complete graph run requires every edge to be terminal",
                 )
+            _validate_required_security_closeout(errors, plan, run)
         if not isinstance(mission_states, dict) or any(
             not isinstance(state, dict)
             or state.get("phase") not in {"integrated", "superseded"}
@@ -5712,9 +6296,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         ):
             _add(errors, "run.workers", "complete run cannot retain active or blocked workers")
         closeout_review_workers = run.get("review_workers")
+        closeout_review_nodes = (
+            {
+                node.get("id"): node
+                for node in closeout_graph_nodes
+                if isinstance(node, dict) and isinstance(node.get("id"), str)
+            }
+            if graph_run
+            else {}
+        )
         if graph_run and isinstance(closeout_review_workers, list) and any(
             isinstance(worker, dict)
-            and worker.get("phase") in {"leased", "worker_running", "blocked"}
+            and (
+                worker.get("phase") in {"leased", "worker_running"}
+                or (
+                    worker.get("phase") == "blocked"
+                    and not _is_reconciled_interrupted_review(
+                        worker,
+                        closeout_review_nodes.get(worker.get("node_id")),
+                        run.get("attempt_log"),
+                    )
+                )
+            )
             for worker in closeout_review_workers
         ):
             _add(
@@ -5724,6 +6327,101 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
 
     return sorted(set(errors))
+
+
+def _validate_required_security_closeout(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    """Require the current exact-head structured security PASS at closeout.
+
+    A historical PASS (or a skipped/superseded graph state) must not satisfy a
+    required integration security node. Bind the proof to the graph state's
+    current reviewer identity and to the current integration/base SHAs.
+    """
+
+    policy = plan.get("security_review")
+    if not isinstance(policy, dict) or policy.get("status") != "required":
+        return
+    graph = plan.get("graph")
+    graph_nodes = graph.get("nodes", []) if isinstance(graph, dict) else []
+    graph_state = run.get("graph_state")
+    node_states = (
+        graph_state.get("node_states", {}) if isinstance(graph_state, dict) else {}
+    )
+    review_workers = run.get("review_workers")
+    current_review_workers = review_workers if isinstance(review_workers, list) else []
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    batch_base = (
+        integration.get("batch_base_sha") if isinstance(integration, dict) else None
+    )
+    for node in graph_nodes if isinstance(graph_nodes, list) else []:
+        if not (
+            isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and isinstance(node.get("review"), dict)
+            and node["review"].get("type") == "security"
+            and node["review"].get("stage") == "integration"
+        ):
+            continue
+        node_id = node.get("id")
+        path = f"run.graph_state.node_states.{node_id}"
+        state = node_states.get(node_id) if isinstance(node_states, dict) else None
+        if not isinstance(state, dict):
+            _add(errors, path, "required security integration review has no graph state")
+            continue
+        if state.get("phase") != "succeeded" or state.get("last_outcome") != "pass":
+            _add(
+                errors,
+                path,
+                "required security integration review must close as succeeded/pass",
+            )
+            continue
+        current_worker = next(
+            (
+                worker
+                for worker in current_review_workers
+                if isinstance(worker, dict)
+                and worker.get("node_id") == node_id
+                and worker.get("worker_id") == state.get("bound_worker_id")
+                and worker.get("attempt_id") == state.get("last_attempt_id")
+            ),
+            None,
+        )
+        if not isinstance(current_worker, dict):
+            _add(
+                errors,
+                path,
+                "required security integration review needs its current reviewer worker",
+            )
+            continue
+        if (
+            current_worker.get("phase") != "worker_passed"
+            or current_worker.get("outcome") != "pass"
+            or current_worker.get("reviewed_sha") != integration_head
+            or current_worker.get("base_sha") != batch_base
+            or not isinstance(current_worker.get("security_result"), dict)
+        ):
+            _add(
+                errors,
+                path,
+                "required security integration review needs a current worker_passed PASS result for the integration head and batch base",
+            )
+            continue
+        for issue in validate_security_review_result(
+            current_worker["security_result"],
+            expected_decision="pass",
+            expected_reviewed_sha=integration_head,
+            expected_base_sha=batch_base,
+            expected_scope=node["review"].get("scope", []),
+            required_tools=node["review"].get("required_tools", []),
+            allowed_decisions=node.get("allowed_outcomes", []),
+        ):
+            _add(errors, f"{path}.security_result", issue)
 
 
 def validate_current_plan_run(

@@ -68,6 +68,7 @@ The parent/coordinator exclusively owns:
 - authorization checks and runtime capability detection;
 - provider/driver routing and Dynamic Workflow argument construction;
 - batch-base selection, wave confirmation, leases, and worker prompts;
+- non-runtime node reservations/results and lifecycle evidence receipts;
 - branch/worktree creation when authorized;
 - worker-result validation, integration order, conflict handling, and E2E verification;
 - push and manual cleanup actions when separately authorized.
@@ -107,7 +108,8 @@ Use `app_managed_worktree` only when the runtime exposes it and `create_app_mana
 
 For user-owned Codex app tasks:
 
-- Record the returned task/thread identity and completion channel. Never invent an identity from the mission ID.
+- Record the returned task/thread identity and completion channel, then pass the real ID to `lease-worker --task-thread-id` for an `app_task`. Never invent an identity from the mission ID or pass a task ID to another worker runtime.
+- Include run, PLAN revision/digest, wave, and mission identity in the task packet. If task creation returns no usable identity, inspect existing app tasks/worktrees and bind only one exact packet/base match; otherwise block. Never create a duplicate automatically or delete the uncertain task.
 - Use one top-level task/thread with one app-managed worktree per selected Harness mission. It appears as an independent conversation in the Codex left sidebar. Direct subagents of the coordinator do not satisfy this boundary.
 - Managed worktrees may begin detached. If durable commits or handoff are required, create an authorized branch or durable ref early; do not leave unique work reachable only from a detached checkout.
 - Do not launch app-managed write fan-out unless branch and commit creation are authorized. Otherwise use sequential parent execution; this protocol does not depend on extracting an uncommitted patch from a managed worktree.
@@ -176,7 +178,7 @@ deferred_nodes with reason codes
 conflict_edges with reason codes
 ```
 
-The selector does not emit a batch base, an effective budget, or a bundled wave. The parent binds the committed `batch_base_sha` (the observed parent head), confirms the budget it applied, records the accepted wave in `RUN.md`, assigns leases, and only then creates branches, worktrees, or agents — through the scripted write path, under this session's run lock: `harness_transition.py record-observation` (live-Git observed snapshot), `accept-wave` (reruns selection and accepts exactly its current dispatchable mission frontier), `lease-worker` (graph/mission/task/worker/attempt in one serialized validated write), `record-worker-result` (observes the bound worktree and revalidates node, worker, diff, ancestry, and verifier evidence), `reject-worker-result` (retains a parent-rejected current candidate), `record-integration` (proves the new integration head against live Git), and `close-wave` (appends the tombstone and resets wave grants). A selected `worker_passed` mission may close under a surviving `run_complete` grant and integrate afterward; a `wave_closed` grant must first resolve every selected mission. Hand-editing the RUN JSON for these steps is the path the transitions replaced. Selector and validator scripts do not mutate Git, PLAN, or RUN; `harness_transition.py` is the sole scripted RUN writer.
+The selector does not emit a batch base, an effective budget, or a bundled wave. The parent binds the committed `batch_base_sha` (the observed parent head), confirms the budget it applied, and records the accepted wave in `RUN.md`. Parent-managed routes then allocate their authorized worktree/branch before `lease-worker`; an app-task route creates the task/worktree first and immediately leases the returned exact identities. The scripted write path uses `harness_transition.py record-observation` (live-Git snapshot), `accept-wave` (reruns selection and accepts the current mission frontier), `lease-worker` (derives and records the complete worker binding and exact identities), `reserve-node-attempt` (reserves approval, external-wait, lifecycle, or deterministic batch/final-verifier work), `record-node-result` (records the matching outcome/evidence and traverses routes), `record-worker-result`, `reject-worker-result`, `record-integration`, and `close-wave`. A selected `worker_passed` mission may close under a surviving `run_complete` grant and integrate afterward; a `wave_closed` grant must first resolve every selected mission. Hand-editing the RUN JSON for these steps is the path the transitions replaced and remains forbidden. Selector and validator scripts do not mutate Git, PLAN, or RUN; `harness_transition.py` is the sole scripted RUN writer. Lifecycle actions execute outside the transition lock and lifecycle targets must already be exact.
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
@@ -219,6 +221,8 @@ mission ID and lease ID
 batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
 runtime provider and selected driver
+selector-derived model and reasoning effort, plus worker runtime/workspace/completion axes
+real app task/thread identity when `worker_runtime: app_task`
 required_skills (the mission's skill list, verbatim, or "none")
 omitted or explicitly disabled nested-subagent policy; RUN-v11 never enables it
 allowed and denied paths

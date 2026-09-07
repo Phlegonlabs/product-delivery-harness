@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -23,6 +25,7 @@ from verifier_runtime import (  # noqa: E402
     PROTOCOL,
     VerifierRuntimeError,
     build_execution_key,
+    protected_path_sha256,
     run_verifier_batch,
     run_verifier,
 )
@@ -109,6 +112,200 @@ class VerifierRuntimeTests(unittest.TestCase):
 
     def read_count(self, counter: Path) -> int:
         return int(counter.read_text(encoding="utf-8"))
+
+    def test_git_guard_rejects_tracked_file_changes_restored_during_execution(self) -> None:
+        subprocess.run(
+            ["git", "init", "-q", "-b", "integration"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=self.checkout,
+            check=True,
+        )
+        tracked = self.checkout / "tracked.txt"
+        tracked.write_text("original\n", encoding="utf-8")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.checkout, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "base"], cwd=self.checkout, check=True
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.checkout,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        guarded_context = context()
+        guarded_context.update(
+            {
+                "batch_base_sha": head,
+                "head_sha": head,
+                "changed_files": [],
+                "cache_safe": False,
+            }
+        )
+        source = (
+            "import os,pathlib,sys;"
+            "p=pathlib.Path(sys.argv[1]);"
+            "original=p.read_text();"
+            "p.write_text('temporary\\n');"
+            "p.write_text(original);"
+            "s=p.stat();os.utime(p,ns=(s.st_atime_ns,s.st_mtime_ns+1000000000))"
+        )
+        declaration = {
+            "id": "guarded",
+            "cwd": ".",
+            "argv": [sys.executable, "-c", source, str(tracked)],
+            "pass_signal": "exit 0",
+            "cache": {"mode": "disabled", "environment_keys": []},
+        }
+        result = run_verifier(
+            declaration,
+            guarded_context,
+            checkout_root=self.checkout,
+            environment=self.environment,
+            git_guard={
+                "expected_branch": "integration",
+                "expected_head_sha": head,
+                "ignored_paths": [],
+            },
+        )
+
+        self.assertEqual("ERROR", result["status"])
+        self.assertIsNone(result["exit_code"])
+        self.assertIn("verifier inputs changed", result["stderr"])
+
+    def test_git_guard_rejects_changes_to_an_ignored_coordination_file(self) -> None:
+        subprocess.run(
+            ["git", "init", "-q", "-b", "integration"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=self.checkout,
+            check=True,
+        )
+        run_path = self.checkout / "docs" / "goal" / "RUN.md"
+        run_path.parent.mkdir(parents=True)
+        run_path.write_text("authorized: false\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=self.checkout, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "base"], cwd=self.checkout, check=True
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.checkout,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        guarded_context = context()
+        guarded_context.update(
+            {
+                "batch_base_sha": head,
+                "head_sha": head,
+                "changed_files": [],
+                "cache_safe": False,
+            }
+        )
+        declaration = {
+            "id": "guarded-run",
+            "cwd": ".",
+            "argv": [
+                sys.executable,
+                "-c",
+                (
+                    "import os,pathlib,sys;"
+                    "p=pathlib.Path(sys.argv[1]);original=p.read_bytes();"
+                    "p.write_text('authorized: true\\n');p.write_bytes(original);"
+                    "s=p.stat();os.utime(p,ns=(s.st_atime_ns,s.st_mtime_ns+1000000000))"
+                ),
+                str(run_path),
+            ],
+            "pass_signal": "exit 0",
+            "cache": {"mode": "disabled", "environment_keys": []},
+        }
+        expected_protected_hash = hashlib.sha256(run_path.read_bytes()).hexdigest()
+
+        result = run_verifier(
+            declaration,
+            guarded_context,
+            checkout_root=self.checkout,
+            environment=self.environment,
+            git_guard={
+                "expected_branch": "integration",
+                "expected_head_sha": head,
+                "ignored_paths": ["docs/goal/RUN.md"],
+            },
+            reservation={
+                "node_id": "N-FINAL",
+                "attempt_id": "ATT-FINAL",
+                "nonce": "n" * 64,
+            },
+            request_sha256="d" * 64,
+        )
+
+        self.assertEqual("ERROR", result["status"])
+        self.assertIsNone(result["exit_code"])
+        self.assertIn("verifier inputs changed", result["stderr"])
+        self.assertEqual(
+            expected_protected_hash,
+            result["dispatch_attestation"]["protected_path_sha256"][
+                "docs/goal/RUN.md"
+            ],
+        )
+
+    def test_protected_path_hashes_reject_path_escape(self) -> None:
+        with self.assertRaisesRegex(VerifierRuntimeError, "repository-relative"):
+            protected_path_sha256(self.checkout, ["../RUN.md"])
+        with self.assertRaisesRegex(VerifierRuntimeError, "repository-relative"):
+            protected_path_sha256(self.checkout, ["C:/outside/RUN.md"])
+
+    def test_protected_path_hashes_reject_ancestor_link_escape(self) -> None:
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "RUN.md").write_text("outside\n", encoding="utf-8")
+        linked = self.checkout / "linked"
+        if os.name == "nt":
+            completed = subprocess.run(
+                [
+                    "cmd",
+                    "/c",
+                    "mklink",
+                    "/J",
+                    str(linked),
+                    str(outside),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if completed.returncode != 0:
+                self.skipTest(f"directory junction unavailable: {completed.stderr}")
+        else:
+            linked.symlink_to(outside, target_is_directory=True)
+
+        try:
+            with self.assertRaisesRegex(VerifierRuntimeError, "escapes the checkout"):
+                protected_path_sha256(self.checkout, ["linked/RUN.md"])
+        finally:
+            if os.name == "nt":
+                linked.rmdir()
+            else:
+                linked.unlink()
 
     def test_exact_pass_reuses_equivalent_task_and_worker_declarations(self) -> None:
         counter = self.root / "counter.txt"

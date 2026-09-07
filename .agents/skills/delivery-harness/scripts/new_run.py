@@ -38,7 +38,7 @@ from harness_contract import contract_digest
 def _harness_version() -> str:
     """Read the Harness version from skill-local or package metadata.
 
-    A normal installation copies only the four skill directories, so the
+    A normal installation copies only the five skill directories, so the
     delivery-harness directory carries its own VERSION file. Package metadata
     remains a compatibility fallback for older packaged layouts.
     """
@@ -132,6 +132,14 @@ def _gate_results(gates: Any) -> list[dict[str, Any]]:
 
 
 def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, Any]:
+    security_review = plan.get("security_review")
+    if not isinstance(security_review, dict) or security_review.get("status") not in {
+        "required",
+        "not_applicable",
+    }:
+        raise ManifestError(
+            "new RUN requires explicit plan.security_review status required or not_applicable"
+        )
     graph = plan.get("graph", {}) or {}
     nodes = graph.get("nodes", []) or []
     edges = graph.get("edges", []) or []

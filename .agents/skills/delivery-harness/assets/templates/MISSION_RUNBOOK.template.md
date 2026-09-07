@@ -6,6 +6,8 @@ All new managed work uses PLAN schema v6 plus RUN schema v11 (RUN-v11). Older RU
 
 The System Review And Route stage completes before this file exists. It is parent-only and read-only: no task-specific skill, adapter/model selection, worker preflight, PLAN/RUN creation, external runtime, or worker launch occurs during that stage.
 
+Every non-mission graph node uses a durable reserve/execute/record sequence. Reserve an `approval`, `external_wait`, `lifecycle`, or deterministic batch/final verifier node with `reserve-node-attempt` under the RUN lock, perform the check, wait, or lifecycle side effect after that lock is released, then record the matching outcome and evidence with `record-node-result`. A local verifier persists its exact request and attempt nonce in RUN, publishes `--request-out` outside the checkout, and runs it through `verifier_runtime.py`; Git guards run before and after the command, and result recording rejects replay or retargeting. An interrupted verifier records `blocked` with a blocker and no fabricated result. Lifecycle transitions record evidence only; they never invoke Git, a process, or a remote action, and they retry only through an explicit bounded route.
+
 Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. On an observed Codex route that may select two writers, record the complete eight-entry `runtime_adapter.capability_probe`; a provably sequential route records only the facts needed to prove its selected driver. For every PLAN review `required_tools` entry, replace the generic `reviewer_tools` placeholder with a fresh reviewer-session probe from the exact selected provider and driver. Never mark a parent-only probe available. Never run parallel writers in `shared_checkout`.
 
 A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony: no fan-out claim, no mandatory `tasks.md` view, no true cross-mission batch gate for one mission, and no inventory of unused parallel drivers. It still proves the selected `runtime_driver`, uses an isolated writer, checks authorization and exact scope/head bindings, and requires the same exact-head review and final gates. Two or more selected safe writers produce `parallel_graph`; this derived route is separate from the runtime transport driver and is never persisted as a PLAN/RUN schema field. New RUN files start at `mode: "local_only"`; only an explicit remote outcome moves to `integration_push`.
@@ -20,7 +22,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "a3103eaad4e2a1d77e7309e108b2ae98fa48eaee421de62cf980e515df9f376b"
+      "digest_sha256": "71e6af8caf5c58e2888d4a1c210a54b97dfac20495e71de70ede347b693d4e98"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -61,7 +63,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.27.0",
+          "required_harness_version": "0.28.0",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
@@ -137,12 +139,14 @@ A managed-sequential route is selected when fewer than two safe write missions a
       "node_states": {
         "N-M1": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
         "N-M1-REVIEW": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
+        "N-SECURITY-REVIEW": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
         "N-FINAL-GATE": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
         "N-CLOSEOUT-GATE": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []}
       },
       "edge_states": {
         "E-M1-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
-        "E-M1-REVIEW-FINAL": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-M1-REVIEW-SECURITY": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
+        "E-SECURITY-FINAL": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-FINAL-CLOSEOUT": {"status": "dormant", "traversals": 0, "source_attempt_id": null}
       }
     },
@@ -194,6 +198,15 @@ A managed-sequential route is selected when fewer than two safe write missions a
         "consumed_attempts": 0,
         "failure_families": [],
         "owner_decisions": []
+      },
+      "REVIEW-SECURITY": {
+        "review_type": "security",
+        "mission_ids": ["M1"],
+        "base_allowance": 2,
+        "additional_allowance": 0,
+        "consumed_attempts": 0,
+        "failure_families": [],
+        "owner_decisions": []
       }
     },
     "workflow_runs": [],
@@ -204,11 +217,11 @@ A managed-sequential route is selected when fewer than two safe write missions a
 }
 ```
 
-The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN.
+The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN. Harness 0.28.0 and later refuse a new RUN unless PLAN explicitly marks `security_review.status` as `required` or `not_applicable` with a reason.
 
-Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `record-observation`, `accept-wave`, `lease-worker`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch` (with `--packet-out` to render the reviewer packet in the same command), `record-review-attempt`, `grant-review-attempts`, `skip-integration-review`, `acquire-run-lock`, `release-run-lock`, `heartbeat-run-lock`, and `watchdog`. `record-worker-result` reads the bound worktree's live branch, head, dirty state, diff, and ancestry, then revalidates the payload and retained verifier results before one atomic RUN update. Use `reject-worker-result` to retain a parent-rejected current candidate as `retryable_failure` or `blocked`; never hand-edit that outcome. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically.
+Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `record-observation`, `accept-wave`, `lease-worker`, `reserve-node-attempt`, `record-node-result`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch` (with `--packet-out` to render the reviewer packet in the same command), `record-review-attempt`, `grant-review-attempts`, `skip-integration-review`, `acquire-run-lock`, `release-run-lock`, `heartbeat-run-lock`, and `watchdog`. `lease-worker` derives the selector's complete runtime binding and portable axes, validates compatibility flags, accepts `--task-thread-id` only for an app task, accepts existing exact identities, and materializes new exact identities only from an active wildcard authorization without granting authority. `record-review-attempt` requires `--security-result <json>` for a security node and validates that structured result against the reserved SHA, base, scope, tools, coverage, decision, and current integration head. `record-worker-result` reads the bound worktree's live branch, head, dirty state, diff, and ancestry, then revalidates the payload and retained verifier results before one atomic RUN update. Use `reject-worker-result` to retain a parent-rejected current candidate as `retryable_failure` or `blocked`; never hand-edit that outcome. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically; lifecycle actions remain outside the transition lock and are represented by evidence in `record-node-result`.
 
-RUN schema v11 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes the exact action and its target. `push` remains separate, exact-branch/head-bound, and remote intent is never implied by local execution; a separate explicit remote intent is required. `integration_push` is the remote end state and `landing.pushed_head_sha` records the verified branch head. A separate explicit remote instruction is required before moving there; keep the phrase separate remote intent in the checkpoint. Legacy RUN schemas remain readable with their historical ledger and result shapes; do not copy their weaker fields into a new run. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes. The dynamic_workflow and app_threads adapters are transport choices, not execution routes; their typed `mission_write` profile, `EnterWorktree` handoff, and task creation `model`/`thinking` fields remain adapter-specific. App task creation passes the task creation `model` and `thinking` values only after the parent proves the route.
+RUN schema v11 has 12 independent action entries. Keep every entry false unless an explicit user instruction authorizes the exact action and its target. `push` remains separate, exact-branch/head-bound, and remote intent is never implied by local execution; a separate explicit remote intent is required. `integration_push` is the remote end state and `landing.pushed_head_sha` records the verified branch head. A separate explicit remote instruction is required before moving there; keep the phrase separate remote intent in the checkpoint. Legacy RUN schemas remain readable with their historical ledger and result shapes; do not copy their weaker fields into a new run. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes. The integration-stage `security` review loads the project's `code_security_verification` binding in a fresh sibling reviewer, covers every mission at the unified integration SHA, and is never skipped by tree identity. The dynamic_workflow and app_threads adapters are transport choices, not execution routes; their typed `mission_write` profile, `EnterWorktree` handoff, and task creation `model`/`thinking` fields remain adapter-specific. App task creation passes the task creation `model` and `thinking` values only after the parent proves the route.
 
 When the selected driver is `sequential_parent`, follow `references/execution-state-model.md`'s Sequential Parent Route: the PLAN mission keeps `executor: runtime_worker`, and the route blocks rather than writing in `shared_checkout` when its worktree is unavailable or unauthorized.
 

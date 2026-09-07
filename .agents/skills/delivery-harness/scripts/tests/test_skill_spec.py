@@ -69,6 +69,102 @@ class SkillSpecTests(unittest.TestCase):
             self.assertIn("over the 500-line guidance", joined)
             self.assertIn("missing SKILL.md", joined)
 
+    def test_frontmatter_preserves_comments_blanks_folded_values_and_colons(self) -> None:
+        parsed = check_skill_spec.parse_frontmatter(
+            "---\n"
+            "# keep this comment inert\n"
+            "name: demo\n"
+            "\n"
+            "description: \"See https://example.test:8443/docs\n"
+            "  for details\"\n"
+            "---\n"
+            "# body\n"
+        )
+        self.assertIsNotNone(parsed)
+        fields, body_start = parsed
+        self.assertEqual(fields["name"], "demo")
+        self.assertEqual(
+            fields["description"], "See https://example.test:8443/docs for details"
+        )
+        self.assertEqual(body_start, 7)
+
+    def test_frontmatter_rejects_duplicate_keys(self) -> None:
+        self.assertIsNone(
+            check_skill_spec.parse_frontmatter(
+                "---\nname: demo\nname: other\ndescription: x\n---\n"
+            )
+        )
+
+    def test_frontmatter_rejects_malformed_top_level_lines_and_empty_keys(self) -> None:
+        for line in ("not a key", "- key: value", ": empty", "   : empty"):
+            with self.subTest(line=line):
+                self.assertIsNone(
+                    check_skill_spec.parse_frontmatter(
+                        f"---\n{line}\n---\n"
+                    )
+                )
+
+    def test_frontmatter_rejects_orphan_continuations(self) -> None:
+        self.assertIsNone(
+            check_skill_spec.parse_frontmatter("---\n  continuation\n---\n")
+        )
+
+    def test_frontmatter_rejects_unterminated_delimiter(self) -> None:
+        self.assertIsNone(
+            check_skill_spec.parse_frontmatter("---\nname: demo\ndescription: x\n")
+        )
+
+    def test_frontmatter_rejects_quoted_scalar_trailing_text(self) -> None:
+        self.assertIsNone(
+            check_skill_spec.parse_frontmatter(
+                '---\nname: demo\ndescription: "valid" trailing\n---\n'
+            )
+        )
+
+    def test_frontmatter_rejects_continuation_after_closed_quote(self) -> None:
+        self.assertIsNone(
+            check_skill_spec.parse_frontmatter(
+                '---\nname: demo\ndescription: "valid"\n  trailing\n---\n'
+            )
+        )
+
+    def test_frontmatter_keeps_first_character_after_quote_only_opening_line(self) -> None:
+        parsed = check_skill_spec.parse_frontmatter(
+            '---\nname: demo\ndescription: "\n  starts here"\n---\n'
+        )
+        self.assertIsNotNone(parsed)
+        fields, _ = parsed
+        self.assertEqual("starts here", fields["description"])
+
+    def test_frontmatter_accepts_simple_block_scalar_and_list_subset(self) -> None:
+        parsed = check_skill_spec.parse_frontmatter(
+            "---\n"
+            "name: demo\n"
+            "description: |\n"
+            "  first line\n"
+            "  second line\n"
+            "allowed-tools:\n"
+            "  - browser\n"
+            "  - terminal\n"
+            "---\n"
+        )
+        self.assertIsNotNone(parsed)
+        fields, _ = parsed
+        self.assertEqual(fields["description"], "first line\nsecond line")
+        self.assertEqual(fields["allowed-tools"], "- browser - terminal")
+
+    def test_checker_reports_frontmatter_syntax_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            skill = root / "demo"
+            skill.mkdir()
+            (skill / "SKILL.md").write_text(
+                "---\nname: demo\nname: duplicate\ndescription: x\n---\n",
+                encoding="utf-8",
+            )
+            findings = check_skill_spec.check_skills_root(root)
+            self.assertIn("duplicate top-level key", "\n".join(findings))
+
 
 if __name__ == "__main__":
     unittest.main()

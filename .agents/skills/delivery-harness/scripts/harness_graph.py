@@ -15,6 +15,8 @@ from harness_core import (
     _validate_scope_list,
     is_full_sha,
     is_safe_model_token,
+    scope_contains,
+    validate_scope_claim,
 )
 from harness_schema import (
     AUTHORIZATION_KEYS,
@@ -217,12 +219,48 @@ def _validate_graph(
                                     f"{review_path}.mission_ids",
                                     f"unknown mission {mission_id!r}",
                                 )
-                        _validate_scope_list(
+                        review_scope = _validate_scope_list(
                             errors,
                             f"{review_path}.scope",
                             review["scope"],
                             nonempty=True,
                         )
+                        if review.get("type") == "security":
+                            if review.get("stage", "preintegration") != "integration":
+                                _add(
+                                    errors,
+                                    f"{review_path}.stage",
+                                    "security review must use the integration stage",
+                                )
+                            if set(review_missions) != set(missions):
+                                _add(
+                                    errors,
+                                    f"{review_path}.mission_ids",
+                                    "security review must cover every PLAN mission",
+                                )
+                            missing_scope = sorted(
+                                f"{mission_id}:{claim}"
+                                for mission_id in review_missions
+                                for claim in (
+                                    missions.get(mission_id, {}).get("write_scope", [])
+                                    if isinstance(missions.get(mission_id), dict)
+                                    else []
+                                )
+                                if isinstance(claim, str)
+                                and validate_scope_claim(claim) is None
+                                and not any(
+                                    validate_scope_claim(parent) is None
+                                    and scope_contains(parent, claim)
+                                    for parent in review_scope
+                                )
+                            )
+                            if missing_scope:
+                                _add(
+                                    errors,
+                                    f"{review_path}.scope",
+                                    "security review scope must contain every covered mission write scope: "
+                                    + ", ".join(missing_scope),
+                                )
                         _strings(
                             errors,
                             f"{review_path}.required_evidence",
@@ -665,6 +703,14 @@ def _add_integration_review_skip_errors(
     enables the short-circuit and closes that hole.
     """
 
+    if node["review"].get("type") == "security":
+        _add(
+            errors,
+            state_path,
+            "skipped integration review is forbidden: security integration review must run fresh on the unified candidate",
+        )
+        return
+
     integration = run.get("integration")
     head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
     if not is_full_sha(head):
@@ -715,6 +761,11 @@ def _validate_graph_state(
     errors: list[str], plan: dict[str, Any], run: dict[str, Any]
 ) -> None:
     path = "run.graph_state"
+    security_policy = plan.get("security_review")
+    required_security = (
+        isinstance(security_policy, dict)
+        and security_policy.get("status") == "required"
+    )
     value = run.get("graph_state")
     if not _keys(errors, path, value, {"graph_revision", "node_states", "edge_states"}):
         return
@@ -741,6 +792,27 @@ def _validate_graph_state(
         for attempt in run.get("attempt_log", [])
         if isinstance(attempt, dict) and _nonempty_string(attempt.get("attempt_id"))
     }
+    graph_attempt_nodes = set(graph_nodes)
+    for index, attempt in enumerate(
+        run.get("attempt_log", []) if isinstance(run.get("attempt_log"), list) else []
+    ):
+        if not isinstance(attempt, dict) or attempt.get("node_id") is None:
+            continue
+        node_id = attempt.get("node_id")
+        if node_id not in graph_attempt_nodes:
+            _add(
+                errors,
+                f"run.attempt_log[{index}].node_id",
+                "must reference a PLAN graph node",
+            )
+        if attempt.get("kind") == "node_attempt" and not _nonempty_string(
+            attempt.get("attempt_id")
+        ):
+            _add(
+                errors,
+                f"run.attempt_log[{index}].attempt_id",
+                "node attempt requires a non-empty attempt ID",
+            )
 
     node_states = value["node_states"]
     node_state_keys = {
@@ -800,6 +872,26 @@ def _validate_graph_state(
             ):
                 _add_integration_review_skip_errors(
                     errors, state_path, node, run, graph_nodes
+                )
+
+            # A required security review is a hard closeout gate.  It may not
+            # be converted into a historical skip or superseded state to make
+            # the final graph appear complete.  The closeout validator below
+            # additionally binds the terminal state to the exact current
+            # structured PASS result, but rejecting these terminal phases here
+            # also protects non-complete RUNs from silently bypassing the gate.
+            if (
+                required_security
+                and node.get("kind") == "verifier"
+                and isinstance(node.get("review"), dict)
+                and node["review"].get("type") == "security"
+                and node["review"].get("stage") == "integration"
+                and phase in {"skipped", "superseded"}
+            ):
+                _add(
+                    errors,
+                    state_path,
+                    "required security integration review cannot be skipped or superseded",
                 )
 
             if (

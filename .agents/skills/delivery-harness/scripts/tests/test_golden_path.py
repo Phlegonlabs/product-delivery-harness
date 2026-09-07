@@ -104,6 +104,11 @@ class GoldenPathTests(unittest.TestCase):
             architecture_path.write_text("# Architecture\n", encoding="utf-8")
 
             plan = valid_plan()
+            plan["security_review"] = {
+                "status": "not_applicable",
+                "skill_slot": "code_security_verification",
+                "reason": "synthetic contract fixture has no implementation candidate",
+            }
             plan["ui_surfaces"] = [
                 {
                     "id": "UI-001",

@@ -180,6 +180,110 @@ class DeploymentRecordTests(unittest.TestCase):
             "must not include a secret-value column", "\n".join(findings)
         )
 
+    def test_duplicate_required_level_two_section_fails(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "## External Console Setup",
+            "## External Console Setup\n\n## External Console Setup",
+            1,
+        )
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn(
+            "External Console Setup: duplicate required level-2 section",
+            "\n".join(findings),
+        )
+
+    def test_duplicate_environment_row_fails(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| production | | | | | |",
+            "| preview | https://other.example.pages.dev | | | | |\n"
+            "| production | | | | | |",
+            1,
+        )
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn("Environment Status: duplicate preview row", "\n".join(findings))
+
+    def test_duplicate_handoff_identity_fails(self) -> None:
+        duplicate = (
+            "| AUTH_SECRET | secret | app runtime | Cloudflare preview Worker secret | "
+            "Cloudflare production Worker secret | operator-generated | verified |"
+        )
+        deployment = GOOD_DEPLOYMENT.replace(duplicate, duplicate + "\n" + duplicate, 1)
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn(
+            "Required Secrets and Variables: duplicate identity row 'AUTH_SECRET'",
+            "\n".join(findings),
+        )
+
+    def test_duplicate_resource_identity_fails(self) -> None:
+        duplicate = "| D1 database | d1-prod-001 | d1-preview-001 |"
+        deployment = GOOD_DEPLOYMENT.replace(duplicate, duplicate + "\n" + duplicate, 1)
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn(
+            "Resource Isolation: duplicate identity row 'D1 database'",
+            "\n".join(findings),
+        )
+
+    def test_duplicate_unknown_resource_identity_also_fails(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| D1 database | d1-prod-001 | d1-preview-001 |",
+            "| Queue | queue-prod-001 | queue-preview-001 |\n"
+            "| Queue | queue-prod-002 | queue-preview-002 |",
+            1,
+        )
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn(
+            "Resource Isolation: duplicate identity row 'Queue'",
+            "\n".join(findings),
+        )
+
+    def test_identity_lookalikes_in_other_sections_are_ignored(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "- Protected resources preview must never bind: prod-db",
+            "- Protected resources preview must never bind: prod-db\n"
+            "| D1 database | d1-prod-001 | d1-prod-001 |",
+            1,
+        )
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertNotIn("must not share one resource", "\n".join(findings))
+
+    def test_section_headings_in_code_and_comments_are_ignored(self) -> None:
+        examples = (
+            "```markdown\n## Environment Status\n```",
+            "    ## Environment Status",
+            "<!-- ## Environment Status -->",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                deployment = GOOD_DEPLOYMENT.replace(
+                    "- Protected resources preview must never bind: prod-db",
+                    "- Protected resources preview must never bind: prod-db\n" + example,
+                    1,
+                )
+                self.assertEqual([], check_deployment.check_deployment_text(deployment))
+
+    def test_tables_in_code_and_comments_cannot_satisfy_or_duplicate_live_rows(self) -> None:
+        examples = (
+            "```markdown\n| preview | https://fake.example | | | | |\n```",
+            "    | preview | https://fake.example | | | | |",
+            "<!--\n| preview | https://fake.example | | | | |\n-->",
+        )
+        for example in examples:
+            with self.subTest(example=example):
+                deployment = GOOD_DEPLOYMENT.replace(
+                    "## Environment Status",
+                    "## Environment Status\n\n" + example,
+                    1,
+                )
+                self.assertEqual([], check_deployment.check_deployment_text(deployment))
+
+    def test_atx_closing_hash_heading_is_normalized_for_duplicate_detection(self) -> None:
+        deployment = GOOD_DEPLOYMENT + "\n## Environment Status ##\n"
+        findings = check_deployment.check_deployment_text(deployment)
+        self.assertIn(
+            "Environment Status: duplicate required level-2 section",
+            "\n".join(findings),
+        )
+
 
 class ConfigurePlaceholderTests(unittest.TestCase):
     def test_unresolved_markers_are_reported_with_line_numbers(self) -> None:

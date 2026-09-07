@@ -18,7 +18,7 @@ Use this reference for current PLAN schema v6 and RUN schema v11 typed graphs, c
 
 Use graph engineering as two layers without adding another scheduler:
 
-- The stable org graph is the role contract: planner, mission worker, frontend reviewer, backend reviewer, visual reviewer, approval owner, integrator, and lifecycle owner. Roles define responsibility, context, tools, and handoff shape; they are not persistent live processes.
+- The stable org graph is the role contract: planner, mission worker, frontend reviewer, backend reviewer, visual reviewer, security reviewer, approval owner, integrator, and lifecycle owner. Roles define responsibility, context, tools, and handoff shape; they are not persistent live processes.
 - The temporary work graph is the canonical PLAN graph plus RUN graph state for one delivery. It owns current nodes, dependencies, routes, attempts, evidence, and runtime bindings.
 
 Instantiate stable roles through existing node kinds, executors, review types, mission contracts, and parent ownership. Change the work graph only through a parent-owned PLAN revision, accepted refinement, bounded route, retry, cancellation, or supersession. Do not let a workflow script or worker mutate graph state directly.
@@ -31,8 +31,10 @@ Keep one control plane:
 PLAN graph definition
 -> parent graph scheduler
 -> runtime-neutral launch directive
--> Codex, Claude, command, external wait, or human executor
--> validated node result
+-> reserved node attempt (RUN lock)
+-> Codex, Claude, command, external wait, or human executor outside the lock
+-> validated node result and evidence
+-> record-node-result (RUN lock)
 -> RUN graph state
 -> next frontier
 ```
@@ -71,9 +73,13 @@ human           -> explicit approval or contract decision
 
 The node is the workflow identity. A thread, Claude session, process, worktree, or worker ID is an attempt binding recorded in RUN, never the node ID.
 
+Non-mission nodes follow a durable reserve/execute/record protocol. The parent reserves an `approval`, `external_wait`, `lifecycle`, or deterministic batch/final verifier attempt with `reserve-node-attempt` under the RUN lock, performs the check, wait, or lifecycle side effect outside that lock, and records the matching outcome and evidence with `record-node-result` under a new short lock. A local verifier reservation persists its exact request and attempt nonce in RUN before `--request-out` is published. `verifier_runtime.py` guards the Git checkout before and after execution and echoes that nonce. The tracked RUN dirty exception remains content-protected across the subprocess and is rehashed before result recording, so candidate code cannot alter coordination state while returning PASS. An interrupted verifier closes as `blocked` with a blocker and no fabricated result. A lifecycle transition is an evidence receipt only; it never invokes Git, a process, or a remote service, and lifecycle work retries only through an explicit bounded route.
+
 A `push` lifecycle node must declare an exact branch `target`. When `target` is absent the selector falls back to `"*"`, and schema v11 forbids `"*"`-scoped grants for head-bound actions, so a target-less push node is permanently `action_not_authorized`.
 
-A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, or `visual`), optional `stage` (`preintegration` by default or `integration`), reviewed mission IDs, repository scope, and required evidence. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree or integrated SHA. Persist that binding with `harness_transition.py reserve-review-dispatch` after selection and before the runtime side effect. Complete only that reserved attempt with `record-review-attempt`; a raw launch or log-only verdict is never accepted. It never receives a mission lease, write scope, branch, or commit authority.
+`lease-worker` accepts an already active exact execution identity or materializes one only when the matching action has an active wildcard grant. The wildcard remains the user's authorization scope; appending an exact target to the receipt does not set `authorized` or expand the grant. Lifecycle and push targets are never materialized here. The lease also derives the selector's provider, driver, model, effort, worker runtime, workspace mode, and completion channel, and rejects incompatible caller flags. For an app task, `--task-thread-id` is the only valid task identity and requires the `app_task`/`app_managed_worktree`/`thread_poll` axes.
+
+A verifier using `runtime_worker` is a read-only review node, not a mission. Its `review` contract names `type` (`frontend_code`, `backend_code`, `visual`, or `security`), optional `stage` (`preintegration` by default or `integration`), reviewed mission IDs, repository scope, and required evidence. A `security` node must use the integration stage, cover every PLAN mission, and declare scope that contains every covered mission write scope. RUN binds the attempt in `review_workers[]` to one exact current covered-mission worktree or integrated SHA. Persist that binding with `harness_transition.py reserve-review-dispatch` after selection and before the runtime side effect. Complete only that reserved attempt with `record-review-attempt`; a raw launch or log-only verdict is never accepted. It never receives a mission lease, write scope, branch, or commit authority.
 
 For full-stack UI delivery, use this default shape:
 
@@ -82,13 +88,14 @@ contract freeze
   -> frontend mission -> frontend_code review --fix_required--> same frontend task/worktree
   -> backend mission  -> backend_code review  --fix_required--> same backend task/worktree
   -> serial integration into one unified head
-  -> fresh integration-stage reviewers --fix_required--> bounded repair mission
+  -> fresh integration-stage surface reviewers --fix_required--> bounded repair mission
+  -> fresh security reviewer over every mission and trust-boundary seam
   -> one broad final deterministic validation on the fixed candidate SHA
 ```
 
-Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. A pre-integration review reports every blocking finding it can establish in one bounded pass; do not stop after the first finding or open another review merely to confirm it. A `fix_required` result is parent-side correction handling: deduplicate findings by file, location, and root cause, send the consolidated set to the original mission task/thread, keep its existing worktree and branch, require its focused verifier on a changed head, then re-arm the same review node. Do not model that correction as a new mission or create a new worktree from an integration branch that lacks the reviewed head. Runtime review nodes follow the attempt budget defined in the Root-Cause Repair Escalation section below. Integration-stage reviewers are fresh parent-dispatched agents and become ready only after every covered mission is integrated and `integration_head_sha` exists. Skip that dispatch when the integration head's tree is byte-identical to a tree an already-passed pre-integration review of the same type covers — the reviewed commit itself, or a merge commit with the same tree recorded as `integration.integration_tree_sha` and `review_workers[].tree_sha` — and record the node as `skipped`. A dispatched integration reviewer reads a seam-scoped packet: the per-mission reviewed heads are listed and the pass focuses on what combination changed. They may use bounded repair-route nodes because repair worktrees start from the reviewed integration head. A repair changes the candidate SHA and invalidates the prior integration review. This shape names one frontend mission and one visual review for readability; scope each pair to one page (or a small, genuinely tightly-coupled group of pages) per `contract-and-traceability.md`'s mission-granularity corollary, and repeat the shape per page/group rather than letting one frontend mission span the whole UI matrix with a single visual review fired once at the end.
+Keep frontend and backend review separate when both surfaces exist. Combine them only for a genuinely single-surface change and record the reason. A pre-integration review reports every blocking finding it can establish in one bounded pass; do not stop after the first finding or open another review merely to confirm it. A `fix_required` result is parent-side correction handling: deduplicate findings by file, location, and root cause, send the consolidated set to the original mission task/thread, keep its existing worktree and branch, require its focused verifier on a changed head, then re-arm the same review node. Do not model that correction as a new mission or create a new worktree from an integration branch that lacks the reviewed head. Runtime review nodes follow the attempt budget defined in the Root-Cause Repair Escalation section below. Integration-stage reviewers are fresh parent-dispatched agents and become ready only after every covered mission is integrated and `integration_head_sha` exists. Non-security integration review may skip when the integration head's tree is byte-identical to a tree an already-passed pre-integration review of the same type covers — the reviewed commit itself, or a merge commit with the same tree recorded as `integration.integration_tree_sha` and `review_workers[].tree_sha` — and records the node as `skipped`. A `security` integration review never skips: it loads the project's `code_security_verification` binding and evaluates the unified trust boundaries from a fresh context. A dispatched integration reviewer reads a seam-scoped packet: the per-mission reviewed heads are listed and the pass focuses on what combination changed. They may use bounded repair-route nodes because repair worktrees start from the reviewed integration head. A repair changes the candidate SHA and invalidates the prior integration review. This shape names one frontend mission and one visual review for readability; scope each pair to one page (or a small, genuinely tightly-coupled group of pages) per `contract-and-traceability.md`'s mission-granularity corollary, and repeat the shape per page/group rather than letting one frontend mission span the whole UI matrix with a single visual review fired once at the end.
 
-PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type, so the planner cannot mark a review required only in prose. Use an empty list only when none of the three review surfaces applies, and record that rationale in the human plan view. Render each reviewer a compact packet with the exact reviewed SHA, its declared scope, scoped changed paths/diff, applicable acceptance rows, required evidence, and unresolved prior findings (`render_review_packet.py --max-diff-bytes N` bounds the diff — default 50000 bytes, truncation marked in the packet heading). Refer to PLAN/RUN by identity and path instead of copying their full manifests into the prompt.
+PLAN `required_reviews` lists the applicable review types. Validation requires a matching runtime-worker verifier for every listed type, so the planner cannot mark a review required only in prose. Every new RUN also requires an explicit `security_review` policy: code delivery uses `required`; a non-code delivery may use `not_applicable` only with a reason. Older valid PLAN/RUN pairs remain readable and are never silently rewritten. The security review uses `code_review_readonly`, covers all missions, and runs before broad final validation. Render each reviewer a compact packet with the exact reviewed SHA, its declared scope, scoped changed paths/diff, applicable acceptance rows, required evidence, skill-binding slot when applicable, and unresolved prior findings (`render_review_packet.py --max-diff-bytes N` bounds the diff — default 50000 bytes, truncation marked in the packet heading). Refer to PLAN/RUN by identity and path instead of copying their full manifests into the prompt.
 
 ## Root-Cause Repair Escalation
 
@@ -110,7 +117,7 @@ One review node per surface is the required planning default. Same-surface fan-o
 
 Express it with the existing typed graph mechanism; no new PLAN or RUN schema field is required. Instead of one `kind: "verifier"` node for the surface, declare N verifier nodes that are identical in what they judge:
 
-- same `review.type` (`frontend_code`, `backend_code`, or `visual`);
+- same `review.type` (`frontend_code`, `backend_code`, `visual`, or `security`);
 - same reviewed `mission_ids` and repository `scope`;
 - the same incoming `dependency` edges, so every reviewer binds to the SAME exact covered-mission worktree or integrated SHA;
 - each its own node ID, its own attempt, and no shared state with the others — an independent read-only review, never a mission, and never granted write scope, a lease, or commit authority.
@@ -160,6 +167,8 @@ Provider composition is a readiness question, not a selector question. `scripts/
 
 The selector first computes the logical graph frontier, then resolves runtime bindings and action authorization. It applies the existing write-scope and runtime-resource conflict rules to ready mission nodes. Write-capable `runtime_worker` nodes draw from the minimum of PLAN capacity, runtime capacity, and currently available worker slots. Read-only nodes — reviews, approvals, and external waits — draw from their own budget of the same size, because they consume no isolation capacity and cannot write; charging them against the writer budget only let a streaming review starve the writer it exists to overlap with. Read-only nodes never bypass action authorization. The selector returns a derived selector-only `execution_route`: `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. This label is not a PLAN/RUN field and does not replace the separate `runtime_driver` transport binding. Non-runtime nodes remain explicit directives such as `run_verifier`, `await_approval`, `poll_external`, or `run_lifecycle_action`.
 
+The parent must reserve a selected non-runtime directive before executing it. `reserve-node-attempt` is the short RUN-locked reservation; the deterministic batch/final verifier, approval, external wait, or lifecycle side effect runs after that lock is released. `record-node-result` then reacquires the lock, requires the matching attempt and evidence, records the declared outcome, and traverses matching route edges. It does not perform the lifecycle action and cannot be replaced by a log-only result.
+
 ## Runtime Binding
 
 PLAN runtime policy declares `allowed_providers`, an optional `preferred_provider`, and optional `provider_options` keyed by an allowed provider. Plan Mode chooses these values from mission complexity, latency/cost needs, and the user's explicit model preference. Codex and Claude Code options contain `model` plus a nullable `reasoning_effort`; keep effort null when the provider default is intentional. Pi keeps `model` null so its installed role, primary model, and fallback order remain authoritative, but may carry a non-null per-node `reasoning_effort`. Generic providers keep both values null. Model names are portable strings because the destination host remains authoritative for its current catalog. RUN records the actual host and its observed capabilities. A provider, model, or effort preference is not proof that the destination supports it.
@@ -170,7 +179,7 @@ Use this Plan Mode order only while authoring options for the provider that will
 2. For high-risk architecture, security, migration, difficult debugging, or difficult correctness, raise reasoning effort to `xhigh` for the chosen Codex or Claude Code option while keeping a delegated Claude Code node's model at `sonnet`. The run's final review — the final synthesis pass over the integration head — needs no trigger: it runs at `xhigh` by default (Codex `gpt-5.6-sol`, Claude Code `sonnet`).
 3. For general-purpose nodes and backend implementation, prefer Codex `gpt-5.6-terra` with `high` reasoning; keep Claude Code `sonnet` with `high` reasoning as the availability fallback.
 4. Frontend/UI implementation prefers Codex `gpt-5.6-sol` with `high` reasoning; a delegated Claude Code node still defaults to `sonnet` with `high` reasoning rather than a stronger pinned model.
-5. Choose review effort from risk without switching the selected provider. On a Codex host, routine deterministic `backend_code` review uses `gpt-5.6-terra` with `medium`; on a Claude Code host, routine `frontend_code` and visual review use `sonnet` with `medium`. On a Pi host, every review uses the installed `reviewer` role with a null PLAN model. Raise review effort to `high` or `xhigh` only for security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment — a Claude Code model itself stays `sonnet`. The run's final review is not routine: it uses Codex `gpt-5.6-sol` with `xhigh` on a Codex host, Claude Code `sonnet` with `xhigh` on a Claude Code host, or the installed Pi `reviewer` with `xhigh` on a Pi host.
+5. Choose review effort from risk without switching the selected provider. On a Codex host, routine deterministic `backend_code` or `security` review uses `gpt-5.6-terra` with `medium`; on a Claude Code host, routine `frontend_code`, visual, and security review uses `sonnet` with `medium`. On a Pi host, every review uses the installed `reviewer` role with a null PLAN model. Raise review effort to `high` or `xhigh` only for high-impact security, migration, difficult correctness, broad architecture, or genuinely ambiguous visual judgment — a Claude Code model itself stays `sonnet`. The run's final review is not routine: it uses Codex `gpt-5.6-sol` with `xhigh` on a Codex host, Claude Code `sonnet` with `xhigh` on a Claude Code host, or the installed Pi `reviewer` with `xhigh` on a Pi host.
 6. For bounded mechanical edits, discovery, or inexpensive preflight work, prefer a fast model with low or medium reasoning: Codex's fastest/cheapest available model for that lane, or a delegated Claude Code node's model set to `haiku` (not `sonnet`) with `low` or `medium` reasoning effort. This covers read-only exploration, documentation/API research, test/log analysis, and other bounded discovery work — not implementation or review nodes, which stay at the tiers already set in points 2 through 5.
 7. When the current catalog or destination support is not observed, leave Codex values null for the host default or use Claude's portable `sonnet` default. Do not invent a model identifier.
 
@@ -196,6 +205,8 @@ Current Claude Code workflow agents inherit the outer allowlist, so the outer pr
 
 Retry one failed node by creating a new attempt on the same graph revision. Replay a subgraph only after every affected downstream node is reset or superseded under a new parent-owned state transition.
 
+For non-runtime nodes, a retry always starts with a fresh `reserve-node-attempt`; the prior receipt remains terminal evidence. An interrupted approval, external wait, lifecycle action, or deterministic verifier is not left `running`: record `blocked` with `record-node-result` and preserve its evidence. A `retryable_failure` may directly re-arm only approval, external-wait, and deterministic-verifier work while budget remains; lifecycle work requires an explicit bounded route because its side effect may be unknown.
+
 Never reuse:
 
 - an old attempt ID;
@@ -214,6 +225,9 @@ Use this order:
 validate PLAN/RUN
 -> select graph frontier
 -> re-observe runtime and Git
+-> reserve the selected non-runtime attempt under the RUN lock
+-> execute its check, wait, or lifecycle side effect outside the lock
+-> record-node-result with evidence and traverse routes
 -> reserve the exact review dispatch in RUN when applicable
 -> allocate mission attempt and workspace when applicable
 -> execute adapter

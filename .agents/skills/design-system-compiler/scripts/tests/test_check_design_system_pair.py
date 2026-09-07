@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -649,6 +651,31 @@ class CheckDesignSystemPairTests(unittest.TestCase):
                     )
                     self.assertEqual(first_mtime, md.stat().st_mtime_ns)
 
+    def test_write_preserves_markdown_file_mode_on_posix(self) -> None:
+        if os.name != "posix":
+            self.skipTest("file mode bits are not portable to this platform")
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_text("# Design System\n\nHuman rationale.\n", encoding="utf-8")
+            os.chmod(md, 0o640)
+            js.write_text(json.dumps(registry()), encoding="utf-8")
+
+            code = checker.main(
+                [
+                    "--markdown",
+                    str(md),
+                    "--registry",
+                    str(js),
+                    "--write",
+                ]
+            )
+
+            self.assertEqual(0, code)
+            self.assertEqual(0o640, stat.S_IMODE(md.stat().st_mode))
+
     def test_write_rejects_duplicate_begin_marker_without_changing_markdown(self) -> None:
         generated = checker.generated_contract_block(registry())
         markdown = (
@@ -676,6 +703,121 @@ class CheckDesignSystemPairTests(unittest.TestCase):
 
             self.assertEqual(2, code)
             self.assertEqual(markdown, md.read_text(encoding="utf-8"))
+
+    def test_write_does_not_change_markdown_when_registry_fails_require_filled(self) -> None:
+        markdown = "# Design System\n\nHuman rationale.\n"
+        data = registry(product="<Product Name>")
+        original = markdown.encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_bytes(original)
+            js.write_text(json.dumps(data), encoding="utf-8")
+
+            code = checker.main(
+                [
+                    "--markdown",
+                    str(md),
+                    "--registry",
+                    str(js),
+                    "--write",
+                    "--require-filled",
+                ]
+            )
+
+            self.assertEqual(1, code)
+            self.assertEqual(original, md.read_bytes())
+
+    def test_write_does_not_change_markdown_when_candidate_has_semantic_errors(self) -> None:
+        markdown = "# Design System\n\nHuman rationale.\n"
+        data = registry(product="")
+        original = markdown.encode("utf-8")
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_bytes(original)
+            js.write_text(json.dumps(data), encoding="utf-8")
+
+            code = checker.main(
+                [
+                    "--markdown",
+                    str(md),
+                    "--registry",
+                    str(js),
+                    "--write",
+                ]
+            )
+
+            self.assertEqual(1, code)
+            self.assertEqual(original, md.read_bytes())
+
+    def test_atomic_write_rejects_a_symlink_without_changing_its_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "target.md"
+            link = root / "design-system.md"
+            original = b"# Original\n"
+            target.write_bytes(original)
+            try:
+                link.symlink_to(target)
+            except OSError as exc:
+                self.skipTest(f"file symlink unavailable: {exc}")
+
+            with self.assertRaisesRegex(
+                checker.ConcurrentModificationError, "must not be a symbolic link"
+            ):
+                checker._write_bytes_atomic(link, b"# Replacement\n", original)
+
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(original, target.read_bytes())
+
+    def test_write_aborts_when_markdown_changes_during_compare(self) -> None:
+        markdown = "# Design System\n\nHuman rationale.\n"
+        concurrent_edit = b"# Concurrent edit\n"
+        data = registry()
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            md = root / "design-system.md"
+            js = root / "design-system.json"
+            md.write_bytes(markdown.encode("utf-8"))
+            js.write_text(json.dumps(data), encoding="utf-8")
+
+            original_compare = checker.compare
+
+            def compare_with_concurrent_edit(
+                markdown_text: str,
+                registry_data: dict[str, object],
+                *,
+                require_filled: bool = False,
+            ) -> list[str]:
+                md.write_bytes(concurrent_edit)
+                return original_compare(
+                    markdown_text,
+                    registry_data,
+                    require_filled=require_filled,
+                )
+
+            checker.compare = compare_with_concurrent_edit
+            try:
+                code = checker.main(
+                    [
+                        "--markdown",
+                        str(md),
+                        "--registry",
+                        str(js),
+                        "--write",
+                    ]
+                )
+            finally:
+                checker.compare = original_compare
+
+            self.assertEqual(2, code)
+            self.assertEqual(concurrent_edit, md.read_bytes())
 
     def test_replace_and_extract_reject_inverse_and_unmatched_markers(self) -> None:
         cases = {

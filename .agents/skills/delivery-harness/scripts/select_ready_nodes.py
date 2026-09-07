@@ -429,7 +429,11 @@ def _incoming_route_matched(
                 not isinstance(source_node, dict)
                 or _current_review_result_matches_worker(source_node, run, context) is not False
             )
-            and (bound is None or edge_state["traversals"] < bound)
+            and edge_state.get("status") != "exhausted"
+            # Recording the source outcome increments the traversal count.
+            # The target must still consume that just-recorded final allowed
+            # traversal when the count is exactly equal to the bound.
+            and (bound is None or edge_state["traversals"] <= bound)
         ):
             return True
         if (
@@ -440,7 +444,8 @@ def _incoming_route_matched(
                 run,
                 context,
             )
-            and (bound is None or edge_state["traversals"] < bound)
+            and edge_state.get("status") != "exhausted"
+            and (bound is None or edge_state["traversals"] <= bound)
         ):
             return True
     if state["attempts"] == 0 and any(
@@ -544,6 +549,33 @@ def _logical_reasons(
         and latest_mission_attempt.get("result") == "blocked"
     )
     retryable_mission = retryable_failure or reconciled_interrupt
+    # Non-mission attempts have no worker-specific reconciliation record.  A
+    # failed/blocked approval, external wait, lifecycle action, or deterministic
+    # verifier may retry only when a declared route re-activates it and its
+    # node-local attempt budget remains.  The next reserve transition mints a
+    # fresh attempt identity; historical evidence is never overwritten.
+    routed_retryable_node = (
+        node.get("kind") != "mission"
+        and not (
+            node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+        )
+        and state.get("phase") in {"failed", "blocked"}
+        and route_matched is True
+        and state.get("attempts", 0) < node.get("max_attempts", 0)
+    )
+    safe_direct_retry = (
+        node.get("kind") in {"approval", "external_wait", "verifier"}
+        and not (
+            node.get("kind") == "verifier"
+            and node.get("executor") == "runtime_worker"
+        )
+        and state.get("phase") == "failed"
+        and state.get("last_outcome") == "retryable_failure"
+        and route_matched is None
+        and state.get("attempts", 0) < node.get("max_attempts", 0)
+    )
+    retryable_node = routed_retryable_node or safe_direct_retry
     if run.get("schema_version") == 11:
         desired_state = run.get("control", {}).get("desired_state")
         if desired_state == "paused":
@@ -561,9 +593,10 @@ def _logical_reasons(
         and not stale_preintegration_pass
         and not repair_return_rearm
         and not retryable_mission
+        and not retryable_node
     ):
         reasons.add("node_phase_not_ready")
-    if state["blockers"] and not retryable_mission:
+    if state["blockers"] and not retryable_mission and not retryable_node:
         reasons.add("blocker_present")
     if lineage_exhausted:
         reasons.add("review_lineage_exhausted")
