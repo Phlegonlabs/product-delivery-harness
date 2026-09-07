@@ -587,6 +587,12 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertIn("wireframe-data.product", joined)
         self.assertIn("approvalStatus", joined)
 
+        non_object = (
+            '<script id="wireframe-data" type="application/json">[]</script>'
+        ).encode("utf-8")
+        joined = " ".join(full_wireframe_checker_errors(non_object, prd))
+        self.assertIn("wireframe-data: must be a JSON object", joined)
+
         draft = wireframes_html(
             [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
             approval_status="draft",

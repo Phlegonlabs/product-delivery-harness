@@ -128,6 +128,26 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         problems = validate_html("<html><body><p>no data block here</p></body></html>")
         self.assertTrue(any("missing wireframe-data" in p for p in problems))
 
+    def test_non_object_data_fails_cleanly_under_strict_flags(self):
+        self.assertEqual(
+            validate_html(render_html([]), require_approved=True),
+            ["wireframe-data: must be a JSON object"],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            html_path = Path(directory) / "wireframes.html"
+            prd_path = Path(directory) / "PRD.md"
+            html_path.write_text(render_html(["not", "an", "object"]), encoding="utf-8")
+            prd_path.write_text(prd_markdown(), encoding="utf-8")
+
+            problems = check_wireframe_html.validate(
+                html_path,
+                require_filled=True,
+                require_approved=True,
+                prd_path=prd_path,
+            )
+
+        self.assertEqual(problems, ["wireframe-data: must be a JSON object"])
+
     def test_external_resources_are_rejected(self):
         html = render_html(wireframe_data()).replace(
             "<title>Wireframes</title>",

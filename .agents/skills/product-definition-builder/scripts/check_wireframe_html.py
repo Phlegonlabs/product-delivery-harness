@@ -476,6 +476,8 @@ def validate(
         return [f"{html_path}: wireframe-data is invalid JSON: {exc}"]
 
     problems.extend(_validate_data(data, require_filled=require_filled))
+    if not isinstance(data, dict):
+        return problems
 
     if prd_path is not None:
         try:
