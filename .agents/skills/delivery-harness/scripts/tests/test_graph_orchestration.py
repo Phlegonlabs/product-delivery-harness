@@ -16,6 +16,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 from harness_core import mission_dependencies, resolve_runtime_options  # noqa: E402
 from harness_graph import _validate_graph  # noqa: E402
 from harness_manifest import (  # noqa: E402
+    INTERRUPTED_REVIEW_RECEIPT,
     plan_digest,
     topological_levels,
     validate_plan,
@@ -669,6 +670,106 @@ class GraphManifestTests(unittest.TestCase):
                 for error in errors
             ),
             errors,
+        )
+
+    def test_interrupted_security_history_allows_a_later_exact_pass(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        node = add_security_review(plan)
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        head = run["integration"]["integration_head_sha"]
+        base = run["integration"]["batch_base_sha"]
+        current = next(
+            worker
+            for worker in run["review_workers"]
+            if worker["node_id"] == node["id"]
+        )
+        current.update(
+            {
+                "reviewed_sha": head,
+                "base_sha": base,
+                "review_path": "C:/repo",
+                "worker_runtime": "subagent",
+                "runtime_binding": {
+                    "provider": "codex",
+                    "driver": "subagents",
+                    "source": "host",
+                    "model": None,
+                    "reasoning_effort": None,
+                    "option_source": "provider_default",
+                },
+                "security_result": {
+                    "review_type": "security",
+                    "decision": "pass",
+                    "reviewed_sha": head,
+                    "base_sha": base,
+                    "scope": node["review"]["scope"],
+                    "exclusions": [],
+                    "trust_boundaries": ["request to privileged delivery state"],
+                    "tools": [
+                        {
+                            "name": "manual source review",
+                            "status": "passed",
+                            "evidence": "reviewed source-to-sink paths",
+                        }
+                    ],
+                    "coverage": {
+                        "status": "complete",
+                        "reviewed": ["full declared scope"],
+                        "gaps": [],
+                    },
+                    "findings": [],
+                    "evidence": [f"reviewed exact SHA {head}"],
+                },
+            }
+        )
+        self.assertEqual([], validate_run(plan, run))
+
+        interrupted = copy.deepcopy(current)
+        interrupted.update(
+            {
+                "worker_id": "RW-SECURITY-INTERRUPTED",
+                "attempt_id": "ATT-SECURITY-INTERRUPTED",
+                "phase": "blocked",
+                "outcome": "blocked",
+                "findings": ["review process stopped before returning a result"],
+            }
+        )
+        interrupted.pop("security_result")
+        run["review_workers"].append(interrupted)
+        run["attempt_log"].append(
+            {
+                "attempt_id": interrupted["attempt_id"],
+                "mission_id": None,
+                "task_id": None,
+                "lease_id": None,
+                "kind": "review",
+                "result": "blocked",
+                "evidence": [
+                    "review process stopped before returning a result",
+                    INTERRUPTED_REVIEW_RECEIPT,
+                ],
+                "review_lineage_id": node["review"]["lineage_id"],
+                "failure_family_ids": [],
+            }
+        )
+        run["review_lineages"][node["review"]["lineage_id"]][
+            "consumed_attempts"
+        ] = 1
+
+        self.assertEqual([], validate_run(plan, run))
+        current.pop("security_result")
+        self.assertTrue(
+            any(
+                "required security integration review needs a current worker_passed PASS result"
+                in error
+                for error in validate_run(plan, run)
+            )
         )
 
 

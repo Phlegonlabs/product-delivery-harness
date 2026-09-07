@@ -143,6 +143,38 @@ __all__ = [
 INTERRUPTED_REVIEW_RECEIPT = "interrupted_review_reconciliation"
 
 
+def _is_reconciled_interrupted_review(
+    worker: dict[str, Any],
+    node: dict[str, Any] | None,
+    attempt_log: Any,
+) -> bool:
+    """Recognize one transition-authored historical interruption receipt."""
+
+    if (
+        worker.get("phase") != "blocked"
+        or worker.get("outcome") != "blocked"
+        or not isinstance(node, dict)
+        or not isinstance(node.get("review"), dict)
+        or not isinstance(attempt_log, list)
+    ):
+        return False
+    matches = [
+        attempt
+        for attempt in attempt_log
+        if isinstance(attempt, dict)
+        and attempt.get("attempt_id") == worker.get("attempt_id")
+    ]
+    return (
+        len(matches) == 1
+        and matches[0].get("kind") == "review"
+        and matches[0].get("result") == "blocked"
+        and matches[0].get("review_lineage_id")
+        == node["review"].get("lineage_id")
+        and isinstance(matches[0].get("evidence"), list)
+        and INTERRUPTED_REVIEW_RECEIPT in matches[0]["evidence"]
+    )
+
+
 PRODUCT_DESIGN_SOURCE_PATHS = (
     "docs/product/design-system.md",
     "docs/product/design-system.json",
@@ -5410,6 +5442,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     if not _nonempty_string(worker[key]):
                         _add(errors, f"{path}.{key}", "must be a non-empty string")
                 attempt_id = worker.get("attempt_id")
+                attempt_matches = []
                 if _nonempty_string(attempt_id):
                     if attempt_id in review_attempt_ids:
                         _add(
@@ -5474,17 +5507,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "blocked",
                         "worker_failed",
                     }
-                    interrupted_without_result = (
-                        worker.get("phase") == "blocked"
-                        and outcome == "blocked"
-                        and len(attempt_matches) == 1
-                        and attempt_matches[0].get("kind") == "review"
-                        and attempt_matches[0].get("result") == "blocked"
-                        and attempt_matches[0].get("review_lineage_id")
-                        == node["review"].get("lineage_id")
-                        and isinstance(attempt_matches[0].get("evidence"), list)
-                        and INTERRUPTED_REVIEW_RECEIPT
-                        in attempt_matches[0]["evidence"]
+                    interrupted_without_result = _is_reconciled_interrupted_review(
+                        worker,
+                        node,
+                        run.get("attempt_log"),
                     )
                     if (
                         worker.get("phase") in terminal_security_phases
@@ -6237,9 +6263,28 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         ):
             _add(errors, "run.workers", "complete run cannot retain active or blocked workers")
         closeout_review_workers = run.get("review_workers")
+        closeout_review_nodes = (
+            {
+                node.get("id"): node
+                for node in closeout_graph_nodes
+                if isinstance(node, dict) and isinstance(node.get("id"), str)
+            }
+            if graph_run
+            else {}
+        )
         if graph_run and isinstance(closeout_review_workers, list) and any(
             isinstance(worker, dict)
-            and worker.get("phase") in {"leased", "worker_running", "blocked"}
+            and (
+                worker.get("phase") in {"leased", "worker_running"}
+                or (
+                    worker.get("phase") == "blocked"
+                    and not _is_reconciled_interrupted_review(
+                        worker,
+                        closeout_review_nodes.get(worker.get("node_id")),
+                        run.get("attempt_log"),
+                    )
+                )
+            )
             for worker in closeout_review_workers
         ):
             _add(
