@@ -15,6 +15,8 @@ from harness_core import (
     _validate_scope_list,
     is_full_sha,
     is_safe_model_token,
+    scope_contains,
+    validate_scope_claim,
 )
 from harness_schema import (
     AUTHORIZATION_KEYS,
@@ -217,6 +219,12 @@ def _validate_graph(
                                     f"{review_path}.mission_ids",
                                     f"unknown mission {mission_id!r}",
                                 )
+                        review_scope = _validate_scope_list(
+                            errors,
+                            f"{review_path}.scope",
+                            review["scope"],
+                            nonempty=True,
+                        )
                         if review.get("type") == "security":
                             if review.get("stage", "preintegration") != "integration":
                                 _add(
@@ -230,12 +238,29 @@ def _validate_graph(
                                     f"{review_path}.mission_ids",
                                     "security review must cover every PLAN mission",
                                 )
-                        _validate_scope_list(
-                            errors,
-                            f"{review_path}.scope",
-                            review["scope"],
-                            nonempty=True,
-                        )
+                            missing_scope = sorted(
+                                f"{mission_id}:{claim}"
+                                for mission_id in review_missions
+                                for claim in (
+                                    missions.get(mission_id, {}).get("write_scope", [])
+                                    if isinstance(missions.get(mission_id), dict)
+                                    else []
+                                )
+                                if isinstance(claim, str)
+                                and validate_scope_claim(claim) is None
+                                and not any(
+                                    validate_scope_claim(parent) is None
+                                    and scope_contains(parent, claim)
+                                    for parent in review_scope
+                                )
+                            )
+                            if missing_scope:
+                                _add(
+                                    errors,
+                                    f"{review_path}.scope",
+                                    "security review scope must contain every covered mission write scope: "
+                                    + ", ".join(missing_scope),
+                                )
                         _strings(
                             errors,
                             f"{review_path}.required_evidence",

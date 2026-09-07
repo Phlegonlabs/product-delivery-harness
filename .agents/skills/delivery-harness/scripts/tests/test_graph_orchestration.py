@@ -597,6 +597,24 @@ class GraphManifestTests(unittest.TestCase):
             errors,
         )
 
+    def test_security_review_scope_must_contain_every_mission_write_scope(self) -> None:
+        plan = valid_plan()
+        node = add_security_review(plan)
+        node["review"]["scope"] = ["README.md"]
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "security review scope must contain every covered mission write scope"
+                in error
+                and "M1:src/a/**" in error
+                and "M2:src/ab/**" in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_required_security_review_cannot_be_superseded(self) -> None:
         plan = valid_plan()
         plan["security_review"] = {
