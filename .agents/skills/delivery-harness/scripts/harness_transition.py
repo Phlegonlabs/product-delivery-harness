@@ -30,6 +30,7 @@ from harness_core import (
 )
 from harness_manifest import (
     _verifier_owners,
+    INTERRUPTED_REVIEW_RECEIPT,
     ManifestError,
     authorization_covers,
     load_plan,
@@ -2326,6 +2327,7 @@ def _reconcile_interrupted_reviews(
                 "result": "blocked",
                 "evidence": [
                     args.reason,
+                    INTERRUPTED_REVIEW_RECEIPT,
                     "partial review output was not accepted; local evidence was preserved",
                 ],
                 "review_lineage_id": lineage_id,

@@ -118,6 +118,7 @@ from harness_contract_join import (
 __all__ = [
     "AUTHORIZATION_KEYS",
     "CURRENT_SCHEMA_PAIR",
+    "INTERRUPTED_REVIEW_RECEIPT",
     "ManifestError",
     "PLAN_HEADING",
     "RUN_HEADING",
@@ -137,6 +138,9 @@ __all__ = [
     "validate_ui_evidence_files",
     "validate_ui_surface_design_coverage",
 ]
+
+
+INTERRUPTED_REVIEW_RECEIPT = "interrupted_review_reconciliation"
 
 
 PRODUCT_DESIGN_SOURCE_PATHS = (
@@ -5470,7 +5474,23 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         "blocked",
                         "worker_failed",
                     }
-                    if worker.get("phase") in terminal_security_phases and security_result is None:
+                    interrupted_without_result = (
+                        worker.get("phase") == "blocked"
+                        and outcome == "blocked"
+                        and len(attempt_matches) == 1
+                        and attempt_matches[0].get("kind") == "review"
+                        and attempt_matches[0].get("result") == "blocked"
+                        and attempt_matches[0].get("review_lineage_id")
+                        == node["review"].get("lineage_id")
+                        and isinstance(attempt_matches[0].get("evidence"), list)
+                        and INTERRUPTED_REVIEW_RECEIPT
+                        in attempt_matches[0]["evidence"]
+                    )
+                    if (
+                        worker.get("phase") in terminal_security_phases
+                        and security_result is None
+                        and not interrupted_without_result
+                    ):
                         _add(
                             errors,
                             f"{path}.security_result",

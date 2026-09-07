@@ -379,6 +379,58 @@ class SecurityReviewTransitionTests(unittest.TestCase):
                     plan, run, self.args(path)
                 )
 
+    def test_interrupted_security_review_reconciles_without_a_result(self) -> None:
+        plan, run = self.state()
+
+        harness_transition._reconcile_interrupted_reviews(
+            plan,
+            run,
+            Namespace(
+                worker_id=["RW-SECURITY"],
+                reason="review process stopped before returning a result",
+                source="user stopped review",
+            ),
+        )
+
+        self.assertEqual([], validate_run(plan, run))
+        worker = run["review_workers"][0]
+        self.assertEqual("blocked", worker["phase"])
+        self.assertNotIn("security_result", worker)
+        attempt = run["attempt_log"][-1]
+        self.assertIn(
+            harness_transition.INTERRUPTED_REVIEW_RECEIPT,
+            attempt["evidence"],
+        )
+        state = run["graph_state"]["node_states"]["N-SECURITY-REVIEW"]
+        self.assertEqual("dormant", state["phase"])
+        self.assertEqual("paused", run["control"]["desired_state"])
+
+    def test_blocked_security_review_cannot_forge_interruption_without_receipt(self) -> None:
+        plan, run = self.state()
+        worker = run["review_workers"][0]
+        worker["phase"] = "blocked"
+        worker["outcome"] = "blocked"
+        run["attempt_log"].append(
+            {
+                "attempt_id": worker["attempt_id"],
+                "mission_id": None,
+                "task_id": None,
+                "lease_id": None,
+                "kind": "review",
+                "result": "blocked",
+                "evidence": ["review returned blocked without a structured result"],
+                "review_lineage_id": "REVIEW-SECURITY",
+                "failure_family_ids": [],
+            }
+        )
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any("terminal security review requires its structured result" in error for error in errors),
+            errors,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

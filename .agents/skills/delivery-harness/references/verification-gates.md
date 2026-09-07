@@ -303,6 +303,8 @@ A security review is not eligible for `skip-integration-review`, even when a pre
 
 Security reservation and completion recheck the live integration checkout before accepting the attempt: the exact integration branch and HEAD, clean status (allowing only the exact tracked RUN exception), and ancestry from the current batch base. A mismatch blocks the attempt. Required security nodes cannot be skipped, superseded, or replaced at closeout; a missing, skipped, stale, partial, blocked, or superseded security result prevents final PASS.
 
+An interrupted security reviewer does not fabricate a structured decision. `reconcile-interrupted-reviews` retains a blocked worker without `security_result` only when the unique matching review attempt carries the `interrupted_review_reconciliation` receipt. The node returns to dormant and the run stays paused; the receipt cannot satisfy closeout.
+
 The neutral PLAN template does not guess an unknown repair mission. Its security node returns `blocked` when a validated finding needs code changes; the parent then refines PLAN with a bounded repair and re-review route before any mutation. A project that declares `fix_required` on the security node must declare that bounded route up front.
 
 ## Failure Handling
