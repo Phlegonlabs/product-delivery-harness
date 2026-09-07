@@ -17,13 +17,6 @@
 - When decomposing a PRD into full-delivery missions, split each mission into more, finer tasks: one task per small, independently verifiable step, so each step is done and checked carefully.
 - Each task keeps its own atomic commit. Finer tasks never create extra parallel workers; they stay sequential checkpoints inside the mission.
 
-## Task Logging
-
-- After each step of a flow is done, add one short line to `Tasks.md` at the repo root saying what that part did, under today's date.
-- Split work into the smallest checkable actions: one line per action in `Tasks.md` (one file, one command, one decision), checked off individually as each completes.
-- Release flows: also log each of these steps — the README version-history/log and badge update in all three languages, the version bump, and the `v<version>` tag pushed to GitHub after landing on `main`.
-- Keep `Tasks.md` updates local; they land with the next real change's branch and PR — never as a log-only release. Commit or push `Tasks.md` on its own only when the user explicitly asks.
-
 ## Git Flow
 
 - Do not edit, commit, merge, or push directly to the default branch (`main` in this repository).
