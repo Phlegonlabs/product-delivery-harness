@@ -22,7 +22,7 @@ Before drafting the HTML, look up how comparable products structure the same kin
 
 ## HTML Requirements
 
-Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset.
+Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset. The checker decodes CSS escapes before evaluating `url()`, `image-set()`, and `@import`, so escaped remote schemes are rejected like literal ones.
 
 The file uses schema `wireframes/2` and must provide:
 
