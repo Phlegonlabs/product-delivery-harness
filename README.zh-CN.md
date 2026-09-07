@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.25.7-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.26.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -28,8 +28,9 @@
 | 一个产品想法 | `product-definition-builder` | 需求、UI 产品的低保真交互线框图、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
 | 已批准线框图、需要视觉设计的包 | `product-definition-builder` UI Design Pass；gate 判定为 required 时再进入 `design-system-compiler` + `frontend-design` | 批准的视觉方向——在 web 上是保留于 `docs/design/ui-references/` 的高保真 HTML references——以及需要时有约束力的设计系统契约 |
 | 现有仓库中的明确变更 | `delivery-harness` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
+| 已交付、需要外部设置的 release | `product-activation` | 精确授权的 console 动作、已验证的量测来源，以及逐 target 的 activation readiness |
 
-三个内置技能都可以单独调用；完整流程是可选的。但每种模式仍会校验明确声明的输入和依赖。
+四个内置技能都可以单独调用；完整流程是可选的。但每种模式仍会校验明确声明的输入和依赖。
 
 ## 核心保证
 
@@ -39,6 +40,7 @@
 - **视觉目标是真正的 HTML。** 被要求的 web 视觉阶段会用已加载的设计技能产出高保真 HTML，把批准的 references 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除；Harness 按每页批准的 HTML reference 实现。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
+- **Activation 必须读回验证。** 外部设置留在 PLAN/RUN 之外，批准绑定精确 action digest，而且只有独立 read-back 与行为证据完成后才算 verified。
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
 - **默认只在本地完成。** Harness 负责提交并验证本地结果；只有明确的远程意图才会授权推送这次运行自己的分支。把它合进默认分支是你自己的步骤。
 
@@ -49,6 +51,7 @@
 | `product-definition-builder` | 产品探索、起草前的 research-first 评估与 Research Gate、需求、Builder UX Direction 输入、UI 产品的低保真交互线框图、架构、技术栈决策、发布目标、测试义务、负责对账的草稿后市场调研补缺、web 路线会产出保留高保真 HTML references 的可选 UI Design Pass，以及部署后的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
 | `design-system-compiler` | 将已批准的 UI Design Handoff 编译成冻结的设计系统契约。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
 | `delivery-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
+| `product-activation` | Web、iOS 与 browser-extension target 的交付后设置，包括 capability routing、精确外部动作授权、read-back、量测来源与 outcome-review 交接 | `docs/ACTIVATION.md` |
 
 交付核心在调用托管编排之前，会先做一个规模判定：
 
@@ -72,13 +75,15 @@ flowchart LR
   Harness --> Runtime["单一宿主适配器\nCodex、Claude Code 或 Pi"]
   Runtime --> Evidence["本地测试与 UI 证据"]
   Evidence --> Push["推送到这次运行自己的分支\n合进默认分支是你自己的步骤"]
+  Push --> Activate["product-activation\n外部设置 + read-back"]
+  Activate --> Outcome["已验证量测来源\n后续 outcome review"]
 ```
 
-你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`，可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——在 web 上，pass 会把批准的高保真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的组合移入 `docs/design/archived/`——Harness 实现已冻结的结果。
+你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`，可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——在 web 上，pass 会把批准的高保真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的组合移入 `docs/design/archived/`——Harness 实现已冻结的结果，而 `product-activation` 在不重开 delivery RUN 的情况下设置并验证已交付 release。
 
 ### 完整技能生命周期
 
-三个 skill 的完整生命周期，包含每个闸门与横切机制：
+四个 skill 的完整生命周期，包含每个闸门与横切机制：
 
 ```mermaid
 flowchart TB
@@ -157,10 +162,22 @@ flowchart TB
         prod["Production 部署<br/>（平台从 main 构建）"]
         check["部署后验证（只读）<br/>check_deployment.py"]
         status["核对 deployment 记录<br/>（状态 + 待人工处理事项）"]
+        handoff --> push --> preview --> merge --> prod --> check --> status
+    end
+
+    subgraph ACTIVATE["product-activation — 交付后启用"]
+        direction TB
+        profiles["选择 core + surface profiles<br/>docs/ACTIVATION.md"]
+        capability["探测 connector / API / CLI<br/>Browser / Computer Use / manual"]
+        actions["精确 ACT-* 动作<br/>授权 + read-back"]
+        ready["逐 target activation readiness<br/>已验证 MS-* 来源"]
+        profiles --> capability --> actions --> ready
+    end
+
+    subgraph OUTCOME["Release 后 outcome review"]
         outcome["outcome-review.md<br/>（owner 主动要求，量测窗口后）"]
         verdict{{"判定：no_change | enhancement | incident"}}
-        handoff --> push --> preview --> merge --> prod --> check --> status --> outcome --> verdict
-        verdict -.->|下一次 enhancement 请求| interview
+        outcome --> verdict
     end
 
     subgraph CROSS["横切机制（贯穿各阶段）"]
@@ -178,13 +195,18 @@ flowchart TB
     mr --> route
     DIRECT --> handoff
     gates2 --> handoff
+    status --> profiles
+    ready --> outcome
+    verdict -.->|下一次 enhancement 请求| interview
 ```
 
-两个人工停点框住 agent 可执行的范围：Wireframe Approval 与合并到 `main`。执行循环是系统的心脏——其中每一步都是原子、验证过的 RUN 写入。
+Wireframe Approval 与合并到 `main` 仍是人工闸门。Delivery 执行循环留在 PLAN/RUN 内；交付后 Activation 只在 RUN 关闭后开始，并使用自己精确的外部动作授权。
 
 每个可部署版本都以 `docs/DEPLOYMENT.md` 作为操作交接文档。Product Definition 先建立骨架；Delivery Harness 在 push 前根据已跟踪的环境声明、CI 和 auth／integration 代码补全，部署后再用只读结果更新状态。文档会列出准确的 secret 与 variable 名称、preview／production 放置位置，以及 auth callback URL 等外部 console 任务，但永远不保存 secret 值。
 
-循环在两端都闭合。任何封闭选项决策之前，research-first 评估以人工 `go | clarify | stop` Research Gate 把关起草——发布为含稳定 `RA-*` 发现的 `research-assessment.md`，并由草稿后的 market-research 对账。部署之后，owner 可以要求产出 `outcome-review.md`：对照 PRD metrics 与 `TEST-*` 预期信号的实测值，附带喂给下一次 enhancement run 的 `no_change | enhancement | incident` 判定。
+交付之后，`product-activation` 会建立或核对 `docs/ACTIVATION.md`、选择适用的 web、iOS 或 browser-extension profiles，使用最安全可用的 connector/API/CLI/Browser/Computer Use 路线，而且只执行精确授权的动作。它会分开记录 configured 与 verified、不保存 secret 值，并把相符且已验证的 `MS-*` 来源交给后续 outcome review。
+
+循环在两端都闭合。任何封闭选项决策之前，research-first 评估以人工 `go | clarify | stop` Research Gate 把关起草——发布为含稳定 `RA-*` 发现的 `research-assessment.md`，并由草稿后的 market-research 对账。Activation 与真实量测窗口结束后，owner 可以要求产出 `outcome-review.md`：对照 PRD metrics 与 `TEST-*` 预期信号的实测值，只使用相符且已验证的来源，附带喂给下一次 enhancement run 的 `no_change | enhancement | incident` 判定。
 
 ## 交付模型
 
@@ -270,25 +292,26 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安装方式
 
-克隆仓库，把三个 Product Delivery Harness skills 复制进你的用户 skills 目录：
+克隆仓库，把四个 Product Delivery Harness skills 复制进你的用户 skills 目录：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
 cp -r product-delivery-harness/.agents/skills/delivery-harness \
       product-delivery-harness/.agents/skills/product-definition-builder \
       product-delivery-harness/.agents/skills/design-system-compiler \
+      product-delivery-harness/.agents/skills/product-activation \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `.agents/skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。没有另外的更新脚本。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制之前，先把已有的新名称目录移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中；该目录位于 skills 发现目录之外。再复制三个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
+如果 checkout 的 `.agents/skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。没有另外的更新脚本。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制之前，先把已有的新名称目录移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中；该目录位于 skills 发现目录之外。再复制四个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
 
-从 0.23 或更早版本升级时，先在同一份备份中用原 ID 保存各旧目录。然后安装对应的新版本：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。复制完成后，验证 `~/.agents/skills/` 中已没有三个旧 ID；否则宿主会发现六个触发范围重叠的 skills。
+从 0.23 或更早版本升级时，先在同一份备份中用原 ID 保存各旧目录。然后安装对应的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。复制完成后，验证 `~/.agents/skills/` 中已没有三个旧 ID；否则宿主会发现重复且触发范围重叠的 skills。
 
-三个内置技能都可以独立调用，但跨技能模式会校验各自的依赖。冻结 wireframe 校验会使用 `delivery-harness` 旁的 `product-definition-builder` checker；`design-system-compiler` 需要已批准的 PRD UI Design Handoff、已批准的 `wireframes.html` 和 `frontend-design`；可选的 UI Design Pass 则需要 design-direction skill 与 frontend-implementation skill。只需安装所选模式要求的依赖。
+四个内置技能都可以独立调用，但跨技能模式会校验各自的依赖。冻结 wireframe 校验会使用 `delivery-harness` 旁的 `product-definition-builder` checker；`design-system-compiler` 需要已批准的 PRD UI Design Handoff、已批准的 `wireframes.html` 和 `frontend-design`；`product-activation` 在 Delivery 后使用 release 与 deployment 交接；可选的 UI Design Pass 则需要 design-direction skill 与 frontend-implementation skill。只需安装所选模式要求的依赖。
 
 ### Zero-to-one 流程（从零开始）
 
-1. 安装一个受支持的宿主（Codex、Claude Code、Pi 或任何会发现 `~/.agents/skills/` 的宿主）和三个 Product Delivery Harness skills，并用该宿主运行本次交付。
+1. 安装一个受支持的宿主（Codex、Claude Code、Pi 或任何会发现 `~/.agents/skills/` 的宿主）和四个 Product Delivery Harness skills，并用该宿主运行本次交付。
 2. 开启新的宿主会话，确认技能可见，然后调用 `delivery-harness`。
 3. 让规模闸决定直接工作还是 PLAN/RUN；小型工作不要预先创建工作节点。
 4. 大型运行一次只保留一个 active host，并在 same-repository handoff 前关闭和审查每个 wave。
@@ -323,6 +346,10 @@ Use $delivery-harness to implement the approved plan. Create a branch and commit
 
 ```text
 Use $delivery-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+```
+
+```text
+The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
 ```
 
 ```text
@@ -365,10 +392,11 @@ assets/                                              README 封面
 ```bash
 python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
 python .agents/skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
+python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts .agents/skills/product-activation/scripts
 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-activation/scripts/tests -v
 git diff --check
 ```
 
@@ -403,6 +431,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.26.0** — 新增 `product-activation` 作为第四个内置 skill。它在 Delivery 后启动，把精确的交付后动作与已验证量测来源写入 `docs/ACTIVATION.md`，通过 connector/API/CLI/Browser/Computer Use/manual handoff 路由工作，把外部批准绑定 action digest，并分开 configured 与 read-back verified 状态。Product Definition 只在缺少时建立 Activation seed；Delivery 会先关闭再交接；后续 outcome review 只使用相符且已验证的 `MS-*` 来源。本版也把 browser extension 纳入一级 release-target surface，并同步四 skill 安装、contract digest、CI 与 cross-skill tests。
 - **0.25.7** — 移除源码仓库根目录的 `Tasks.md` 流程记录及其本地记录规则。受管目标项目仍会按需渲染非权威的 `docs/tasks.md` 视图；目标项目的 skill 行为不变。
 - **0.25.6** — 在 state-model 参考加上脚本转换的参数面文档（`pause`/`resume`/`cancel`、review-attempt、wave、lease 与验证参数），为 wireframe HTML 与 PRD 契约 checker 新增直接测试，安装说明加上了排除字节码的提示。skill 行为不变。
 - **0.25.5** — `Tasks.md` 流程记录改为累积在本机，搭下一个实际变更的分支与 PR 一起落地，不再为记录单独开 release。

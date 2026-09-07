@@ -31,7 +31,7 @@
 
 ## Update Local Skills
 
-- Every push that changes `.agents/skills/` is followed by the local skills update, in the same turn. Quiesce active skill-using sessions first. Move any existing `delivery-harness`, `product-definition-builder`, `design-system-compiler`, `full-harness`, `prd-builder`, and `product-design-builder` directories to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the discovery root; never overwrite or delete them. Copy the three current repository skills into `~/.agents/skills/`, verify their files match canonical, verify the three legacy IDs are absent from that discovery directory, then restart the host. Restore the backup if verification fails. This step is mandatory after a push, never deferred to a later request.
+- Every push that changes `.agents/skills/` is followed by the local skills update, in the same turn. Quiesce active skill-using sessions first. Move any existing `delivery-harness`, `product-definition-builder`, `design-system-compiler`, `product-activation`, `full-harness`, `prd-builder`, and `product-design-builder` directories to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the discovery root; never overwrite or delete them. Copy the four current repository skills into `~/.agents/skills/`, verify their files match canonical, verify the three legacy IDs are absent from that discovery directory, then restart the host. Restore the backup if verification fails. This step is mandatory after a push, never deferred to a later request.
 - Per-runtime copies (Codex plugin, Claude plugin, Pi extension) stay retired. Do not install, update, or reinstall them.
 
 ## Required Verification
@@ -41,11 +41,12 @@ Edit only the canonical sources in `.agents/skills/`, then run all of this from 
 ```text
 python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
 python .agents/skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
+python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts .agents/skills/product-activation/scripts
 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
 HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-activation/scripts/tests -v
 git diff --check
 ```
 

@@ -42,7 +42,7 @@ jobs:
 
       - name: Check for dead code with pyflakes
         run: |
-          python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
+          python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts .agents/skills/product-activation/scripts
 
       - name: Run harness unit, contract, and E2E tests
         run: python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
@@ -57,6 +57,9 @@ jobs:
 
       - name: Run design system compiler contract tests
         run: python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
+
+      - name: Run product activation contract tests
+        run: python -m unittest discover -s .agents/skills/product-activation/scripts/tests -v
 
       - name: Check diff whitespace
         run: |
