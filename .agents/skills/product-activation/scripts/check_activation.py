@@ -9,6 +9,7 @@ import json
 import re
 import sys
 import unicodedata
+from datetime import datetime
 from pathlib import Path
 
 
@@ -16,9 +17,15 @@ TASK_START = "<!-- activation-task-contract:start -->"
 TASK_END = "<!-- activation-task-contract:end -->"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+RFC3339_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
+)
 ACT_ID_RE = re.compile(r"^ACT-[0-9]{3}$")
 MS_ID_RE = re.compile(r"^MS-[0-9]{3}$")
 EVIDENCE_ID_RE = re.compile(r"^EVID-[0-9]{3}$")
+CAPABILITY_ID_RE = re.compile(r"^CAP-[0-9]{3}$")
+BLOCKER_ID_RE = re.compile(r"^BLOCK-[0-9]{3}$")
+ARTIFACT_ID_RE = re.compile(r"^(?:n/a|[A-Za-z0-9][A-Za-z0-9._:+-]*)$")
 TASK_HEADING_RE = re.compile(r"^###\s+(ACT-[0-9]{3})\s+[—-]\s+(.+?)\s*$")
 FIELD_RE = re.compile(r"^- ([A-Za-z][A-Za-z /-]*):\s*(.*)$")
 PLACEHOLDER_RE = re.compile(r"<[^>\n]+>|\bTBD\b", re.IGNORECASE)
@@ -26,7 +33,7 @@ PRIVATE_KEY_RE = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
 BEARER_RE = re.compile(r"Authorization\s*:\s*Bearer\s+\S+", re.IGNORECASE)
 CREDENTIAL_URL_RE = re.compile(r"https?://[^\s/:]+:[^\s/@]+@", re.IGNORECASE)
 KNOWN_SECRET_RE = re.compile(
-    r"\b(?:sk_live_[A-Za-z0-9]+|ghp_[A-Za-z0-9]+|xox[baprs]-[A-Za-z0-9-]+|AKIA[0-9A-Z]{16})\b"
+    r"\b(?:sk_(?:live|test|proj)_[A-Za-z0-9]+|sk-(?:live|test|proj)-[A-Za-z0-9_-]+|rk_(?:live|test)_[A-Za-z0-9]+|ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|xox[baprs]-[A-Za-z0-9-]+|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,})\b"
 )
 
 REQUIRED_SECTIONS = (
@@ -53,11 +60,12 @@ RECORD_FIELDS = (
 TABLE_HEADERS = {
     "## Applied Profiles": ("profile", "applies", "reason", "owner"),
     "## Capability Observations": (
+        "observation id",
         "route",
         "status",
         "supports",
-        "surface",
-        "target context",
+        "target scope",
+        "environment",
         "checked",
         "evidence",
     ),
@@ -71,9 +79,11 @@ TABLE_HEADERS = {
     ),
     "## Measurement Sources": (
         "ms id",
-        "system / retrieval",
-        "route",
-        "release targets",
+        "target",
+        "environment",
+        "retrieval",
+        "route / capability",
+        "release bindings",
         "owner",
         "status",
         "evidence ids",
@@ -82,9 +92,9 @@ TABLE_HEADERS = {
         "evidence id",
         "item id",
         "kind",
+        "route / action / release binding",
         "checked",
         "result",
-        "route",
         "reference",
     ),
     "## Manual Handoff": (
@@ -96,10 +106,20 @@ TABLE_HEADERS = {
     ),
     "## Target Readiness": (
         "release target",
-        "release identity",
+        "source sha",
+        "artifact / build identity",
         "status",
         "checked",
         "blockers",
+    ),
+    "## Open Blockers": (
+        "blocker id",
+        "release targets",
+        "kind",
+        "owner",
+        "next step",
+        "status",
+        "notes",
     ),
 }
 TASK_FIELDS = (
@@ -112,10 +132,13 @@ TASK_FIELDS = (
     "Precondition",
     "Desired state",
     "Secret names",
+    "Risk tags",
     "Risk",
     "Confirmation",
     "Execution route",
+    "Execution capability",
     "Read-back route",
+    "Read-back capability",
     "Authorization",
     "Authorization source",
     "Action digest",
@@ -130,14 +153,13 @@ TASK_FIELDS = (
 
 ROUTES = {"connector", "api", "cli", "browser", "computer_use", "manual", "unselected"}
 CAPABILITY_STATUSES = {"available", "unavailable", "unobserved", "human_only"}
-TARGET_CONTEXTS = {"confirmed", "needs_user_login", "ambiguous", "n/a"}
 SUPPORTS = {"read", "write", "readback"}
 SOURCE_STATUSES = {"planned", "available", "verified", "blocked", "superseded", "n/a"}
 TASK_STATUSES = {"pending", "ready", "configured", "verified", "uncertain", "blocked", "stale", "n/a"}
 RECORD_STATUSES = {"seeded", "preparation", "active", "handoff_ready", "blocked", "n/a"}
 READINESS_STATUSES = {"preparation", "pending", "ready", "blocked"}
 EVIDENCE_KINDS = {"write", "readback", "behavior", "capability", "manual"}
-EVIDENCE_RESULTS = {"PASS", "FAIL", "BLOCKED"}
+EVIDENCE_RESULTS = {"PASS", "FAIL", "BLOCKED", "UNCERTAIN"}
 AUTHORIZATIONS = {"not_required", "pending", "approved", "consumed", "denied", "expired", "handoff_complete", "prohibited"}
 OPERATIONS = {"read", "create", "update", "upload", "publish", "transmit", "delete", "rotate", "revoke", "execute"}
 RISK_CONFIRMATION = {
@@ -147,7 +169,20 @@ RISK_CONFIRMATION = {
     "handoff": "user_handoff",
     "prohibited": "prohibited",
 }
+RISK_TAGS = {
+    "dns",
+    "permissions",
+    "persistent_access",
+    "billing",
+    "production_traffic",
+    "public_submission",
+    "data_sharing",
+    "advertising_tracking",
+    "upload",
+    "destructive",
+}
 HANDOFF_STATUSES = {"pending", "completed", "n/a"}
+BLOCKER_STATUSES = {"open", "resolved", "n/a"}
 ABSENT = {"", "none", "n/a", "pending", "unselected"}
 FORBIDDEN_HEADERS = {"value", "secret value", "token", "password", "credential"}
 
@@ -219,6 +254,20 @@ def _normal(value: str) -> str:
     return unicodedata.normalize("NFC", value.strip())
 
 
+def _n_a_with_reason(value: str) -> bool:
+    return bool(re.fullmatch(r"n/a\s*(?::|-)\s*\S.*", value.strip(), re.IGNORECASE))
+
+
+def _timestamp(value: str) -> datetime | None:
+    if not RFC3339_RE.fullmatch(value):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
 def action_digest(task_id: str, task: dict[str, str]) -> str:
     payload = {
         "schema": "activation-action/1",
@@ -232,9 +281,11 @@ def action_digest(task_id: str, task: dict[str, str]) -> str:
         "precondition": _normal(task["Precondition"]),
         "desired_state": _normal(task["Desired state"]),
         "secret_names": sorted(_normal(item) for item in _parse_list(task["Secret names"])),
+        "risk_tags": sorted(_normal(item) for item in _parse_list(task["Risk tags"])),
         "risk": _normal(task["Risk"]),
         "confirmation": _normal(task["Confirmation"]),
         "execution_route": _normal(task["Execution route"]),
+        "execution_capability": _normal(task["Execution capability"]),
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -245,6 +296,14 @@ def _tasks(text: str) -> tuple[dict[str, dict[str, str]], dict[str, str], list[s
     if text.count(TASK_START) != 1 or text.count(TASK_END) != 1:
         return {}, {}, ["Activation Tasks: expected one matched task-contract boundary pair"]
     body = text.split(TASK_START, 1)[1].split(TASK_END, 1)[0]
+    before, after_start = text.split(TASK_START, 1)
+    _inside, after = after_start.split(TASK_END, 1)
+    for line in (before + "\n" + after).splitlines():
+        heading = TASK_HEADING_RE.match(line.strip())
+        if heading:
+            findings.append(
+                f"Activation Tasks: {heading.group(1)} heading is outside the task-contract boundaries"
+            )
     tasks: dict[str, dict[str, str]] = {}
     titles: dict[str, str] = {}
     current: str | None = None
@@ -337,39 +396,73 @@ def _validate_capabilities(rows: list[list[str]]) -> tuple[dict[str, dict[str, o
     capabilities: dict[str, dict[str, object]] = {}
     if not rows:
         findings.append("Capability Observations: keep at least one route row")
-    for route, status, supports, surface, target_context, checked, evidence in rows:
-        if _placeholder(route):
+    for observation_id, route, status, supports, target_scope, environment, checked, evidence in rows:
+        if _placeholder(observation_id):
+            continue
+        if not CAPABILITY_ID_RE.fullmatch(observation_id):
+            findings.append(f"Capability Observations: invalid observation ID {observation_id!r}")
             continue
         if route not in ROUTES - {"unselected"}:
-            findings.append(f"Capability Observations: unsupported route {route}")
-            continue
-        if route in capabilities:
-            findings.append(f"Capability Observations: duplicate route {route}")
+            findings.append(f"Capability Observations: {observation_id} has unsupported route {route}")
+        if observation_id in capabilities:
+            findings.append(f"Capability Observations: duplicate observation {observation_id}")
             continue
         support_set = set(_parse_list(supports.lower()))
         if supports.lower() == "n/a":
             support_set = set()
         if status not in CAPABILITY_STATUSES:
-            findings.append(f"Capability Observations: {route} has invalid status {status!r}")
+            findings.append(f"Capability Observations: {observation_id} has invalid status {status!r}")
         if support_set - SUPPORTS:
-            findings.append(f"Capability Observations: {route} has unsupported capabilities")
-        if target_context not in TARGET_CONTEXTS:
-            findings.append(f"Capability Observations: {route} has invalid target context {target_context!r}")
-        if status == "available" and (not support_set or checked.lower() in ABSENT or evidence.lower() in ABSENT):
-            findings.append(f"Capability Observations: available route {route} needs supports, checked time, and evidence")
-        capabilities[route] = {
+            findings.append(f"Capability Observations: {observation_id} has unsupported capabilities")
+        if status in {"available", "human_only"} and (
+            not support_set
+            or target_scope.lower() in ABSENT
+            or environment.lower() in ABSENT
+            or _placeholder(target_scope)
+            or _placeholder(environment)
+            or checked.lower() in ABSENT
+            or evidence.lower() in ABSENT
+        ):
+            findings.append(
+                f"Capability Observations: {status} observation {observation_id} needs supports, exact target scope, environment, checked time, and evidence"
+            )
+        if status == "human_only" and route != "manual":
+            findings.append(
+                f"Capability Observations: human_only observation {observation_id} must use manual route"
+            )
+        if route == "manual" and status == "available":
+            findings.append(
+                f"Capability Observations: manual observation {observation_id} must use human_only, unavailable, or unobserved status"
+            )
+        if status == "unavailable" and (
+            target_scope.lower() in ABSENT
+            or environment.lower() in ABSENT
+            or checked.lower() in ABSENT
+            or evidence.lower() in ABSENT
+        ):
+            findings.append(
+                f"Capability Observations: unavailable observation {observation_id} needs exact scope, environment, checked time, and evidence"
+            )
+        checked_at = _timestamp(checked)
+        if status in {"available", "human_only", "unavailable"} and checked_at is None:
+            findings.append(
+                f"Capability Observations: {observation_id} needs an RFC3339 checked time"
+            )
+        capabilities[observation_id] = {
             "status": status,
             "supports": support_set,
-            "surface": surface,
-            "target_context": target_context,
+            "route": route,
+            "target_scope": target_scope,
+            "environment": environment,
+            "checked_at": checked_at,
         }
     return capabilities, findings
 
 
-def _validate_evidence(rows: list[list[str]]) -> tuple[dict[str, dict[str, str]], list[str]]:
+def _validate_evidence(rows: list[list[str]]) -> tuple[dict[str, dict[str, object]], list[str]]:
     findings: list[str] = []
-    evidence: dict[str, dict[str, str]] = {}
-    for evidence_id, item_id, kind, checked, result, route, reference in rows:
+    evidence: dict[str, dict[str, object]] = {}
+    for evidence_id, item_id, kind, binding, checked, result, reference in rows:
         if not EVIDENCE_ID_RE.fullmatch(evidence_id):
             findings.append(f"Verification Evidence: invalid evidence ID {evidence_id!r}")
             continue
@@ -380,46 +473,194 @@ def _validate_evidence(rows: list[list[str]]) -> tuple[dict[str, dict[str, str]]
             findings.append(f"Verification Evidence: {evidence_id} has invalid kind {kind!r}")
         if result not in EVIDENCE_RESULTS:
             findings.append(f"Verification Evidence: {evidence_id} has invalid result {result!r}")
+        parts = [part.strip() for part in binding.split(";")]
+        route = ""
+        action = ""
+        release_binding = ""
+        if len(parts) != 3:
+            findings.append(
+                f"Verification Evidence: {evidence_id} binding must be route;action-digest-or-n/a;target@sha#artifact"
+            )
+        else:
+            route, action, release_binding = parts
         if route not in ROUTES - {"unselected"}:
             findings.append(f"Verification Evidence: {evidence_id} has invalid route {route!r}")
+        if action != "n/a" and not SHA256_RE.fullmatch(action):
+            findings.append(
+                f"Verification Evidence: {evidence_id} needs a lowercase action digest or n/a"
+            )
+        parsed, binding_findings = _release_bindings(
+            release_binding, f"Verification Evidence: {evidence_id}", True
+        )
+        findings.extend(binding_findings)
+        if len(parsed) != 1:
+            findings.append(
+                f"Verification Evidence: {evidence_id} needs exactly one release binding"
+            )
         if checked.lower() in ABSENT or reference.lower() in ABSENT:
             findings.append(f"Verification Evidence: {evidence_id} needs checked time and reference")
-        evidence[evidence_id] = {"item_id": item_id, "kind": kind, "result": result, "route": route}
+        checked_at = _timestamp(checked)
+        if checked_at is None:
+            findings.append(f"Verification Evidence: {evidence_id} needs an RFC3339 checked time")
+        evidence[evidence_id] = {
+            "item_id": item_id,
+            "kind": kind,
+            "result": result,
+            "route": route,
+            "action_digest": action,
+            "release_binding": release_binding,
+            "checked": checked,
+            "checked_at": checked_at,
+        }
     return evidence, findings
 
 
 def _validate_sources(
-    rows: list[list[str]], evidence: dict[str, dict[str, str]]
+    rows: list[list[str]],
+    capabilities: dict[str, dict[str, object]],
+    evidence: dict[str, dict[str, object]],
+    require_filled: bool,
 ) -> tuple[dict[str, dict[str, object]], list[str]]:
     findings: list[str] = []
     sources: dict[str, dict[str, object]] = {}
-    for source_id, system, route, targets, owner, status, evidence_ids in rows:
+    for (
+        source_id,
+        target,
+        environment,
+        retrieval,
+        route_capability,
+        release_bindings,
+        owner,
+        status,
+        evidence_ids,
+    ) in rows:
         if not MS_ID_RE.fullmatch(source_id):
             findings.append(f"Measurement Sources: invalid source ID {source_id!r}")
             continue
         if source_id in sources:
             findings.append(f"Measurement Sources: duplicate source ID {source_id}")
             continue
+        if target.lower() in ABSENT or environment.lower() in ABSENT or retrieval.lower() in ABSENT:
+            findings.append(
+                f"Measurement Sources: {source_id} needs exact target, environment, and bounded retrieval"
+            )
+        route_parts = [part.strip() for part in route_capability.split(";")]
+        route = route_parts[0] if route_parts else ""
+        capability_id = route_parts[1] if len(route_parts) == 2 else ""
+        if len(route_parts) != 2:
+            findings.append(f"Measurement Sources: {source_id} needs route;CAP-ID")
         if route not in ROUTES:
             findings.append(f"Measurement Sources: {source_id} has invalid route {route!r}")
+        if capability_id not in {"pending", "n/a"} and not CAPABILITY_ID_RE.fullmatch(capability_id):
+            findings.append(
+                f"Measurement Sources: {source_id} has invalid capability {capability_id!r}"
+            )
+        capability = capabilities.get(capability_id)
+        if CAPABILITY_ID_RE.fullmatch(capability_id) and capability is None:
+            findings.append(f"Measurement Sources: {source_id} has unknown capability {capability_id}")
+        elif capability:
+            if capability["route"] != route:
+                findings.append(
+                    f"Measurement Sources: {source_id} capability uses another route"
+                )
+            if capability["target_scope"] != target:
+                findings.append(
+                    f"Measurement Sources: {source_id} capability does not match the exact target"
+                )
+            if capability["environment"] != environment:
+                findings.append(
+                    f"Measurement Sources: {source_id} capability does not match the environment"
+                )
         if status not in SOURCE_STATUSES:
             findings.append(f"Measurement Sources: {source_id} has invalid status {status!r}")
+        bindings, binding_findings = _release_bindings(
+            release_bindings, f"Measurement Sources: {source_id}", require_filled or status in {"available", "verified"}
+        )
+        findings.extend(binding_findings)
+        if status in {"available", "verified"} and not bindings:
+            findings.append(
+                f"Measurement Sources: {source_id} needs at least one exact release binding"
+            )
+        if status in {"available", "verified"} and owner.lower() in ABSENT:
+            findings.append(f"Measurement Sources: {source_id} needs an owner")
         ids = _parse_list(evidence_ids)
         for evidence_id in ids:
             if evidence_id not in evidence:
                 findings.append(f"Measurement Sources: {source_id} references unknown evidence {evidence_id}")
             elif evidence[evidence_id]["item_id"] != source_id:
                 findings.append(f"Measurement Sources: {source_id} evidence {evidence_id} belongs to another item")
-        if status == "verified" and not any(
-            evidence[item]["result"] == "PASS" and evidence[item]["kind"] in {"readback", "behavior"}
-            for item in ids
-            if item in evidence
-        ):
-            findings.append(f"Measurement Sources: verified source {source_id} needs PASS read-back or behavior evidence")
+                continue
+            item = evidence[evidence_id]
+            if item["route"] != route:
+                findings.append(
+                    f"Measurement Sources: {source_id} evidence {evidence_id} uses another route"
+                )
+            if item["action_digest"] != "n/a":
+                findings.append(
+                    f"Measurement Sources: {source_id} evidence {evidence_id} must use action digest n/a"
+                )
+            if item["release_binding"] not in {
+                binding["text"] for binding in bindings.values()
+            }:
+                findings.append(
+                    f"Measurement Sources: {source_id} evidence {evidence_id} uses another release binding"
+                )
+            capability_checked = capability["checked_at"] if capability else None
+            if (
+                isinstance(capability_checked, datetime)
+                and isinstance(item["checked_at"], datetime)
+                and item["checked_at"] < capability_checked
+            ):
+                findings.append(
+                    f"Measurement Sources: {source_id} evidence {evidence_id} predates its capability probe"
+                )
+        if status in {"available", "verified"}:
+            accepted_statuses = {"available"} if status == "verified" else {"available", "human_only"}
+            if not capability or capability["status"] not in accepted_statuses:
+                findings.append(
+                    f"Measurement Sources: {source_id} capability is not available"
+                )
+            else:
+                if not ({"read", "readback"} & capability["supports"]):
+                    findings.append(
+                        f"Measurement Sources: {source_id} capability does not support retrieval"
+                    )
+        if status == "verified":
+            for binding in bindings.values():
+                matching_kinds = {
+                    item["kind"]
+                    for evidence_id in ids
+                    if evidence_id in evidence
+                    for item in (evidence[evidence_id],)
+                    if item["item_id"] == source_id
+                    and item["kind"] in {"readback", "behavior"}
+                    and item["route"] == route
+                    and item["action_digest"] == "n/a"
+                    and item["release_binding"] == binding["text"]
+                }
+                if not matching_kinds or any(
+                    not _has_matching_evidence(
+                        ids,
+                        evidence,
+                        source_id,
+                        {kind},
+                        route,
+                        "n/a",
+                        binding["text"],
+                    )
+                    for kind in matching_kinds
+                ):
+                    findings.append(
+                        f"Measurement Sources: verified source {source_id} needs PASS evidence for {binding['text']}"
+                    )
         sources[source_id] = {
-            "system": system,
+            "target": target,
+            "environment": environment,
+            "retrieval": retrieval,
             "route": route,
-            "targets": set(_parse_list(targets)),
+            "capability_id": capability_id,
+            "bindings": bindings,
+            "targets": set(bindings),
             "owner": owner,
             "status": status,
             "evidence_ids": ids,
@@ -427,33 +668,85 @@ def _validate_sources(
     return sources, findings
 
 
-def _release_bindings(value: str, label: str, require_filled: bool) -> tuple[dict[str, str], list[str]]:
+def _release_bindings(
+    value: str, label: str, require_filled: bool
+) -> tuple[dict[str, dict[str, str]], list[str]]:
     findings: list[str] = []
-    bindings: dict[str, str] = {}
+    bindings: dict[str, dict[str, str]] = {}
     for item in _parse_list(value):
-        if "@" not in item:
-            findings.append(f"{label}: release binding {item!r} must be target@sha")
+        if item.count("@") != 1 or item.count("#") != 1:
+            findings.append(
+                f"{label}: release binding {item!r} must be target@sha#artifact"
+            )
             continue
         target, identity = item.rsplit("@", 1)
+        sha, artifact = identity.split("#", 1)
         if not target or target in bindings:
             findings.append(f"{label}: duplicate or empty release target in {item!r}")
             continue
-        if identity != "pending" and not SHA_RE.fullmatch(identity):
+        pending = sha == "pending" or artifact == "pending"
+        if pending and (sha, artifact) != ("pending", "pending"):
+            findings.append(f"{label}: release binding {item!r} has a partial pending identity")
+        if sha != "pending" and not SHA_RE.fullmatch(sha):
             findings.append(f"{label}: release binding {item!r} needs a full lowercase Git SHA")
-        if require_filled and (identity == "pending" or _placeholder(target)):
+        if artifact != "pending" and not ARTIFACT_ID_RE.fullmatch(artifact):
+            findings.append(f"{label}: release binding {item!r} has an invalid artifact identity")
+        if require_filled and (pending or _placeholder(target) or _placeholder(artifact)):
             findings.append(f"{label}: unresolved release binding {item!r}")
-        bindings[target] = identity
+        bindings[target] = {"sha": sha, "artifact": artifact, "text": item}
     return bindings, findings
 
 
-def _has_pass(evidence_ids: list[str], evidence: dict[str, dict[str, str]], item_id: str, kinds: set[str]) -> bool:
-    return any(
-        evidence[evidence_id]["item_id"] == item_id
-        and evidence[evidence_id]["kind"] in kinds
-        and evidence[evidence_id]["result"] == "PASS"
+def _has_matching_evidence(
+    evidence_ids: list[str],
+    evidence: dict[str, dict[str, object]],
+    item_id: str,
+    kinds: set[str],
+    route: str,
+    action_digest_value: str,
+    release_binding: str,
+    result: str = "PASS",
+) -> bool:
+    matches = [
+        evidence[evidence_id]
         for evidence_id in evidence_ids
         if evidence_id in evidence
-    )
+        and evidence[evidence_id]["item_id"] == item_id
+        and evidence[evidence_id]["kind"] in kinds
+        and evidence[evidence_id]["route"] == route
+        and evidence[evidence_id]["action_digest"] == action_digest_value
+        and evidence[evidence_id]["release_binding"] == release_binding
+        and isinstance(evidence[evidence_id]["checked_at"], datetime)
+    ]
+    if not matches:
+        return False
+    latest = max(item["checked_at"] for item in matches)
+    return all(item["result"] == result for item in matches if item["checked_at"] == latest)
+
+
+def _matching_evidence_times(
+    evidence_ids: list[str],
+    evidence: dict[str, dict[str, object]],
+    item_id: str,
+    kinds: set[str],
+    route: str,
+    action_digest_value: str,
+    release_binding: str,
+    result: str = "PASS",
+) -> list[datetime]:
+    return [
+        item["checked_at"]
+        for evidence_id in evidence_ids
+        if evidence_id in evidence
+        for item in (evidence[evidence_id],)
+        if item["item_id"] == item_id
+        and item["kind"] in kinds
+        and item["result"] == result
+        and item["route"] == route
+        and item["action_digest"] == action_digest_value
+        and item["release_binding"] == release_binding
+        and isinstance(item["checked_at"], datetime)
+    ]
 
 
 def _task_findings(
@@ -461,10 +754,10 @@ def _task_findings(
     task: dict[str, str],
     tasks: dict[str, dict[str, str]],
     capabilities: dict[str, dict[str, object]],
-    evidence: dict[str, dict[str, str]],
+    evidence: dict[str, dict[str, object]],
     manual: dict[str, str],
     require_filled: bool,
-) -> tuple[dict[str, str], list[str]]:
+) -> tuple[dict[str, dict[str, str]], list[str]]:
     findings: list[str] = []
     if set(TASK_FIELDS) - set(task):
         return {}, findings
@@ -474,9 +767,14 @@ def _task_findings(
     risk = task["Risk"]
     confirmation = task["Confirmation"]
     route = task["Execution route"]
+    execution_capability = task["Execution capability"]
     readback_route = task["Read-back route"]
+    readback_capability = task["Read-back capability"]
     authorization = task["Authorization"]
     status = task["Status"]
+    updated_at = _timestamp(task["Updated"])
+    verification_is_na = _n_a_with_reason(task["Verification"])
+    risk_tags = set(_parse_list(task["Risk tags"].lower()))
     if operation not in OPERATIONS:
         findings.append(f"{task_id}: invalid operation {operation!r}")
     if risk not in RISK_CONFIRMATION:
@@ -487,16 +785,121 @@ def _task_findings(
         findings.append(f"{task_id}: read operation must use read_only risk")
     if operation != "read" and risk == "read_only":
         findings.append(f"{task_id}: mutating operation cannot use read_only risk")
+    high_operations = {"upload", "publish", "transmit", "delete", "rotate", "revoke"}
+    execution_observation = capabilities.get(execution_capability)
+    readback_observation = capabilities.get(readback_capability)
+    human_execution = route == "manual" or (
+        execution_observation is not None and execution_observation["status"] == "human_only"
+    )
+    if human_execution and risk != "handoff":
+        findings.append(f"{task_id}: manual or human-only execution requires handoff risk")
+    nonproduction_environment = task["Environment"].strip().lower() in {
+        "preview",
+        "development",
+        "dev",
+        "test",
+        "testing",
+        "sandbox",
+        "staging",
+        "stage",
+        "local",
+    }
+    sensitive_environment = (
+        operation != "read"
+        and not _placeholder(task["Environment"])
+        and not nonproduction_environment
+    )
+    sensitive_text = " ".join(
+        (task["Target"], task["Desired state"], task["Operation"])
+    ).lower()
+    inferred_tags = {
+        tag
+        for tag, pattern in (
+            ("dns", r"\b(?:dns|nameserver|cname|txt record|mx record)\b"),
+            ("permissions", r"\b(?:permission|role|rbac|access policy|oauth scope)\b"),
+            ("billing", r"\b(?:billing|invoice|tax|payment mode|payout)\b"),
+            ("production_traffic", r"\b(?:production traffic|load balancer|origin route)\b"),
+            ("advertising_tracking", r"\b(?:pixel|advertising|ad tracking|retargeting)\b"),
+        )
+        if re.search(pattern, sensitive_text)
+    }
+    if risk_tags - RISK_TAGS:
+        findings.append(
+            f"{task_id}: unsupported risk tag(s) {', '.join(sorted(risk_tags - RISK_TAGS))}"
+        )
+    if operation != "read":
+        for tag in sorted(inferred_tags - risk_tags):
+            findings.append(f"{task_id}: target requires explicit {tag} risk tag")
+    if (
+        operation in high_operations
+        or sensitive_environment
+        or (operation != "read" and (risk_tags or inferred_tags))
+    ) and not human_execution and risk != "high":
+        if operation in high_operations:
+            reason = operation
+        elif sensitive_environment:
+            reason = "non-preview"
+        else:
+            reason = "sensitive"
+        findings.append(f"{task_id}: {reason} operation requires high risk")
     if route not in ROUTES or readback_route not in ROUTES:
         findings.append(f"{task_id}: invalid execution or read-back route")
+    for label, capability_id, expected_route, observation in (
+        ("execution", execution_capability, route, execution_observation),
+        ("read-back", readback_capability, readback_route, readback_observation),
+    ):
+        if capability_id not in {"pending", "n/a"} and not CAPABILITY_ID_RE.fullmatch(
+            capability_id
+        ):
+            findings.append(f"{task_id}: invalid {label} capability {capability_id!r}")
+        elif CAPABILITY_ID_RE.fullmatch(capability_id) and observation is None:
+            findings.append(f"{task_id}: unknown {label} capability {capability_id}")
+        elif observation:
+            if observation["route"] != expected_route:
+                findings.append(f"{task_id}: {label} capability uses another route")
+            if observation["target_scope"] != task["Target"]:
+                findings.append(
+                    f"{task_id}: {label} capability does not match the exact target"
+                )
+            if observation["environment"] != task["Environment"]:
+                findings.append(
+                    f"{task_id}: {label} capability does not match the environment"
+                )
     if authorization not in AUTHORIZATIONS:
         findings.append(f"{task_id}: invalid authorization {authorization!r}")
     if status not in TASK_STATUSES:
         findings.append(f"{task_id}: invalid status {status!r}")
+    if (
+        task["Updated"].lower() not in ABSENT
+        and not _placeholder(task["Updated"])
+        and updated_at is None
+    ):
+        findings.append(f"{task_id}: Updated must be an RFC3339 timestamp")
+    if status in {"ready", "configured", "verified", "uncertain", "blocked", "stale"} and updated_at is None:
+        findings.append(f"{task_id}: {status} task needs an RFC3339 Updated timestamp")
     if task["Required"].lower() not in {"yes", "no"}:
         findings.append(f"{task_id}: Required must be yes or no")
     if task["Required"].lower() == "yes" and status == "n/a":
         findings.append(f"{task_id}: a required task cannot be n/a")
+    if task["Verification"].strip().lower().startswith("n/a") and not verification_is_na:
+        findings.append(f"{task_id}: Verification n/a needs a reason")
+    if require_filled and status != "n/a":
+        for name, value in (
+            ("Source refs", task["Source refs"]),
+            ("Target", task["Target"]),
+            ("Environment", task["Environment"]),
+            ("Precondition", task["Precondition"]),
+            ("Desired state", task["Desired state"]),
+            ("Execution route", route),
+            ("Execution capability", execution_capability),
+            ("Read-back route", readback_route),
+            ("Read-back capability", readback_capability),
+            ("Action digest", task["Action digest"]),
+            ("Verification", task["Verification"]),
+            ("Updated", task["Updated"]),
+        ):
+            if value.lower() in {"pending", "unselected", "n/a", ""}:
+                findings.append(f"{task_id}: filled task needs {name}")
     if risk == "read_only" and authorization != "not_required":
         findings.append(f"{task_id}: read-only action authorization must be not_required")
     if risk == "prohibited" and (authorization != "prohibited" or status not in {"blocked", "n/a"}):
@@ -512,6 +915,11 @@ def _task_findings(
 
     bindings, binding_findings = _release_bindings(task["Release bindings"], task_id, require_filled)
     findings.extend(binding_findings)
+    if not bindings and (
+        status in {"ready", "configured", "verified", "uncertain"}
+        or (require_filled and task["Required"].lower() == "yes" and status != "n/a")
+    ):
+        findings.append(f"{task_id}: actionable task needs at least one exact release binding")
     dependencies = _parse_list(task["Depends on"])
     for dependency in dependencies:
         if dependency not in tasks:
@@ -532,37 +940,143 @@ def _task_findings(
         findings.append(f"{task_id}: Authorized digest must equal the current Action digest")
 
     evidence_ids = _parse_list(task["Evidence IDs"])
+    binding_texts = {binding["text"] for binding in bindings.values()}
     for evidence_id in evidence_ids:
         if evidence_id not in evidence:
             findings.append(f"{task_id}: unknown evidence {evidence_id}")
         elif evidence[evidence_id]["item_id"] != task_id:
             findings.append(f"{task_id}: evidence {evidence_id} belongs to another item")
+        else:
+            item = evidence[evidence_id]
+            if item["action_digest"] != computed:
+                findings.append(f"{task_id}: evidence {evidence_id} has a stale action digest")
+            if item["release_binding"] not in binding_texts:
+                findings.append(f"{task_id}: evidence {evidence_id} uses another release binding")
+            expected_route = route if item["kind"] in {"write", "manual"} else readback_route
+            if item["kind"] in {"write", "manual", "readback", "behavior"} and item["route"] != expected_route:
+                findings.append(f"{task_id}: evidence {evidence_id} uses another route")
+            observation = (
+                execution_observation
+                if item["kind"] in {"write", "manual"}
+                else readback_observation
+            )
+            capability_checked = observation["checked_at"] if observation else None
+            if (
+                item["kind"] in {"write", "manual", "readback", "behavior"}
+                and isinstance(capability_checked, datetime)
+                and isinstance(item["checked_at"], datetime)
+                and item["checked_at"] < capability_checked
+            ):
+                findings.append(f"{task_id}: evidence {evidence_id} predates its capability probe")
     if status in {"ready", "configured", "verified", "uncertain"}:
-        capability = capabilities.get(route)
+        capability = capabilities.get(execution_capability)
         needed = "read" if operation == "read" else "write"
         if not capability or capability["status"] not in {"available", "human_only"}:
-            findings.append(f"{task_id}: selected execution route is not available")
+            findings.append(f"{task_id}: selected execution capability is not available")
         elif needed not in capability["supports"] and capability["status"] != "human_only":
-            findings.append(f"{task_id}: selected execution route does not support {needed}")
-        if capability and capability["target_context"] != "confirmed":
-            findings.append(f"{task_id}: selected execution route target context is not confirmed")
+            findings.append(f"{task_id}: selected execution capability does not support {needed}")
         for dependency in dependencies:
             if dependency in tasks and tasks[dependency].get("Status") != "verified":
                 findings.append(f"{task_id}: dependency {dependency} is not verified")
-    if status == "configured" and not _has_pass(evidence_ids, evidence, task_id, {"write", "manual"}):
-        findings.append(f"{task_id}: configured task needs PASS write or manual evidence")
+    if operation != "read" and status in {"configured", "verified"}:
+        for binding in bindings.values():
+            if not _has_matching_evidence(
+                evidence_ids,
+                evidence,
+                task_id,
+                {"write", "manual"},
+                route,
+                computed,
+                binding["text"],
+            ):
+                findings.append(
+                    f"{task_id}: {status} task needs PASS write or manual evidence for {binding['text']}"
+                )
+    if operation != "read" and status == "uncertain":
+        for binding in bindings.values():
+            if not _has_matching_evidence(
+                evidence_ids,
+                evidence,
+                task_id,
+                {"write", "manual"},
+                route,
+                computed,
+                binding["text"],
+                "UNCERTAIN",
+            ):
+                findings.append(
+                    f"{task_id}: uncertain task needs UNCERTAIN write or manual evidence for {binding['text']}"
+                )
     if status == "verified":
-        capability = capabilities.get(readback_route)
-        if not capability or capability["status"] not in {"available", "human_only"}:
-            findings.append(f"{task_id}: verified task read-back route is not available")
-        elif "readback" not in capability["supports"] and capability["status"] != "human_only":
-            findings.append(f"{task_id}: verified task route does not support readback")
-        if not _has_pass(evidence_ids, evidence, task_id, {"readback"}):
-            findings.append(f"{task_id}: verified task needs distinct PASS readback evidence")
-        if not task["Verification"].lower().startswith("n/a") and not _has_pass(
-            evidence_ids, evidence, task_id, {"behavior"}
-        ):
-            findings.append(f"{task_id}: verified task needs PASS behavior evidence")
+        capability = capabilities.get(readback_capability)
+        if not capability or capability["status"] != "available":
+            findings.append(f"{task_id}: verified task read-back capability is not available")
+        elif "readback" not in capability["supports"]:
+            findings.append(f"{task_id}: verified task capability does not support readback")
+        for binding in bindings.values():
+            write_times = (
+                _matching_evidence_times(
+                    evidence_ids,
+                    evidence,
+                    task_id,
+                    {"write", "manual"},
+                    route,
+                    computed,
+                    binding["text"],
+                )
+                if operation != "read"
+                else []
+            )
+            if not _has_matching_evidence(
+                evidence_ids,
+                evidence,
+                task_id,
+                {"readback"},
+                readback_route,
+                computed,
+                binding["text"],
+            ):
+                findings.append(
+                    f"{task_id}: verified task needs distinct PASS readback evidence for {binding['text']}"
+                )
+            readback_times = _matching_evidence_times(
+                evidence_ids,
+                evidence,
+                task_id,
+                {"readback"},
+                readback_route,
+                computed,
+                binding["text"],
+            )
+            if write_times and readback_times and max(readback_times) <= max(write_times):
+                findings.append(
+                    f"{task_id}: readback evidence for {binding['text']} must follow write evidence"
+                )
+            if not verification_is_na and not _has_matching_evidence(
+                evidence_ids,
+                evidence,
+                task_id,
+                {"behavior"},
+                readback_route,
+                computed,
+                binding["text"],
+            ):
+                findings.append(
+                    f"{task_id}: verified task needs PASS behavior evidence for {binding['text']}"
+                )
+            behavior_times = _matching_evidence_times(
+                evidence_ids,
+                evidence,
+                task_id,
+                {"behavior"},
+                readback_route,
+                computed,
+                binding["text"],
+            )
+            if write_times and behavior_times and max(behavior_times) <= max(write_times):
+                findings.append(
+                    f"{task_id}: behavior evidence for {binding['text']} must follow write evidence"
+                )
     if confirmation == "user_handoff" and task_id not in manual:
         findings.append(f"{task_id}: user_handoff task needs a Manual Handoff row")
     if status in {"configured", "verified"} and confirmation == "user_handoff" and manual.get(task_id) != "completed":
@@ -615,6 +1129,47 @@ def _prd_signals(prd_text: str) -> tuple[set[str], list[str]]:
     return signals, findings
 
 
+def _validate_blockers(
+    rows: list[list[str]], require_filled: bool
+) -> tuple[dict[str, dict[str, object]], list[str]]:
+    findings: list[str] = []
+    blockers: dict[str, dict[str, object]] = {}
+    for blocker_id, targets, kind, owner, next_step, status, notes in rows:
+        if not BLOCKER_ID_RE.fullmatch(blocker_id):
+            findings.append(f"Open Blockers: invalid blocker ID {blocker_id!r}")
+            continue
+        if blocker_id in blockers:
+            findings.append(f"Open Blockers: duplicate blocker {blocker_id}")
+            continue
+        target_set = set(_parse_list(targets))
+        if status not in BLOCKER_STATUSES:
+            findings.append(f"Open Blockers: {blocker_id} has invalid status {status!r}")
+        if status == "open" and (
+            not target_set
+            or kind.lower() in ABSENT
+            or owner.lower() in ABSENT
+            or next_step.lower() in ABSENT
+        ):
+            findings.append(
+                f"Open Blockers: {blocker_id} needs targets, kind, owner, and next step"
+            )
+        if require_filled:
+            findings.extend(
+                _value_findings(
+                    f"Open Blockers: {blocker_id}",
+                    [targets, kind, owner, next_step, status, notes],
+                    True,
+                )
+            )
+        blockers[blocker_id] = {
+            "targets": target_set,
+            "kind": kind,
+            "owner": owner,
+            "status": status,
+        }
+    return blockers, findings
+
+
 def check_activation_text(
     text: str,
     *,
@@ -625,6 +1180,8 @@ def check_activation_text(
 ) -> list[str]:
     require_filled = require_filled or require_verified_sources
     findings: list[str] = []
+    if require_verified_sources and prd_text is None:
+        findings.append("PRD: verified-source handoff requires the current PRD")
     for heading in REQUIRED_SECTIONS:
         if _section(text, heading) is None:
             findings.append(f"missing required section {heading}")
@@ -647,6 +1204,20 @@ def check_activation_text(
         if record.get("Status") not in RECORD_STATUSES:
             findings.append(f"Record: invalid status {record.get('Status')!r}")
         findings.extend(_value_findings("Record", list(record.values()), require_filled))
+        for name in ("Updated", "Measurement window starts"):
+            value = record.get(name, "")
+            if value.lower() not in ABSENT and not _placeholder(value) and _timestamp(value) is None:
+                findings.append(f"Record: {name} must be an RFC3339 timestamp")
+        if require_filled:
+            for name in (
+                "Product",
+                "Activation owner",
+                "Release reference",
+                "Updated",
+                "Measurement window starts",
+            ):
+                if record.get(name, "").lower() in ABSENT:
+                    findings.append(f"Record: filled record needs {name}")
 
     tables, table_findings = _validate_tables(text, require_filled)
     findings.extend(table_findings)
@@ -657,8 +1228,14 @@ def check_activation_text(
     findings.extend(capability_findings)
     evidence, evidence_findings = _validate_evidence(tables.get("## Verification Evidence", []))
     findings.extend(evidence_findings)
-    sources, source_findings = _validate_sources(tables.get("## Measurement Sources", []), evidence)
+    sources, source_findings = _validate_sources(
+        tables.get("## Measurement Sources", []), capabilities, evidence, require_filled
+    )
     findings.extend(source_findings)
+    blockers, blocker_findings = _validate_blockers(
+        tables.get("## Open Blockers", []), require_filled
+    )
+    findings.extend(blocker_findings)
 
     manual: dict[str, str] = {}
     for item_id, owner, step, expected, status in tables.get("## Manual Handoff", []):
@@ -672,7 +1249,7 @@ def check_activation_text(
 
     tasks, titles, task_parse_findings = _tasks(text)
     findings.extend(task_parse_findings)
-    task_bindings: dict[str, dict[str, str]] = {}
+    task_bindings: dict[str, dict[str, dict[str, str]]] = {}
     for task_id, task in tasks.items():
         if require_filled and _placeholder(titles.get(task_id, "")):
             findings.append(f"{task_id}: unresolved task title")
@@ -690,8 +1267,24 @@ def check_activation_text(
     findings.extend(_cycle_findings(tasks))
 
     for evidence_id, item in evidence.items():
-        if item["item_id"] not in tasks and item["item_id"] not in sources:
+        if (
+            item["item_id"] not in tasks
+            and item["item_id"] not in sources
+            and item["item_id"] not in capabilities
+        ):
             findings.append(f"Verification Evidence: {evidence_id} references unknown item {item['item_id']}")
+        elif item["item_id"] in tasks and evidence_id not in _parse_list(
+            tasks[item["item_id"]].get("Evidence IDs", "none")
+        ):
+            findings.append(
+                f"Verification Evidence: {evidence_id} is not listed by task {item['item_id']}"
+            )
+        elif item["item_id"] in sources and evidence_id not in sources[item["item_id"]][
+            "evidence_ids"
+        ]:
+            findings.append(
+                f"Verification Evidence: {evidence_id} is not listed by source {item['item_id']}"
+            )
 
     coverage_rows = tables.get("## Outcome Coverage", [])
     coverage: dict[str, dict[str, object]] = {}
@@ -708,6 +1301,15 @@ def check_activation_text(
             source_id not in sources or sources[source_id]["status"] != "verified"
         ):
             findings.append(f"Outcome Coverage: verified signal {signal} needs a verified source")
+        if require_filled and status != "n/a":
+            for name, value in (
+                ("Definition / target", definition),
+                ("Window", window),
+                ("Release targets", targets),
+                ("Source ID", source_id),
+            ):
+                if value.lower() in ABSENT:
+                    findings.append(f"Outcome Coverage: {signal} needs {name}")
         if source_id in sources and not set(_parse_list(targets)).issubset(sources[source_id]["targets"]):
             findings.append(f"Outcome Coverage: source {source_id} does not cover every target for {signal}")
         coverage[signal] = {
@@ -726,8 +1328,38 @@ def check_activation_text(
         for signal in sorted(actual - expected):
             findings.append(f"Outcome Coverage: unknown PRD signal {signal}")
 
+    active_targets: set[str] = set()
+    for bindings in task_bindings.values():
+        active_targets.update(
+            target for target in bindings if target.lower() not in ABSENT and not _placeholder(target)
+        )
+    for source in sources.values():
+        active_targets.update(
+            target
+            for target in source["targets"]
+            if target.lower() not in ABSENT and not _placeholder(target)
+        )
+    for item in coverage.values():
+        active_targets.update(
+            target
+            for target in item["targets"]
+            if target.lower() not in ABSENT and not _placeholder(target)
+        )
+
+    open_blockers = {
+        blocker_id: item for blocker_id, item in blockers.items() if item["status"] == "open"
+    }
+    for blocker_id, item in open_blockers.items():
+        named_targets = item["targets"] - {"all"}
+        for target in sorted(named_targets - active_targets):
+            findings.append(
+                f"Open Blockers: {blocker_id} names unknown active target {target}"
+            )
+
     readiness: dict[str, dict[str, str]] = {}
-    for target, identity, status, checked, blockers in tables.get("## Target Readiness", []):
+    for target, source_sha, artifact, status, checked, blocker_refs in tables.get(
+        "## Target Readiness", []
+    ):
         if _placeholder(target):
             continue
         if target in readiness:
@@ -735,16 +1367,50 @@ def check_activation_text(
         if status not in READINESS_STATUSES:
             findings.append(f"Target Readiness: {target} has invalid status {status!r}")
         readiness[target] = {
-            "identity": identity,
+            "source_sha": source_sha,
+            "artifact": artifact,
+            "binding": f"{target}@{source_sha}#{artifact}",
             "status": status,
             "checked": checked,
-            "blockers": blockers,
+            "blockers": blocker_refs,
+        }
+        if require_filled and (
+            not SHA_RE.fullmatch(source_sha)
+            or not ARTIFACT_ID_RE.fullmatch(artifact)
+            or artifact == "pending"
+        ):
+            findings.append(
+                f"Target Readiness: filled target {target} needs exact source and artifact identities"
+            )
+        listed_blockers = set(_parse_list(blocker_refs))
+        checked_at = _timestamp(checked)
+        if checked.lower() not in ABSENT and not _placeholder(checked) and checked_at is None:
+            findings.append(
+                f"Target Readiness: {target} Checked must be an RFC3339 timestamp"
+            )
+        for blocker_id in listed_blockers:
+            if blocker_id not in blockers:
+                findings.append(
+                    f"Target Readiness: {target} references unknown blocker {blocker_id}"
+                )
+        applicable_open = {
+            blocker_id
+            for blocker_id, item in open_blockers.items()
+            if "all" in item["targets"] or target in item["targets"]
         }
         if status == "ready":
-            if not SHA_RE.fullmatch(identity):
+            if not SHA_RE.fullmatch(source_sha):
                 findings.append(f"Target Readiness: ready target {target} needs a full lowercase Git SHA")
-            if checked.lower() in ABSENT or blockers.lower() not in {"", "none", "n/a"}:
+            if not ARTIFACT_ID_RE.fullmatch(artifact) or artifact == "pending":
+                findings.append(
+                    f"Target Readiness: ready target {target} needs an exact artifact or build identity"
+                )
+            if checked_at is None or listed_blockers:
                 findings.append(f"Target Readiness: ready target {target} needs checked time and no blockers")
+            if applicable_open:
+                findings.append(
+                    f"Target Readiness: ready target {target} has open blocker(s) {', '.join(sorted(applicable_open))}"
+                )
             bound = [
                 task_id
                 for task_id, bindings in task_bindings.items()
@@ -753,19 +1419,55 @@ def check_activation_text(
             if not bound:
                 findings.append(f"Target Readiness: ready target {target} has no required ACT tasks")
             for task_id in bound:
-                if task_bindings[task_id][target] != identity:
+                binding = task_bindings[task_id][target]
+                if binding["sha"] != source_sha or binding["artifact"] != artifact:
                     findings.append(f"Target Readiness: {target} identity differs from {task_id} release binding")
                 if tasks[task_id].get("Status") != "verified":
                     findings.append(f"Target Readiness: {target} has unverified task {task_id}")
+            for source_id, source in sources.items():
+                if target not in source["bindings"] or source["status"] in {"n/a", "superseded"}:
+                    continue
+                binding = source["bindings"][target]
+                if binding["sha"] != source_sha or binding["artifact"] != artifact:
+                    findings.append(
+                        f"Target Readiness: {target} identity differs from {source_id} release binding"
+                    )
             for signal, item in coverage.items():
                 if target in item["targets"] and item["status"] not in {"verified", "n/a"}:
                     findings.append(f"Target Readiness: {target} has unverified outcome signal {signal}")
+            relevant_evidence_times = [
+                item["checked_at"]
+                for evidence_id, item in evidence.items()
+                if isinstance(item["checked_at"], datetime)
+                and item["release_binding"] == f"{target}@{source_sha}#{artifact}"
+                and (
+                    item["item_id"] in bound
+                    or (
+                        item["item_id"] in sources
+                        and target in sources[item["item_id"]]["bindings"]
+                    )
+                )
+            ]
+            if checked_at is not None and relevant_evidence_times and checked_at < max(
+                relevant_evidence_times
+            ):
+                findings.append(
+                    f"Target Readiness: {target} readiness check predates its verification evidence"
+                )
+
+    for target in sorted(active_targets - set(readiness)):
+        if require_filled or record.get("Status") == "handoff_ready":
+            findings.append(f"Target Readiness: missing active target {target}")
+    for target in sorted(set(readiness) - active_targets):
+        findings.append(f"Target Readiness: {target} is not in the active activation scope")
 
     if require_verified_sources:
         if record.get("Status") != "handoff_ready":
             findings.append("Record: verified-source handoff requires status handoff_ready")
         if not readiness:
             findings.append("Target Readiness: verified-source handoff needs at least one release target")
+        if not active_targets:
+            findings.append("Target Readiness: verified-source handoff needs an active release target")
         for signal, item in coverage.items():
             if item["status"] not in {"verified", "n/a"}:
                 findings.append(f"Outcome Coverage: signal {signal} is not verified")
@@ -782,6 +1484,10 @@ def check_activation_text(
         row["status"] != "ready" for row in readiness.values()
     ):
         findings.append("Record: handoff_ready requires every listed target to be ready")
+    if record.get("Status") == "handoff_ready" and not active_targets:
+        findings.append("Record: handoff_ready requires at least one active release target")
+    if record.get("Status") == "handoff_ready" and open_blockers:
+        findings.append("Record: handoff_ready cannot have open blockers")
     return findings
 
 
@@ -794,6 +1500,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--require-ready", action="append", default=[])
     parser.add_argument("--show-action-digests", action="store_true")
     args = parser.parse_args(argv)
+    if args.require_verified_sources and args.prd is None:
+        print("--require-verified-sources requires --prd", file=sys.stderr)
+        return 2
     if not args.activation.is_file():
         print(f"activation record not found: {args.activation}", file=sys.stderr)
         return 2

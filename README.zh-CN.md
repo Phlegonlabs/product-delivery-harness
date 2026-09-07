@@ -204,7 +204,7 @@ Wireframe Approval 与合并到 `main` 仍是人工闸门。Delivery 执行循�
 
 每个可部署版本都以 `docs/DEPLOYMENT.md` 作为操作交接文档。Product Definition 先建立骨架；Delivery Harness 在 push 前根据已跟踪的环境声明、CI 和 auth／integration 代码补全，部署后再用只读结果更新状态。文档会列出准确的 secret 与 variable 名称、preview／production 放置位置，以及 auth callback URL 等外部 console 任务，但永远不保存 secret 值。
 
-交付之后，`product-activation` 会建立或核对 `docs/ACTIVATION.md`、选择适用的 web、iOS 或 browser-extension profiles，使用最安全可用的 connector/API/CLI/Browser/Computer Use 路线，而且只执行精确授权的动作。它会分开记录 configured 与 verified、不保存 secret 值，并把相符且已验证的 `MS-*` 来源交给后续 outcome review。
+交付之后，`product-activation` 会建立或核对 `docs/ACTIVATION.md`、选择适用的 web、iOS 或 browser-extension profiles，使用最安全可用的 connector/API/CLI/Browser/Computer Use 路线，而且只执行精确授权的动作。Capability 与 evidence 会绑定精确 target、environment、source SHA 和 artifact/build identity，并由最新的相符结果决定 readiness。它会分开记录 configured 与 verified、不保存 secret 值、把 hybrid 产品中不支持的 target 留在 gate 之外，并把相符且已验证的 `MS-*` 来源交给后续 outcome review。
 
 循环在两端都闭合。任何封闭选项决策之前，research-first 评估以人工 `go | clarify | stop` Research Gate 把关起草——发布为含稳定 `RA-*` 发现的 `research-assessment.md`，并由草稿后的 market-research 对账。Activation 与真实量测窗口结束后，owner 可以要求产出 `outcome-review.md`：对照 PRD metrics 与 `TEST-*` 预期信号的实测值，只使用相符且已验证的来源，附带喂给下一次 enhancement run 的 `no_change | enhancement | incident` 判定。
 

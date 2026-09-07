@@ -39,6 +39,8 @@ The task boundary comments and every task field are invariant machine anchors. K
 - Activation actions: `ACT-001`, `ACT-002`, and so on.
 - Measurement sources: `MS-001`, `MS-002`, and so on.
 - Evidence: `EVID-001`, `EVID-002`, and so on.
+- Capability observations: `CAP-001`, `CAP-002`, and so on.
+- Open blockers: `BLOCK-001`, `BLOCK-002`, and so on.
 - Routes: `connector`, `api`, `cli`, `browser`, `computer_use`, `manual`, or `unselected` on a pending task.
 - Capability status: `available`, `unavailable`, `unobserved`, or `human_only`.
 - Capability support values: comma-separated `read`, `write`, and `readback`, or `n/a`.
@@ -47,7 +49,7 @@ The task boundary comments and every task field are invariant machine anchors. K
 - Record status: `seeded`, `preparation`, `active`, `handoff_ready`, `blocked`, or `n/a`.
 - Readiness status: `preparation`, `pending`, `ready`, or `blocked`.
 - Evidence kind: `write`, `readback`, `behavior`, `capability`, or `manual`.
-- Evidence result: `PASS`, `FAIL`, or `BLOCKED`.
+- Evidence result: `PASS`, `FAIL`, `BLOCKED`, or `UNCERTAIN` when a mutation attempt has no definite outcome.
 - Authorization: `not_required`, `pending`, `approved`, `consumed`, `denied`, `expired`, `handoff_complete`, or `prohibited`.
 - Risk: `read_only`, `standard`, `high`, `handoff`, or `prohibited`.
 - Confirmation follows risk exactly: `read_only`, `exact_preapproval`, `action_time_confirmation`, `user_handoff`, or `prohibited`.
@@ -56,7 +58,7 @@ The task boundary comments and every task field are invariant machine anchors. K
 
 Every PRD metric and every `TEST-*` row marked `Required: Yes` appears once in **Outcome Coverage**. Preserve the metric text and TEST ID exactly. Do not create another product trace family.
 
-Every non-`n/a` coverage row names one `MS-*` source before it can be verified. A source records the exact system, bounded retrieval definition, release targets, owner, status, and evidence IDs. Installing a tag, SDK, property, pixel, crash reporter, or dashboard does not verify a source. Verification requires a fresh read-back or behavior result bound to the release target.
+Every non-`n/a` coverage row names one `MS-*` source before it can be verified. A source records the exact provider target, environment, bounded retrieval definition, route plus target-scoped capability observation, typed release bindings, owner, status, and evidence IDs. Installing a tag, SDK, property, pixel, crash reporter, or dashboard does not verify a source. Verification requires fresh `readback` or `behavior` evidence bound to the exact release SHA and artifact identity; a manual statement cannot verify a measurement source.
 
 Outcome review consumes only verified sources whose release targets match the deployed release. It remains a later owner-requested step after real elapsed time; Product Activation records the measurement-window start and stops.
 
@@ -75,10 +77,13 @@ Required fields:
 - `Precondition`
 - `Desired state`
 - `Secret names`
+- `Risk tags`
 - `Risk`
 - `Confirmation`
 - `Execution route`
+- `Execution capability`
 - `Read-back route`
+- `Read-back capability`
 - `Authorization`
 - `Authorization source`
 - `Action digest`
@@ -90,9 +95,11 @@ Required fields:
 - `Blocker / N/A reason`
 - `Updated`
 
-`Release bindings` is a comma-separated list of `<release-target-id>@<full-lowercase-Git-SHA>`. A seed may use `@pending`; a filled or ready task may not. `Depends on` is `none` or existing ACT IDs. Dependencies form an acyclic graph and are satisfied only by `verified` tasks.
+`Release bindings` is a comma-separated list of `<release-target-id>@<full-lowercase-Git-SHA>#<artifact-or-build-id>`. Use `n/a` as the artifact identity only for a release with no separate signed or store artifact. A seed may use `@pending#pending`; a filled or ready task may not. `Depends on` is `none` or existing ACT IDs. Dependencies form an acyclic graph and are satisfied only by `verified` tasks.
 
 `Secret names` is `none` or a comma-separated list of configuration names. It never contains values. Use the exact name recorded in `docs/DEPLOYMENT.md` where one exists.
+
+`Risk tags` is `none` or a comma-separated list of `dns`, `permissions`, `persistent_access`, `billing`, `production_traffic`, `public_submission`, `data_sharing`, `advertising_tracking`, `upload`, and `destructive`. Every listed tag on a non-read action requires `high` risk unless execution is a manual handoff. A read-only check keeps `read_only` risk even when it names a sensitive resource. The checker also requires the evident `dns`, `permissions`, `billing`, `production_traffic`, or `advertising_tracking` tag when a non-read target or desired state names that concern.
 
 ## Exact Action Digest
 
@@ -108,17 +115,19 @@ Compute lowercase SHA-256 over compact, key-sorted JSON with schema `activation-
 - precondition;
 - desired state;
 - sorted secret names;
+- sorted risk tags;
 - risk;
 - confirmation;
-- execution route.
+- execution route; and
+- execution capability observation ID.
 
 Normalize every string to Unicode NFC and trim surrounding whitespace. Exclude capability observations, authorization state, evidence, timestamps, blockers, and task status. Secret values never enter the action or digest.
 
-`scripts/check_activation.py --show-action-digests` prints the current digest without editing the file. A mutation may run only when `Authorized digest` equals the recomputed `Action digest`. Any target, release SHA, precondition, desired state, dependency, secret name, risk, confirmation, or execution-route change expires the approval.
+`scripts/check_activation.py --show-action-digests` prints the current digest without editing the file. A mutation may run only when `Authorized digest` equals the recomputed `Action digest`. Any target, release SHA or artifact, precondition, desired state, dependency, secret name, risk, confirmation, route, or capability-observation change expires the approval.
 
 ## Capability And Route Selection
 
-Probe the current session and exact target. Record a route `available` only after a non-mutating check proves that it can address the intended service and that its account or target context is known. A plugin directory, installed binary, tool name, parent browser, or remembered login is supporting context only.
+Probe the current session, exact target, and environment. Give each observation a stable `CAP-*` ID and record its route, status, supported operations, exact service/account/project/resource scope, environment, checked time, and non-secret evidence. Record it `available` only after a non-mutating check proves that exact scope. A plugin directory, installed binary, tool name, parent browser, or remembered login is supporting context only.
 
 Route each action independently:
 
@@ -131,17 +140,21 @@ Route each action independently:
 
 An explicit user choice of Browser, Chrome, Edge, or Computer Use is a hard constraint for that action. If unavailable, report the gap instead of silently switching. One route performs the write. A different route may perform safer read-back.
 
-The capability observation does not authorize a write. `Target context` must be `confirmed` before a task becomes ready, configured, or verified. Login, account ambiguity, missing privilege, or a changed session blocks the task without changing the route's general availability.
+The capability observation does not authorize a write. Each task names separate execution and read-back capability IDs; both target scopes and environments must equal the task's exact target and environment, and their routes must equal the declared routes. Each measurement source similarly records `route;CAP-ID`, exact target, and environment before it can be available or verified. Login, account ambiguity, missing privilege, or a changed session blocks the task without changing another observation.
+
+`human_only` observations use the `manual` route. They can support user handoff for execution, but cannot independently prove a task `verified`; verified read-back requires an `available` observation.
 
 ## Risk And Authorization
 
 - `read_only` / `read_only`: no write; authorization is `not_required`.
 - `standard` / `exact_preapproval`: a reversible, clearly scoped setting may use one approval covering an exact displayed batch of ACT IDs and digests.
-- `high` / `action_time_confirmation`: DNS, permissions, persistent access, billing, production traffic, public submission, data sharing, advertising tracking, uploads, or another high-impact change requires confirmation immediately before that action.
+- `high` / `action_time_confirmation`: DNS, permissions, persistent access, billing, production traffic, public submission, data sharing, advertising tracking, uploads, deletes, revocations, rotations, or another high-impact change requires confirmation immediately before that action.
 - `handoff` / `user_handoff`: the user performs password, MFA, OTP, CAPTCHA, banking, tax, legal attestation, secret-value entry, or a step with no safe agent route. An owner statement proves `configured` at most.
 - `prohibited` / `prohibited`: the action is not executed. Record a blocker or `n/a` reason.
 
 Approval is bound to the exact ACT ID and action digest. Record a concise user-authored source, never page text. Mark the grant `consumed` on the first mutation attempt, including timeout or unknown completion. Delete, revoke, rotate, disable, transfer, rollback, or retry after drift is a new action and needs new approval.
+
+A non-read action may use `standard` only when its normalized environment value exactly equals `preview`, `development`, `dev`, `test`, `testing`, `sandbox`, `staging`, `stage`, or `local` and the operation is otherwise reversible. Compound or unknown labels, `prod`, `live`, public/store channels, and every upload, publish, transmit, delete, rotate, or revoke default to `high`. Manual or `human_only` execution uses `handoff` instead.
 
 ## Status Semantics
 
@@ -156,21 +169,27 @@ Approval is bound to the exact ACT ID and action digest. Record a concise user-a
 
 A task cannot be ready until every dependency is `verified`. `configured` and `n/a` do not satisfy a dependency. Production-after-preview ordering is an explicit dependency, never inferred from a name.
 
-For `configured`, record a PASS `write` or `manual` evidence row. For `verified`, also record a separate PASS `readback` row and a PASS `behavior` row unless `Verification` is `n/a` with a reason. The mutation response cannot also be the read-back evidence.
+For every non-read operation in `configured` or `verified`, record a PASS `write` or `manual` evidence row. For `verified`, also record a separate PASS `readback` row and a PASS `behavior` row unless `Verification` uses `n/a: <specific reason>` or `n/a - <specific reason>`. Bare `n/a` is invalid. The mutation response cannot also be the read-back evidence.
 
-An ambiguous result stays `uncertain`. A failed read-back becomes `blocked` or `stale`; it never triggers automatic rollback or remediation.
+Every evidence row carries `route;action-digest-or-n/a;target@sha#artifact`. Task evidence must use the task's current action digest and one of its exact release bindings. Measurement-source evidence uses `n/a` for the action digest and one of the source's exact release bindings. Write evidence uses the execution route; read-back and behavior evidence use the declared read-back route. Evidence from another digest, target, SHA, artifact, or route is stale and cannot satisfy the item. For the same item, binding, route, and evidence kind, only the chronologically latest result supports status; a newer `FAIL`, `BLOCKED`, or `UNCERTAIN` invalidates an older PASS.
+
+Every `Checked` and `Updated` time is timezone-bearing RFC3339. Capability probes precede the evidence that relies on them. For a mutation, read-back and behavior evidence must be later than its latest matching PASS write/manual evidence. A ready target's check must be at or after all matching task and source evidence.
+
+An ambiguous mutation result stays `uncertain` and records matching `UNCERTAIN` write or manual evidence. A failed read-back becomes `blocked` or `stale`; it never triggers automatic rollback or remediation.
 
 ## Target Readiness
 
 Readiness is per release target. A target is `ready` only when:
 
-- its release identity is a full lowercase Git SHA;
+- its source identity is a full lowercase Git SHA and its artifact/build identity is exact or explicitly `n/a`;
 - every required ACT task bound to it is `verified`;
 - every non-`n/a` Outcome Coverage row for it is `verified` through a verified `MS-*` source;
 - no blocker names that target;
 - the row has a checked timestamp and no blockers.
 
 `handoff_ready` means every target claimed in the current activation scope is ready. It does not mean the outcome window has closed or the product met its adoption target.
+
+The complete target set is the union of non-placeholder targets in ACT release bindings, measurement-source release bindings, and Outcome Coverage. Every active target needs exactly one Target Readiness row. **Open Blockers** uses structured `BLOCK-*` rows; an `open` global blocker or blocker naming a target prevents that target and the overall record from becoming ready.
 
 ## Gap Routing
 
@@ -188,7 +207,7 @@ Run:
 python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md
 python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md
 python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --require-filled
-python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --require-verified-sources --require-ready <release-target-id>
+python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md --require-verified-sources --require-ready <release-target-id>
 python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --show-action-digests
 ```
 

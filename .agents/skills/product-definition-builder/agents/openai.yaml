@@ -57,7 +57,8 @@ interface:
     names them. Then record service topology first: monolith versus named
     services and monorepo versus polyrepo, followed by backend runtime,
     database engine, and auth provider as separate layers. For a deployable
-    product, create docs/ACTIVATION.md only when that path is absent, map every
+    product with a web, iOS, or browser-extension target, create
+    docs/ACTIVATION.md only when that path is absent, map every
     metric and required TEST signal into its seed, and leave post-delivery
     reconciliation to $product-activation. Validate in staging
     and never overwrite, move, or archive existing documents without exact

@@ -18,6 +18,8 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         metadata = self.read("agents/openai.yaml")
         self.assertIn("name: product-activation", skill)
         self.assertIn("post-delivery activation", skill)
+        self.assertIn("websites and web apps, iOS apps, and browser extensions", skill)
+        self.assertNotIn("websites, mobile apps, and browser extensions", skill)
         self.assertIn('display_name: "Product Activation"', metadata)
         self.assertIn("$product-activation", metadata)
         self.assertIn("allow_implicit_invocation: true", metadata)

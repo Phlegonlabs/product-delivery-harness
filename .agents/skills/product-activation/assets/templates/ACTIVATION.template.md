@@ -23,14 +23,14 @@ The live post-delivery activation record. Keep it at `docs/ACTIVATION.md`. Recor
 
 `available` requires a live, non-mutating probe of the exact target. Installed tools alone remain `unobserved`.
 
-| Route | Status | Supports | Surface | Target context | Checked | Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| connector | unobserved | n/a | n/a | n/a | pending | pending |
-| api | unobserved | n/a | n/a | n/a | pending | pending |
-| cli | unobserved | n/a | n/a | n/a | pending | pending |
-| browser | unobserved | n/a | n/a | n/a | pending | pending |
-| computer_use | unobserved | n/a | n/a | n/a | pending | pending |
-| manual | unobserved | n/a | user handoff | n/a | pending | pending |
+| Observation ID | Route | Status | Supports | Target scope | Environment | Checked | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| CAP-001 | connector | unobserved | n/a | <exact service/account/project/resource> | <preview / production / store channel> | pending | pending |
+| CAP-002 | api | unobserved | n/a | <exact service/account/project/resource> | <preview / production / store channel> | pending | pending |
+| CAP-003 | cli | unobserved | n/a | <exact service/account/project/resource> | <preview / production / store channel> | pending | pending |
+| CAP-004 | browser | unobserved | n/a | <exact service/account/project/resource> | <preview / production / store channel> | pending | pending |
+| CAP-005 | computer_use | unobserved | n/a | <exact app/account/project/resource> | <preview / production / store channel> | pending | pending |
+| CAP-006 | manual | unobserved | n/a | <exact service/account/project/resource> | <preview / production / store channel> | pending | pending |
 
 ## Outcome Coverage
 
@@ -42,9 +42,9 @@ Add one row for every PRD metric and every required `TEST-*` expected signal. Pr
 
 ## Measurement Sources
 
-| MS ID | System / retrieval | Route | Release targets | Owner | Status | Evidence IDs |
-| --- | --- | --- | --- | --- | --- | --- |
-| MS-001 | <provider and bounded query or read-back definition> | unselected | <release-target-id> | <fill> | planned | none |
+| MS ID | Target | Environment | Retrieval | Route / capability | Release bindings | Owner | Status | Evidence IDs |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | <exact provider target> | <preview / production / store channel> | <bounded query or read-back definition> | unselected;pending | <release-target-id>@pending#pending | <fill> | planned | none |
 
 ## Activation Tasks
 
@@ -54,7 +54,7 @@ Keep one task per exact target mutation or read-only verification. Copy the bloc
 ### ACT-001 — <short action name>
 
 - Source refs: <PRD-*, TEST-*, ARCH-*, deployment row, or owner decision>
-- Release bindings: <release-target-id>@pending
+- Release bindings: <release-target-id>@pending#pending
 - Depends on: none
 - Operation: update
 - Target: <exact provider/account/project/resource/setting without a secret value>
@@ -62,10 +62,13 @@ Keep one task per exact target mutation or read-only verification. Copy the bloc
 - Precondition: <exact non-secret state expected before action>
 - Desired state: <exact non-secret state after action>
 - Secret names: none
+- Risk tags: none
 - Risk: standard
 - Confirmation: exact_preapproval
 - Execution route: unselected
+- Execution capability: pending
 - Read-back route: unselected
+- Read-back capability: pending
 - Authorization: pending
 - Authorization source: none
 - Action digest: pending
@@ -82,7 +85,7 @@ Keep one task per exact target mutation or read-only verification. Copy the bloc
 
 Mutation output and read-back must be separate evidence rows. Keep references non-secret.
 
-| Evidence ID | Item ID | Kind | Checked | Result | Route | Reference |
+| Evidence ID | Item ID | Kind | Route / action / release binding | Checked | Result | Reference |
 | --- | --- | --- | --- | --- | --- | --- |
 
 ## Manual Handoff
@@ -93,10 +96,11 @@ Mutation output and read-back must be separate evidence rows. Keep references no
 
 ## Target Readiness
 
-| Release target | Release identity | Status | Checked | Blockers |
-| --- | --- | --- | --- | --- |
-| <release-target-id> | pending | preparation | pending | ACT-001 |
+| Release target | Source SHA | Artifact / build identity | Status | Checked | Blockers |
+| --- | --- | --- | --- | --- | --- |
+| <release-target-id> | pending | pending | preparation | pending | none |
 
 ## Open Blockers
 
-- none
+| Blocker ID | Release targets | Kind | Owner | Next step | Status | Notes |
+| --- | --- | --- | --- | --- | --- | --- |

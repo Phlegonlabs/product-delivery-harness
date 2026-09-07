@@ -1,6 +1,6 @@
 ---
 name: product-activation
-description: Run and verify post-delivery activation for deployed or distributable websites, mobile apps, and browser extensions. Use after implementation when a product needs analytics, tracking, store, domain, security, email, payment, monitoring, or other external-console setup. Build a surface-specific activation record, probe connector/API/CLI/Browser/Computer Use routes, execute only exact authorized actions, read back every result, and hand verified measurement sources to a later outcome review. Do not use this skill to implement product code, manage PLAN/RUN, deploy without explicit authority, or wait for an adoption window.
+description: Run and verify post-delivery activation for deployed or distributable websites and web apps, iOS apps, and browser extensions. Use after implementation when a product needs analytics, tracking, store, domain, security, email, payment, monitoring, or other external-console setup. Build a surface-specific activation record, probe connector/API/CLI/Browser/Computer Use routes, execute only exact authorized actions, read back every result, and hand verified measurement sources to a later outcome review. Do not use this skill to implement product code, manage PLAN/RUN, deploy without explicit authority, or wait for an adoption window.
 ---
 
 # Product Activation
@@ -27,7 +27,7 @@ An absent product package is a `contract_gap`. An absent release identity or amb
 
 ## Boundary
 
-- Start only after implementation has a fixed full Git SHA or exact signed artifact identity. A not-yet-deployed product may enter `preparation`, but it cannot become activation-ready.
+- Start only after implementation has a fixed full Git SHA plus the exact signed artifact/build identity when one exists. Use `n/a` only when the target has no separate artifact. A not-yet-deployed product may enter `preparation`, but it cannot become activation-ready.
 - Never create, edit, reopen, or extend `docs/goal/PLAN.md`, `docs/goal/RUN.md`, or `docs/tasks.md`.
 - Never implement a missing product hook here. Record `code_gap` and return a scoped request to `delivery-harness` with the affected source IDs, release target, missing behavior, and expected verification signal.
 - Route a missing or contradictory product requirement, metric, `TEST-*`, or release target to `product-definition-builder` as `contract_gap`.
@@ -50,7 +50,7 @@ An absent product package is a `contract_gap`. An absent release identity or amb
 12. Before each mutation, re-read the exact target and precondition. Drift invalidates the digest and authorization. If the desired state already exists, perform read-only verification rather than spending the write grant.
 13. Execute external writes serially per target. Mark the grant consumed on the first mutation attempt, including an ambiguous timeout. After an unknown result, read back before any retry; never create a duplicate resource or submission by switching routes blindly.
 14. Refresh the provider state after each action. Record a distinct read-back and the behavior-level signal in non-secret evidence. A success toast, HTTP 2xx mutation response, upload completion, submission, or owner statement proves configuration at most; it does not prove behavior.
-15. Run the checker with `--require-filled` throughout reconciliation and `--require-verified-sources` before an outcome handoff. Use `--require-ready <release-target-id>` for each target claimed ready.
+15. Run the checker with `--require-filled` throughout reconciliation and with `--prd docs/product/PRD.md --require-verified-sources` before an outcome handoff. Use `--require-ready <release-target-id>` for each target claimed ready.
 16. Before publishing, recompute the live baseline SHA-256. If the live file changed, stop and reconcile. Show the exact create or overwrite path and obtain approval unless the user's current instruction already authorizes it. Publish only the validated staged file; leave failed or paused staging intact.
 17. Report readiness separately for each release target, every remaining blocker or manual step, and the verified `MS-*` sources. End the activation run. The later, owner-requested outcome review starts only after its real measurement window closes.
 
@@ -70,7 +70,7 @@ Capability and permission are separate facts:
 - Record secret names and placement surfaces only. Never read value-bearing `.env`, `.env.local`, `.dev.vars`, credential stores, exported platform secrets, cookies, local storage, passwords, tokens, OTPs, or private keys.
 - Never put a secret value in Markdown, Git, logs, command output, URLs, screenshots, action digests, or evidence.
 - Do not capture a screenshot while a token, recovery code, certificate private key, OTP, customer export, or other sensitive value is visible.
-- Evidence names the release target and SHA, environment, exact non-secret target, route, timestamp, expected result, observed result, and reference. Use bounded aggregate data rather than raw customer exports.
+- Evidence names the release target, SHA, artifact/build identity, environment, exact non-secret target, route, timestamp, expected result, observed result, and reference. Use bounded aggregate data rather than raw customer exports.
 - A manual action becomes `configured` after an owner attestation. It becomes `verified` only after an independent read-back and applicable behavior check.
 
 ## Status And Outcome Handoff
@@ -79,7 +79,7 @@ Use the status rules in `references/activation-contract.md`. Keep `configured` d
 
 `docs/ACTIVATION.md` is an operational record refreshed in place. Product Definition may create the first seed, but only this skill reconciles and verifies live actions. Git history retains prior versions; never archive this file with the PRD package or delete it during enhancement.
 
-When an outcome review is requested and `docs/ACTIVATION.md` exists, validate it with verified sources first. The outcome review may use only `MS-*` rows whose release target and SHA match the deployed release. Missing activation remains explicit and compatible for legacy or non-applicable products; never invent a source to complete a verdict.
+When an outcome review is requested and `docs/ACTIVATION.md` exists, validate it with the current PRD and verified sources first. The outcome review may use only `MS-*` rows whose release target, SHA, and artifact/build identity match the deployed release. Missing activation remains explicit and compatible for legacy or non-applicable products; never invent a source to complete a verdict.
 
 ## Reference Routing
 
