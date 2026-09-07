@@ -736,6 +736,11 @@ def _validate_graph_state(
     errors: list[str], plan: dict[str, Any], run: dict[str, Any]
 ) -> None:
     path = "run.graph_state"
+    security_policy = plan.get("security_review")
+    required_security = (
+        isinstance(security_policy, dict)
+        and security_policy.get("status") == "required"
+    )
     value = run.get("graph_state")
     if not _keys(errors, path, value, {"graph_revision", "node_states", "edge_states"}):
         return
@@ -842,6 +847,26 @@ def _validate_graph_state(
             ):
                 _add_integration_review_skip_errors(
                     errors, state_path, node, run, graph_nodes
+                )
+
+            # A required security review is a hard closeout gate.  It may not
+            # be converted into a historical skip or superseded state to make
+            # the final graph appear complete.  The closeout validator below
+            # additionally binds the terminal state to the exact current
+            # structured PASS result, but rejecting these terminal phases here
+            # also protects non-complete RUNs from silently bypassing the gate.
+            if (
+                required_security
+                and node.get("kind") == "verifier"
+                and isinstance(node.get("review"), dict)
+                and node["review"].get("type") == "security"
+                and node["review"].get("stage") == "integration"
+                and phase in {"skipped", "superseded"}
+            ):
+                _add(
+                    errors,
+                    state_path,
+                    "required security integration review cannot be skipped or superseded",
                 )
 
             if (

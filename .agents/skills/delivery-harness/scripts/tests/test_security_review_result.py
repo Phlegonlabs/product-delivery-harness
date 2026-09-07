@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import subprocess
 import tempfile
 import unittest
 from argparse import Namespace
@@ -40,12 +41,14 @@ PLAN_TEMPLATE = (
 )
 
 
-def valid_result() -> dict[str, object]:
+def valid_result(
+    reviewed_sha: str = HEAD, base_sha: str = BASE
+) -> dict[str, object]:
     return {
         "review_type": "security",
         "decision": "pass",
-        "reviewed_sha": HEAD,
-        "base_sha": BASE,
+        "reviewed_sha": reviewed_sha,
+        "base_sha": base_sha,
         "scope": SCOPE,
         "exclusions": [],
         "trust_boundaries": ["public input to privileged storage"],
@@ -62,7 +65,7 @@ def valid_result() -> dict[str, object]:
             "gaps": [],
         },
         "findings": [],
-        "evidence": [f"reviewed exact SHA {HEAD}"],
+        "evidence": [f"reviewed exact SHA {reviewed_sha}"],
     }
 
 
@@ -137,6 +140,14 @@ class SecurityReviewResultTests(unittest.TestCase):
             any("critical or high" in item for item in validate(result))
         )
 
+    def test_exclusions_cannot_pass(self) -> None:
+        result = valid_result()
+        result["exclusions"] = ["generated artifacts"]
+
+        self.assertTrue(
+            any("PASS cannot retain exclusions" in item for item in validate(result))
+        )
+
     def test_nonpass_result_produces_parent_finding_summaries(self) -> None:
         result = valid_result()
         result["decision"] = "blocked"
@@ -197,6 +208,29 @@ class SecurityReviewResultTests(unittest.TestCase):
 
 class SecurityReviewTransitionTests(unittest.TestCase):
     def state(self) -> tuple[dict[str, object], dict[str, object]]:
+        repo_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(repo_temp.cleanup)
+        repo_root = Path(repo_temp.name)
+        for command in (
+            ["git", "init", "-q", "-b", "security-result"],
+            ["git", "config", "user.email", "test@example.com"],
+            ["git", "config", "user.name", "Harness Test"],
+        ):
+            subprocess.run(command, cwd=repo_root, check=True, capture_output=True, text=True)
+        source = repo_root / "src" / "example" / "app.py"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("print('fixture')\n", encoding="utf-8")
+        subprocess.run(["git", "add", "src/example/app.py"], cwd=repo_root, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "security fixture"],
+            cwd=repo_root,
+            check=True,
+        )
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True
+        ).strip()
+        self._security_repo_root = repo_root
+        self._security_head = head
         plan = load_plan(PLAN_TEMPLATE)
         run = new_run.build_run(
             plan,
@@ -208,8 +242,16 @@ class SecurityReviewTransitionTests(unittest.TestCase):
             for item in plan["graph"]["nodes"]
             if item["id"] == "N-SECURITY-REVIEW"
         )
-        run["integration"]["batch_base_sha"] = BASE
-        run["integration"]["integration_head_sha"] = HEAD
+        run["integration"]["batch_base_sha"] = head
+        run["integration"]["integration_head_sha"] = head
+        run["observed"]["git"].update(
+            {
+                "parent_worktree_path": str(repo_root),
+                "parent_branch": "security-result",
+                "parent_head_sha": head,
+                "parent_dirty": False,
+            }
+        )
         run["graph_state"]["node_states"][node["id"]].update(
             {
                 "phase": "running",
@@ -228,9 +270,9 @@ class SecurityReviewTransitionTests(unittest.TestCase):
                 "plan_revision": plan["revision"],
                 "plan_digest_sha256": plan_digest(plan),
                 "graph_revision": run["graph_state"]["graph_revision"],
-                "reviewed_sha": HEAD,
-                "base_sha": BASE,
-                "review_path": "C:/repo",
+                "reviewed_sha": head,
+                "base_sha": head,
+                "review_path": str(repo_root),
                 "worker_runtime": "subagent",
                 "completion_channel": "agent_result",
                 "runtime_binding": {
@@ -250,8 +292,7 @@ class SecurityReviewTransitionTests(unittest.TestCase):
         )
         return plan, run
 
-    @staticmethod
-    def args(path: Path | None) -> Namespace:
+    def args(self, path: Path | None) -> Namespace:
         return Namespace(
             lineage="REVIEW-SECURITY",
             attempt_id="ATT-SECURITY",
@@ -266,7 +307,7 @@ class SecurityReviewTransitionTests(unittest.TestCase):
             equivalence_class=None,
             strategy=None,
             tree_sha=None,
-            repo_root=None,
+            repo_root=self._security_repo_root,
         )
 
     def write_result(self, directory: str, value: dict[str, object]) -> Path:
@@ -277,7 +318,9 @@ class SecurityReviewTransitionTests(unittest.TestCase):
     def test_record_requires_and_persists_exact_structured_result(self) -> None:
         plan, run = self.state()
         with tempfile.TemporaryDirectory() as temp:
-            path = self.write_result(temp, valid_result())
+            path = self.write_result(
+                temp, valid_result(self._security_head, self._security_head)
+            )
 
             harness_transition._record_review_attempt(
                 plan, run, self.args(path)
@@ -285,7 +328,7 @@ class SecurityReviewTransitionTests(unittest.TestCase):
 
         worker = run["review_workers"][0]
         self.assertEqual("worker_passed", worker["phase"])
-        self.assertEqual(HEAD, worker["security_result"]["reviewed_sha"])
+        self.assertEqual(self._security_head, worker["security_result"]["reviewed_sha"])
         self.assertTrue(
             any(
                 item.startswith("security_result_sha256:")
@@ -299,7 +342,7 @@ class SecurityReviewTransitionTests(unittest.TestCase):
                 for item in validate_run(plan, run)
             )
         )
-        worker["security_result"]["reviewed_sha"] = HEAD
+        worker["security_result"]["reviewed_sha"] = self._security_head
         worker["security_result"]["base_sha"] = "d" * 40
         self.assertTrue(
             any(
@@ -316,11 +359,22 @@ class SecurityReviewTransitionTests(unittest.TestCase):
             )
 
         plan, run = self.state()
-        result = valid_result()
+        result = valid_result(self._security_head, self._security_head)
         result["reviewed_sha"] = "c" * 40
         with tempfile.TemporaryDirectory() as temp:
             path = self.write_result(temp, result)
             with self.assertRaisesRegex(ManifestError, "reserved reviewed SHA"):
+                harness_transition._record_review_attempt(
+                    plan, run, self.args(path)
+                )
+
+    def test_record_rejects_pass_with_exclusions(self) -> None:
+        plan, run = self.state()
+        result = valid_result(self._security_head, self._security_head)
+        result["exclusions"] = ["generated artifacts"]
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.write_result(temp, result)
+            with self.assertRaisesRegex(ManifestError, "PASS cannot retain exclusions"):
                 harness_transition._record_review_attempt(
                     plan, run, self.args(path)
                 )

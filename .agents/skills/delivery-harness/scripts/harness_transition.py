@@ -380,6 +380,94 @@ def _require_non_default_integration_branch(run: dict[str, Any]) -> str:
     return branch
 
 
+def _validate_security_integration_checkout(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    node: dict[str, Any],
+    repo_root: Path | None,
+    *,
+    operation: str,
+    run_path: str | Path | None = None,
+) -> None:
+    """Bind a security integration review to the live parent checkout.
+
+    Security review dispatches are the final review of the unified candidate,
+    so their reservation and result recording both re-read branch, HEAD,
+    cleanliness, and base ancestry from Git.  This keeps a reviewer from being
+    reserved (or certified) against a detached, retargeted, dirty, or drifted
+    checkout.  The tracked RUN file is the sole expected transition artifact.
+    """
+
+    review = node.get("review")
+    if not (
+        isinstance(review, dict)
+        and review.get("type") == "security"
+        and review.get("stage", "preintegration") == "integration"
+    ):
+        return
+    if repo_root is None:
+        raise ManifestError(
+            f"{operation} security integration review requires --repo-root"
+        )
+    observed = run.get("observed")
+    observed_git = observed.get("git") if isinstance(observed, dict) else None
+    observed_path = (
+        observed_git.get("parent_worktree_path")
+        if isinstance(observed_git, dict)
+        else None
+    )
+    if not isinstance(observed_path, str) or not _same_path(repo_root, observed_path):
+        raise ManifestError(
+            f"--repo-root {repo_root} is not the observed parent worktree "
+            f"{observed_path!r}; {operation} security integration review from the observed checkout"
+        )
+    expected_branch = _require_non_default_integration_branch(run)
+    live_branch = _git_branch_name(repo_root)
+    if _normalized_branch(live_branch) != expected_branch:
+        raise ManifestError(
+            f"--repo-root is on branch {live_branch!r}, not the integration branch "
+            f"{run.get('integration', {}).get('branch')!r}"
+        )
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not is_full_sha(integration_head):
+        raise ManifestError(
+            f"{operation} security integration review requires a full integration head SHA"
+        )
+    live_head = _git_out(repo_root, "rev-parse", "HEAD").strip()
+    if live_head != integration_head:
+        raise ManifestError(
+            f"integration branch HEAD is {live_head}, not {integration_head}; "
+            f"{operation} security integration review requires the current integration head"
+        )
+    if _git_status_excluding_run(repo_root, run_path).strip():
+        raise ManifestError(
+            f"--repo-root product tree is dirty; {operation} security integration review "
+            "allows only its tracked RUN coordination file"
+        )
+    batch_base = integration.get("batch_base_sha") if isinstance(integration, dict) else None
+    if not is_full_sha(batch_base):
+        raise ManifestError(
+            f"{operation} security integration review requires a full batch_base_sha"
+        )
+    ancestry = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", batch_base, live_head],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if ancestry.returncode != 0:
+        raise ManifestError(
+            f"batch base {batch_base} is not an ancestor of integration head {live_head}; "
+            f"{operation} security integration review cannot proceed"
+        )
+
+
 def _record_observation(run: dict[str, Any], args: argparse.Namespace) -> None:
     """Write exactly what the parent observes: live Git facts plus a timestamp.
 
@@ -2394,6 +2482,14 @@ def _reserve_review_dispatch(
             f"review node {args.node_id!r} is not dispatchable: {', '.join(reasons)}"
         )
     node = _review_node(plan, args.node_id)
+    _validate_security_integration_checkout(
+        plan,
+        run,
+        node,
+        repo_root,
+        operation="reserve",
+        run_path=getattr(args, "run", None),
+    )
     if directive.get("launch_kind") == "run_parent":
         raise ManifestError("a managed review requires a fresh independent reviewer")
     if any(
@@ -2492,6 +2588,14 @@ def _record_review_attempt(
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
+    _validate_security_integration_checkout(
+        plan,
+        run,
+        node,
+        getattr(args, "repo_root", None),
+        operation="record",
+        run_path=getattr(args, "run", None),
+    )
     if args.result not in node.get("allowed_outcomes", []):
         raise ManifestError("review result is not declared by its reserved PLAN node")
     state = run.get("graph_state", {}).get("node_states", {}).get(node["id"])

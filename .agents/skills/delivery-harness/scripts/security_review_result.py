@@ -169,7 +169,7 @@ def validate_security_review_result(
         errors.append(
             "security_review_result.scope: must exactly match the PLAN review scope"
         )
-    _validate_string_list(
+    exclusions = _validate_string_list(
         errors, "security_review_result.exclusions", value["exclusions"]
     )
     trust_boundaries = _validate_string_list(
@@ -285,6 +285,10 @@ def validate_security_review_result(
         )
 
     if decision == "pass":
+        if exclusions:
+            errors.append(
+                "security_review_result.exclusions: PASS cannot retain exclusions"
+            )
         if not isinstance(coverage, dict) or coverage.get("status") != "complete":
             errors.append("security_review_result.coverage.status: PASS requires complete")
         if not reviewed_surfaces:

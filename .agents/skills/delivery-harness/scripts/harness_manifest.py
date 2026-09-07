@@ -6137,6 +6137,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     "run.graph_state.edge_states",
                     "complete graph run requires every edge to be terminal",
                 )
+            _validate_required_security_closeout(errors, plan, run)
         if not isinstance(mission_states, dict) or any(
             not isinstance(state, dict)
             or state.get("phase") not in {"integrated", "superseded"}
@@ -6228,6 +6229,101 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             )
 
     return sorted(set(errors))
+
+
+def _validate_required_security_closeout(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    """Require the current exact-head structured security PASS at closeout.
+
+    A historical PASS (or a skipped/superseded graph state) must not satisfy a
+    required integration security node. Bind the proof to the graph state's
+    current reviewer identity and to the current integration/base SHAs.
+    """
+
+    policy = plan.get("security_review")
+    if not isinstance(policy, dict) or policy.get("status") != "required":
+        return
+    graph = plan.get("graph")
+    graph_nodes = graph.get("nodes", []) if isinstance(graph, dict) else []
+    graph_state = run.get("graph_state")
+    node_states = (
+        graph_state.get("node_states", {}) if isinstance(graph_state, dict) else {}
+    )
+    review_workers = run.get("review_workers")
+    current_review_workers = review_workers if isinstance(review_workers, list) else []
+    integration = run.get("integration")
+    integration_head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    batch_base = (
+        integration.get("batch_base_sha") if isinstance(integration, dict) else None
+    )
+    for node in graph_nodes if isinstance(graph_nodes, list) else []:
+        if not (
+            isinstance(node, dict)
+            and node.get("kind") == "verifier"
+            and isinstance(node.get("review"), dict)
+            and node["review"].get("type") == "security"
+            and node["review"].get("stage") == "integration"
+        ):
+            continue
+        node_id = node.get("id")
+        path = f"run.graph_state.node_states.{node_id}"
+        state = node_states.get(node_id) if isinstance(node_states, dict) else None
+        if not isinstance(state, dict):
+            _add(errors, path, "required security integration review has no graph state")
+            continue
+        if state.get("phase") != "succeeded" or state.get("last_outcome") != "pass":
+            _add(
+                errors,
+                path,
+                "required security integration review must close as succeeded/pass",
+            )
+            continue
+        current_worker = next(
+            (
+                worker
+                for worker in current_review_workers
+                if isinstance(worker, dict)
+                and worker.get("node_id") == node_id
+                and worker.get("worker_id") == state.get("bound_worker_id")
+                and worker.get("attempt_id") == state.get("last_attempt_id")
+            ),
+            None,
+        )
+        if not isinstance(current_worker, dict):
+            _add(
+                errors,
+                path,
+                "required security integration review needs its current reviewer worker",
+            )
+            continue
+        if (
+            current_worker.get("phase") != "worker_passed"
+            or current_worker.get("outcome") != "pass"
+            or current_worker.get("reviewed_sha") != integration_head
+            or current_worker.get("base_sha") != batch_base
+            or not isinstance(current_worker.get("security_result"), dict)
+        ):
+            _add(
+                errors,
+                path,
+                "required security integration review needs a current worker_passed PASS result for the integration head and batch base",
+            )
+            continue
+        for issue in validate_security_review_result(
+            current_worker["security_result"],
+            expected_decision="pass",
+            expected_reviewed_sha=integration_head,
+            expected_base_sha=batch_base,
+            expected_scope=node["review"].get("scope", []),
+            required_tools=node["review"].get("required_tools", []),
+            allowed_decisions=node.get("allowed_outcomes", []),
+        ):
+            _add(errors, f"{path}.security_result", issue)
 
 
 def validate_current_plan_run(

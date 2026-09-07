@@ -34,8 +34,10 @@ from test_harness_manifest import (  # noqa: E402
     legacy_graph_plan,
     legacy_graph_run,
     mark_legacy_complete,
+    mark_complete,
     retained_gate_execution,
     valid_plan,
+    valid_closeout_run,
     valid_run,
 )
 from validate_node_result import validate_node_result  # noqa: E402
@@ -589,6 +591,81 @@ class GraphManifestTests(unittest.TestCase):
         self.assertTrue(
             any(
                 "security review must cover every PLAN mission" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_required_security_review_cannot_be_superseded(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        node = add_security_review(plan)
+        run = valid_run(plan)
+        run["graph_state"]["node_states"][node["id"]].update(
+            {
+                "phase": "superseded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-SECURITY-SUPERSEDED",
+                "last_outcome": "pass",
+            }
+        )
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "required security integration review cannot be skipped or superseded"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_required_security_closeout_needs_current_structured_pass(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        add_security_review(plan)
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(
+            any(
+                "required security integration review needs a current worker_passed PASS result"
+                in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_required_security_closeout_reports_malformed_review_workers(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+        add_security_review(plan)
+        run = valid_closeout_run(plan)
+        mark_complete(plan, run)
+        run["review_workers"] = None
+
+        errors = validate_run(plan, run)
+
+        self.assertTrue(any("run.review_workers: must be a list" in error for error in errors))
+        self.assertTrue(
+            any(
+                "required security integration review needs its current reviewer worker"
+                in error
                 for error in errors
             ),
             errors,

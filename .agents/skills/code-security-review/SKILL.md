@@ -7,7 +7,7 @@ description: Review a fixed code candidate for security vulnerabilities after im
 
 ## Purpose
 
-Review the completed code candidate, not the implementation process. Bind every conclusion to one exact candidate SHA and declared scope. A passing review means no validated blocking vulnerability was found in that SHA and scope; it is not a security certification.
+Review the completed code candidate, not the implementation process. Bind every conclusion to one exact candidate SHA and declared scope. A passing review means no validated blocking vulnerability was found in that SHA and scope, with no exclusions in the result; it is not a security certification.
 
 This skill owns repository code-security review. It does not own product requirements, implementation, deployment controls, operational hardening in external consoles, vulnerability remediation, or issue tracking.
 
@@ -40,7 +40,7 @@ Use a clean checkout at the candidate SHA. A dirty or uncommitted target may rec
 4. Run only already-installed, explicitly read-only local security commands that apply to the declared scope. Record each command, result, and any omitted coverage.
 5. When the Harness parent selects Codex Security itself as the review executor, use its Standard repository scan by default. Use a diff scan only for an explicitly bounded change review, and use Deep Scan only when the user explicitly requests a deep or exhaustive review. A dispatched reviewer child does not start a nested scan coordinator; it performs the source review and allowed local checks itself.
 6. Validate each candidate finding from source to sink. Record preconditions, reachable impact, counterevidence, severity, confidence, and a concrete remediation test.
-7. Return the exact-SHA result defined in references/review-contract.md. Do not change code or suppress a finding merely to reach PASS.
+7. Return the exact-SHA result defined in references/review-contract.md. A PASS is complete for the declared scope and cannot carry exclusions or silently narrow coverage. Do not change code or suppress a finding merely to reach PASS.
 
 ## Authorization And Safety
 
