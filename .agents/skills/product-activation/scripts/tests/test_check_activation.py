@@ -161,6 +161,27 @@ class ActivationCheckerTests(unittest.TestCase):
         )
         self.assertEqual([], findings)
 
+    def test_verified_source_mode_implies_filled_validation(self) -> None:
+        record = valid_record().replace("- Product: Example", "- Product: <fill>")
+        self.assertIn(
+            "unresolved placeholder",
+            "\n".join(
+                check_activation.check_activation_text(
+                    record, prd_text=VALID_PRD, require_verified_sources=True
+                )
+            ),
+        )
+
+    def test_outcome_source_must_cover_the_same_release_target(self) -> None:
+        record = valid_record().replace(
+            "| MS-001 | GA4 Realtime setup event query | browser | web-prod |",
+            "| MS-001 | GA4 Realtime setup event query | browser | other-prod |",
+        )
+        self.assertIn(
+            "does not cover every target",
+            "\n".join(check_activation.check_activation_text(record)),
+        )
+
     def test_prd_coverage_rejects_missing_and_unknown_signals(self) -> None:
         missing = valid_record().replace(
             "| TEST-001 | One verified setup event | release smoke | web-prod | MS-001 | verified |\n",

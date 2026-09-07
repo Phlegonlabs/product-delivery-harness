@@ -313,6 +313,8 @@ def _validate_tables(text: str, require_filled: bool) -> tuple[dict[str, list[li
 
 def _validate_profiles(rows: list[list[str]]) -> list[str]:
     findings: list[str] = []
+    if not rows:
+        return ["Applied Profiles: at least the core profile is required"]
     seen: set[str] = set()
     for profile, applies, reason, owner in rows:
         if _placeholder(profile) or _placeholder(applies):
@@ -333,6 +335,8 @@ def _validate_profiles(rows: list[list[str]]) -> list[str]:
 def _validate_capabilities(rows: list[list[str]]) -> tuple[dict[str, dict[str, object]], list[str]]:
     findings: list[str] = []
     capabilities: dict[str, dict[str, object]] = {}
+    if not rows:
+        findings.append("Capability Observations: keep at least one route row")
     for route, status, supports, surface, target_context, checked, evidence in rows:
         if _placeholder(route):
             continue
@@ -619,6 +623,7 @@ def check_activation_text(
     require_verified_sources: bool = False,
     require_ready: tuple[str, ...] = (),
 ) -> list[str]:
+    require_filled = require_filled or require_verified_sources
     findings: list[str] = []
     for heading in REQUIRED_SECTIONS:
         if _section(text, heading) is None:
@@ -703,6 +708,8 @@ def check_activation_text(
             source_id not in sources or sources[source_id]["status"] != "verified"
         ):
             findings.append(f"Outcome Coverage: verified signal {signal} needs a verified source")
+        if source_id in sources and not set(_parse_list(targets)).issubset(sources[source_id]["targets"]):
+            findings.append(f"Outcome Coverage: source {source_id} does not cover every target for {signal}")
         coverage[signal] = {
             "definition": definition,
             "window": window,
@@ -755,9 +762,10 @@ def check_activation_text(
                     findings.append(f"Target Readiness: {target} has unverified outcome signal {signal}")
 
     if require_verified_sources:
-        require_filled = True
         if record.get("Status") != "handoff_ready":
             findings.append("Record: verified-source handoff requires status handoff_ready")
+        if not readiness:
+            findings.append("Target Readiness: verified-source handoff needs at least one release target")
         for signal, item in coverage.items():
             if item["status"] not in {"verified", "n/a"}:
                 findings.append(f"Outcome Coverage: signal {signal} is not verified")
