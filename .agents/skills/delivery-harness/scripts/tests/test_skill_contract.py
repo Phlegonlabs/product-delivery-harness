@@ -525,6 +525,23 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not add attempts on top of that budget", gates)
         self.assertIn("Final Visual Parity Loop", contract)
 
+    def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
+        skill = self.read("SKILL.md")
+        trace = self.read("references/contract-and-traceability.md")
+        ui_contract = self.read("references/ui-implementation-contract.md")
+        gates = self.read("references/verification-gates.md")
+        join = self.read("scripts/harness_contract_join.py")
+
+        self.assertIn("exact responsive set", skill)
+        self.assertIn("at least two targets", skill)
+        self.assertIn("invariant `` `responsive` `` anchor", trace)
+        self.assertIn("PRD, approved `wireframes.html`, every PLAN UI surface", trace)
+        self.assertIn("missing or mismatched responsive set", ui_contract)
+        self.assertIn("unintended element overlap, clipping, occlusion", gates)
+        self.assertIn("browser geometry/reviewer evidence", gates)
+        self.assertIn("PRD_RESPONSIVE_RE", join)
+        self.assertIn("differ from the wireframe responsive", join)
+
     def test_final_page_quality_pass_is_documented(self) -> None:
         skill = self.read("SKILL.md")
         gates = self.read("references/verification-gates.md")

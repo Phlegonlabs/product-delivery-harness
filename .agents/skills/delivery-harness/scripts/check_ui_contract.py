@@ -123,7 +123,7 @@ class DesignSystem:
         size_classes = data.get("sizeClasses")
         valid_viewports = (
             isinstance(viewports, list)
-            and bool(viewports)
+            and len(viewports) >= 2
             and all(
                 isinstance(value, (int, float))
                 and not isinstance(value, bool)
@@ -132,10 +132,11 @@ class DesignSystem:
                 for value in viewports
             )
             and len(set(viewports)) == len(viewports)
+            and all(left < right for left, right in zip(viewports, viewports[1:]))
         )
         valid_sizes = (
             isinstance(size_classes, list)
-            and bool(size_classes)
+            and len(size_classes) >= 2
             and all(
                 isinstance(value, str) and bool(value.strip())
                 for value in size_classes
@@ -148,8 +149,8 @@ class DesignSystem:
             or (has_size_classes and not valid_sizes)
         ):
             raise UiContractError(
-                f"{self.source}: define exactly one non-empty unique responsive set: "
-                "viewports or sizeClasses"
+                f"{self.source}: define exactly one non-empty unique responsive set "
+                "with at least two targets: viewports or sizeClasses"
             )
 
 

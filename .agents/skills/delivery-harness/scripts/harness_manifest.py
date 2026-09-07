@@ -691,7 +691,25 @@ def _validate_plan_ui_surfaces(
                     _add(errors, f"{path}.trace_ids", f"trace {trace_id!r} is not planned")
             if not _nonempty_string(surface["route"]):
                 _add(errors, f"{path}.route", "must be a non-empty string")
-            _strings(errors, f"{path}.breakpoints", surface["breakpoints"], nonempty=True)
+            breakpoints = _strings(
+                errors,
+                f"{path}.breakpoints",
+                surface["breakpoints"],
+                nonempty=True,
+            )
+            if plan.get("schema_version") == 6:
+                if len(breakpoints) < 2:
+                    _add(
+                        errors,
+                        f"{path}.breakpoints",
+                        "must contain at least two responsive targets",
+                    )
+                elif len(breakpoints) != len(set(breakpoints)):
+                    _add(
+                        errors,
+                        f"{path}.breakpoints",
+                        "must not contain duplicate responsive targets",
+                    )
             _strings(errors, f"{path}.states", surface["states"], nonempty=True)
             if surface["evidence_gate"] not in {"required", "optional", "n/a"}:
                 _add(errors, f"{path}.evidence_gate", "has an unsupported value")
