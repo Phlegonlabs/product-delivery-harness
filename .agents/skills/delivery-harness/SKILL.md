@@ -14,6 +14,7 @@ Keep upstream ownership separate:
 - `product-definition-builder` owns `PRD.md`, approved low-fidelity `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
 - `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its low-fidelity page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
 - This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
+- `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
 
@@ -71,6 +72,7 @@ These rules apply to both routes:
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
+- Non-mission nodes reserve with `reserve-node-attempt`, execute outside the RUN lock, then record evidence with `record-node-result`; interrupted attempts become `blocked`.
 - A review PASS binds one exact SHA. Any repair invalidates it.
 - Preserve failed, interrupted, cancelled, dirty, and partial worktree evidence. Never reset or remove it automatically.
 
@@ -82,7 +84,9 @@ For small work:
 2. Implement with one parent writer.
 3. Run the smallest focused checks that prove the change.
 4. Review the complete diff and run `git diff --check`.
-5. Perform only authorized Git actions.
+5. Create an authorized local commit when requested.
+6. For code work, load `code-security-review` on that SHA; without one, report `UNVALIDATED`, not PASS.
+7. Perform only remaining authorized Git actions.
 
 For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`. Stop after two failed repair attempts and report the remaining gap.
 
@@ -156,9 +160,10 @@ Apply this only to large plan-backed work:
 9. Render `WORKER_GOAL.template.md`; attach only the host contract and result fields that mission needs.
 10. Validate returned identity, changed files, scope, verifier evidence, atomic task-commit attribution, commit order, and ancestry against live Git.
 11. Require one exact-head pre-integration reviewer per applicable surface for every mission. Render its bounded packet with `scripts/render_review_packet.py`; do not attach the full PLAN/RUN when that slice is sufficient. Each review returns all blocking findings in one pass and allows at most one repair-and-re-review cycle. Group related findings into one root-cause failure family before repair. If another variant of that family appears after repair, stop example-by-example patching and require one structural repair with a complete acceptance matrix or return `REFINEMENT_REQUEST` / `contract_gap`. Add same-surface reviewer fan-out only when the user requests it or a recorded high-impact risk justifies it. A web `visual` review declares `required_tools: ["chrome_devtools"]`. A `frontend_code` review declares it when DOM state, console, network, runtime JavaScript, accessibility, or rendered behavior is part of its evidence. Backend-only and source-only reviews do not acquire a browser requirement. The selector defers a required tool as `reviewer_tool_unobserved:<tool>` or `reviewer_tool_unavailable:<tool>`; never replace the missing reviewer tool with the parent's browser session.
-12. Dispatch one planned parent-owned read-only reviewer per applicable integration surface against the exact unified integration SHA, then run one planned broad final validation suite on the fixed candidate. The unified-head review is the final synthesis; do not dispatch another same-scope review while the SHA is unchanged. Skip the unified dispatch when that head's tree is byte-identical to a tree an already-passed pre-integration review of the same type covers — the reviewed commit itself, or a merge commit with the same tree — and record the node as `skipped` with both tree SHAs.
+12. Dispatch one planned parent-owned read-only reviewer per integration surface on the unified SHA. Every new code-delivery PLAN adds a fresh sibling `security` review over all missions with the `code_security_verification` binding; it never uses the tree-identity skip. For other review, do not dispatch another same-scope review on an unchanged SHA; a byte-identical skip records both tree SHAs.
+13. After those reviews pass, run one planned broad final validation suite. A security repair changes the SHA and invalidates its review and downstream gates.
 
-Managed runs carry no wall-time percentage target. The objective is to stop paying for the same work twice: repeated reviewer dispatches, repeated deterministic verifier runs, needless serialization, and finished work waiting on a slower sibling. Follow `references/runtime-performance.md`. Removing repetition never licenses weakening authorization, exact-head review, evidence, or final validation, and no reduction may be claimed without a comparable measured baseline.
+Managed runs carry no wall-time percentage target. The objective is to stop paying for the same work twice. Follow `references/runtime-performance.md`; removing repetition never weakens authorization, exact-head review, evidence, or final validation.
 
 ## UI Implementation Contract
 
@@ -169,7 +174,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and contain at least two targets. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 - After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
-- These skill names are the bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind different installed skills to the design-direction, design-compilation, frontend-implementation, and page-quality-verification slots — a project edit, not a harness change. The modes, frozen sources, and review gates above apply unchanged to whichever skill is bound.
+- These are bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind other skills to the design, implementation, and page-quality-verification slots, plus the code-security-verification slot; the same modes, sources, and gates apply.
 
 ## Workflow
 
@@ -189,7 +194,7 @@ Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Miss
 
 ### 4. Execute And Integrate
 
-Select only after the runtime version gate permits work. Bind each worker to the exact plan digest, lease, base, worktree, scope, resources, verifiers, permission boundary, and completion channel. Record every terminal mission with `scripts/harness_transition.py ... record-worker-result`; it observes the bound worktree, revalidates the payload and verifier evidence under the RUN lock, then atomically updates RUN. Use guarded `reject-worker-result` when the parent rejects a stale or untrusted candidate, and `scripts/validate_result.py` only for read-only preflight. Before review, persist `reserve-review-dispatch`, pass its receipt to the reviewer, and finish it with `record-review-attempt`; never backfill a launch. Review exact heads, integrate passing heads serially, and `close-wave`. Follow `references/runtime-performance.md` for parent turn boundaries.
+Select only after the runtime version gate. `lease-worker` copies selector-derived runtime/portable bindings, validates compatibility flags, accepts `--task-thread-id` only for `app_task`, accepts existing exact targets, and materializes new exact targets only from active wildcard grants without widening authority. Record missions with `record-worker-result` under the RUN lock; use `reject-worker-result` for stale candidates and `validate_result.py` for preflight. For non-mission nodes, reserve with `reserve-node-attempt`, execute outside the lock, then finish with `record-node-result` and evidence. Persist `reserve-review-dispatch` before launch, finish with `record-review-attempt`, review exact heads, integrate serially, and close-wave.
 
 ### 5. Verify Local-First
 
@@ -198,12 +203,13 @@ Use the verification ladder:
 1. focused task and worker checks selected from parent-observed changed files using `selection.mode: "changed_files"`;
 2. exact-head mission review;
 3. mission integration and interaction checks;
-4. fresh exact-SHA unified review, skipped when its tree is byte-identical to an already-passed review's tree;
-5. final broad regression, browser E2E, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
-6. `git diff --check` and complete final-diff review.
+4. fresh exact-SHA unified review; only non-security review may reuse byte-identical-tree evidence;
+5. `code-security-review`, repair when required, and fresh review of the new SHA;
+6. final broad regression, browser E2E, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
+7. `git diff --check` and complete final-diff review.
 
 Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Integration, cross-mission, UI, and migration gates refuse reuse by default; one may opt in with `cache.deterministic_local: true` only when it is a pure local deterministic command, never for a browser capture, migration, mutable-environment smoke, or network check. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
 
 ### 6. Complete
 
-New runs default to `local_only`, which completes after authorized local work, required gates, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, both environments verify read-only, and that verification reports the pushed head's preview URL in the conversation.
+New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, both environments verify read-only, and that verification reports the pushed head's preview URL in the conversation.

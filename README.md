@@ -10,14 +10,14 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.26.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.27.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
 
 Skills repository for turning a product idea or change request into a verified delivery flow with Codex, Claude Code, Pi, or any host that discovers a user skills directory.
 
-It is not a prompt collection. The skill suite separates product definition, visual design, and engineering execution so each stage has one source of truth, a bounded handoff, and its own verification.
+It is not a prompt collection. The skill suite separates product definition, visual design, engineering execution, and code-security review so each stage has one source of truth, a bounded handoff, and its own verification.
 
 > Define the product. Compile the design. Deliver verified software.
 
@@ -28,6 +28,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | A product idea | `product-definition-builder` | Requirements, a responsive `wireframes/2` review file for every UI surface and state, browser layout QA, architecture, stack decisions, release targets, tests, and sourced market research |
 | An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | Responsive high-fidelity HTML targets checked across the full page-target-state matrix — retained under `docs/design/ui-references/` on web — plus a binding design-system pair when required |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
+| A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
 
 Each bundled skill can be invoked on its own; the full pipeline is optional. Each mode still enforces its declared inputs and dependencies.
 
@@ -38,8 +39,11 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 - **Product definition stops at a human gate.** A UI-bearing package ends in one responsive low-fidelity `wireframes.html`; every surface, target, and non-`n/a` state must pass browser overlap, clipping, occlusion, and overflow review before owner approval.
 - **Visual targets are responsive HTML.** A requested web visual phase renders every high-fidelity page across the same responsive/state matrix, retains approved references under `docs/design/ui-references/`, and archives superseded sets instead of deleting them; the Harness builds and rechecks each page from its approved reference.
 - **Workers are isolated.** Write missions use dedicated worktrees and bounded scopes. The parent validates every returned commit and diff.
+- **Every graph attempt is durable.** Non-mission nodes reserve an attempt, run their check or external action outside the RUN lock, then record outcome and evidence; an interrupted non-runtime attempt is recorded as `blocked` through the same result path.
+- **Runtime bindings are explicit.** `lease-worker` derives the provider, driver, model, effort, and portable runtime axes from the selected directive, accepts `--task-thread-id` only for app tasks, accepts an existing exact target, and materializes a new exact target only from an active wildcard grant without widening authority.
 - **Capability is not permission.** A runtime may be able to push or clean up, but each action still needs exact authorization.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
+- **Code security is a fresh final review.** Every new managed PLAN explicitly requires it or records why a non-code delivery is not applicable. Required review runs `code-security-review` over every mission at the unified integration SHA before broad final validation, validates the structured agent result, and cannot reuse earlier tree-identical evidence.
 - **Local-only is the default.** The harness commits and verifies locally; only an explicit remote outcome authorizes pushing the run's own branch. Landing it on the default branch is yours to do.
 
 ## What is included
@@ -49,6 +53,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 | `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, responsive low-fidelity wireframes with browser layout QA, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional full-matrix UI Design Pass whose web route renders retained high-fidelity HTML references, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
 | `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair, including the exact approved responsive set and layout-safety rules. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
+| `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
@@ -70,15 +75,16 @@ flowchart LR
   Gate -->|"approved, no visual phase"| Harness["delivery-harness\nShared delivery core"]
   Design -->|"approved HTML references or design-system pair"| Harness
   Harness --> Runtime["One host provider section\nCodex, Claude Code, Pi, or generic"]
-  Runtime --> Evidence["Local tests and UI evidence"]
+  Runtime --> Security["code-security-review\nfresh unified exact-SHA review"]
+  Security --> Evidence["Broad final tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`, the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/` — and the Harness implements the frozen result.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/`; the Harness implements the frozen result; and `code-security-review` reviews the unified candidate without editing it.
 
 ### Full skill lifecycle
 
-The complete lifecycle across all three skills, with every gate and the cross-cutting mechanisms:
+The complete lifecycle across all four skills, with every gate and the cross-cutting mechanisms:
 
 ```mermaid
 flowchart TB
@@ -115,7 +121,7 @@ flowchart TB
         size{{"Project Size Gate"}}
 
         subgraph DIRECT["Direct route (small)"]
-            direct_impl["Implement directly -> local verify<br/>-> review -> authorized Git actions"]
+            direct_impl["Implement directly -> local verify<br/>-> code-security review -> authorized Git actions"]
         end
 
         subgraph MANAGED["Managed route (large)"]
@@ -134,13 +140,14 @@ flowchart TB
                 workers["fresh bounded agent workers"]
                 record["record-worker-result<br/>revalidate evidence + atomic RUN update"]
                 review["exact-head review<br/>(reserve -> reviewer -> record)"]
-                integ["record-integration<br/>(serial; byte-identical tree may skip the unified review)"]
+                integ["record-integration<br/>(serial; unified candidate SHA)"]
                 lock --> obs --> sel --> accept --> adapters --> lease --> workers --> record --> review --> integ
             end
 
             plan --> newrun --> LOOP
+            security["code-security-review<br/>fresh sibling; all missions; exact SHA"]
             gates2["Broad final validation<br/>(E2E / regression / UI evidence matrix)"]
-            LOOP --> gates2
+            LOOP --> security --> gates2
         end
 
         route --> size
@@ -194,7 +201,7 @@ The Harness is built around explicit boundaries:
 2. Freeze the relevant contracts, sources, scope, and verification steps.
 3. Plan dependencies before starting implementation when the task is large enough to need it.
 4. Use parallel workers only when at least two safe write missions are actually selected, the work is independent and isolated, and every action is explicitly authorized; managed-sequential still proves its isolated writer, scope/head, and review gates.
-5. Verify task results, integrations, UI journeys where relevant, and the final diff. A single mission has no invented cross-mission batch gate.
+5. Verify task results and integrations, run a fresh unified code-security review, then verify UI journeys where relevant and the final diff. A single mission has no invented cross-mission batch gate.
 6. Stop with verified local evidence by default. If a remote outcome is explicitly requested, push the run's own branch only with exact remote intent plus branch/head authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v11 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
@@ -213,10 +220,12 @@ flowchart TB
   Work --> Review["Exact-head read-only review<br/>required before integration"]
   Review -->|pass| Integrate["Serial integration into the resolved branch"]
   Review -->|fix_required| Work
-  Integrate --> Gates["Applicable integration, E2E and UI evidence gates"]
-  Gates -->|fix_required| Repair["Bounded repair route"]
+  Integrate --> Security["Fresh unified code-security review<br/>all missions; exact integration SHA"]
+  Security -->|pass| Gates["Applicable integration, E2E and UI evidence gates"]
+  Security -->|fix_required| Repair["Bounded repair route"]
+  Gates -->|fix_required| Repair
   Repair --> Rereview["Re-review on the new head"]
-  Rereview --> Gates
+  Rereview --> Security
   Gates -->|pass| Local["Local verification complete"]
   Direct --> Local
   Local --> Remote{"explicit remote outcome and exact push grant?"}
@@ -243,17 +252,19 @@ One run has one active host. A same-repository handoff is allowed only after Hos
 
 The skills use two graph layers:
 
-- The **org graph** is the stable role contract: product, architecture, UX, design-system, mission-worker, reviewer, approval, integration, and lifecycle responsibilities.
+- The **org graph** is the stable role contract: product, architecture, UX, design-system, mission-worker, surface reviewer, security reviewer, approval, integration, and lifecycle responsibilities.
 - The **work graph** is the temporary task graph for one run. PRD and design workflows use bounded analysis graphs only when the host can enforce a `builder_readonly` tool profile; otherwise they fall back to the sequential parent. Engineering uses the canonical PLAN v6 graph and RUN v11 state.
 
 Interviews and approvals stay outside running workflows because Claude Code Dynamic Workflows cannot ask for mid-run user input. The parent freezes inputs first, runs a bounded workflow, then owns staged writes, conflict resolution, approval, and publication.
 
 For engineering, the Harness validates and selects the dependency-ready frontier before creating or requesting worktrees. Native Claude missions use parent-managed worktrees under `.claude/worktrees/`, bind every worker to the exact batch base, and require `EnterWorktree` before repository access. In every route, the parent validates the returned commit and actual Git diff, integrates accepted commits serially, and recomputes the graph frontier.
 
+Non-runtime graph nodes use a reserve/execute/record sequence: `reserve-node-attempt` creates the RUN-locked receipt, the approval, external wait, deterministic verifier, or lifecycle side effect runs outside that lock, and `record-node-result` closes only the matching attempt with evidence and a phase derived from its declared outcome. Lifecycle transitions record evidence only; they never execute the action. `lease-worker` carries the selector-derived runtime binding and exact task/thread identity into RUN, subject to compatibility checks and existing wildcard authorization.
+
 Claude Graph Workflow batches a mixed frontier into one call per homogeneous `tool_profile`; model and reasoning effort may vary inside a group, but a call never mixes write missions with read-only reviews. A tool profile is a label and prompt/result contract, not permission-level tool removal.
 
 - `mission_write` requires `EnterWorktree` and the mission's bounded write contract.
-- `code_review_readonly` requires exact-path review and read-only result evidence; it does not remove inherited tools.
+- `code_review_readonly` requires exact-path review and read-only result evidence for frontend, backend, integration, or security review; it does not remove inherited tools.
 - `visual_review_readonly` reviews retained screenshots or other existing evidence with the inherited host tools; new browser access must be vetted and added to the profile contract before use.
 
 When Claude Code returns real Workflow run IDs, RUN state may retain the workflow/task ID, script digest, node group, graph/base binding, tool profile, status, and available metrics. Same-session resume can use that binding; cross-session recovery starts a new workflow attempt from canonical PLAN/RUN state.
@@ -270,25 +281,26 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Fastest setup
 
-Clone the repository and copy the three Product Delivery Harness skills into your user skills directory:
+Clone the repository and copy the four Product Delivery Harness skills into your user skills directory:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
 cp -r product-delivery-harness/.agents/skills/delivery-harness \
       product-delivery-harness/.agents/skills/product-definition-builder \
       product-delivery-harness/.agents/skills/design-system-compiler \
+      product-delivery-harness/.agents/skills/code-security-review \
       ~/.agents/skills/
 ```
 
-If the checkout has local `__pycache__` directories under `.agents/skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the three current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
+If the checkout has local `__pycache__` directories under `.agents/skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the four current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler`. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
-The three bundled skills are independently invocable, but cross-skill modes enforce their dependencies. Frozen wireframe validation uses `product-definition-builder`'s checker next to `delivery-harness`; `design-system-compiler` requires an approved PRD UI Design Handoff, approved `wireframes.html`, and `frontend-design`; and the optional UI Design Pass uses a design-direction skill plus a frontend-implementation skill. Install the dependencies required by the mode you run.
+The four bundled skills are independently invocable, but cross-skill modes enforce their dependencies. Frozen wireframe validation uses `product-definition-builder`'s checker next to `delivery-harness`; `design-system-compiler` requires an approved PRD UI Design Handoff, approved `wireframes.html`, and `frontend-design`; the optional UI Design Pass uses a design-direction skill plus a frontend-implementation skill; and new managed code deliveries use `code-security-review` in the `code_security_verification` slot after integration. Install the dependencies required by the mode you run.
 
 ### Zero-to-one flow
 
-1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the three Product Delivery Harness skills, then use that host for the run.
+1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the four Product Delivery Harness skills, then use that host for the run.
 2. Start a fresh host session, confirm the skill is visible, and invoke `delivery-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
@@ -348,7 +360,7 @@ Target-repository branch instructions take precedence. When a repository does no
 
 Each provider section runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
 
-Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. One independently testable goal maps to one mission. Every writer gets explicit file ownership and a separate clean exact-base worktree. Shared APIs, schemas, and types freeze before dependent writers fan out. Explorers, writers, and reviewers are parent-dispatched siblings; workers and reviewers never delegate. After exact-head mission review, the parent integrates passing heads serially, starts fresh reviewers on the unified integration head, and then runs one broad final validation on the fixed candidate SHA. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
+Parallel implementation has no small fixed cap by default; the configured write-worker maximum is set generously high, and the effective wave is bounded by observed worker slots, isolation capacity, and the dependency-ready conflict-free frontier size instead. One independently testable goal maps to one mission. Every writer gets explicit file ownership and a separate clean exact-base worktree. Shared APIs, schemas, and types freeze before dependent writers fan out. Explorers, writers, and reviewers are parent-dispatched siblings; workers and reviewers never delegate. After exact-head mission review, the parent integrates passing heads serially, starts fresh reviewers on the unified integration head, runs the required `code-security-review` from a sibling agent, and then runs one broad final validation on the fixed candidate SHA. Workers never edit the parent `PLAN.md` or `RUN.md`, push, open PRs, merge, deploy, or remove worktrees. The parent owns integration and every landing or lifecycle action.
 
 ## Repository layout
 
@@ -394,6 +406,7 @@ Then run the full verification above, review the entire diff, and land through t
 - Keep GitHub tokens and other credentials out of this repository.
 - Do not delete old installed skill copies until the new ones are confirmed to load correctly.
 - The orchestration skill requires explicit authorization for every state-changing Git or lifecycle action.
+- `code-security-review` is read-only by default. It does not install scanners, enable network access, remediate code, or probe a live target without separate explicit authorization.
 
 ## License
 
@@ -403,6 +416,7 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
+- **0.27.0** — Added the fourth canonical skill, `code-security-review`. Every new managed PLAN records security as `required` or `not_applicable` with a non-code reason; Harness 0.27.0 refuses a new RUN when that policy is absent. Required review dispatches one fresh sibling after serial integration and before broad final validation. The `security` type must use the integration stage, cover every mission, and can never use the byte-identical-tree skip. `record-review-attempt --security-result` validates and retains the other agent's structured decision, reserved/current SHA, base, scope, trust boundaries, tool evidence, coverage, and findings; fixes invalidate the old result and downstream gates. The `code_security_verification` binding defaults to the bundled read-only skill, which cannot edit code, install scanners, use credentials, or probe live targets. Existing PLAN-v6/RUN-v11 pairs remain readable and are not silently rewritten. Typed graph execution now has guarded `reserve-node-attempt` and `record-node-result` transitions: lifecycle actions run outside the RUN lock, graph phases derive from declared outcomes, and interrupted non-runtime attempts become blocked with preserved evidence. `lease-worker` records the selector's complete runtime binding and app task/thread identity, validates portable axes, accepts existing exact targets, and materializes new exact targets only from active wildcard grants. Companion checkers also fail closed on duplicate or remote self-contained inputs, ambiguous source paths, pre-write semantic failures, and duplicate manifest keys; `check_ui_contract.py --repo-root <root>` defaults to the current working directory and resolves token/primitive sources by exact repo-relative identity.
 - **0.26.0** — Responsive UI contracts are now blocking from product definition through delivery. Every `UI-*` entry declares one shared set of at least two web viewports or native/desktop size classes; `wireframes/2` projects each target with explicit region order, visibility, grid spans, reflow, interaction rules, and never-drop regions. Wireframe and high-fidelity HTML approval require a real-browser page-target-state matrix with no unintended overlap, clipping, occlusion, or horizontal overflow, while intentional overlays document stacking, focus, safe-area, and dismissal behavior. The design-system pair and PLAN use the same responsive set, and Harness rejects missing, duplicate, one-target, unsorted, extra, or drifting coverage while keeping legacy schemas readable.
 - **0.25.7** — Removed the source repository's root `Tasks.md` flow log and its local logging rule. Managed target projects still render the non-canonical `docs/tasks.md` view on demand; no target-project skill behavior changed.
 - **0.25.6** — Documented the scripted transition flag surfaces (`pause`/`resume`/`cancel`, review-attempt, wave, lease, and validation flags) in the state-model reference, added direct tests for the wireframe HTML and PRD contract checkers, and noted bytecode exclusion in the install docs. No skill behavior changed.

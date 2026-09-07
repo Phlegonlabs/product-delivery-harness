@@ -95,6 +95,12 @@ def render_packet(
         "```json",
         json.dumps(
             {
+                "review_type": review["type"],
+                "skill_binding_slot": (
+                    "code_security_verification"
+                    if review["type"] == "security"
+                    else None
+                ),
                 "required_evidence": review["required_evidence"],
                 "required_tools": review.get("required_tools", []),
                 "reviewer_tool_capabilities": {

@@ -128,6 +128,47 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         problems = validate_html("<html><body><p>no data block here</p></body></html>")
         self.assertTrue(any("missing wireframe-data" in p for p in problems))
 
+    def test_duplicate_data_blocks_are_rejected(self):
+        html = render_html(wireframe_data())
+        payload = json.dumps(wireframe_data(), ensure_ascii=False)
+        html += (
+            '<script id="wireframe-data" type="application/json">'
+            + payload
+            + "</script>"
+        )
+
+        problems = validate_html(html)
+
+        self.assertTrue(any("exactly one wireframe-data" in p for p in problems))
+
+        unclosed = html + (
+            '<script id="wireframe-data" type="application/json">' + payload
+        )
+        problems = validate_html(unclosed)
+        self.assertTrue(any("exactly one wireframe-data" in p for p in problems))
+
+    def test_duplicate_script_id_or_type_attributes_are_rejected_in_both_orders(self):
+        data = wireframe_data()
+        marker = '<script id="wireframe-data" type="application/json">'
+        duplicate_openings = (
+            '<script id="wireframe-data" id="other" type="application/json">',
+            '<script id="other" id="wireframe-data" type="application/json">',
+            '<script id="wireframe-data" type="application/json" type="text/plain">',
+            '<script id="wireframe-data" type="text/plain" type="application/json">',
+        )
+        for opening in duplicate_openings:
+            with self.subTest(opening=opening):
+                html = render_html(data).replace(
+                    marker,
+                    opening,
+                    1,
+                )
+                problems = validate_html(html)
+                self.assertTrue(
+                    any("duplicate HTML attributes" in problem for problem in problems),
+                    problems,
+                )
+
     def test_non_object_data_fails_cleanly_under_strict_flags(self):
         self.assertEqual(
             validate_html(render_html([]), require_approved=True),
@@ -169,6 +210,76 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         )
         problems = validate_html(html)
         self.assertTrue(any("must not contain CSS @import" in p for p in problems))
+
+        html = render_html(wireframe_data()).replace(
+            "<title>", '<style>@import"https://cdn.example.com/theme.css"</style><title>'
+        )
+        problems = validate_html(html)
+        self.assertTrue(any("must not contain CSS @import" in p for p in problems))
+
+    def test_remote_css_urls_and_font_faces_are_rejected(self):
+        html = render_html(wireframe_data()).replace(
+            "<title>",
+            "<style>"
+            '.hero { background-image: url("https://cdn.example.com/hero.svg"); }'
+            ".icon { background-image: url(//cdn.example.com/icon.svg); }"
+            "@font-face { font-family: Remote; src: url('//fonts.example.com/remote.woff2'); }"
+            "</style><title>",
+        )
+
+        problems = validate_html(html)
+
+        self.assertTrue(any("must not load external resources" in p for p in problems))
+        self.assertTrue(any("CSS url" in p for p in problems))
+
+    def test_active_resource_attributes_and_image_set_urls_are_rejected(self):
+        html = render_html(wireframe_data()).replace(
+            "<title>",
+            "<style>"
+            '.hero { background-image: image-set("https://cdn.example.com/hero@1x.svg" 1x, '
+            "'//cdn.example.com/hero@2x.svg' 2x); }"
+            "</style>"
+            '<img srcset="https://cdn.example.com/a.png 1x, //cdn.example.com/b.png 2x">'
+            '<video poster="https://cdn.example.com/poster.png"></video>'
+            '<object data="//cdn.example.com/object.svg"></object>'
+            '<svg><image href="https://cdn.example.com/image.svg" '
+            'xlink:href="//cdn.example.com/image-legacy.svg"></image></svg>'
+            "<title>",
+        )
+
+        problems = validate_html(html)
+
+        self.assertTrue(any("srcset" in p for p in problems), problems)
+        self.assertTrue(any("poster" in p for p in problems), problems)
+        self.assertTrue(any("data=" in p for p in problems), problems)
+        self.assertTrue(any("xlink:href" in p for p in problems), problems)
+        self.assertTrue(any("image-set" in p for p in problems), problems)
+
+    def test_recorded_urls_in_json_do_not_count_as_external_resources(self):
+        data = wireframe_data()
+        data["recordedUrl"] = "url(https://example.com/recorded.svg)"
+        data["flows"][0]["to"] = "https://example.com/next"
+        data["recordedResources"] = {
+            "srcset": "https://example.com/recorded.png 1x",
+            "poster": "https://example.com/recorded-poster.png",
+            "object": "https://example.com/recorded-object.svg",
+            "svg": "//example.com/recorded-image.svg",
+            "imageSet": 'image-set("https://example.com/recorded@2x.svg" 2x)',
+        }
+
+        self.assertEqual([], validate_html(render_html(data)))
+
+    def test_css_comments_do_not_count_as_external_resources(self):
+        html = render_html(wireframe_data()).replace(
+            "<title>",
+            "<style>"
+            "/* url(https://cdn.example.com/comment.png) */"
+            '/* image-set("//cdn.example.com/comment@2x.png" 2x) */'
+            '/* @import"https://cdn.example.com/comment.css" */'
+            "</style><title>",
+        )
+
+        self.assertEqual([], validate_html(html))
 
     def test_draft_status_requires_the_approval_flag(self):
         data = wireframe_data()

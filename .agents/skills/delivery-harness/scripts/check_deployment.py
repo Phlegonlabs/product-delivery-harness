@@ -4,9 +4,10 @@
 Validates that the deployment record is resolved (no template placeholders),
 that its name-only human configuration handoff is structurally complete, and
 that its Environment Status table is coherent: both preview and production
-rows exist with a URL, and any verified row carries full lowercase SHAs and a
-status. Also validates the Resource Isolation table: no binding class may
-list the same resource ID in both the production and preview columns.
+rows exist with a URL, duplicate section/row identities are rejected, and any
+verified row carries full lowercase SHAs and a status. Also validates the
+Resource Isolation table: no binding class may list the same resource ID in
+both the production and preview columns.
 Executing the platform's deployed-commit check command stays with the parent
 or operator — this tool never runs recorded commands, reads secret values, or
 touches the platform.
@@ -34,6 +35,7 @@ FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 ENVIRONMENT_ROWS = ("preview", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
+IDENTITY_ABSENT_VALUES = {"", "-"}
 HANDOFF_STATUSES = {"pending", "configured", "verified", "n/a"}
 SECRET_HEADERS = (
     "name",
@@ -52,6 +54,120 @@ EXTERNAL_SETUP_HEADERS = (
     "owner",
     "status",
 )
+KNOWN_LEVEL_TWO_SECTIONS = (
+    "## Record",
+    "## Resource Isolation",
+    "## Required Secrets and Variables",
+    "## External Console Setup",
+    "## Environment Status",
+)
+ATX_LEVEL_TWO_RE = re.compile(r"^ {0,3}##[ \t]+(?P<title>.*?)\s*$")
+FENCE_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
+
+
+def _without_html_comments(line: str, in_comment: bool) -> tuple[str, bool]:
+    """Remove HTML comments while retaining text outside comment spans."""
+
+    pieces: list[str] = []
+    cursor = 0
+    while cursor < len(line):
+        if in_comment:
+            end = line.find("-->", cursor)
+            if end < 0:
+                return "".join(pieces), True
+            cursor = end + 3
+            in_comment = False
+            continue
+        start = line.find("<!--", cursor)
+        if start < 0:
+            pieces.append(line[cursor:])
+            break
+        pieces.append(line[cursor:start])
+        cursor = start + 4
+        in_comment = True
+    return "".join(pieces), in_comment
+
+
+def _canonical_level_two_heading(line: str) -> str | None:
+    match = ATX_LEVEL_TWO_RE.match(line)
+    if match is None:
+        return None
+    title = match.group("title").strip()
+    # CommonMark permits an optional closing run of hashes, so these render as
+    # the same heading: `## Environment Status` and `## Environment Status ##`.
+    title = re.sub(r"[ \t]+#+[ \t]*$", "", title).strip()
+    if not title:
+        return None
+    return f"## {title}"
+
+
+def _section_blocks(text: str) -> dict[str, list[list[str]]]:
+    """Return the bodies of level-two sections keyed by their exact heading.
+
+    A deployment record is Markdown, so tables with the same-looking cells in
+    another section must not satisfy a required handoff or status section.  A
+    level-three heading belongs to its surrounding level-two section.
+    """
+
+    sections: dict[str, list[list[str]]] = {}
+    current_heading: str | None = None
+    current_lines: list[str] = []
+    fence_char: str | None = None
+    fence_length = 0
+    in_html_comment = False
+    for line in text.splitlines():
+        clean_line, in_html_comment = _without_html_comments(line, in_html_comment)
+        if in_html_comment and not clean_line.strip():
+            continue
+        # Fenced and indented code is neither a section boundary nor live table
+        # content. Excluding it here prevents example tables from satisfying or
+        # duplicating the record's real tables.
+        if fence_char is not None:
+            if re.match(
+                rf"^ {{0,3}}{re.escape(fence_char)}{{{fence_length},}}[ \t]*$",
+                clean_line,
+            ):
+                fence_char = None
+                fence_length = 0
+            continue
+        # Four-space (or tab) indentation is an indented code block in
+        # Markdown, so a heading-looking line there must not split a section.
+        if line.startswith("\t") or len(line) - len(line.lstrip(" ")) >= 4:
+            continue
+        fence_match = FENCE_RE.match(clean_line)
+        if fence_match:
+            marker = fence_match.group("marker")
+            fence_char = marker[0]
+            fence_length = len(marker)
+            continue
+        heading = _canonical_level_two_heading(clean_line)
+        if heading is not None:
+            if current_heading is not None:
+                sections.setdefault(current_heading, []).append(current_lines)
+            current_heading = heading
+            current_lines = []
+        elif current_heading is not None:
+            current_lines.append(clean_line)
+    if current_heading is not None:
+        sections.setdefault(current_heading, []).append(current_lines)
+    return sections
+
+
+def _table_rows(lines: list[str]) -> tuple[list[str], list[list[str]]]:
+    table_rows = [
+        [cell.strip() for cell in line.strip().strip("|").split("|")]
+        for line in lines
+        if line.strip().startswith("|")
+    ]
+    if not table_rows:
+        return [], []
+    header = [cell.lower() for cell in table_rows[0]]
+    data_rows = [
+        row
+        for row in table_rows[1:]
+        if not all(set(cell) <= {"-", ":", " "} for cell in row)
+    ]
+    return header, data_rows
 
 
 def parse_status_table(text: str) -> dict[str, dict[str, str]]:
@@ -79,35 +195,10 @@ def parse_status_table(text: str) -> dict[str, dict[str, str]]:
 def parse_section_table(text: str, heading: str) -> tuple[list[str], list[list[str]]]:
     """Return one level-two section's Markdown table header and data rows."""
 
-    lines = text.splitlines()
-    try:
-        start = next(
-            index for index, line in enumerate(lines) if line.strip() == heading
-        )
-    except StopIteration:
+    sections = _section_blocks(text).get(heading, [])
+    if not sections:
         return [], []
-    end = next(
-        (
-            index
-            for index in range(start + 1, len(lines))
-            if lines[index].startswith("## ")
-        ),
-        len(lines),
-    )
-    table_rows = [
-        [cell.strip() for cell in line.strip().strip("|").split("|")]
-        for line in lines[start + 1 : end]
-        if line.strip().startswith("|")
-    ]
-    if not table_rows:
-        return [], []
-    header = [cell.lower() for cell in table_rows[0]]
-    data_rows = [
-        row
-        for row in table_rows[1:]
-        if not all(set(cell) <= {"-", ":", " "} for cell in row)
-    ]
-    return header, data_rows
+    return _table_rows(sections[0])
 
 
 def check_handoff_table(
@@ -132,18 +223,34 @@ def check_handoff_table(
             f"{label}: keep at least one filled row or an explicit none / n/a row"
         )
     valid_rows: list[list[str]] = []
+    identities: set[str] = set()
     for row in rows:
         if len(row) != len(expected_headers):
             findings.append(
                 f"{label}: each row must have {len(expected_headers)} columns"
             )
             continue
+        identity = row[0].strip()
+        normalized_identity = identity.casefold()
+        if normalized_identity not in IDENTITY_ABSENT_VALUES:
+            if normalized_identity in identities:
+                findings.append(
+                    f"{label}: duplicate identity row {identity!r}"
+                )
+            identities.add(normalized_identity)
         valid_rows.append(row)
     return findings, valid_rows
 
 
 def check_deployment_text(text: str) -> list[str]:
     findings: list[str] = []
+    sections = _section_blocks(text)
+    for heading in KNOWN_LEVEL_TWO_SECTIONS:
+        count = len(sections.get(heading, []))
+        if count > 1:
+            findings.append(
+                f"{heading.removeprefix('## ')}: duplicate required level-2 section"
+            )
     for number, line in enumerate(text.splitlines(), start=1):
         for marker in PLACEHOLDER_MARKERS:
             if marker in line:
@@ -199,7 +306,32 @@ def check_deployment_text(text: str) -> list[str]:
                 f"External Console Setup: {service} has invalid status {status!r}"
             )
 
-    rows = parse_status_table(text)
+    status_sections = sections.get("## Environment Status", [])
+    status_text = "\n".join(status_sections[0]) if status_sections else ""
+    rows: dict[str, dict[str, str]] = {}
+    duplicate_environments: set[str] = set()
+    for line in status_text.splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 6 or cells[0].lower() in {"environment", "---"}:
+            continue
+        environment = cells[0].lower()
+        if set(environment) <= {"-", " "}:
+            continue
+        if environment in rows:
+            if environment in ENVIRONMENT_ROWS:
+                duplicate_environments.add(environment)
+            continue
+        rows[environment] = {
+            "url": cells[1],
+            "expected": cells[2],
+            "deployed": cells[3],
+            "checked": cells[4],
+            "status": cells[5],
+        }
+    for environment in sorted(duplicate_environments):
+        findings.append(f"Environment Status: duplicate {environment} row")
     for environment in ENVIRONMENT_ROWS:
         row = rows.get(environment)
         if row is None:
@@ -220,18 +352,28 @@ def check_deployment_text(text: str) -> list[str]:
                 findings.append(
                     f"Environment Status: {environment} is checked but has no status"
                 )
-    for line in text.splitlines():
-        if not line.strip().startswith("|"):
+    resource_sections = sections.get("## Resource Isolation", [])
+    resource_text = "\n".join(resource_sections[0]) if resource_sections else ""
+    _, resource_rows = _table_rows(resource_text.splitlines())
+    resource_identities: set[str] = set()
+    for row in resource_rows:
+        if len(row) < 3:
             continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) < 3 or cells[0].lower() not in BINDING_CLASSES:
+        identity = row[0].strip()
+        normalized_identity = identity.casefold()
+        if normalized_identity in IDENTITY_ABSENT_VALUES:
             continue
-        production, preview = cells[1].lower(), cells[2].lower()
+        if normalized_identity in resource_identities:
+            findings.append(f"Resource Isolation: duplicate identity row {identity!r}")
+        resource_identities.add(normalized_identity)
+        if normalized_identity not in BINDING_CLASSES:
+            continue
+        production, preview = row[1].lower(), row[2].lower()
         if production in ABSENT_VALUES or preview in ABSENT_VALUES:
             continue
         if production == preview:
             findings.append(
-                f"Resource Isolation: {cells[0]} must not share one resource between production and preview"
+                f"Resource Isolation: {row[0]} must not share one resource between production and preview"
             )
     return findings
 

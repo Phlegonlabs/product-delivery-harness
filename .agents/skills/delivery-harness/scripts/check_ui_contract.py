@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import re
 from pathlib import Path
 
@@ -295,10 +296,18 @@ def check_file(
     return findings
 
 
-def collect_files(paths: list[str], walk: list[str]) -> list[Path]:
-    files = [Path(item) for item in paths]
-    for root in walk:
-        base = Path(root)
+def collect_files(
+    paths: list[str], walk: list[str], repo_root: Path | None = None
+) -> list[Path]:
+    repo_base = Path(repo_root or Path.cwd()).resolve()
+
+    def resolve_input(item: str) -> Path:
+        path = Path(item)
+        return (path if path.is_absolute() else repo_base / path).resolve()
+
+    files = [resolve_input(item) for item in paths]
+    for walk_root in walk:
+        base = resolve_input(walk_root)
         if not base.is_dir():
             raise UiContractError(f"{base} is not a directory")
         for suffix in ("*.html", "*.css", "*.tsx", "*.jsx", "*.ts", "*.js", "*.astro", "*.vue"):
@@ -317,20 +326,60 @@ def check_paths(
     files: list[Path],
     token_sources: list[str],
     primitive_sources: list[str] | None = None,
+    repo_root: Path | None = None,
 ) -> tuple[list[str], bool]:
-    files = [file for file in files if file.suffix.lower() in ANALYZABLE_SUFFIXES]
+    """Check files and assign source roles by exact repo-relative identity.
+
+    Source declarations are paths, not suffixes.  Resolve each declaration
+    against ``repo_root`` and compare its normalized relative path with the
+    checked file's normalized relative path.  A file outside the repository
+    can still be checked as a page, but it can never inherit a token or
+    primitive role from a same-tail path elsewhere on disk.
+    """
+    root = Path(repo_root or Path.cwd()).resolve()
+    files = [
+        (root / file if not file.is_absolute() else file).resolve()
+        for file in files
+        if file.suffix.lower() in ANALYZABLE_SUFFIXES
+    ]
     if not files:
         raise UiContractError("no analyzable UI source files were provided")
-    declared = {Path(item).as_posix() for item in design_system.token_sources}
-    declared.update(Path(item).as_posix() for item in token_sources)
-    primitives = {Path(item).as_posix() for item in design_system.primitive_sources}
-    primitives.update(Path(item).as_posix() for item in (primitive_sources or []))
+
+    def normalize_role_paths(paths: list[str], role: str) -> set[str]:
+        normalized: set[str] = set()
+        for raw_path in paths:
+            source = Path(raw_path)
+            candidate = (source if source.is_absolute() else root / source).resolve()
+            try:
+                relative = candidate.relative_to(root)
+            except ValueError as exc:
+                raise UiContractError(
+                    f"{role} path {raw_path!r} resolves outside --repo-root {root}"
+                ) from exc
+            # normcase makes identity match the host filesystem semantics while
+            # using one normalized representation for declarations and files.
+            normalized.add(os.path.normcase(relative.as_posix()))
+        return normalized
+
+    declared = normalize_role_paths(
+        [*design_system.token_sources, *token_sources], "token source"
+    )
+    primitives = normalize_role_paths(
+        [*design_system.primitive_sources, *(primitive_sources or [])],
+        "primitive source",
+    )
     lines: list[str] = []
     findings: list[Finding] = []
     for file in files:
-        posix = file.as_posix()
-        is_token_source = any(posix.endswith(source) for source in declared if source)
-        defines_primitives = any(posix.endswith(source) for source in primitives if source)
+        resolved_file = file
+        try:
+            relative = resolved_file.relative_to(root)
+        except ValueError:
+            relative_identity = None
+        else:
+            relative_identity = os.path.normcase(relative.as_posix())
+        is_token_source = relative_identity in declared if relative_identity else False
+        defines_primitives = relative_identity in primitives if relative_identity else False
         file_findings = check_file(file, design_system, is_token_source, defines_primitives)
         findings.extend(file_findings)
         if is_token_source:
@@ -357,6 +406,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DESIGN_SYSTEM.JSON",
         help="Path to the product's design-system.json, the allowlist every "
         "checked file must obey.",
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=Path.cwd(),
+        help="Repository root used to resolve token and primitive source paths "
+        "(default: current working directory).",
     )
     parser.add_argument(
         "files",
@@ -411,10 +467,17 @@ def main(argv: list[str] | None = None) -> int:
         print("give at least one FILE or --path DIR")
         return 2
     try:
-        design_system = load_design_system(Path(args.registry))
-        files = collect_files(args.files, args.walk)
+        registry_path = Path(args.registry)
+        if not registry_path.is_absolute():
+            registry_path = args.repo_root / registry_path
+        design_system = load_design_system(registry_path)
+        files = collect_files(args.files, args.walk, args.repo_root)
         lines, all_pass = check_paths(
-            design_system, files, args.token_sources, args.primitive_sources
+            design_system,
+            files,
+            args.token_sources,
+            args.primitive_sources,
+            args.repo_root,
         )
     except UiContractError as exc:
         print(str(exc))

@@ -261,7 +261,7 @@ GRAPH_NODE_PHASES = {
     "superseded",
 }
 GRAPH_EDGE_PHASES = {"dormant", "eligible", "traversed", "exhausted", "skipped"}
-RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual"}
+RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
 REVIEWER_TOOL_KEYS = {"chrome_devtools"}
 REVIEWER_TOOL_STATUSES = {"available", "unavailable", "unobserved"}
 REVIEWER_TOOL_PROBE_SCOPES = {"reviewer_session", "parent_session", "unobserved"}

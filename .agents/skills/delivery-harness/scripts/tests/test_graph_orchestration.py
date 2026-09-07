@@ -23,6 +23,7 @@ from harness_manifest import (  # noqa: E402
 )
 from select_ready_nodes import (  # noqa: E402
     _runtime_binding,
+    _tool_profile,
     select_ready_nodes,
 )
 from test_harness_manifest import (  # noqa: E402
@@ -458,7 +459,79 @@ def authorize_recorded_worker(
         )
 
 
+def add_security_review(
+    plan: dict[str, object],
+    *,
+    stage: str = "integration",
+    mission_ids: list[str] | None = None,
+) -> dict[str, object]:
+    """Attach one unified security review before the existing final node."""
+    node = graph_node(
+        "N-SECURITY-REVIEW",
+        "verifier",
+        "final",
+        "runtime_worker",
+        ["pass", "retryable_failure", "blocked", "contract_gap"],
+        providers=["codex", "claude_code", "pi", "generic"],
+    )
+    node["review"] = {
+        "stage": stage,
+        "type": "security",
+        "lineage_id": "REVIEW-SECURITY",
+        "mission_ids": mission_ids
+        if mission_ids is not None
+        else [mission["id"] for mission in plan["missions"]],
+        "scope": ["src/**"],
+        "required_evidence": [
+            "reviewed_sha",
+            "source-to-sink findings",
+            "pass or blocked decision",
+        ],
+    }
+    plan["graph"]["nodes"].append(node)
+    for edge in plan["graph"]["edges"]:
+        if edge.get("to") == "N-FINAL":
+            edge["to"] = "N-SECURITY-REVIEW"
+    plan["graph"]["edges"].append(
+        {
+            "id": "E-SECURITY-FINAL",
+            "kind": "route",
+            "from": "N-SECURITY-REVIEW",
+            "to": "N-FINAL",
+            "on_outcomes": ["pass"],
+            "max_traversals": None,
+        }
+    )
+    plan["required_reviews"].append("security")
+    return node
+
+
 class GraphManifestTests(unittest.TestCase):
+    def test_explicit_security_policy_requires_a_matching_review(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "required",
+            "skill_slot": "code_security_verification",
+            "reason": None,
+        }
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any("must include security" in error for error in errors),
+            errors,
+        )
+
+    def test_non_code_plan_records_security_not_applicable_with_reason(self) -> None:
+        plan = valid_plan()
+        plan["security_review"] = {
+            "status": "not_applicable",
+            "skill_slot": "code_security_verification",
+            "reason": "documentation-only delivery with no executable surface",
+        }
+
+        self.assertEqual([], validate_plan(plan))
+
     def test_review_stage_accepts_only_preintegration_or_integration(self) -> None:
         plan = valid_plan()
         review = next(
@@ -483,6 +556,41 @@ class GraphManifestTests(unittest.TestCase):
 
         self.assertTrue(
             any("runtime review allows at most 2 attempts" in error for error in errors),
+            errors,
+        )
+
+    def test_security_review_is_a_unified_integration_stage_code_review(self) -> None:
+        plan = valid_plan()
+        node = add_security_review(plan)
+
+        self.assertEqual([], validate_plan(plan))
+        self.assertEqual("code_review_readonly", _tool_profile(node))
+
+    def test_security_review_rejects_preintegration_stage(self) -> None:
+        plan = valid_plan()
+        add_security_review(plan, stage="preintegration")
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "security review must use the integration stage" in error
+                for error in errors
+            ),
+            errors,
+        )
+
+    def test_security_review_must_cover_every_mission(self) -> None:
+        plan = valid_plan()
+        add_security_review(plan, mission_ids=["M1"])
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any(
+                "security review must cover every PLAN mission" in error
+                for error in errors
+            ),
             errors,
         )
 

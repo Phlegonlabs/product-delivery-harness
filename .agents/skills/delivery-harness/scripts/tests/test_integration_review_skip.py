@@ -100,6 +100,20 @@ class IntegrationReviewSkipTests(unittest.TestCase):
 
         self.assertTrue(self.skip_errors(plan, run))
 
+    def test_security_review_is_never_skippable(self) -> None:
+        plan, run = self.state(reviewed_sha=HEAD, review_type="security")
+        for node in plan["graph"]["nodes"]:
+            review = node.get("review")
+            if isinstance(review, dict) and node["id"] == "N-VISUAL-REVIEW":
+                review["type"] = "security"
+
+        errors = self.skip_errors(plan, run)
+
+        self.assertTrue(
+            any("security integration review must run fresh" in error for error in errors),
+            errors,
+        )
+
     def test_skip_is_rejected_without_a_recorded_integration_head(self) -> None:
         plan, run = self.state(reviewed_sha=HEAD)
         run["integration"]["integration_head_sha"] = None
@@ -201,6 +215,27 @@ class IntegrationReviewSkipTests(unittest.TestCase):
                         node_id="N-VISUAL-REVIEW", worker_id="RW-PRE", repo_root=root
                     ),
                 )
+
+    def test_skip_transition_refuses_security_even_on_the_same_tree(self) -> None:
+        plan, run = self.state(reviewed_sha=HEAD, review_type="security")
+        for node in plan["graph"]["nodes"]:
+            review = node.get("review")
+            if isinstance(review, dict) and node["id"] == "N-VISUAL-REVIEW":
+                review["type"] = "security"
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "dormant"
+
+        with self.assertRaisesRegex(
+            ManifestError, "security integration review must run fresh"
+        ):
+            harness_transition._skip_integration_review(
+                plan,
+                run,
+                Namespace(
+                    node_id="N-VISUAL-REVIEW",
+                    worker_id="RW-PRE",
+                    repo_root=Path.cwd(),
+                ),
+            )
 
     def test_record_review_attempt_persists_the_reviewed_tree(self) -> None:
         plan, run = self.state(reviewed_sha=HEAD)

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -109,6 +110,76 @@ class VerifierRuntimeTests(unittest.TestCase):
 
     def read_count(self, counter: Path) -> int:
         return int(counter.read_text(encoding="utf-8"))
+
+    def test_git_guard_rejects_tracked_file_changes_restored_during_execution(self) -> None:
+        subprocess.run(
+            ["git", "init", "-q", "-b", "integration"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=self.checkout,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=self.checkout,
+            check=True,
+        )
+        tracked = self.checkout / "tracked.txt"
+        tracked.write_text("original\n", encoding="utf-8")
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.checkout, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "base"], cwd=self.checkout, check=True
+        )
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.checkout,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        guarded_context = context()
+        guarded_context.update(
+            {
+                "batch_base_sha": head,
+                "head_sha": head,
+                "changed_files": [],
+                "cache_safe": False,
+            }
+        )
+        source = (
+            "import os,pathlib,sys;"
+            "p=pathlib.Path(sys.argv[1]);"
+            "original=p.read_text();"
+            "p.write_text('temporary\\n');"
+            "p.write_text(original);"
+            "s=p.stat();os.utime(p,ns=(s.st_atime_ns,s.st_mtime_ns+1000000000))"
+        )
+        declaration = {
+            "id": "guarded",
+            "cwd": ".",
+            "argv": [sys.executable, "-c", source, str(tracked)],
+            "pass_signal": "exit 0",
+            "cache": {"mode": "disabled", "environment_keys": []},
+        }
+
+        result = run_verifier(
+            declaration,
+            guarded_context,
+            checkout_root=self.checkout,
+            environment=self.environment,
+            git_guard={
+                "expected_branch": "integration",
+                "expected_head_sha": head,
+                "ignored_paths": [],
+            },
+        )
+
+        self.assertEqual("ERROR", result["status"])
+        self.assertIsNone(result["exit_code"])
+        self.assertIn("tracked verifier inputs changed", result["stderr"])
 
     def test_exact_pass_reuses_equivalent_task_and_worker_declarations(self) -> None:
         counter = self.root / "counter.txt"

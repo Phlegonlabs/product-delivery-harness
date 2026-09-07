@@ -69,6 +69,28 @@ class NewRunTests(unittest.TestCase):
         self.assertEqual(plan_missions, set(run["mission_states"]))
         self.assertEqual(plan_digest(self.plan), run["plan"]["digest_sha256"])
 
+    def test_security_review_lineage_is_generated_from_the_plan(self) -> None:
+        run = load_run(self.generate())
+
+        security = run["review_lineages"]["REVIEW-SECURITY"]
+
+        self.assertEqual("security", security["review_type"])
+        self.assertEqual(["M1"], security["mission_ids"])
+        self.assertEqual(0, security["consumed_attempts"])
+
+    def test_new_run_requires_an_explicit_security_policy(self) -> None:
+        plan = copy.deepcopy(self.plan)
+        plan.pop("security_review")
+
+        with self.assertRaisesRegex(
+            new_run.ManifestError, "explicit plan.security_review"
+        ):
+            new_run.build_run(
+                plan,
+                run_id="RUN-missing-security-policy",
+                branch="refs/heads/test-run",
+            )
+
     def test_graph_revision_follows_a_revised_plan(self) -> None:
         revised = copy.deepcopy(self.plan)
         revised["revision"] = 2

@@ -502,6 +502,13 @@ class LeaseWorkerGuardTests(unittest.TestCase):
         self.plan = mf.valid_plan()
         self.run = mf.valid_run(self.plan)
         mf.authorize_execution(self.run, ["M1", "M2"])
+        for action in (
+            "spawn_subagents",
+            "create_local_worktrees",
+            "create_local_branches",
+            "create_local_commits",
+        ):
+            mf.authorize_action(self.run, action, ["M1", "M2"], ["*"])
         self.run["active_wave"].update(
             {
                 "wave_id": "W-1",

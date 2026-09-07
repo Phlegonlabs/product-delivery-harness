@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.26.0"', package)
+        self.assertIn('"version": "0.27.0"', package)
         self.assertEqual(
-            "0.26.0",
+            "0.27.0",
             (REPO_ROOT / ".agents" / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -44,6 +44,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "delivery-harness": "Delivery Harness",
             "product-definition-builder": "Product Definition Builder",
             "design-system-compiler": "Design System Compiler",
+            "code-security-review": "Code Security Review",
         }
         for skill_id, display_name in current.items():
             with self.subTest(skill=skill_id):
@@ -68,6 +69,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertIn("`delivery-harness`", readme)
                 self.assertIn("`product-definition-builder`", readme)
                 self.assertIn("`design-system-compiler`", readme)
+                self.assertIn("`code-security-review`", readme)
 
     @unittest.skipIf(REPO_ROOT is None, "install migration requires a source checkout")
     def test_renamed_installs_have_a_recoverable_legacy_migration(self) -> None:
@@ -88,6 +90,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                     "delivery-harness",
                     "product-definition-builder",
                     "design-system-compiler",
+                    "code-security-review",
                 ):
                     self.assertIn(f"`{skill_id}`", content)
                 self.assertIn(
@@ -210,6 +213,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("--additional-attempts", state)
         self.assertIn("--ancestry-confirmed", state)
         self.assertIn("--packet-out", state)
+        self.assertIn("--security-result", state)
         self.assertIn(
             "`pause`, `resume`, or `cancel`, each requiring `--source`", skill
         )
@@ -458,9 +462,52 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("| design_compilation |", project_agents)
         self.assertIn("| frontend_implementation |", project_agents)
         self.assertIn("| ui_quality_verification |", project_agents)
+        self.assertIn("| code_security_verification |", project_agents)
         self.assertIn("a project edit, not a harness change", project_agents)
         self.assertIn("An unbound slot uses the bundled default", project_agents)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
+
+    @unittest.skipIf(REPO_ROOT is None, "security skill requires a source checkout")
+    def test_code_security_review_is_exact_sha_read_only_and_blocking(self) -> None:
+        security = (
+            REPO_ROOT
+            / ".agents"
+            / "skills"
+            / "code-security-review"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        contract = (
+            REPO_ROOT
+            / ".agents"
+            / "skills"
+            / "code-security-review"
+            / "references"
+            / "review-contract.md"
+        ).read_text(encoding="utf-8")
+        plan = self.read("assets/templates/HARNESS_PLAN.template.md")
+        gates = self.read("references/verification-gates.md")
+
+        for phrase in (
+            "exact candidate SHA",
+            "fresh sibling reviewer",
+            "The reviewer never delegates",
+            "Do not edit files",
+            "not for live penetration testing",
+        ):
+            self.assertIn(phrase, security)
+        self.assertIn("integration-stage runtime review", contract)
+        self.assertIn("never eligible for the byte-identical-tree skip", contract)
+        self.assertIn('"security_review": {', plan)
+        self.assertIn('"status": "required"', plan)
+        self.assertIn('"required_reviews": ["security"]', plan)
+        self.assertIn('"type": "security"', plan)
+        self.assertIn("code_security_verification", gates)
+        self.assertIn("--security-result", contract)
+        self.assertIn("--security-result", gates)
+        self.assertIn(
+            '"code-security-review"',
+            self.read("scripts/harness_contract.py"),
+        )
 
     def test_recently_added_tooling_is_documented(self) -> None:
         gates = self.read("references/verification-gates.md")
@@ -485,6 +532,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "reject-worker-result",
             "record-integration",
             "--packet-out",
+            "--security-result",
         ):
             self.assertIn(command, runbook)
         self.assertIn(
@@ -792,7 +840,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.26.0"', runbook)
+        self.assertIn('"required_harness_version": "0.27.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1105,8 +1153,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("provider-specific model options", skill)
         self.assertIn("general and backend implementation: Codex `gpt-5.6-terra`, `high`", skill)
         self.assertIn("prefer Codex `gpt-5.6-terra` with `high` reasoning", plan)
-        self.assertIn("routine deterministic `backend_code` review: Codex `gpt-5.6-terra`, `medium`", skill)
-        self.assertIn("routine frontend, backend, visual, and integration review: `sonnet`, `medium`", skill)
+        self.assertIn("routine deterministic `backend_code` or `security` review: Codex `gpt-5.6-terra`, `medium`", skill)
+        self.assertIn("routine frontend, backend, visual, security, and integration review: `sonnet`, `medium`", skill)
         self.assertIn("reserve", skill.lower())
         # The premium Claude model name is illustrative, not normative, so it is
         # deliberately not pinned here: pinning `claude-opus-4-8` in three files

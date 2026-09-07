@@ -20,29 +20,179 @@ DATA_BLOCK_RE = re.compile(
     r"(?P<data>[\s\S]*?)</script>",
     re.IGNORECASE,
 )
+REMOTE_CSS_URL_RE = re.compile(
+    r"""url\s*\(\s*(?:
+        "(?P<double>(?:https?:)?//[^"]+)"
+        |'(?P<single>(?:https?:)?//[^']+)'
+        |(?P<bare>(?:https?:)?//[^\s)]+)
+    )\s*\)""",
+    re.IGNORECASE | re.VERBOSE,
+)
+CSS_IMAGE_SET_RE = re.compile(r"(?:-webkit-)?image-set\s*\(", re.IGNORECASE)
+REMOTE_CSS_STRING_RE = re.compile(
+    r"""(?:
+        "(?P<double>(?:https?:)?//[^"]+)"
+        |'(?P<single>(?:https?:)?//[^']+)'
+        |(?P<bare>(?<![A-Za-z0-9_'\"])(?:https?:)?//[^\s,)'\"]+)
+    )""",
+    re.IGNORECASE | re.VERBOSE,
+)
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 VALID_PRIORITIES = {"primary", "secondary", "quiet"}
 WIREFRAME_SCHEMA = "wireframes/2"
 
 
+def _strip_css_comments(css: str) -> str:
+    """Remove CSS comments without treating comment markers inside strings as syntax."""
+
+    output: list[str] = []
+    index = 0
+    quote: str | None = None
+    escaped = False
+    while index < len(css):
+        char = css[index]
+        if quote is not None:
+            output.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == quote:
+                quote = None
+            index += 1
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            output.append(char)
+            index += 1
+            continue
+        if css.startswith("/*", index):
+            end = css.find("*/", index + 2)
+            index = len(css) if end < 0 else end + 2
+            output.append(" ")
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
+
+
 class ResourceParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
+        self.data_block_count = 0
+        self.data_blocks: list[str] = []
+        self.duplicate_attributes: list[str] = []
         self.external_resources: list[str] = []
+        self.external_css_resources: list[str] = []
+        self.css_imports = False
+        self._data_block: list[str] | None = None
+        self._style_depth = 0
+        self._css_chunks: list[str] = []
         self.link_tags = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag_name = tag.lower()
+        seen_attributes: set[str] = set()
+        for name, _ in attrs:
+            lowered_name = name.lower()
+            if lowered_name in seen_attributes:
+                self.duplicate_attributes.append(f"{tag_name}[{lowered_name}]")
+            seen_attributes.add(lowered_name)
         values = dict(attrs)
-        if tag.lower() == "link":
+        if tag_name == "link":
             self.link_tags += 1
-        for name in ("src", "href"):
+        if tag_name == "script":
+            script_id = values.get("id")
+            script_type = values.get("type")
+            if (
+                isinstance(script_id, str)
+                and script_id.strip().lower() == "wireframe-data"
+                and isinstance(script_type, str)
+                and script_type.strip().lower() == "application/json"
+            ):
+                self.data_block_count += 1
+                self._data_block = []
+        elif tag_name == "style":
+            self._style_depth += 1
+
+        inline_style = values.get("style")
+        if inline_style:
+            self._css_chunks.append(inline_style)
+
+        for name in ("src", "href", "xlink:href", "poster"):
             value = values.get(name)
             if not value:
                 continue
             lowered = value.strip().lower()
             if lowered.startswith(("http://", "https://", "//")):
                 self.external_resources.append(f"{tag}[{name}={value!r}]")
+
+        if tag_name == "object":
+            value = values.get("data")
+            if value and value.strip().lower().startswith(("http://", "https://", "//")):
+                self.external_resources.append(f"{tag}[data={value!r}]")
+
+        srcset = values.get("srcset")
+        if srcset:
+            for match in re.finditer(r"(?:https?:)?//[^\s,]+", srcset, re.IGNORECASE):
+                self.external_resources.append(f"{tag}[srcset={match.group(0)!r}]")
+
+    def handle_data(self, data: str) -> None:
+        if self._data_block is not None:
+            self._data_block.append(data)
+        if self._style_depth:
+            self._css_chunks.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        tag_name = tag.lower()
+        if tag_name == "script" and self._data_block is not None:
+            self.data_blocks.append("".join(self._data_block))
+            self._data_block = None
+        elif tag_name == "style" and self._style_depth:
+            self._style_depth -= 1
+
+    def close(self) -> None:
+        super().close()
+        css = _strip_css_comments("\n".join(self._css_chunks))
+        self.css_imports = re.search(r"@import\b", css, re.IGNORECASE) is not None
+        for match in REMOTE_CSS_URL_RE.finditer(css):
+            resource = next(
+                value for value in match.groups() if value is not None
+            )
+            self.external_css_resources.append(f"CSS url({resource!r})")
+        for match in CSS_IMAGE_SET_RE.finditer(css):
+            start = match.end()
+            depth = 1
+            quote: str | None = None
+            escaped = False
+            index = start
+            while index < len(css) and depth:
+                character = css[index]
+                if quote is not None:
+                    if escaped:
+                        escaped = False
+                    elif character == "\\":
+                        escaped = True
+                    elif character == quote:
+                        quote = None
+                elif character in {"'", '"'}:
+                    quote = character
+                elif character == "(":
+                    depth += 1
+                elif character == ")":
+                    depth -= 1
+                index += 1
+            contents = css[start : index - 1 if depth == 0 else index]
+            for resource_match in REMOTE_CSS_STRING_RE.finditer(contents):
+                resource = next(
+                    value
+                    for value in resource_match.groups()
+                    if value is not None
+                )
+                self.external_css_resources.append(
+                    f"CSS image-set({resource!r})"
+                )
 
 
 def _nonempty(value: Any) -> bool:
@@ -467,11 +617,23 @@ def validate(
     except OSError as exc:
         return [f"{html_path}: cannot read HTML: {exc}"]
 
-    match = DATA_BLOCK_RE.search(html)
-    if not match:
+    parser = ResourceParser()
+    parser.feed(html)
+    parser.close()
+    if parser.duplicate_attributes:
+        return [
+            f"{html_path}: must not contain duplicate HTML attributes: "
+            + ", ".join(parser.duplicate_attributes)
+        ]
+    if parser.data_block_count == 0:
         return [f"{html_path}: missing wireframe-data application/json block"]
+    if parser.data_block_count != 1 or len(parser.data_blocks) != 1:
+        return [
+            f"{html_path}: must contain exactly one wireframe-data "
+            f"application/json block (found {parser.data_block_count})"
+        ]
     try:
-        data = json.loads(match.group("data"))
+        data = json.loads(parser.data_blocks[0])
     except json.JSONDecodeError as exc:
         return [f"{html_path}: wireframe-data is invalid JSON: {exc}"]
 
@@ -499,17 +661,16 @@ def validate(
         if required not in html:
             _add(problems, str(html_path), f"missing reviewer-shell marker {required!r}")
 
-    parser = ResourceParser()
-    parser.feed(html)
     if parser.link_tags:
         _add(problems, str(html_path), "must not contain <link> resources")
-    if parser.external_resources:
+    external_resources = parser.external_resources + parser.external_css_resources
+    if external_resources:
         _add(
             problems,
             str(html_path),
-            "must not load external resources: " + ", ".join(parser.external_resources),
+            "must not load external resources: " + ", ".join(external_resources),
         )
-    if re.search(r"@import\s", html, re.IGNORECASE):
+    if parser.css_imports:
         _add(problems, str(html_path), "must not contain CSS @import")
 
     if require_approved and data.get("approvalStatus") != "approved":

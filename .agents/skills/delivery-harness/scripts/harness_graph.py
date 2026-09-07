@@ -217,6 +217,19 @@ def _validate_graph(
                                     f"{review_path}.mission_ids",
                                     f"unknown mission {mission_id!r}",
                                 )
+                        if review.get("type") == "security":
+                            if review.get("stage", "preintegration") != "integration":
+                                _add(
+                                    errors,
+                                    f"{review_path}.stage",
+                                    "security review must use the integration stage",
+                                )
+                            if set(review_missions) != set(missions):
+                                _add(
+                                    errors,
+                                    f"{review_path}.mission_ids",
+                                    "security review must cover every PLAN mission",
+                                )
                         _validate_scope_list(
                             errors,
                             f"{review_path}.scope",
@@ -665,6 +678,14 @@ def _add_integration_review_skip_errors(
     enables the short-circuit and closes that hole.
     """
 
+    if node["review"].get("type") == "security":
+        _add(
+            errors,
+            state_path,
+            "skipped integration review is forbidden: security integration review must run fresh on the unified candidate",
+        )
+        return
+
     integration = run.get("integration")
     head = integration.get("integration_head_sha") if isinstance(integration, dict) else None
     if not is_full_sha(head):
@@ -741,6 +762,27 @@ def _validate_graph_state(
         for attempt in run.get("attempt_log", [])
         if isinstance(attempt, dict) and _nonempty_string(attempt.get("attempt_id"))
     }
+    graph_attempt_nodes = set(graph_nodes)
+    for index, attempt in enumerate(
+        run.get("attempt_log", []) if isinstance(run.get("attempt_log"), list) else []
+    ):
+        if not isinstance(attempt, dict) or attempt.get("node_id") is None:
+            continue
+        node_id = attempt.get("node_id")
+        if node_id not in graph_attempt_nodes:
+            _add(
+                errors,
+                f"run.attempt_log[{index}].node_id",
+                "must reference a PLAN graph node",
+            )
+        if attempt.get("kind") == "node_attempt" and not _nonempty_string(
+            attempt.get("attempt_id")
+        ):
+            _add(
+                errors,
+                f"run.attempt_log[{index}].attempt_id",
+                "node attempt requires a non-empty attempt ID",
+            )
 
     node_states = value["node_states"]
     node_state_keys = {

@@ -18,8 +18,9 @@ The delivery flow binds stage slots, not fixed skill names. This table binds the
 | design_compilation | frozen design-system pair | <bundled `design-system-compiler` + `frontend-design`, or your own> | n/a for defaults |
 | frontend_implementation | implementation missions | <bundled `frontend-design`, or your own frontend skill> | <hash of the bound skill's SKILL.md> |
 | ui_quality_verification | final page-quality pass after all high-fidelity pages are implemented | <bundled `impeccable` evaluate pass (`critique` + `audit`), or an installed UI-quality skill> | <hash of the bound skill's SKILL.md> |
+| code_security_verification | fresh unified code-security review before final regression and closeout | <bundled `code-security-review`, or an installed read-only security-review skill> | n/a for default |
 
-An unbound slot uses the bundled default. A non-default bound skill pins the SHA-256 of its SKILL.md; `delivery-harness/scripts/check_skill_bindings.py` recomputes it and fails on a mismatch, so changing a bound skill's content is a deliberate, reviewed pin update — never a silent swap. PLAN missions resolve their workers' skill lists from this table where a slot applies.
+An unbound slot uses the bundled default. A non-default bound skill pins the SHA-256 of its SKILL.md; `delivery-harness/scripts/check_skill_bindings.py` recomputes it and fails on a mismatch, so changing a bound skill's content is a deliberate, reviewed pin update — never a silent swap. PLAN missions resolve their workers' skill lists from this table where a slot applies. The `code_security_verification` slot is loaded by a parent-dispatched, read-only integration-stage reviewer after all missions share one fixed candidate SHA; the reviewer receives no implementation or lifecycle authority.
 
 ## Core Development Principles
 

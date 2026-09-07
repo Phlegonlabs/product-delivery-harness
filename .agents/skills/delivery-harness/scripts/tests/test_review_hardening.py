@@ -20,6 +20,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 import harness_transition  # noqa: E402
 from harness_core import ManifestError  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
+from test_harness_manifest import authorize_action  # noqa: E402
 from test_select_ready_nodes import current_preintegration_review_state  # noqa: E402
 
 
@@ -88,6 +89,13 @@ class ReviewHardeningTests(unittest.TestCase):
                             "evidence": ["worker stopped before completion"],
                         }
                     )
+                for action in (
+                    "spawn_subagents",
+                    "create_local_worktrees",
+                    "create_local_branches",
+                    "create_local_commits",
+                ):
+                    authorize_action(run, action, ["M1"], ["*"])
 
                 harness_transition._lease_worker(
                     plan, run, Namespace(**LEASE_ARGS)
