@@ -118,6 +118,43 @@ class SecurityReviewResultTests(unittest.TestCase):
 
         self.assertTrue(any("required tools did not run" in item for item in errors))
 
+    def test_skipped_only_tool_cannot_pass_without_required_tools(self) -> None:
+        result = valid_result()
+        result["tools"] = [
+            {
+                "name": "dependency audit",
+                "status": "skipped",
+                "evidence": "not selected for this review",
+            }
+        ]
+
+        errors = validate(result)
+
+        self.assertTrue(
+            any("at least one passed or findings tool" in item for item in errors),
+            errors,
+        )
+
+    def test_unavailable_only_tool_cannot_pass_without_required_tools(self) -> None:
+        result = valid_result()
+        result["tools"] = [
+            {
+                "name": "dependency audit",
+                "status": "unavailable",
+                "evidence": "offline environment",
+            }
+        ]
+
+        errors = validate(result)
+
+        self.assertTrue(
+            any("at least one passed or findings tool" in item for item in errors),
+            errors,
+        )
+
+    def test_passed_manual_review_is_valid_without_required_tools(self) -> None:
+        self.assertEqual([], validate(valid_result()))
+
     def test_high_finding_cannot_pass(self) -> None:
         result = valid_result()
         result["findings"] = [
@@ -379,6 +416,25 @@ class SecurityReviewTransitionTests(unittest.TestCase):
                     plan, run, self.args(path)
                 )
 
+    def test_record_rejects_pass_with_only_skipped_tools(self) -> None:
+        plan, run = self.state()
+        result = valid_result(self._security_head, self._security_head)
+        result["tools"] = [
+            {
+                "name": "dependency audit",
+                "status": "skipped",
+                "evidence": "not selected for this review",
+            }
+        ]
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.write_result(temp, result)
+            with self.assertRaisesRegex(
+                ManifestError, "at least one passed or findings tool"
+            ):
+                harness_transition._record_review_attempt(
+                    plan, run, self.args(path)
+                )
+
     def test_interrupted_security_review_reconciles_without_a_result(self) -> None:
         plan, run = self.state()
 
@@ -430,7 +486,6 @@ class SecurityReviewTransitionTests(unittest.TestCase):
             any("terminal security review requires its structured result" in error for error in errors),
             errors,
         )
-
 
 if __name__ == "__main__":
     unittest.main()

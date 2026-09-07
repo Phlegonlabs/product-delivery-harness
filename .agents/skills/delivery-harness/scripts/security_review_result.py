@@ -297,8 +297,13 @@ def validate_security_review_result(
             errors.append(
                 "security_review_result.trust_boundaries: PASS requires at least one boundary"
             )
-        if not tool_statuses:
-            errors.append("security_review_result.tools: PASS requires review evidence")
+        if not any(
+            status in {"passed", "findings"}
+            for status in tool_statuses.values()
+        ):
+            errors.append(
+                "security_review_result.tools: PASS requires at least one passed or findings tool"
+            )
         if isinstance(reviewed_sha, str) and not any(
             reviewed_sha in item for item in evidence
         ):
