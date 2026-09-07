@@ -16,7 +16,7 @@ Any lowercase platform id is valid. Each section below names that platform's nat
 
 ## Human Configuration Handoff
 
-`docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every human-owned task truthfully `pending`, `configured`, `verified`, or `n/a`.
+`docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every external-console task truthfully `pending`, `configured`, `verified`, or `n/a`. A later `product-activation` run may consume those rows, but it receives no authorization from their presence or status.
 
 The reconciliation is name-only and read-only:
 
@@ -68,9 +68,25 @@ After the run's authorized push, or after the user lands a change on the default
 
 Writing the observed result into the tracked deployment record does not authorize or require another push. A later commit of that operational update is a new change under the ordinary branch, verification, commit, and push boundaries; its status row describes the deployment it observed and never pretends to be a self-reference to the document commit.
 
+## Product Activation Handoff
+
+Deployment and activation are separate. The Harness closes at its existing local or run-branch-push boundary. Deployment verification observes what the platform served. The sibling `product-activation` skill then owns any explicitly requested post-delivery external setup and `docs/ACTIVATION.md`; it never reopens or edits PLAN/RUN.
+
+After RUN close, provide one bounded handoff when the product has deployable surfaces:
+
+- the exact delivered and, when available, deployed full Git SHA;
+- stable release target IDs, environments or channels, and observed URLs;
+- deployment-check evidence and every unresolved environment mismatch;
+- implemented analytics, consent, crash, store, email, payment, webhook, monitoring, or other activation hooks; and
+- every pending Required Secrets and Variables or External Console Setup row, naming configuration only and never a value.
+
+If the user already asked to continue into activation, invoke `product-activation` only after the RUN is formally complete. Otherwise report the exact handoff and suggest the explicit next invocation. Tool availability, a signed-in browser, a deployment PASS, and RUN authorization do not authorize an external console mutation. Product Activation probes connector/API/CLI/Browser/Computer Use routes separately, binds approval to each exact target and action, and writes `verified` only after independent read-back and behavior evidence.
+
+An absent `docs/ACTIVATION.md` remains valid for legacy or non-applicable products. Product Definition may create the first seed when the path is absent; Product Activation bootstraps it when needed. Neither absence nor a pending activation task keeps the delivery RUN open.
+
 ## Recording The Model In A Repository
 
-Two records carry the model. `docs/DEPLOYMENT.md`, seeded during PRD creation from `assets/templates/DEPLOYMENT.template.md` and reconciled against the implementation before deployable pushes, is the detailed instance: platform record, name-only secret and variable inventory, external-console tasks, human setup checklist, and environment status. The seeded `AGENTS.md` deployment section (imported by `CLAUDE.md`) is the governance summary agents follow: platform, mode, production branch, preview mechanism, production URL, deployed-commit check, and protected resources. Keep both filled from the live project; an unfilled record means the deployment model is unknown, not "deploy whatever".
+Two records carry the deployment model. `docs/DEPLOYMENT.md`, seeded during PRD creation from `assets/templates/DEPLOYMENT.template.md` and reconciled against the implementation before deployable pushes, is the detailed instance: platform record, name-only secret and variable inventory, external-console tasks, human setup checklist, and environment status. The seeded `AGENTS.md` deployment section (imported by `CLAUDE.md`) is the governance summary agents follow: platform, mode, production branch, preview mechanism, production URL, deployed-commit check, and protected resources. Keep both filled from the live project; an unfilled record means the deployment model is unknown, not "deploy whatever". `docs/ACTIVATION.md` is a separate post-delivery operational record and never replaces either deployment record.
 
 ## Moving Between Platforms
 

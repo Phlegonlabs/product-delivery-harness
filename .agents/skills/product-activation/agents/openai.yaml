@@ -1,0 +1,6 @@
+interface:
+  display_name: "Product Activation"
+  short_description: "Configure and verify post-delivery product setup"
+  default_prompt: "Use $product-activation after delivery to reconcile the release, configure only exact authorized external targets through the safest available route, read back every result, and hand verified measurement sources to outcome review."
+policy:
+  allow_implicit_invocation: true

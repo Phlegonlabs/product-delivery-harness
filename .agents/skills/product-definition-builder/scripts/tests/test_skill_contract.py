@@ -1223,14 +1223,14 @@ async function agent(_prompt, options) {
         ):
             self.assertIn(field, contract)
         self.assertIn(
-            "complete inventory of expected deployable web, API, mobile, or desktop surfaces",
+            "complete inventory of expected deployable web, API, mobile, desktop, or browser-extension surfaces",
             interview,
         )
         self.assertIn(
-            "For every deployable web, API, mobile, or desktop surface", skill
+            "For every deployable web, API, mobile, desktop, or browser-extension surface", skill
         )
         self.assertIn(
-            "For every deployable web, API, mobile, or desktop surface", agent
+            "For every deployable web, API, mobile, desktop, or browser-extension surface", agent
         )
         self.assertIn(
             "at least one `development` target and one `production` target", contract
@@ -1643,6 +1643,29 @@ async function agent(_prompt, options) {
         )
         self.assertIn("reads `outcome-review.md` in full", skill)
         self.assertIn("`outcome-review.md` is a post-deployment record", lifecycle)
+        self.assertIn("Activation source status:", contract)
+        self.assertIn("matching verified `MS-*` sources", skill)
+        self.assertIn("--require-verified-sources", contract)
+
+    def test_activation_seed_is_create_once_and_owned_downstream(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/output-contract.md")
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        agent = self.read_agent_prompt()
+
+        for source in (skill, contract, lifecycle, agent):
+            self.assertIn("ACTIVATION.md", source)
+            self.assertIn("product-activation", source)
+        self.assertIn("does not already exist", skill)
+        self.assertIn("preserve it byte-for-byte", skill)
+        self.assertIn("one Outcome Coverage row for every PRD metric", skill)
+        self.assertIn("web, iOS, or browser-extension release target", skill)
+        self.assertIn("Leave Android, desktop, API-only", skill)
+        self.assertIn("supported active target set", skill)
+        self.assertIn("check_activation.py --activation", skill)
+        self.assertIn("creates it only when absent", contract)
+        self.assertIn("never stages, overwrites, archives, resets", contract)
+        self.assertIn("Exclude it from the superseded-document inventory", lifecycle)
 
     def test_dynamic_workflow_uses_org_roles_and_parent_owned_staging(self) -> None:
         skill = self.read("SKILL.md")

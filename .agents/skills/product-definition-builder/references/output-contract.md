@@ -13,6 +13,8 @@ This contract covers the product spec and approved low-fidelity screen structure
 
 It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass is on by default for a non-trivial package; when the user declined it, no web tool was available, or the role returned blocked, the package publishes without the file and records the unvalidated market context in `PRD.md`'s `## Assumptions`. See `market-research-guide.md`.
 
+For a product with a web, iOS, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
+
 It specifies what each UI surface must show and do and shows its low-fidelity structure in a self-contained HTML reviewer. Do not turn `wireframes.html` into a high-fidelity mockup or add token schemas, component catalogs, or styling rules here.
 
 `PRD.md` is the canonical source for product scope, routes, screen purpose, visible-region responsibility, content, actions, states, responsive behavior, flows, trace IDs, and the Builder UX Direction Decision. `wireframes.html` is the only low-fidelity review projection and never overrides `PRD.md`. If a later visual-design phase is explicitly requested, its approved handoff and optional design-system pair add visual implementation authority without taking ownership of product structure or behavior.
@@ -35,10 +37,11 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |
 | `outcome-review.md` | The owner deciding what happens after a release | What actually happened post-deployment, measured against the targets, and the verdict |
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, and what actually deployed |
+| `docs/ACTIVATION.md` | The owner or operator activating a delivered release | Which external actions and measurement sources are pending, configured, verified, blocked, or stale |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 | `design-system.md` + `design-system.json` (only after an explicitly requested visual-design phase whose Design System Need Gate is `required`) | A designer or frontend engineer styling reusable surfaces | The binding token, primitive, component, and state contract; read alongside `PRD.md` and `wireframes.html` |
 
-Core reading order is `PRD.md` → `wireframes.html` → `architecture.md` → `stack-decisions.md`. Read the optional visual-design handoff and design-system pair only when that later phase was requested and completed. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it. `research-assessment.md` is the same kind of evidence for the pre-draft decision: read it when a statement cites an `RA-*` ID.
+Core reading order is `PRD.md` → `wireframes.html` → `architecture.md` → `stack-decisions.md`. Read the optional visual-design handoff and design-system pair only when that later phase was requested and completed. Read `docs/DEPLOYMENT.md` for release configuration and `docs/ACTIVATION.md` for post-delivery operational state; neither overrides the product contract. `market-research.md` is evidence, not narrative: read it when a `PRD.md` statement cites an `MR-*` ID and you want the source behind it. `research-assessment.md` is the same kind of evidence for the pre-draft decision: read it when a statement cites an `RA-*` ID.
 
 Two rules keep the package readable:
 
@@ -371,6 +374,23 @@ Researched on: [YYYY-MM-DD]
 
 The gate itself is recorded in `PRD.md`'s `### Research Gate`; this file holds the evidence behind it. A `stop` gate leaves this file in the staging directory with no drafted package.
 
+## `docs/ACTIVATION.md`
+
+Create this operational seed only for a package with a web, iOS, or browser-extension release target and only when the final path does not already exist. In short, `product-definition-builder` creates it only when absent. Resolve the template and checker from the sibling `product-activation` skill. If that sibling is unavailable, publish the core product package without an Activation file and report the missing optional handoff; do not invent a local substitute template.
+
+The seed must:
+
+- retain the template's exact headings, table headers, task boundary comments, and English machine anchors;
+- fill the product name and every known owner;
+- select `core` plus every known surface profile, recording rejected expected profiles as `n/a` with a reason;
+- list only the stable web, iOS, and browser-extension release target IDs from `architecture.md` without inventing a SHA or deployed identity; exclude Android, desktop, API-only, and other targets even when the package is hybrid;
+- add exactly one Outcome Coverage row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, scoped to that supported Activation target subset;
+- leave implementation-owned actions, routes, accounts, queries, release bindings, sources, evidence, authorization, and readiness visibly pending;
+- contain secret names only and no secret values; and
+- pass `product-activation/scripts/check_activation.py --activation <staged path> --prd <staged PRD.md>` before publication.
+
+Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the product package. Once the path exists, `product-activation` owns it. Product Definition reads it for context but never stages, overwrites, archives, resets, or treats its operational status as product approval.
+
 ## `outcome-review.md`
 
 Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal.
@@ -385,6 +405,9 @@ Deployed SHA: [full Git SHA]
 Release reference: [run branch head / release tag — where this SHA came from]
 Deployed on: [YYYY-MM-DD]
 Targets: [each architecture.md release target this deployment reached, or the subset it covered]
+Activation record: [docs/ACTIVATION.md / not present / n/a]
+Activation source status: [verified / incomplete / legacy-unavailable / n/a]
+Activation sources: [matching verified MS-* IDs, or explicit reason none apply]
 
 ## Measurements
 | Metric | Baseline | Target | Window | Actual | Source |
@@ -408,6 +431,8 @@ Rules:
 
 - Record actual against target for every `PRD.md` `## Metrics` metric and every `TEST-*` expected signal the deployment was supposed to move; an empty Measurements table means the review is not done.
 - The measurement window is real elapsed time after deployment. A review written at deploy time with "pending" actuals is a stub, not a verdict.
+- When `docs/ACTIVATION.md` exists, run its checker with `--prd docs/product/PRD.md --require-verified-sources` and `--require-ready <target-id>` for each reviewed target in its supported active target set. Use only verified `MS-*` sources bound to the same target, deployed SHA, and artifact/build identity. Record Activation as `n/a` for a reviewed Android, desktop, API-only, or other target outside that set; do not pull an unsupported hybrid target into the gate. A configured, blocked, stale, or mismatched source cannot support an actual or verdict.
+- A missing Activation record remains allowed for a legacy or non-applicable product, but the review records that state explicitly and does not imply that an unverified analytics or operational source is trustworthy.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
 
 ## `architecture.md`
@@ -469,7 +494,7 @@ For every deployable hosted web, API, or backend target, include this environmen
 State that both hosted targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development. Write each Migration Order cell so the human or CI release process can run it in order.
 
 ## Release Targets
-Use this provider-neutral section for every deployable web, API, mobile, or desktop surface, including hosted targets already summarized in the environment table above. First record the complete expected deployable-surface inventory using stable surface IDs. Then record one block per exact destination and give it a stable target ID. Every expected surface needs at least one `development` target and one `production` target; a package that omits an expected surface is incomplete. Keep the stable `surface` identity separate from `provider`, because one surface may use different providers by stage. Keep surface and target IDs stable across revisions; retire rather than reuse an ID when its meaning changes.
+Use this provider-neutral section for every deployable web, API, mobile, desktop, or browser-extension surface, including hosted targets already summarized in the environment table above. First record the complete expected deployable-surface inventory using stable surface IDs. Then record one block per exact destination and give it a stable target ID. Every expected surface needs at least one `development` target and one `production` target; a package that omits an expected surface is incomplete. Keep the stable `surface` identity separate from `provider`, because one surface may use different providers by stage. Keep surface and target IDs stable across revisions; retire rather than reuse an ID when its meaning changes.
 
 This section is product documentation for the human or CI release process that runs after the engineering harness pushes its branch. The harness does not consume or enforce any field in it.
 
@@ -681,7 +706,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 
 ### Completeness
 
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. The staged `DEPLOYMENT.md` is present for every package with a deployable surface (a purely local product records `manual` mode or the skip in `stack-decisions.md` instead), contains the Required Secrets and Variables and External Console Setup handoff sections, records names and destinations but no values, and leaves implementation-owned details visibly unresolved for pre-deploy reconciliation. The staged `DOCUMENTS.md` manifest is present with its status column filled for every document this package creates. For a UI-bearing complete wireframe package, approved `wireframes.html` and `PRD.md`'s approved `### Wireframe Approval` are also present. An approved UI Design Handoff and validated design-system pair are required only when the owner explicitly requested and completed that later visual-design phase. For a product with no UI surface, wireframe and design artifacts are absent and `PRD.md` records that skip with its reason.
+- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory and are ready to publish under `docs/product/`. The staged `DEPLOYMENT.md` is present for every package with a deployable surface (a purely local product records `manual` mode or the skip in `stack-decisions.md` instead), contains the Required Secrets and Variables and External Console Setup handoff sections, records names and destinations but no values, and leaves implementation-owned details visibly unresolved for pre-deploy reconciliation. When the package has a web, iOS, or browser-extension release target, the sibling `product-activation` skill is available, and the live path is absent, a staged create-once `ACTIVATION.md` seed passes its checker against the staged PRD; an existing live Activation record is preserved and no replacement is staged. The staged `DOCUMENTS.md` manifest is present with its status column filled for every document this package creates or preserves. For a UI-bearing complete wireframe package, approved `wireframes.html` and `PRD.md`'s approved `### Wireframe Approval` are also present. An approved UI Design Handoff and validated design-system pair are required only when the owner explicitly requested and completed that later visual-design phase. For a product with no UI surface, wireframe and design artifacts are absent and `PRD.md` records that skip with its reason.
 - `## Non-Functional Requirements` is always present immediately after `## Functional Requirements`. Every applicable quality attribute has a measurable `PRD-*` requirement with a measure and target; non-applicable categories are explicitly `N/A` with a reason. Vague adjectives alone do not pass. Units, tested population or traffic shape, measurement window, and percentile are present where applicable.
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
@@ -690,7 +715,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - An enhancement package records its UI-impact classification — `none`, `structure`, `style`, or `both`. When the impact is `structure` or `both`, the refreshed `### Wireframe Approval` covers the changed `UI-*` scope. When it is `style` or `both`, the package carries the owner's recorded decision to re-run the UI Design Pass or keep the existing direction; a style-impacting enhancement with an unchanged handoff or design-system pair and no recorded owner decision does not validate.
 - A wireframe-only package records `Visual design phase: not requested` and validates without Taste, preview evidence, a UI Design Handoff, a Design System Need Gate, or design-system artifacts. When visual design was explicitly requested, `PRD.md` records those later decisions and evidence, and the `### UI Design Handoff` carries an `Iconography:` line recording the recommended set with cited sources or an explicit skip, `UNVALIDATED`, or no-icons reason, a `Typography:` line recording the pairing, CJK stack, and loading strategy or an explicit skip or `UNVALIDATED` reason, and a `Color & dark mode:` line recording the palette derivation and dark-mode scope — a visual package missing any of these three lines does not validate.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.
-- For every deployable web, API, mobile, or desktop surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, separate stable surface and stage-specific provider fields, a source policy naming the exact branch or ref, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Different providers by stage are valid for the same surface.
+- For every deployable web, API, mobile, desktop, or browser-extension surface, `architecture.md` has a provider-neutral `## Release Targets` section with an explicit expected deployable-surface inventory and at least one development-stage and one production-stage target for every expected surface. A missing expected surface fails validation. Every target has a stable ID, separate stable surface and stage-specific provider fields, a source policy naming the exact branch or ref, artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Different providers by stage are valid for the same surface.
 - Upload, submission, deployment-command success, notarization, or store approval alone is not accepted as availability. Hosted targets prove the route/API is serving and passes smoke checks; store or signed-installer targets prove the intended audience can actually install/download the artifact and that its release smoke check passes.
 - For a deployable hosted web, API, or backend target, `architecture.md` records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one — never a silent default) and defines one codebase with separate development and production environments (named Workers when the platform is Cloudflare).
 - The hosted environment contract names the exact release source for each stage (the pushed integration-branch head or an explicitly retained integration branch for development; the default-branch head for production), distinct per-environment deployment-unit names, isolated resources/secrets/data/auth/payment modes, migration order, deployed-environment verification, evidence, and rollback. For Cloudflare delivery specifically, that means distinct Worker names. Development never uses production customer data, sessions, or live payment mutations. Native mobile and desktop targets remain in provider-neutral release blocks rather than this hosted table.

@@ -38,6 +38,8 @@ Placement means the exact control surface a human opens. Examples: a Cloudflare 
 
 Record every non-code task required in another system, especially auth setup: create the application or tenant, register preview and production callback/redirect URLs, set allowed origins and logout URLs, configure webhook endpoints, attach domains or DNS, and grant required roles. Put any credential name created by these steps in the inventory above, but never its value. If no external setup is required, keep one `none` / `n/a` row.
 
+After the delivery RUN closes, the sibling `product-activation` skill may convert applicable rows into exact `ACT-*` actions in `docs/ACTIVATION.md`. The row itself grants no external-write permission. Keep deployment placement here and detailed action, capability, authorization, and evidence state in the Activation record.
+
 | Service | Setting | Preview / non-production | Production | Owner | Status |
 | --- | --- | --- | --- | --- | --- |
 | <service> | <setting or account task> | <fill> | <fill> | <fill> | pending |
@@ -111,3 +113,11 @@ These steps are performed by a person with platform access; the Harness never pe
 | production | | | | | |
 
 Verification is read-only: record what deployed, compare it to the expected head, and route any mismatch to the owner or a new mission — never redeploy from here.
+
+## Product Activation Handoff
+
+- Activation record: `docs/ACTIVATION.md` when the product has post-delivery setup or measurable outcome sources; absent is valid for legacy or non-applicable products.
+- Handoff timing: after the delivery RUN is formally complete, never as another RUN node or authorization.
+- Handoff content: exact delivered/deployed SHA, release target IDs and URLs, deployment evidence, implemented hooks, and pending name-only configuration or console rows.
+- Execution: `product-activation` probes connector/API/CLI/Browser/Computer Use routes and performs only exact authorized actions.
+- Completion: an Activation target is ready only after read-back and behavior evidence; pending activation never keeps the delivery RUN open.

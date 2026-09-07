@@ -7,7 +7,7 @@ CI enables this test explicitly. Run it locally with:
         -s .agents/skills/delivery-harness/scripts/tests \
         -p "test_golden_path.py" -v
 
-The per-component suites each stay green while the three skills drift apart;
+The per-component suites each stay green while the four skills drift apart;
 this test walks the documented spine in order against one synthetic package —
 `new_run.py` generating RUN from PLAN, `validate_harness_plan.py` re-running
 the frozen source joins including the sibling skill's full wireframe checker,
