@@ -63,7 +63,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.27.0",
+          "required_harness_version": "0.28.0",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
@@ -217,7 +217,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
 }
 ```
 
-The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN. Harness 0.27.0 and later refuse a new RUN unless PLAN explicitly marks `security_review.status` as `required` or `not_applicable` with a reason.
+The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN. Harness 0.28.0 and later refuse a new RUN unless PLAN explicitly marks `security_review.status` as `required` or `not_applicable` with a reason.
 
 Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `record-observation`, `accept-wave`, `lease-worker`, `reserve-node-attempt`, `record-node-result`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch` (with `--packet-out` to render the reviewer packet in the same command), `record-review-attempt`, `grant-review-attempts`, `skip-integration-review`, `acquire-run-lock`, `release-run-lock`, `heartbeat-run-lock`, and `watchdog`. `lease-worker` derives the selector's complete runtime binding and portable axes, validates compatibility flags, accepts `--task-thread-id` only for an app task, accepts existing exact identities, and materializes new exact identities only from an active wildcard authorization without granting authority. `record-review-attempt` requires `--security-result <json>` for a security node and validates that structured result against the reserved SHA, base, scope, tools, coverage, decision, and current integration head. `record-worker-result` reads the bound worktree's live branch, head, dirty state, diff, and ancestry, then revalidates the payload and retained verifier results before one atomic RUN update. Use `reject-worker-result` to retain a parent-rejected current candidate as `retryable_failure` or `blocked`; never hand-edit that outcome. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically; lifecycle actions remain outside the transition lock and are represented by evidence in `record-node-result`.
 

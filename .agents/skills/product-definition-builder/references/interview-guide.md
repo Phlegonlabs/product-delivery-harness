@@ -133,7 +133,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What is in scope for v1?
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
-   - What is the complete inventory of expected deployable web, API, mobile, or desktop surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
+   - What is the complete inventory of expected deployable web, API, mobile, desktop, or browser-extension surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
    - For each target, which exact branch or ref produces the release — for example the pushed integration-branch head for development, and the default-branch head after merge for production? If the product requires a signed tag or another source rule, record it explicitly.
    - What artifact kind is released, what signing or notarization is required, and what exact environment, store channel, testing track, update feed, or distribution channel receives it?
    - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.

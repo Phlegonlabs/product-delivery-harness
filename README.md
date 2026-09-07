@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.27.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.28.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -29,6 +29,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | Responsive high-fidelity HTML targets checked across the full page-target-state matrix — retained under `docs/design/ui-references/` on web — plus a binding design-system pair when required |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
+| A delivered release that needs external setup | `product-activation` | Exact authorized console actions, verified measurement sources, and target-by-target activation readiness |
 
 Each bundled skill can be invoked on its own; the full pipeline is optional. Each mode still enforces its declared inputs and dependencies.
 
@@ -42,6 +43,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 - **Every graph attempt is durable.** Non-mission nodes reserve an attempt, run their check or external action outside the RUN lock, then record outcome and evidence; an interrupted non-runtime attempt is recorded as `blocked` through the same result path.
 - **Runtime bindings are explicit.** `lease-worker` derives the provider, driver, model, effort, and portable runtime axes from the selected directive, accepts `--task-thread-id` only for app tasks, accepts an existing exact target, and materializes a new exact target only from an active wildcard grant without widening authority.
 - **Capability is not permission.** A runtime may be able to push or clean up, but each action still needs exact authorization.
+- **Activation is read back.** External setup stays outside PLAN/RUN, binds approval to an exact action digest, and becomes verified only after independent read-back and behavior evidence.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
 - **Code security is a fresh final review.** Every new managed PLAN explicitly requires it or records why a non-code delivery is not applicable. Required review runs `code-security-review` over every mission at the unified integration SHA before broad final validation, validates the structured agent result, and cannot reuse earlier tree-identical evidence. A security PASS has no exclusions, and the required security node cannot be skipped or superseded at closeout; reserve and completion recheck the live integration branch, HEAD, clean status, and batch-base ancestry.
 - **Local-only is the default.** The harness commits and verifies locally; only an explicit remote outcome authorizes pushing the run's own branch. Landing it on the default branch is yours to do.
@@ -54,6 +56,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 | `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair, including the exact approved responsive set and layout-safety rules. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
+| `product-activation` | Post-delivery setup for web, iOS, and browser-extension targets, including capability routing, exact external-action authorization, read-back, measurement sources, and outcome-review handoff | `docs/ACTIVATION.md` |
 
 The delivery core makes one size decision before it invokes managed orchestration:
 
@@ -78,13 +81,15 @@ flowchart LR
   Runtime --> Security["code-security-review\nfresh unified exact-SHA review"]
   Security --> Evidence["Broad final tests and UI evidence"]
   Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
+  Push --> Activate["product-activation\nExternal setup + read-back"]
+  Activate --> Outcome["Verified measurement sources\nLater outcome review"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/`; the Harness implements the frozen result; and `code-security-review` reviews the unified candidate without editing it.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/`; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
 
 ### Full skill lifecycle
 
-The complete lifecycle across all four skills, with every gate and the cross-cutting mechanisms:
+The complete lifecycle across all five skills, with every gate and the cross-cutting mechanisms:
 
 ```mermaid
 flowchart TB
@@ -164,10 +169,22 @@ flowchart TB
         prod["Production deployment<br/>(platform builds from main)"]
         check["Post-deploy verification (read-only)<br/>check_deployment.py"]
         status["Reconcile deployment record<br/>(status + pending human actions)"]
+        handoff --> push --> preview --> merge --> prod --> check --> status
+    end
+
+    subgraph ACTIVATE["product-activation — post-delivery activation"]
+        direction TB
+        profiles["Select core + surface profiles<br/>docs/ACTIVATION.md"]
+        capability["Probe connector / API / CLI<br/>Browser / Computer Use / manual"]
+        actions["Exact ACT-* actions<br/>authorization + read-back"]
+        ready["Per-target activation readiness<br/>verified MS-* sources"]
+        profiles --> capability --> actions --> ready
+    end
+
+    subgraph OUTCOME["Post-release outcome review"]
         outcome["outcome-review.md<br/>(owner-requested, post measurement window)"]
         verdict{{"Verdict: no_change | enhancement | incident"}}
-        handoff --> push --> preview --> merge --> prod --> check --> status --> outcome --> verdict
-        verdict -.->|next enhancement request| interview
+        outcome --> verdict
     end
 
     subgraph CROSS["Cross-cutting mechanisms (all stages)"]
@@ -185,13 +202,18 @@ flowchart TB
     mr --> route
     DIRECT --> handoff
     gates2 --> handoff
+    status --> profiles
+    ready --> outcome
+    verdict -.->|next enhancement request| interview
 ```
 
-Two human stop points bracket the agent-executable span: the Wireframe Approval and the merge to `main`. The execution loop is the heart of the system — every step in it is an atomic, validated RUN write.
+Wireframe Approval and the merge to `main` remain human gates. The delivery execution loop stays inside PLAN/RUN; post-delivery Activation starts only after RUN close and applies its own exact external-action approvals.
 
 For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. It lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
 
-The loop closes at both ends. Before any closed-set decision, the research-first assessment gates drafting with a human `go | clarify | stop` Research Gate — published as `research-assessment.md` with stable `RA-*` findings and reconciled by the post-draft market-research pass. After a deployment, the owner can request `outcome-review.md`: measured actuals against the PRD's metrics and `TEST-*` expected signals, with a `no_change | enhancement | incident` verdict that feeds the next enhancement run.
+After delivery, `product-activation` creates or reconciles `docs/ACTIVATION.md`, selects the applicable web, iOS, or browser-extension profiles, uses the safest available connector/API/CLI/Browser/Computer Use route, and performs only exact authorized actions. Capabilities and evidence bind to the exact target, environment, source SHA, and artifact/build identity; the newest matching result controls readiness. It records configuration separately from verification, never stores secret values, keeps unsupported hybrid targets outside its gate, and hands matching verified `MS-*` sources to the later outcome review.
+
+The loop closes at both ends. Before any closed-set decision, the research-first assessment gates drafting with a human `go | clarify | stop` Research Gate — published as `research-assessment.md` with stable `RA-*` findings and reconciled by the post-draft market-research pass. After Activation and the real measurement window, the owner can request `outcome-review.md`: measured actuals against the PRD's metrics and `TEST-*` expected signals, using only matching verified sources, with a `no_change | enhancement | incident` verdict that feeds the next enhancement run.
 
 ## Delivery model
 
@@ -281,7 +303,7 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Fastest setup
 
-Clone the repository and copy the four Product Delivery Harness skills into your user skills directory:
+Clone the repository and copy the five Product Delivery Harness skills into your user skills directory:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
@@ -289,18 +311,19 @@ cp -r product-delivery-harness/.agents/skills/delivery-harness \
       product-delivery-harness/.agents/skills/product-definition-builder \
       product-delivery-harness/.agents/skills/design-system-compiler \
       product-delivery-harness/.agents/skills/code-security-review \
+      product-delivery-harness/.agents/skills/product-activation \
       ~/.agents/skills/
 ```
 
-If the checkout has local `__pycache__` directories under `.agents/skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the four current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
+If the checkout has local `__pycache__` directories under `.agents/skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the five current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
 
-When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler`. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
+When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler` — plus the new `product-activation` skill. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
-The four bundled skills are independently invocable, but cross-skill modes enforce their dependencies. Frozen wireframe validation uses `product-definition-builder`'s checker next to `delivery-harness`; `design-system-compiler` requires an approved PRD UI Design Handoff, approved `wireframes.html`, and `frontend-design`; the optional UI Design Pass uses a design-direction skill plus a frontend-implementation skill; and new managed code deliveries use `code-security-review` in the `code_security_verification` slot after integration. Install the dependencies required by the mode you run.
+The five bundled skills are independently invocable, but cross-skill modes enforce their dependencies. Frozen wireframe validation uses `product-definition-builder`'s checker next to `delivery-harness`; `design-system-compiler` requires an approved PRD UI Design Handoff, approved `wireframes.html`, and `frontend-design`; the optional UI Design Pass uses a design-direction skill plus a frontend-implementation skill; new managed code deliveries use `code-security-review` in the `code_security_verification` slot after integration; and `product-activation` consumes the release and deployment handoff after delivery. Install the dependencies required by the mode you run.
 
 ### Zero-to-one flow
 
-1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the four Product Delivery Harness skills, then use that host for the run.
+1. Install one supported host (Codex, Claude Code, Pi, or any host that discovers `~/.agents/skills/`) and the five Product Delivery Harness skills, then use that host for the run.
 2. Start a fresh host session, confirm the skill is visible, and invoke `delivery-harness`.
 3. Let the size gate choose direct work or PLAN/RUN; do not pre-create workers for small work.
 4. For a large run, keep one host active at a time and close/review each wave before a same-repository handoff.
@@ -335,6 +358,10 @@ Use $delivery-harness to implement the approved plan. Create a branch and commit
 
 ```text
 Use $delivery-harness to implement this plan and push the verified branch. I will open the PR and handle the merge myself.
+```
+
+```text
+The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
 ```
 
 ```text
@@ -377,10 +404,11 @@ Edit only the canonical sources in `.agents/skills/`, then run the core verifica
 ```bash
 python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
 python .agents/skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts
+python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts .agents/skills/product-activation/scripts
 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
 python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
+python -m unittest discover -s .agents/skills/product-activation/scripts/tests -v
 git diff --check
 ```
 
@@ -416,7 +444,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
 
-- **0.27.0** — Added the fourth canonical skill, `code-security-review`. Every new managed PLAN records security as `required` or `not_applicable` with a non-code reason; Harness 0.27.0 refuses a new RUN when that policy is absent. Required review dispatches one fresh sibling after serial integration and before broad final validation. The `security` type must use the integration stage, cover every mission, and can never use the byte-identical-tree skip. `record-review-attempt --security-result` validates and retains the other agent's structured decision, reserved/current SHA, base, scope, trust boundaries, tool evidence, coverage, and findings; fixes invalidate the old result and downstream gates. The `code_security_verification` binding defaults to the bundled read-only skill, which cannot edit code, install scanners, use credentials, or probe live targets. Existing PLAN-v6/RUN-v11 pairs remain readable and are not silently rewritten. Typed graph execution now has guarded `reserve-node-attempt` and `record-node-result` transitions: lifecycle actions run outside the RUN lock, graph phases derive from declared outcomes, and interrupted non-runtime attempts become blocked with preserved evidence. `lease-worker` records the selector's complete runtime binding and app task/thread identity, validates portable axes, accepts existing exact targets, and materializes new exact targets only from active wildcard grants. Companion checkers also fail closed on duplicate or remote self-contained inputs, ambiguous source paths, pre-write semantic failures, and duplicate manifest keys; `check_ui_contract.py --repo-root <root>` defaults to the current working directory and resolves token/primitive sources by exact repo-relative identity. Security PASS results now require an empty exclusions list, required security nodes cannot be skipped or superseded at closeout, and security reserve/completion recheck the live integration branch, HEAD, clean status (only the exact tracked RUN exception), and batch-base ancestry.
+- **0.28.0** — Added `code-security-review` as the fifth bundled skill. Every new managed PLAN records security as `required` or `not_applicable` with a non-code reason. Required review dispatches one fresh sibling after serial integration and before broad final validation; `security` must cover every mission and cannot be skipped or superseded. `record-review-attempt --security-result` validates the other agent's structured decision, exact SHA and base, scope, trust boundaries, tools, coverage, findings, and empty PASS exclusions. Security reserve and completion recheck the live integration branch, HEAD, clean status, and batch-base ancestry. The release also includes guarded non-runtime node transitions, exact runtime bindings, stricter self-contained artifact checks, and five-skill installation and contract digests.
+- **0.27.0** — Added `product-activation` as the fourth bundled skill. It starts after delivery, records exact post-delivery actions and verified measurement sources in `docs/ACTIVATION.md`, routes work through connector/API/CLI/Browser/Computer Use/manual handoff, and binds authorization and evidence to the exact target, environment, action digest, source SHA, and artifact identity. Product Definition creates the Activation seed only when absent; Delivery closes before the Activation handoff; later outcome reviews use only matching verified `MS-*` sources. The release also makes browser extensions first-class release-target surfaces and updates four-skill installation, contract digests, CI, and cross-skill tests.
 - **0.26.0** — Responsive UI contracts are now blocking from product definition through delivery. Every `UI-*` entry declares one shared set of at least two web viewports or native/desktop size classes; `wireframes/2` projects each target with explicit region order, visibility, grid spans, reflow, interaction rules, and never-drop regions. Wireframe and high-fidelity HTML approval require a real-browser page-target-state matrix with no unintended overlap, clipping, occlusion, or horizontal overflow, while intentional overlays document stacking, focus, safe-area, and dismissal behavior. The design-system pair and PLAN use the same responsive set, and Harness rejects missing, duplicate, one-target, unsorted, extra, or drifting coverage while keeping legacy schemas readable.
 - **0.25.7** — Removed the source repository's root `Tasks.md` flow log and its local logging rule. Managed target projects still render the non-canonical `docs/tasks.md` view on demand; no target-project skill behavior changed.
 - **0.25.6** — Documented the scripted transition flag surfaces (`pause`/`resume`/`cancel`, review-attempt, wave, lease, and validation flags) in the state-model reference, added direct tests for the wireframe HTML and PRD contract checkers, and noted bytecode exclusion in the install docs. No skill behavior changed.

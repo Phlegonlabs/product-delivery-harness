@@ -1093,12 +1093,12 @@ class RunValidationTests(unittest.TestCase):
         run["integration"]["prior_head_shas"] = [SHA_B]
         self.assertEqual([], validate_run(plan, run))
 
-    def test_harness_027_run_requires_explicit_security_policy(self) -> None:
+    def test_harness_028_run_requires_explicit_security_policy(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
         run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
             "required_harness_version"
-        ] = "0.27.0"
+        ] = "0.28.0"
 
         self.assert_run_error_contains(
             plan,

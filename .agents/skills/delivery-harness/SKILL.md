@@ -7,7 +7,7 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 ## Purpose
 
-Use the least ceremony that preserves the real safety boundary. Keep routine work direct. Add PLAN/RUN state, runtime probing, workers, worktrees, and graph scheduling only when coordination requires them.
+Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN state, runtime probing, workers, worktrees, and graph scheduling only when coordination requires them.
 
 Keep upstream ownership separate:
 
@@ -213,3 +213,5 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 ### 6. Complete
 
 New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, both environments verify read-only, and that verification reports the pushed head's preview URL in the conversation.
+
+`product-activation` follows RUN close; RUN grants no authority.

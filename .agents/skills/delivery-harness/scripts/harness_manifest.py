@@ -4184,13 +4184,13 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     )
     if (
         schema_version == 11
-        and _version_at_least(required_harness_version, (0, 27, 0))
+        and _version_at_least(required_harness_version, (0, 28, 0))
         and plan.get("security_review") is None
     ):
         _add(
             errors,
             "plan.security_review",
-            "Harness 0.27.0 and later require an explicit security review policy",
+            "Harness 0.28.0 and later require an explicit security review policy",
         )
     if schema_version == 11 and "run_lock" in run and not isinstance(
         run["run_lock"], dict
