@@ -302,7 +302,10 @@ class VerifierRuntimeTests(unittest.TestCase):
             with self.assertRaisesRegex(VerifierRuntimeError, "escapes the checkout"):
                 protected_path_sha256(self.checkout, ["linked/RUN.md"])
         finally:
-            linked.rmdir()
+            if os.name == "nt":
+                linked.rmdir()
+            else:
+                linked.unlink()
 
     def test_exact_pass_reuses_equivalent_task_and_worker_declarations(self) -> None:
         counter = self.root / "counter.txt"
