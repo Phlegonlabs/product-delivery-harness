@@ -1,0 +1,1 @@
+"""Product Activation checker tests."""
