@@ -40,7 +40,7 @@
 - **产品定义止于人工关卡。** UI 产品以一份响应式低保真 `wireframes.html` 收尾；每个 surface、target 与非 `n/a` state 都必须通过浏览器的重叠、裁切、遮挡和溢出检查，owner 才能批准。Self-contained checker 会先解码 CSS escapes，再拒绝远程资源加载。
 - **视觉目标是响应式 HTML。** 被要求的 web 视觉阶段会按同一响应式／state 矩阵渲染每个高保真页面，把批准的 references 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除；Harness 按每页批准的 reference 实现并复查。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
-- **每个 graph attempt 都可持久追踪。** 非 mission 节点先保留 attempt，在 RUN lock 外执行检查或外部动作，再记录 outcome 与证据；中断的非 runtime attempt 也通过同一结果路径记录为 `blocked`。本地 verifier 只能在 dirty-status 检查中忽略 tracked RUN；执行前后仍会保护精确字节与文件身份，并在结果推进 graph 前重新检查。
+- **每个 graph attempt 都可持久追踪。** 非 mission 节点先保留 attempt，在 RUN lock 外执行检查或外部动作，再记录 outcome 与证据；中断的非 runtime attempt 也通过同一结果路径记录为 `blocked`。本地 verifier 只能在 dirty-status 检查中忽略 tracked RUN；路径必须解析在 checkout 内，且执行与结果记录期间都会保护其精确字节和文件身份。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。
 - **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
 - **Activation 必须读回验证。** 外部设置留在 PLAN/RUN 之外，批准绑定精确 action digest，而且只有独立 read-back 与行为证据完成后才算 verified。

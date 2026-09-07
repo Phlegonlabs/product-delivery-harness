@@ -146,8 +146,15 @@ def protected_path_sha256(
             raise VerifierRuntimeError(
                 f"git_guard protected path must not be a symlink: {relative}"
             )
+        resolved = path.resolve(strict=False)
         try:
-            value = path.read_bytes()
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise VerifierRuntimeError(
+                f"git_guard protected path escapes the checkout: {relative}"
+            ) from exc
+        try:
+            value = resolved.read_bytes()
         except FileNotFoundError:
             protected[relative] = None
         except (IsADirectoryError, OSError) as exc:
@@ -164,10 +171,23 @@ def _protected_path_stats(
 ) -> dict[str, tuple[int, int, int, int] | None]:
     """Fingerprint protected file identity so write-then-restore is visible."""
 
+    root = checkout_root.resolve()
     stats: dict[str, tuple[int, int, int, int] | None] = {}
     for relative in sorted(set(relative_paths)):
+        path = root / relative
+        if path.is_symlink():
+            raise VerifierRuntimeError(
+                f"git_guard protected path must not be a symlink: {relative}"
+            )
+        resolved = path.resolve(strict=False)
         try:
-            value = (checkout_root / relative).lstat()
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise VerifierRuntimeError(
+                f"git_guard protected path escapes the checkout: {relative}"
+            ) from exc
+        try:
+            value = resolved.lstat()
         except FileNotFoundError:
             stats[relative] = None
         else:

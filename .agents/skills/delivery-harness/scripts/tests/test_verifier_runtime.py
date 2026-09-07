@@ -274,6 +274,36 @@ class VerifierRuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(VerifierRuntimeError, "repository-relative"):
             protected_path_sha256(self.checkout, ["C:/outside/RUN.md"])
 
+    def test_protected_path_hashes_reject_ancestor_link_escape(self) -> None:
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "RUN.md").write_text("outside\n", encoding="utf-8")
+        linked = self.checkout / "linked"
+        if os.name == "nt":
+            completed = subprocess.run(
+                [
+                    "cmd",
+                    "/c",
+                    "mklink",
+                    "/J",
+                    str(linked),
+                    str(outside),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if completed.returncode != 0:
+                self.skipTest(f"directory junction unavailable: {completed.stderr}")
+        else:
+            linked.symlink_to(outside, target_is_directory=True)
+
+        try:
+            with self.assertRaisesRegex(VerifierRuntimeError, "escapes the checkout"):
+                protected_path_sha256(self.checkout, ["linked/RUN.md"])
+        finally:
+            linked.rmdir()
+
     def test_exact_pass_reuses_equivalent_task_and_worker_declarations(self) -> None:
         counter = self.root / "counter.txt"
         task_context = cacheable_context()
