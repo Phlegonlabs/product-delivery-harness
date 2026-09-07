@@ -774,7 +774,7 @@
         Math.min(left.right, right.right) - Math.max(left.left, right.left) > 1 &&
         Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top) > 1;
 
-      const runLayoutQa = (canvas, panel, screen) => {
+      const runLayoutQa = (canvas, shell, panel, screen) => {
         requestAnimationFrame(() => {
           const regions = [...canvas.querySelectorAll(":scope > [data-region]")];
           const collisions = [];
@@ -789,9 +789,15 @@
             }
           }
           const horizontalOverflow = canvas.scrollWidth > canvas.clientWidth + 1;
+          const expectedCanvasWidth = Number(data.canvasWidths[state.responsiveTarget]);
+          const actualCanvasWidth = shell.getBoundingClientRect().width;
+          const canvasWidthMismatch = Math.abs(actualCanvasWidth - expectedCanvasWidth) > 1;
           const failures = [
             ...(collisions.length ? [`overlap: ${collisions.join(", ")}`] : []),
-            ...(horizontalOverflow ? ["horizontal overflow"] : [])
+            ...(horizontalOverflow ? ["horizontal overflow"] : []),
+            ...(canvasWidthMismatch
+              ? [`review canvas ${actualCanvasWidth}px, expected ${expectedCanvasWidth}px`]
+              : [])
           ];
           const status = failures.length ? "fail" : "pass";
           panel.setAttribute("data-layout-qa", status);
@@ -801,7 +807,7 @@
           window.wireframeQaResults ||= {};
           window.wireframeQaResults[
             `${screen.id}|${state.responsiveTarget}|${state.screenState}`
-          ] = {status, collisions, horizontalOverflow};
+          ] = {status, collisions, horizontalOverflow, canvasWidthMismatch};
         });
       };
 
@@ -872,7 +878,7 @@
         responsiveNotes.setAttribute("data-layout-qa", "pending");
         responsiveNotes.textContent = `Checking layout · ${layout.reflow} · ${layout.interaction}`;
         content.append(responsiveNotes);
-        runLayoutQa(canvas, responsiveNotes, screen);
+        runLayoutQa(canvas, shell, responsiveNotes, screen);
         const flows = renderScreenFlows(screen);
         if (flows) content.append(flows);
       };

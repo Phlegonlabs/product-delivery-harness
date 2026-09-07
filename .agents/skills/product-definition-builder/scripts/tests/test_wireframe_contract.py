@@ -189,6 +189,16 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         joined = "\n".join(validate_html(render_html(data)))
         self.assertIn("must contain exactly the responsive targets", joined)
 
+        data = wireframe_data()
+        data["canvasWidths"]["390"] = 768
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must equal its web viewport target", joined)
+
+        data = wireframe_data()
+        data["canvasWidths"]["unexpected"] = 640
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must contain exactly the responsive target keys", joined)
+
     def test_responsive_layout_cannot_hide_never_drop_regions(self):
         data = wireframe_data()
         data["screens"][0]["responsiveLayouts"]["390"]["hidden"] = ["R1"]

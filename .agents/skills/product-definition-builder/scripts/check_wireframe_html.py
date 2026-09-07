@@ -148,6 +148,16 @@ def _validate_responsive_data(
                     f"wireframe-data.canvasWidths.{target}",
                     "must be a positive numeric width",
                 )
+            elif (
+                has_viewports
+                and target in expected_keys
+                and float(width) != float(target)
+            ):
+                _add(
+                    problems,
+                    f"wireframe-data.canvasWidths.{target}",
+                    "must equal its web viewport target",
+                )
     return target_keys
 
 
