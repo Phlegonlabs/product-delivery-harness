@@ -203,6 +203,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
         (fixture_root / "legacy_ui_template_run.json").read_text(encoding="utf-8")
     )["harness_run"]
     plan["schema_version"] = 6
+    plan["ui_surfaces"][0]["breakpoints"] = ["compact", "expanded"]
     for node in plan["graph"]["nodes"]:
         review = node.get("review")
         if isinstance(review, dict):

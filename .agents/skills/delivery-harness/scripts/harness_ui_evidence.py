@@ -451,7 +451,7 @@ def validate_ui_surface_design_registry(
     size_classes = registry.get("sizeClasses")
     valid_viewports = (
         isinstance(viewports, list)
-        and bool(viewports)
+        and len(viewports) >= 2
         and all(
             isinstance(value, (int, float))
             and not isinstance(value, bool)
@@ -460,10 +460,11 @@ def validate_ui_surface_design_registry(
             for value in viewports
         )
         and len(set(viewports)) == len(viewports)
+        and all(left < right for left, right in zip(viewports, viewports[1:]))
     )
     valid_size_classes = (
         isinstance(size_classes, list)
-        and bool(size_classes)
+        and len(size_classes) >= 2
         and all(_nonempty_string(value) for value in size_classes)
         and len(set(size_classes)) == len(size_classes)
     )
@@ -477,7 +478,8 @@ def validate_ui_surface_design_registry(
         _add(
             errors,
             "design_system",
-            "must define exactly one non-empty unique responsive set: viewports or sizeClasses",
+            "must define exactly one non-empty unique responsive set with at least "
+            "two targets: viewports or sizeClasses",
         )
     elif has_viewports:
         responsive_kind = "viewports"
@@ -534,18 +536,37 @@ def validate_ui_surface_design_registry(
                     for breakpoint in covered_breakpoints
                 )
             ]
+            extra_responsive = [
+                breakpoint
+                for breakpoint in covered_breakpoints
+                if not any(
+                    _breakpoint_matches_viewport(breakpoint, value)
+                    for value in responsive_values
+                )
+            ]
         elif responsive_kind == "sizeClasses":
             missing_responsive = [
                 value for value in responsive_values if value not in covered_breakpoints
             ]
+            extra_responsive = [
+                value for value in covered_breakpoints if value not in responsive_values
+            ]
         else:
             missing_responsive = []
+            extra_responsive = []
         for responsive_value in missing_responsive:
             _add(
                 errors,
                 plan_path,
                 f"surface {surface_label} route {route} omits responsive target "
                 f"{responsive_value} required by design-system.json",
+            )
+        for responsive_value in extra_responsive:
+            _add(
+                errors,
+                plan_path,
+                f"surface {surface_label} route {route} adds responsive target "
+                f"{responsive_value} absent from design-system.json",
             )
     return errors
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import subprocess
 import sys
@@ -44,6 +45,10 @@ PRD_ROUTE_RE = re.compile(
 )
 PRD_STATES_RE = re.compile(
     r"^\s*-\s*`states`\s*:\s*(.+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+PRD_RESPONSIVE_RE = re.compile(
+    r"^\s*-\s*`responsive`\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
 PRD_MACHINE_BLOCK_RE = re.compile(
@@ -119,10 +124,50 @@ def normalized_state(value: str) -> str:
     return state
 
 
+def normalized_responsive(
+    value: str,
+) -> tuple[str | None, list[str], str | None]:
+    kind, separator, raw_values = value.strip().partition(":")
+    if not separator or kind not in {"viewports", "sizeClasses"}:
+        return (
+            None,
+            [],
+            "must use `viewports: ...` for web or `sizeClasses: ...` "
+            "for native or desktop",
+        )
+    values = contract_values(raw_values)
+    normalized: list[str] = []
+    if kind == "viewports":
+        for item in values:
+            try:
+                number = float(item)
+            except ValueError:
+                return None, [], f"contains non-numeric viewport {item!r}"
+            if not math.isfinite(number) or number <= 0:
+                return None, [], f"contains invalid viewport {item!r}"
+            normalized.append(str(int(number)) if number.is_integer() else str(number))
+    else:
+        normalized = values
+    if len(normalized) < 2:
+        return kind, normalized, "must declare at least two responsive targets"
+    if len(normalized) != len(set(normalized)):
+        return kind, normalized, "must not contain duplicate responsive targets"
+    if kind == "viewports" and any(
+        float(left) >= float(right)
+        for left, right in zip(normalized, normalized[1:])
+    ):
+        return kind, normalized, "must list viewports in ascending order"
+    return kind, normalized, None
+
+
+def breakpoint_matches_viewport(breakpoint: str, viewport: str) -> bool:
+    return re.search(rf"(?:^|[-_\s]){re.escape(viewport)}$", breakpoint) is not None
+
+
 def parse_prd_ui_contract(
     prd_text: str,
-) -> tuple[dict[str, dict[str, list[str]]], list[str]]:
-    """Read invariant UI IDs, routes, and states from a localized PRD."""
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Read invariant UI IDs, routes, states, and responsive sets from a PRD."""
 
     blocks = list(PRD_MACHINE_BLOCK_RE.finditer(prd_text))
     start_count = len(
@@ -166,7 +211,7 @@ def parse_prd_ui_contract(
     headings = list(PRD_UI_HEADING_RE.finditer(body))
     if blocks and not headings:
         errors.append("prd: ui-surface-contract boundary contains no UI surface entries")
-    entries: dict[str, dict[str, list[str]]] = {}
+    entries: dict[str, dict[str, Any]] = {}
     for index, heading in enumerate(headings):
         surface_id = heading.group(1)
         if surface_id in entries:
@@ -178,6 +223,7 @@ def parse_prd_ui_contract(
         surface_block = body[heading.end() : block_end]
         route_matches = list(PRD_ROUTE_RE.finditer(surface_block))
         states_matches = list(PRD_STATES_RE.finditer(surface_block))
+        responsive_matches = list(PRD_RESPONSIVE_RE.finditer(surface_block))
         routes = (
             contract_values(route_matches[0].group(1))
             if len(route_matches) == 1
@@ -208,7 +254,27 @@ def parse_prd_ui_contract(
             )
         if not states:
             errors.append(f"prd: UI surface {surface_id} has no states value")
-        entries[surface_id] = {"routes": routes, "states": states}
+        responsive_kind: str | None = None
+        responsive_targets: list[str] = []
+        if len(responsive_matches) > 1:
+            errors.append(
+                f"prd: UI surface {surface_id} requires exactly one `responsive` "
+                f"anchor; found {len(responsive_matches)}"
+            )
+        elif len(responsive_matches) == 1:
+            responsive_kind, responsive_targets, responsive_error = normalized_responsive(
+                responsive_matches[0].group(1)
+            )
+            if responsive_error:
+                errors.append(
+                    f"prd: UI surface {surface_id} `responsive` {responsive_error}"
+                )
+        entries[surface_id] = {
+            "routes": routes,
+            "states": states,
+            "responsiveKind": responsive_kind,
+            "responsiveTargets": responsive_targets,
+        }
     return entries, errors
 
 
@@ -271,6 +337,44 @@ def validate_plan_prd_text(plan: dict[str, Any], prd_text: str) -> list[str]:
                 f"plan.ui_surfaces: surface {surface_id} states "
                 f"{sorted(plan_states)} differ from the PRD states {sorted(prd_states)}"
             )
+        plan_breakpoints = [
+            value.strip()
+            for value in (plan_surface.get("breakpoints") or [])
+            if isinstance(value, str) and value.strip()
+        ]
+        responsive_kind = prd_surface["responsiveKind"]
+        responsive_targets = prd_surface["responsiveTargets"]
+        if responsive_kind == "viewports":
+            missing = [
+                target
+                for target in responsive_targets
+                if not any(
+                    breakpoint_matches_viewport(breakpoint, target)
+                    for breakpoint in plan_breakpoints
+                )
+            ]
+            extras = [
+                breakpoint
+                for breakpoint in plan_breakpoints
+                if not any(
+                    breakpoint_matches_viewport(breakpoint, target)
+                    for target in responsive_targets
+                )
+            ]
+        elif responsive_kind == "sizeClasses":
+            missing = sorted(set(responsive_targets) - set(plan_breakpoints))
+            extras = sorted(set(plan_breakpoints) - set(responsive_targets))
+        else:
+            missing = []
+            extras = []
+        if responsive_kind and (
+            missing or extras or len(plan_breakpoints) != len(responsive_targets)
+        ):
+            errors.append(
+                f"plan.ui_surfaces: surface {surface_id} breakpoints "
+                f"{sorted(plan_breakpoints)} differ from the PRD responsive targets "
+                f"{responsive_kind} {sorted(responsive_targets)}"
+            )
     return errors
 
 
@@ -305,6 +409,11 @@ def validate_plan_wireframe_data(
 ) -> list[str]:
     plan_surfaces = _plan_surfaces(plan)
     screens, errors = _wireframe_screens(data)
+    responsive_kind = "viewports" if "viewports" in data else "sizeClasses"
+    responsive_targets = [
+        str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+        for value in (data.get(responsive_kind) or [])
+    ]
     for missing in sorted(set(plan_surfaces) - set(screens)):
         errors.append(f"plan.ui_surfaces: surface {missing} has no wireframes.html screen")
     for extra in sorted(set(screens) - set(plan_surfaces)):
@@ -330,6 +439,32 @@ def validate_plan_wireframe_data(
                 f"{sorted(plan_states)} differ from the wireframe states "
                 f"{sorted(wireframe_states)}"
             )
+        plan_breakpoints = [
+            value.strip()
+            for value in (surface.get("breakpoints") or [])
+            if isinstance(value, str) and value.strip()
+        ]
+        if responsive_kind == "viewports":
+            matches = (
+                len(plan_breakpoints) == len(responsive_targets)
+                and all(
+                    any(
+                        breakpoint_matches_viewport(breakpoint, target)
+                        for breakpoint in plan_breakpoints
+                    )
+                    for target in responsive_targets
+                )
+            )
+        else:
+            matches = set(plan_breakpoints) == set(responsive_targets) and len(
+                plan_breakpoints
+            ) == len(responsive_targets)
+        if not matches:
+            errors.append(
+                f"plan.ui_surfaces: surface {surface_id} breakpoints "
+                f"{sorted(plan_breakpoints)} differ from the wireframe responsive "
+                f"targets {responsive_kind} {sorted(responsive_targets)}"
+            )
     return errors
 
 
@@ -337,6 +472,11 @@ def validate_prd_wireframe_data(prd_text: str, data: dict[str, Any]) -> list[str
     prd_surfaces, errors = parse_prd_ui_contract(prd_text)
     screens, screen_errors = _wireframe_screens(data)
     errors.extend(screen_errors)
+    responsive_kind = "viewports" if "viewports" in data else "sizeClasses"
+    responsive_targets = [
+        str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+        for value in (data.get(responsive_kind) or [])
+    ]
     prd_ids = set(prd_surfaces)
     screen_ids = set(screens)
     missing = sorted(prd_ids - screen_ids)
@@ -361,6 +501,16 @@ def validate_prd_wireframe_data(prd_text: str, data: dict[str, Any]) -> list[str
             errors.append(
                 f"wireframes: screen {surface_id} states {sorted(wireframe_states)} "
                 f"differ from the PRD states {sorted(prd_states)}"
+            )
+        prd_kind = prd_surfaces[surface_id]["responsiveKind"]
+        prd_targets = prd_surfaces[surface_id]["responsiveTargets"]
+        if prd_kind and (
+            prd_kind != responsive_kind or prd_targets != responsive_targets
+        ):
+            errors.append(
+                f"wireframes: screen {surface_id} responsive set "
+                f"{responsive_kind} {responsive_targets} differs from the PRD "
+                f"{prd_kind} {prd_targets}"
             )
     return errors
 

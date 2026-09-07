@@ -116,7 +116,7 @@ Record every applicable quality category as a measurable `PRD-*` requirement, or
 
 Omit this section only when the product has no shipped UI surface. Define one entry per addressable screen or bounded UI surface. This is the canonical implementation source for structure and behavior.
 
-The two HTML comments, each `UI-*` heading, and the backticked `` `route` `` and `` `states` `` field names are invariant machine anchors. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it, and each entry contains exactly one `route` anchor and one `states` anchor. Keep them unchanged when the surrounding PRD is written in another language. Each entry has exactly one literal route; use a separate `UI-*` entry when another addressable route needs the same presentation.
+The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `states` ``, and `` `responsive` `` field names are invariant machine anchors. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it, and each entry contains exactly one of each anchor. Keep them unchanged when the surrounding PRD is written in another language. Each entry has exactly one literal route; use a separate `UI-*` entry when another addressable route needs the same presentation.
 
 ### UI-001 — [Surface name]
 
@@ -126,7 +126,8 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` `` and
 - Region order and responsibilities: [Ordered visible regions; exact copy or bounded display contract for each]
 - Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
 - `states`: [Comma-separated state IDs. Record an inapplicable state as `<state>:n/a — <reason>` so the PLAN join can preserve the decision]
-- Responsive behavior: [Order, stacking, never-drop content, and platform-specific behavior]
+- `responsive`: [Exactly one responsive set with at least two targets: `viewports: 390, 768, 1200` for web or `sizeClasses: compact, regular` for native/desktop. Every UI-* entry in one package uses the same set]
+- Responsive behavior: [For every declared target: order, grid/stacking, visibility, never-drop content/actions, interaction-mode changes, long-content handling, and intended-overlay stacking/focus/dismissal behavior]
 - Accessibility: [Focus, labels, announcements, heading order, and alt text as applicable]
 - SEO metadata: [Per-route `<title>` and meta description; canonical URL or `n/a — <reason>`; Open Graph/social, robots, and structured-data decisions as applicable or `n/a — <reason>`]
 - Trace IDs: [PRD-*, UX-*, ARCH-*, TEST-*]
@@ -201,7 +202,9 @@ Artifact: [wireframes.html path]
 
 Decision: [approved / revision_requested / blocked], decided by [human owner] on [YYYY-MM-DD]
 
-Approved scope: [UI-* entries, routes, viewports or size classes, and states]
+Approved scope: [UI-* entries, routes, the exact `responsive` viewports or size classes, and states]
+
+Responsive browser check: [Browser and date; PASS for every UI-* × responsive target × non-n/a state with no unintended overlap, clipping, occlusion, or horizontal overflow; intended overlays and their stacking/focus/dismissal rule]
 
 Bounded revisions or unresolved items: [None / named items]
 
@@ -229,7 +232,7 @@ Color & dark mode: [Palette derivation and named scale approach with cited sourc
 
 | UI target | Source path or immutable version | SHA-256 | Routes / states | Responsive scope | Tolerance and allowed deviations |
 | --- | --- | --- | --- | --- | --- |
-| [Preview ID] | [Path or version] | [Digest] | [UI-* and states] | [Viewports or size classes] | [Comparison method, tolerance, real-data/platform-chrome allowances] |
+| [Preview ID] | [Path or version] | [Digest] | [UI-* and states] | [Exact PRD viewports or size classes plus browser matrix evidence] | [Comparison method, tolerance, real-data/platform-chrome allowances; named stacking/focus/dismissal behavior for intentional overlays] |
 
 Preview route and evidence: [HTML/React, image-generation skill, or external provider; provider/model; prompt or source; seed when supported; limitations]
 
@@ -252,10 +255,12 @@ It must be one self-contained local file containing:
 
 1. every `UI-*` page or shipped surface;
 2. an all-pages overview and page/route switcher;
-3. expanded/desktop and compact/mobile or alternate-size-class views;
+3. data-driven controls for the exact PRD responsive set, with at least two web viewports or native/desktop size classes;
 4. required state switching for each page;
-5. visible product-fit section names plus purpose, priority, elements, actions, and state treatment; and
-6. approval status that agrees with `PRD.md`'s `### Wireframe Approval`.
+5. complete per-target order, visibility, grid spans, reflow, and interaction rules for every page;
+6. visible product-fit section names plus purpose, priority, elements, actions, and state treatment;
+7. runtime region-overlap and horizontal-overflow QA for the selected matrix entry; and
+8. approval status that agrees with `PRD.md`'s `### Wireframe Approval`.
 
 The embedded page data must agree exactly with `PRD.md`; `PRD.md` wins on conflict. The data block may also project the optional `flows`, `UX-*` traces, and element display contracts described in `wireframe-guide.md`; they inherit the same agreement rule. Use inline CSS and JavaScript only for the low-fidelity review shell. Make no external request and include no production component, brand styling, high-fidelity visual direction, generated imagery, or design-system token decision. Human approval completes the wireframe phase; do not start visual design or implementation unless separately requested.
 
@@ -681,7 +686,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - `## Test Obligations` is always present after `## Open Questions` and before the trailing Builder UX decision. Its rows use stable `TEST-*` IDs and include obligation, test type, required status, upstream trace IDs, and an expected signal.
 - Every `Must` functional requirement and every applicable non-functional requirement maps to at least one `TEST-*` row marked `Required: Yes`. No required obligation is left as anonymous prose.
 - For a UI-bearing product, `PRD.md` records the human Builder UX Direction owner and concrete choices for experience priority, guidance/control, information density, interaction/layout, confirmation/recovery, validation depth, and decision status.
-- For a UI-bearing product, `wireframes.html` maps every `UI-*` entry exactly once in one self-contained file with working overview, page, viewport, state, and section-label controls. It contains no high-fidelity styling or product implementation code, agrees with `PRD.md`, passes `wireframe-guide.md`'s quality check and `check_wireframe_html.py --require-filled --require-approved`, and has one human `approved` decision recorded in `PRD.md` before the wireframe phase completes. `PRD.md`'s `### Wireframe Approval` records either the consulted wireframe references or the reason the Reference Pass was skipped.
+- For a UI-bearing product, `wireframes.html` maps every `UI-*` entry exactly once in one self-contained `wireframes/2` file with working overview, page, responsive-target, state, section-label, and runtime layout-QA controls. Every PRD entry has exactly one `` `responsive` `` anchor; its set matches the HTML, contains at least two platform-appropriate targets, and every screen supplies complete per-target order, visibility, columns, spans, reflow, and interaction rules. It contains no high-fidelity styling or product implementation code, agrees with `PRD.md`, passes `wireframe-guide.md`'s quality check and `check_wireframe_html.py --require-filled --require-approved`, and has one human `approved` decision recorded in `PRD.md` before the wireframe phase completes. The approval record includes the real-browser matrix result: no unintended overlap, clipping, occlusion, or horizontal overflow at any UI surface, responsive target, or non-`n/a` state, with every intentional overlay's stacking, focus, and dismissal rule named. `PRD.md`'s `### Wireframe Approval` also records either the consulted wireframe references or the reason the Reference Pass was skipped.
 - An enhancement package records its UI-impact classification — `none`, `structure`, `style`, or `both`. When the impact is `structure` or `both`, the refreshed `### Wireframe Approval` covers the changed `UI-*` scope. When it is `style` or `both`, the package carries the owner's recorded decision to re-run the UI Design Pass or keep the existing direction; a style-impacting enhancement with an unchanged handoff or design-system pair and no recorded owner decision does not validate.
 - A wireframe-only package records `Visual design phase: not requested` and validates without Taste, preview evidence, a UI Design Handoff, a Design System Need Gate, or design-system artifacts. When visual design was explicitly requested, `PRD.md` records those later decisions and evidence, and the `### UI Design Handoff` carries an `Iconography:` line recording the recommended set with cited sources or an explicit skip, `UNVALIDATED`, or no-icons reason, a `Typography:` line recording the pairing, CJK stack, and loading strategy or an explicit skip or `UNVALIDATED` reason, and a `Color & dark mode:` line recording the palette derivation and dark-mode scope — a visual package missing any of these three lines does not validate.
 - Builder preference is not presented as user validation. Conflicts with user evidence or accessibility requirements remain explicit hypotheses, validation needs, or open questions.

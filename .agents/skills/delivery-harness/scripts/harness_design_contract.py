@@ -93,7 +93,7 @@ def validate_design_system_registry(registry: dict[str, Any]) -> list[str]:
     size_classes = registry.get("sizeClasses")
     valid_viewports = (
         isinstance(viewports, list)
-        and bool(viewports)
+        and len(viewports) >= 2
         and all(
             isinstance(value, (int, float))
             and not isinstance(value, bool)
@@ -102,10 +102,11 @@ def validate_design_system_registry(registry: dict[str, Any]) -> list[str]:
             for value in viewports
         )
         and len(set(viewports)) == len(viewports)
+        and all(left < right for left, right in zip(viewports, viewports[1:]))
     )
     valid_size_classes = (
         isinstance(size_classes, list)
-        and bool(size_classes)
+        and len(size_classes) >= 2
         and all(isinstance(value, str) and bool(value.strip()) for value in size_classes)
         and len(set(size_classes)) == len(size_classes)
     )
@@ -116,7 +117,8 @@ def validate_design_system_registry(registry: dict[str, Any]) -> list[str]:
     ):
         problems.append(
             "design-system.json must declare exactly one non-empty unique responsive "
-            "set: positive numeric viewports or string sizeClasses"
+            "set with at least two targets: ascending positive numeric viewports or string "
+            "sizeClasses"
         )
     platform = registry.get("platform")
     if not isinstance(platform, str) or not platform.strip():

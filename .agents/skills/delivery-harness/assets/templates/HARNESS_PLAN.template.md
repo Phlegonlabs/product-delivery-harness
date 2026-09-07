@@ -238,8 +238,8 @@ Use immutable flat task IDs such as `M1/T01`. Each task has a structured accepta
 | Source | Path / URL | Content SHA-256 / immutable revision | Status | Role / notes |
 |---|---|---|---|---|
 | Product requirements | <path> | <hash or revision> | draft / frozen / delta_accepted / missing / n/a | <notes> |
-| Approved wireframe | <wireframes.html path> | <hash or revision> | draft / approved / delta_accepted / missing / n/a | <UI-* coverage, labels, viewport/state controls, and PRD approval> |
-| UI Design Handoff / approved target | <PRD section and target path/version> | <PRD and target hashes> | approved / provisional / blocked / n/a | <Design System Need Gate, scope, states, responsive set, tolerance> |
+| Approved wireframe | <wireframes.html path> | <hash or revision> | draft / approved / delta_accepted / missing / n/a | <UI-* coverage, labels, exact responsive set, browser layout QA, and PRD approval> |
+| UI Design Handoff / approved target | <PRD section and target path/version> | <PRD and target hashes> | approved / provisional / blocked / n/a | <Design System Need Gate, scope, states, exact responsive set, browser matrix, tolerance> |
 | Architecture / API / data | <path> | <hash or revision> | draft / frozen / missing / n/a | <notes> |
 | Design system pair | <path> | <hash or revision> | draft / frozen / missing / n/a | <required only when the Design System Need Gate is required> |
 

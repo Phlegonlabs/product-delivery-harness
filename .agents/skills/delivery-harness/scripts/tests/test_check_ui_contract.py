@@ -33,7 +33,7 @@ REGISTRY = {
     },
     "primitiveSources": ["ui/primitives.css"],
     "motionVariants": ["fade"],
-    "viewports": [390],
+    "viewports": [390, 1200],
 }
 
 
@@ -125,7 +125,14 @@ class RegistryLoadingTests(unittest.TestCase):
             load_design_system(self.registry(data))
 
     def test_registry_rejects_invalid_viewport_values(self) -> None:
-        for values in ([0, 768], [True, 768], [390, 390], [float("inf")]):
+        for values in (
+            [390],
+            [0, 768],
+            [True, 768],
+            [390, 390],
+            [768, 390],
+            [float("inf")],
+        ):
             with self.subTest(values=values):
                 data = dict(REGISTRY, viewports=values)
                 with self.assertRaises(UiContractError):
@@ -138,7 +145,12 @@ class RegistryLoadingTests(unittest.TestCase):
             load_design_system(self.registry(data))
 
     def test_registry_rejects_empty_or_duplicate_size_classes(self) -> None:
-        for values in ([], ["compact", "compact"], ["compact", " "]):
+        for values in (
+            [],
+            ["compact"],
+            ["compact", "compact"],
+            ["compact", " "],
+        ):
             with self.subTest(values=values):
                 data = dict(REGISTRY, sizeClasses=values)
                 del data["viewports"]

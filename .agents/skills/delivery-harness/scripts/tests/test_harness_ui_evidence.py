@@ -539,7 +539,7 @@ class UiSurfaceDesignCoverageTests(unittest.TestCase):
             "id": surface_id,
             "trace_ids": ["REQ-001"],
             "route": route,
-            "breakpoints": breakpoints or ["mobile-390"],
+            "breakpoints": breakpoints or ["mobile-390", "desktop-1200"],
             "states": states or ["ready"],
             "evidence_gate": "required",
         }
@@ -557,6 +557,13 @@ class UiSurfaceDesignCoverageTests(unittest.TestCase):
         surfaces[0]["breakpoints"] = ["desktop-1390", "tablet_768.5"]
         errors = self.validate(surfaces, registry)
         self.assertTrue(any("responsive target 390" in error for error in errors), errors)
+
+        surfaces[0]["breakpoints"] = ["mobile-390", "tablet_768.5", "wide-1200"]
+        errors = self.validate(surfaces, registry)
+        self.assertTrue(
+            any("adds responsive target wide-1200" in error for error in errors),
+            errors,
+        )
 
     def test_native_size_classes_require_exact_membership(self) -> None:
         registry = {
@@ -579,6 +586,9 @@ class UiSurfaceDesignCoverageTests(unittest.TestCase):
     def test_responsive_registry_requires_exactly_one_nonempty_unique_set(self) -> None:
         invalid_registries = (
             {"stateMatrix": ["ready"]},
+            {"viewports": [390], "stateMatrix": ["ready"]},
+            {"viewports": [1200, 390], "stateMatrix": ["ready"]},
+            {"sizeClasses": ["compact"], "stateMatrix": ["ready"]},
             {
                 "viewports": [390],
                 "sizeClasses": ["compact"],
@@ -605,14 +615,17 @@ class UiSurfaceDesignCoverageTests(unittest.TestCase):
     def test_state_matrix_must_be_a_nonempty_string_list(self) -> None:
         for bad in ({}, {"stateMatrix": []}, {"stateMatrix": ["ready", " "]}, {"stateMatrix": "ready"}):
             with self.subTest(registry=bad):
-                registry = dict(bad, viewports=[390])
+                registry = dict(bad, viewports=[390, 1200])
                 errors = self.validate([self.surface("home")], registry)
                 self.assertTrue(
                     any("stateMatrix" in error for error in errors), errors
                 )
 
     def test_an_explicit_na_marker_covers_an_inapplicable_state(self) -> None:
-        registry = {"viewports": [390], "stateMatrix": ["ready", "offline"]}
+        registry = {
+            "viewports": [390, 1200],
+            "stateMatrix": ["ready", "offline"],
+        }
         covered = self.validate(
             [self.surface("home", states=["ready", "offline:n/a — always online"])],
             registry,

@@ -225,6 +225,7 @@ async function agent(_prompt, options) {
         self.assertIn("<!-- ui-surface-contract:end -->", contract)
         self.assertIn("- `route`: [One literal route value", contract)
         self.assertIn("- `states`: [Comma-separated state IDs", contract)
+        self.assertIn("- `responsive`: [Exactly one responsive set", contract)
         self.assertIn("invariant machine anchors", contract)
         self.assertNotIn("wireframes.md", contract)
         self.assertIn("Wireframe Approval Gate", skill)
@@ -269,8 +270,15 @@ async function agent(_prompt, options) {
             '<script id="wireframe-data" type="application/json">', 1
         )[1].split("</script>", 1)[0]
         data = json.loads(payload)
+        self.assertEqual(data["schema"], "wireframes/2")
+        self.assertGreaterEqual(len(data["viewports"]), 2)
+        self.assertEqual(
+            set(data["canvasWidths"]), {str(value) for value in data["viewports"]}
+        )
         self.assertEqual([screen["id"] for screen in data["screens"]], ["UI-001", "UI-002"])
-        self.assertIn('data-viewport="expanded"', html_template)
+        self.assertIn('id="responsive-controls"', html_template)
+        self.assertIn("responsiveLayouts", html_template)
+        self.assertIn("runLayoutQa", html_template)
         self.assertIn('id="state-controls"', html_template)
         self.assertIn('id="page-list"', html_template)
         self.assertIn("All pages", html_template)
@@ -278,6 +286,13 @@ async function agent(_prompt, options) {
         self.assertIn("textContent", html_template)
         self.assertNotIn("https://", html_template)
         self.assertIn("wireframes_html_data_json", workflow)
+        self.assertIn("wireframes/2", workflow)
+        for screen in data["screens"]:
+            self.assertTrue(screen["neverDrop"])
+            self.assertEqual(
+                set(screen["responsiveLayouts"]),
+                {str(value) for value in data["viewports"]},
+            )
 
         checker = SKILL_ROOT / "scripts/check_wireframe_html.py"
         result = subprocess.run(
@@ -352,6 +367,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — 儀表板\n\n"
                 "- `route`: /\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -374,6 +390,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /different\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -397,6 +414,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /\n"
                 "- `states`: ready, empty\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -420,9 +438,11 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /\n"
                 "- `states`: ready\n\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "### UI-002 — Settings\n\n"
                 "- `route`: /settings\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -448,6 +468,7 @@ async function agent(_prompt, options) {
             "### UI-001 — 儀表板\n\n"
             "- `route`: /\n"
             "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 1200\n"
             "<!-- ui-surface-contract:end -->\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -479,7 +500,8 @@ async function agent(_prompt, options) {
                     "<!-- ui-surface-contract:end -->\n"
                     "### UI-001 — Outside\n\n"
                     "- `route`: /\n"
-                    "- `states`: ready\n",
+                    "- `states`: ready\n"
+                    "- `responsive`: viewports: 390, 1200\n",
                     "headings outside the ui-surface-contract boundary",
                 ),
                 (
@@ -516,9 +538,12 @@ async function agent(_prompt, options) {
 
     def minimal_wireframe_data(self) -> dict:
         return {
+            "schema": "wireframes/2",
             "product": "P",
             "approvalStatus": "draft",
             "source": "PRD.md#UI-Surface-Contract",
+            "viewports": [390, 1200],
+            "canvasWidths": {"390": 390, "1200": 1200},
             "screens": [
                 {
                     "id": "UI-001",
@@ -541,7 +566,25 @@ async function agent(_prompt, options) {
                             "traces": ["UX-001"],
                         }
                     ],
-                    "compactOrder": ["r1"],
+                    "neverDrop": ["r1"],
+                    "responsiveLayouts": {
+                        "390": {
+                            "order": ["r1"],
+                            "hidden": [],
+                            "columns": 1,
+                            "spans": {"r1": 1},
+                            "reflow": "Stack in one column",
+                            "interaction": "Use touch-sized controls",
+                        },
+                        "1200": {
+                            "order": ["r1"],
+                            "hidden": [],
+                            "columns": 12,
+                            "spans": {"r1": 12},
+                            "reflow": "Use the expanded grid",
+                            "interaction": "Support pointer and keyboard input",
+                        },
+                    },
                     "states": [{"id": "ready", "label": "Ready", "treatments": {}}],
                 }
             ],
@@ -668,6 +711,10 @@ async function agent(_prompt, options) {
         self.assertIn("imagegen-frontend-mobile", guide)
         self.assertIn("provider/model", guide)
         self.assertIn("Optional `brandkit` exploration", guide)
+        self.assertIn("## Responsive Browser Gate", guide)
+        self.assertIn("unintended overlap, clipping, occlusion", guide)
+        self.assertIn("Browser unavailability blocks approval", guide)
+        self.assertIn("Responsive browser check:", contract)
         self.assertIn("An approved preview becomes an implementation target", guide)
         self.assertIn("## Design System Need Gate", guide)
 
@@ -2012,7 +2059,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn(
             "A web or cross-platform surface uses one self-contained "
-            "high-fidelity file per representative `UI-*` screen",
+            "high-fidelity file per `UI-*` screen",
             guide,
         )
         self.assertNotIn("one multi-page file when the owner prefers", guide)

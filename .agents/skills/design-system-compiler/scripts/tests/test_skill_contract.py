@@ -179,6 +179,21 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("scripts/check_color_contrast.py", skill)
         self.assertIn("scripts/check_type_scale.py", skill)
 
+    def test_responsive_contract_matches_approved_sources_and_blocks_overlap(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/design-system-guide.md")
+        contract = self.read("references/output-contract.md")
+        template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
+        template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
+
+        for content in (skill, guide, contract, template_md, template_json):
+            self.assertIn("at least two", content)
+        self.assertIn("matches the PRD and approved wireframe set", skill)
+        self.assertIn("Copy the exact approved PRD and wireframe set", guide)
+        self.assertIn("Unintended overlap, clipping, occlusion", guide)
+        self.assertIn("passing browser-matrix evidence", contract)
+        self.assertIn("named stacking, focus, and dismissal", template_md)
+
 
 if __name__ == "__main__":
     unittest.main()
