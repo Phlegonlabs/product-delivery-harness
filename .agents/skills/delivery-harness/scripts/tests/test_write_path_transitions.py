@@ -834,7 +834,7 @@ class WritePathTransitionTests(unittest.TestCase):
                 "id": "UI-001",
                 "trace_ids": ["REQ-001"],
                 "route": "/home",
-                "breakpoints": ["390"],
+                "breakpoints": ["390", "1200"],
                 "states": ["ready"],
                 "evidence_gate": "required",
             }
@@ -846,6 +846,7 @@ class WritePathTransitionTests(unittest.TestCase):
             "### UI-001 — Home\n\n"
             "- `route`: /home\n"
             "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 1200\n"
             "<!-- ui-surface-contract:end -->\n"
         )
         prd_path.write_text(prd_text, encoding="utf-8")

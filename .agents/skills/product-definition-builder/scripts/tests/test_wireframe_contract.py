@@ -17,9 +17,12 @@ prd_ui_contract = importlib.import_module("prd_ui_contract")
 
 def wireframe_data(**overrides):
     data = {
+        "schema": "wireframes/2",
         "product": "Test Product",
         "approvalStatus": "approved",
         "source": "PRD.md#UI-Surface-Contract",
+        "viewports": [390, 1200],
+        "canvasWidths": {"390": 390, "1200": 1200},
         "screens": [
             {
                 "id": "UI-001",
@@ -37,7 +40,25 @@ def wireframe_data(**overrides):
                         "actions": ["Refresh"],
                     }
                 ],
-                "compactOrder": ["R1"],
+                "neverDrop": ["R1"],
+                "responsiveLayouts": {
+                    "390": {
+                        "order": ["R1"],
+                        "hidden": [],
+                        "columns": 1,
+                        "spans": {"R1": 1},
+                        "reflow": "Stack the summary in one column",
+                        "interaction": "Use touch-sized controls",
+                    },
+                    "1200": {
+                        "order": ["R1"],
+                        "hidden": [],
+                        "columns": 12,
+                        "spans": {"R1": 6},
+                        "reflow": "Keep the summary in the first six columns",
+                        "interaction": "Support pointer and keyboard input",
+                    },
+                },
                 "states": [
                     {
                         "id": "ready",
@@ -59,14 +80,20 @@ def render_html(data):
         "<!doctype html><html><head><title>Wireframes</title></head><body>"
         '<script id="wireframe-data" type="application/json">' + payload + "</script>"
         '<nav id="page-list">All pages</nav>'
+        '<div id="responsive-controls" data-responsive-target="390"></div>'
         '<div id="state-controls">textContent</div>'
-        '<section data-viewport="expanded"></section>'
-        '<section data-viewport="compact"></section>'
+        '<div data-layout-qa="pass"></div>'
+        '<script>function runLayoutQa(){}</script>'
         "</body></html>"
     )
 
 
-def prd_markdown(route="/home", states="ready", surface_id="UI-001"):
+def prd_markdown(
+    route="/home",
+    states="ready",
+    responsive="viewports: 390, 1200",
+    surface_id="UI-001",
+):
     return (
         "# PRD\n\n"
         "<!-- ui-surface-contract:start -->\n"
@@ -74,6 +101,7 @@ def prd_markdown(route="/home", states="ready", surface_id="UI-001"):
         f"### {surface_id} — Home\n\n"
         f"- `route`: {route}\n"
         f"- `states`: {states}\n"
+        f"- `responsive`: {responsive}\n"
         "<!-- ui-surface-contract:end -->\n"
     )
 
@@ -99,6 +127,26 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
     def test_missing_data_block_is_reported(self):
         problems = validate_html("<html><body><p>no data block here</p></body></html>")
         self.assertTrue(any("missing wireframe-data" in p for p in problems))
+
+    def test_non_object_data_fails_cleanly_under_strict_flags(self):
+        self.assertEqual(
+            validate_html(render_html([]), require_approved=True),
+            ["wireframe-data: must be a JSON object"],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            html_path = Path(directory) / "wireframes.html"
+            prd_path = Path(directory) / "PRD.md"
+            html_path.write_text(render_html(["not", "an", "object"]), encoding="utf-8")
+            prd_path.write_text(prd_markdown(), encoding="utf-8")
+
+            problems = check_wireframe_html.validate(
+                html_path,
+                require_filled=True,
+                require_approved=True,
+                prd_path=prd_path,
+            )
+
+        self.assertEqual(problems, ["wireframe-data: must be a JSON object"])
 
     def test_external_resources_are_rejected(self):
         html = render_html(wireframe_data()).replace(
@@ -140,11 +188,42 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         data = wireframe_data()
         data["screens"][0]["regions"][0]["priority"] = "mega"
         data["screens"][0]["regions"][0]["span"] = 13
-        data["screens"][0]["compactOrder"] = []
+        data["screens"][0]["responsiveLayouts"]["390"]["order"] = []
         joined = "\n".join(validate_html(render_html(data)))
         self.assertIn("regions[0].priority", joined)
         self.assertIn("regions[0].span", joined)
-        self.assertIn("compactOrder", joined)
+        self.assertIn("responsiveLayouts.390.order", joined)
+
+    def test_responsive_contract_requires_two_complete_targets(self):
+        data = wireframe_data()
+        data["viewports"] = [390]
+        data["canvasWidths"] = {"390": 390}
+        data["screens"][0]["responsiveLayouts"] = {
+            "390": data["screens"][0]["responsiveLayouts"]["390"]
+        }
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("at least two unique targets", joined)
+
+        data = wireframe_data()
+        del data["screens"][0]["responsiveLayouts"]["1200"]
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must contain exactly the responsive targets", joined)
+
+        data = wireframe_data()
+        data["canvasWidths"]["390"] = 768
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must equal its web viewport target", joined)
+
+        data = wireframe_data()
+        data["canvasWidths"]["unexpected"] = 640
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must contain exactly the responsive target keys", joined)
+
+    def test_responsive_layout_cannot_hide_never_drop_regions(self):
+        data = wireframe_data()
+        data["screens"][0]["responsiveLayouts"]["390"]["hidden"] = ["R1"]
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must not hide never-drop regions", joined)
 
     def test_prd_join_passes_on_matching_contract(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -168,6 +247,41 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
             self.assertTrue(any("differs from the PRD route" in p for p in problems))
 
+    def test_prd_join_detects_responsive_set_mismatch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            html_path = Path(directory) / "wireframes.html"
+            prd_path = Path(directory) / "PRD.md"
+            html_path.write_text(render_html(wireframe_data()), encoding="utf-8")
+            prd_path.write_text(
+                prd_markdown(responsive="viewports: 390, 768"),
+                encoding="utf-8",
+            )
+            problems = check_wireframe_html.validate(html_path, prd_path=prd_path)
+            self.assertTrue(any("responsive set" in problem for problem in problems))
+
+    def test_native_size_classes_pass_with_complete_layouts(self):
+        data = wireframe_data()
+        del data["viewports"]
+        data["sizeClasses"] = ["compact", "regular"]
+        data["canvasWidths"] = {"compact": 390, "regular": 768}
+        layouts = data["screens"][0]["responsiveLayouts"]
+        data["screens"][0]["responsiveLayouts"] = {
+            "compact": layouts["390"],
+            "regular": layouts["1200"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            html_path = Path(directory) / "wireframes.html"
+            prd_path = Path(directory) / "PRD.md"
+            html_path.write_text(render_html(data), encoding="utf-8")
+            prd_path.write_text(
+                prd_markdown(responsive="sizeClasses: compact, regular"),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                check_wireframe_html.validate(html_path, prd_path=prd_path),
+                [],
+            )
+
     def test_prd_join_detects_surface_missing_from_wireframe(self):
         with tempfile.TemporaryDirectory() as directory:
             html_path = Path(directory) / "wireframes.html"
@@ -187,6 +301,37 @@ class PrdUiContractParserTests(unittest.TestCase):
         self.assertEqual(set(entries), {"UI-001"})
         self.assertEqual(entries["UI-001"]["routes"], ["/home"])
         self.assertEqual(entries["UI-001"]["states"], ["ready"])
+        self.assertEqual(entries["UI-001"]["responsiveKind"], "viewports")
+        self.assertEqual(entries["UI-001"]["responsiveTargets"], ["390", "1200"])
+
+    def test_strict_parser_rejects_missing_or_single_responsive_target(self):
+        missing = prd_markdown().replace("- `responsive`: viewports: 390, 1200\n", "")
+        _, errors = prd_ui_contract.parse_prd_ui_contract(
+            missing, require_responsive=True
+        )
+        self.assertTrue(any("exactly one `responsive` anchor" in error for error in errors))
+
+        _, errors = prd_ui_contract.parse_prd_ui_contract(
+            prd_markdown(responsive="sizeClasses: compact"),
+            require_responsive=True,
+        )
+        self.assertTrue(any("at least two responsive targets" in error for error in errors))
+
+    def test_strict_parser_requires_one_package_responsive_set(self):
+        text = prd_markdown()[:-1].replace(
+            "<!-- ui-surface-contract:end -->",
+            "### UI-002 — Settings\n\n"
+            "- `route`: /settings\n"
+            "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 768\n"
+            "<!-- ui-surface-contract:end -->",
+        )
+        _, errors = prd_ui_contract.parse_prd_ui_contract(
+            text, require_responsive=True
+        )
+        self.assertTrue(
+            any("same ordered responsive set" in error for error in errors), errors
+        )
 
     def test_duplicate_boundary_pairs_are_rejected(self):
         entries, errors = prd_ui_contract.parse_prd_ui_contract(

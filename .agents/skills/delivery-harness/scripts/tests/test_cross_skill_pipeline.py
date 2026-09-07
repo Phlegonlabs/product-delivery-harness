@@ -124,17 +124,20 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("half-present pair is `missing` or `partial`", harness)
         self.assertIn("No design-system pair is expected", harness)
 
-    def test_harness_reads_the_responsive_set_from_the_design_system(self) -> None:
+    def test_responsive_set_stays_equal_across_product_design_and_harness(self) -> None:
+        prd = self.read("product-definition-builder/references/output-contract.md")
         design = self.read("design-system-compiler/references/output-contract.md")
         harness_skill = self.read("delivery-harness/SKILL.md")
         harness = self.read(
             "delivery-harness/references/contract-and-traceability.md"
         )
 
-        # Exactly-one-of is the rule on both sides. The core skill routes to the
-        # detailed contract instead of repeating the responsive-set rule.
+        self.assertIn("`` `responsive` `` field names are invariant", prd)
+        self.assertIn("at least two targets", prd)
         self.assertIn("exactly one responsive verification set", design)
+        self.assertIn("copied exactly from the approved PRD and wireframe", design)
         self.assertIn("references/contract-and-traceability.md", harness_skill)
+        self.assertIn("PRD, approved `wireframes.html`, every PLAN UI surface", harness)
         self.assertIn("The harness carries no default set", harness)
 
     def test_the_retired_middle_skill_is_gone_from_every_contract(self) -> None:

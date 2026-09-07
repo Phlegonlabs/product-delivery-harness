@@ -576,7 +576,11 @@ class HarnessV11Tests(unittest.TestCase):
         """Persist the dispatchable preintegration review state under a real repo root."""
         plan, run = current_preintegration_review_state()
         plan["ui_surfaces"][0].update(
-            {"route": "/review", "breakpoints": ["390"], "states": ["ready"]}
+            {
+                "route": "/review",
+                "breakpoints": ["390", "1200"],
+                "states": ["ready"],
+            }
         )
         prd = root / "docs" / "goal" / "PRD.md"
         prd.parent.mkdir(parents=True)
@@ -586,6 +590,7 @@ class HarnessV11Tests(unittest.TestCase):
             "### UI-001 — Review\n\n"
             "- `route`: /review\n"
             "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 1200\n"
             "<!-- ui-surface-contract:end -->\n",
             encoding="utf-8",
         )

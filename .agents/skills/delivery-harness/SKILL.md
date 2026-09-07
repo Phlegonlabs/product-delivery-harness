@@ -7,12 +7,12 @@ description: "Route engineering work to the lightest safe delivery path, then pl
 
 ## Purpose
 
-Use the least ceremony that preserves the real safety boundary. Keep routine work direct. Add PLAN/RUN state, runtime probing, workers, worktrees, and graph scheduling only when coordination requires them.
+Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN state, runtime probing, workers, worktrees, and graph scheduling only when coordination requires them.
 
 Keep upstream ownership separate:
 
 - `product-definition-builder` owns `PRD.md`, approved low-fidelity `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
-- `PRD.md` owns UI structure, behavior, and the approved UI Design Handoff; `wireframes.html` makes its low-fidelity page, section, state, and responsive map inspectable. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
+- `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its low-fidelity page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
 - This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
 
 ## Project Size Gate
@@ -166,7 +166,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 - Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved immutable UI target, scope, states, responsive coverage, and tolerance recorded in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
+- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and contain at least two targets. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 - After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
 - These skill names are the bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind different installed skills to the design-direction, design-compilation, frontend-implementation, and page-quality-verification slots — a project edit, not a harness change. The modes, frozen sources, and review gates above apply unchanged to whichever skill is bound.
@@ -199,7 +199,7 @@ Use the verification ladder:
 2. exact-head mission review;
 3. mission integration and interaction checks;
 4. fresh exact-SHA unified review, skipped when its tree is byte-identical to an already-passed review's tree;
-5. one final applicable set of broad regression, browser E2E, breakpoint-by-state UI evidence, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
+5. final broad regression, browser E2E, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
 6. `git diff --check` and complete final-diff review.
 
 Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Integration, cross-mission, UI, and migration gates refuse reuse by default; one may opt in with `cache.deterministic_local: true` only when it is a pure local deterministic command, never for a browser capture, migration, mutable-environment smoke, or network check. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
@@ -208,4 +208,4 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 New runs default to `local_only`, which completes after authorized local work, required gates, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, both environments verify read-only, and that verification reports the pushed head's preview URL in the conversation.
 
-`product-activation` starts only after RUN close and inherits no RUN authority.
+`product-activation` follows RUN close; RUN grants no authority.

@@ -21,7 +21,10 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_manifest import plan_digest  # noqa: E402
 from harness_design_contract import generated_contract_block  # noqa: E402
-from harness_contract_join import full_wireframe_checker_errors  # noqa: E402
+from harness_contract_join import (  # noqa: E402
+    full_wireframe_checker_errors,
+    validate_plan_prd_text,
+)
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from manifest_fixtures import manifest_markdown, wireframes_html  # noqa: E402
 
@@ -30,7 +33,7 @@ HOME_SURFACE = {
     "id": "UI-001",
     "trace_ids": ["REQ-001"],
     "route": "/home",
-    "breakpoints": ["390"],
+    "breakpoints": ["390", "1200"],
     "states": ["ready"],
     "evidence_gate": "required",
 }
@@ -242,7 +245,10 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
 
     def test_recipe_state_coverage_is_cross_checked_against_the_registry(self) -> None:
         payload = self.cross_check(
-            {"viewports": [390], "stateMatrix": ["ready", "loading", "empty", "n/a"]}
+            {
+                "viewports": [390, 1200],
+                "stateMatrix": ["ready", "loading", "empty", "n/a"],
+            }
         )
 
         self.assertEqual("FAIL", payload["status"])
@@ -421,7 +427,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "id": "UI-001",
                 "trace_ids": ["REQ-001"],
                 "route": "/home",
-                "breakpoints": ["390"],
+                "breakpoints": ["390", "1200"],
                 "states": ["ready"],
                 "evidence_gate": "required",
             }
@@ -439,6 +445,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             wireframes_path = root / "wireframes.html"
@@ -473,6 +480,28 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("PASS", json.loads(result.stdout)["status"])
 
+            plan["ui_surfaces"][0]["breakpoints"] = ["390", "768"]
+            plan_path.write_text(
+                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                encoding="utf-8",
+            )
+            result = self.run_cli(
+                plan_path,
+                None,
+                prd=prd_path,
+                wireframes=wireframes_path,
+            )
+            payload = json.loads(result.stdout)
+            self.assertEqual("FAIL", payload["status"])
+            self.assertTrue(
+                any(
+                    "breakpoints" in error and "responsive" in error
+                    for error in payload["errors"]
+                ),
+                payload["errors"],
+            )
+            plan["ui_surfaces"][0]["breakpoints"] = ["390", "1200"]
+
             drifted = wireframes_html(
                 [{"id": "UI-001", "route": "/dashboard", "states": ["ready", "empty"]}]
             )
@@ -496,6 +525,29 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             self.assertIn("route", joined)
             self.assertIn("states", joined)
 
+    def test_prd_responsive_targets_must_match_plan_breakpoints(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [dict(HOME_SURFACE)]
+        prd = (
+            "<!-- ui-surface-contract:start -->\n"
+            "## UI Surface Contract\n\n"
+            "### UI-001 — Home\n\n"
+            "- `route`: /home\n"
+            "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 768\n"
+            "<!-- ui-surface-contract:end -->\n"
+        )
+
+        errors = validate_plan_prd_text(plan, prd)
+
+        self.assertTrue(
+            any(
+                "breakpoints" in error and "responsive targets" in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_wireframes_join_runs_the_full_builder_checker(self) -> None:
         """Frozen wireframes must pass the sibling skill's checker, not just the
         reduced PLAN join: reviewer shell, self-containment, and approved
@@ -510,6 +562,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             "### UI-001 — Home\n\n"
             "- `route`: /home\n"
             "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 1200\n"
             "<!-- ui-surface-contract:end -->\n"
         ).encode("utf-8")
         self.assertEqual([], full_wireframe_checker_errors(valid, prd))
@@ -533,6 +586,12 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
         self.assertIn("reviewer-shell marker", joined)
         self.assertIn("wireframe-data.product", joined)
         self.assertIn("approvalStatus", joined)
+
+        non_object = (
+            '<script id="wireframe-data" type="application/json">[]</script>'
+        ).encode("utf-8")
+        joined = " ".join(full_wireframe_checker_errors(non_object, prd))
+        self.assertIn("wireframe-data: must be a JSON object", joined)
 
         draft = wireframes_html(
             [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
@@ -738,7 +797,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             "enforcement": "blocking",
             "tokenSources": ["src/styles/tokens.css"],
             "primitiveSources": ["src/ui/primitives.css"],
-            "viewports": [390],
+            "viewports": [390, 1200],
             "tokens": {},
             "stateMatrix": ["ready"],
             "primitives": {
@@ -849,7 +908,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             "enforcement": "blocking",
             "tokenSources": ["src/styles/tokens.css"],
             "primitiveSources": [],
-            "viewports": [390],
+            "viewports": [390, 1200],
             "tokens": {},
             "primitives": {},
             "productComponents": {},
@@ -957,7 +1016,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             "enforcement": "blocking",
             "tokenSources": ["src/styles/tokens.css"],
             "primitiveSources": [],
-            "viewports": [390],
+            "viewports": [390, 1200],
             "tokens": {},
             "primitives": {
                 "Stack": {"dsId": "DS-001", "layer": "layout"}

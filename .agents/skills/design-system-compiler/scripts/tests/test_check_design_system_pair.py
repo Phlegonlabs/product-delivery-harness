@@ -411,11 +411,14 @@ class CheckDesignSystemPairTests(unittest.TestCase):
 
     def test_invalid_responsive_sets_and_platform_mismatches_fail(self) -> None:
         cases = (
+            registry(viewports=[390]),
+            registry(viewports=[768, 390]),
             registry(viewports=["mobile", "mobile"]),
             registry(viewports=[390, 390]),
             registry(viewports=[-1, float("inf")]),
             registry(platform="ios"),
             registry(platform="web", viewports=None, sizeClasses=["compact"]),
+            registry(platform="ios", viewports=None, sizeClasses=["compact"]),
             registry(
                 platform="ios",
                 viewports=None,

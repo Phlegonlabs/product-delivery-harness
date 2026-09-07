@@ -67,7 +67,25 @@ def wireframes_html(
                         "actions": [],
                     }
                 ],
-                "compactOrder": [region_id],
+                "neverDrop": [region_id],
+                "responsiveLayouts": {
+                    "390": {
+                        "order": [region_id],
+                        "hidden": [],
+                        "columns": 1,
+                        "spans": {region_id: 1},
+                        "reflow": "Stack the fixture region",
+                        "interaction": "Use touch-sized controls",
+                    },
+                    "1200": {
+                        "order": [region_id],
+                        "hidden": [],
+                        "columns": 12,
+                        "spans": {region_id: 12},
+                        "reflow": "Use the expanded fixture grid",
+                        "interaction": "Support pointer and keyboard input",
+                    },
+                },
                 "states": [
                     {
                         "id": state,
@@ -79,9 +97,12 @@ def wireframes_html(
             }
         )
     data = {
+        "schema": "wireframes/2",
         "product": product,
         "approvalStatus": approval_status,
         "source": "PRD.md#UI-Surface-Contract",
+        "viewports": [390, 1200],
+        "canvasWidths": {"390": 390, "1200": 1200},
         "screens": data_screens,
     }
     return (
@@ -90,12 +111,13 @@ def wireframes_html(
         "<head><meta charset=\"utf-8\"><title>Wireframes</title></head>\n"
         "<body>\n"
         '<nav id="page-list" aria-label="All pages"></nav>\n'
+        '<div id="responsive-controls" data-responsive-target="390"></div>\n'
         '<div id="state-controls"></div>\n'
-        '<button type="button" data-viewport="expanded">Expanded</button>\n'
-        '<button type="button" data-viewport="compact">Compact</button>\n'
+        '<div data-layout-qa="pass"></div>\n'
         "<h2>All pages</h2>\n"
         "<main></main>\n"
         "<script>\n"
+        "function runLayoutQa() { return true; }\n"
         "document.getElementById('page-list').textContent = 'All pages';\n"
         "</script>\n"
         '<script id="wireframe-data" type="application/json">\n'

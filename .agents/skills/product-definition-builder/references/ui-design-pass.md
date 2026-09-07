@@ -6,7 +6,7 @@ Run this optional pass only after the human owner explicitly asks to continue be
 
 Every direction and preview uses the same:
 
-- representative `UI-*` screens;
+- complete `UI-*` screen set and full responsive-target and non-`n/a` state matrix;
 - approved `wireframes.html` page, section, element, action, state, and responsive projection, checked against `PRD.md`;
 - exact copy or bounded display contracts;
 - Builder UX Direction, brand, accessibility, platform, and performance constraints; and
@@ -32,7 +32,7 @@ Do not load `gpt-taste` by default and never combine it with `design-taste-front
 
 Ask the human owner once for desired character, disliked patterns, and any visual references. Inspect supplied or current public references before claiming their visible mechanics. Keep market evidence and visual evidence separate.
 
-Default to one recommended product-specific direction. Produce three materially different directions only when the owner asks to compare alternatives or when a recorded visual conflict cannot be resolved with one recommendation. Every compared direction must use the same screens, content, states, and viewport or size class.
+Default to one recommended product-specific direction. Produce three materially different directions only when the owner asks to compare alternatives or when a recorded visual conflict cannot be resolved with one recommendation. Every compared direction must use the same complete screens, content, states, and PRD viewport or size-class set. A single-width preview cannot establish responsive behavior.
 
 Record every inspected visual source as a `REF-*` record and every owner-confirmed `Adopt / Adapt / Avoid` principle as an `RP-*` record, using the formats in `../design-system-compiler/references/design-reference-guide.md`. Give every direction a `VD-*` ID under that guide's round versioning: a default single-direction pass records `VD-R1-01`, and each later revision round increments. Name the selected `VD-*` direction and its confirmed `REF-*` / `RP-*` IDs in the handoff so the design-system step can read the provenance without re-deriving it.
 
@@ -44,7 +44,7 @@ Record the color decision in the handoff's `Color & dark mode:` line: how the pa
 
 Choose the provider-neutral preview route whose approved artifact can serve directly as the Harness implementation reference:
 
-1. rendered HTML or temporary React — the default route for every UI-bearing surface: web, native or cross-platform mobile, and desktop. Produce it with the already loaded design skill (`design-taste-frontend` when applicable, otherwise `frontend-design`). A web or cross-platform surface uses one self-contained high-fidelity file per representative `UI-*` screen because Harness implements each recorded route from its own approved reference. A native mobile or desktop surface uses one self-contained high-fidelity HTML containing every `UI-*` screen of that surface — the same single-file principle as `wireframes.html` — with a screen switcher, each screen mocked at its size class as a plain device-sized page, optionally inside a drawn device frame, so the owner reviews the whole app in one file. Record in the handoff that the native implementation translates the retained single-file reference within the recorded tolerance;
+1. rendered HTML or temporary React — the default route for every UI-bearing surface: web, native or cross-platform mobile, and desktop. Produce it with the already loaded design skill (`design-taste-frontend` when applicable, otherwise `frontend-design`). A web or cross-platform surface uses one self-contained high-fidelity file per `UI-*` screen because Harness implements each recorded route from its own approved reference; each file must implement every declared viewport and non-`n/a` state. A native mobile or desktop surface uses one self-contained high-fidelity HTML containing every `UI-*` screen of that surface — the same single-file principle as `wireframes.html` — with a screen switcher, each screen mocked at every declared size class as a plain device-sized page, optionally inside a drawn device frame, so the owner reviews the whole app in one file. Record in the handoff that the native implementation translates the retained single-file reference within the recorded tolerance;
 2. `imagegen-frontend-web` for a website section or page image when no HTML rendering capability exists;
 3. `imagegen-frontend-mobile` for a native or cross-platform mobile screen image when HTML cannot represent the surface, such as platform chrome or native-only interaction; or
 4. another named image-generation, design, or external provider.
@@ -57,7 +57,7 @@ Image generation may invent plausible controls or content. Treat an invented ele
 
 ## Evidence And Approval
 
-For every retained preview, record:
+For every retained preview and every covered `UI-* × responsive target × non-n/a state` combination, record:
 
 - preview ID and direction ID;
 - `UI-*` surface and state;
@@ -69,13 +69,17 @@ For every retained preview, record:
 - observed limitations, including unreadable text or non-observable interaction; and
 - human decision: `approved`, `rejected`, `revision_requested`, or `waived` with reason.
 
+## Responsive Browser Gate
+
+Render every retained HTML target at every PRD viewport or size class and non-`n/a` state in a real browser before visual approval. Use long labels, long localized copy, validation errors, empty data, dense data, and the other declared edge states rather than a single ideal-content sample. Reject unintended overlap, clipping, occlusion, or horizontal page overflow. Confirm readable order and line length, minimum target size, keyboard path where applicable, and that resizing does not strand focus or hide a required action. An intentional modal, menu, tooltip, sticky region, or other overlay must name its stacking, focus, escape/dismissal, and safe-area behavior in the evidence and handoff. Browser unavailability blocks approval of an HTML implementation target; a visual-review waiver does not convert an unchecked preview into binding page-faithful authority.
+
 Preview artifacts stay outside `docs/product/`. When an approved HTML preview will serve as the page-faithful implementation reference, request retention by default: disclose and obtain exact write approval for a path under `docs/design/ui-references/<run-id>/`, the dedicated UI references folder. Retain one file per recorded web or cross-platform screen, or one all-screens file per native mobile or desktop surface. Other previews are retained only when the owner requests it; otherwise use temporary storage and say that it will not publish with the package. When the owner declines retention and that preview is the approved page-faithful target, the handoff must record the target as temporary: the visual authority then reverts to `PRD.md` plus approved `wireframes.html` once the run ends, because the recorded path stops resolving. A durable target binding requires retention, and Harness cannot implement from an HTML reference whose recorded path is temporary.
 
 When a later approved UI target supersedes retained UI references, archive the superseded files by moving them under `docs/design/archived/<YYYYMMDD-HHMMSS>-<run-id>/` — the same archive-not-delete discipline `references/artifact-lifecycle.md` applies to superseded product documents — and update the UI Design Handoff to the new live paths. Never delete a superseded reference file or leave a live handoff entry pointing at an archived path.
 
 When a style-impacting enhancement updates a retained HTML reference, regenerate the affected screens' style layer from the current direction instead of appending to the previous file's CSS. Before presenting the updated reference for approval, check it for style blocks inherited from the superseded version — orphaned selectors, duplicate rules, and overrides the updated screens no longer use — and remove them; a reference that accumulates styles from previous versions is not approvable. Editing a retained reference file in place supersedes its previous content: refresh the handoff's recorded SHA-256 for that file in the same run and archive a copy of the pre-edit file under `docs/design/archived/`, exactly as a superseded reference set would be.
 
-An approved preview becomes an implementation target only when `PRD.md` records its source path or immutable version, SHA-256, named routes and states, responsive scope, acceptance tolerance, and allowed deviations. This page-faithful target is visual authority for only that recorded scope. When the approved target is high-fidelity HTML, `delivery-harness` implements each recorded route from its approved HTML reference file within the recorded tolerance. Approval proves visual-direction conformance, not usability or production readiness.
+An approved preview becomes an implementation target only when `PRD.md` records its source path or immutable version, SHA-256, named routes and states, the exact responsive set, passing browser-matrix evidence, acceptance tolerance, and allowed deviations. This page-faithful target is visual authority for only that recorded scope. When the approved target is high-fidelity HTML, `delivery-harness` implements each recorded route from its approved HTML reference file within the recorded tolerance. Approval proves visual-direction conformance, not usability or production readiness.
 
 ## Design System Need Gate
 

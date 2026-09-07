@@ -1206,6 +1206,38 @@ class RunValidationTests(unittest.TestCase):
                 self.assertTrue(validate_plan(malformed_plan))
                 self.assertTrue(validate_run(malformed_plan, malformed_run))
 
+    def test_current_plan_ui_surfaces_require_two_unique_responsive_targets(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [
+            {
+                "id": "dashboard",
+                "trace_ids": ["REQ-001"],
+                "route": "/dashboard",
+                "breakpoints": ["desktop"],
+                "states": ["loaded"],
+                "evidence_gate": "required",
+            }
+        ]
+        self.assertTrue(
+            any(
+                "at least two responsive targets" in error
+                for error in validate_plan(plan)
+            )
+        )
+
+        plan["ui_surfaces"][0]["breakpoints"] = ["desktop", "desktop"]
+        self.assertTrue(
+            any(
+                "duplicate responsive targets" in error
+                for error in validate_plan(plan)
+            )
+        )
+
+        plan["ui_surfaces"][0]["breakpoints"] = ["mobile", "desktop"]
+        self.assertFalse(
+            any("breakpoints" in error for error in validate_plan(plan))
+        )
+
     def test_complete_run_requires_ready_sources(self) -> None:
         plan = valid_plan()
         plan["sources"][0]["status"] = "missing"

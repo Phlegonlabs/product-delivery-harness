@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from typing import Any
 
@@ -17,6 +18,10 @@ ROUTE_RE = re.compile(
 )
 STATES_RE = re.compile(
     r"^\s*-\s*`states`\s*:\s*(.+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
+RESPONSIVE_RE = re.compile(
+    r"^\s*-\s*`responsive`\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
 MACHINE_BLOCK_RE = re.compile(
@@ -54,9 +59,45 @@ def _state(value: str) -> str:
     return state
 
 
+def _responsive(value: str) -> tuple[str | None, list[str], str | None]:
+    kind, separator, raw_values = value.strip().partition(":")
+    if not separator or kind not in {"viewports", "sizeClasses"}:
+        return (
+            None,
+            [],
+            "must use `viewports: ...` for web or `sizeClasses: ...` "
+            "for native or desktop",
+        )
+    values = _values(raw_values)
+    normalized: list[str] = []
+    if kind == "viewports":
+        for item in values:
+            try:
+                number = float(item)
+            except ValueError:
+                return None, [], f"contains non-numeric viewport {item!r}"
+            if not math.isfinite(number) or number <= 0:
+                return None, [], f"contains invalid viewport {item!r}"
+            normalized.append(str(int(number)) if number.is_integer() else str(number))
+    else:
+        normalized = values
+    if len(normalized) < 2:
+        return kind, normalized, "must declare at least two responsive targets"
+    if len(normalized) != len(set(normalized)):
+        return kind, normalized, "must not contain duplicate responsive targets"
+    if kind == "viewports" and any(
+        float(left) >= float(right)
+        for left, right in zip(normalized, normalized[1:])
+    ):
+        return kind, normalized, "must list viewports in ascending order"
+    return kind, normalized, None
+
+
 def parse_prd_ui_contract(
     text: str,
-) -> tuple[dict[str, dict[str, list[str]]], list[str]]:
+    *,
+    require_responsive: bool = False,
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
     blocks = list(MACHINE_BLOCK_RE.finditer(text))
     start_count = len(
         re.findall(r"<!--\s*ui-surface-contract:start\s*-->", text, re.I)
@@ -99,7 +140,7 @@ def parse_prd_ui_contract(
     headings = list(UI_HEADING_RE.finditer(body))
     if blocks and not headings:
         errors.append("prd: ui-surface-contract boundary contains no UI surface entries")
-    entries: dict[str, dict[str, list[str]]] = {}
+    entries: dict[str, dict[str, Any]] = {}
     for index, heading in enumerate(headings):
         surface_id = heading.group(1)
         if surface_id in entries:
@@ -109,6 +150,7 @@ def parse_prd_ui_contract(
         surface_block = body[heading.end() : end]
         route_matches = list(ROUTE_RE.finditer(surface_block))
         states_matches = list(STATES_RE.finditer(surface_block))
+        responsive_matches = list(RESPONSIVE_RE.finditer(surface_block))
         routes = _values(route_matches[0].group(1)) if len(route_matches) == 1 else []
         states = (
             [_state(item) for item in _values(states_matches[0].group(1))]
@@ -132,7 +174,40 @@ def parse_prd_ui_contract(
             )
         if not states:
             errors.append(f"prd: UI surface {surface_id} has no states value")
-        entries[surface_id] = {"routes": routes, "states": states}
+        responsive_kind: str | None = None
+        responsive_targets: list[str] = []
+        if len(responsive_matches) == 1:
+            responsive_kind, responsive_targets, responsive_error = _responsive(
+                responsive_matches[0].group(1)
+            )
+            if responsive_error:
+                errors.append(
+                    f"prd: UI surface {surface_id} `responsive` {responsive_error}"
+                )
+        elif require_responsive or responsive_matches:
+            errors.append(
+                f"prd: UI surface {surface_id} requires exactly one `responsive` "
+                f"anchor; found {len(responsive_matches)}"
+            )
+        entries[surface_id] = {
+            "routes": routes,
+            "states": states,
+            "responsiveKind": responsive_kind,
+            "responsiveTargets": responsive_targets,
+        }
+    if require_responsive:
+        responsive_sets = {
+            (
+                entry["responsiveKind"],
+                tuple(entry["responsiveTargets"]),
+            )
+            for entry in entries.values()
+            if entry["responsiveKind"] is not None
+        }
+        if len(responsive_sets) > 1:
+            errors.append(
+                "prd: every UI surface must use the same ordered responsive set"
+            )
     return entries, errors
 
 
@@ -158,7 +233,7 @@ def _screen_states(screen: dict[str, Any]) -> set[str]:
 
 
 def validate_prd_wireframe_data(text: str, data: dict[str, Any]) -> list[str]:
-    prd_surfaces, errors = parse_prd_ui_contract(text)
+    prd_surfaces, errors = parse_prd_ui_contract(text, require_responsive=True)
     screens, screen_errors = _screens(data)
     errors.extend(screen_errors)
     prd_ids = set(prd_surfaces)
@@ -186,5 +261,26 @@ def validate_prd_wireframe_data(text: str, data: dict[str, Any]) -> list[str]:
             errors.append(
                 f"wireframes: screen {surface_id} states {sorted(wireframe_states)} "
                 f"differ from the PRD states {sorted(prd_states)}"
+            )
+        has_viewports = isinstance(data.get("viewports"), list)
+        has_size_classes = isinstance(data.get("sizeClasses"), list)
+        if has_viewports == has_size_classes:
+            continue
+        responsive_kind = "viewports" if has_viewports else "sizeClasses"
+        raw_targets = data.get(responsive_kind)
+        wireframe_targets = [
+            str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
+            for value in raw_targets or []
+        ]
+        prd_targets = prd_surfaces[surface_id]["responsiveTargets"]
+        if (
+            prd_surfaces[surface_id]["responsiveKind"] != responsive_kind
+            or prd_targets != wireframe_targets
+        ):
+            errors.append(
+                f"wireframes: screen {surface_id} responsive set "
+                f"{responsive_kind} {wireframe_targets} differs from the PRD "
+                f"{prd_surfaces[surface_id]['responsiveKind']} "
+                f"{prd_targets}"
             )
     return errors

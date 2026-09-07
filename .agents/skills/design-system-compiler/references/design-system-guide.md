@@ -7,7 +7,7 @@ The design system exists so frontend implementation can follow one set of tokens
 ## Drafting Order
 
 1. Confirm that `PRD.md` records `Design System Need Gate: required`, then load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
-2. Confirm that the PRD UI surface contract is complete and frozen, `wireframes.html` has explicit human-owner approval recorded in `### Wireframe Approval`, and `### UI Design Handoff` records an approved immutable target with scope, hash, responsive coverage, and tolerance.
+2. Confirm that the PRD UI surface contract is complete and frozen, `wireframes.html` has explicit human-owner approval for its complete responsive browser matrix recorded in `### Wireframe Approval`, and `### UI Design Handoff` records an approved immutable target with scope, hash, the same responsive set, passing browser-matrix evidence, and tolerance.
 3. Consume the selected direction, Taste applicability result, Design Read and dials when applicable, visual evidence, and human approval from the UI Design Handoff. Do not rerun visual-direction generation, `impeccable`, `design-taste-frontend`, or the UI Preview Gate during normal compilation.
 4. Use `frontend-design` in contract-compilation mode to translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target.
 5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
@@ -106,12 +106,12 @@ Do not repeat the full primitive or component inventory manually in Markdown; th
 
 ## Responsive, State, And Accessibility Rules
 
-Ship exactly one responsive set:
+Ship exactly one responsive set with at least two targets:
 
-- `viewports` for web; or
+- ascending `viewports` for web; or
 - `sizeClasses` for native or desktop.
 
-Choose the smallest set that covers the real layouts. Native and desktop products use their platform's own size or window classes, not web pixel breakpoints.
+Copy the exact approved PRD and wireframe set; do not add, remove, or rename targets during compilation. Choose that smallest sufficient set upstream during product definition. Native and desktop products use their platform's own size or window classes, not web pixel breakpoints. Each target has an implementation-facing reflow, visibility, interaction, long-content, and intended-overlay rule. Unintended overlap, clipping, occlusion, and horizontal overflow are blocking defects at every target and state.
 
 `stateMatrix` is the checklist for every screen. Each screen implements every listed state or records `<state>: n/a — <reason>` in `PRD.md`. The PRD and JSON must agree.
 

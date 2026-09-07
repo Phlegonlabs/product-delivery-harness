@@ -23,7 +23,7 @@ Include only:
 Keep it the sole structured authority for:
 
 - platform, styling mechanism, enforcement mode, token sources, and primitive sources;
-- exactly one responsive verification set: `viewports` or `sizeClasses`;
+- exactly one responsive verification set with at least two targets, copied exactly from the approved PRD and wireframe: `viewports` or `sizeClasses`;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
 - optional primitive `dsId` values matching `DS-[A-Z]+-<number>` when a primitive needs a trace identity;
@@ -35,12 +35,12 @@ Keep it the sole structured authority for:
 ## PRD Input Quality Check
 
 - The Design System Need Gate is `required` and records its human owner and reason.
-- `### UI Design Handoff` records an approved immutable target, source hash, routes and states, responsive scope, tolerance, and allowed deviations.
+- `### UI Design Handoff` records an approved immutable target, source hash, routes and states, the exact PRD/wireframe responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
 - `wireframes.html` has human approval recorded in `PRD.md`, and each `UI-*` page matches the PRD.
 - Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
 - Every visible region has exact copy or a bounded display contract, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
 - Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
-- Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a`.
+- Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a` at every responsive target.
 - Scope, routes, actions, content responsibilities, wireframe structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
 
 If any item is missing, return a bounded PRD update. Do not invent it in the design system.
@@ -53,7 +53,7 @@ If any item is missing, return a bounded PRD update. Do not invent it in the des
 - The human owner approved one immutable UI target, or explicitly authorized a provisional assumption.
 - The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
 - Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
-- Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface.
+- Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set contains at least two targets and matches the approved PRD and wireframe exactly.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.
 - Pair generation, filled-pair validation, contrast checks, and type-scale checks pass.
 - Candidate directions, full reference analysis, and UI preview artifacts remain outside the pair.
