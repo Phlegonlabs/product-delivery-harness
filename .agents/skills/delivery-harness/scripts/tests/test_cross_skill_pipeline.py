@@ -100,7 +100,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation_skill)
         self.assertIn("Exact Action Digest", activation_contract)
         self.assertIn("verified `MS-*` sources", activation_skill)
-        self.assertIn("only after RUN close", delivery_skill)
+        self.assertIn("`product-activation` follows RUN close; RUN grants no authority", delivery_skill)
         self.assertIn("## Product Activation Handoff", deployment)
         self.assertIn("| `docs/ACTIVATION.md` | `docs/` |", documents)
         self.assertIn("--require-verified-sources", product_contract)
