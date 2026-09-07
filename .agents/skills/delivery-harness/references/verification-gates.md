@@ -136,7 +136,7 @@ Pillow is imported lazily by the UI-evidence path. When it is unavailable, retur
 
 Every applicable declared verifier runs through `verifier_runtime.py`'s `run_verifier()`, cache configured or not; its returned `execution_key` is the worker result's reported `evidence`. This is unconditional — it is not limited to the `session_exact` cache-reuse path described below.
 
-A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution, then attests the actual resolved checkout root and consumed request digest; `record-node-result` rejects a different checkout, replayed nonce, retargeted request, checkout drift, or a request/result artifact placed inside the reviewed checkout.
+A parent-owned batch/final graph verifier also carries the reserved node/attempt nonce and Git guard emitted by `reserve-node-attempt`. The runtime verifies the exact branch, HEAD, clean tree, and tracked-file fingerprint before and after execution. The exact tracked RUN excluded from dirty status is not excluded from integrity checks: its bytes and file identity are snapshotted across execution, its starting SHA-256 is attested, and `record-node-result` rehashes it before accepting evidence. A different checkout, replayed nonce, retargeted request, checkout drift, protected coordination-file change, or request/result artifact inside the reviewed checkout is rejected.
 
 A local verifier may declare:
 

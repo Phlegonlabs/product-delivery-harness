@@ -26,7 +26,7 @@ import manifest_fixtures as mf  # noqa: E402
 from harness_core import ManifestError  # noqa: E402
 from harness_manifest import load_run, plan_digest, validate_current_plan_run  # noqa: E402
 from select_ready_nodes import select_ready_nodes  # noqa: E402
-from verifier_runtime import run_verifier  # noqa: E402
+from verifier_runtime import protected_path_sha256, run_verifier  # noqa: E402
 
 
 def verifier_dispatch(request: dict[str, object]) -> dict[str, object]:
@@ -39,11 +39,15 @@ def verifier_dispatch(request: dict[str, object]) -> dict[str, object]:
     }
 
 
-def dispatch_attestation(request: dict[str, object]) -> dict[str, object]:
+def dispatch_attestation(
+    request: dict[str, object],
+    protected_paths: dict[str, str | None] | None = None,
+) -> dict[str, object]:
     return {
         "request_sha256": harness_transition._json_sha256(request),
         "checkout_root": request["checkout_root"],
         "git_guard": copy.deepcopy(request["git_guard"]),
+        "protected_path_sha256": dict(protected_paths or {}),
     }
 
 
@@ -836,6 +840,110 @@ class NodeTransitionTests(unittest.TestCase):
                         run=None,
                     ),
                 )
+
+    def test_local_verifier_result_rejects_changed_protected_run(self) -> None:
+        plan = mf.valid_plan()
+        run = mf.valid_run(plan)
+        run.update({"status": "running", "plan_readiness": "ready"})
+        with tempfile.TemporaryDirectory() as repo_dir, tempfile.TemporaryDirectory() as evidence_dir:
+            root = Path(repo_dir)
+            head = mf.init_repo(root, "README.md", default_branch="codex/test")
+            run_path = root / "docs" / "goal" / "RUN.md"
+            run_path.parent.mkdir(parents=True)
+            run_path.write_text("reserved run state\n", encoding="utf-8")
+            run["integration"].update(
+                {
+                    "branch": "codex/test",
+                    "batch_base_sha": head,
+                    "integration_head_sha": head,
+                }
+            )
+            run["observed"]["captured_at"] = "2026-01-01T00:00:00Z"
+            run["observed"]["git"].update(
+                {
+                    "parent_worktree_path": str(root),
+                    "parent_branch": "codex/test",
+                    "parent_head_sha": head,
+                    "parent_dirty": False,
+                }
+            )
+            node = next(
+                item for item in plan["graph"]["nodes"] if item["id"] == "N-FINAL"
+            )
+            request = harness_transition._local_verifier_request(
+                plan,
+                run,
+                node,
+                attempt_id="ATT-PROTECTED-RUN",
+                repo_root=root,
+                run_path=run_path,
+            )
+            run["graph_state"]["node_states"]["N-FINAL"].update(
+                {
+                    "phase": "running",
+                    "attempts": 1,
+                    "last_attempt_id": "ATT-PROTECTED-RUN",
+                }
+            )
+            run["attempt_log"].append(
+                {
+                    "attempt_id": "ATT-PROTECTED-RUN",
+                    "node_id": "N-FINAL",
+                    "mission_id": None,
+                    "task_id": None,
+                    "lease_id": None,
+                    "kind": "node_attempt",
+                    "result": "reserved",
+                    "evidence": ["final gate scheduled"],
+                    "verifier_dispatch": verifier_dispatch(request),
+                }
+            )
+            retained = mf.retained_gate_execution(
+                plan,
+                run,
+                plan["final_gates"][0],
+                layer="final",
+                execution_id="EXEC-PROTECTED-RUN",
+            )
+            retained["reservation"] = request["reservation"]
+            retained["dispatch_attestation"] = dispatch_attestation(
+                request,
+                protected_path_sha256(root, request["git_guard"]["ignored_paths"]),
+            )
+            result_path = Path(evidence_dir) / "execution.json"
+            result_path.write_text(
+                json.dumps({"verifier_execution": retained}), encoding="utf-8"
+            )
+            before_authorizations = copy.deepcopy(run["authorizations"])
+            before_state = copy.deepcopy(
+                run["graph_state"]["node_states"]["N-FINAL"]
+            )
+            run_path.write_text("forged authorization state\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ManifestError, "protected coordination files changed"
+            ):
+                harness_transition._record_node_result(
+                    plan,
+                    run,
+                    Namespace(
+                        node_id="N-FINAL",
+                        attempt_id="ATT-PROTECTED-RUN",
+                        outcome="pass",
+                        evidence=["forged pass"],
+                        blocker=[],
+                        verifier_result=[result_path],
+                        repo_root=root,
+                        run=run_path,
+                    ),
+                )
+
+            self.assertEqual(before_authorizations, run["authorizations"])
+            self.assertEqual(
+                before_state,
+                run["graph_state"]["node_states"]["N-FINAL"],
+            )
+
     def test_interrupted_local_verifier_may_block_without_a_result(self) -> None:
         plan = mf.valid_plan()
         next(

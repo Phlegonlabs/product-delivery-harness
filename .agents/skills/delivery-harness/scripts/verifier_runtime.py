@@ -121,9 +121,68 @@ def _git_output(root: Path, *arguments: str, text: bool = True) -> str | bytes:
     return completed.stdout
 
 
+def protected_path_sha256(
+    checkout_root: Path, relative_paths: list[str]
+) -> dict[str, str | None]:
+    """Hash allowed-dirty files without letting them escape the checkout."""
+
+    if not isinstance(relative_paths, list) or any(
+        not isinstance(relative, str)
+        or not relative
+        or relative.startswith(("/", "\\"))
+        or "\\" in relative
+        or ".." in relative.split("/")
+        or ":" in relative.split("/", 1)[0]
+        for relative in relative_paths
+    ):
+        raise VerifierRuntimeError(
+            "protected paths must be repository-relative POSIX paths"
+        )
+    root = checkout_root.resolve()
+    protected: dict[str, str | None] = {}
+    for relative in sorted(set(relative_paths)):
+        path = root / relative
+        if path.is_symlink():
+            raise VerifierRuntimeError(
+                f"git_guard protected path must not be a symlink: {relative}"
+            )
+        try:
+            value = path.read_bytes()
+        except FileNotFoundError:
+            protected[relative] = None
+        except (IsADirectoryError, OSError) as exc:
+            raise VerifierRuntimeError(
+                f"cannot read git_guard protected path {relative}: {exc}"
+            ) from exc
+        else:
+            protected[relative] = _sha256_bytes(value)
+    return protected
+
+
+def _protected_path_stats(
+    checkout_root: Path, relative_paths: list[str]
+) -> dict[str, tuple[int, int, int, int] | None]:
+    """Fingerprint protected file identity so write-then-restore is visible."""
+
+    stats: dict[str, tuple[int, int, int, int] | None] = {}
+    for relative in sorted(set(relative_paths)):
+        try:
+            value = (checkout_root / relative).lstat()
+        except FileNotFoundError:
+            stats[relative] = None
+        else:
+            stats[relative] = (
+                value.st_size,
+                value.st_mtime_ns,
+                value.st_ctime_ns,
+                value.st_mode,
+            )
+    return stats
+
+
 def _git_guard_snapshot(
     checkout_root: Path, guard: dict[str, Any]
-) -> dict[str, tuple[int, int, int] | None]:
+) -> dict[str, Any]:
     """Prove the requested committed checkout and fingerprint tracked files."""
 
     if not isinstance(guard, dict) or set(guard) != GIT_GUARD_FIELDS:
@@ -183,7 +242,15 @@ def _git_guard_snapshot(
                 file_stat.st_mtime_ns,
                 file_stat.st_mode,
             )
-    return fingerprint
+    return {
+        "tracked_files": fingerprint,
+        "protected_path_sha256": protected_path_sha256(
+            checkout_root, sorted(ignored_set)
+        ),
+        "protected_path_stats": _protected_path_stats(
+            checkout_root, sorted(ignored_set)
+        ),
+    }
 
 
 def _validated_reservation(value: Any) -> dict[str, str] | None:
@@ -555,16 +622,21 @@ def run_verifier(
             raise VerifierRuntimeError(
                 "a reserved verifier requires git_guard and the canonical request SHA-256"
             )
-        dispatch_attestation = {
-            "request_sha256": request_sha256,
-            "checkout_root": str(checkout_root.resolve()),
-            "git_guard": json.loads(json.dumps(git_guard)),
-        }
     guard_snapshot = (
         _git_guard_snapshot(checkout_root.resolve(), git_guard)
         if git_guard is not None
         else None
     )
+    if checked_reservation is not None:
+        assert isinstance(guard_snapshot, dict)
+        dispatch_attestation = {
+            "request_sha256": request_sha256,
+            "checkout_root": str(checkout_root.resolve()),
+            "git_guard": json.loads(json.dumps(git_guard)),
+            "protected_path_sha256": dict(
+                guard_snapshot["protected_path_sha256"]
+            ),
+        }
     cache_mode = normalized_verifier["cache"]["mode"]
     cache_status = "bypassed"
     cache_reason = "cache_disabled"
@@ -664,7 +736,7 @@ def run_verifier(
             after_snapshot = _git_guard_snapshot(checkout_root.resolve(), git_guard)
             if after_snapshot != guard_snapshot:
                 raise VerifierRuntimeError(
-                    "tracked verifier inputs changed while the command was running"
+                    "tracked or protected verifier inputs changed while the command was running"
                 )
         except VerifierRuntimeError as exc:
             status = "ERROR"

@@ -2044,7 +2044,12 @@ def _validate_verifier_executions(
                 errors,
                 f"{path}.dispatch_attestation",
                 dispatch_attestation,
-                {"request_sha256", "checkout_root", "git_guard"},
+                {
+                    "request_sha256",
+                    "checkout_root",
+                    "git_guard",
+                    "protected_path_sha256",
+                },
             ):
                 dispatch_attestation = None
             if isinstance(dispatch_attestation, dict):
@@ -2063,6 +2068,34 @@ def _validate_verifier_executions(
                         errors,
                         f"{path}.dispatch_attestation.checkout_root",
                         "must be a non-empty string",
+                    )
+                protected_paths = dispatch_attestation["protected_path_sha256"]
+                guard = dispatch_attestation["git_guard"]
+                ignored_paths = (
+                    guard.get("ignored_paths") if isinstance(guard, dict) else None
+                )
+                if (
+                    not isinstance(protected_paths, dict)
+                    or not isinstance(ignored_paths, list)
+                    or set(protected_paths) != set(ignored_paths)
+                ):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation.protected_path_sha256",
+                        "keys must exactly match git_guard.ignored_paths",
+                    )
+                elif any(
+                    digest is not None
+                    and (
+                        not isinstance(digest, str)
+                        or SHA256_RE.fullmatch(digest) is None
+                    )
+                    for digest in protected_paths.values()
+                ):
+                    _add(
+                        errors,
+                        f"{path}.dispatch_attestation.protected_path_sha256",
+                        "values must be null or lowercase SHA-256 digests",
                     )
                 matching_attempt = (
                     matches[0]

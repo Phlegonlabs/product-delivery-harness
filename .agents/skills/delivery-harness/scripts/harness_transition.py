@@ -1401,6 +1401,7 @@ def _record_node_result(
         "harness_parent",
     }
     expected_request: dict[str, Any] | None = None
+    protected_paths_at_execution: dict[str, str | None] | None = None
     if local_verifier and retained_results:
         dispatch = attempt.get("verifier_dispatch")
         if not isinstance(dispatch, dict):
@@ -1450,14 +1451,31 @@ def _record_node_result(
             raise ManifestError(
                 "retained verifier reservation does not match the active node attempt"
             )
+        retained_attestation = retained_results[0].get("dispatch_attestation")
+        protected_paths_at_execution = (
+            retained_attestation.get("protected_path_sha256")
+            if isinstance(retained_attestation, dict)
+            else None
+        )
         expected_attestation = {
             "request_sha256": dispatch["request_sha256"],
             "checkout_root": expected_request["checkout_root"],
             "git_guard": expected_request["git_guard"],
+            "protected_path_sha256": protected_paths_at_execution,
         }
-        if retained_results[0].get("dispatch_attestation") != expected_attestation:
+        if retained_attestation != expected_attestation:
             raise ManifestError(
                 "retained verifier dispatch attestation does not match the reserved checkout and request"
+            )
+        from verifier_runtime import protected_path_sha256
+
+        current_protected_paths = protected_path_sha256(
+            resolved_root,
+            expected_request["git_guard"]["ignored_paths"],
+        )
+        if current_protected_paths != protected_paths_at_execution:
+            raise ManifestError(
+                "protected coordination files changed during or after verifier execution"
             )
     elif local_verifier and not isinstance(attempt.get("verifier_dispatch"), dict):
         raise ManifestError(
@@ -1488,6 +1506,15 @@ def _record_node_result(
             repo_root=Path(args.repo_root),
             run_path=getattr(args, "run", None),
         )
+        from verifier_runtime import protected_path_sha256
+
+        if protected_path_sha256(
+            Path(args.repo_root),
+            expected_request["git_guard"]["ignored_paths"],
+        ) != protected_paths_at_execution:
+            raise ManifestError(
+                "protected coordination files changed before recording verifier result"
+            )
 
     phase = "succeeded" if outcome == "pass" else (
         "blocked" if outcome in {"blocked", "contract_gap"} else "failed"
