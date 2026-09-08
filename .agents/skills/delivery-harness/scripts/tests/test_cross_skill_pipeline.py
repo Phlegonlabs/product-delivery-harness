@@ -270,25 +270,27 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "delivery-harness/references/contract-and-traceability.md"
         )
 
-        # The UI Design Pass renders the default web preview as high-fidelity
-        # HTML with its loaded design skills and retains the approved files.
+        # The UI Design Pass renders one connected high-fidelity HTML reference
+        # with its loaded design skills and retains the approved file.
         self.assertIn(
-            "high-fidelity HTML produced with the loaded design skill", prd
+            "one self-contained high-fidelity HTML review file produced", prd
         )
         self.assertIn("already loaded design skill", preview)
         self.assertIn(
-            "Harness implements each recorded route from its own approved reference",
+            "one connected review surface",
             preview,
         )
+        self.assertIn("left sidebar listing every page or screen", preview)
+        self.assertIn("Clicking a login or sign-in action immediately switches", preview)
         self.assertIn("request retention by default", preview)
         self.assertIn("cannot implement from an HTML reference", preview)
-        # Harness then builds each bound page from its approved HTML reference.
-        self.assertIn("implemented from its HTML reference", ui_contract)
+        # Harness then builds each bound page from the shared approved reference.
+        self.assertIn("implemented from that shared reference", ui_contract)
         self.assertIn("markup, styles, assets, and rendered behavior", ui_contract)
         self.assertIn(
-            "binding target evidence, not previews to reinterpret", ui_contract
+            "binding target evidence, not a preview to reinterpret", ui_contract
         )
-        self.assertIn("every approved HTML reference file's SHA-256", contract)
+        self.assertIn("approved all-screens HTML reference file's SHA-256", contract)
 
     def test_ui_references_folder_archives_superseded_sets_like_documents(self) -> None:
         preview = self.read("product-definition-builder/references/ui-design-pass.md")

@@ -26,7 +26,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | If you have... | Start with | What you get |
 | --- | --- | --- |
 | A product idea | `product-definition-builder` | Requirements, a responsive `wireframes/2` review file for every UI surface and state, browser layout QA, architecture, stack decisions, release targets, tests, and sourced market research |
-| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | Responsive high-fidelity HTML targets checked across the full page-target-state matrix — retained under `docs/design/ui-references/` on web — plus a binding design-system pair when required |
+| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | One connected, self-contained high-fidelity HTML reference with every page in a left sidebar, complete CSS, clickable flows, and a mock login that enters the authenticated UI, plus a binding design-system pair when required |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
 | A delivered release that needs external setup | `product-activation` | Exact authorized console actions, verified measurement sources, and target-by-target activation readiness |
@@ -52,7 +52,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, responsive low-fidelity wireframes with browser layout QA, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional full-matrix UI Design Pass whose web route renders retained high-fidelity HTML references, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
+| `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, responsive low-fidelity wireframes with browser layout QA, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional full-matrix UI Design Pass whose default route renders one connected all-pages high-fidelity HTML reference, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
 | `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair, including the exact approved responsive set and layout-safety rules. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
@@ -76,7 +76,7 @@ flowchart LR
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\ndesign-system-compiler when required"]
   Gate -->|"approved, no visual phase"| Harness["delivery-harness\nShared delivery core"]
-  Design -->|"approved HTML references or design-system pair"| Harness
+  Design -->|"approved all-pages HTML reference or design-system pair"| Harness
   Harness --> Runtime["One host provider section\nCodex, Claude Code, Pi, or generic"]
   Runtime --> Security["code-security-review\nfresh unified exact-SHA review"]
   Security --> Evidence["Broad final tests and UI evidence"]
@@ -85,7 +85,7 @@ flowchart LR
   Activate --> Outcome["Verified measurement sources\nLater outcome review"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/`; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — the pass leaves one approved self-contained high-fidelity HTML reference in `docs/design/ui-references/<run-id>/`, with every page in a left sidebar, complete CSS, clickable flows, and reviewer-only mock authentication; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
 
 ### Full skill lifecycle
 
@@ -341,7 +341,7 @@ Use $product-definition-builder to review every page-target-state in the staged 
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every web page across the approved responsive/state matrix as high-fidelity HTML, browser-check layout safety, and retain the approved references under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every page and approved state in one self-contained high-fidelity HTML with complete CSS, a left sidebar listing all pages, clickable flows, and mock login that jumps directly to the authenticated UI. Browser-check the full responsive/state matrix and retain the approved file under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
 ```
 
 ```text

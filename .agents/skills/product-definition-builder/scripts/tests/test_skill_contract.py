@@ -2059,7 +2059,7 @@ async function agent(_prompt, options) {
             "Record the styling approach as its own layer row", frontend
         )
 
-    def test_native_surfaces_get_wireframes_and_html_previews(self) -> None:
+    def test_all_ui_surfaces_get_one_connected_html_preview(self) -> None:
         skill = self.read("SKILL.md")
         wireframe = self.read("references/wireframe-guide.md")
         guide = self.read("references/ui-design-pass.md")
@@ -2076,33 +2076,30 @@ async function agent(_prompt, options) {
             wireframe,
         )
         self.assertIn(
-            "the default route for every UI-bearing surface: web, native or "
+            "the default route for every UI-bearing product: web, native or "
             "cross-platform mobile, and desktop",
             guide,
         )
         self.assertIn(
-            "A web or cross-platform surface uses one self-contained "
-            "high-fidelity file per `UI-*` screen",
+            "one self-contained high-fidelity HTML",
             guide,
         )
-        self.assertNotIn("one multi-page file when the owner prefers", guide)
         for marker in (
-            "one self-contained high-fidelity HTML containing every `UI-*` "
-            "screen of that surface",
-            "the same single-file principle as `wireframes.html`",
-            "with a screen switcher",
-            "reviews the whole app in one file",
+            "contains every `UI-*` screen in one connected review surface",
+            "left sidebar listing every page or screen",
+            "Product controls that lead to another recorded screen must work",
+            "Clicking a login or sign-in action immediately switches",
+            "auth-related UI states remain directly selectable",
             "when HTML cannot represent the surface, such as platform chrome",
         ):
             self.assertIn(marker, guide)
         self.assertIn(
-            "Default every UI-bearing surface — web, native or cross-platform "
-            "mobile, and desktop — to high-fidelity HTML",
+            "Default every UI-bearing product — web, native or cross-platform "
+            "mobile, and desktop — to one self-contained high-fidelity HTML",
             skill,
         )
         self.assertIn(
-            "one self-contained high-fidelity HTML containing every `UI-*` "
-            "screen with a screen switcher",
+            "a left sidebar listing every page or screen",
             skill,
         )
 
