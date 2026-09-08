@@ -625,36 +625,34 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("its `<title>` and meta description match the PRD record", gates)
         self.assertIn("A mismatch is a failing check, not a style preference", gates)
 
-    def test_deployment_contract_separates_preview_from_production(self) -> None:
+    def test_deployment_contract_maps_development_then_main(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")
+        promotion = self.read("references/branch-promotion-contract.md")
+        orchestration = self.read("references/worktree-thread-orchestration.md")
         project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
         project_claude = self.read("assets/templates/PROJECT_CLAUDE.template.md")
 
         self.assertIn("references/deployment-contract.md", skill)
-        self.assertIn("preview URL in the conversation", skill)
+        self.assertIn("references/branch-promotion-contract.md", skill)
         for phrase in (
-            "Production tracks the repository's resolved default branch",
-            "Preview tracks the run branch",
-            "A preview PASS never proves production",
-            "adds no authorization keys",
+            "Production tracks `main`",
+            "persistent internal environment tracks `development`",
+            "only the exact remote `development` head supplies promotion evidence",
+            "A development PASS never proves production",
+            "adds no RUN authorization keys",
             "never triggers, rolls back, or reconfigures a deployment",
-            "`ci_connected` mode records a workflow",
-            "A CI deployment adds no authorization keys",
-            "the production branch to production, every non-default branch to a preview URL",
             "wrangler pages project create",
-            "can never be converted to git-connected",
-            "`wrangler versions upload`",
-            "never touch production traffic",
+            "cannot later become git-connected",
+            "`wrangler versions upload --env development`",
             "The default Cloudflare route is Workers with Static Assets",
-            "Report the pushed head's preview URL to the user in the conversation",
+            "Report the observed development or production URL",
             "never construct or guess a URL",
-            "wrangler versions upload` output or `wrangler versions list",
             "Version previews inherit the Worker's existing bindings",
             "named environments do not inherit bindings",
             "`wrangler d1 create <name>-preview`",
             "is a blocker, not a configuration preference",
-            "shares that Worker's live bindings",
+            "shares live bindings",
             "any production ID appearing in a preview binding",
             "## Platform: cloudflare",
             "## Platform: vercel",
@@ -664,8 +662,24 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Migrating",
         ):
             self.assertIn(phrase, contract)
+        for phrase in (
+            "initial_delivery",
+            "enhancement",
+            "Promote To Development",
+            "Internal Development Verification",
+            "Promote To Main",
+            "must be fast-forward",
+            "Every fetch, branch creation, ref update, merge, push, or external test action",
+            "never inherits or reuses a RUN push grant",
+            "remote `development` and `main` at the same internally verified SHA",
+        ):
+            self.assertIn(phrase, promotion)
+        self.assertIn("cut an `initial_delivery` run from observed `main`", orchestration)
+        self.assertIn("an `enhancement` run from observed `development`", orchestration)
         self.assertIn("## Deployment", project_agents)
         self.assertIn("deployment-contract.md", project_agents)
+        self.assertIn("branch-promotion-contract.md", project_agents)
+        self.assertIn("fast-forward the same SHA to `main`", project_agents)
         self.assertIn("Protected resources preview must never bind", project_agents)
         self.assertIn(
             "runtime adapter reference (Claude Code section)", project_claude
@@ -695,6 +709,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             deployment_template,
         )
         self.assertIn("## Environment Status", deployment_template)
+        self.assertIn("## Branch Promotion", deployment_template)
+        self.assertIn("Final ref convergence", deployment_template)
         self.assertIn("## Product Activation Handoff", deployment_template)
         self.assertIn("## Human Configuration Handoff", contract)
         self.assertIn("## Product Activation Handoff", contract)
@@ -712,21 +728,25 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("non-canonical view of RUN", documents_template)
         self.assertIn("`docs/product/`", documents_template)
         self.assertIn("render `docs/tasks.md`", skill)
-        self.assertIn("`product-activation` follows RUN close; RUN grants no authority", skill)
+        self.assertIn("`product-activation` follows required promotion and deployment verification; RUN grants no authority", skill)
         self.assertIn("## Post-Delivery Activation", project_agents)
         self.assertIn("Capability never grants permission", project_agents)
+        if REPO_ROOT is not None:
+            root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("An `initial_delivery` completes", root_agents)
+            self.assertIn("An `enhancement` enters `development` first", root_agents)
+            self.assertIn("never force-push", root_agents)
 
     def test_adding_a_binding_runbook_orders_resource_before_declaration(self) -> None:
         contract = self.read("references/deployment-contract.md")
         deployment_template = self.read("assets/templates/DEPLOYMENT.template.md")
 
         for phrase in (
-            "create the resource, then write the declaration",
-            "a preview PASS never proves production",
-            "fake or dedicated values on preview",
-            "migrates the preview database first",
-            'seeded `docs/DEPLOYMENT.md`\'s "Adding A Binding" section',
-            "The order is portable; the commands are not",
+            "create the non-production resource",
+            "promote the exact candidate to `development`",
+            "promote that exact verified SHA to `main`",
+            "Preview secrets stay fake or dedicated",
+            "D1 migrations run against development first",
         ):
             self.assertIn(phrase, contract)
         # The wrangler procedure is cloudflare-scoped: it lives inside the
@@ -743,10 +763,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "## Adding A Binding",
             "### cloudflare",
             "### vercel, aws, generic",
-            "Do not reuse the cloudflare steps",
-            "the app's own binding listing (for example `/health`)",
+            "Do not reuse the cloudflare commands",
+            "A run-branch preview does not satisfy this gate",
             "never in the wrangler config",
-            "a preview PASS never proves production",
+            "fast-forward the exact verified SHA to `main`",
         ):
             self.assertIn(phrase, deployment_template)
         self.assertLess(
@@ -770,7 +790,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertLess(
             deployment_template.index("Create the production-side resource"),
-            deployment_template.index("Add the production environment's declaration"),
+            deployment_template.index("Add the production declaration"),
         )
 
     def test_readme_explains_the_project_size_gate(self) -> None:
@@ -1247,6 +1267,19 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("## Managed Product Delivery Harness Runs", project_agents)
         self.assertIn("Small bounded work may proceed directly", project_agents)
+        self.assertIn("## Keep Product Contracts Current", project_agents)
+        self.assertIn(
+            "small post-delivery fixes that do not use Product Delivery Harness PLAN/RUN",
+            project_agents,
+        )
+        self.assertIn(
+            "Adding a page, route, visible region, state, or responsive behavior is at least `structure`",
+            project_agents,
+        )
+        self.assertIn(
+            "not complete while implementation and the canonical product documents disagree",
+            project_agents,
+        )
         self.assertNotIn("<verification-command>", project_agents)
         self.assertNotIn("<e2e-command>", project_agents)
         self.assertNotIn("(List protected files here", project_agents)
@@ -1262,9 +1295,63 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             root_claude = (REPO_ROOT / "CLAUDE.md").read_text(encoding="utf-8")
             self.assertNotIn("codex/<short-name>", root_agents)
             self.assertIn("never add a fixed prefix", root_agents.lower())
+            self.assertIn("## Keep Product Contracts Current", root_agents)
             self.assertIn("@AGENTS.md", root_claude)
             self.assertIn("Direct Claude Code work follows `AGENTS.md`", root_claude)
             self.assertIn("does not transfer to the worker", root_claude)
+
+    def test_gitignore_contract_is_toolchain_specific_and_applies_to_both_routes(self) -> None:
+        skill = self.read("SKILL.md")
+        contract = self.read("references/gitignore-contract.md")
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("Gitignore impact: none | update | needs owner decision", skill)
+        self.assertIn("both direct and managed routes", skill)
+        self.assertIn("references/gitignore-contract.md", skill)
+        self.assertIn("## Gitignore Hygiene", project_agents)
+        for phrase in (
+            "not a generic list copied into every repository",
+            "Never add an ignore rule only to make a dirty worktree look clean",
+            "dependency manifests and lockfiles",
+            "`.env.example`, `.env.*.example`",
+            "Do not create an empty example file",
+            "git check-ignore -v --no-index",
+            "git status --short --ignored",
+            "git ls-files",
+        ):
+            self.assertIn(phrase, contract)
+
+        if REPO_ROOT is not None:
+            root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+            root_ignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+            self.assertIn("## Gitignore Hygiene", root_agents)
+            for pattern in (
+                ".env\n",
+                ".env.*\n",
+                "!.env.example\n",
+                "!.env.*.example\n",
+                ".dev.vars\n",
+                "!.dev.vars.example\n",
+            ):
+                self.assertIn(pattern, root_ignore)
+
+    def test_platform_archetypes_keep_monetization_and_partner_channels_separate(self) -> None:
+        archetypes = self.read("references/platform-archetypes.md")
+        project_agents = self.read("assets/templates/PROJECT_AGENTS.template.md")
+
+        self.assertIn("Monetization infrastructure gate", archetypes)
+        self.assertIn("Partner channel gate and affiliate / referral / reseller model", archetypes)
+        self.assertIn("add a separate partner-channel mission", archetypes)
+        self.assertIn("Do not fold it into the billing/entitlement mission", archetypes)
+        self.assertIn("commission reversal after refund/chargeback", archetypes)
+        self.assertIn("PARTNER-* affiliate/referral/reseller", archetypes)
+        self.assertIn("## Monetization And Partner Channels", project_agents)
+        self.assertIn("RevenueCat is one candidate, never the default", project_agents)
+        self.assertIn("an affiliate link alone does not satisfy it", project_agents)
+
+        if REPO_ROOT is not None:
+            root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("## Monetization And Partner Channels", root_agents)
 
     def test_branch_names_are_explicit_and_have_no_harness_prefix(self) -> None:
         policy_paths = (

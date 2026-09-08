@@ -18,6 +18,8 @@ Identity provider:
 Tenant / organization model:
 Role / permission model:
 Billing / entitlement model:
+Monetization infrastructure gate and selected responsibility layers:
+Partner channel gate and affiliate / referral / reseller model:
 Admin / operator surfaces:
 External integrations:
 Regulated or sensitive data:
@@ -73,7 +75,7 @@ Windows .NET:
   Config: record the target framework and packaging shape (MSIX vs installer)
 ```
 
-**Environment configuration (every toolchain).** Reserve a place for environment secrets from the first scaffold commit, before any task needs one: create a tracked `.env.example` (or the toolchain's native equivalent — e.g. `local.properties.example` for Android, an `.xcconfig` template for Swift) listing every environment variable the app currently needs by name, with a placeholder or one-line description and no real value. Ensure the real `.env` (or equivalent local secret file) is git-ignored from this same commit, never committed. Treat `.env.example` as living documentation: a later task that reads a new environment variable adds its entry to `.env.example` in the same commit that introduces the read (see `commit-convention.md`), not as a separate cleanup pass. Never invent a placeholder's real value — when a required variable's actual value is unavailable, stop and ask per `contract-and-traceability.md`'s Stop And Ask Conditions rather than guessing.
+**Environment configuration (every toolchain).** Apply `gitignore-contract.md` from the first scaffold commit. Reserve a place for environment secrets before any task needs one: create a tracked `.env.example` (or the toolchain's native equivalent — e.g. `local.properties.example` for Android, an `.xcconfig` template for Swift) listing every environment variable the app currently needs by name, with a placeholder or one-line description and no real value. Ensure the real `.env` (or equivalent local secret file) is git-ignored from this same commit, never committed. Treat `.env.example` as living documentation: a later task that reads a new environment variable adds its entry to `.env.example` in the same commit that introduces the read (see `commit-convention.md`), not as a separate cleanup pass. Never invent a placeholder's real value — when a required variable's actual value is unavailable, stop and ask per `contract-and-traceability.md`'s Stop And Ask Conditions rather than guessing.
 
 Exit criterion: a locally runnable dev/build for the detected toolchain and its passing build/compile plus test discovery — a running dev server and passing build/typecheck for JS/TS web, a successful `xcodebuild build`/`swift build` for Swift, a successful `./gradlew assembleDebug` for Android, `flutter build` (or `flutter run` device check) for Flutter, `dotnet build` for .NET — proving every installed layer actually works together rather than merely appearing in a manifest. Treat an unselected layer (still `Provisional` in `stack-decisions.md`) as a stop condition, not a default guess — request the missing decision instead of picking a stack yourself.
 
@@ -158,6 +160,7 @@ Tenant model: personal, team, organization, workspace, enterprise hierarchy
 Tenant isolation: query scoping, storage boundaries, cross-tenant deny cases, seed data
 Role / permission matrix: roles, actions, resources, allow/deny cases, admin override
 Billing / entitlements: plans, limits, feature flags, subscription states, trial, payment failure, cancellation
+Partner channel: none, affiliate, referral, reseller, or hybrid; attribution/deal registration, commission/discount, payout, provisioning, support, termination, and fraud rules when present
 Admin / operator surfaces: impersonation policy, moderation, support actions, destructive actions
 Audit / observability: audit events, logs, metrics, alerts, data export/delete/retention
 Integrations: webhooks, background jobs, email, queues, object storage, third-party APIs
@@ -174,6 +177,8 @@ M5 jobs/webhooks/integrations and audit events
 M6 E2E with allowed/denied/tenant/billing/admin scenarios
 ```
 
+When the Partner Channel Gate is `required`, add a separate partner-channel mission for attribution or lead/deal registration, commission/discount and reversal, payout records, reseller provisioning/deprovisioning, and partner/admin surfaces. Do not fold it into the billing/entitlement mission merely because both touch order or subscription events.
+
 M4 is an illustrative single line, not a mandate to build every authenticated screen in one mission. Per `contract-and-traceability.md`'s mission-granularity corollary, split it into one mission per page (or a small tightly-coupled group) and pair each with its own scoped `visual` review as soon as that mission integrates. When the product has a design system, those page missions come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order.
 
 Required E2E scenarios:
@@ -185,6 +190,7 @@ Required E2E scenarios:
 - Cross-tenant denied path.
 - Admin/operator workflow, if present.
 - Billing entitlement allowed and blocked states, if present.
+- Affiliate/referral attribution, duplicate or self-referral rejection, commission reversal after refund/chargeback, payout record, and reseller provisioning/termination paths when present.
 - Audit/event/log created for sensitive actions.
 - Seed/reset and migration compatibility verified.
 
@@ -197,7 +203,7 @@ Page inventory: homepage, landing pages, pricing, about, contact, legal, 404, th
 URL model: slugs, canonical URLs, redirects, locale strategy, static/SSR behavior
 Content source: repo markdown, CMS, API, spreadsheet, manual copy, media library
 SEO metadata: title, description, Open Graph, Twitter cards, schema, sitemap, robots
-Conversion: CTA, forms, analytics events, pixels, consent, UTM preservation, CRM/webhook target
+Conversion: CTA, forms, analytics events, pixels, consent, UTM and partner-attribution preservation, CRM/webhook target
 Performance budget: LCP, CLS, INP or Lighthouse threshold, image/media policy
 ```
 
@@ -252,7 +258,7 @@ Catalog model: product, SKU, variant, price, availability, inventory, media
 Listing behavior: PLP, filters, sort, search, pagination, empty states
 Detail behavior: PDP, variant selection, price/availability, media, schema markup
 Commerce boundary: cart, checkout, payment, fulfillment, or explicit out-of-scope note
-Tracking: product impression, view item, add to cart, checkout, purchase or lead events
+Tracking: product impression, view item, add to cart, checkout, purchase or lead events, plus partner attribution when applicable
 ```
 
 Required E2E scenarios:
@@ -276,7 +282,7 @@ Toolchain and project shape: iOS (*.xcodeproj/*.xcworkspace, Package.swift), And
 Targets and minimums: OS/SDK floor (minSdk/targetSdk, minimum OS version, target framework), device classes (phone/tablet/desktop), orientation, per-target parity for Flutter
 App shell and navigation: entry point, navigation model, deep links / universal links / app links, state restoration
 Local persistence and sync: on-device storage (Core Data/SwiftData, Room, SQLite, Hive/Isar), offline behavior, background sync, migration of on-device schema across app versions
-Platform capabilities: push notifications (APNs/FCM), permissions (camera, location, contacts), background tasks, in-app purchase/entitlements when present
+Platform capabilities: push notifications (APNs/FCM), permissions (camera, location, contacts), background tasks, and the separately selected store/billing, subscription/entitlement, and paywall layers when purchases are present
 Identity and data: auth flow (native, OAuth, platform sign-in), secure credential storage (Keychain/Keystore/DPAPI), account recovery
 Analytics / crash reporting / feature flags: crash-reporting tool and its symbol-upload step, analytics events for key user actions, feature-flag mechanism when used — or explicitly out of scope for this product
 Application identity: bundle/application identifier and the local build configuration that carries it
@@ -371,6 +377,7 @@ ANALYTICS-* events/pixels/consent
 CONV-* conversion forms/CTA/CRM
 CATALOG-* product/catalog/search
 CHECKOUT-* cart/payment/checkout
+PARTNER-* affiliate/referral/reseller attribution, economics, payout, provisioning, and lifecycle
 A11Y-* accessibility
 PERF-* performance budgets
 APPSHELL-* native app shell/navigation

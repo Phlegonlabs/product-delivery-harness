@@ -3,7 +3,7 @@
 
 Validates that the deployment record is resolved (no template placeholders),
 that its name-only human configuration handoff is structurally complete, and
-that its Environment Status table is coherent: both preview and production
+that its Environment Status table is coherent: both development and production
 rows exist with a URL, duplicate section/row identities are rejected, and any
 verified row carries full lowercase SHAs and a status. Also validates the
 Resource Isolation table: no binding class may list the same resource ID in
@@ -32,7 +32,7 @@ PLACEHOLDER_MARKERS = (
     "<setting or account task>",
 )
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
-ENVIRONMENT_ROWS = ("preview", "production")
+ENVIRONMENT_ROWS = ("development", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
 IDENTITY_ABSENT_VALUES = {"", "-"}

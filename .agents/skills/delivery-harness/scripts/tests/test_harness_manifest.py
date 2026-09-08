@@ -760,7 +760,15 @@ class RunValidationTests(unittest.TestCase):
         plan = valid_plan()
         run = valid_run(plan)
         run["integration"]["branch"] = "refs/heads/main"
-        self.assert_run_error_contains(plan, run, "must not resolve to main")
+        self.assert_run_error_contains(plan, run, "must not resolve to protected")
+
+        run = valid_run(plan)
+        run["integration"]["branch"] = "refs/heads/development"
+        self.assert_run_error_contains(plan, run, "must not resolve to protected")
+
+        run = valid_run(plan)
+        run["integration"]["branch"] = "refs/heads/Development"
+        self.assert_run_error_contains(plan, run, "must not resolve to protected")
 
         run["integration"]["branch"] = "refs/heads/release"
         run["observed"]["git"]["default_branch"] = "release"
@@ -788,6 +796,34 @@ class RunValidationTests(unittest.TestCase):
             plan,
             run,
             "must explicitly request a remote push",
+        )
+
+    def test_v11_run_push_authorization_rejects_development_target(self) -> None:
+        plan = valid_plan()
+        run = valid_run(plan)
+        run["authorizations"]["push"] = {
+            "authorized": True,
+            "source": "user: push the verified branch",
+            "authorized_head_sha": "a" * 40,
+            "scope": {
+                "run_id": run["run_id"],
+                "plan_revision": run["plan"]["revision"],
+                "plan_digest_sha256": run["plan"]["digest_sha256"],
+                "mission_ids": ["M1"],
+                "targets": ["branch:refs/heads/development"],
+            },
+            "expires_when": "run_complete",
+        }
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "cannot target protected development",
+        )
+        run["status"] = "complete"
+        self.assert_run_error_contains(
+            plan,
+            run,
+            "cannot target protected development",
         )
 
 

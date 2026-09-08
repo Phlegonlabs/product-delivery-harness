@@ -337,7 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--branch",
         required=True,
-        help="exact non-default integration branch ref for this run",
+        help="exact non-protected integration branch ref for this run",
     )
     parser.add_argument(
         "--out",

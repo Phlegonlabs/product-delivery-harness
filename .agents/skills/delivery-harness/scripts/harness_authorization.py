@@ -134,7 +134,18 @@ def _is_main_branch_target(target: Any) -> bool:
     return (
         isinstance(target, str)
         and target.startswith("branch:")
-        and _normalized_branch(target.split(":", 1)[1]) == "main"
+        and (_normalized_branch(target.split(":", 1)[1]) or "").casefold() == "main"
+    )
+
+
+def _is_development_branch_target(target: Any) -> bool:
+    """Return whether an exact branch target resolves to development."""
+
+    return (
+        isinstance(target, str)
+        and target.startswith("branch:")
+        and (_normalized_branch(target.split(":", 1)[1]) or "").casefold()
+        == "development"
     )
 
 
@@ -262,7 +273,11 @@ def _v10_push_is_current_and_safe(
     if integration_branch is None or requested_branch is None:
         return False
     resolved_integration = _normalized_branch(integration_branch)
-    if resolved_integration is None or requested_branch != resolved_integration:
+    if (
+        resolved_integration is None
+        or resolved_integration.casefold() == "development"
+        or requested_branch != resolved_integration
+    ):
         return False
 
     default_branch = observed_default_branch(run)
@@ -353,12 +368,23 @@ def authorization_covers(
     elif mission_id not in missions and "*" not in missions:
         return False
     targets = scope.get("targets")
-    if action == "push" and (
-        _normalized_branch(_integration_branch(run)) == "main"
-        or _is_main_branch_target(target)
-        or (isinstance(targets, list) and any(_is_main_branch_target(t) for t in targets))
-    ):
-        return False
+    if action == "push":
+        integration_branch = _normalized_branch(_integration_branch(run))
+        if (
+            (integration_branch or "").casefold() == "main"
+            or _is_main_branch_target(target)
+            or (isinstance(targets, list) and any(_is_main_branch_target(t) for t in targets))
+        ):
+            return False
+        if run.get("schema_version") in {10, 11} and (
+            (integration_branch or "").casefold() == "development"
+            or _is_development_branch_target(target)
+            or (
+                isinstance(targets, list)
+                and any(_is_development_branch_target(t) for t in targets)
+            )
+        ):
+            return False
     if action == "push" and run.get("schema_version") in {10, 11}:
         # A completed RUN may retain a run_complete grant as historical
         # evidence, but that expiry exception never relaxes remote intent or

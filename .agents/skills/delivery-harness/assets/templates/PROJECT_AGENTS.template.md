@@ -64,24 +64,47 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 - Every change must be verifiable (tests, scripts, output). If you can't verify it, don't ship it.
 - For bug fixes, add or update a regression test when practical. If no reliable automated test fits, explain the verification used instead.
 
+## Keep Product Contracts Current
+
+- When `docs/product/PRD.md` exists, every product change updates the affected PRD requirements, acceptance criteria, and trace IDs in the same change, including small post-delivery fixes that do not use Product Delivery Harness PLAN/RUN.
+- Before implementation, classify the change's UI impact as `none`, `structure`, `style`, or `both`. Adding a page, route, visible region, state, or responsive behavior is at least `structure`.
+- For `none`, preserve `wireframes.html` and the approved UI direction. For `structure` or `both`, update only the affected PRD UI Surface Contract entries and `wireframes.html` pages, then re-run their applicable validation and approval gate. For `style` or `both`, also update the approved UI direction or record the owner's decision to keep it; update `design-system.md` and `design-system.json` only when the approved change requires the formal pair to change.
+- Preserve unaffected requirements, IDs, pages, wireframes, and design decisions. A direct task may stay small, but it is not complete while implementation and the canonical product documents disagree.
+
+## Monetization And Partner Channels
+
+- When a product has pricing, paid access, purchase-gated features, or outside sellers, keep explicit Monetization Infrastructure and Partner Channel gates in `docs/product/PRD.md`; record `not_required` with a reason when either does not apply.
+- Resolve the commercial model and purchase surfaces before selecting technology. RevenueCat is one candidate, never the default: compare current official evidence for native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle, Lemon Squeezy, or another product-fit option.
+- Treat affiliate, referral, and reseller as different motions. A reseller decision must cover deal registration, price authority or wholesale terms, customer ownership, provisioning, delegated administration, support, renewals, termination, and channel conflict; an affiliate link alone does not satisfy it.
+- Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries and `wireframes.html` before implementing customer, partner, pricing, purchase, or administration surfaces.
+
 ## Protect Local Data
 
 - Preserve unrelated dirty files, branches, and worktrees.
 - Confirm before deleting, overwriting, or moving important local data.
 
+## Gitignore Hygiene
+
+- Treat `.gitignore` as part of every direct and managed change. During the scope scan, decide whether the task introduces or retires a local secret file, generated output, dependency directory, cache, log, temporary file, editor state, or platform artifact.
+- Add only patterns justified by the repository's observed toolchain. Ignore value-bearing local environment and credential files plus reproducible local artifacts; keep source, lockfiles, migrations, tests, fixtures, configuration examples and schemas, product documents, and required canonical artifacts tracked.
+- Keep `.env.example` or the platform-native example tracked with placeholders only, and ignore the corresponding value-bearing local file. Never open a secret file to decide its ignore rule.
+- Preserve existing entries and use the narrowest practical patterns. Never add an ignore rule just to hide a dirty worktree, and never untrack a tracked file, delete it, or rewrite Git history without explicit approval. If a likely secret file is already tracked, stop and report its path without reading its value.
+- Update `.gitignore` in the same scoped change that introduces the artifact class. Verify representative ignored and tracked paths with `git check-ignore -v`, `git status --short --ignored`, and `git ls-files` before completion.
+
 ## Git Safety
 
 - Resolve the default branch from repository state or governance; never assume its name.
-- Never edit, commit, merge, or push on the default branch. Cutting a non-default branch from it is fine.
-- Resolve the complete non-default branch name from repository governance or the user's instruction. If neither names it, ask before branch creation; never add a fixed prefix or invent a branch name.
-- Push requires separate explicit remote intent for the exact non-default branch and current verified head.
+- Use persistent `development` for internally tested candidates and the resolved default branch (`main` for this workflow) for production. Never edit or commit directly on either protected branch.
+- Resolve the complete non-default run-branch name from repository governance or the user's instruction. Cut an `initial_delivery` run from observed `main`; cut an `enhancement` run from observed `development`. If the kind or name is unresolved, ask; never add a fixed prefix or invent a name.
+- A RUN push requires separate explicit remote intent for its exact run branch and verified head. It never authorizes `development` or `main`.
+- After RUN close, follow `delivery-harness/references/branch-promotion-contract.md`: separately authorize and fast-forward the exact candidate to `development`, read it back, run the complete internal suite on that remote head, then separately authorize and fast-forward the same SHA to `main`. Never force-push; stop on drift or divergence.
 - Preserve unrelated dirty files, branches, and worktrees. Cleanup, worktree removal, task archival, and branch deletion require their own exact authorization.
 
 ## Deployment
 
 - Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Product Delivery Harness `deployment-contract.md`.
 - Platform and mode: the deploy platform id (for example `cloudflare`, `vercel`, `aws`) and `git_connected`, `ci_connected`, or `manual`.
-- Production deploys only from the resolved default branch; preview builds track non-default branch pushes. They are separate environments with separate URLs and stateful resources, and a preview PASS never proves production.
+- Development deploys from `development`; production deploys from `main`. Other run branches may have disposable previews, but only the exact remote development head supplies the internal promotion evidence, and a development PASS never proves production.
 - Production and preview bind fully separate D1/KV/R2/Durable-Object resources: the preview environment declares its complete binding set, never references a production resource ID, and the deployment record's Resource Isolation table carries both ID sets.
 - Before a deployable push, reconcile `docs/DEPLOYMENT.md` against tracked environment declarations, platform config, CI workflows, and auth/integration code. List exact secret and variable names, preview/production placement, source owner, and external-console tasks; never read or record secret values. After deployment, update only from read-only evidence and report every pending human action.
 - Preview mechanism or URL pattern: <fill>
@@ -107,14 +130,14 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - Map one independently testable goal to one mission. Tasks inside that mission stay sequential under one writer.
 - Give every writer an explicit file-ownership scope and a separate worktree. Workers and reviewers never delegate; the Harness parent dispatches every explorer, writer, and reviewer as a sibling.
 - Freeze and integrate shared APIs, schemas, and types before starting dependent write missions in parallel.
-- Cut that resolved run branch from the current default branch, then create every implementation worktree from the current resolved integration-branch SHA.
+- Cut an initial-delivery run branch from current `main` or an enhancement run branch from current `development`, then create every implementation worktree from the resolved integration-branch SHA.
 - Before dispatch, verify each worktree has the expected repository, branch/ref, exact base HEAD, and a clean status.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
 - After serial integration, use fresh read-only reviewers on the exact unified integration SHA, then run one broad final validation on the fixed candidate SHA.
-- The run defaults to verified local completion; only an explicit remote outcome pushes the verified integration head to the run branch. Landing the run branch on the default branch is the user's own step, done outside this harness.
+- The RUN defaults to verified local completion; only explicit remote intent pushes the verified integration head to its run branch. Post-RUN `development` and `main` promotion follows the separate branch-promotion contract and never inherits the RUN grant.
 - When the owner declares the goal complete and its run has passed the Closeout Bar, archive the finished plan runtime — `docs/goal/PLAN.md`, `RUN.md`, and their `docs/goal/evidence/` — into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/` (`contract-and-traceability.md`). Archival moves those exact files on the owner's completion instruction; it never deletes and never moves anything under `docs/product/`. A later plan starts only after the completed pair is archived, never by overwriting it.
-- Later work cuts a fresh run branch from the then-current default branch.
+- Later enhancement work cuts a fresh run branch from the current observed `development` head after the prior promotion state is resolved.
 
 ### Action Authorization
 
@@ -125,7 +148,8 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved integration branch.
 - Run the exact repository-defined focused verification and applicable E2E commands, then review the complete diff before push. If commands are undocumented, inspect the repository's package scripts and CI configuration and state the commands selected.
 - Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual smoke only for a materially different environment or an uncovered visual/external-integration risk.
-- With matching explicit remote intent and `push` authorization, push only the verified resolved integration branch and current head. The current RUN push guard requires one exact branch target, the authorized integration head, and known `observed.git.default_branch`; refuse any target or integration branch that resolves to the observed default branch, with literal `main` retained as a fail-safe refusal.
+- With matching explicit remote intent and `push` authorization, push only the verified run integration branch and current head. The current RUN push guard requires one exact target and refuses `development`, the observed default branch, and literal `main`; protected branches use only the post-RUN promotion contract.
+- After RUN completion, treat `development` and `main` promotion as new exact actions outside the RUN ledger. Require separate action-time authorization and remote-ref read-back for each; require internal tests on the exact development SHA before the independently authorized fast-forward of that same SHA to `main`.
 - Remove only an authorized clean linked worktree, then delete only the authorized local worker branch. Never remove the primary checkout, and never delete the run branch the user still has to read.
 - Task archival, worktree removal, and branch deletion remain separate ledger actions even when several are approved in one explicit readiness statement.
 
@@ -147,4 +171,4 @@ Verified: <command or action> (<pass signal>)
 
 ## Review Guidelines
 
-Treat authorization bypasses, writes to the default branch, stale review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.
+Treat authorization bypasses, direct edits or commits on protected branches, unverified or non-fast-forward promotion, stale review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.
