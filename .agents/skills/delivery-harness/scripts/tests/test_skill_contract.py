@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.29.0"', package)
+        self.assertIn('"version": "0.29.1"', package)
         self.assertEqual(
-            "0.29.0",
+            "0.29.1",
             (REPO_ROOT / ".agents" / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -63,7 +63,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for legacy in ("full-harness", "prd-builder", "product-design-builder"):
             self.assertFalse((skills_root / legacy).exists())
 
-        for readme_name in ("README.md", "README.zh-TW.md", "README.zh-CN.md"):
+        for readme_name in ("README.md", "README.zh-TW.md", "README.zh-CN.md", "README.es.md"):
             with self.subTest(readme=readme_name):
                 readme = (REPO_ROOT / readme_name).read_text(encoding="utf-8")
                 self.assertIn("Product Delivery Harness", readme)
@@ -80,7 +80,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "runtime-upgrades.md": self.read("references/runtime-upgrades.md"),
             **{
                 name: (REPO_ROOT / name).read_text(encoding="utf-8")
-                for name in ("README.md", "README.zh-CN.md", "README.zh-TW.md")
+                for name in ("README.md", "README.zh-CN.md", "README.zh-TW.md", "README.es.md")
             },
         }
         for name, content in documents.items():
@@ -111,6 +111,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "README.md": "archive the legacy directories under their original IDs",
             "README.zh-CN.md": "用原 ID 保存各旧目录",
             "README.zh-TW.md": "用原 ID 保存各舊目錄",
+            "README.es.md": "archiva los directorios heredados bajo sus IDs originales",
         }
         for name, phrase in readme_backup_phrases.items():
             with self.subTest(readme=name, rule="original backup id"):
@@ -870,7 +871,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.29.0"', runbook)
+        self.assertIn('"required_harness_version": "0.29.1"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
