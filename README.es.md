@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.29.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.29.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -452,6 +452,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.29.1** — Agregó `README.es.md` como el cuarto idioma de README. Los switchers de idioma, la regla de mantener los READMEs al día, el checklist de Releasing, el AGENTS.md del repositorio y los tests de contrato de README pineados cubren ahora los cuatro idiomas en el mismo cambio. Ningún comportamiento de skill cambió.
 
 - **0.29.0** — Promoción development-first y gates vivos de gobernanza de producto. La entrega inicial arranca desde `main`; los enhancements arrancan desde el `development` persistente. Un RUN igual solo hace push de su propia branch. Tras cerrar el RUN, el candidato exacto se promueve por separado a `development`, se lee de vuelta y se testa internamente antes de la promoción a producción. Los guards del RUN rechazan `development` y `main` como targets de integración o push, incluidas grafías con mayúsculas mixtas. Un PR requerido puede crear un merge SHA distinto; su tree y checks deben verificarse y los refs protegidos deben reportarse con honestidad. Product Definition ahora mantiene al día los PRDs existentes y los wireframes afectados para trabajo directo de seguimiento, registra los gates de monetización y partner channels, compara RevenueCat con alternativas actuales en vez de dejarlo como default, y separa las operaciones affiliate, referral y reseller. La higiene de gitignore es específica del toolchain, mantiene los ejemplos registrados y se detiene ante posibles secretos ya registrados.
 

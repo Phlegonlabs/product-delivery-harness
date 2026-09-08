@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.29.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.29.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -453,6 +453,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.29.1** — 新增 `README.es.md` 作为第四种 README 语言。语言切换列、《维持 README 与时俱进》规则、《发布》清单、repo 的 AGENTS.md，以及 pin 住的 README 合约测试，都在同一份变更里涵盖四种语言。没有 skill 行为变更。
 
 - **0.29.0** — 新增 development-first promotion 与持续维护的产品治理闸门。第一次交付从 `main` 开始，后续 enhancement 从持久的 `development` 开始；RUN 仍只能推自己的 branch。RUN 关闭后，exact candidate 要另行 promotion 到 `development`、read-back 并完成内部测试，才能进入 production。RUN guards 会拒绝把 `development` 或 `main` 当成 integration／push target，包括大小写变体。如果 repository rule 强制 PR 并产生不同 merge SHA，必须验证其 tree 与 checks，并如实报告 protected refs。Product Definition 现在会在直接 follow-up 中更新既有 PRD 与受影响 wireframe，记录 monetization 与 partner-channel gates，比较 RevenueCat 与当前替代方案而不默认选用，并分开 affiliate、referral、reseller operations。Gitignore 管理按实际 toolchain 决定、保留 example，并在发现可能的 secret 已被跟踪时停止。
 
