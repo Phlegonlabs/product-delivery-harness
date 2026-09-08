@@ -135,17 +135,19 @@ async function agent(_prompt, options) {
                     "ios-app",
                     "TestFlight",
                     "development",
-                    "integration branch head",
+                    "development branch head after promotion",
                 ),
                 self.release_target(
                     "ios-production",
                     "ios-app",
                     "App Store",
                     "production",
-                    "default branch head",
+                    "main branch head after internal development PASS",
                 ),
             ],
             "has_public_marketing_content": False,
+            "monetization_model": "none",
+            "partner_channel_model": "none",
             "include_implementation_plan": False,
             "market_research": True,
             "tool_profile": "builder_readonly",
@@ -837,10 +839,14 @@ async function agent(_prompt, options) {
         self.assertIn("AskUserQuestion", agent)
         self.assertIn("one repository and one codebase", architecture)
         self.assertIn("separately named development and production Workers", frontend)
-        self.assertIn(
-            "The pushed integration-branch head after current-head CI", contract
-        )
-        self.assertIn("The default-branch head after development PASS", contract)
+        self.assertIn("Exact remote `development` head", contract)
+        self.assertIn("Exact remote `main` head", contract)
+        self.assertIn("internally verified development SHA", contract)
+        self.assertIn("initial delivery starts from `main`", skill)
+        self.assertIn("enhancements start from `development`", skill)
+        self.assertIn("Every update is an authorized exact-SHA fast-forward", architecture)
+        self.assertIn("Source policy: [`development`", contract)
+        self.assertIn("Use persistent development for internal releases and main for", agent)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
@@ -1145,9 +1151,10 @@ async function agent(_prompt, options) {
         frontend = self.read("references/frontend-stack-selection.md")
         backend = self.read("references/backend-stack-selection.md")
         mobile = self.read("references/mobile-stack-selection.md")
+        monetization = self.read("references/monetization-and-partner-channel-guide.md")
 
         header = "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |"
-        self.assertEqual(3, contract.count(header))
+        self.assertEqual(4, contract.count(header))
         for status_rule in (
             "`Required` means a user, organization, or hard external constraint",
             "`Selected` means the current product or repository already adopted it",
@@ -1157,7 +1164,7 @@ async function agent(_prompt, options) {
             self.assertIn(status_rule, contract)
         self.assertIn("A section may mix statuses", contract)
         self.assertIn("Authority is not another status label", contract)
-        for guide in (frontend, backend, mobile):
+        for guide in (frontend, backend, mobile, monetization):
             self.assertIn(
                 "Assign status per layer; one section may mix statuses", guide
             )
@@ -1774,6 +1781,8 @@ async function agent(_prompt, options) {
             ("AQ-DEPLOYMENT-PLATFORM", "final", "Deployment platform"),
             ("AQ-MOBILE-PLATFORM", "final", "Mobile platform"),
             ("AQ-DESKTOP-PLATFORM", "final", "Desktop platform"),
+            ("AQ-MONETIZATION-MODEL", "final", "Monetization model"),
+            ("AQ-PARTNER-CHANNEL", "final", "Partner channel"),
             ("AQ-DATABASE-CATEGORY", "final", "Database category"),
             ("AQ-AUTH-STRATEGY", "final", "Auth strategy"),
         ]
@@ -1806,6 +1815,58 @@ async function agent(_prompt, options) {
                 ]
                 flattened.extend(item for batch in batches for item in batch)
             self.assertEqual(inventory_ids, flattened)
+
+    def test_monetization_and_partner_channels_are_separate_current_decisions(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+        guide = self.read("references/monetization-and-partner-channel-guide.md")
+        contract = self.read("references/output-contract.md")
+        architecture = self.read("references/architecture-playbook.md")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        agent = self.read_agent_prompt()
+
+        self.assertIn("references/monetization-and-partner-channel-guide.md", skill)
+        self.assertIn("AQ-MONETIZATION-MODEL", interview)
+        self.assertIn("AQ-PARTNER-CHANNEL", interview)
+        self.assertIn("does not select RevenueCat or any other provider automatically", interview)
+        self.assertIn("Monetization Infrastructure Gate", contract)
+        self.assertIn("Partner Channel Gate", contract)
+        self.assertIn("## Monetization and Partner Channel Technology Decision", contract)
+        self.assertIn("A pricing strategy makes the gates applicable; it does not make RevenueCat automatically required", guide)
+        self.assertIn("StoreKit may be sufficient", architecture)
+        for provider in (
+            "RevenueCat",
+            "Qonversion",
+            "Adapty",
+            "Superwall",
+            "Stripe Billing",
+            "Paddle Billing",
+            "Lemon Squeezy",
+            "PartnerStack",
+            "Rewardful",
+            "FirstPromoter",
+        ):
+            self.assertIn(provider, guide)
+        for motion in ("Affiliate", "Referral", "Reseller"):
+            self.assertIn(f"**{motion}:**", guide)
+        self.assertIn("monetization_model", workflow)
+        self.assertIn("partner_channel_model", workflow)
+        self.assertIn('key: "monetization-channel"', workflow)
+        self.assertIn("pricing does not automatically select RevenueCat", agent)
+
+        commercial = self.base_workflow_args()
+        commercial["monetization_model"] = "subscription"
+        commercial["partner_channel_model"] = "reseller"
+        result = self.run_workflow(commercial)
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
+
+        for missing_field in ("monetization_model", "partner_channel_model"):
+            workflow_args = self.base_workflow_args()
+            workflow_args.pop(missing_field)
+            result = self.run_workflow(workflow_args)
+            self.assertFalse(result["ok"])
+            self.assertIn(f"requires args.{missing_field}", result["error"])
 
     def test_browser_extension_is_a_supported_archetype(self) -> None:
         skill = self.read("SKILL.md")
