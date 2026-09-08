@@ -20,6 +20,8 @@ from harness_authorization import (  # noqa: E402
     authorization_covers,
     is_explicit_remote_intent,
 )
+from harness_core import ManifestError  # noqa: E402
+from harness_transition import _require_non_default_integration_branch  # noqa: E402
 
 SHA = "a" * 40
 DIGEST = "b" * 64
@@ -270,7 +272,7 @@ class OrdinaryPushPathTests(unittest.TestCase):
 
 
 class MainBranchGuardTests(unittest.TestCase):
-    """The one branch rule the harness enforces."""
+    """RUN pushes cannot bypass post-RUN protected-branch promotion."""
 
     def test_push_targeting_main_is_refused(self) -> None:
         run = run_with_push(targets=["branch:refs/heads/main"])
@@ -299,6 +301,40 @@ class MainBranchGuardTests(unittest.TestCase):
                 run, "push", "M1", "branch:refs/heads/codex/add-search"
             )
         )
+
+    def test_push_targeting_development_is_refused_for_current_runs(self) -> None:
+        run = run_with_push(
+            branch="refs/heads/development",
+            targets=["branch:refs/heads/development"],
+        )
+        self.assertFalse(
+            authorization_covers(run, "push", "M1", "branch:refs/heads/development")
+        )
+
+    def test_development_target_anywhere_in_scope_poisons_current_grant(self) -> None:
+        run = run_with_push(
+            targets=["branch:refs/heads/codex/add-search", "branch:development"]
+        )
+        self.assertFalse(
+            authorization_covers(
+                run, "push", "M1", "branch:refs/heads/codex/add-search"
+            )
+        )
+
+    def test_transition_rejects_development_as_the_run_integration_branch(self) -> None:
+        run = run_with_push(branch="refs/heads/development")
+        with self.assertRaisesRegex(ManifestError, "protected promotion branch"):
+            _require_non_default_integration_branch(run)
+
+    def test_protected_branch_guards_are_case_insensitive(self) -> None:
+        for branch in ("refs/heads/Development", "refs/heads/MAIN"):
+            with self.subTest(branch=branch):
+                run = run_with_push(branch=branch, targets=[f"branch:{branch}"])
+                self.assertFalse(
+                    authorization_covers(run, "push", "M1", f"branch:{branch}")
+                )
+                with self.assertRaisesRegex(ManifestError, "protected promotion branch"):
+                    _require_non_default_integration_branch(run)
 
 
 class BranchSpellingRegressionTests(unittest.TestCase):

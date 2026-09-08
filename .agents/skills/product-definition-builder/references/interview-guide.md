@@ -8,7 +8,7 @@ Size each `AskUserQuestion` call to the question tool's actual per-call question
 
 1. The decisions that depend on no other answer: product archetype and validation depth.
 2. For a UI-bearing product, the four closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, and preferred layout/interaction pattern.
-3. The decisions that depend on the archetype call's answer: deployment platform, the mobile or desktop platform follow-up, database category, and auth strategy.
+3. The decisions that depend on the archetype call's answer: deployment platform, the mobile or desktop platform follow-up, monetization model, partner channel, database category, and auth strategy.
 
 This table is the canonical closed-decision inventory and phase order. Each applicable ID is asked exactly once by the matching `(AskUserQuestion)` bullet below. Batch only within one phase; a host with a smaller per-call capacity splits that phase without dropping or moving decisions.
 
@@ -23,12 +23,14 @@ This table is the canonical closed-decision inventory and phase order. Each appl
 | AQ-DEPLOYMENT-PLATFORM | final | Deployment platform |
 | AQ-MOBILE-PLATFORM | final | Mobile platform |
 | AQ-DESKTOP-PLATFORM | final | Desktop platform |
+| AQ-MONETIZATION-MODEL | final | Monetization model |
+| AQ-PARTNER-CHANNEL | final | Partner channel |
 | AQ-DATABASE-CATEGORY | final | Database category |
 | AQ-AUTH-STRATEGY | final | Auth strategy |
 
 Never ask a final-phase question in the archetype call. The product surface is still unknown there, so the answer can be about a platform the product does not have — and a wrong deployment platform then freezes a wrong environment contract into `architecture.md`.
 
-Every final-phase question carries a skip rule, so ask only what remains applicable. If a hybrid spanning web, mobile, and desktop surfaces with a backend leaves all five final decisions unresolved, split them across as many calls as the tool's real per-call capacity requires. Never drop an applicable decision or silently convert it from a user selection into an agent recommendation merely to reduce the number of calls.
+Every final-phase question carries a skip rule, so ask only what remains applicable. If a hybrid spanning web, mobile, and desktop surfaces with a backend and commercial intent leaves all seven final decisions unresolved, split them across as many calls as the tool's real per-call capacity requires. Never drop an applicable decision or silently convert it from a user selection into an agent recommendation merely to reduce the number of calls.
 
 ## Segmented Free-Text Sequence
 
@@ -45,8 +47,9 @@ Ask the unresolved parts of these short prompts:
 - What problem should this product solve, for whom, and what outcome would make it successful?
 - Which people or organizations use, buy, administer, approve, or observe it, and what access differences matter?
 - Where, when, and on which devices or channels will they use it? Mention accessibility, localization, or offline needs that matter.
+- How should it make money, who pays, and should affiliates, referral partners, or resellers help sell it?
 
-Capture internally: goal, buyer, users, roles, permissions, use context, channels, accessibility, localization, offline expectations, and known brand or policy constraints. Do not ask the closed product-archetype question here.
+Capture internally: goal, buyer, users, roles, permissions, use context, channels, commercial intent, pricing direction, partner-sales intent, accessibility, localization, offline expectations, and known brand or policy constraints. Do not ask the closed product-archetype question here.
 
 ### Segment 2 — Workflows, data, and rules
 
@@ -104,6 +107,8 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What rules, thresholds, calculations, approvals, or eligibility logic matter?
    - What must never happen?
    - What compliance, audit, or policy constraints apply?
+   - [AQ-MONETIZATION-MODEL] If the product has commercial intent or an unresolved pricing strategy, which model applies: no commercial surface, one-time purchase, recurring subscription, usage-based, hybrid, or undecided and need a recommendation? (AskUserQuestion, final phase, since the viable purchase route depends on the archetype answer) Skip it only when the user's prompt, existing package, or repository already resolves the model. This decision makes the Monetization Infrastructure Gate applicable but does not select RevenueCat or any other provider automatically.
+   - [AQ-PARTNER-CHANNEL] If the product may use outside sellers or promoters, which channel applies: none, affiliate, referral, reseller, hybrid, or undecided and need a recommendation? (AskUserQuestion, final phase, since the operating model depends on the product and purchase surfaces) Skip it when the user's prompt or existing package already resolves the channel, or when the product has no commercial or partner-distribution intent. Affiliate link attribution, known-lead referral, and reseller-owned sales are different operating models; resolve them with `monetization-and-partner-channel-guide.md`.
 7. UX expectations
    - Who is the builder or human product/design decision owner for the UX direction?
    - [AQ-EXPERIENCE-PRIORITY] What should the experience optimize first: speed, clarity, guided completion, expert control, exploration, conversion, or content comprehension? (AskUserQuestion)
@@ -134,7 +139,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
    - What is the complete inventory of expected deployable web, API, mobile, desktop, or browser-extension surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
-   - For each target, which exact branch or ref produces the release — for example the pushed integration-branch head for development, and the default-branch head after merge for production? If the product requires a signed tag or another source rule, record it explicitly.
+   - For each target, which exact branch or ref produces the release? Under the standard branch-promotion contract, `development` supplies the internally tested development release and `main` supplies production. Initial delivery starts from `main`; later enhancements start from `development`. Record any signed tag or different source rule explicitly.
    - What artifact kind is released, what signing or notarization is required, and what exact environment, store channel, testing track, update feed, or distribution channel receives it?
    - What submission, promotion, review, or manual-approval path must complete? What signal proves the release is actually available to its intended audience? Upload, submission, review approval, or a successful deployment command alone is not availability.
    - What rollout controls apply, and what is the real recovery path? For native stores and signed installers, identify when recovery means halting a staged rollout and shipping a signed forward-fix rather than claiming an instant rollback.
@@ -153,9 +158,10 @@ Discovery is complete enough to draft when the agent can state:
 - The core data objects and integrations.
 - The v1 scope, non-goals, and constraints.
 - The architecture assumptions and high-risk unknowns.
-- A complete expected deployable-surface inventory with stable surface IDs, plus stable development and production target IDs for every expected surface. Each target separates stable `surface` identity from stage-specific `provider`, names the exact branch or ref its release builds from, and records artifact kind, signing requirement, exact channel/track, submission/promotion/review or manual-approval path, actual availability signal, rollout, and rollback or forward-fix path. Native targets are not forced into a web environment model.
+- A complete expected deployable-surface inventory with stable surface IDs, plus stable development and production target IDs for every expected surface. Each target separates stable `surface` identity from stage-specific `provider`, names `development` for internal release and `main` for production under the standard promotion contract (or records an explicit alternative), and records artifact kind, signing, channel, release gates, availability, rollout, and recovery. Native targets are not forced into a web environment model.
 - For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider.
+- The monetization model and both the Monetization Infrastructure Gate and Partner Channel Gate, including explicit `not_required` reasons; when applicable, the pricing/offer rules, purchase surfaces, entitlement owner, merchant-of-record/tax owner, partner motion, attribution, commission, payout, and reseller responsibilities needed to recommend current providers.
 - The UI screens or interaction points that need a canonical PRD surface entry.
 - A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
 - Approved or draft exact wording and bounded display responsibilities for visible regions, or permission to derive them.

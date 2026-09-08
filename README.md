@@ -26,7 +26,7 @@ It is not a prompt collection. The skill suite separates product definition, vis
 | If you have... | Start with | What you get |
 | --- | --- | --- |
 | A product idea | `product-definition-builder` | Requirements, a responsive `wireframes/2` review file for every UI surface and state, browser layout QA, architecture, stack decisions, release targets, tests, and sourced market research |
-| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | Responsive high-fidelity HTML targets checked across the full page-target-state matrix — retained under `docs/design/ui-references/` on web — plus a binding design-system pair when required |
+| An approved wireframe package that needs visual design | `product-definition-builder` UI Design Pass, then `design-system-compiler` + `frontend-design` when the gate requires it | One connected, self-contained high-fidelity HTML reference with every page in a left sidebar, complete CSS, clickable flows, and a mock login that enters the authenticated UI, plus a binding design-system pair when required |
 | A scoped change in an existing repository | `delivery-harness` | Direct implementation for small work, or a managed PLAN/RUN flow for large work |
 | A fixed integrated code candidate | `code-security-review` | A read-only, exact-SHA security review with validated source-to-sink findings and explicit coverage gaps |
 | A delivered release that needs external setup | `product-activation` | Exact authorized console actions, verified measurement sources, and target-by-target activation readiness |
@@ -46,13 +46,13 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 - **Activation is read back.** External setup stays outside PLAN/RUN, binds approval to an exact action digest, and becomes verified only after independent read-back and behavior evidence.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
 - **Code security is a fresh final review.** Every new managed PLAN explicitly requires it or records why a non-code delivery is not applicable. Required review runs `code-security-review` over every mission at the unified integration SHA before broad final validation; its declared scope must contain every mission write scope. It validates the structured agent result and cannot reuse earlier tree-identical evidence. A security PASS has no exclusions and needs at least one tool or manual review recorded as `passed` or `findings`. The required node cannot be skipped or superseded; reserve and completion recheck live Git. An exact interruption receipt can remain as history only after a later current reviewer supplies the structured PASS.
-- **Local-only is the default.** The harness commits and verifies locally; only an explicit remote outcome authorizes pushing the run's own branch. Landing it on the default branch is yours to do.
+- **Promotion is development-first.** The RUN defaults to local completion and may push only its own branch. After RUN close, initial delivery and enhancements promote the exact candidate to `development`, run the internal suite on that remote head, then separately fast-forward the same SHA to `main`.
 
 ## What is included
 
 | Skill | Use it for | Main output |
 | --- | --- | --- |
-| `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, responsive low-fidelity wireframes with browser layout QA, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional full-matrix UI Design Pass whose web route renders retained high-fidelity HTML references, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
+| `product-definition-builder` | Product discovery, the pre-draft research-first assessment and its Research Gate, requirements, Builder UX Direction inputs, responsive low-fidelity wireframes with browser layout QA, architecture, stack decisions, release targets, test obligations, the reconciling post-draft market-research gap pass, the optional full-matrix UI Design Pass whose default route renders one connected all-pages high-fidelity HTML reference, and the post-deploy outcome review | `PRD.md`, `research-assessment.md`, `wireframes.html` (UI-bearing products), `architecture.md`, `stack-decisions.md`, `market-research.md`, `outcome-review.md` |
 | `design-system-compiler` | Compiling an approved UI Design Handoff into the frozen design-system pair, including the exact approved responsive set and layout-safety rules. It must load the separate `frontend-design` skill and stops if that dependency is unavailable. | `design-system.md`, `design-system.json` |
 | `delivery-harness` | Shared size gate, PLAN/RUN, authorization, local verification, and integration, plus the runtime adapter reference (`references/runtime-adapters.md`) holding one shared contract and one provider section per host (Codex, Claude Code, Pi, or generic) | Direct work or `PLAN.md` + `RUN.md` |
 | `code-security-review` | Read-only security review after implementation and unified integration, preferably in a fresh sibling agent; active penetration testing and remediation stay outside this skill | Exact-SHA decision, trust-boundary coverage, validated findings, and remediation tests |
@@ -63,7 +63,7 @@ The delivery core makes one size decision before it invokes managed orchestratio
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
 - Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; the target project's `docs/tasks.md` is an on-demand human view, not required state. This source repository does not keep a separate root `Tasks.md` flow log.
 - The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core then applies exactly one host provider section from the runtime adapter reference; external runtimes are preflighted only when a selected route needs them.
-- Work never waits for remote CI. A run normally finishes with verified local evidence; only an explicit remote outcome moves it to pushing the verified integration head to the run's own branch.
+- RUN execution never waits for remote CI. Branch promotion is a separate closeout stage: `development` read-back and internal verification must finish before `main` can move.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
@@ -76,16 +76,18 @@ flowchart LR
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\ndesign-system-compiler when required"]
   Gate -->|"approved, no visual phase"| Harness["delivery-harness\nShared delivery core"]
-  Design -->|"approved HTML references or design-system pair"| Harness
+  Design -->|"approved all-pages HTML reference or design-system pair"| Harness
   Harness --> Runtime["One host provider section\nCodex, Claude Code, Pi, or generic"]
   Runtime --> Security["code-security-review\nfresh unified exact-SHA review"]
   Security --> Evidence["Broad final tests and UI evidence"]
-  Evidence --> Push["Push to the run's own branch\nLanding on the default branch is yours"]
-  Push --> Activate["product-activation\nExternal setup + read-back"]
+  Evidence --> Push["Optional exact run-branch push\nRUN closes"]
+  Push --> Dev["Promote exact SHA to development\nread-back + internal tests"]
+  Dev --> Main["Separately authorize fast-forward\nsame SHA to main"]
+  Main --> Activate["product-activation\nExternal setup + read-back"]
   Activate --> Outcome["Verified measurement sources\nLater outcome review"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — on web the pass leaves its approved high-fidelity HTML references in `docs/design/ui-references/<run-id>/` and archives superseded sets under `docs/design/archived/`; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — the pass leaves one approved self-contained high-fidelity HTML reference in `docs/design/ui-references/<run-id>/`, with every page in a left sidebar, complete CSS, clickable flows, and reviewer-only mock authentication; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
 
 ### Full skill lifecycle
 
@@ -215,6 +217,12 @@ After delivery, `product-activation` creates or reconciles `docs/ACTIVATION.md`,
 
 The loop closes at both ends. Before any closed-set decision, the research-first assessment gates drafting with a human `go | clarify | stop` Research Gate — published as `research-assessment.md` with stable `RA-*` findings and reconciled by the post-draft market-research pass. After Activation and the real measurement window, the owner can request `outcome-review.md`: measured actuals against the PRD's metrics and `TEST-*` expected signals, using only matching verified sources, with a `no_change | enhancement | incident` verdict that feeds the next enhancement run.
 
+Small post-delivery changes keep the same product contract without forcing a new PLAN/RUN. When `docs/product/PRD.md` exists, the seeded `AGENTS.md` requires every direct change to update the affected PRD requirements and trace IDs in the same change. It classifies UI impact as `none`, `structure`, `style`, or `both`; adding a page or route is at least `structure`, so the affected UI Surface Contract and `wireframes.html` pages are updated and re-approved. Style changes revisit the approved UI direction, and only an approved formal design-system delta changes the design-system pair. Unaffected IDs, pages, and decisions stay unchanged.
+
+Gitignore hygiene also applies to both direct and managed work. The scope scan records whether a task changes a local-only artifact class, then derives the narrowest rules from the observed toolchain. Value-bearing environment and credential files, reproducible build output, dependency directories, caches, logs, and local platform state are ignored; source, tests, lockfiles, migrations, tracked configuration examples and schemas, and canonical product or delivery artifacts stay visible. A new environment-variable read updates the tracked example and ignore rule in the same task. Harness verifies representative paths with `git check-ignore`, `git status --ignored`, and `git ls-files`; it never reads a secret value or hides a dirty worktree, and a likely secret already tracked by Git stops the run for owner action.
+
+Commercial products now pass two separate Product Definition decisions. The Monetization Infrastructure Gate resolves the model, pricing/offer rules, purchase surfaces, entitlement source, and merchant-of-record/tax ownership before comparing current options such as native store billing, RevenueCat, Qonversion, Adapty, Superwall, Stripe Billing, Paddle, or Lemon Squeezy; pricing never makes RevenueCat the default. The Partner Channel Gate independently resolves `none`, affiliate, referral, reseller, or hybrid. It compares link/commission tools such as Rewardful or FirstPromoter, broader partner platforms such as PartnerStack, an integrated Lemon Squeezy affiliate route, or a custom reseller service. Billing, entitlement, paywall, tax, attribution, commission/payout, and reseller operations remain separate PRD, architecture, stack, UI, mission, and test contracts.
+
 ## Delivery model
 
 The Harness is built around explicit boundaries:
@@ -224,7 +232,7 @@ The Harness is built around explicit boundaries:
 3. Plan dependencies before starting implementation when the task is large enough to need it.
 4. Use parallel workers only when at least two safe write missions are actually selected, the work is independent and isolated, and every action is explicitly authorized; managed-sequential still proves its isolated writer, scope/head, and review gates.
 5. Verify task results and integrations, run a fresh unified code-security review, then verify UI journeys where relevant and the final diff. A single mission has no invented cross-mission batch gate.
-6. Stop with verified local evidence by default. If a remote outcome is explicitly requested, push the run's own branch only with exact remote intent plus branch/head authorization. Opening a PR, merging, and deploying are your own steps outside the Harness.
+6. Stop the RUN with verified local evidence by default. Any run-branch push needs exact intent. After RUN close, separately authorize promotion to `development`, test that exact remote head internally, then separately authorize a fast-forward of the unchanged SHA to `main`; read back and verify each environment.
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v11 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
 
@@ -252,8 +260,10 @@ flowchart TB
   Direct --> Local
   Local --> Remote{"explicit remote outcome and exact push grant?"}
   Remote -->|no| Done["Stop with verified local evidence"]
-  Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
-  Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
+  Remote -->|yes| Push["Push the run's own branch<br/>RUN ends here"]
+  Push --> Dev["Promote to development<br/>read-back + internal tests"]
+  Dev --> Main["Separate exact-SHA authorization<br/>fast-forward to main"]
+  Main --> Prod["Production read-back<br/>and smoke"]
 ```
 
 
@@ -341,7 +351,7 @@ Use $product-definition-builder to review every page-target-state in the staged 
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every web page across the approved responsive/state matrix as high-fidelity HTML, browser-check layout safety, and retain the approved references under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every page and approved state in one self-contained high-fidelity HTML with complete CSS, a left sidebar listing all pages, clickable flows, and mock login that jumps directly to the authenticated UI. Browser-check the full responsive/state matrix and retain the approved file under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
 ```
 
 ```text
@@ -368,7 +378,7 @@ The delivery is complete. Use $product-activation for the production release tar
 Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
-For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, repository configuration, push, worktree removal, and branch deletion are independent actions. The Harness opens no pull request, merges nothing, and deploys nothing — those stay with you.
+For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, each push, deployment, worktree removal, and deletion remain separate actions. Post-RUN promotion may update `development` and `main` only with exact action-time authorization, fast-forward proof, read-back, and internal testing.
 
 ## Codex, Claude Code, and Pi execution
 
@@ -383,7 +393,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 On Codex, each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree. The Harness parent separately dispatches any read-only explorer or reviewer as a sibling; a mission task never creates child agents. Coordinator-owned direct subagents do not replace requested top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
-Target-repository branch instructions take precedence. When a repository does not define another model, mission worktrees start from the current default-branch SHA and pass an exact-head read-only review before local integration into the run's own branch. The run defaults to verified local completion; an explicit remote outcome with an exact branch/head grant may push that branch. Landing it on the default branch is your own step. Fixes require a fresh review on the new head.
+Target-repository instructions take precedence. Otherwise, initial delivery starts its run branch from `main`; enhancements start from `development`. Mission worktrees integrate only into that run branch and pass exact-head review. After RUN close, the candidate is promoted to `development`, tested on that exact remote head, then fast-forwarded unchanged to `main` under a second authorization. Fixes restart development verification on the new SHA.
 
 Each provider section runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
 

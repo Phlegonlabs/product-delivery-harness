@@ -54,7 +54,7 @@ GOOD_DEPLOYMENT = f"""# Deployment
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
 | --- | --- | --- | --- | --- | --- |
-| preview | https://abc.example.pages.dev | {"a" * 40} | {"a" * 40} | 2026-09-03 | PASS |
+| development | https://abc.example.pages.dev | {"a" * 40} | {"a" * 40} | 2026-09-03 | PASS |
 | production | | | | | |
 """
 
@@ -90,7 +90,7 @@ SHARED_RESOURCE_DEPLOYMENT = """# Deployment
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
 | --- | --- | --- | --- | --- | --- |
-| preview | | | | | |
+| development | | | | | |
 | production | | | | | |
 """
 
@@ -135,7 +135,7 @@ CI_CONNECTED_DEPLOYMENT = f"""# Deployment
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
 | --- | --- | --- | --- | --- | --- |
-| preview | https://abc.example.pages.dev | {"b" * 40} | {"b" * 40} | 2026-09-03 | PASS |
+| development | https://abc.example.pages.dev | {"b" * 40} | {"b" * 40} | 2026-09-03 | PASS |
 | production | | | | | |
 """
 
@@ -159,7 +159,7 @@ class DeploymentRecordTests(unittest.TestCase):
     def test_placeholders_and_incoherent_rows_fail(self) -> None:
         findings = check_deployment.check_deployment_text(BAD_DEPLOYMENT)
         joined = "\n".join(findings)
-        self.assertIn("missing the preview row", joined)
+        self.assertIn("missing the development row", joined)
         self.assertIn("unresolved placeholder", joined)
         self.assertIn("must be a full lowercase SHA once checked", joined)
         self.assertIn("checked but has no status", joined)
@@ -195,12 +195,12 @@ class DeploymentRecordTests(unittest.TestCase):
     def test_duplicate_environment_row_fails(self) -> None:
         deployment = GOOD_DEPLOYMENT.replace(
             "| production | | | | | |",
-            "| preview | https://other.example.pages.dev | | | | |\n"
+            "| development | https://other.example.pages.dev | | | | |\n"
             "| production | | | | | |",
             1,
         )
         findings = check_deployment.check_deployment_text(deployment)
-        self.assertIn("Environment Status: duplicate preview row", "\n".join(findings))
+        self.assertIn("Environment Status: duplicate development row", "\n".join(findings))
 
     def test_duplicate_handoff_identity_fails(self) -> None:
         duplicate = (
@@ -263,9 +263,9 @@ class DeploymentRecordTests(unittest.TestCase):
 
     def test_tables_in_code_and_comments_cannot_satisfy_or_duplicate_live_rows(self) -> None:
         examples = (
-            "```markdown\n| preview | https://fake.example | | | | |\n```",
-            "    | preview | https://fake.example | | | | |",
-            "<!--\n| preview | https://fake.example | | | | |\n-->",
+            "```markdown\n| development | https://fake.example | | | | |\n```",
+            "    | development | https://fake.example | | | | |",
+            "<!--\n| development | https://fake.example | | | | |\n-->",
         )
         for example in examples:
             with self.subTest(example=example):

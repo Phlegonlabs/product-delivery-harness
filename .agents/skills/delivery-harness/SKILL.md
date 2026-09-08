@@ -53,13 +53,16 @@ Route: direct | plan-backed graph
 Host adapter: none | codex | claude_code | pi | generic
 Landing: local_only | integration_push
 Upstream inputs: present | missing | needs owner decision
+Gitignore impact: none | update | needs owner decision
 ```
 
-For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images encountered during the normal scan. Treat each image as a candidate reference, record its relative path and hash, and route it through `references/design-input-updates.md`. It influences implementation only after the PRD UI Design Pass records owner-approved consequences; when the Design System Need Gate is `required`, `design-system-compiler` also compiles those consequences into the frozen pair.
+For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images from the normal scan. Record candidate paths and hashes, then apply `references/design-input-updates.md`; only PRD-approved consequences and any required compiled design-system pair influence implementation.
+
+Classify each task's Gitignore impact with `references/gitignore-contract.md`; it applies to both direct and managed routes.
 
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python .agents/skills/delivery-harness/scripts/inspect_harness_run.py --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker.
 
-After capability detection, apply `references/runtime-upgrades.md`. An old compatible runtime may finish only its already-active wave; an incompatible or restarted runtime dispatches nothing until a fresh session re-probes successfully. After that re-probe, the fresh session re-orchestrates every remaining task onto the new runtime through new attempts and bindings; a provider change goes through an explicit replan, never a bridge. Never hot-upgrade a live worker or silently mutate installed runtime software.
+After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
 ## Non-Negotiable Boundaries
 
@@ -67,8 +70,8 @@ These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`.
-- Execution intent covers only applicable local setup, branch, commit, and integration actions. It does not authorize `push`. Push needs a separate explicit remote instruction for the resolved non-default integration branch and current exact head.
-- Never push to the default branch. Never add a fixed prefix to a run branch. Follow repository governance or the user's exact branch; if neither names it, ask before branch creation.
+- Execution intent covers only applicable local setup, branch, commit, and integration actions. It does not authorize `push`. A RUN push needs explicit remote intent for its own integration branch and exact head; later `development` and `main` promotions require separate action-time authorizations.
+- Never implement directly on `development` or the default branch. Promote only through `references/branch-promotion-contract.md`; never force-push. If no exact run-branch name exists, ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
@@ -108,12 +111,13 @@ Read only what the current decision needs:
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
 - `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
-- `references/deployment-contract.md`: the deployment handoff, platform mechanics, and read-only post-deploy verification — after a run-branch push or a default-branch landing, never during run execution.
+- `references/deployment-contract.md` and `references/branch-promotion-contract.md`: post-RUN deployment and `development`-to-`main` promotion.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
 - `references/runtime-upgrades.md`: host/Harness version observation, old-runtime wave boundaries, updater/restart handling, and fresh-session recovery.
 - `references/ui-implementation-contract.md`: every UI implementation or UI review.
+- `references/gitignore-contract.md`: task-specific ignore classification and checks.
 - `references/commit-convention.md`: before a Harness-managed commit.
 - `references/design-input-updates.md` and `references/platform-archetypes.md`: only when those shapes apply.
 - `references/orchestration-research-notes.md`: capability/version evidence, not routine execution.
@@ -192,6 +196,8 @@ Freeze only the inputs needed by the graph: source paths and digests, scope, arc
 
 Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Mission Cohesion Gate, one bounded worker slice per mission whose fixed overhead stays small against its useful work, one atomic commit boundary per executable task, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Reject readiness when independent outcomes are bundled only because they share files or resources, or when one task would need a catch-all commit. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery will actually use. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
 
+Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate when applicable.
+
 ### 4. Execute And Integrate
 
 Select only after the runtime version gate. `lease-worker` copies selector-derived runtime/portable bindings, validates compatibility flags, accepts `--task-thread-id` only for `app_task`, accepts existing exact targets, and materializes new exact targets only from active wildcard grants without widening authority. Record missions with `record-worker-result` under the RUN lock; use `reject-worker-result` for stale candidates and `validate_result.py` for preflight. For non-mission nodes, reserve with `reserve-node-attempt`, execute outside the lock, then finish with `record-node-result` and evidence. Persist `reserve-review-dispatch` before launch, finish with `record-review-attempt`, review exact heads, integrate serially, and close-wave.
@@ -206,12 +212,12 @@ Use the verification ladder:
 4. fresh exact-SHA unified review; only non-security review may reuse byte-identical-tree evidence;
 5. `code-security-review`, repair when required, and fresh review of the new SHA;
 6. final broad regression, browser E2E, breakpoint-by-state UI evidence, element overlap/clipping/overflow checks, visual, and migration checks; UI-surface runs also close the Final Visual Parity Loop from `references/verification-gates.md`;
-7. `git diff --check` and complete final-diff review.
+7. applicable `references/gitignore-contract.md` checks, then `git diff --check` and complete final-diff review.
 
 Reuse a `session_exact` PASS only when the verifier's pass signal is the literal `exit 0`, the checkout is clean, inputs match, the command is cache-safe, and the cache is repository-external. Equivalent opted-in task and worker declarations reuse one execution even when their verifier IDs and gate attribution differ; each gate still retains its own PASS record. Integration, cross-mission, UI, and migration gates refuse reuse by default; one may opt in with `cache.deterministic_local: true` only when it is a pure local deterministic command, never for a browser capture, migration, mutable-environment smoke, or network check. Required UI artifacts live under `docs/goal/evidence/`, use lowercase SHA-256, and bind to the integration head.
 
 ### 6. Complete
 
-New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an explicitly authorized push of the verified integration head to the run branch. Landing on the default branch, PR creation, merging, deployment, archival, worktree removal, and branch deletion remain unexecuted unless separately requested. What the deploy platform does with Git after that follows `references/deployment-contract.md`: preview tracks the pushed run branch, production tracks the default branch after the user's landing, both environments verify read-only, and that verification reports the pushed head's preview URL in the conversation.
+New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an authorized exact-head push to the run branch. After RUN close, apply `references/branch-promotion-contract.md`: initial delivery and later enhancements promote to `development`, pass internal exact-SHA tests there, then fast-forward the same SHA to `main` under separate authorizations and read-backs. Deployment, archival, cleanup, and activation keep their own gates.
 
-`product-activation` follows RUN close; RUN grants no authority.
+`product-activation` follows required promotion and deployment verification; RUN grants no authority.

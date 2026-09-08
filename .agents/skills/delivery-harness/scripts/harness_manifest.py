@@ -1407,9 +1407,9 @@ def _validate_landing(
 ) -> None:
     """Validate the two states an ordinary run can end in.
 
-    A run either kept everything local, or published its verified integration
-    head to its own branch. Landing that branch on the default branch is the
-    user's own step and leaves no state here.
+    A RUN either keeps everything local or publishes its verified integration
+    head to its own run branch. Protected-branch promotion follows RUN close
+    and leaves no state here.
     """
     path = "run.landing"
     if not _keys(errors, path, value, {"mode", "remote", "pushed_head_sha", "continuity"}):
@@ -4562,6 +4562,30 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                             f"{path}.scope.targets",
                             "RUN-v11 push authorization requires one exact branch target",
                         )
+                if schema_version in {10, 11} and action == "push" and entry["authorized"]:
+                    push_scope = entry.get("scope")
+                    push_targets = (
+                        push_scope.get("targets")
+                        if isinstance(push_scope, dict)
+                        else None
+                    )
+                    if isinstance(push_targets, list) and any(
+                        (
+                            _normalized_branch(
+                                target.split(":", 1)[1]
+                                if isinstance(target, str) and target.startswith("branch:")
+                                else None
+                            )
+                            or ""
+                        ).casefold()
+                        == "development"
+                        for target in push_targets
+                    ):
+                        _add(
+                            errors,
+                            f"{path}.scope.targets",
+                            "RUN-v11 push authorization cannot target protected development",
+                        )
                 if schema_version in {10, 11} and action in HEAD_BOUND_AUTHORIZATION_ACTIONS:
                     authorized_head = entry.get("authorized_head_sha")
                     if not is_full_sha(authorized_head):
@@ -5242,11 +5266,14 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             if isinstance(observed_git, dict)
             else None
         )
-        if normalized_integration_branch == "main":
+        if (
+            isinstance(normalized_integration_branch, str)
+            and normalized_integration_branch.casefold() in {"main", "development"}
+        ):
             _add(
                 errors,
                 "run.integration.branch",
-                "must not resolve to main; use a non-default run branch",
+                "must not resolve to protected main or development; use a run branch",
             )
         elif (
             normalized_integration_branch is not None

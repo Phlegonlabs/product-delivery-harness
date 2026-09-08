@@ -26,7 +26,7 @@
 | 你目前有什么 | 从哪个技能开始 | 会得到什么 |
 | --- | --- | --- |
 | 一个产品想法 | `product-definition-builder` | 需求、覆盖每个 UI surface 与 state 的响应式 `wireframes/2` 审查文件、浏览器布局 QA、架构、技术栈决策、发布目标、测试义务，以及带来源的市场调研 |
-| 已批准线框图、需要视觉设计的包 | `product-definition-builder` UI Design Pass；gate 判定为 required 时再进入 `design-system-compiler` + `frontend-design` | 经完整 page-target-state 矩阵检查的响应式高保真 HTML targets——web 版本保留于 `docs/design/ui-references/`——以及需要时有约束力的设计系统契约 |
+| 已批准线框图、需要视觉设计的包 | `product-definition-builder` UI Design Pass；gate 判定为 required 时再进入 `design-system-compiler` + `frontend-design` | 一份相互连通、自包含的高保真 HTML reference，左侧栏列出所有页面，包含完整 CSS、可点击流程和直接进入已登录 UI 的模拟登录；需要时再加有约束力的设计系统契约 |
 | 现有仓库中的明确变更 | `delivery-harness` | 小型工作直接实现；大型工作进入受管的 PLAN/RUN 流程 |
 | 已固定并完成集成的代码候选 | `code-security-review` | 只读、绑定精确 SHA 的安全审查，包含经验证的 source-to-sink 发现与明确的覆盖缺口 |
 | 已交付、需要外部设置的 release | `product-activation` | 精确授权的 console 动作、已验证的量测来源，以及逐 target 的 activation readiness |
@@ -46,13 +46,13 @@
 - **Activation 必须读回验证。** 外部设置留在 PLAN/RUN 之外，批准绑定精确 action digest，而且只有独立 read-back 与行为证据完成后才算 verified。
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
 - **代码安全是全新的最终审查。** 每个新的受管 PLAN 都要明确标记 required，或说明非代码交付为何 not applicable。Required review 会在 broad final validation 前，让 `code-security-review` 覆盖统一集成 SHA 上的每个 mission；其声明 scope 必须包含每个 mission 的完整 write scope。它会验证 agent 的结构化结果，并且不能复用相同 tree 的早期证据。Security PASS 不得带 exclusions，且至少一个 tool 或人工审查必须记录为 `passed` 或 `findings`。Required node 不得跳过或被 supersede；reserve 和 completion 会重查 live Git。精确的 interruption receipt 只能在后续 current reviewer 提供 structured PASS 后作为历史保留。
-- **默认只在本地完成。** Harness 负责提交并验证本地结果；只有明确的远程意图才会授权推送这次运行自己的分支。把它合进默认分支是你自己的步骤。
+- **Promotion 一律 development-first。** RUN 仍默认在本地完成，也只能选择性推送自己的 run branch。RUN 关闭后，第一次交付与后续 enhancement 都先把精确 candidate 推到 `development`，在该 remote head 跑完内部测试，再另行授权把同一 SHA fast-forward 到 `main`。
 
 ## 包含哪些内容
 
 | 技能 | 适用场景 | 主要产出 |
 | --- | --- | --- |
-| `product-definition-builder` | 产品探索、起草前的 research-first 评估与 Research Gate、需求、Builder UX Direction 输入、带浏览器布局 QA 的响应式低保真线框图、架构、技术栈决策、发布目标、测试义务、负责对账的草稿后市场调研补缺、覆盖完整矩阵并保留高保真 HTML references 的可选 UI Design Pass，以及部署后的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
+| `product-definition-builder` | 产品探索、起草前的 research-first 评估与 Research Gate、需求、Builder UX Direction 输入、带浏览器布局 QA 的响应式低保真线框图、架构、技术栈决策、发布目标、测试义务、负责对账的草稿后市场调研补缺、默认生成一份全页面连通高保真 HTML reference 的可选 UI Design Pass，以及部署后的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 产品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
 | `design-system-compiler` | 将已批准的 UI Design Handoff 编译成冻结的设计系统契约，包含完全一致的已批准响应式集合与布局安全规则。它必须加载独立的 `frontend-design` 技能；依赖不可用时会停止。 | `design-system.md`、`design-system.json` |
 | `delivery-harness` | 共享的规模判定、PLAN/RUN、授权、本地验证和集成，外加 runtime adapter 参考文档（`references/runtime-adapters.md`）：一份共享契约，加上每个宿主（Codex、Claude Code、Pi 或 generic）各一段 provider 章节 | 直接完成的工作，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 实现与统一集成后的只读安全审查，优先由 fresh sibling agent 执行；主动渗透测试与修复不属于本技能 | 精确 SHA 决策、trust-boundary 覆盖、验证后的发现与修复测试 |
@@ -63,7 +63,7 @@
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
 - 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；目标项目的 `docs/tasks.md` 只是按需生成的人类视图，不是必需状态。本源码仓库不再另外维护根目录 `Tasks.md` 流程记录。
 - 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只套用 runtime adapter 参考文档中对应所检测宿主的那一个 provider 章节；只有当选定的路线需要外部运行时，才会对其做预检。
-- 工作不需要等待远程 CI。运行通常以验证过的本地证据结束；只有明确的远程结果才会把验证过的集成 head 推送到这次运行自己的分支。
+- RUN 执行不等待远程 CI；branch promotion 是独立 closeout。`development` read-back 与内部验证完成前，`main` 不得移动。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
 
@@ -76,16 +76,18 @@ flowchart LR
   Wireframe --> Gate{"Wireframe Approval Gate\n人类 owner"}
   Gate -->|"批准且要求视觉设计"| Design["UI Design Pass\n需要时进入 design-system-compiler"]
   Gate -->|"批准、不进入视觉阶段"| Harness["delivery-harness\n共享交付核心"]
-  Design -->|"批准的 HTML references 或设计系统契约"| Harness
+  Design -->|"批准的全页面 HTML reference 或设计系统契约"| Harness
   Harness --> Runtime["单一宿主适配器\nCodex、Claude Code 或 Pi"]
   Runtime --> Security["code-security-review\n全新统一 exact-SHA 审查"]
   Security --> Evidence["完整最终测试与 UI 证据"]
-  Evidence --> Push["推送到这次运行自己的分支\n合进默认分支是你自己的步骤"]
-  Push --> Activate["product-activation\n外部设置 + read-back"]
+  Evidence --> Push["选择性推送精确 run branch\nRUN 关闭"]
+  Push --> Dev["Promotion 到 development\nread-back + 内部测试"]
+  Dev --> Main["另行授权 fast-forward\n同一 SHA 到 main"]
+  Main --> Activate["product-activation\n外部设置 + read-back"]
   Activate --> Outcome["已验证量测来源\n后续 outcome review"]
 ```
 
-你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`；可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——在 web 上，pass 会把批准的高保真 HTML references 留在 `docs/design/ui-references/<run-id>/`，被取代的组合移入 `docs/design/archived/`；Harness 实现已冻结的结果；`code-security-review` 审查统一候选而不修改它；`product-activation` 则在不重开 delivery RUN 的情况下设置并验证已交付 release。
+你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`；可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——pass 会在 `docs/design/ui-references/<run-id>/` 留下一份批准的自包含高保真 HTML reference，左侧栏列出所有页面，包含完整 CSS、可点击流程和仅供审查的模拟登录；Harness 实现已冻结的结果；`code-security-review` 审查统一候选而不修改它；`product-activation` 则在不重开 delivery RUN 的情况下设置并验证已交付 release。
 
 ### 完整技能生命周期
 
@@ -215,6 +217,12 @@ Wireframe Approval 与合并到 `main` 仍是人工闸门。Delivery 执行循�
 
 循环在两端都闭合。任何封闭选项决策之前，research-first 评估以人工 `go | clarify | stop` Research Gate 把关起草——发布为含稳定 `RA-*` 发现的 `research-assessment.md`，并由草稿后的 market-research 对账。Activation 与真实量测窗口结束后，owner 可以要求产出 `outcome-review.md`：对照 PRD metrics 与 `TEST-*` 预期信号的实测值，只使用相符且已验证的来源，附带喂给下一次 enhancement run 的 `no_change | enhancement | incident` 判定。
 
+交付后的小改不必为了维护产品契约而另开 PLAN/RUN。当 `docs/product/PRD.md` 存在时，种子化的 `AGENTS.md` 会要求每次直接修改都在同一份变更中更新受影响的 PRD 需求与跟踪 ID，并先把 UI 影响分类为 `none`、`structure`、`style` 或 `both`。新增页面或 route 至少属于 `structure`，因此要更新并重新批准受影响的 UI Surface Contract 与 `wireframes.html` 页面。样式变更要重新确认已批准的 UI 方向，只有经批准且需要正式 design-system delta 时才修改 design-system pair；未受影响的 ID、页面与决策保持不变。
+
+Gitignore 管理同时适用于 direct 与 managed 工作。scope scan 会记录任务是否改变 local-only artifact 类型，再按实际工具链生成最窄的规则。含值的环境与 credential 文件、可重建的 build output、dependency 目录、cache、log 和本地平台状态要忽略；source、tests、lockfiles、migrations、受跟踪的配置示例与 schema，以及权威产品或交付产物必须保持可见。程序新增环境变量读取时，同一个 task 要更新受跟踪的 example 与 ignore 规则。Harness 会用 `git check-ignore`、`git status --ignored` 和 `git ls-files` 验证代表路径；它不读取 secret 值、不用规则隐藏 dirty worktree，如果可能的 secret 已被 Git 跟踪，就停止并交给 owner 处理。
+
+商业产品现在会经过两个分开的 Product Definition 决策。Monetization Infrastructure Gate 先解析商业模式、定价／offer 规则、购买 surface、entitlement source 与 merchant-of-record／税务责任，再比较 native store billing、RevenueCat、Qonversion、Adapty、Superwall、Stripe Billing、Paddle 或 Lemon Squeezy 等当前选项；有定价不代表默认 RevenueCat。Partner Channel Gate 则独立解析 `none`、affiliate、referral、reseller 或 hybrid，再比较 Rewardful、FirstPromoter 这类 link／commission 工具、PartnerStack 这类完整 partner platform、Lemon Squeezy 的集成 affiliate 路线，或自建 reseller service。Billing、entitlement、paywall、税务、attribution、commission／payout 与 reseller operations 会保持为分开的 PRD、architecture、stack、UI、mission 与 test 契约。
+
 ## 交付模型
 
 Harness 是围绕明确的边界构建的：
@@ -224,7 +232,7 @@ Harness 是围绕明确的边界构建的：
 3. 当任务大到需要时，在动手实现之前先规划依赖关系。
 4. 只有当至少两个安全写入 mission 实际被选中、工作彼此独立且相互隔离，并且每个动作都获得明确授权时，才使用并行工作节点；受管顺序路线仍要证明隔离 writer、scope/head 和 review gates。
 5. 验证任务结果与集成，执行全新的统一 code-security 审查，再验证相关 UI 流程与最终差异（diff）。单 mission 不会凭空增加跨 mission batch gate。
-6. 默认带着验证过的本地证据停下。如果明确要求远程结果，只有在明确远程意图以及精确的分支/head 推送授权下，才推送这次运行自己的分支。开 PR、合并和部署都是你在 Harness 之外自己做的步骤。
+6. RUN 默认以验证过的本地证据结束；run-branch push 需要精确授权。RUN 关闭后，另行授权 promotion 到 `development`，在该 remote head 跑内部测试，再第二次授权把未变化的同一 SHA fast-forward 到 `main`，并逐一 read-back 与验证环境。
 
 对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、移除工作树或删除分支。RUN-v11 的推送还需要明确的远程意图、唯一的集成分支目标和当前 head 授权；如果默认分支身份未知，推送会安全失败，但不会阻止无关的本地执行。
 
@@ -252,8 +260,10 @@ flowchart TB
   Direct --> Local
   Local --> Remote{"explicit remote outcome and exact push grant?"}
   Remote -->|no| Done["Stop with verified local evidence"]
-  Remote -->|yes| Push["Push the run's own branch<br/>run ends here"]
-  Push -.-> Yours["PR, merge, and deploy:<br/>your own steps, outside the Harness"]
+  Remote -->|yes| Push["Push the run's own branch<br/>RUN ends here"]
+  Push --> Dev["Promote to development<br/>read-back + internal tests"]
+  Dev --> Main["Separate exact-SHA authorization<br/>fast-forward to main"]
+  Main --> Prod["Production read-back<br/>and smoke"]
 ```
 
 
@@ -341,7 +351,7 @@ Use $product-definition-builder to review every page-target-state in the staged 
 ```
 
 ```text
-The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every web page across the approved responsive/state matrix as high-fidelity HTML, browser-check layout safety, and retain the approved references under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
+The wireframes are approved; continue into visual design with $product-definition-builder's UI Design Pass. Render every page and approved state in one self-contained high-fidelity HTML with complete CSS, a left sidebar listing all pages, clickable flows, and mock login that jumps directly to the authenticated UI. Browser-check the full responsive/state matrix and retain the approved file under docs/design/ui-references/, invoking $design-system-compiler only when the Design System Need Gate is required.
 ```
 
 ```text
@@ -368,7 +378,7 @@ The delivery is complete. Use $product-activation for the production release tar
 Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
-对于多任务交付，请在请求中写清预期的本地和远程结果。分支创建、提交、集成、仓库设置、推送、移除工作树和删除分支都是彼此独立的动作。Harness 不会开 PR、不会合并、也不会部署——这些步骤由你自己完成。
+多任务交付仍要写清本地和远程结果；分支创建、commit、集成、每次 push、deployment、移除工作树和删除分支都是独立动作。Post-RUN promotion 只有在 exact action-time authorization、fast-forward 证明、read-back 与内部测试齐全时才能更新 `development` 和 `main`。
 
 ## Codex、Claude Code 与 Pi 执行
 
@@ -383,7 +393,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 在 Codex 中，每个选中的 mission 都会在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管 worktree。任何只读 explorer 或 reviewer 都由 Harness parent 另行作为同级节点派发；mission 任务不能创建子代理。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
-目标仓库自己的分支规则优先。当仓库没有定义其他流程时，mission 工作树从当前默认分支的 SHA 开始，在绑定当前 head 的只读审查通过后集成进这次运行自己的分支。运行默认以验证过的本地结果完成；只有明确远程结果并取得精确分支/head 授权后才推送该分支。把它合进默认分支是你自己的步骤。如果有修复，必须对新 head 重新审查。
+目标仓库的 branch 规则优先；否则第一次交付从 `main` 创建 run branch，enhancement 从 `development` 创建。Mission 工作树只集成进 run branch 并接受 exact-head review。RUN 关闭后，candidate 先 promotion 到 `development` 并在该 remote head 测试，再以第二份授权把未变化的同一 SHA fast-forward 到 `main`。任何修复都要在新 SHA 上重跑 development 验证。
 
 每个 provider 章节只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要其他宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
 
