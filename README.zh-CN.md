@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> | <a href="README.zh-TW.md">繁體中文</a> | <strong>简体中文</strong>
+  <a href="README.md">English</a> | <a href="README.zh-TW.md">繁體中文</a> | <strong>简体中文</strong> | <a href="README.es.md">Español</a>
 </p>
 
 <p align="center">
@@ -426,14 +426,14 @@ CI 也会运行端到端主干检查。本地可用 `HARNESS_GOLDEN_PATH=1 pytho
 
 ## 保持 README 与代码同步
 
-README 是记录文档：每个新增或改动 skill、规则、表格、图或文档化流程的变更，都要在同一份变更里更新 README 的对应描述部分，三种语言一起改。版本 badge 与版本历史条目属于发布时的工作，按下面《发布》的规则走。
+README 是记录文档：每个新增或改动 skill、规则、表格、图或文档化流程的变更，都要在同一份变更里更新 README 的对应描述部分，四种语言一起改。版本 badge 与版本历史条目属于发布时的工作，按下面《发布》的规则走。
 
 ## 发布
 
 每个落在 `main` 的流程就是一次 release，版本号提升要在同一份变更里完成——默认升 patch，skill bundle 有破坏性变更升 minor。以下几个地方要一起更新：
 
 1. `package.json` 的 `version` 字段与 `.agents/skills/delivery-harness/VERSION` 中会随技能目录复制的版本。
-2. 三份 README（`README.md`、`README.zh-TW.md`、`README.zh-CN.md`）的版本 badge 与版本历史条目。
+2. 四份 README（`README.md`、`README.zh-TW.md`、`README.zh-CN.md`、`README.es.md`）的版本 badge 与版本历史条目。
 3. `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 默认值。
 4. `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py` 中钉住的版本断言。
 

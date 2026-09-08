@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>English</strong> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.zh-CN.md">简体中文</a>
+  <strong>English</strong> | <a href="README.zh-TW.md">繁體中文</a> | <a href="README.zh-CN.md">简体中文</a> | <a href="README.es.md">Español</a>
 </p>
 
 <p align="center">
@@ -426,14 +426,14 @@ CI also runs the end-to-end spine check. Run it locally with `HARNESS_GOLDEN_PAT
 
 ## Keeping the READMEs current
 
-The READMEs are documentation-of-record: every change that adds or alters a skill, rule, table, diagram, or documented flow updates the README's descriptive sections in the same change, in all three languages. The version badge and version-history entries are the release-time part and follow Releasing below.
+The READMEs are documentation-of-record: every change that adds or alters a skill, rule, table, diagram, or documented flow updates the README's descriptive sections in the same change, in all four languages. The version badge and version-history entries are the release-time part and follow Releasing below.
 
 ## Releasing
 
 Every flow that lands on `main` is one release, and the version bump rides in the same change — patch by default, minor for a breaking skill-bundle change. Update all of these together:
 
 1. The `version` field in `package.json` and the copied-skill version in `.agents/skills/delivery-harness/VERSION`.
-2. The version badge and the version-history entry in all three READMEs (`README.md`, `README.zh-TW.md`, `README.zh-CN.md`).
+2. The version badge and the version-history entry in all four READMEs (`README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md`).
 3. The RUNBOOK `required_harness_version` default in `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
 4. The pinned version asserts in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 

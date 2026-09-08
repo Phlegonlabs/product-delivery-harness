@@ -57,7 +57,7 @@ class ReadmeStructureTests(unittest.TestCase):
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_translations_preserve_english_structure(self) -> None:
         english = self.structure_profile(REPO_ROOT / "README.md")
-        for translation in ("README.zh-CN.md", "README.zh-TW.md"):
+        for translation in ("README.zh-CN.md", "README.zh-TW.md", "README.es.md"):
             with self.subTest(translation=translation):
                 self.assertEqual(
                     self.structure_profile(REPO_ROOT / translation),
@@ -66,7 +66,7 @@ class ReadmeStructureTests(unittest.TestCase):
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_readme_outputs_have_no_standalone_run_and_mermaid_braces_close(self) -> None:
-        for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md"):
+        for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md", "README.es.md"):
             content = (REPO_ROOT / filename).read_text(encoding="utf-8")
             with self.subTest(readme=filename):
                 for line in content.splitlines():
@@ -78,7 +78,7 @@ class ReadmeStructureTests(unittest.TestCase):
 
     @unittest.skipIf(REPO_ROOT is None, "README contract requires a source checkout")
     def test_runtime_handoff_graph_profiles_and_zero_to_one_are_aligned(self) -> None:
-        for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md"):
+        for filename in ("README.md", "README.zh-CN.md", "README.zh-TW.md", "README.es.md"):
             content = (REPO_ROOT / filename).read_text(encoding="utf-8")
             with self.subTest(readme=filename):
                 for required in (
@@ -97,7 +97,7 @@ class ReadmeStructureTests(unittest.TestCase):
                 ):
                     self.assertIn(required, content)
                 self.assertIn("fresh reviewers", content)
-                self.assertRegex(content, r"(?i)(never delegate|不能再次分派|不能再次分派)")
+                self.assertRegex(content, r"(?i)(never delegate|不能再次分派|nunca delegan)")
                 self.assertRegex(content, r"(?i)exact-head[^\n]*review")
                 self.assertNotIn("omits write-capable tools", content)
                 self.assertNotIn("blocked on provider mismatch", content)
