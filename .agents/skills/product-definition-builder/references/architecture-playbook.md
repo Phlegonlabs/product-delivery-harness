@@ -30,7 +30,7 @@ Use this for every deployable web, API, mobile, desktop, or browser-extension su
 For every target, record:
 
 - the stable surface identity and the stage-specific provider as separate fields;
-- the source policy: remote `development` for the internally tested development release and remote `main` for production after same-SHA fast-forward, or another exact branch or ref rule, including a required signed tag, recorded explicitly;
+- the source policy: the exact candidate run branch/ref for the internally tested development release and remote `main` for production after same-SHA fast-forward, or another exact branch or ref rule, including a required signed tag, recorded explicitly;
 - artifact kind and exact signing/notarization requirement;
 - exact environment, channel, store track, tester group, update feed, or direct-download destination;
 - the ordered submission, promotion, review, or manual-approval path and its decision owner;
@@ -42,16 +42,16 @@ A build, upload, submission, deployment command, notarization result, or store a
 
 Keep native mobile and desktop targets in this provider-neutral record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table below. Preserve stable target IDs across revisions and retire rather than reuse an ID whose destination changes meaning.
 
-## Development-to-Production Release Pattern
+## Candidate-to-Production Release Pattern
 
-For a deployable hosted web, API, or backend product, resolve the platform explicitly before writing this section; never default to one silently. Keep one repository and one codebase, one persistent internal branch (`development`), and one production/default branch (`main`). Initial delivery cuts its run branch from observed `main`; later enhancements cut from observed `development`. After the run produces a fixed candidate, promote it to `development`, read back and test that exact remote head, then separately fast-forward the same SHA to `main`. Development and production may use different providers; document both. The table uses Cloudflare's two-Worker model as an example, but keeps the same branch, isolation, authorization, and evidence guarantees elsewhere:
+For a deployable hosted web, API, or backend product, resolve the platform explicitly before writing this section; never default to one silently. Keep one repository and one codebase with `main` as the only persistent protected branch. Initial delivery and later enhancements both cut their run branch from observed remote `main`. After the run produces a fixed candidate, deploy and test that exact candidate branch/SHA in the isolated development environment when applicable, then separately fast-forward the same SHA to `main`. Development and production may use different providers; document both. The table uses Cloudflare's two-Worker model as an example, but keeps the same branch, isolation, authorization, and evidence guarantees elsewhere:
 
 | Target | Release source | Runtime and data boundary | Required proof |
 | --- | --- | --- | --- |
-| Development | Exact remote `development` head after candidate promotion and read-back | Development environment (Worker for Cloudflare); isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Full internal suite on this SHA, migration result, deployed URL/version, and development smoke |
-| Production | Exact remote `main` head after separately authorized fast-forward of the same verified development SHA | Production environment (Worker for Cloudflare); production bindings, secrets, data, auth, and live payment credentials | Main ref read-back, deployed SHA, production smoke, monitoring signal, and recovery version |
+| Development | Exact candidate run branch/ref and verified SHA | Development environment (Worker for Cloudflare); isolated non-production bindings, secrets, data, auth, and sandbox payment credentials | Full internal suite on this SHA, migration result, deployed URL/version, and development smoke |
+| Production | Exact remote `main` head after separately authorized fast-forward of the same verified candidate SHA | Production environment (Worker for Cloudflare); production bindings, secrets, data, auth, and live payment credentials | Main ref read-back, deployed SHA, production smoke, monitoring signal, and recovery version |
 
-Do not model development as a second codebase. `development` is a persistent promotion branch, not an implementation workspace: no direct edits or commits land there. Every update is an authorized exact-SHA fast-forward from a run candidate. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward compatibility, secret ownership, recovery, and evidence invalidation.
+Do not model development as a second codebase or persistent branch. It is an isolated environment deployed from the exact candidate run branch/SHA. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward compatibility, secret ownership, recovery, and evidence invalidation.
 
 Isolation does not mean development stays empty. When the product has content-shaped data (for example articles, images, or other catalog-style entities), seed the development environment with representative mock/sample data as part of the development migration or setup step, so development testing sees realistic content without ever reading real production records. Record the mock-data seed in the development row's Migration Order cell of the environment-contract table (see `references/output-contract.md`'s architecture.md template) or an equivalent setup step, and never source it from a live production copy unless the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process. Each Migration Order entry is written for the human or CI release process that runs after the engineering harness pushes its branch; the harness does not consume it.
 
@@ -186,7 +186,7 @@ Use when the product is mainly a service consumed by other systems.
 - Specify authorization at both UI and backend layers.
 - For a browser frontend, backend, persistent data, or auth requirement, name the required/selected stack or a recommended stack when requirements support a decision; do not leave the implementer to reinterpret a flat list of tools or present a recommendation as user-approved.
 - Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
-- For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact run-branch-to-`development`-to-`main` promotion path.
+- For Cloudflare delivery, name separate development and production Workers even though both use the same codebase. Define isolated bindings, secrets, data, auth, and payment modes plus the exact candidate-run-branch-to-`main` promotion path.
 - Keep stable provider-neutral release target IDs above provider-specific commands. A successful publish command, upload, submission, or review is not availability without audience access and smoke evidence.
 - For native mobile and desktop channels, distinguish rollout halt/removal from rollback and require a signed forward-fix when installed clients cannot be reverted.
 - Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

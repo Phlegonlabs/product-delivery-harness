@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.29.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.30.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -46,7 +46,7 @@
 - **Activation 必须读回验证。** 外部设置留在 PLAN/RUN 之外，批准绑定精确 action digest，而且只有独立 read-back 与行为证据完成后才算 verified。
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
 - **代码安全是全新的最终审查。** 每个新的受管 PLAN 都要明确标记 required，或说明非代码交付为何 not applicable。Required review 会在 broad final validation 前，让 `code-security-review` 覆盖统一集成 SHA 上的每个 mission；其声明 scope 必须包含每个 mission 的完整 write scope。它会验证 agent 的结构化结果，并且不能复用相同 tree 的早期证据。Security PASS 不得带 exclusions，且至少一个 tool 或人工审查必须记录为 `passed` 或 `findings`。Required node 不得跳过或被 supersede；reserve 和 completion 会重查 live Git。精确的 interruption receipt 只能在后续 current reviewer 提供 structured PASS 后作为历史保留。
-- **Promotion 一律 development-first。** RUN 仍默认在本地完成，也只能选择性推送自己的 run branch。RUN 关闭后，第一次交付与后续 enhancement 都先把精确 candidate 推到 `development`，在该 remote head 跑完内部测试，再另行授权把同一 SHA fast-forward 到 `main`。
+- **Promotion 一律 main-only。** RUN 仍默认在本地完成，也只能选择性推送自己的 run branch。第一次交付与后续 enhancement 都从观察到的 remote `main` 开始；RUN 关闭后，精确 candidate 必须通过所有本地与隔离 preview environment gate，才能另行授权 fast-forward 到 `main`。
 
 ## 包含哪些内容
 
@@ -63,7 +63,7 @@
 - 小型工作保持直接完成，默认不启用规划器、调度器、PLAN/RUN、子代理或外部运行时预检。
 - 大型工作进入托管规划。它可以用 `PLAN.md` 和 `RUN.md` 完成一次受管顺序交付，或者处理多个任务并实现可持久的移交；目标项目的 `docs/tasks.md` 只是按需生成的人类视图，不是必需状态。本源码仓库不再另外维护根目录 `Tasks.md` 流程记录。
 - 选择器会在实际选中的安全写入 mission 少于两个时派生 `managed_sequential`，达到两个或更多时派生 `parallel_graph`。只有后者才启用调度器扇出；runtime driver 仍是独立的传输事实。核心只套用 runtime adapter 参考文档中对应所检测宿主的那一个 provider 章节；只有当选定的路线需要外部运行时，才会对其做预检。
-- RUN 执行不等待远程 CI；branch promotion 是独立 closeout。`development` read-back 与内部验证完成前，`main` 不得移动。
+- RUN 执行不等待远程 CI；branch promotion 是独立 closeout。精确 candidate 与适用的隔离 preview environment 验证完成前，`main` 不得移动。
 
 规模指的是协调范围和影响面，而不是原始的文件数或行数。如果小型工作变大，Harness 会保留已完成的工作，只对剩余部分做规划。
 
@@ -72,7 +72,7 @@
 ```mermaid
 flowchart LR
   Idea["产品想法或变更请求"] --> PRD["product-definition-builder\n产品与技术定义"]
-  PRD --> Wireframe["wireframes/2 HTML\n响应式低保真矩阵"]
+  PRD --> Wireframe["wireframes/3 HTML\n响应式低保真矩阵"]
   Wireframe --> Gate{"Wireframe Approval Gate\n人类 owner"}
   Gate -->|"批准且要求视觉设计"| Design["UI Design Pass\n需要时进入 design-system-compiler"]
   Gate -->|"批准、不进入视觉阶段"| Harness["delivery-harness\n共享交付核心"]
@@ -81,13 +81,13 @@ flowchart LR
   Runtime --> Security["code-security-review\n全新统一 exact-SHA 审查"]
   Security --> Evidence["完整最终测试与 UI 证据"]
   Evidence --> Push["选择性推送精确 run branch\nRUN 关闭"]
-  Push --> Dev["Promotion 到 development\nread-back + 内部测试"]
-  Dev --> Main["另行授权 fast-forward\n同一 SHA 到 main"]
+  Push --> Candidate["验证精确 candidate SHA\n本地 + 隔离 preview gates"]
+  Candidate --> Main["另行授权 fast-forward\n精确 SHA 到 main"]
   Main --> Activate["product-activation\n外部设置 + read-back"]
   Activate --> Outcome["已验证量测来源\n后续 outcome review"]
 ```
 
-你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`；可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——pass 会在 `docs/design/ui-references/<run-id>/` 留下一份批准的自包含高保真 HTML reference，左侧栏列出所有页面，包含完整 CSS、可点击流程和仅供审查的模拟登录；Harness 实现已冻结的结果；`code-security-review` 审查统一候选而不修改它；`product-activation` 则在不重开 delivery RUN 的情况下设置并验证已交付 release。
+你可以从任意阶段起步。比如，单独用 Harness 去修复一个已有的应用。各技能职责分离：`product-definition-builder` 定义产品并止于批准的 `wireframes.html`；可选的 UI Design Pass 与 `design-system-compiler` 定义视觉契约——pass 会在 `docs/design/ui-references/<run-id>/` 留下一份批准的自包含高保真 HTML reference，左侧栏列出所有页面，包含完整 CSS、可点击流程与 deferred media/motion handoff；Harness 实现已冻结的结果；`code-security-review` 审查统一候选而不修改它；`product-activation` 则在不重开 delivery RUN 的情况下设置并验证已交付 release。
 
 ### 完整技能生命周期
 
@@ -232,7 +232,7 @@ Harness 是围绕明确的边界构建的：
 3. 当任务大到需要时，在动手实现之前先规划依赖关系。
 4. 只有当至少两个安全写入 mission 实际被选中、工作彼此独立且相互隔离，并且每个动作都获得明确授权时，才使用并行工作节点；受管顺序路线仍要证明隔离 writer、scope/head 和 review gates。
 5. 验证任务结果与集成，执行全新的统一 code-security 审查，再验证相关 UI 流程与最终差异（diff）。单 mission 不会凭空增加跨 mission batch gate。
-6. RUN 默认以验证过的本地证据结束；run-branch push 需要精确授权。RUN 关闭后，另行授权 promotion 到 `development`，在该 remote head 跑内部测试，再第二次授权把未变化的同一 SHA fast-forward 到 `main`，并逐一 read-back 与验证环境。
+6. RUN 默认以验证过的本地证据结束；run-branch push 需要精确授权。RUN 关闭后，完成 exact candidate 与适用的隔离 preview environment 验证，再另行授权把该 SHA fast-forward 到 `main`，并 read-back 与验证 production。
 
 对于有计划支撑的工作，它会记录任务范围、依赖关系、工作节点归属、验证命令，以及针对具体动作的授权。一次测试通过并不等于授权推送、移除工作树或删除分支。RUN-v11 的推送还需要明确的远程意图、唯一的集成分支目标和当前 head 授权；如果默认分支身份未知，推送会安全失败，但不会阻止无关的本地执行。
 
@@ -261,8 +261,8 @@ flowchart TB
   Local --> Remote{"explicit remote outcome and exact push grant?"}
   Remote -->|no| Done["Stop with verified local evidence"]
   Remote -->|yes| Push["Push the run's own branch<br/>RUN ends here"]
-  Push --> Dev["Promote to development<br/>read-back + internal tests"]
-  Dev --> Main["Separate exact-SHA authorization<br/>fast-forward to main"]
+  Push --> Candidate["验证精确 candidate<br/>本地 + 隔离 preview gates"]
+  Candidate --> Main["另行取得 exact-SHA 授权<br/>fast-forward 到 main"]
   Main --> Prod["Production read-back<br/>and smoke"]
 ```
 
@@ -378,7 +378,7 @@ The delivery is complete. Use $product-activation for the production release tar
 Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
-多任务交付仍要写清本地和远程结果；分支创建、commit、集成、每次 push、deployment、移除工作树和删除分支都是独立动作。Post-RUN promotion 只有在 exact action-time authorization、fast-forward 证明、read-back 与内部测试齐全时才能更新 `development` 和 `main`。
+多任务交付仍要写清本地和远程结果；分支创建、commit、集成、每次 push、deployment、移除工作树和删除分支都是独立动作。Post-RUN promotion 只有在 exact action-time authorization、fast-forward 证明、read-back 与完整 candidate 测试齐全时才能更新 `main`。
 
 ## Codex、Claude Code 与 Pi 执行
 
@@ -393,7 +393,7 @@ Harness 记录的是实际的运行时能力，而不是从已安装的 CLI 去�
 
 在 Codex 中，每个选中的 mission 都会在左侧栏打开一个独立的顶层会话，并绑定自己的应用托管 worktree。任何只读 explorer 或 reviewer 都由 Harness parent 另行作为同级节点派发；mission 任务不能创建子代理。协调器直接创建的子代理不能替代这些顶层任务。如果 project/thread 工具一开始尚未加载，适配器会先从当前 Codex 工具界面中找到它们，再考虑回退路线。当用户明确要求这种结构时，缺少 thread 能力就是 blocker，不能把工作缩回同一个会话。
 
-目标仓库的 branch 规则优先；否则第一次交付从 `main` 创建 run branch，enhancement 从 `development` 创建。Mission 工作树只集成进 run branch 并接受 exact-head review。RUN 关闭后，candidate 先 promotion 到 `development` 并在该 remote head 测试，再以第二份授权把未变化的同一 SHA fast-forward 到 `main`。任何修复都要在新 SHA 上重跑 development 验证。
+目标仓库的 branch 规则优先；否则第一次交付与 enhancement 都从观察到的 remote `main` 创建 run branch。Mission 工作树只集成进 run branch 并接受 exact-head review。RUN 关闭后，candidate 通过所有必要的本地与隔离 preview environment gate，再以独立授权把未变化的同一 SHA fast-forward 到 `main`。任何修复都要在新 SHA 上重跑 candidate 验证。
 
 每个 provider 章节只运行其允许提供方包含自身宿主的 PLAN 节点；不存在跨宿主路线。需要其他宿主提供方的节点会被 deferred with `runtime_unavailable`，而不会在这里执行。
 
@@ -437,7 +437,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 3. `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 默认值。
 4. `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py` 中钉住的版本断言。
 
-然后跑完上面的完整验证、检查整个 diff，走仓库的 PR 流程落地——不要直接推送到 `main`。落地之后，在 `main` 的 release commit 上打上对应的 `v<版本>` tag（例如 `v0.22.1`）；tag 是 release 的一部分，不是可有可无的附加动作。每个发布的版本都要有它的 tag——`git tag` 和 `package.json` 必须讲同一个故事。
+然后跑完上面的完整验证、检查整个 diff，并依 `branch-promotion-contract.md` 落地精确 verified candidate。只有 repository protection 要求时才使用 PR；provider 产生的新 SHA 必须视为新 candidate 并重新验证。落地之后，在 `main` 的 release commit 上打上对应的 `v<版本>` tag（例如 `v0.30.0`）；tag 是 release 的一部分，不是可有可无的附加动作。每个发布的版本都要有它的 tag——`git tag` 和 `package.json` 必须讲同一个故事。
 
 ## 安全与数据安全
 
@@ -453,6 +453,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.30.0** — 以永久 main-only 流程取代持久 `development` branch。第一次交付与后续 enhancement 都从观察到的 remote `main` 开始；非默认 candidate branch 承载实现、exact-SHA review、完整测试与适用的隔离 preview environment 验证，之后才另行授权 fast-forward 到 `main`。退役的 `development` 名称仍会被拒绝作为 RUN target，且只有通过 ancestry 与 dependency 检查后才能删除。本版也加入可交互 `wireframes/3`、PRD-bound 0–100 multi-agent UI 评分、80 分 refinement loop、element-level responsive/layout 检查、accessibility、设计一致性、创意表现、deferred MCP media/motion handoff，以及 `wireframes/2` 向后读取兼容。
 
 - **0.29.1** — 新增 `README.es.md` 作为第四种 README 语言。语言切换列、《维持 README 与时俱进》规则、《发布》清单、repo 的 AGENTS.md，以及 pin 住的 README 合约测试，都在同一份变更里涵盖四种语言。没有 skill 行为变更。
 

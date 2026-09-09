@@ -377,7 +377,7 @@ def _require_non_default_integration_branch(run: dict[str, Any]) -> str:
         default_branch is not None and branch == default_branch
     ):
         raise ManifestError(
-            f"integration branch {raw_branch!r} resolves to a protected promotion branch; "
+            f"integration branch {raw_branch!r} resolves to a protected or retired branch; "
             "use a separate run branch"
         )
     return branch

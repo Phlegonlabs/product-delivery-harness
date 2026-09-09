@@ -316,7 +316,7 @@ continuity: { status, branch_ref, head_sha, reason }
 
 A run starts and normally ends in `local_only`: the verified local integration head is recorded without touching the remote. An explicit remote outcome may move it to `integration_push`; the verified integration head is then pushed to the run's own branch, and the run is complete at that push. `pushed_head_sha` must equal `integration.integration_head_sha` — a later local commit would otherwise leave the run claiming a head the remote never received — and the push needs the exact branch/head authorization above. Either way, every mission worktree still passes its exact-head pre-integration review.
 
-RUN landing still ends at local completion or its own run-branch push. After RUN close, `branch-promotion-contract.md` governs separately authorized exact-SHA promotion to `development`, internal verification on that remote head, and later fast-forward of the same SHA to `main`. No RUN grant authorizes either protected branch.
+RUN landing still ends at local completion or its own run-branch push. After RUN close, `branch-promotion-contract.md` governs complete candidate verification and separately authorized exact-SHA fast-forward promotion to `main`. No RUN grant authorizes the default branch; the retired `development` name remains forbidden as a run target.
 
 `integration.branch` is the only branch field in RUN. Every push target is built from it, so there is no head/base pair to keep in sync. The optional `observed.git.default_branch` fact is only a push safety observation; it is not required for local execution.
 

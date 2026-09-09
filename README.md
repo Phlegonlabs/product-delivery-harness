@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.29.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.30.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -46,7 +46,7 @@ Each bundled skill can be invoked on its own; the full pipeline is optional. Eac
 - **Activation is read back.** External setup stays outside PLAN/RUN, binds approval to an exact action digest, and becomes verified only after independent read-back and behavior evidence.
 - **Evidence follows the SHA.** A new commit invalidates earlier gate and UI evidence for the old head.
 - **Code security is a fresh final review.** Every new managed PLAN explicitly requires it or records why a non-code delivery is not applicable. Required review runs `code-security-review` over every mission at the unified integration SHA before broad final validation; its declared scope must contain every mission write scope. It validates the structured agent result and cannot reuse earlier tree-identical evidence. A security PASS has no exclusions and needs at least one tool or manual review recorded as `passed` or `findings`. The required node cannot be skipped or superseded; reserve and completion recheck live Git. An exact interruption receipt can remain as history only after a later current reviewer supplies the structured PASS.
-- **Promotion is development-first.** The RUN defaults to local completion and may push only its own branch. After RUN close, initial delivery and enhancements promote the exact candidate to `development`, run the internal suite on that remote head, then separately fast-forward the same SHA to `main`.
+- **Promotion is main-only.** The RUN defaults to local completion and may push only its own branch. Initial delivery and enhancements both start from observed remote `main`; after RUN close, the exact candidate completes every required local and isolated preview-environment gate before a separately authorized fast-forward to `main`.
 
 ## What is included
 
@@ -63,7 +63,7 @@ The delivery core makes one size decision before it invokes managed orchestratio
 - Small work stays direct with no planner, scheduler, PLAN/RUN, subagent, or external-runtime preflight by default.
 - Large work enters managed planning. It may use `PLAN.md` and `RUN.md` for a managed-sequential delivery or for multiple missions and durable handoff; the target project's `docs/tasks.md` is an on-demand human view, not required state. This source repository does not keep a separate root `Tasks.md` flow log.
 - The selector derives `managed_sequential` for fewer than two actually selected safe write missions and `parallel_graph` for two or more. Scheduler fan-out starts only for the latter; the runtime driver remains a separate transport fact. The core then applies exactly one host provider section from the runtime adapter reference; external runtimes are preflighted only when a selected route needs them.
-- RUN execution never waits for remote CI. Branch promotion is a separate closeout stage: `development` read-back and internal verification must finish before `main` can move.
+- RUN execution never waits for remote CI. Branch promotion is a separate closeout stage: exact candidate and applicable isolated preview-environment verification must finish before `main` can move.
 
 Size means coordination scope and blast radius, not a raw file or line count. If small work grows, the Harness preserves completed work and plans only the remainder.
 
@@ -72,7 +72,7 @@ Size means coordination scope and blast radius, not a raw file or line count. If
 ```mermaid
 flowchart LR
   Idea["Product idea or change request"] --> PRD["product-definition-builder\nProduct and technical definition"]
-  PRD --> Wireframe["wireframes/2 HTML\nresponsive low-fidelity matrix"]
+  PRD --> Wireframe["wireframes/3 HTML\nresponsive low-fidelity matrix"]
   Wireframe --> Gate{"Wireframe Approval Gate\nhuman owner"}
   Gate -->|"approved, visual design requested"| Design["UI Design Pass\ndesign-system-compiler when required"]
   Gate -->|"approved, no visual phase"| Harness["delivery-harness\nShared delivery core"]
@@ -81,13 +81,13 @@ flowchart LR
   Runtime --> Security["code-security-review\nfresh unified exact-SHA review"]
   Security --> Evidence["Broad final tests and UI evidence"]
   Evidence --> Push["Optional exact run-branch push\nRUN closes"]
-  Push --> Dev["Promote exact SHA to development\nread-back + internal tests"]
-  Dev --> Main["Separately authorize fast-forward\nsame SHA to main"]
+  Push --> Candidate["Verify exact candidate SHA\nlocal + isolated preview gates"]
+  Candidate --> Main["Separately authorize fast-forward\nexact SHA to main"]
   Main --> Activate["product-activation\nExternal setup + read-back"]
   Activate --> Outcome["Verified measurement sources\nLater outcome review"]
 ```
 
-You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — the pass leaves one approved self-contained high-fidelity HTML reference in `docs/design/ui-references/<run-id>/`, with every page in a left sidebar, complete CSS, clickable flows, and reviewer-only mock authentication; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
+You can start at any stage. For example, use the Harness alone to fix an existing app. The skills keep their responsibilities separate: `product-definition-builder` defines the product and stops at the approved `wireframes.html`; the optional UI Design Pass and `design-system-compiler` define the visual contract — the pass leaves one approved self-contained high-fidelity HTML reference in `docs/design/ui-references/<run-id>/`, with every page in a left sidebar, complete CSS, clickable flows, and deferred media/motion handoffs; the Harness implements the frozen result; `code-security-review` reviews the unified candidate without editing it; and `product-activation` configures and verifies the delivered release without reopening the delivery RUN.
 
 ### Full skill lifecycle
 
@@ -232,7 +232,7 @@ The Harness is built around explicit boundaries:
 3. Plan dependencies before starting implementation when the task is large enough to need it.
 4. Use parallel workers only when at least two safe write missions are actually selected, the work is independent and isolated, and every action is explicitly authorized; managed-sequential still proves its isolated writer, scope/head, and review gates.
 5. Verify task results and integrations, run a fresh unified code-security review, then verify UI journeys where relevant and the final diff. A single mission has no invented cross-mission batch gate.
-6. Stop the RUN with verified local evidence by default. Any run-branch push needs exact intent. After RUN close, separately authorize promotion to `development`, test that exact remote head internally, then separately authorize a fast-forward of the unchanged SHA to `main`; read back and verify each environment.
+6. Stop the RUN with verified local evidence by default. Any run-branch push needs exact intent. After RUN close, finish exact-candidate and applicable isolated preview-environment verification, then separately authorize a fast-forward of that SHA to `main`; read back and verify production.
 
 For plan-backed work, it records task scope, dependencies, worker ownership, verification commands, and action-specific authorization. A passing test does not authorize a push, worktree removal, or branch deletion. RUN-v11 push additionally requires explicit remote intent, one exact integration-branch target, and current-head authorization; an unknown default-branch identity fails the push closed without blocking unrelated local execution.
 
@@ -261,8 +261,8 @@ flowchart TB
   Local --> Remote{"explicit remote outcome and exact push grant?"}
   Remote -->|no| Done["Stop with verified local evidence"]
   Remote -->|yes| Push["Push the run's own branch<br/>RUN ends here"]
-  Push --> Dev["Promote to development<br/>read-back + internal tests"]
-  Dev --> Main["Separate exact-SHA authorization<br/>fast-forward to main"]
+  Push --> Candidate["Verify exact candidate<br/>local + isolated preview gates"]
+  Candidate --> Main["Separate exact-SHA authorization<br/>fast-forward to main"]
   Main --> Prod["Production read-back<br/>and smoke"]
 ```
 
@@ -378,7 +378,7 @@ The delivery is complete. Use $product-activation for the production release tar
 Use delivery-harness on this Pi host to execute this plan. Preserve Pi's installed frontend_designer, worker, reviewer, model, and fallback settings.
 ```
 
-For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, each push, deployment, worktree removal, and deletion remain separate actions. Post-RUN promotion may update `development` and `main` only with exact action-time authorization, fast-forward proof, read-back, and internal testing.
+For a multi-mission delivery, state the intended local and remote outcome. Branch creation, commits, integration, each push, deployment, worktree removal, and deletion remain separate actions. Post-RUN promotion may update only `main`, with exact action-time authorization, fast-forward proof, read-back, and complete candidate testing.
 
 ## Codex, Claude Code, and Pi execution
 
@@ -393,7 +393,7 @@ The Harness records the actual runtime capability instead of assuming one from a
 
 On Codex, each selected mission opens a separate top-level conversation in the left sidebar with its own app-managed worktree. The Harness parent separately dispatches any read-only explorer or reviewer as a sibling; a mission task never creates child agents. Coordinator-owned direct subagents do not replace requested top-level tasks. The adapter searches the current Codex tool surface for lazy-loaded project and thread tools before it uses a fallback. When the user explicitly requests this topology, missing thread capability is a blocker rather than permission to collapse the work back into one conversation.
 
-Target-repository instructions take precedence. Otherwise, initial delivery starts its run branch from `main`; enhancements start from `development`. Mission worktrees integrate only into that run branch and pass exact-head review. After RUN close, the candidate is promoted to `development`, tested on that exact remote head, then fast-forwarded unchanged to `main` under a second authorization. Fixes restart development verification on the new SHA.
+Target-repository instructions take precedence. Otherwise, initial delivery and enhancements both start their run branch from observed remote `main`. Mission worktrees integrate only into that run branch and pass exact-head review. After RUN close, the candidate completes every required local and isolated preview-environment gate, then fast-forwards unchanged to `main` under separate authorization. Fixes restart candidate verification on the new SHA.
 
 Each provider section runs only PLAN nodes whose allowed providers include its own host; there is no cross-host route. A node that requires another host's provider is deferred with `runtime_unavailable` instead of being executed here.
 
@@ -437,7 +437,7 @@ Every flow that lands on `main` is one release, and the version bump rides in th
 3. The RUNBOOK `required_harness_version` default in `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
 4. The pinned version asserts in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
-Then run the full verification above, review the entire diff, and land through the repository's PR flow — never a direct push to `main`. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.22.1`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
+Then run the full verification above, review the entire diff, and land the exact verified candidate through `branch-promotion-contract.md`. Use a PR only when repository protection requires it; any provider-created SHA is a new candidate and must be reverified. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.30.0`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
 
 ## Security and data safety
 
@@ -453,6 +453,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.30.0** — Replaced the persistent `development` branch with a permanent main-only flow. Initial delivery and enhancements both start from observed remote `main`; a non-default candidate branch carries implementation, exact-SHA review, complete tests, and any isolated preview-environment verification before separately authorized fast-forward promotion to `main`. The retired `development` name remains refused as a RUN target and can be deleted only after ancestry and dependency checks. This release also adds interactive `wireframes/3`, PRD-bound multi-agent UI grading from 0–100, the 80-point refinement loop, element-level responsive/layout checks, accessibility, design consistency, creative distinction, deferred MCP media/motion handoffs, and backward read compatibility for `wireframes/2`.
 
 - **0.29.1** — Added `README.es.md` as the fourth README language. The language switchers, the Keeping-the-READMEs-current rule, the Releasing checklist, the repository AGENTS.md, and the pinned README contract tests now cover all four languages in the same change. No skill behavior changed.
 

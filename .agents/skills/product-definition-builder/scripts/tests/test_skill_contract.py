@@ -135,14 +135,14 @@ async function agent(_prompt, options) {
                     "ios-app",
                     "TestFlight",
                     "development",
-                    "development branch head after promotion",
+                    "exact candidate branch head after verification",
                 ),
                 self.release_target(
                     "ios-production",
                     "ios-app",
                     "App Store",
                     "production",
-                    "main branch head after internal development PASS",
+                    "main branch head after exact candidate PASS",
                 ),
             ],
             "has_public_marketing_content": False,
@@ -855,19 +855,18 @@ async function agent(_prompt, options) {
             "resolve the deployment platform explicitly via the interview's platform `AskUserQuestion` step",
             skill,
         )
-        self.assertIn("## Development-to-Production Release Pattern", architecture)
+        self.assertIn("## Candidate-to-Production Release Pattern", architecture)
         self.assertIn("never default to one silently", architecture)
         self.assertIn("AskUserQuestion", agent)
         self.assertIn("one repository and one codebase", architecture)
         self.assertIn("separately named development and production Workers", frontend)
-        self.assertIn("Exact remote `development` head", contract)
+        self.assertIn("Exact candidate run branch/ref", contract)
         self.assertIn("Exact remote `main` head", contract)
-        self.assertIn("internally verified development SHA", contract)
-        self.assertIn("initial delivery starts from `main`", skill)
-        self.assertIn("enhancements start from `development`", skill)
-        self.assertIn("Every update is an authorized exact-SHA fast-forward", architecture)
-        self.assertIn("Source policy: [`development`", contract)
-        self.assertIn("Use persistent development for internal releases and main for", agent)
+        self.assertIn("same verified candidate SHA", contract)
+        self.assertIn("both initial delivery and enhancements start from observed remote `main`", skill)
+        self.assertIn("candidate run branch/SHA", architecture)
+        self.assertIn("Source policy: [exact candidate run branch/ref", contract)
+        self.assertIn("Use a main-only branch model", agent)
         for content in (skill, architecture, frontend, contract, agent):
             self.assertIn("development", content.lower())
             self.assertIn("production", content.lower())
@@ -1415,14 +1414,14 @@ async function agent(_prompt, options) {
                         "web-app",
                         "Cloudflare",
                         "development",
-                        "integration branch head",
+                        "exact candidate run branch head",
                     ),
                     self.release_target(
                         "web-production",
                         "web-app",
                         "AWS",
                         "production",
-                        "default branch head",
+                        "main branch head after candidate PASS",
                     ),
                 ],
             }

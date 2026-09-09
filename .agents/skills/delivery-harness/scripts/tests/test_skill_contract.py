@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.29.1"', package)
+        self.assertIn('"version": "0.30.0"', package)
         self.assertEqual(
-            "0.29.1",
+            "0.30.0",
             (REPO_ROOT / ".agents" / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -626,7 +626,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("its `<title>` and meta description match the PRD record", gates)
         self.assertIn("A mismatch is a failing check, not a style preference", gates)
 
-    def test_deployment_contract_maps_development_then_main(self) -> None:
+    def test_deployment_contract_maps_candidate_then_main(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/deployment-contract.md")
         promotion = self.read("references/branch-promotion-contract.md")
@@ -638,8 +638,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("references/branch-promotion-contract.md", skill)
         for phrase in (
             "Production tracks `main`",
-            "persistent internal environment tracks `development`",
-            "only the exact remote `development` head supplies promotion evidence",
+            "isolated internal environment tracks the exact candidate run branch",
+            "There is no persistent integration branch",
             "A development PASS never proves production",
             "adds no RUN authorization keys",
             "never triggers, rolls back, or reconfigures a deployment",
@@ -647,7 +647,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "cannot later become git-connected",
             "`wrangler versions upload --env development`",
             "The default Cloudflare route is Workers with Static Assets",
-            "Report the observed development or production URL",
+            "Report the observed non-production or production URL",
             "never construct or guess a URL",
             "Version previews inherit the Worker's existing bindings",
             "named environments do not inherit bindings",
@@ -666,21 +666,22 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for phrase in (
             "initial_delivery",
             "enhancement",
-            "Promote To Development",
-            "Internal Development Verification",
+            "Delivery Kind And Base",
+            "Candidate Gate",
             "Promote To Main",
-            "must be fast-forward",
-            "Every fetch, branch creation, ref update, merge, push, or external test action",
+            "Retired Development Branch",
+            "fast-forward to that exact SHA",
+            "Every fetch, branch creation, ref update, merge, push, external test, and branch deletion",
             "never inherits or reuses a RUN push grant",
-            "remote `development` and `main` at the same internally verified SHA",
+            "exact verified candidate at remote `main`",
         ):
             self.assertIn(phrase, promotion)
-        self.assertIn("cut an `initial_delivery` run from observed `main`", orchestration)
-        self.assertIn("an `enhancement` run from observed `development`", orchestration)
+        self.assertIn("both initial-delivery and enhancement run branches", orchestration)
+        self.assertIn("observed remote `main`", orchestration)
         self.assertIn("## Deployment", project_agents)
         self.assertIn("deployment-contract.md", project_agents)
         self.assertIn("branch-promotion-contract.md", project_agents)
-        self.assertIn("fast-forward the same SHA to `main`", project_agents)
+        self.assertIn("fast-forward that SHA to `main`", project_agents)
         self.assertIn("Protected resources preview must never bind", project_agents)
         self.assertIn(
             "runtime adapter reference (Claude Code section)", project_claude
@@ -711,7 +712,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("## Environment Status", deployment_template)
         self.assertIn("## Branch Promotion", deployment_template)
-        self.assertIn("Final ref convergence", deployment_template)
+        self.assertIn("Main exact-SHA result", deployment_template)
         self.assertIn("## Product Activation Handoff", deployment_template)
         self.assertIn("## Human Configuration Handoff", contract)
         self.assertIn("## Product Activation Handoff", contract)
@@ -734,8 +735,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Capability never grants permission", project_agents)
         if REPO_ROOT is not None:
             root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-            self.assertIn("An `initial_delivery` completes", root_agents)
-            self.assertIn("An `enhancement` enters `development` first", root_agents)
+            self.assertIn("An `initial_delivery` or `enhancement` completes", root_agents)
+            self.assertIn("permanently main-only", root_agents)
             self.assertIn("never force-push", root_agents)
 
     def test_adding_a_binding_runbook_orders_resource_before_declaration(self) -> None:
@@ -744,10 +745,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         for phrase in (
             "create the non-production resource",
-            "promote the exact candidate to `development`",
+            "deploy the exact candidate branch/SHA",
             "promote that exact verified SHA to `main`",
             "Preview secrets stay fake or dedicated",
-            "D1 migrations run against development first",
+            "D1 migrations run against the non-production database first",
         ):
             self.assertIn(phrase, contract)
         # The wrangler procedure is cloudflare-scoped: it lives inside the
@@ -765,7 +766,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "### cloudflare",
             "### vercel, aws, generic",
             "Do not reuse the cloudflare commands",
-            "A run-branch preview does not satisfy this gate",
+            "deploy the exact candidate branch/SHA",
             "never in the wrangler config",
             "fast-forward the exact verified SHA to `main`",
         ):
@@ -871,7 +872,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.29.1"', runbook)
+        self.assertIn('"required_harness_version": "0.30.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1285,7 +1286,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("<e2e-command>", project_agents)
         self.assertNotIn("(List protected files here", project_agents)
         self.assertNotIn("current v10", project_agents)
-        self.assertIn("The current RUN push guard", project_agents)
+        self.assertIn("The RUN push guard", project_agents)
         self.assertIn("@AGENTS.md", project_claude)
         self.assertIn("## Claude Code Runtime Boundary", project_claude)
         self.assertIn("Direct Claude Code work follows `AGENTS.md`", project_claude)

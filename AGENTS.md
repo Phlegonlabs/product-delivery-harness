@@ -41,15 +41,14 @@
 
 ## Git Flow
 
-- Do not edit or commit directly on `development` or the default branch (`main` in this repository). Update them only by exact-SHA promotion under `.agents/skills/delivery-harness/references/branch-promotion-contract.md`.
+- This repository is permanently main-only. Do not edit or commit directly on the default branch (`main`); update it only by exact-SHA promotion under `.agents/skills/delivery-harness/references/branch-promotion-contract.md`. The retired branch name `development` is not a release source or integration target.
 - Before any action represented in the RUN authorization ledger, verify its exact authorization. When a RUN ledger exists, the matching action must be true for the exact target; direct work without RUN still requires an explicit user instruction for the covered mutation.
-- With matching `create_local_branches` authorization, create the exact non-default run branch named by repository governance or the user. Cut an `initial_delivery` run from the observed `main` head and an `enhancement` run from the observed `development` head. If the delivery kind or branch name is unresolved, ask; never add a fixed prefix.
+- With matching `create_local_branches` authorization, create the exact non-default run branch named by repository governance or the user. Cut both `initial_delivery` and `enhancement` runs from the observed remote `main` head. If the delivery kind or branch name is unresolved, ask; never add a fixed prefix.
 - With matching `create_local_commits` authorization, commit only the verified task scope. Commit atomically: one commit per minimal logical change (matching the minimal task split), never bundling unrelated changes.
 - Worker branches and worktrees stay local. With matching `integrate_locally` authorization, the parent integrates verified worker commits into that one run branch.
 - Before any RUN push, run the required tests and review the complete diff against its recorded base. With matching `push` authorization, push only that run branch and exact verified head; the RUN ends there.
-- After RUN close, promote the candidate to `development` only with separate action-time authorization for that remote branch and SHA, then fetch/read back the ref and run the complete internal suite against the exact remote `development` head.
-- Promote to `main` only after the development head passes, the remote refs have not drifted, `main` is an ancestor of the verified development SHA, and the update is fast-forward to that same SHA. Require a second separate action-time authorization naming `main` and the SHA; never force-push. Read back both refs and verify production separately.
-- An `initial_delivery` completes with `development` and `main` at the same verified SHA. An `enhancement` enters `development` first and leaves `main` unchanged until internal verification passes.
+- After RUN close, complete every required candidate gate on the exact run-branch SHA, including isolated non-production deployment checks when applicable. Then require separate action-time authorization naming `main`, the remote, and that exact SHA; fetch immediately before the update, require fast-forward ancestry from the current remote `main`, never force-push, and read back the ref. Production verification remains separate.
+- An `initial_delivery` or `enhancement` completes with the exact verified candidate at remote `main`. Non-production environments build from the candidate branch/SHA, never a persistent integration branch.
 - Branch deletion and worktree removal are separate actions. Do not infer approval for them from implementation or from a successful push.
 
 ## Update Local Skills
@@ -84,9 +83,9 @@ Any change that adds or alters a skill, rule, or documented flow also updates th
 Treat these as blocking findings:
 
 - Any path that bypasses explicit action authorization for one of the 12 ledger keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, or `delete_branches`.
-- Any RUN push that reaches `development` or `main`, or any run whose own integration branch resolves to either protected branch.
+- Any RUN push that reaches `main` or the retired `development` name, or any run whose own integration branch resolves to either name.
 - Any RUN `push` grant whose target is a branch other than the run's resolved integration branch; post-RUN promotion never reuses that grant.
-- Any `development` or `main` promotion that bypasses `.agents/skills/delivery-harness/references/branch-promotion-contract.md`, lacks separate exact branch/SHA authorization, uses force, moves a stale/diverged ref, or promotes to `main` without internal verification on the exact remote development SHA.
+- Any `main` promotion that bypasses `.agents/skills/delivery-harness/references/branch-promotion-contract.md`, lacks separate exact branch/SHA authorization, uses force, moves a stale/diverged ref, or lacks complete exact-candidate verification. Creating or using a persistent `development` branch is also blocking.
 - Any gate PASS that is not bound to the exact integration head SHA.
 - Any worker that edits parent-owned PLAN/RUN state, escapes its write scope, or independently pushes.
 - Any behavior change without focused tests, or any test/workflow command that does not run from the repository root.

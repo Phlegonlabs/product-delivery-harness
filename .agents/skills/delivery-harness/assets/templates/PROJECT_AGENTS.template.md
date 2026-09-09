@@ -94,17 +94,17 @@ An unbound slot uses the bundled default. A non-default bound skill pins the SHA
 ## Git Safety
 
 - Resolve the default branch from repository state or governance; never assume its name.
-- Use persistent `development` for internally tested candidates and the resolved default branch (`main` for this workflow) for production. Never edit or commit directly on either protected branch.
-- Resolve the complete non-default run-branch name from repository governance or the user's instruction. Cut an `initial_delivery` run from observed `main`; cut an `enhancement` run from observed `development`. If the kind or name is unresolved, ask; never add a fixed prefix or invent a name.
-- A RUN push requires separate explicit remote intent for its exact run branch and verified head. It never authorizes `development` or `main`.
-- After RUN close, follow `delivery-harness/references/branch-promotion-contract.md`: separately authorize and fast-forward the exact candidate to `development`, read it back, run the complete internal suite on that remote head, then separately authorize and fast-forward the same SHA to `main`. Never force-push; stop on drift or divergence.
+- Use the resolved default branch (`main` for this workflow) as the only persistent protected branch and production source. Never edit or commit directly on it; the retired branch name `development` is not a release source or integration target.
+- Resolve the complete non-default run-branch name from repository governance or the user's instruction. Cut both `initial_delivery` and `enhancement` runs from observed remote `main`. If the kind or name is unresolved, ask; never add a fixed prefix or invent a name.
+- A RUN push requires separate explicit remote intent for its exact run branch and verified head. It never authorizes `main` or the retired `development` name.
+- After RUN close, follow `delivery-harness/references/branch-promotion-contract.md`: verify the exact candidate and any isolated non-production deployment from its run branch/SHA, then separately authorize and fast-forward that SHA to `main`. Never force-push; stop on drift or divergence.
 - Preserve unrelated dirty files, branches, and worktrees. Cleanup, worktree removal, task archival, and branch deletion require their own exact authorization.
 
 ## Deployment
 
 - Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Product Delivery Harness `deployment-contract.md`.
 - Platform and mode: the deploy platform id (for example `cloudflare`, `vercel`, `aws`) and `git_connected`, `ci_connected`, or `manual`.
-- Development deploys from `development`; production deploys from `main`. Other run branches may have disposable previews, but only the exact remote development head supplies the internal promotion evidence, and a development PASS never proves production.
+- Non-production deploys from the exact candidate run branch or immutable candidate SHA; production deploys from `main`. Candidate and production environments remain separate, and a candidate PASS never proves production.
 - Production and preview bind fully separate D1/KV/R2/Durable-Object resources: the preview environment declares its complete binding set, never references a production resource ID, and the deployment record's Resource Isolation table carries both ID sets.
 - Before a deployable push, reconcile `docs/DEPLOYMENT.md` against tracked environment declarations, platform config, CI workflows, and auth/integration code. List exact secret and variable names, preview/production placement, source owner, and external-console tasks; never read or record secret values. After deployment, update only from read-only evidence and report every pending human action.
 - Preview mechanism or URL pattern: <fill>
@@ -130,14 +130,14 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - Map one independently testable goal to one mission. Tasks inside that mission stay sequential under one writer.
 - Give every writer an explicit file-ownership scope and a separate worktree. Workers and reviewers never delegate; the Harness parent dispatches every explorer, writer, and reviewer as a sibling.
 - Freeze and integrate shared APIs, schemas, and types before starting dependent write missions in parallel.
-- Cut an initial-delivery run branch from current `main` or an enhancement run branch from current `development`, then create every implementation worktree from the resolved integration-branch SHA.
+- Cut every initial-delivery or enhancement run branch from current observed remote `main`, then create every implementation worktree from the resolved integration-branch SHA.
 - Before dispatch, verify each worktree has the expected repository, branch/ref, exact base HEAD, and a clean status.
 - Run focused checks and at least one exact-head read-only review in or against each completed worktree. A repair requires a fresh review.
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
 - After serial integration, use fresh read-only reviewers on the exact unified integration SHA, then run one broad final validation on the fixed candidate SHA.
-- The RUN defaults to verified local completion; only explicit remote intent pushes the verified integration head to its run branch. Post-RUN `development` and `main` promotion follows the separate branch-promotion contract and never inherits the RUN grant.
+- The RUN defaults to verified local completion; only explicit remote intent pushes the verified integration head to its run branch. Post-RUN `main` promotion follows the separate branch-promotion contract and never inherits the RUN grant.
 - When the owner declares the goal complete and its run has passed the Closeout Bar, archive the finished plan runtime — `docs/goal/PLAN.md`, `RUN.md`, and their `docs/goal/evidence/` — into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/` (`contract-and-traceability.md`). Archival moves those exact files on the owner's completion instruction; it never deletes and never moves anything under `docs/product/`. A later plan starts only after the completed pair is archived, never by overwriting it.
-- Later enhancement work cuts a fresh run branch from the current observed `development` head after the prior promotion state is resolved.
+- Later enhancement work cuts a fresh run branch from the current observed remote `main` head after the prior promotion state is resolved.
 
 ### Action Authorization
 
@@ -148,8 +148,8 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - Worker branches stay local. With matching `integrate_locally` authorization, integrate exact-head review-passing work into the resolved integration branch.
 - Run the exact repository-defined focused verification and applicable E2E commands, then review the complete diff before push. If commands are undocumented, inspect the repository's package scripts and CI configuration and state the commands selected.
 - Treat a PASS from the required automated E2E on the current head as the proof for its covered primary journeys. Record duplicate manual smoke as `not required - covered by current-head E2E`; require manual smoke only for a materially different environment or an uncovered visual/external-integration risk.
-- With matching explicit remote intent and `push` authorization, push only the verified run integration branch and current head. The current RUN push guard requires one exact target and refuses `development`, the observed default branch, and literal `main`; protected branches use only the post-RUN promotion contract.
-- After RUN completion, treat `development` and `main` promotion as new exact actions outside the RUN ledger. Require separate action-time authorization and remote-ref read-back for each; require internal tests on the exact development SHA before the independently authorized fast-forward of that same SHA to `main`.
+- With matching explicit remote intent and `push` authorization, push only the verified run integration branch and current head. The RUN push guard requires one exact target and refuses the retired `development` name, the observed default branch, and literal `main`; the default branch uses only the post-RUN promotion contract.
+- After RUN completion, treat `main` promotion as a new exact action outside the RUN ledger. Require separate action-time authorization, fresh remote-ref read-back, fast-forward ancestry, and complete tests on the exact candidate SHA before promotion.
 - Remove only an authorized clean linked worktree, then delete only the authorized local worker branch. Never remove the primary checkout, and never delete the run branch the user still has to read.
 - Task archival, worktree removal, and branch deletion remain separate ledger actions even when several are approved in one explicit readiness statement.
 

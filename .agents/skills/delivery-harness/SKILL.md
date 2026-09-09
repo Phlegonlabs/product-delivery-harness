@@ -70,8 +70,8 @@ These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, and `delete_branches`.
-- Execution intent covers only applicable local setup, branch, commit, and integration actions. It does not authorize `push`. A RUN push needs explicit remote intent for its own integration branch and exact head; later `development` and `main` promotions require separate action-time authorizations.
-- Never implement directly on `development` or the default branch. Promote only through `references/branch-promotion-contract.md`; never force-push. If no exact run-branch name exists, ask before branch creation; never add a fixed prefix.
+- Execution intent covers only applicable local setup, branch, commit, and integration actions. It does not authorize `push`. A RUN push needs explicit remote intent for its own integration branch and exact head; later `main` promotion requires separate action-time authorization.
+- This workflow is main-only. Never implement directly on the default branch, and never use the retired `development` name as a run or release branch. Promote only through `references/branch-promotion-contract.md`; never force-push. If no exact run-branch name exists, ask before branch creation; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers never delegate, edit PLAN/RUN, integrate, push, or clean up.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
@@ -111,7 +111,7 @@ Read only what the current decision needs:
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
 - `references/runtime-adapters.md`: the shared adapter contract and per-provider launch mechanics, applied only for a large managed run after host detection.
-- `references/deployment-contract.md` and `references/branch-promotion-contract.md`: post-RUN deployment and `development`-to-`main` promotion.
+- `references/deployment-contract.md` and `references/branch-promotion-contract.md`: candidate-environment verification and post-RUN exact-SHA promotion to `main`.
 - `references/worktree-thread-orchestration.md`: only after the selected adapter needs workers, threads, or worktrees.
 - `references/verification-gates.md`: task, integration, UI, and evidence gates.
 - `references/runtime-performance.md`: bounded context, event waits, streaming review, verifier batches, and machine telemetry.
@@ -218,6 +218,6 @@ Reuse a `session_exact` PASS only when the verifier's pass signal is the literal
 
 ### 6. Complete
 
-New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an authorized exact-head push to the run branch. After RUN close, apply `references/branch-promotion-contract.md`: initial delivery and later enhancements promote to `development`, pass internal exact-SHA tests there, then fast-forward the same SHA to `main` under separate authorizations and read-backs. Deployment, archival, cleanup, and activation keep their own gates.
+New runs default to `local_only`, which completes after authorized local work, required gates, a fresh exact-SHA `security` review for code delivery, recorded evidence, and no blocker. `integration_push` additionally requires an authorized exact-head push to the run branch. After RUN close, apply `references/branch-promotion-contract.md`: initial delivery and later enhancements both start from the observed remote `main`, pass every candidate and applicable non-production-environment gate on the exact run-branch SHA, then fast-forward that SHA to `main` under separate authorization and read-back. Deployment, archival, cleanup, and activation keep their own gates.
 
 `product-activation` follows required promotion and deployment verification; RUN grants no authority.

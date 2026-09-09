@@ -459,7 +459,7 @@ class IntegrationHeadGitCrossCheckTests(unittest.TestCase):
         run = {
             "schema_version": 11,
             "integration": {
-                "branch": "development",
+                "branch": "feature/ui-candidate",
                 "integration_head_sha": "a" * 40,
             },
         }
@@ -489,7 +489,7 @@ class IntegrationHeadGitCrossCheckTests(unittest.TestCase):
             root = Path(directory)  # deliberately never `git init`-ed
             run = {
                 "integration": {
-                    "branch": "development",
+                    "branch": "feature/ui-candidate",
                     "integration_head_sha": "a" * 40,
                 }
             }

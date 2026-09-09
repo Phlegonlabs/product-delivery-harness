@@ -57,10 +57,10 @@ interface:
     path, availability signal, rollout, and rollback or forward-fix. Upload,
     submission, or approval is not availability; production availability needs
     a serving or installable result, and native recovery may require a signed
-    forward-fix. Use persistent development for internal releases and main for
-    production: initial delivery starts from main, enhancements start from
-    development, and only the exact remote development SHA that passes the
-    internal suite may be separately authorized and fast-forwarded to main.
+    forward-fix. Use a main-only branch model: initial delivery and enhancements
+    both start from the observed remote main head, internal releases use the
+    exact candidate run branch/ref, and only that verified candidate SHA may be
+    separately authorized and fast-forwarded to main.
     Resolve the deployment platform via AskUserQuestion unless the
     user or repository already names it, including Cloudflare, Vercel, AWS, or
     self-hosted development and production targets. For a product with a

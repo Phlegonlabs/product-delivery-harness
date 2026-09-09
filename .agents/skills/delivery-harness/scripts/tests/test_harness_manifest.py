@@ -817,13 +817,13 @@ class RunValidationTests(unittest.TestCase):
         self.assert_run_error_contains(
             plan,
             run,
-            "cannot target protected development",
+            "cannot target retired development",
         )
         run["status"] = "complete"
         self.assert_run_error_contains(
             plan,
             run,
-            "cannot target protected development",
+            "cannot target retired development",
         )
 
 

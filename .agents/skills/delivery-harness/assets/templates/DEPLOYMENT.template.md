@@ -6,9 +6,9 @@ The deployment record for this repository: the platform model, the exact configu
 
 - Platform: <cloudflare | vercel | aws | any lowercase id>
 - Mode: git_connected (the platform builds on push) | ci_connected (a repository CI workflow deploys on push) | manual (a recorded deploy command the user runs)
-- Development branch: `development` (persistent internal candidate and non-production environment)
-- Production branch: `main` (receives only the exact internally verified development SHA)
-- Run-branch previews: optional and disposable; they never replace verification on the remote `development` head
+- Candidate source: <exact non-default run branch or immutable candidate ref>
+- Production branch: `main` (receives only the exact verified candidate SHA)
+- Candidate preview: isolated non-production environment bound to the exact candidate SHA; no persistent integration branch
 - Production URL: <url>
 - Preview URL pattern: <pattern>
 - Deployed-commit check: <platform API/CLI command or response header>
@@ -47,22 +47,22 @@ After the delivery RUN closes, the sibling `product-activation` skill may conver
 
 ## Adding A Binding
 
-Per-platform runbook. The order is fixed: each resource exists before config references it, the exact remote `development` head passes internal verification, then the unchanged SHA reaches `main` and production is verified separately. Commands vary by platform; never copy another platform's steps.
+Per-platform runbook. The order is fixed: each resource exists before config references it, the exact candidate SHA passes internal and isolated non-production verification, then that SHA reaches `main` and production is verified separately. Commands vary by platform; never copy another platform's steps.
 
 ### cloudflare
 
 For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Objects). The order is a hard constraint on both sides: create the resource first, then write the declaration — a declaration naming a missing resource fails deploy validation and turns the pipeline red.
 
 1. Create the preview-side resource with the project's `-preview` naming and record its ID. Any ID the wrangler config needs must exist before the declaration is written.
-2. Declare the binding in the development environment (for example `env.development`), promote the exact candidate to `development`, and verify it on the development URL. A run-branch preview does not satisfy this gate. Add the binding class row to Resource Isolation.
+2. Declare the binding in the development environment (for example `env.development`), deploy the exact candidate branch/SHA there, and verify it on the development URL. Add the binding class row to Resource Isolation.
 3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
-4. Add the production declaration (for example `env.production`) to the same candidate lineage. If that changes the SHA, promote it to `development` and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
+4. Add the production declaration (for example `env.production`) to the same candidate lineage. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
 5. Secrets for the new binding: fake or dedicated values on the preview worker, real values only in production, never in the wrangler config.
 6. With a D1 schema change: apply the migration to the preview database and verify it there first; coordinate the production database migration with the default-branch deploy so new code never ships before the production schema exists.
 
 ### vercel, aws, generic
 
-Do not reuse the cloudflare commands. Keep the same order: create and attach non-production resources, promote and verify `development`, prepare production resources, then promote the unchanged verified SHA to `main` and verify production. Values and secrets stay scoped per environment and never enter the repository.
+Do not reuse the cloudflare commands. Keep the same order: create and attach non-production resources, deploy and verify the exact candidate branch/SHA, prepare production resources, then promote that verified SHA to `main` and verify production. Values and secrets stay scoped per environment and never enter the repository.
 
 ## Branch Promotion
 
@@ -71,13 +71,12 @@ Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this rec
 - Delivery kind: <initial_delivery | enhancement>
 - Run branch: <full branch ref>
 - Candidate SHA: <full SHA>
-- Development before: <full SHA | absent for authorized initial creation>
-- Development pushed and read back: <full SHA | pending>
-- Internal development verification: <PASS/FAIL/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
+- Candidate branch pushed and read back: <full SHA | local_only | pending>
+- Candidate environment verification: <PASS/FAIL/not applicable/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
 - Main before: <full SHA>
 - Main ancestry/fast-forward proof: <PASS/FAIL/pending>
 - Main pushed and read back: <full SHA | pending>
-- Final ref convergence: <PASS when remote development and main equal the verified SHA | pending>
+- Main exact-SHA result: <PASS when remote main equals the verified candidate SHA | pending>
 - Production deployed SHA and smoke: <full SHA plus PASS/FAIL/pending>
 
 ## Human Setup Checklist
@@ -87,15 +86,15 @@ These steps are performed by a person with platform access; the Harness never pe
 ### Git connection (git_connected mode)
 
 - [ ] Connect the repository to the platform (Cloudflare Pages/Workers, Vercel project, or AWS Amplify app).
-- [ ] Map `development` to the isolated internal/non-production environment.
+- [ ] Map exact candidate run branches to isolated internal/non-production previews.
 - [ ] Map `main` to production.
-- [ ] Treat other run-branch previews as optional and non-authoritative.
+- [ ] Bind internal evidence to the exact candidate SHA; a preview from another branch or SHA is non-authoritative.
 
 ### CI connection (ci_connected mode)
 
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch main`) and run the separately authorized bootstrap deploy.
-- [ ] Add the repository workflow that deploys `development` to the internal environment and `main` to production; optional run branches may receive disposable previews.
-- [ ] On Workers, run `wrangler deploy` for `main` and target the named development environment only from `development` (`wrangler deploy --env development`, or `wrangler versions upload --env development`).
+- [ ] Add the repository workflow that deploys the exact candidate run branch/SHA to the internal environment and `main` to production.
+- [ ] On Workers, run `wrangler deploy` for `main` and target the named development environment from the exact candidate (`wrangler deploy --env development`, or `wrangler versions upload --env development`).
 - [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with a `-preview` name — and bind them through the named preview environment with its full binding set declared explicitly; named environments do not inherit bindings.
 - [ ] Confirm a version preview of the production Worker is never used for stateful preview traffic: it shares that Worker's live bindings, so its writes reach production resources.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.
@@ -118,10 +117,10 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ## Platform Notes
 
-- cloudflare: `development` targets the isolated preview Worker/environment and `main` targets production; optional run-branch previews never substitute for development verification.
-- vercel: `development` is the internally verified preview and `main` is production; environment scoping protects production.
-- aws: map `development` to isolated non-production and `main` to production; keep separate backend environments and secrets.
-- generic: record the same two protected branch roles when supported; otherwise use `manual` with separate authorization and read-back.
+- cloudflare: the exact candidate run branch/SHA targets the isolated preview Worker/environment and `main` targets production.
+- vercel: the exact candidate run branch supplies the internally verified preview and `main` is production; environment scoping protects production.
+- aws: map the exact candidate run branch to isolated non-production and `main` to production; keep separate backend environments and secrets.
+- generic: record candidate and `main` source roles when supported; otherwise use `manual` with separate authorization and read-back.
 
 ## Environment Status
 
@@ -135,7 +134,7 @@ Verification is read-only: record what deployed, compare it to the expected head
 ## Product Activation Handoff
 
 - Activation record: `docs/ACTIVATION.md` when the product has post-delivery setup or measurable outcome sources; absent is valid for legacy or non-applicable products.
-- Handoff timing: after required `development`/`main` promotion and deployment verification complete, never as another RUN node or authorization.
+- Handoff timing: after required candidate verification, `main` promotion, and deployment verification complete, never as another RUN node or authorization.
 - Handoff content: exact delivered/deployed SHA, release target IDs and URLs, deployment evidence, implemented hooks, and pending name-only configuration or console rows.
 - Execution: `product-activation` probes connector/API/CLI/Browser/Computer Use routes and performs only exact authorized actions.
 - Completion: an Activation target is ready only after read-back and behavior evidence; pending activation never keeps the delivery RUN open.

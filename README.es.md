@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.29.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.30.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -46,7 +46,7 @@ Cada skill incluido se puede invocar por separado; el pipeline completo es opcio
 - **La activación se lee de vuelta.** La configuración externa queda fuera de PLAN/RUN, liga la aprobación a un action digest exacto y solo se considera verified tras un read-back independiente y evidencia de comportamiento.
 - **La evidencia sigue al SHA.** Un commit nuevo invalida la evidencia previa de gates y UI del head anterior.
 - **La seguridad de código es una revisión final nueva.** Cada PLAN gestionado nuevo la marca explícitamente como required o registra por qué una entrega sin código no aplica. La revisión required ejecuta `code-security-review` sobre cada mission en el SHA de integración unificado antes de la broad final validation; su scope declarado debe contener el write scope de cada mission. Valida el resultado estructurado del agente y no puede reutilizar evidencia previa de un tree idéntico. Un PASS de seguridad no tiene exclusions y necesita al menos una revisión de tool o manual registrada como `passed` o `findings`. El nodo required no se puede saltar ni reemplazar; reserve y completion reverifican el Git vivo. Un recibo de interrupción exacto puede quedar como historial solo después de que un reviewer actual posterior entregue el PASS estructurado.
-- **La promoción es development-first.** El RUN por defecto termina localmente y solo puede hacer push de su propia branch. Tras cerrar el RUN, la entrega inicial y los enhancements promueven el candidato exacto a `development`, ejecutan la suite interna sobre ese remote head y luego, con autorización separada, hacen fast-forward del mismo SHA a `main`.
+- **La promoción es main-only.** El RUN por defecto termina localmente y solo puede hacer push de su propia branch. La entrega inicial y los enhancements parten del `main` remoto observado; tras cerrar el RUN, el candidato exacto debe pasar todos los gates locales y del preview environment aislado antes de un fast-forward a `main` con autorización separada.
 
 ## Qué incluye
 
@@ -63,7 +63,7 @@ El núcleo de entrega toma una decisión de tamaño antes de invocar la orquesta
 - El trabajo pequeño sigue siendo directo, sin planner, scheduler, PLAN/RUN, subagent ni preflight de runtime externo por defecto.
 - El trabajo grande entra en planificación gestionada. Puede usar `PLAN.md` y `RUN.md` para una entrega gestionada-secuencial o para múltiples missions y handoff durable; el `docs/tasks.md` del proyecto objetivo es una vista humana bajo demanda, no un estado requerido. Este repositorio fuente no mantiene un log de flujo `Tasks.md` raíz separado.
 - El selector deriva `managed_sequential` para menos de dos missions de escritura segura realmente seleccionadas y `parallel_graph` para dos o más. El fan-out del scheduler arranca solo para el segundo; el runtime driver sigue siendo un hecho de transporte separado. El núcleo aplica exactamente una sección de provider del host desde la referencia de adaptadores de runtime; los runtimes externos se preflightean solo cuando la ruta seleccionada los necesita.
-- La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: el read-back de `development` y la verificación interna deben terminar antes de que `main` pueda moverse.
+- La ejecución del RUN nunca espera al CI remoto. La promoción de branches es una etapa de closeout separada: la verificación del candidato exacto y del preview environment aislado aplicable debe terminar antes de que `main` pueda moverse.
 
 Tamaño significa scope de coordinación y blast radius, no un conteo bruto de archivos o líneas. Si el trabajo pequeño crece, el Harness conserva el trabajo completado y planifica solo el resto.
 
@@ -72,7 +72,7 @@ Tamaño significa scope de coordinación y blast radius, no un conteo bruto de a
 ```mermaid
 flowchart LR
   Idea["Idea de producto o solicitud de cambio"] --> PRD["product-definition-builder\nDefinición de producto y técnica"]
-  PRD --> Wireframe["wireframes/2 HTML\nmatriz responsive de baja fidelidad"]
+  PRD --> Wireframe["wireframes/3 HTML\nmatriz responsive de baja fidelidad"]
   Wireframe --> Gate{"Wireframe Approval Gate\nowner humano"}
   Gate -->|"aprobado, con diseño visual solicitado"| Design["UI Design Pass\ndesign-system-compiler cuando se requiere"]
   Gate -->|"aprobado, sin fase visual"| Harness["delivery-harness\nNúcleo de entrega compartido"]
@@ -81,13 +81,13 @@ flowchart LR
   Runtime --> Security["code-security-review\nrevisión unificada fresca de SHA exacto"]
   Security --> Evidence["Tests finales amplios y evidencia de UI"]
   Evidence --> Push["Push opcional del run branch exacto\nRUN cierra"]
-  Push --> Dev["Promoción del SHA exacto a development\nread-back + tests internos"]
-  Dev --> Main["Autorización separada de fast-forward\nmismo SHA a main"]
+  Push --> Candidate["Verificar el candidate SHA exacto\ngates locales + preview aislado"]
+  Candidate --> Main["Autorización separada de fast-forward\nSHA exacto a main"]
   Main --> Activate["product-activation\nconfiguración externa + read-back"]
   Activate --> Outcome["Fuentes de medición verificadas\noutcome review posterior"]
 ```
 
-Puedes empezar en cualquier etapa. Por ejemplo, usa solo el Harness para arreglar una app existente. Los skills mantienen sus responsabilidades separadas: `product-definition-builder` define el producto y termina en el `wireframes.html` aprobado; el UI Design Pass opcional y `design-system-compiler` definen el contrato visual — la pass deja una referencia HTML de alta fidelidad, autocontenida y aprobada en `docs/design/ui-references/<run-id>/`, con todas las páginas en una barra lateral izquierda, CSS completo, flujos clicables y un mock login solo para reviewers; el Harness implementa el resultado congelado; `code-security-review` revisa el candidato unificado sin editarlo; y `product-activation` configura y verifica el release entregado sin reabrir el RUN de entrega.
+Puedes empezar en cualquier etapa. Por ejemplo, usa solo el Harness para arreglar una app existente. Los skills mantienen sus responsabilidades separadas: `product-definition-builder` define el producto y termina en el `wireframes.html` aprobado; el UI Design Pass opcional y `design-system-compiler` definen el contrato visual — la pass deja una referencia HTML de alta fidelidad, autocontenida y aprobada en `docs/design/ui-references/<run-id>/`, con todas las páginas en una barra lateral izquierda, CSS completo, flujos clicables y handoffs diferidos de media/motion; el Harness implementa el resultado congelado; `code-security-review` revisa el candidato unificado sin editarlo; y `product-activation` configura y verifica el release entregado sin reabrir el RUN de entrega.
 
 ### Ciclo de vida completo de los skills
 
@@ -232,7 +232,7 @@ El Harness se construye sobre límites explícitos:
 3. Planifica las dependencias antes de empezar la implementación cuando la tarea es lo bastante grande para necesitarlo.
 4. Usa workers en paralelo solo cuando al menos dos missions de escritura segura están realmente seleccionadas, el trabajo es independiente y aislado, y cada acción está explícitamente autorizada; el modo gestionado-secuencial igual prueba su escritor aislado, su scope/head y sus gates de revisión.
 5. Verifica los resultados de las tasks y las integraciones, ejecuta una revisión de seguridad de código unificada y fresca, luego verifica los recorridos de UI donde aplique y el diff final. Una sola mission no tiene un gate de lote cross-mission inventado.
-6. Detén el RUN con evidencia local verificada por defecto. Cualquier push del run branch necesita intención exacta. Tras cerrar el RUN, autoriza por separado la promoción a `development`, testa ese remote head exacto por dentro, y luego autoriza por separado un fast-forward del SHA sin cambios a `main`; lee de vuelta y verifica cada entorno.
+6. Detén el RUN con evidencia local verificada por defecto. Cualquier push del run branch necesita intención exacta. Tras cerrar el RUN, completa la verificación del candidate exacto y del preview environment aislado aplicable, y luego autoriza por separado el fast-forward de ese SHA a `main`; lee de vuelta y verifica producción.
 
 Para el trabajo respaldado por un plan, registra el scope de la task, las dependencias, la propiedad de los workers, los comandos de verificación y la autorización específica por acción. Un test que pasa no autoriza un push, la eliminación de un worktree ni el borrado de una branch. El push de RUN-v11 exige además intención remota explícita, un único target de integration-branch exacto y autorización del head actual; una identidad de default-branch desconocida falla el push de forma cerrada sin bloquear la ejecución local no relacionada.
 
@@ -261,8 +261,8 @@ flowchart TB
   Local --> Remote{"¿resultado remoto explícito y push grant exacto?"}
   Remote -->|no| Done["Parar con evidencia local verificada"]
   Remote -->|sí| Push["Push de la propia branch del run<br/>el RUN termina aquí"]
-  Push --> Dev["Promoción a development<br/>read-back + tests internos"]
-  Dev --> Main["Autorización exacta de SHA separada<br/>fast-forward a main"]
+  Push --> Candidate["Verificar el candidate exacto<br/>gates locales + preview aislado"]
+  Candidate --> Main["Autorización exacta de SHA separada<br/>fast-forward a main"]
   Main --> Prod["Read-back de producción<br/>y smoke"]
 ```
 
@@ -377,7 +377,7 @@ La entrega está completa. Usa $product-activation para los targets de release d
 Usa delivery-harness en este host Pi para ejecutar este plan. Preserva los ajustes de frontend_designer, worker, reviewer, model y fallback instalados de Pi.
 ```
 
-Para una entrega multi-mission, declara el resultado local y remoto previsto. La creación de branches, los commits, la integración, cada push, el despliegue, la eliminación de worktrees y el borrado siguen siendo acciones separadas. La promoción post-RUN solo puede actualizar `development` y `main` con autorización exacta al momento de la acción, prueba de fast-forward, read-back y testing interno.
+Para una entrega multi-mission, declara el resultado local y remoto previsto. La creación de branches, los commits, la integración, cada push, el despliegue, la eliminación de worktrees y el borrado siguen siendo acciones separadas. La promoción post-RUN solo puede actualizar `main` con autorización exacta al momento de la acción, prueba de fast-forward, read-back y testing completo del candidate.
 
 ## Ejecución en Codex, Claude Code y Pi
 
@@ -392,7 +392,7 @@ El Harness registra la capacidad real del runtime en vez de asumir una desde un 
 
 En Codex, cada mission seleccionada abre una conversación separada de nivel superior en la barra lateral con su propio worktree app-managed. El parent del Harness despacha por separado cualquier explorer o reviewer de solo lectura como sibling; una task de mission nunca crea child agents. Los subagents directos propiedad del coordinator no reemplazan las top-level tasks pedidas. El adaptador busca en la superficie de tools actual de Codex las tools de project y thread de lazy-loading antes de usar un fallback. Cuando el usuario pide esta topología explícitamente, la falta de capacidad de thread es un blocker, no permiso para colapsar el trabajo de nuevo en una conversación.
 
-Las instrucciones del repositorio objetivo tienen prioridad. Si no hay otras, la entrega inicial arranca su run branch desde `main`; los enhancements arrancan desde `development`. Los worktrees de mission se integran solo en ese run branch y pasan la revisión de exact-head. Tras cerrar el RUN, el candidato se promueve a `development`, se testa sobre ese remote head exacto y luego se lleva sin cambios por fast-forward a `main` bajo una segunda autorización. Los fixes reinician la verificación de development en el SHA nuevo.
+Las instrucciones del repositorio objetivo tienen prioridad. Si no hay otras, la entrega inicial y los enhancements arrancan su run branch desde el `main` remoto observado. Los worktrees de mission se integran solo en ese run branch y pasan la revisión de exact-head. Tras cerrar el RUN, el candidate pasa todos los gates locales y del preview environment aislado, y luego llega sin cambios por fast-forward a `main` bajo autorización separada. Los fixes reinician la verificación del candidate en el SHA nuevo.
 
 Cada sección de provider ejecuta solo los nodos de PLAN cuyos allowed providers incluyen su propio host; no hay ruta cross-host. Un nodo que requiere el provider de otro host se difiere con `runtime_unavailable` en vez de ejecutarse aquí.
 
@@ -436,7 +436,7 @@ Cada flujo que aterriza en `main` es un release, y el bump de versión va en el 
 3. El default de `required_harness_version` del RUNBOOK en `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
 4. Los asserts de versión pineados en `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
-Luego ejecuta la verificación completa de arriba, revisa el diff entero y aterriza por el flujo de PR del repositorio — nunca un push directo a `main`. Después de aterrizar, etiqueta el commit de release en `main` con el tag `v<version>` correspondiente (por ejemplo `v0.22.1`); el tag es parte del release, no un extra opcional. Cada versión publicada tiene su tag — `git tag` y `package.json` deben contar la misma historia.
+Luego ejecuta la verificación completa de arriba, revisa el diff entero y aterriza el candidate verificado exacto mediante `branch-promotion-contract.md`. Usa un PR solo cuando la protección del repositorio lo exija; cualquier SHA creado por el proveedor es un candidate nuevo y debe volver a verificarse. Después de aterrizar, etiqueta el commit de release en `main` con el tag `v<version>` correspondiente (por ejemplo `v0.30.0`); el tag es parte del release, no un extra opcional. Cada versión publicada tiene su tag — `git tag` y `package.json` deben contar la misma historia.
 
 ## Seguridad y protección de datos
 
@@ -452,6 +452,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.30.0** — Reemplazó la branch persistente `development` por un flujo main-only permanente. La entrega inicial y los enhancements parten del `main` remoto observado; una candidate branch no default contiene implementación, revisión exact-SHA, tests completos y la verificación aplicable del preview environment aislado antes del fast-forward a `main` con autorización separada. El nombre retirado `development` sigue rechazado como target de RUN y solo puede borrarse tras comprobar ancestry y dependencias. Este release también añade `wireframes/3` interactivo, grading UI multi-agent ligado al PRD de 0–100, refinement loop con umbral 80, checks responsive/layout por elemento, accessibility, consistencia de diseño, distinción creativa, handoffs MCP diferidos de media/motion y compatibilidad de lectura con `wireframes/2`.
 
 - **0.29.1** — Agregó `README.es.md` como el cuarto idioma de README. Los switchers de idioma, la regla de mantener los READMEs al día, el checklist de Releasing, el AGENTS.md del repositorio y los tests de contrato de README pineados cubren ahora los cuatro idiomas en el mismo cambio. Ningún comportamiento de skill cambió.
 
