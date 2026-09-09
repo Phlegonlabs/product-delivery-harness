@@ -138,8 +138,8 @@ def _is_main_branch_target(target: Any) -> bool:
     )
 
 
-def _is_development_branch_target(target: Any) -> bool:
-    """Return whether an exact branch target resolves to development."""
+def _is_retired_development_branch_target(target: Any) -> bool:
+    """Return whether an exact branch target resolves to retired development."""
 
     return (
         isinstance(target, str)
@@ -378,10 +378,10 @@ def authorization_covers(
             return False
         if run.get("schema_version") in {10, 11} and (
             (integration_branch or "").casefold() == "development"
-            or _is_development_branch_target(target)
+            or _is_retired_development_branch_target(target)
             or (
                 isinstance(targets, list)
-                and any(_is_development_branch_target(t) for t in targets)
+                and any(_is_retired_development_branch_target(t) for t in targets)
             )
         ):
             return False

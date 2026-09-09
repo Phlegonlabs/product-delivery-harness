@@ -4584,7 +4584,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                         _add(
                             errors,
                             f"{path}.scope.targets",
-                            "RUN-v11 push authorization cannot target protected development",
+                            "RUN-v11 push authorization cannot target retired development",
                         )
                 if schema_version in {10, 11} and action in HEAD_BOUND_AUTHORIZATION_ACTIONS:
                     authorized_head = entry.get("authorized_head_sha")
@@ -5273,7 +5273,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             _add(
                 errors,
                 "run.integration.branch",
-                "must not resolve to protected main or development; use a run branch",
+                "must not resolve to protected main or retired development; use a run branch",
             )
         elif (
             normalized_integration_branch is not None

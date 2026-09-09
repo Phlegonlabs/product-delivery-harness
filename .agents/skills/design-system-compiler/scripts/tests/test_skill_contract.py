@@ -91,16 +91,16 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         )
         self.assertIn("distinct from Harness UI implementation conformance mode", skill)
 
-    def test_ui_preview_gate_is_provider_neutral_and_noncanonical(self) -> None:
+    def test_ui_preview_gate_is_interactive_generation_deferred_and_noncanonical(self) -> None:
         skill = self.read("SKILL.md")
         guide = self.read("../product-definition-builder/references/ui-design-pass.md")
         contract = self.read("references/output-contract.md")
 
         self.assertIn("../product-definition-builder/references/ui-design-pass.md", skill)
-        self.assertIn("rendered HTML or temporary React", guide)
-        self.assertIn("imagegen-frontend-web", guide)
-        self.assertIn("another named image-generation", guide)
-        self.assertIn("does not require Codex", guide)
+        self.assertIn("one self-contained high-fidelity HTML", guide)
+        self.assertIn("Every visible product control responds", guide)
+        self.assertIn("generationStatus: deferred", guide)
+        self.assertNotIn("imagegen-frontend-web", guide)
         self.assertIn("approved UI Design Handoff", contract)
 
     def test_taste_applicability_and_optional_brandkit_are_bounded(self) -> None:
@@ -110,8 +110,8 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("Do not reload `design-taste-frontend`", skill)
         self.assertIn("Do not load `gpt-taste` by default", guide)
         self.assertIn("never combine it with `design-taste-frontend`", guide)
-        self.assertIn("Optional `brandkit` exploration", guide)
-        self.assertIn("explicitly authorizes", guide)
+        self.assertIn("Do not invoke `brandkit`", guide)
+        self.assertIn("its own explicit owner instruction", guide)
 
     def test_impeccable_generation_is_bounded_by_canonical_sources(self) -> None:
         skill = self.read("SKILL.md")

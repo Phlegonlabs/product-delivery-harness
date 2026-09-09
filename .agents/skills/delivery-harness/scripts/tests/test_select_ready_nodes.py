@@ -272,7 +272,7 @@ def current_preintegration_review_state() -> tuple[dict[str, object], dict[str, 
     run["observed"]["git"].update(
         {
             "parent_worktree_path": "C:/repo",
-            "parent_branch": "refs/heads/development",
+            "parent_branch": run["integration"]["branch"],
             "parent_head_sha": "a" * 40,
             "parent_dirty": False,
         }

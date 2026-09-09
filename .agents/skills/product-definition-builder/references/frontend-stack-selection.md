@@ -77,7 +77,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Any Platform
 
-- Use one codebase with separately named development and production environments. Development releases build from the exact remote `development` head after candidate promotion and use isolated non-production bindings, data, auth, and sandbox payment credentials. Production releases build from remote `main` only after internal verification passes on that same development SHA and the separately authorized fast-forward is read back.
+- Use one codebase with separately named development and production environments. Development releases build from the exact candidate run branch/SHA and use isolated non-production bindings, data, auth, and sandbox payment credentials. Production releases build from remote `main` only after internal verification passes on that same candidate SHA and the separately authorized fast-forward is read back.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
 - Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 

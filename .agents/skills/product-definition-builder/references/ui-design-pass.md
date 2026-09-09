@@ -6,13 +6,13 @@ Run this optional pass only after the human owner explicitly asks to continue be
 
 Every direction and preview uses the same:
 
-- complete `UI-*` screen set and full responsive-target and non-`n/a` state matrix;
+- complete in-scope `UI-*` screen set and full responsive-target and non-`n/a` state matrix, with login, registration, recovery, and authentication-error previews marked `n/a` for this visual pass when excluded;
 - approved `wireframes.html` page, section, element, action, state, and responsive projection, checked against `PRD.md`;
 - exact copy or bounded display contracts;
 - Builder UX Direction, brand, accessibility, platform, and performance constraints; and
 - applicable `MR-*` market evidence and inspected `REF-*` visual evidence.
 
-The pass may explore typography, color, composition, imagery, texture, and motion. It may not add, remove, reorder, or reinterpret product scope, content responsibility, actions, flows, states, or trace IDs. A structural finding returns to the PRD and wireframe flow and requires renewed wireframe approval.
+The pass may explore typography, color, composition, imagery, texture, and motion intent. Every direction records a deferred motion brief: which moments will move after generation, their trigger and purpose, how strongly, what stays still, and the required reduced-motion fallback — `design-taste-frontend`'s recorded `MOTION_INTENSITY` when Taste ran, otherwise an explicit concept or `motion: minimal`. The review HTML shows labeled static placeholders and the brief; it does not implement final generated motion. The pass may not add, remove, reorder, or reinterpret product scope, content responsibility, actions, flows, states, or trace IDs. A structural finding returns to the PRD and wireframe flow and requires renewed wireframe approval.
 
 ## Taste Applicability Gate
 
@@ -30,7 +30,7 @@ Do not load `gpt-taste` by default and never combine it with `design-taste-front
 
 ## Direction And UI Preview Gate
 
-Ask the human owner once for desired character, disliked patterns, and any visual references. Inspect supplied or current public references before claiming their visible mechanics. Keep market evidence and visual evidence separate.
+Ask the human owner once for desired character, disliked patterns, and any visual references. Include one closed key-surface treatment question for the hero and each comparable marquee surface (a campaign landing's hero, a product browser's feature banner): `motion-led`, `imagery-led`, `motion + imagery`, or `quiet`. Record the answer per surface with the direction. Treatments already recorded in `wireframes.html` arrive pre-answered: confirm or change each one instead of re-deriving it, then refine its dedicated `draftPrompt` into the later MCP-generation handoff. This pass records `generationStatus: deferred` and never invokes the provider. When the product has no marquee surface, record the question `n/a` with a reason instead of asking. Inspect supplied or current public references before claiming their visible mechanics. Keep market evidence and visual evidence separate.
 
 Default to one recommended product-specific direction. Produce three materially different directions only when the owner asks to compare alternatives or when a recorded visual conflict cannot be resolved with one recommendation. Every compared direction must use the same complete screens, content, states, and PRD viewport or size-class set. A single-width preview cannot establish responsive behavior.
 
@@ -42,18 +42,15 @@ Choose typography through the same online-lookup discipline. Recommend a font pa
 
 Record the color decision in the handoff's `Color & dark mode:` line: how the palette derives from the brand or direction base (name the scale approach), whether dark mode is in scope for this pass or a named later scope, and the cited source for any palette system the derivation used. This line records the selection; contrast verification stays with `design-system-compiler`'s `check_color_contrast.py` at design-system compile time, and a palette that cannot pass contrast is revised there, not silently kept.
 
-Choose the provider-neutral preview route whose approved artifact can serve directly as the Harness implementation reference:
+Produce one self-contained high-fidelity HTML review file for every UI-bearing product: web, native or cross-platform mobile, and desktop. It contains every in-scope `UI-*` screen in one connected review surface, full high-fidelity CSS, a left sidebar, working screen and state switching, and the product actions needed to traverse every approved flow. Every visible product control responds: it navigates to the recorded screen, switches a declared state, opens the documented modal, drawer, or other overlay, or shows recorded inline feedback. A visible control with no response is removed or wired; no dead controls and no isolated stills.
 
-1. rendered HTML or temporary React — the default route for every UI-bearing product: web, native or cross-platform mobile, and desktop. Produce one self-contained high-fidelity HTML with the already loaded design skill (`design-taste-frontend` when applicable, otherwise `frontend-design`). Like `wireframes.html`, it contains every `UI-*` screen in one connected review surface. Its reviewer shell has a left sidebar listing every page or screen, working screen switching, full high-fidelity CSS, and only the JavaScript needed to switch targets, states, and approved flows. Product controls that lead to another recorded screen must work in the review file; no page may be an isolated still. The review file never calls a live backend, account, credential, or identity provider. Clicking a login or sign-in action immediately switches to the recorded authenticated entry screen. Declared login errors, permission-denied states, and other auth-related UI states remain directly selectable, because bypassing real authentication does not remove required visual coverage. Each screen implements every declared viewport or size class and non-`n/a` state; native screens appear as plain device-sized pages, optionally inside a drawn device frame. Record in the handoff that implementation translates each route from this retained all-screens reference within the recorded tolerance;
-2. `imagegen-frontend-web` for a website section or page image when no HTML rendering capability exists;
-3. `imagegen-frontend-mobile` for a native or cross-platform mobile screen image when HTML cannot represent the surface, such as platform chrome or native-only interaction; or
-4. another named image-generation, design, or external provider.
+The review file never calls a live backend, account, credential, identity provider, image generator, or animation generator. Login, registration, recovery, and authentication-error preview scenes are omitted; the file starts from the PRD-recorded authenticated or main entry surface, while the PRD records the omitted preview scope as `n/a` without deleting production authentication requirements. Each included screen implements every declared viewport or size class and non-`n/a` state. Native-only chrome may be represented by a labeled HTML placeholder; it does not change the one-file route.
 
-This flow does not require Codex. Before generation, record the available tool and provider/model. If no suitable preview capability exists, return a complete reusable prompt package and pause until the resulting preview is supplied. Continue without a preview only when the human owner explicitly waives visual review and records why.
+When the selected direction calls for photographic, illustrative, or generated motion treatment, place a visible static placeholder at the exact page or region. Record treatment, placement or trigger, dedicated prompt, source decision, reduced-motion expectation for motion, and `generationStatus: deferred`. These entries are the provider-neutral handoff for a later explicitly authorized MCP generation pass. Do not generate, embed, or claim image or animation output during this UI Design Pass.
 
-Optional `brandkit` exploration is allowed only when no approved brand system exists and the human owner explicitly authorizes brand exploration. Treat the board as non-canonical inspiration until its Adopt / Adapt / Avoid principles are confirmed.
+Do not invoke `brandkit` or another generation workflow during this pass. When no approved brand system exists, record later brand exploration as an open option; it needs its own explicit owner instruction and remains non-canonical until its Adopt / Adapt / Avoid principles are confirmed.
 
-Image generation may invent plausible controls or content. Treat an invented element as a failed preview, not permission to add it to the product.
+The later MCP generation pass may not invent controls, content, states, or flows. Generated output that does so fails its later media review; it never changes the PRD by implication.
 
 ## Evidence And Approval
 
@@ -62,16 +59,18 @@ For every retained preview and every covered `UI-* × responsive target × non-n
 - preview ID and direction ID;
 - `UI-*` surface and state;
 - viewport or size class;
-- preview route and provider/model;
-- complete prompt or source;
-- seed when supported;
+- interactive HTML route;
+- deferred media or motion prompt, source, placement or trigger, and generation status when applicable;
 - local path and SHA-256;
-- observed limitations, including unreadable text or non-observable interaction; and
+- observed limitations, including unreadable text;
+- the `UI grading:` line from the rubric stage below — grader count or capability-unavailable skip, frozen PRD identity, rubric scope, and reconciled scores; and
 - human decision: `approved`, `rejected`, `revision_requested`, or `waived` with reason.
 
 ## Responsive Browser Gate
 
-Render every page-target-state in the retained all-screens HTML reference in a real browser before visual approval. Use the left sidebar and in-product actions to reach every page, and verify that login enters the recorded authenticated screen without a network request. Use long labels, long localized copy, validation errors, empty data, dense data, and the other declared edge states rather than a single ideal-content sample. Reject broken navigation, unintended overlap, clipping, occlusion, or horizontal page overflow. Confirm readable order and line length, minimum target size, keyboard path where applicable, and that resizing does not strand focus or hide a required action. An intentional modal, menu, tooltip, sticky region, or other overlay must name its stacking, focus, escape/dismissal, and safe-area behavior in the evidence and handoff. Browser unavailability blocks approval of an HTML implementation target; a visual-review waiver does not convert an unchecked preview into binding page-faithful authority.
+After the first high-fidelity HTML draft and before human visual approval, run the sibling `ui-grading-rubric.md` against the frozen PRD and candidate HTML. The candidate first passes its Technical Hard Gate. When the host has the required multi-agent browser capability and dispatch is explicitly authorized, three fresh read-only graders independently score `H1` through `H9`, including creative distinction, accessibility, and design consistency. The reconciled overall score must be at least 80; `H2`, `H4`, and `H8` must each be at least 80; every dimension must be at least 60; and no `block` or `disputed` dimension may remain. Otherwise the owning design flow refines the recorded failures, creates a new candidate hash, and reruns the complete hard gate, browser matrix, and multi-agent grading. Never send a below-threshold candidate to the owner for visual approval. Continue until it passes or the owner stops the loop; a PRD contradiction returns upstream instead of being designed around. When multi-agent capability is unavailable, record the exact capability-unavailable skip and continue with the non-grading gates. Carry the grading and refinement-round history into the preview evidence.
+
+Render every in-scope page-target-state in the retained all-screens HTML reference in a real browser before visual approval. Use the left sidebar and in-product actions to reach every page, modal, drawer, and recorded feedback state. At every PRD-declared responsive target, inspect all visible peer elements and container boundaries with long labels, localized copy, validation errors, empty data, dense data, and the other declared edge states. Run the rubric's DOM geometry scan and retain its exact element-pair and boundary results. Reject broken navigation, dead controls, unintended element overlap, clipping, occlusion, broken spacing or wrapping, off-container content, or horizontal page overflow. Confirm readable order and line length, minimum target size, keyboard path where applicable, and that resizing does not strand focus or hide a required action. An intentional modal, menu, tooltip, sticky region, or other overlay must name its stacking, focus, escape/dismissal, and safe-area behavior in the evidence and handoff. Browser unavailability blocks approval of an HTML implementation target; a visual-review waiver does not convert an unchecked preview into binding page-faithful authority.
 
 Preview artifacts stay outside `docs/product/`. When an approved HTML preview will serve as the page-faithful implementation reference, request retention by default: disclose and obtain exact write approval for one all-screens file under `docs/design/ui-references/<run-id>/`, the dedicated UI references folder. That file contains the full high-fidelity CSS and connected reviewer behavior for every recorded screen. Other previews are retained only when the owner requests it; otherwise use temporary storage and say that it will not publish with the package. When the owner declines retention and that preview is the approved page-faithful target, the handoff must record the target as temporary: the visual authority then reverts to `PRD.md` plus approved `wireframes.html` once the run ends, because the recorded path stops resolving. A durable target binding requires retention, and Harness cannot implement from an HTML reference whose recorded path is temporary.
 

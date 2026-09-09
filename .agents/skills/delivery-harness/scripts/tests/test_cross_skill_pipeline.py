@@ -255,7 +255,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("`wireframes.html`", prd)
         self.assertIn("approved UI Design Handoff", design)
         self.assertIn("approved `wireframes.html`", design)
-        self.assertIn("does not require Codex", preview)
+        self.assertIn("never invokes the provider", preview)
         self.assertIn("matching approved page in `wireframes.html`", ui_contract)
         self.assertIn("never overrides `PRD.md`", ui_contract)
         self.assertIn("UI Preview Gate outputs", ui_contract)
@@ -273,15 +273,16 @@ class CrossSkillPipelineTests(unittest.TestCase):
         # The UI Design Pass renders one connected high-fidelity HTML reference
         # with its loaded design skills and retains the approved file.
         self.assertIn(
-            "one self-contained high-fidelity HTML review file produced", prd
+            "one self-contained high-fidelity HTML review file", prd
         )
-        self.assertIn("already loaded design skill", preview)
         self.assertIn(
             "one connected review surface",
             preview,
         )
-        self.assertIn("left sidebar listing every page or screen", preview)
-        self.assertIn("Clicking a login or sign-in action immediately switches", preview)
+        self.assertIn("a left sidebar", preview)
+        self.assertIn("Every visible product control responds", preview)
+        self.assertIn("authentication-error preview scenes are omitted", preview)
+        self.assertIn("generationStatus: deferred", preview)
         self.assertIn("request retention by default", preview)
         self.assertIn("cannot implement from an HTML reference", preview)
         # Harness then builds each bound page from the shared approved reference.

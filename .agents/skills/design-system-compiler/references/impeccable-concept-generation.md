@@ -6,7 +6,7 @@ Use this bridge only inside an owner-requested Visual Direction Gate. It adapts 
 
 - `PRD.md` and its Builder UX Direction remain product truth; approved `wireframes.html` is the low-fidelity interactive projection.
 - `PRD.md`, `wireframes.html`, `design-system.md`, and `design-system.json` remain the only canonical product and design handoff.
-- Do not run Impeccable `init`, `document`, `craft`, `live`, build, or finish flows from this bridge. Do not create `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, or another competing product authority. Preview code or comps may be created only through `../../product-definition-builder/references/ui-design-pass.md`'s provider-neutral preview gate.
+- Do not run Impeccable `init`, `document`, `craft`, `live`, build, or finish flows from this bridge. Do not create `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, or another competing product authority. The connected interactive HTML and deferred media or motion handoffs may be created only through `../../product-definition-builder/references/ui-design-pass.md`.
 - Treat Impeccable output as design-stage evidence. `design-system-compiler` normalizes accepted results into `VD-*`, `REF-*`, and `RP-*` records before anything becomes canonical.
 - Do not run `concept-seed.mjs` directly here. Its required `PRODUCT.md` would create a second product authority. Apply the same generation and challenger method to the frozen inputs instead.
 

@@ -29,7 +29,7 @@ For Claude Dynamic Workflow fan-out with isolated mission writes, request the lo
 
 For a large route with no usable agent capability, select `sequential_parent` and follow the Sequential Parent Route in `.agents/skills/delivery-harness/references/execution-state-model.md`: the PLAN mission keeps `executor: runtime_worker`, RUN records the parent-owned binding solely for lease/state validation, and the parent executes one mission at a time under the same PLAN/RUN graph and exact-head review gates.
 
-For ordinary mission work, resolve the delivery kind and branch model first. Use a complete non-protected run-branch name from governance or the user. Cut initial delivery from observed `main` and enhancement from observed `development`; ask if unresolved. Keep the RUN `local_only` unless the user separately authorizes an exact run-branch push. After RUN close, apply `branch-promotion-contract.md`: separately authorize the exact candidate to `development`, read it back and run internal verification, then separately authorize a fast-forward of that same SHA to `main`. Never reuse the RUN grant or force-push.
+For ordinary mission work, resolve the delivery kind and branch model first. Use a complete non-protected run-branch name from governance or the user. Cut both initial delivery and enhancement from observed remote `main`; ask if unresolved. Keep the RUN `local_only` unless the user separately authorizes an exact run-branch push. After RUN close, apply `branch-promotion-contract.md`: complete exact-candidate and applicable isolated preview-environment verification, then separately authorize a fast-forward of that SHA to `main`. Never reuse the RUN grant, recreate `development`, or force-push.
 
 Before any implementation, map every must-have requirement to a trace, dependency-ordered mission, immutable flat task ID, supported write/deny scope, complete typed resource inventory, worker verifier, integration verifier, and final gate. Write static definitions to PLAN.md and live state to the canonical JSON in RUN.md. Validate plan structure and pass the Plan Readiness Gate.
 
@@ -54,7 +54,7 @@ Stop on requirements conflict, unsupported scope/resource claims, stale plan dig
 - [ ] Provider, observed drivers, selected route, runtime, workspace, and completion channel are recorded consistently.
 - [ ] Plan Readiness passes before implementation begins.
 - [ ] Every needed action is explicitly authorized in RUN; all other ledger entries remain false.
-- [ ] The RUN defaults to verified `local_only`; any run-branch push is exact and separately authorized. Post-RUN `development` and `main` promotions each have their own exact authorization, read-back, ancestry/fast-forward proof, and internal development test evidence.
+- [ ] The RUN defaults to verified `local_only`; any run-branch push is exact and separately authorized. Post-RUN `main` promotion has its own exact authorization, read-back, ancestry/fast-forward proof, and candidate plus applicable preview-environment test evidence.
 - [ ] UI evidence and final E2E gates are defined when applicable, including the automated E2E command, current-head check/evidence, target environment, and manual-smoke disposition.
 - [ ] The fixed integration base and post-batch recomputation rule are recorded.
 - [ ] Destructive actions and external writes remain separate approval boundaries.

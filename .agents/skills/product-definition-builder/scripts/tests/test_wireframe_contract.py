@@ -17,7 +17,7 @@ prd_ui_contract = importlib.import_module("prd_ui_contract")
 
 def wireframe_data(**overrides):
     data = {
-        "schema": "wireframes/2",
+        "schema": "wireframes/3",
         "product": "Test Product",
         "approvalStatus": "approved",
         "source": "PRD.md#UI-Surface-Contract",
@@ -68,7 +68,14 @@ def wireframe_data(**overrides):
                 ],
             }
         ],
-        "flows": [{"from": "UI-001", "trigger": "open", "to": "UI-001"}],
+        "flows": [
+            {
+                "from": "UI-001",
+                "trigger": "Refresh",
+                "to": "Updated summary",
+                "presentation": "feedback",
+            }
+        ],
     }
     data.update(overrides)
     return data
@@ -332,6 +339,107 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         self.assertIn("regions[0].priority", joined)
         self.assertIn("regions[0].span", joined)
         self.assertIn("responsiveLayouts.390.order", joined)
+
+    def test_media_intent_accepts_only_deferred_generation_handoffs(self):
+        data = wireframe_data()
+        data["screens"][0]["mediaIntent"] = {
+            "treatment": "motion-led",
+            "draftPrompt": "Animate the account total after refresh",
+            "source": "Owner decision 2026-09-09",
+            "generationStatus": "deferred",
+        }
+        data["screens"][0]["regions"][0]["mediaIntent"] = {
+            "treatment": "imagery-led",
+            "draftPrompt": "Account summary illustration for the balance region",
+            "source": "Owner decision 2026-09-09",
+            "generationStatus": "deferred",
+        }
+        self.assertEqual([], validate_html(render_html(data)))
+
+        invalid_values = (
+            ("not-an-object", "mediaIntent: must be an object"),
+            (
+                {
+                    "treatment": "cinematic",
+                    "draftPrompt": "Prompt",
+                    "source": "Owner",
+                    "generationStatus": "deferred",
+                },
+                "mediaIntent.treatment",
+            ),
+            (
+                {
+                    "treatment": "motion-led",
+                    "draftPrompt": "",
+                    "source": "Owner",
+                    "generationStatus": "deferred",
+                },
+                "mediaIntent.draftPrompt",
+            ),
+            (
+                {
+                    "treatment": "motion-led",
+                    "draftPrompt": "Prompt",
+                    "source": "",
+                    "generationStatus": "deferred",
+                },
+                "mediaIntent.source",
+            ),
+            (
+                {
+                    "treatment": "motion-led",
+                    "draftPrompt": "Prompt",
+                    "source": "Owner",
+                    "generationStatus": "generated",
+                },
+                "mediaIntent.generationStatus",
+            ),
+        )
+        for value, expected in invalid_values:
+            with self.subTest(expected=expected):
+                candidate = wireframe_data()
+                candidate["screens"][0]["mediaIntent"] = value
+                joined = "\n".join(validate_html(render_html(candidate)))
+                self.assertIn(expected, joined)
+
+    def test_legacy_v2_projection_remains_readable(self):
+        data = wireframe_data()
+        data["schema"] = "wireframes/2"
+        data["flows"][0].pop("presentation")
+        data["flows"][0]["trigger"] = "Historical trigger without a visible action"
+        data["screens"][0]["mediaIntent"] = "historically ignored extension data"
+        self.assertEqual([], validate_html(render_html(data)))
+
+    def test_actions_and_flows_must_form_one_working_local_mapping(self):
+        data = wireframe_data()
+        data["flows"][0]["presentation"] = "popup"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("flows[0].presentation", joined)
+
+        data = wireframe_data()
+        data["flows"][0] = {
+            "from": "UI-001",
+            "trigger": "Refresh",
+            "to": "UI-999",
+            "presentation": "overlay",
+        }
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("overlay must target a known screen ID", joined)
+
+        data = wireframe_data()
+        data["flows"] = []
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must match exactly one outgoing flow", joined)
+
+        data = wireframe_data()
+        data["flows"].append(dict(data["flows"][0]))
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must match exactly one outgoing flow (found 2)", joined)
+
+        data = wireframe_data()
+        data["flows"][0]["trigger"] = "Unplaced action"
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("must match exactly one visible region action", joined)
 
     def test_responsive_contract_requires_two_complete_targets(self):
         data = wireframe_data()

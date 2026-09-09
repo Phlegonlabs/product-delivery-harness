@@ -323,7 +323,7 @@ class MainBranchGuardTests(unittest.TestCase):
 
     def test_transition_rejects_development_as_the_run_integration_branch(self) -> None:
         run = run_with_push(branch="refs/heads/development")
-        with self.assertRaisesRegex(ManifestError, "protected promotion branch"):
+        with self.assertRaisesRegex(ManifestError, "protected or retired branch"):
             _require_non_default_integration_branch(run)
 
     def test_protected_branch_guards_are_case_insensitive(self) -> None:
@@ -333,7 +333,7 @@ class MainBranchGuardTests(unittest.TestCase):
                 self.assertFalse(
                     authorization_covers(run, "push", "M1", f"branch:{branch}")
                 )
-                with self.assertRaisesRegex(ManifestError, "protected promotion branch"):
+                with self.assertRaisesRegex(ManifestError, "protected or retired branch"):
                     _require_non_default_integration_branch(run)
 
 

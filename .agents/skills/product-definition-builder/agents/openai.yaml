@@ -20,14 +20,24 @@ interface:
     UI-bearing product, project every UI-* entry into one self-contained
     low-fidelity wireframes.html. Put all pages in that HTML with an overview,
     page switcher, expanded/compact and state controls, and visible
-    section-purpose labels. Review that file in the Wireframe Approval Gate
-    with the human owner and record the result in PRD.md. Treat approval as a
-    complete stopping point. Only when the owner explicitly continues into
+    section-purpose labels. Make every visible PRD action work locally by
+    switching pages, opening an accessible overlay, or showing feedback. After
+    the first draft, bind the HTML to the exact PRD revision or hash. When the
+    host has multi-agent browser capability and dispatch is explicitly
+    authorized, have three fresh read-only graders score it against that PRD;
+    when capability is unavailable, record the skip and continue. Review that
+    file in the Wireframe Approval Gate with the human owner and record the
+    result in PRD.md. Treat approval as a complete stopping point. Only when the owner explicitly continues into
     visual design, run the UI Design Pass: load $design-taste-frontend, record
     applicable, partially_applicable, or n/a, and use $frontend-design for
     excluded product surfaces. Produce one recommended direction by default,
-    run a provider-neutral UI Preview Gate, obtain human visual approval, and
-    record the immutable page-faithful target in PRD.md. Then run the Design
+    create one connected interactive high-fidelity HTML, and omit login,
+    registration, recovery, and authentication-error preview scenes while
+    retaining production auth requirements in the PRD. Keep image and motion
+    positions as static placeholders with dedicated prompts and
+    generationStatus deferred; do not invoke a generation provider in this
+    pass. Apply the same PRD-bound multi-agent grading rule before human visual
+    approval, and record the immutable page-faithful target in PRD.md. Then run the Design
     System Need Gate. Use $design-system-compiler only when the gate is
     required; otherwise pass the approved UI target directly to Harness. Stop
     when a required dependency, preview decision, or gate decision is
@@ -47,10 +57,10 @@ interface:
     path, availability signal, rollout, and rollback or forward-fix. Upload,
     submission, or approval is not availability; production availability needs
     a serving or installable result, and native recovery may require a signed
-    forward-fix. Use persistent development for internal releases and main for
-    production: initial delivery starts from main, enhancements start from
-    development, and only the exact remote development SHA that passes the
-    internal suite may be separately authorized and fast-forwarded to main.
+    forward-fix. Use a main-only branch model: initial delivery and enhancements
+    both start from the observed remote main head, internal releases use the
+    exact candidate run branch/ref, and only that verified candidate SHA may be
+    separately authorized and fast-forwarded to main.
     Resolve the deployment platform via AskUserQuestion unless the
     user or repository already names it, including Cloudflare, Vercel, AWS, or
     self-hosted development and production targets. For a product with a

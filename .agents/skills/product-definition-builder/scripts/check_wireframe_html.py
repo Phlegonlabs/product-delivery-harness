@@ -40,7 +40,10 @@ REMOTE_CSS_STRING_RE = re.compile(
 PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
 VALID_APPROVAL_STATUSES = {"draft", "approved", "revision_requested", "blocked"}
 VALID_PRIORITIES = {"primary", "secondary", "quiet"}
-WIREFRAME_SCHEMA = "wireframes/2"
+VALID_FLOW_PRESENTATIONS = {"page", "overlay", "feedback"}
+VALID_MEDIA_TREATMENTS = {"motion-led", "imagery-led", "motion + imagery"}
+WIREFRAME_SCHEMA = "wireframes/3"
+LEGACY_WIREFRAME_SCHEMAS = {"wireframes/2"}
 
 
 def _strip_css_comments(css: str) -> str:
@@ -279,6 +282,26 @@ def _add(problems: list[str], path: str, message: str) -> None:
     problems.append(f"{path}: {message}")
 
 
+def _validate_media_intent(
+    value: Any, path: str, problems: list[str]
+) -> None:
+    if not isinstance(value, dict):
+        _add(problems, path, "must be an object when present")
+        return
+    treatment = value.get("treatment")
+    if treatment not in VALID_MEDIA_TREATMENTS:
+        _add(
+            problems,
+            f"{path}.treatment",
+            f"must be one of {sorted(VALID_MEDIA_TREATMENTS)}",
+        )
+    for key in ("draftPrompt", "source"):
+        if not _nonempty(value.get(key)):
+            _add(problems, f"{path}.{key}", "must be a non-empty string")
+    if value.get("generationStatus") != "deferred":
+        _add(problems, f"{path}.generationStatus", "must be 'deferred'")
+
+
 def _responsive_key(value: Any) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
@@ -373,12 +396,14 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
     if not isinstance(data, dict):
         return ["wireframe-data: must be a JSON object"]
 
-    if data.get("schema") != WIREFRAME_SCHEMA:
+    schema = data.get("schema")
+    if schema not in LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA}:
         _add(
             problems,
             "wireframe-data.schema",
-            f"must be {WIREFRAME_SCHEMA!r}",
+            f"must be one of {sorted(LEGACY_WIREFRAME_SCHEMAS | {WIREFRAME_SCHEMA})}",
         )
+    interactive_contract = schema == WIREFRAME_SCHEMA
 
     for key in ("product", "approvalStatus", "source"):
         if not _nonempty(data.get(key)):
@@ -406,6 +431,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
         return problems
 
     seen_screens: set[str] = set()
+    actions_by_screen: dict[str, list[str]] = {}
     for screen_index, screen in enumerate(screens):
         path = f"wireframe-data.screens[{screen_index}]"
         if not isinstance(screen, dict):
@@ -424,6 +450,8 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                 _add(problems, f"{path}.{key}", "must be a non-empty string")
         if "traces" in screen and not _string_list(screen["traces"]):
             _add(problems, f"{path}.traces", "must be a string list when present")
+        if interactive_contract and "mediaIntent" in screen:
+            _validate_media_intent(screen["mediaIntent"], f"{path}.mediaIntent", problems)
 
         regions = screen.get("regions")
         if not isinstance(regions, list) or not regions:
@@ -469,8 +497,14 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
             actions = region.get("actions")
             if not isinstance(actions, list) or not all(_nonempty(item) for item in actions):
                 _add(problems, f"{region_path}.actions", "must be a string list")
+            elif _nonempty(screen_id):
+                actions_by_screen.setdefault(screen_id, []).extend(actions)
             if "traces" in region and not _string_list(region["traces"]):
                 _add(problems, f"{region_path}.traces", "must be a string list when present")
+            if interactive_contract and "mediaIntent" in region:
+                _validate_media_intent(
+                    region["mediaIntent"], f"{region_path}.mediaIntent", problems
+                )
 
         never_drop = screen.get("neverDrop")
         if not _string_list(never_drop) or not never_drop:
@@ -625,6 +659,7 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                         )
 
     flows = data.get("flows")
+    flow_keys: list[tuple[str, str]] = []
     if flows is not None:
         if not isinstance(flows, list):
             _add(problems, "wireframe-data.flows", "must be a list when present")
@@ -638,12 +673,53 @@ def _validate_data(data: Any, *, require_filled: bool) -> list[str]:
                     if not _nonempty(flow.get(key)):
                         _add(problems, f"{flow_path}.{key}", "must be a non-empty string")
                 origin = flow.get("from")
+                trigger = flow.get("trigger")
+                target = flow.get("to")
                 if _nonempty(origin) and origin not in seen_screens:
                     _add(
                         problems,
                         f"{flow_path}.from",
                         f"references unknown screen ID {origin}",
                     )
+                presentation = flow.get("presentation")
+                if interactive_contract and presentation not in VALID_FLOW_PRESENTATIONS:
+                    _add(
+                        problems,
+                        f"{flow_path}.presentation",
+                        f"must be one of {sorted(VALID_FLOW_PRESENTATIONS)}",
+                    )
+                if (
+                    interactive_contract
+                    and presentation in {"page", "overlay"}
+                    and _nonempty(target)
+                    and target not in seen_screens
+                ):
+                    _add(
+                        problems,
+                        f"{flow_path}.to",
+                        f"{presentation} must target a known screen ID",
+                    )
+                if interactive_contract and _nonempty(origin) and _nonempty(trigger):
+                    flow_keys.append((origin, trigger))
+
+    if interactive_contract:
+        for origin, actions in actions_by_screen.items():
+            for trigger in actions:
+                count = flow_keys.count((origin, trigger))
+                if count != 1:
+                    _add(
+                        problems,
+                        f"wireframe-data.actions.{origin}.{trigger}",
+                        f"must match exactly one outgoing flow (found {count})",
+                    )
+        for origin, trigger in set(flow_keys):
+            count = actions_by_screen.get(origin, []).count(trigger)
+            if count != 1:
+                _add(
+                    problems,
+                    f"wireframe-data.flows.{origin}.{trigger}",
+                    f"must match exactly one visible region action (found {count})",
+                )
 
     if require_filled:
         def walk(value: Any, path: str) -> None:
