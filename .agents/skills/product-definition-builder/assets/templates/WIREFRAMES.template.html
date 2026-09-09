@@ -302,6 +302,45 @@
 
     button.flow-target { cursor: pointer; }
 
+    .action-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 6px 0 10px;
+    }
+
+    .action-button {
+      padding: 6px 9px;
+      border: 1px solid var(--line-strong);
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .action-feedback {
+      min-height: 1.5em;
+      margin: 4px 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .flow-dialog {
+      width: min(96vw, 1120px);
+      max-height: 88vh;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      background: var(--panel);
+      color: var(--ink);
+      overflow: auto;
+    }
+
+    .flow-dialog::backdrop { background: rgb(32 33 31 / 45%); }
+
+    .flow-dialog-body { padding: 20px; }
+    .flow-dialog-body h2 { margin: 5px 0 8px; }
+    .flow-dialog-body ul { margin: 14px 0; padding-left: 20px; }
+    .flow-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
     .overview-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
@@ -396,7 +435,7 @@
 
   <script id="wireframe-data" type="application/json">
   {
-    "schema": "wireframes/2",
+    "schema": "wireframes/3",
     "product": "<Product Name>",
     "approvalStatus": "draft",
     "source": "PRD.md#UI-Surface-Contract",
@@ -409,6 +448,7 @@
         "route": "/",
         "goal": "<Primary user goal>",
         "traces": ["UX-001"],
+        "mediaIntent": {"treatment": "motion-led", "draftPrompt": "<Draft page-level motion prompt>", "source": "<Recorded owner decision that settled the treatment>", "generationStatus": "deferred"},
         "regions": [
           {
             "id": "global-header",
@@ -418,7 +458,7 @@
             "span": 12,
             "height": 72,
             "elements": ["<Logo or product name>", "<Primary navigation>", "<Primary action>"],
-            "actions": ["<Action → destination>"]
+            "actions": ["<Primary navigation>"]
           },
           {
             "id": "hero-content",
@@ -428,7 +468,7 @@
             "span": 7,
             "height": 250,
             "elements": ["<Eyebrow>", "<Headline display contract>", "<Supporting copy>", "<Primary CTA>"],
-            "actions": ["<Primary CTA → destination>"],
+            "actions": ["<Primary CTA>"],
             "traces": ["UX-002"]
           },
           {
@@ -441,7 +481,8 @@
             "elements": [
               {"label": "<Media placeholder and content responsibility>", "contract": {"source": "<Copy or data source>", "count": "<Maximum items>"}}
             ],
-            "actions": []
+            "actions": [],
+            "mediaIntent": {"treatment": "imagery-led", "draftPrompt": "<Draft image prompt for this hero media position>", "source": "<Recorded owner decision that settled the treatment>", "generationStatus": "deferred"}
           },
           {
             "id": "feature-grid",
@@ -451,7 +492,7 @@
             "span": 12,
             "height": 210,
             "elements": ["<Feature 1>", "<Feature 2>", "<Feature 3>"],
-            "actions": ["<Optional detail action → destination>"]
+            "actions": ["<Optional detail action>"]
           },
           {
             "id": "closing-cta",
@@ -461,7 +502,7 @@
             "span": 12,
             "height": 130,
             "elements": ["<CTA message>", "<Primary action>"],
-            "actions": ["<Primary action → destination>"]
+            "actions": ["<Primary action>"]
           }
         ],
         "neverDrop": ["global-header", "hero-content", "closing-cta"],
@@ -524,7 +565,7 @@
             "span": 12,
             "height": 72,
             "elements": ["<Breadcrumb or title>", "<Global action>", "<Account control>"],
-            "actions": ["<Global action → result>"]
+            "actions": ["<Global action>"]
           },
           {
             "id": "task-controls",
@@ -534,7 +575,7 @@
             "span": 4,
             "height": 430,
             "elements": ["<Input group>", "<Validation message location>", "<Submit action>"],
-            "actions": ["<Submit → ready or error state>"]
+            "actions": ["<Submit>"]
           },
           {
             "id": "primary-workspace",
@@ -544,7 +585,7 @@
             "span": 8,
             "height": 430,
             "elements": ["<Result summary>", "<Primary content region>", "<Contextual actions>"],
-            "actions": ["<Contextual action → result>"]
+            "actions": ["<Contextual action>"]
           }
         ],
         "neverDrop": ["app-header", "task-controls", "primary-workspace"],
@@ -594,8 +635,13 @@
       }
     ],
     "flows": [
-      {"from": "UI-001", "trigger": "<Primary CTA>", "to": "UI-002"},
-      {"from": "UI-002", "trigger": "<Global action>", "to": "<External destination>"}
+      {"from": "UI-001", "trigger": "<Primary navigation>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-001", "trigger": "<Primary CTA>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-001", "trigger": "<Optional detail action>", "to": "UI-002", "presentation": "overlay"},
+      {"from": "UI-001", "trigger": "<Primary action>", "to": "UI-002", "presentation": "page"},
+      {"from": "UI-002", "trigger": "<Global action>", "to": "<External destination>", "presentation": "feedback"},
+      {"from": "UI-002", "trigger": "<Submit>", "to": "<Submission result>", "presentation": "feedback"},
+      {"from": "UI-002", "trigger": "<Contextual action>", "to": "UI-001", "presentation": "overlay"}
     ]
   }
   </script>
@@ -712,7 +758,82 @@
       const screenFlows = (screenId) =>
         (data.flows || []).filter((flow) => flow.from === screenId || flow.to === screenId);
 
-      const renderRegion = (region, activeState, layout) => {
+      const outgoingFlow = (screenId, trigger) =>
+        (data.flows || []).find((flow) => flow.from === screenId && flow.trigger === trigger);
+
+      const openFlowDialog = (flow) => {
+        const target = data.screens.find((screen) => screen.id === flow.to);
+        if (!target) return;
+        const dialog = element("dialog", "flow-dialog");
+        const body = element("div", "flow-dialog-body");
+        const titleId = `flow-dialog-title-${target.id}`;
+        const title = element("h2", "", `${target.id} · ${target.name}`);
+        title.id = titleId;
+        dialog.setAttribute("aria-labelledby", titleId);
+        body.append(element("div", "eyebrow", "Overlay preview"), title, element("p", "", target.goal));
+        const targetLayout = target.responsiveLayouts[state.responsiveTarget];
+        const targetState = target.states[0];
+        const hidden = new Set(targetLayout.hidden);
+        const overlayCanvas = element("div", "wireframe");
+        overlayCanvas.style.gridTemplateColumns = `repeat(${targetLayout.columns}, minmax(0, 1fr))`;
+        overlayCanvas.setAttribute(
+          "aria-label",
+          `${target.name} overlay, ${state.responsiveTarget}, ${targetState.id}`
+        );
+        regionOrder(target)
+          .filter((region) => !hidden.has(region.id))
+          .forEach((region) => overlayCanvas.append(renderRegion(target.id, region, targetState, targetLayout)));
+        body.append(overlayCanvas);
+        const actions = element("div", "flow-dialog-actions");
+        const openPage = element("button", "action-button", "Open full page");
+        openPage.type = "button";
+        openPage.addEventListener("click", () => {
+          dialog.close();
+          selectPage(target.id);
+        });
+        const close = element("button", "action-button", "Close");
+        close.type = "button";
+        close.addEventListener("click", () => dialog.close());
+        actions.append(openPage, close);
+        body.append(actions);
+        dialog.append(body);
+        dialog.addEventListener("click", (event) => {
+          if (event.target === dialog) dialog.close();
+        });
+        dialog.addEventListener("close", () => dialog.remove());
+        document.body.append(dialog);
+        dialog.showModal();
+      };
+
+      const runFlow = (flow, feedback) => {
+        if (flow.presentation === "page") {
+          document.querySelectorAll("dialog[open]").forEach((dialog) => dialog.close());
+          selectPage(flow.to);
+        } else if (flow.presentation === "overlay") {
+          openFlowDialog(flow);
+        } else {
+          feedback.textContent = `Result: ${flow.to}`;
+        }
+      };
+
+      const appendActions = (parent, screenId, actions) => {
+        if (!actions?.length) return;
+        parent.append(element("div", "meta-label", "Actions"));
+        const actionList = element("div", "action-list");
+        const feedback = element("div", "action-feedback");
+        feedback.setAttribute("role", "status");
+        actions.forEach((label) => {
+          const flow = outgoingFlow(screenId, label);
+          const button = element("button", "action-button", label);
+          button.type = "button";
+          button.dataset.flowTrigger = label;
+          button.addEventListener("click", () => runFlow(flow, feedback));
+          actionList.append(button);
+        });
+        parent.append(actionList, feedback);
+      };
+
+      const renderRegion = (screenId, region, activeState, layout) => {
         const node = element("section", "region");
         node.dataset.region = region.id;
         node.style.setProperty("--span", String(layout.spans[region.id]));
@@ -727,8 +848,18 @@
         const notes = element("div", "annotation");
         notes.append(element("div", "meta-label", "Purpose"), element("p", "", region.purpose));
         appendElements(notes, region.elements);
-        appendList(notes, "Actions", region.actions);
+        appendActions(notes, screenId, region.actions);
         appendList(notes, "Traces", region.traces);
+        if (region.mediaIntent) {
+          notes.append(element("div", "meta-label", "Media intent"));
+          notes.append(
+            element(
+              "p",
+              "",
+              `${region.mediaIntent.treatment} · ${region.mediaIntent.generationStatus}: ${region.mediaIntent.draftPrompt} · source: ${region.mediaIntent.source}`
+            )
+          );
+        }
         const treatment = activeState?.treatments?.[region.id];
         if (treatment) notes.append(element("div", "state-note", `${activeState.label}: ${treatment}`));
         node.append(notes);
@@ -855,6 +986,12 @@
           ["Sections", String(screen.regions.length)]
         ];
         if (screen.traces?.length) rows.push(["Traces", screen.traces.join(", ")]);
+        if (screen.mediaIntent) {
+          rows.push([
+            "Media intent",
+            `${screen.mediaIntent.treatment} · ${screen.mediaIntent.generationStatus}: ${screen.mediaIntent.draftPrompt} · source: ${screen.mediaIntent.source}`
+          ]);
+        }
         rows.push(["Authority", data.source]);
         rows.forEach(([label, value]) => {
           metadata.append(element("div", "meta-label", label), element("div", "", value));
@@ -871,7 +1008,7 @@
         const hidden = new Set(layout.hidden);
         regionOrder(screen)
           .filter((region) => !hidden.has(region.id))
-          .forEach((region) => canvas.append(renderRegion(region, activeState, layout)));
+          .forEach((region) => canvas.append(renderRegion(screen.id, region, activeState, layout)));
         shell.append(canvas);
         content.append(header, shell);
         const responsiveNotes = element("div", "layout-qa");

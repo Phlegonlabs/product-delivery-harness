@@ -24,13 +24,13 @@ Before drafting the HTML, look up how comparable products structure the same kin
 
 Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained file containing every `UI-*` surface. It must open directly from disk without a server, build step, package install, network request, external font, or external asset. The checker decodes CSS escapes before evaluating `url()`, `image-set()`, and `@import`, so escaped remote schemes are rejected like literal ones.
 
-The file uses schema `wireframes/2` and must provide:
+New and structurally revised files use schema `wireframes/3`; the checker keeps `wireframes/2` read compatibility for unchanged historical files. Schema 3 must provide:
 
 1. an all-pages overview plus a page switcher showing each `UI-*` ID, page name, route or surface, and primary goal;
 2. controls generated from exactly one set with at least two targets: ascending positive numeric `viewports` for web, or ordered string `sizeClasses` for native or desktop, plus one positive `canvasWidths` value per target for the review projection;
 3. a state selector for every required state represented by that screen;
 4. visible section labels such as `Global Header`, `Hero Section`, `Feature Grid`, `Primary Workspace`, `Results Table`, or `CTA`, using product-fit labels rather than a fixed catalog;
-5. each section's purpose, priority, elements, actions, and state treatment; and
+5. each section's purpose, priority, elements, working actions, and state treatment;
 6. a visible approval status; and
 7. visible runtime layout QA for the selected page, responsive target, and state.
 
@@ -38,11 +38,13 @@ Create one screen for every `UI-*` entry in `PRD.md`; do not create an untraced 
 
 Use the template's embedded data block as the only product-specific input. Replace its example screens with the complete surface set and escape `<`, `>`, `&`, U+2028, and U+2029 inside JSON string values before embedding untrusted or user-supplied text. Render values through `textContent`, not `innerHTML`.
 
-Project the PRD's flows and traces through the same block. `flows` lists each flow as `{from, trigger, to}`, where `from` is a screen ID and `to` is a screen ID or an external destination; the reviewer shell renders them per screen and on the overview. Per-screen or per-region `traces` list the `UX-*` IDs the surface traces to. An element is either exact approved copy as a string or a `{label, contract}` object whose contract states the bounded display contract's source, order, format, count, and length limits.
+Project the PRD's flows and traces through the same block. `flows` lists each flow as `{from, trigger, to, presentation}`, where `from` is a screen ID, `trigger` exactly matches one visible region action on that screen, and `presentation` is `page`, `overlay`, or `feedback`. A `page` or `overlay` target is another `UI-*` screen in the same file; `feedback` may name a local result or external destination but never performs a network request. The reviewer shell renders region actions as working buttons: `page` switches screens, `overlay` opens an accessible local dialog for the target screen, and `feedback` shows local inline feedback. Every visible region action maps to exactly one outgoing flow, and every outgoing flow maps back to one visible action. Per-screen or per-region `traces` list the `UX-*` IDs the surface traces to. An element is either exact approved copy as a string or a `{label, contract}` object whose contract states the bounded display contract's source, order, format, count, and length limits.
+
+An optional `mediaIntent` object on a screen or a region records a motion or imagery treatment that is already decided before the design pass runs. It carries `treatment` — `motion-led`, `imagery-led`, or `motion + imagery`; a non-empty `draftPrompt` dedicated to that page or position; `source` naming the recorded owner decision that settled it; and `generationStatus: deferred`. Add one only where such a decision exists. An undecided surface stays unannotated and the later UI Design Pass asks its key-surface treatment question. The reviewer shell renders the treatment, prompt, source, and deferred status as a visible note. The annotation is a later MCP-generation handoff only: neither the wireframe nor the UI Design Pass invokes a generation provider, renders generated media, or implements the final animation.
 
 Every PRD `UI-*` entry carries one invariant `` `responsive`: `` anchor whose kind and values match the HTML's global set exactly. Every screen carries a non-empty `neverDrop` list and a `responsiveLayouts` object keyed by every target. Each target entry declares `order`, `hidden`, `columns`, a `spans` value for every region, plus filled `reflow` and `interaction` rules. `order` contains every region exactly once. `hidden` may omit secondary material only; it cannot contain a never-drop region, and every primary region belongs to `neverDrop`. These fields make responsive behavior inspectable instead of treating a generic compact stack as proof.
 
-Inline CSS and JavaScript may implement the reviewer shell, page switching, viewport switching, state switching, annotations, and printing. They are not product implementation. Keep the canvas grayscale and low-fidelity: no brand palette, decorative imagery, production component library, animation concept, polished marketing treatment, or design-system token decision.
+Inline CSS and JavaScript implement the reviewer shell, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, annotations, and printing. They are not product implementation. Keep the canvas grayscale and low-fidelity: no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or design-system token decision.
 
 After filling and approving the HTML, validate it from the repository root:
 
@@ -53,6 +55,8 @@ python .agents/skills/product-definition-builder/scripts/check_wireframe_html.py
 A passing static check proves internal structure, self-containment, complete responsive data, and that the wireframe screens and the PRD `UI-*` surface contract name the same IDs, routes, states, and responsive set. It does not prove rendered usability or visual quality.
 
 ## Wireframe Approval Gate
+
+After the first draft and before presenting `wireframes.html` to the human product/design decision owner, run `references/ui-grading-rubric.md` against the frozen PRD and candidate HTML. When the host has the required multi-agent browser capability and dispatch is explicitly authorized, three fresh read-only graders independently score wireframe scope `W1` through `W5`; repair every `block` before the owner sees the file. When the capability is unavailable, record the rubric's exact capability-unavailable skip and continue. Record the resulting `UI grading:` line in `PRD.md`'s Wireframe Approval record. The grading stage supplements the runtime QA; it does not replace the browser check or the human decision.
 
 Present `wireframes.html` to the human product/design decision owner. Ask for one decision: approve the structure, or return named `UI-*` pages for revision.
 
@@ -81,15 +85,17 @@ An enhancement run first classifies the delta's UI impact with the owner — `no
 ## Quality Check
 
 - Every `UI-*` entry appears exactly once and every route remains owned by exactly one PRD surface.
-- Region order and actions agree with `PRD.md`.
-- Every `flows` entry starts from a known screen ID and matches a PRD flow; `traces` match the `UX-*` records in `PRD.md`.
+- Region order and actions agree with `PRD.md`; every visible action works from the local file.
+- Every `flows` entry starts from a known screen ID, names `page`, `overlay`, or `feedback`, and matches exactly one visible action plus one PRD flow; `page` and `overlay` target known screens, and `traces` match the `UX-*` records in `PRD.md`.
 - Every visible element has exact copy or a bounded display contract.
 - Every required state is represented or explicitly `n/a` in the PRD.
 - Every responsive layout contains every region exactly once, hides no never-drop region, and preserves all never-drop content and actions.
+- Every `mediaIntent` annotation names a valid treatment (`motion-led`, `imagery-led`, or `motion + imagery`), a non-empty dedicated `draftPrompt`, a recorded owner `source`, and `generationStatus: deferred`.
 - Every page-target-state combination renders without unintended overlap, clipping, occlusion, or horizontal overflow; intended overlays have documented stacking, focus, and dismissal behavior.
 - The page switcher, overview, responsive-target control, state control, runtime layout QA, and visible section-purpose labels work from a local file.
 - No high-fidelity styling, generated imagery, design-system token, or product implementation code appears.
 - `check_wireframe_html.py` passes with `--prd <staged PRD.md> --require-filled --require-approved`.
+- The PRD-bound multi-agent grading stage ran with its scores recorded, or the host capability was unavailable and the exact skip was recorded; a parent-only review is never labeled as multi-agent grading.
 - `PRD.md` records the human owner, approval status, date, approved `UI-*` scope, and unresolved items.
 
 If any check fails, keep the package staged and repair the PRD or HTML before approval.

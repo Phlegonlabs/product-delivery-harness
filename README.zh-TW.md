@@ -37,8 +37,8 @@
 
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
-- **產品定義止於人工關卡。** UI 產品以一份 responsive 低擬真 `wireframes.html` 作結；每個 surface、target 與非 `n/a` state 都必須通過瀏覽器的重疊、裁切、遮擋與溢出檢查，owner 才能核准。Self-contained checker 會先解碼 CSS escapes，再拒絕遠端資源載入。
-- **視覺目標是 responsive HTML。** 受要求的 web 視覺階段會依同一 responsive／state 矩陣渲染每個高擬真頁面，把核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除；Harness 依每頁核可的 reference 實作並複查。
+- **產品定義止於人工關卡。** UI 產品以一份 responsive 低擬真 `wireframes.html` 作結；每個 surface、target、state 與可見 PRD 動作都必須能在本機運作並通過瀏覽器版面檢查，owner 才能核准。Checker 會驗證 page、overlay、feedback flow，以及延後生成的 `mediaIntent` handoff。當 host 具備 multi-agent 瀏覽器能力且 dispatch 已獲授權時，三個 fresh read-only grader 會依凍結的 PRD 為每個維度直接給出 0–100 分；能力不可用時，核准紀錄寫入明確的 skip，瀏覽器、checker 與人工關卡仍照常執行。
+- **視覺目標是可互動的 responsive HTML。** 受要求的視覺階段會產出一份連通的高擬真 HTML reference；每個可見控制項都能換頁、切換 state、開啟已記錄的 overlay 或顯示 feedback。登入、註冊、復原與身分驗證錯誤 preview 在本輪記為 `n/a`。Image 與 motion 位置保留為靜態 placeholder，附專屬 prompt 與 `generationStatus: deferred`；只有後續取得明確授權的 MCP 階段才會呼叫生成工具。Technical Hard Gate 會拒絕 runtime error、意外 request、無法到達的 state 與重複事件效果。依 PRD 執行的條件式 multi-agent 評分要求總分至少 80，`H2` 排版、`H4` responsive 與 `H8` accessibility 也都至少 80，並在每個 target 檢查 element；同時評估產品專屬創意與設計一致性，但不會獎勵新增未核准 scope 或犧牲可用性。低於門檻的 candidate 必須先 refinement，再完整重跑 gate 與評分，不能直接進入人工核准。核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
 - **每個 graph attempt 都可持久追蹤。** 非 mission 節點先保留 attempt，在 RUN lock 外執行檢查或外部動作，再記錄 outcome 與佐證；中斷的非 runtime attempt 也透過同一條結果路徑記為 `blocked`。本機 verifier 只能在 dirty-status 檢查中忽略 tracked RUN；路徑必須解析在 checkout 內，且執行與結果記錄期間都會保護其精確位元組與檔案身分。
 - **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
@@ -52,7 +52,7 @@
 
 | 技能 | 適用情境 | 主要產出 |
 | --- | --- | --- |
-| `product-definition-builder` | 產品探索、起草前的 research-first 評估與 Research Gate、需求、Builder UX Direction 輸入、含瀏覽器版面 QA 的 responsive 低擬真線框稿、架構、技術選型、發佈目標、測試義務、負責對帳的草稿後市場研究補缺、預設產出一份全頁面連通高擬真 HTML reference 的選用 UI Design Pass，以及部署後的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
+| `product-definition-builder` | 產品探索、起草前的 research-first 評估與 Research Gate、需求、Builder UX Direction 輸入、含瀏覽器 QA 與依 PRD 執行條件式 multi-agent 評分的可互動 responsive 低擬真 wireframe、架構、技術選型、發佈目標、測試義務、負責對帳的草稿後市場研究補缺、使用可互動高擬真 HTML 且延後 media 與 motion 生成的選用 UI Design Pass，以及部署後的 outcome review | `PRD.md`、`research-assessment.md`、`wireframes.html`（UI 產品）、`architecture.md`、`stack-decisions.md`、`market-research.md`、`outcome-review.md` |
 | `design-system-compiler` | 將已核准的 UI Design Handoff 編譯成凍結的設計系統契約，包含完全一致的已核准 responsive set 與版面安全規則。它必須載入獨立的 `frontend-design` 技能；依賴無法使用時會停止。 | `design-system.md`、`design-system.json` |
 | `delivery-harness` | 共用的規模判定閘、PLAN/RUN、授權、本機驗證與整合，外加 runtime adapter 參考文件（`references/runtime-adapters.md`）：一份共用契約，加上每個 host（Codex、Claude Code、Pi 或 generic）各一段 provider 段落 | 直接動手，或 `PLAN.md` + `RUN.md` |
 | `code-security-review` | 實作與統一整合後的唯讀安全審查，優先由 fresh sibling agent 執行；主動滲透測試與修復不屬於本技能 | 精確 SHA 決策、trust-boundary 覆蓋、驗證後的發現與修復測試 |

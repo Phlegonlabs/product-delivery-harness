@@ -84,7 +84,7 @@ Also confirm:
 - Read `references/artifact-lifecycle.md` before creating staging files or publishing.
 - Use `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json` for the pair.
 - Use the three scripts under `scripts/` for deterministic pair, contrast, and type-scale validation.
-- Only when the owner explicitly asks to reopen direction, read `references/visual-direction-guide.md`, `references/design-reference-guide.md`, and `references/impeccable-concept-generation.md`; load `impeccable`, `frontend-design`, and the design method selected by the PRD UI Design Handoff. Use `../product-definition-builder/references/ui-design-pass.md` for Taste applicability and provider-neutral previews. Return the result upstream for human approval instead of writing the pair against an unrecorded direction.
+- Only when the owner explicitly asks to reopen direction, read `references/visual-direction-guide.md`, `references/design-reference-guide.md`, and `references/impeccable-concept-generation.md`; load `impeccable`, `frontend-design`, and the design method selected by the PRD UI Design Handoff. Use `../product-definition-builder/references/ui-design-pass.md` for Taste applicability, the connected interactive HTML, and deferred media or motion handoffs. Return the result upstream for human approval instead of writing the pair against an unrecorded direction.
 
 ## Output Rules
 

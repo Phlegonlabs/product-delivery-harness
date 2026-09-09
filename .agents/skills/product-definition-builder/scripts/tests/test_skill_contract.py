@@ -272,7 +272,7 @@ async function agent(_prompt, options) {
             '<script id="wireframe-data" type="application/json">', 1
         )[1].split("</script>", 1)[0]
         data = json.loads(payload)
-        self.assertEqual(data["schema"], "wireframes/2")
+        self.assertEqual(data["schema"], "wireframes/3")
         self.assertGreaterEqual(len(data["viewports"]), 2)
         self.assertEqual(
             set(data["canvasWidths"]), {str(value) for value in data["viewports"]}
@@ -288,7 +288,7 @@ async function agent(_prompt, options) {
         self.assertIn("textContent", html_template)
         self.assertNotIn("https://", html_template)
         self.assertIn("wireframes_html_data_json", workflow)
-        self.assertIn("wireframes/2", workflow)
+        self.assertIn("wireframes/3", workflow)
         for screen in data["screens"]:
             self.assertTrue(screen["neverDrop"])
             self.assertEqual(
@@ -540,7 +540,7 @@ async function agent(_prompt, options) {
 
     def minimal_wireframe_data(self) -> dict:
         return {
-            "schema": "wireframes/2",
+            "schema": "wireframes/3",
             "product": "P",
             "approvalStatus": "draft",
             "source": "PRD.md#UI-Surface-Contract",
@@ -564,7 +564,7 @@ async function agent(_prompt, options) {
                                 "Exact copy",
                                 {"label": "L", "contract": {"source": "S"}},
                             ],
-                            "actions": [],
+                            "actions": ["T"],
                             "traces": ["UX-001"],
                         }
                     ],
@@ -590,7 +590,14 @@ async function agent(_prompt, options) {
                     "states": [{"id": "ready", "label": "Ready", "treatments": {}}],
                 }
             ],
-            "flows": [{"from": "UI-001", "trigger": "T", "to": "UI-001"}],
+            "flows": [
+                {
+                    "from": "UI-001",
+                    "trigger": "T",
+                    "to": "UI-001",
+                    "presentation": "page",
+                }
+            ],
         }
 
     def test_wireframe_template_projects_flows_traces_and_display_contracts(
@@ -608,10 +615,21 @@ async function agent(_prompt, options) {
         self.assertTrue(data["flows"])
         screen_ids = {screen["id"] for screen in data["screens"]}
         for flow in data["flows"]:
-            for key in ("from", "trigger", "to"):
+            for key in ("from", "trigger", "to", "presentation"):
                 self.assertIsInstance(flow[key], str)
                 self.assertTrue(flow[key].strip())
             self.assertIn(flow["from"], screen_ids)
+            self.assertIn(flow["presentation"], {"page", "overlay", "feedback"})
+            if flow["presentation"] in {"page", "overlay"}:
+                self.assertIn(flow["to"], screen_ids)
+        visible_actions = {
+            (screen["id"], action)
+            for screen in data["screens"]
+            for region in screen["regions"]
+            for action in region["actions"]
+        }
+        flow_actions = {(flow["from"], flow["trigger"]) for flow in data["flows"]}
+        self.assertEqual(visible_actions, flow_actions)
         self.assertTrue(any(screen.get("traces") for screen in data["screens"]))
         self.assertTrue(
             any(
@@ -691,14 +709,15 @@ async function agent(_prompt, options) {
             result = self.run_checker_with_data(data)
             self.assertEqual(result.returncode, 0, f"{decision}: {result.stderr}")
 
-    def test_ui_design_handoff_has_taste_and_provider_neutral_preview_gates(self) -> None:
+    def test_ui_design_handoff_has_taste_and_interactive_html_preview_gates(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         guide = self.read("references/ui-design-pass.md")
 
-        for content in (skill, contract, guide):
+        for content in (skill, guide):
             self.assertIn("design-taste-frontend", content)
             self.assertIn("UI Preview Gate", content)
+        self.assertIn("Connected HTML review:", contract)
         self.assertIn("record `applicable`, `partially_applicable`, or `n/a: <reason>`", skill)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
         self.assertIn(
@@ -709,12 +728,13 @@ async function agent(_prompt, options) {
         )
         self.assertIn("stay at the bundled default", skill)
         self.assertIn("never reopened for this", skill)
-        self.assertIn("imagegen-frontend-web", guide)
-        self.assertIn("imagegen-frontend-mobile", guide)
-        self.assertIn("provider/model", guide)
-        self.assertIn("Optional `brandkit` exploration", guide)
+        self.assertIn("one self-contained high-fidelity HTML", guide)
+        self.assertIn("Every visible product control responds", guide)
+        self.assertIn("generationStatus: deferred", guide)
+        self.assertNotIn("imagegen-frontend-web", guide)
+        self.assertNotIn("imagegen-frontend-mobile", guide)
         self.assertIn("## Responsive Browser Gate", guide)
-        self.assertIn("unintended overlap, clipping, occlusion", guide)
+        self.assertIn("unintended element overlap, clipping, occlusion", guide)
         self.assertIn("Browser unavailability blocks approval", guide)
         self.assertIn("Responsive browser check:", contract)
         self.assertIn("An approved preview becomes an implementation target", guide)
@@ -754,7 +774,8 @@ async function agent(_prompt, options) {
             contract,
         )
         self.assertIn(
-            "optional `flows`, `UX-*` traces, and element display contracts", contract
+            "optional deferred `mediaIntent`, `UX-*` traces, and element display contracts",
+            contract,
         )
         self.assertIn(
             "record protocol also governs the `product-definition-builder` UI Design Pass", references
@@ -2120,49 +2141,137 @@ async function agent(_prompt, options) {
             "Record the styling approach as its own layer row", frontend
         )
 
-    def test_all_ui_surfaces_get_one_connected_html_preview(self) -> None:
+    def test_high_fidelity_preview_is_interactive_auth_free_and_generation_deferred(self) -> None:
+        skill = self.read("SKILL.md")
+        guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+
+        for content in (skill, guide, contract):
+            lowered = content.lower()
+            self.assertIn("one self-contained high-fidelity html", lowered)
+            self.assertIn("login, registration, recovery", lowered)
+            self.assertIn("generationstatus: deferred", lowered)
+        for marker in (
+            "Every visible product control responds",
+            "opens the documented modal, drawer, or other overlay",
+            "never calls a live backend, account, credential, identity provider, image generator, or animation generator",
+            "Do not generate, embed, or claim image or animation output",
+        ):
+            self.assertIn(marker, guide)
+        for forbidden in (
+            "Clicking a login or sign-in action immediately switches",
+            "auth-related UI states remain directly selectable",
+            "imagegen-frontend-web",
+            "imagegen-frontend-mobile",
+            "Higgsfield MCP",
+            "embed each retained image as a data URI",
+        ):
+            self.assertNotIn(forbidden, guide)
+        for marker in (
+            "Frozen PRD basis:",
+            "Preview scope:",
+            "Key-surface treatments:",
+            "Deferred generation handoff:",
+            "no live backend, authentication, or generation call",
+        ):
+            self.assertIn(marker, contract)
+
+    def test_multi_agent_ui_grading_is_prd_bound_authorized_and_capability_optional(self) -> None:
         skill = self.read("SKILL.md")
         wireframe = self.read("references/wireframe-guide.md")
         guide = self.read("references/ui-design-pass.md")
+        rubric = self.read("references/ui-grading-rubric.md")
+        contract = self.read("references/output-contract.md")
 
-        self.assertIn(
-            "A native mobile or desktop app is UI-bearing without a browser frontend",
-            skill,
-        )
-        self.assertIn(
-            "gets the same single `wireframes.html` deliverable", wireframe
-        )
-        self.assertIn(
-            "with the product's own size classes standing in as the viewport toggle",
-            wireframe,
-        )
-        self.assertIn(
-            "the default route for every UI-bearing product: web, native or "
-            "cross-platform mobile, and desktop",
-            guide,
-        )
-        self.assertIn(
-            "one self-contained high-fidelity HTML",
-            guide,
-        )
         for marker in (
-            "contains every `UI-*` screen in one connected review surface",
-            "left sidebar listing every page or screen",
-            "Product controls that lead to another recorded screen must work",
-            "Clicking a login or sign-in action immediately switches",
-            "auth-related UI states remain directly selectable",
-            "when HTML cannot represent the surface, such as platform chrome",
+            "exact PRD path plus revision or SHA-256",
+            "Capability does not grant permission",
+            "multi-agent capability unavailable",
+            "matching current RUN `spawn_subagents` grant",
+            "Default to three fresh sibling graders",
+            "integer score from `0` to `100`",
+            "`80–100 — pass`",
+            "`0–59 — block`",
+            "overall score is at least `80`",
+            "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
+            "Any such failure on required content is a `block`",
+            "`W1 PRD conformance`",
+            "`W5 Structural slop`",
+            "`H3 Interaction wiring`",
+            "`H6 Deferred media and motion`",
+            "`H7 Creative distinction`",
+            "`H8 Accessibility`",
+            "`H9 Design consistency`",
+            "## Technical Hard Gate",
+            "no uncaught console error",
+            "without duplicate event effects or stale state",
+            "run a DOM geometry scan",
+            "reconciled numeric value for each dimension is their median score",
+            "differ by more than 20 points",
+            "mark it `disputed`",
+            "Every below-threshold high-fidelity candidate returns",
+            "repeats the complete Technical Hard Gate",
+            "Do not present a below-threshold candidate",
+            "Continue the loop until the candidate passes or the owner stops it",
+            "earns no credit by adding unapproved scope",
         ):
-            self.assertIn(marker, guide)
-        self.assertIn(
-            "Default every UI-bearing product — web, native or cross-platform "
-            "mobile, and desktop — to one self-contained high-fidelity HTML",
-            skill,
+            self.assertIn(marker, rubric)
+        self.assertNotIn("graders: parent-only", rubric)
+        self.assertIn("skipped — multi-agent capability unavailable", contract)
+        for content in (skill, wireframe, guide):
+            self.assertIn("multi-agent browser capability", content)
+            self.assertIn("capability is unavailable", content)
+
+    def test_wireframe_actions_and_media_handoffs_are_executable_and_validated(self) -> None:
+        skill = self.read("SKILL.md")
+        wireframe = self.read("references/wireframe-guide.md")
+        contract = self.read("references/output-contract.md")
+        template = self.read("assets/templates/WIREFRAMES.template.html")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
+        checker = self.read("scripts/check_wireframe_html.py")
+
+        for content in (skill, wireframe, contract):
+            self.assertIn("page", content)
+            self.assertIn("overlay", content)
+            self.assertIn("feedback", content)
+        for marker in (
+            '"presentation": "page"',
+            '"presentation": "overlay"',
+            '"presentation": "feedback"',
+            "dialog.showModal()",
+            "dataset.flowTrigger = label",
+            '"generationStatus": "deferred"',
+        ):
+            self.assertIn(marker, template)
+        for marker in (
+            "VALID_FLOW_PRESENTATIONS",
+            "VALID_MEDIA_TREATMENTS",
+            "_validate_media_intent",
+            "must match exactly one outgoing flow",
+            "must match exactly one visible region action",
+        ):
+            self.assertIn(marker, checker)
+        self.assertIn("generationStatus deferred; never generate media", workflow)
+
+    def test_wireframe_reviewer_javascript_parses(self) -> None:
+        node = shutil.which("node")
+        if node is None:
+            self.skipTest("Node.js is required for wireframe JavaScript validation")
+        template_path = SKILL_ROOT / "assets/templates/WIREFRAMES.template.html"
+        runner = r"""
+const fs = require("fs");
+const html = fs.readFileSync(process.argv[1], "utf8");
+const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)];
+if (scripts.length < 2) throw new Error("reviewer script missing");
+new Function(scripts.at(-1)[1]);
+"""
+        completed = subprocess.run(
+            [node, "-e", " ".join(runner.splitlines()), str(template_path)],
+            capture_output=True,
+            text=True,
+            check=False,
         )
-        self.assertIn(
-            "a left sidebar listing every page or screen",
-            skill,
-        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
 
     def test_visual_phase_opens_with_taste_plus_frontend_design(self) -> None:
         skill = self.read("SKILL.md")
