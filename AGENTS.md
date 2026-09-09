@@ -85,7 +85,7 @@ Treat these as blocking findings:
 - Any path that bypasses explicit action authorization for one of the 12 ledger keys: `invoke_external_runtime`, `spawn_subagents`, `create_user_owned_tasks`, `create_local_worktrees`, `create_app_managed_worktrees`, `create_local_branches`, `create_local_commits`, `integrate_locally`, `push`, `archive_worker_tasks`, `remove_worktrees`, or `delete_branches`.
 - Any RUN push that reaches `main` or the retired `development` name, or any run whose own integration branch resolves to either name.
 - Any RUN `push` grant whose target is a branch other than the run's resolved integration branch; post-RUN promotion never reuses that grant.
-- Any `main` promotion that bypasses `.agents/skills/delivery-harness/references/branch-promotion-contract.md`, lacks separate exact branch/SHA authorization, uses force, moves a stale/diverged ref, or lacks complete exact-candidate verification. Creating or using a persistent `development` branch is also blocking.
+- Any `main` promotion that bypasses `.agents/skills/delivery-harness/references/branch-promotion-contract.md`, lacks separate exact branch/SHA authorization, uses force, moves a stale/diverged ref, or lacks complete exact-candidate verification. A required PR may create a new main SHA only with verified tree equality and immediate full exact-main-SHA verification before tag or release completion. Creating or using a persistent `development` branch is also blocking.
 - Any gate PASS that is not bound to the exact integration head SHA.
 - Any worker that edits parent-owned PLAN/RUN state, escapes its write scope, or independently pushes.
 - Any behavior change without focused tests, or any test/workflow command that does not run from the repository root.

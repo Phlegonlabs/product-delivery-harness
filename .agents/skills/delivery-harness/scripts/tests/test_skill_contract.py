@@ -670,6 +670,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Candidate Gate",
             "Promote To Main",
             "Retired Development Branch",
+            "require its tree to equal the verified candidate tree",
+            "exact remote `main` SHA before tagging",
             "fast-forward to that exact SHA",
             "Every fetch, branch creation, ref update, merge, push, external test, and branch deletion",
             "never inherits or reuses a RUN push grant",

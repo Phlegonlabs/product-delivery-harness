@@ -436,7 +436,7 @@ Cada flujo que aterriza en `main` es un release, y el bump de versión va en el 
 3. El default de `required_harness_version` del RUNBOOK en `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
 4. Los asserts de versión pineados en `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
-Luego ejecuta la verificación completa de arriba, revisa el diff entero y aterriza el candidate verificado exacto mediante `branch-promotion-contract.md`. Usa un PR solo cuando la protección del repositorio lo exija; cualquier SHA creado por el proveedor es un candidate nuevo y debe volver a verificarse. Después de aterrizar, etiqueta el commit de release en `main` con el tag `v<version>` correspondiente (por ejemplo `v0.30.0`); el tag es parte del release, no un extra opcional. Cada versión publicada tiene su tag — `git tag` y `package.json` deben contar la misma historia.
+Luego ejecuta la verificación completa de arriba, revisa el diff entero y aterriza mediante `branch-promotion-contract.md`. Usa un PR cuando la protección del repositorio lo exija. Si el proveedor crea un SHA nuevo en main, exige igualdad de tree con el candidate verificado y repite inmediatamente la suite completa y la revisión de seguridad sobre ese exact main SHA antes de etiquetar o declarar completo el release. Después de aterrizar, etiqueta el commit de release en `main` con el tag `v<version>` correspondiente (por ejemplo `v0.30.0`); el tag es parte del release, no un extra opcional. Cada versión publicada tiene su tag — `git tag` y `package.json` deben contar la misma historia.
 
 ## Seguridad y protección de datos
 

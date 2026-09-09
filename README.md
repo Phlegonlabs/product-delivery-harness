@@ -437,7 +437,7 @@ Every flow that lands on `main` is one release, and the version bump rides in th
 3. The RUNBOOK `required_harness_version` default in `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
 4. The pinned version asserts in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
-Then run the full verification above, review the entire diff, and land the exact verified candidate through `branch-promotion-contract.md`. Use a PR only when repository protection requires it; any provider-created SHA is a new candidate and must be reverified. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.30.0`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
+Then run the full verification above, review the entire diff, and land through `branch-promotion-contract.md`. Use a PR when repository protection requires it. If the provider creates a new main SHA, require tree equality with the verified candidate and immediately rerun the full suite plus security review on that exact main SHA before tagging or claiming release completion. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.30.0`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
 
 ## Security and data safety
 

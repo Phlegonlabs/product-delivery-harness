@@ -437,7 +437,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 3. `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md` 的 RUNBOOK `required_harness_version` 默认值。
 4. `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py` 中钉住的版本断言。
 
-然后跑完上面的完整验证、检查整个 diff，并依 `branch-promotion-contract.md` 落地精确 verified candidate。只有 repository protection 要求时才使用 PR；provider 产生的新 SHA 必须视为新 candidate 并重新验证。落地之后，在 `main` 的 release commit 上打上对应的 `v<版本>` tag（例如 `v0.30.0`）；tag 是 release 的一部分，不是可有可无的附加动作。每个发布的版本都要有它的 tag——`git tag` 和 `package.json` 必须讲同一个故事。
+然后跑完上面的完整验证、检查整个 diff，并依 `branch-promotion-contract.md` 落地。Repository protection 要求时使用 PR；如果 provider 产生新的 main SHA，必须先证明其 tree 与 verified candidate 相同，并立即在该 exact main SHA 上重跑完整 suite 与 security review，才能 tag 或声明 release 完成。落地之后，在 `main` 的 release commit 上打上对应的 `v<版本>` tag（例如 `v0.30.0`）；tag 是 release 的一部分，不是可有可无的附加动作。每个发布的版本都要有它的 tag——`git tag` 和 `package.json` 必须讲同一个故事。
 
 ## 安全与数据安全
 

@@ -37,7 +37,7 @@ Promotion to `main` is allowed only when all of these are true:
 6. Push without force, fetch/read back remote `main`, and require it to equal the authorized candidate SHA.
 7. Verify the production deployment read-only against that exact SHA and run the required production smoke. Production PASS is separate from candidate-environment PASS.
 
-If branch protection requires a pull request, merge queue, or server-created commit, follow that mechanism only under its own authorization. Treat the resulting commit as a new candidate: fetch it on a non-default branch or detached read-only checkout, rerun every required candidate gate, then promote only that exact verified SHA when it is a fast-forward from the current `main` head.
+If branch protection requires a pull request, merge queue, or server-created commit and cannot preserve the candidate SHA, follow that mechanism only under its own authorization after the candidate gate passes. Fetch the resulting remote `main` SHA immediately, require its tree to equal the verified candidate tree, and treat that server-created SHA as the release candidate. Rerun the complete required suite and fresh security review on that exact remote `main` SHA before tagging, publishing a release, deleting the retired branch, or claiming completion. A failure is repaired by a new candidate branch and PR; never force-push or rewrite `main` to erase the failed landing.
 
 ## Retired Development Branch
 
