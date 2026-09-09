@@ -100,10 +100,21 @@ async function agent(_prompt, options) {
         provider: str,
         stage: str,
         source_policy: str,
+        release_name: str | None = None,
     ) -> dict:
+        suffixes = {
+            "web-app": "web",
+            "public-api": "api",
+            "ios-app": "ios",
+            "browser-extension": "extension",
+        }
+        canonical_name = f"fixture-{suffixes.get(surface, surface)}"
         return {
             "id": target_id,
             "surface": surface,
+            "surface_suffix": suffixes.get(surface, surface),
+            "release_name": release_name
+            or (f"{canonical_name}-dev" if stage == "development" else canonical_name),
             "provider": provider,
             "stage": stage,
             "source_policy": source_policy,
@@ -1237,6 +1248,8 @@ async function agent(_prompt, options) {
         self.assertIn("## Release Targets", contract)
         for field in (
             "stable target ID",
+            "Surface suffix",
+            "Release name",
             "development",
             "production",
             "Source policy",
@@ -1271,6 +1284,14 @@ async function agent(_prompt, options) {
         self.assertIn(
             "Different providers by stage are valid for the same surface", contract
         )
+        for content in (skill, interview, architecture, contract, agent):
+            self.assertIn("<product-slug>-<surface-suffix>", content)
+            self.assertIn("-dev", content)
+            self.assertIn("-prod", content)
+        self.assertIn("`web`, `api`, and `extension`", architecture)
+        self.assertIn("`ios`, `android`, `macos`, or `windows`", architecture)
+        self.assertIn("Chrome, Firefox", architecture)
+        self.assertIn("public listing title may differ", architecture.lower())
         self.assertIn(
             "Preserve stable release target IDs for unchanged targets", interview
         )
@@ -1312,6 +1333,8 @@ async function agent(_prompt, options) {
         for field in (
             '"id"',
             '"surface"',
+            '"surface_suffix"',
+            '"release_name"',
             '"provider"',
             '"stage"',
             '"source_policy"',
@@ -1336,7 +1359,71 @@ async function agent(_prompt, options) {
         )
         self.assertIn("release_targets: workflowArgs.release_targets,", workflow)
         self.assertIn("preserve the supplied stable release target IDs", workflow)
+        self.assertIn(
+            "preserve the supplied stable release target IDs, surface suffixes, and release names",
+            workflow,
+        )
+        self.assertIn("preserve each supplied surface_suffix and release_name", workflow)
         self.assertIn("Upload or submission is not availability", workflow)
+
+    def test_workflow_enforces_release_name_stage_pair(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args["release_targets"][0]["release_name"] = "local-notes-ios-development"
+
+        result = self.run_workflow(workflow_args)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("must end release_name with -dev", result["error"])
+
+        workflow_args = self.base_workflow_args()
+        workflow_args["release_targets"][1]["release_name"] = "fixture-ios-prod"
+
+        result = self.run_workflow(workflow_args)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("must use the canonical surface name without -prod", result["error"])
+
+        workflow_args = self.base_workflow_args()
+        workflow_args["release_targets"][0]["surface_suffix"] = "app"
+
+        result = self.run_workflow(workflow_args)
+
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "canonical release_name must end with surface_suffix app", result["error"]
+        )
+
+    def test_workflow_accepts_extension_surface_release_names(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args.update(
+            {
+                "product_archetypes": ["browser extension"],
+                "deployable_surfaces": ["browser-extension"],
+                "release_targets": [
+                    self.release_target(
+                        "extension-development",
+                        "browser-extension",
+                        "Chrome Web Store test group",
+                        "development",
+                        "exact candidate run branch head",
+                        "fixture-extension-dev",
+                    ),
+                    self.release_target(
+                        "extension-production",
+                        "browser-extension",
+                        "Chrome Web Store",
+                        "production",
+                        "main branch head after candidate PASS",
+                        "fixture-extension",
+                    ),
+                ],
+            }
+        )
+
+        result = self.run_workflow(workflow_args)
+
+        self.assertTrue(result["ok"])
+        self.assertEqual("candidate_ready", result["status"])
 
     def test_release_sources_name_exact_branch_or_ref(self) -> None:
         interview = self.read("references/interview-guide.md")

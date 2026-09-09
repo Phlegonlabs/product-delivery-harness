@@ -6,8 +6,10 @@ that its name-only human configuration handoff is structurally complete, and
 that its Environment Status table is coherent: both development and production
 rows exist with a URL, duplicate section/row identities are rejected, and any
 verified row carries full lowercase SHAs and a status. Also validates the
-Resource Isolation table: no binding class may list the same resource ID in
-both the production and preview columns.
+Release Unit Names table: production uses the canonical surface name and
+development uses that exact name plus ``-dev``. Also validates the Resource
+Isolation table: no binding class may list the same resource ID in both the
+production and development columns.
 Executing the platform's deployed-commit check command stays with the parent
 or operator — this tool never runs recorded commands, reads secret values, or
 touches the platform.
@@ -30,8 +32,14 @@ PLACEHOLDER_MARKERS = (
     "<secret or variable name>",
     "<service>",
     "<setting or account task>",
+    "<stable surface id>",
+    "<surface suffix>",
+    "<production release name>",
+    "<development release name>",
+    "<stage-specific provider or channel>",
 )
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+LOWER_KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ENVIRONMENT_ROWS = ("development", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
@@ -54,8 +62,16 @@ EXTERNAL_SETUP_HEADERS = (
     "owner",
     "status",
 )
+RELEASE_UNIT_HEADERS = (
+    "surface",
+    "surface suffix",
+    "production release name",
+    "development release name",
+    "provider / channel",
+)
 KNOWN_LEVEL_TWO_SECTIONS = (
     "## Record",
+    "## Release Unit Names",
     "## Resource Isolation",
     "## Required Secrets and Variables",
     "## External Console Setup",
@@ -258,6 +274,42 @@ def check_deployment_text(text: str) -> list[str]:
                     f"line {number}: unresolved placeholder {marker!r} — fill the record from the live project"
                 )
 
+    release_findings, release_rows = check_handoff_table(
+        text, "## Release Unit Names", RELEASE_UNIT_HEADERS
+    )
+    findings.extend(release_findings)
+    for row in release_rows:
+        surface, suffix, production_name, development_name, provider = row
+        if surface.casefold() in {"none", "n/a"}:
+            findings.append("Release Unit Names: a deployable record needs at least one release unit")
+            continue
+        for label, value in (
+            ("surface", surface),
+            ("surface suffix", suffix),
+            ("production release name", production_name),
+            ("development release name", development_name),
+            ("provider / channel", provider),
+        ):
+            if value.casefold() in ABSENT_VALUES:
+                findings.append(f"Release Unit Names: {surface} has no {label}")
+        for label, value in (
+            ("surface suffix", suffix),
+            ("production release name", production_name),
+            ("development release name", development_name),
+        ):
+            if value.casefold() not in ABSENT_VALUES and not LOWER_KEBAB_RE.fullmatch(value):
+                findings.append(f"Release Unit Names: {surface} {label} must be lowercase kebab case")
+        if production_name.endswith("-prod"):
+            findings.append(f"Release Unit Names: {surface} production release name must not end in -prod")
+        if suffix and production_name and not production_name.endswith(f"-{suffix}"):
+            findings.append(
+                f"Release Unit Names: {surface} production release name must end in -{suffix}"
+            )
+        if production_name and development_name != f"{production_name}-dev":
+            findings.append(
+                f"Release Unit Names: {surface} development release name must equal {production_name}-dev"
+            )
+
     secret_findings, secret_rows = check_handoff_table(
         text, "## Required Secrets and Variables", SECRET_HEADERS
     )
@@ -368,12 +420,12 @@ def check_deployment_text(text: str) -> list[str]:
         resource_identities.add(normalized_identity)
         if normalized_identity not in BINDING_CLASSES:
             continue
-        production, preview = row[1].lower(), row[2].lower()
-        if production in ABSENT_VALUES or preview in ABSENT_VALUES:
+        production, development = row[1].lower(), row[2].lower()
+        if production in ABSENT_VALUES or development in ABSENT_VALUES:
             continue
-        if production == preview:
+        if production == development:
             findings.append(
-                f"Resource Isolation: {row[0]} must not share one resource between production and preview"
+                f"Resource Isolation: {row[0]} must not share one resource between production and development"
             )
     return findings
 

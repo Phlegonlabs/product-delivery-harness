@@ -30,6 +30,7 @@ Use this for every deployable web, API, mobile, desktop, or browser-extension su
 For every target, record:
 
 - the stable surface identity and the stage-specific provider as separate fields;
+- the explicit lowercase kebab-case surface suffix and provider-neutral release name, using the convention below;
 - the source policy: the exact candidate run branch/ref for the internally tested development release and remote `main` for production after same-SHA fast-forward, or another exact branch or ref rule, including a required signed tag, recorded explicitly;
 - artifact kind and exact signing/notarization requirement;
 - exact environment, channel, store track, tester group, update feed, or direct-download destination;
@@ -41,6 +42,12 @@ For every target, record:
 A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability. Hosted web/API availability requires the named route or API to serve the exact release and pass deployed smoke checks. Mobile and desktop availability requires the named audience to be able to install or download the approved artifact through the exact channel and pass the release smoke check.
 
 Keep native mobile and desktop targets in this provider-neutral record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table below. Preserve stable target IDs across revisions and retire rather than reuse an ID whose destination changes meaning.
+
+### Surface Naming Convention
+
+Name an independently released unit from what it is, not from where it runs. Use lowercase kebab case. The production name is the canonical `<product-slug>-<surface-suffix>` name and never carries `-prod`; the development name is that exact canonical name plus `-dev`. Long-lived `-staging` or `-qa` names are valid only when those environments actually exist. Ephemeral branch/SHA previews keep platform-generated identities instead of inventing permanent names.
+
+Use `web`, `api`, and `extension` as the normal suffixes. Use `admin`, `worker`, `jobs`, `agent`, `webhook`, `realtime`, or `cli` only for a separately released artifact. Native release artifacts may use `ios`, `android`, `macos`, or `windows`; a hosted backend shared by native clients is still `api`, not `ios-api` or `android-api`. A unit serving one combined web application and its API remains `web`; independently deployed web and API units get separate names. Keep Chrome, Firefox, an app store, and a hosting vendor in `provider` or channel fields. Add a browser name to the suffix only when browser-specific artifacts actually diverge, such as `chrome-extension` and `firefox-extension`. A public listing title may differ from this internal release name.
 
 ## Candidate-to-Production Release Pattern
 

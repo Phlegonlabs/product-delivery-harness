@@ -29,9 +29,15 @@ GOOD_DEPLOYMENT = f"""# Deployment
 - Deployed-commit check: wrangler pages deployment list
 - Protected resources preview must never bind: prod-db
 
+## Release Unit Names
+
+| Surface | Surface suffix | Production release name | Development release name | Provider / channel |
+| --- | --- | --- | --- | --- |
+| web-app | web | example-web | example-web-dev | Cloudflare Workers |
+
 ## Resource Isolation
 
-| Binding class | Production resource | Preview resource |
+| Binding class | Production resource | Development resource |
 | --- | --- | --- |
 | D1 database | d1-prod-001 | d1-preview-001 |
 | KV namespace | kv-prod-001 | kv-preview-001 |
@@ -67,9 +73,15 @@ SHARED_RESOURCE_DEPLOYMENT = """# Deployment
 - Production URL: https://example.com
 - Deployed-commit check: wrangler deployments list
 
+## Release Unit Names
+
+| Surface | Surface suffix | Production release name | Development release name | Provider / channel |
+| --- | --- | --- | --- | --- |
+| api | api | example-api | example-api-dev | Cloudflare Workers |
+
 ## Resource Isolation
 
-| Binding class | Production resource | Preview resource |
+| Binding class | Production resource | Development resource |
 | --- | --- | --- |
 | D1 database | d1-prod-001 | d1-prod-001 |
 | KV namespace | kv-prod-001 | kv-preview-001 |
@@ -119,6 +131,12 @@ CI_CONNECTED_DEPLOYMENT = f"""# Deployment
 - Deployed-commit check: wrangler pages deployment list
 - Protected resources preview must never bind: prod-db
 
+## Release Unit Names
+
+| Surface | Surface suffix | Production release name | Development release name | Provider / channel |
+| --- | --- | --- | --- | --- |
+| browser-extension | extension | example-extension | example-extension-dev | Chrome Web Store |
+
 ## Required Secrets and Variables
 
 | Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |
@@ -153,7 +171,7 @@ class DeploymentRecordTests(unittest.TestCase):
         findings = check_deployment.check_deployment_text(SHARED_RESOURCE_DEPLOYMENT)
         joined = "\n".join(findings)
         self.assertIn(
-            "must not share one resource between production and preview", joined
+            "must not share one resource between production and development", joined
         )
 
     def test_placeholders_and_incoherent_rows_fail(self) -> None:
@@ -169,6 +187,32 @@ class DeploymentRecordTests(unittest.TestCase):
         joined = "\n".join(findings)
         self.assertIn("Required Secrets and Variables: missing section", joined)
         self.assertIn("External Console Setup: missing section", joined)
+        self.assertIn("Release Unit Names: missing section", joined)
+
+    def test_release_unit_names_reject_prod_and_mismatched_development(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| web-app | web | example-web | example-web-dev | Cloudflare Workers |",
+            "| web-app | web | example-web-prod | example-web-development | Cloudflare Workers |",
+            1,
+        )
+
+        findings = "\n".join(check_deployment.check_deployment_text(deployment))
+
+        self.assertIn("production release name must not end in -prod", findings)
+        self.assertIn(
+            "development release name must equal example-web-prod-dev", findings
+        )
+
+    def test_release_unit_names_require_surface_suffix(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| web-app | web | example-web | example-web-dev | Cloudflare Workers |",
+            "| web-app | web | example-service | example-service-dev | Cloudflare Workers |",
+            1,
+        )
+
+        findings = "\n".join(check_deployment.check_deployment_text(deployment))
+
+        self.assertIn("production release name must end in -web", findings)
 
     def test_secret_value_column_fails(self) -> None:
         deployment = GOOD_DEPLOYMENT.replace(

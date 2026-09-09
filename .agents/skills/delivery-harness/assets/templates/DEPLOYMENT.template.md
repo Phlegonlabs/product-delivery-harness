@@ -14,11 +14,19 @@ The deployment record for this repository: the platform model, the exact configu
 - Deployed-commit check: <platform API/CLI command or response header>
 - Protected resources preview must never bind: <databases, buckets, secrets, domains>
 
+## Release Unit Names
+
+Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Chrome, Firefox, stores, and hosting vendors stay in Provider / channel unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names.
+
+| Surface | Surface suffix | Production release name | Development release name | Provider / channel |
+| --- | --- | --- | --- | --- |
+| <stable surface id> | <surface suffix> | <production release name> | <development release name> | <stage-specific provider or channel> |
+
 ## Resource Isolation
 
-Production and preview use fully separate stateful resources. Record every binding class this project uses; an identical ID in both columns is a blocker. Mark a class the project does not use `n/a`.
+Production and development use fully separate stateful resources. Record every binding class this project uses; an identical ID in both columns is a blocker. Mark a class the project does not use `n/a`.
 
-| Binding class | Production resource | Preview resource |
+| Binding class | Production resource | Development resource |
 | --- | --- | --- |
 | D1 database | <fill> | <fill> |
 | KV namespace | <fill> | <fill> |
@@ -53,12 +61,12 @@ Per-platform runbook. The order is fixed: each resource exists before config ref
 
 For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Objects). The order is a hard constraint on both sides: create the resource first, then write the declaration — a declaration naming a missing resource fails deploy validation and turns the pipeline red.
 
-1. Create the preview-side resource with the project's `-preview` naming and record its ID. Any ID the wrangler config needs must exist before the declaration is written.
+1. Create the development-side resource by adding `-dev` to its canonical production resource name, and record its ID. Any ID the wrangler config needs must exist before the declaration is written.
 2. Declare the binding in the development environment (for example `env.development`), deploy the exact candidate branch/SHA there, and verify it on the development URL. Add the binding class row to Resource Isolation.
 3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
 4. Add the production declaration (for example `env.production`) to the same candidate lineage. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
-5. Secrets for the new binding: fake or dedicated values on the preview worker, real values only in production, never in the wrangler config.
-6. With a D1 schema change: apply the migration to the preview database and verify it there first; coordinate the production database migration with the default-branch deploy so new code never ships before the production schema exists.
+5. Secrets for the new binding: fake or dedicated values on the development worker, real values only in production, never in the wrangler config.
+6. With a D1 schema change: apply the migration to the development database and verify it there first; coordinate the production database migration with the default-branch deploy so new code never ships before the production schema exists.
 
 ### vercel, aws, generic
 
@@ -95,7 +103,7 @@ These steps are performed by a person with platform access; the Harness never pe
 - [ ] Create the project from the CLI (for example `wrangler pages project create <name> --production-branch main`) and run the separately authorized bootstrap deploy.
 - [ ] Add the repository workflow that deploys the exact candidate run branch/SHA to the internal environment and `main` to production.
 - [ ] On Workers, run `wrangler deploy` for `main` and target the named development environment from the exact candidate (`wrangler deploy --env development`, or `wrangler versions upload --env development`).
-- [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with a `-preview` name — and bind them through the named preview environment with its full binding set declared explicitly; named environments do not inherit bindings.
+- [ ] Create the non-production resources at setup — `wrangler d1 create`, `wrangler kv namespace create`, `wrangler r2 bucket create` with the canonical production resource name plus `-dev` — and bind them through the named development environment with its full binding set declared explicitly; named environments do not inherit bindings.
 - [ ] Confirm a version preview of the production Worker is never used for stateful preview traffic: it shares that Worker's live bindings, so its writes reach production resources.
 - [ ] Store the platform API token as a repository secret; never place it in the repository itself.
 - [ ] Keep preview and production variables and secrets separate in the workflow, exactly as in a git-connected project.

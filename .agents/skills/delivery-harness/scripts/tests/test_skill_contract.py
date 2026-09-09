@@ -651,10 +651,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "never construct or guess a URL",
             "Version previews inherit the Worker's existing bindings",
             "named environments do not inherit bindings",
-            "`wrangler d1 create <name>-preview`",
+            "`wrangler d1 create <resource-name>-dev`",
             "is a blocker, not a configuration preference",
             "shares live bindings",
-            "any production ID appearing in a preview binding",
+            "any production ID appearing in a development binding",
             "## Platform: cloudflare",
             "## Platform: vercel",
             "## Platform: aws",
@@ -703,8 +703,15 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("ci_connected", deployment_template)
         self.assertIn("ci_connected", project_agents)
         self.assertIn("## Resource Isolation", deployment_template)
+        self.assertIn("## Release Unit Names", deployment_template)
         self.assertIn(
-            "| Binding class | Production resource | Preview resource |",
+            "| Surface | Surface suffix | Production release name | Development release name | Provider / channel |",
+            deployment_template,
+        )
+        self.assertIn("never adds `-prod`", deployment_template)
+        self.assertIn("that exact name plus `-dev`", deployment_template)
+        self.assertIn(
+            "| Binding class | Production resource | Development resource |",
             deployment_template,
         )
         self.assertIn("fully separate D1/KV/R2/Durable-Object resources", project_agents)
@@ -749,7 +756,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "create the non-production resource",
             "deploy the exact candidate branch/SHA",
             "promote that exact verified SHA to `main`",
-            "Preview secrets stay fake or dedicated",
+            "Development secrets stay fake or dedicated",
             "D1 migrations run against the non-production database first",
         ):
             self.assertIn(phrase, contract)
@@ -787,7 +794,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # The hard constraint, machine-checked: each declaration step comes
         # after its resource-creation step.
         self.assertLess(
-            deployment_template.index("Create the preview-side resource"),
+            deployment_template.index("Create the development-side resource"),
             deployment_template.index(
                 "Declare the binding in the development environment"
             ),
