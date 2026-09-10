@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.30.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.31.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -452,6 +452,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.31.0** — Estandarizó los nombres de unidades de release entre Product Definition y Deployment. Producción usa el nombre canónico `<product-slug>-<surface-suffix>` sin `-prod`; desarrollo agrega `-dev`. Los sufijos normales son `web`, `api` y `extension`; los artifacts nativos y las unidades publicadas por separado usan sufijos de surface explícitos y mantienen separada la identidad del provider/store. El workflow de Product Definition ahora exige y valida pares `surface_suffix`/`release_name`, `docs/DEPLOYMENT.md` registra cada unidad de release y su checker aplica el mismo contrato de nombres. Es un breaking change para los inputs del workflow y los registros de deployment.
 
 - **0.30.0** — Reemplazó la branch persistente `development` por un flujo main-only permanente. La entrega inicial y los enhancements parten del `main` remoto observado; una candidate branch no default contiene implementación, revisión exact-SHA, tests completos y la verificación aplicable del preview environment aislado antes del fast-forward a `main` con autorización separada. El nombre retirado `development` sigue rechazado como target de RUN y solo puede borrarse tras comprobar ancestry y dependencias. Este release también añade `wireframes/3` interactivo, grading UI multi-agent ligado al PRD de 0–100, refinement loop con umbral 80, checks responsive/layout por elemento, accessibility, consistencia de diseño, distinción creativa, handoffs MCP diferidos de media/motion y compatibilidad de lectura con `wireframes/2`.
 
