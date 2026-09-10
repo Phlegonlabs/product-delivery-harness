@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.30.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.31.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -211,7 +211,7 @@ flowchart TB
 
 El Wireframe Approval y el merge a `main` siguen siendo gates humanos. El bucle de ejecución de la entrega queda dentro de PLAN/RUN; la Activation post-entrega arranca solo después de cerrar el RUN y aplica sus propias aprobaciones exactas de acciones externas.
 
-Para cada release desplegable, `docs/DEPLOYMENT.md` es el handoff del operador. Product Definition lo siembra; Delivery Harness lo reconcilia contra las declaraciones de entorno registradas, el CI y el código de auth/integración antes del push, y luego registra el resultado de despliegue de solo lectura. Lista los nombres exactos de secretos y variables, su ubicación en preview y producción, y tareas de consolas externas como las URLs de callback de auth, pero nunca guarda valores de secretos.
+Para cada release desplegable, `docs/DEPLOYMENT.md` es el handoff del operador. Product Definition lo siembra; Delivery Harness lo reconcilia contra las declaraciones de entorno registradas, el CI y el código de auth/integración antes del push, y luego registra el resultado de despliegue de solo lectura. Cada unidad publicada de forma independiente recibe un nombre de surface en minúsculas: producción usa el nombre canónico `<product-slug>-<surface-suffix>` sin `-prod`, y desarrollo usa ese mismo nombre más `-dev`. Los sufijos normales son `web`, `api` y `extension`; los artifacts nativos y las unidades independientes de admin, worker, jobs, agent, webhook, realtime o CLI usan un sufijo descriptivo propio. El provider y la tienda quedan separados salvo que sus artifacts sean realmente distintos. El registro también lista los nombres exactos de secretos y variables, su ubicación en preview y producción, y tareas de consolas externas como las URLs de callback de auth, pero nunca guarda valores de secretos.
 
 Después de la entrega, `product-activation` crea o reconcilia `docs/ACTIVATION.md`, selecciona los perfiles aplicables de web, iOS o browser-extension, usa la ruta más segura disponible entre connector/API/CLI/Browser/Computer Use y ejecuta solo acciones autorizadas de forma exacta. Las capabilities y la evidencia se ligan al target, entorno, SHA fuente e identidad de artifact/build exactos; el resultado coincidente más nuevo controla el readiness. Registra la configuración separada de la verificación, nunca guarda valores de secretos, mantiene los targets híbridos no soportados fuera de su gate y entrega las fuentes `MS-*` verificadas que coincidan a la revisión de outcome posterior.
 
@@ -452,6 +452,8 @@ Este repositorio está bajo la Licencia MIT — ver [LICENSE](LICENSE).
 ## Historial de versiones
 
 Actualiza esta sección con cada release, como parte del bump de versión y el tag descritos en Releasing arriba.
+
+- **0.31.0** — Estandarizó los nombres de unidades de release entre Product Definition y Deployment. Producción usa el nombre canónico `<product-slug>-<surface-suffix>` sin `-prod`; desarrollo agrega `-dev`, y surfaces distintas no pueden reutilizar un release name. Los sufijos normales son `web`, `api` y `extension`; los artifacts nativos y las unidades publicadas por separado usan sufijos de surface explícitos y mantienen separada la identidad del provider/store. El workflow de Product Definition ahora exige y valida pares `surface_suffix`/`release_name`, `docs/DEPLOYMENT.md` registra cada unidad de release y su checker aplica el mismo contrato de nombres. Es un breaking change para los inputs del workflow y los registros de deployment.
 
 - **0.30.0** — Reemplazó la branch persistente `development` por un flujo main-only permanente. La entrega inicial y los enhancements parten del `main` remoto observado; una candidate branch no default contiene implementación, revisión exact-SHA, tests completos y la verificación aplicable del preview environment aislado antes del fast-forward a `main` con autorización separada. El nombre retirado `development` sigue rechazado como target de RUN y solo puede borrarse tras comprobar ancestry y dependencias. Este release también añade `wireframes/3` interactivo, grading UI multi-agent ligado al PRD de 0–100, refinement loop con umbral 80, checks responsive/layout por elemento, accessibility, consistencia de diseño, distinción creativa, handoffs MCP diferidos de media/motion y compatibilidad de lectura con `wireframes/2`.
 

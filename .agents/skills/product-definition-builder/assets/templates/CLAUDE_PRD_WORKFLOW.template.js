@@ -103,6 +103,8 @@ for (const [index, surface] of workflowArgs.deployable_surfaces.entries()) {
 const releaseTargetFields = [
   "id",
   "surface",
+  "surface_suffix",
+  "release_name",
   "provider",
   "stage",
   "source_policy",
@@ -116,6 +118,8 @@ const releaseTargetFields = [
 ];
 const releaseTargetIds = new Set();
 const releaseStagesBySurface = new Map();
+const releaseNamesBySurface = new Map();
+const releaseNameSurfaces = new Map();
 for (const [index, target] of workflowArgs.release_targets.entries()) {
   if (!target || typeof target !== "object" || Array.isArray(target)) {
     throw new Error(`product-definition-builder-graph requires args.release_targets[${index}] as an object`);
@@ -140,12 +144,51 @@ for (const [index, target] of workflowArgs.release_targets.entries()) {
     releaseStagesBySurface.set(surface, new Set());
   }
   releaseStagesBySurface.get(surface).add(target.stage);
+  const releaseName = target.release_name.trim();
+  const surfaceSuffix = target.surface_suffix.trim();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(surfaceSuffix)) {
+    throw new Error(`product-definition-builder-graph release target ${target.id} surface_suffix must be lowercase kebab case`);
+  }
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(releaseName)) {
+    throw new Error(`product-definition-builder-graph release target ${target.id} release_name must be lowercase kebab case`);
+  }
+  if (target.stage === "production" && releaseName.endsWith("-prod")) {
+    throw new Error(`product-definition-builder-graph production release target ${target.id} must use the canonical surface name without -prod`);
+  }
+  if (target.stage === "development" && !releaseName.endsWith("-dev")) {
+    throw new Error(`product-definition-builder-graph development release target ${target.id} must end release_name with -dev`);
+  }
+  const canonicalReleaseName = target.stage === "development" ? releaseName.slice(0, -4) : releaseName;
+  if (!canonicalReleaseName.endsWith(`-${surfaceSuffix}`)) {
+    throw new Error(`product-definition-builder-graph release target ${target.id} canonical release_name must end with surface_suffix ${surfaceSuffix}`);
+  }
+  const priorSurface = releaseNameSurfaces.get(releaseName);
+  if (priorSurface && priorSurface !== surface) {
+    throw new Error(`product-definition-builder-graph release_name ${releaseName} is reused across surfaces ${priorSurface} and ${surface}`);
+  }
+  releaseNameSurfaces.set(releaseName, surface);
+  if (!releaseNamesBySurface.has(surface)) {
+    releaseNamesBySurface.set(surface, { development: new Set(), production: new Set() });
+  }
+  releaseNamesBySurface.get(surface)[target.stage].add(releaseName);
 }
 if (workflowArgs.deployable) {
   for (const surface of deployableSurfaces) {
     const stages = releaseStagesBySurface.get(surface) || new Set();
     if (!stages.has("development") || !stages.has("production")) {
       throw new Error(`product-definition-builder-graph requires development and production release targets for expected surface ${surface}`);
+    }
+    const names = releaseNamesBySurface.get(surface);
+    for (const productionName of names.production) {
+      if (!names.development.has(`${productionName}-dev`)) {
+        throw new Error(`product-definition-builder-graph surface ${surface} requires development release_name ${productionName}-dev for production release_name ${productionName}`);
+      }
+    }
+    for (const developmentName of names.development) {
+      const productionName = developmentName.slice(0, -4);
+      if (!names.production.has(productionName)) {
+        throw new Error(`product-definition-builder-graph surface ${surface} development release_name ${developmentName} has no matching production release_name ${productionName}`);
+      }
     }
   }
 }
@@ -261,7 +304,7 @@ const roles = [
   },
   {
     key: "architecture",
-    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs. Keep surface identity separate from each stage's provider and name the exact branch or ref. Under the standard main-only branch contract, development releases build from the exact candidate run branch/ref and production builds from remote main after separately authorized fast-forward of that verified SHA. Initial delivery and enhancements both start from observed remote main. Close artifact/signing, channel, release gates, availability, rollout, and rollback or forward-fix. Upload or submission is not availability. Only when hosted_deployable is true, build environment details from the resolved platform and stage providers; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
+    task: "Define implementation-ready components, data, APIs, integrations, auth, security, deployment, observability, scaling, failure handling, and stable ARCH trace IDs without inventing product scope. Cover every supplied deployable surface and preserve the supplied stable release target IDs, surface suffixes, and release names. Keep surface identity separate from each stage's provider and name the exact branch or ref. Production uses the supplied canonical product-and-surface release name without -prod; development uses that exact name plus -dev. Under the standard main-only branch contract, development releases build from the exact candidate run branch/ref and production builds from remote main after separately authorized fast-forward of that verified SHA. Initial delivery and enhancements both start from observed remote main. Close artifact/signing, channel, release gates, availability, rollout, and rollback or forward-fix. Upload or submission is not availability. Only when hosted_deployable is true, build environment details from the resolved platform and stage providers; never substitute or invent a platform or provider, and never force native targets into the hosted two-row environment table.",
   },
 ];
 if (workflowArgs.browser_frontend || workflowArgs.mobile_desktop_platform) {
@@ -308,7 +351,7 @@ const lanes = rawLanes.map((result, index) => (
 phase("Synthesize");
 const draft = await agent(
   "You are the synthesis role in a PRD org graph. Reconcile the role results into complete Markdown bodies for PRD.md, architecture.md, and stack-decisions.md, plus implementation-plan.md only when requested. PRD.md always records explicit Monetization Infrastructure and Partner Channel gate results; pricing never automatically selects RevenueCat, and affiliate, referral, and reseller remain distinct. Applicable architecture and stack decisions keep store/billing, entitlement, paywall/checkout, merchant-of-record/tax, and partner operations separate. For a UI-bearing product, PRD.md must include the complete UI surface contract, exactly one `responsive` anchor per UI-* entry, and the Wireframe Approval record. Also return wireframes_html_data_json as a valid JSON string using schema wireframes/3 with the same global viewports or sizeClasses, canvasWidths, and complete screens, regions, states, neverDrop lists, and per-target responsiveLayouts required by WIREFRAMES.template.html. Every visible region action must match exactly one flow with presentation page, overlay, or feedback; page and overlay target another UI-* screen in the file. When the frozen owner answers already decide a media or motion treatment, include mediaIntent with treatment, a dedicated draftPrompt, the owner decision source, and generationStatus deferred; never generate media. The parent embeds the data into the supplied self-contained HTML shell and verifies it against PRD.md. Return the HTML data field as null only when ui_bearing is false. Do not create design-system artifacts or start visual design; the parent presents wireframes.html for human approval and stops unless the owner explicitly asks to continue. " +
-    "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface and name the exact branch or ref. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
+    "Preserve stable PRD, ARCH, UI, UX, TEST, surface, and release target IDs; do not hide conflicts or failed lanes; do not claim publication or visual/user validation. Keep Non-Functional Requirements after Functional Requirements and Test Obligations after Open Questions in PRD.md. Map every Must functional requirement and every applicable NFR to at least one required TEST row. If implementation-plan.md is requested, reuse those TEST IDs rather than creating anonymous replacements. Write provider-neutral release-target blocks for every expected surface, preserve each supplied surface_suffix and release_name, and name the exact branch or ref. Production has the canonical surface name without -prod; development has that exact name plus -dev. Keep surface separate from provider. Use the exact candidate run branch/ref for the internally tested development release and main for production after same-SHA fast-forward, recording the shared remote-main base rule and separate promotion authorization/read-back. Do not treat upload/submission as availability or force native distribution into the hosted environment table; native recovery may require a signed forward-fix. " +
     "Follow the output contract's \"How To Read This Package\": open each document with human-readable content and close it with the ID matrices and decision records, respect the per-file length budget, and keep every table at seven columns or fewer, except the mandated hosted environment contract in architecture.md, whose columns are all release-critical. " +
     `Frozen task context: ${sourceContext}\n\nRole results: ${JSON.stringify(lanes)}`,
   { label: "prd:synthesis", phase: "Synthesize", schema: draftSchema },
@@ -324,7 +367,7 @@ const reviewers = [
   },
   {
     key: "consistency-verifier",
-    task: "Check the complete draft package for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify both monetization and partner-channel gates are explicit; no pricing decision silently selects RevenueCat; affiliate, referral, and reseller are distinct; and provider claims cite current official sources. For UI products, verify wireframes/3 JSON maps every PRD UI-* entry, responsive set, state, never-drop region, working action flow, deferred media intent, and per-target layout without implementation code. Verify every expected surface has stable development and production targets. Confirm development builds from the exact candidate run branch/ref, production from remote main only after internal exact-SHA PASS and separately authorized fast-forward, and both initial and enhancement runs start from observed remote main. Reject missing surfaces, upload as availability, or invalid native rollback claims.",
+    task: "Check the complete draft package for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify both monetization and partner-channel gates are explicit; no pricing decision silently selects RevenueCat; affiliate, referral, and reseller are distinct; and provider claims cite current official sources. For UI products, verify wireframes/3 JSON maps every PRD UI-* entry, responsive set, state, never-drop region, working action flow, deferred media intent, and per-target layout without implementation code. Verify every expected surface has stable development and production targets whose release names match the supplied canonical production name and exact -dev development pair, with no release name reused across surface IDs. Confirm development builds from the exact candidate run branch/ref, production from remote main only after internal exact-SHA PASS and separately authorized fast-forward, and both initial and enhancement runs start from observed remote main. Reject missing surfaces, upload as availability, or invalid native rollback claims.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {

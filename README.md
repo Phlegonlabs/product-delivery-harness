@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.30.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.31.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -211,7 +211,7 @@ flowchart TB
 
 Wireframe Approval and the merge to `main` remain human gates. The delivery execution loop stays inside PLAN/RUN; post-delivery Activation starts only after RUN close and applies its own exact external-action approvals.
 
-For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. It lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
+For every deployable release, `docs/DEPLOYMENT.md` is the operator handoff. Product Definition seeds it; Delivery Harness reconciles it against tracked environment declarations, CI, and auth/integration code before the push, then records the read-only deployment result afterward. Each independently released unit gets a lowercase surface name: production uses canonical `<product-slug>-<surface-suffix>` with no `-prod`, while development uses that exact name plus `-dev`. The normal suffixes are `web`, `api`, and `extension`; native artifacts and separately released admin, worker, job, agent, webhook, realtime, or CLI units use their own descriptive suffix. Provider and store names stay separate unless their artifacts actually differ. The record also lists exact secret and variable names, their preview and production placement, and external-console tasks such as auth callback URLs, but never stores secret values.
 
 After delivery, `product-activation` creates or reconciles `docs/ACTIVATION.md`, selects the applicable web, iOS, or browser-extension profiles, uses the safest available connector/API/CLI/Browser/Computer Use route, and performs only exact authorized actions. Capabilities and evidence bind to the exact target, environment, source SHA, and artifact/build identity; the newest matching result controls readiness. It records configuration separately from verification, never stores secret values, keeps unsupported hybrid targets outside its gate, and hands matching verified `MS-*` sources to the later outcome review.
 
@@ -453,6 +453,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.31.0** — Standardized release-unit naming across Product Definition and Deployment. Production uses the canonical `<product-slug>-<surface-suffix>` name without `-prod`; development adds `-dev`, and distinct surfaces cannot reuse one release name. The normal suffixes are `web`, `api`, and `extension`, while native artifacts and separately released units use explicit surface suffixes and keep provider/store identity separate. The Product Definition workflow now requires and validates `surface_suffix`/`release_name` pairs, `docs/DEPLOYMENT.md` records every release unit, and its checker enforces the same naming contract. This is a breaking change for workflow inputs and deployment records.
 
 - **0.30.0** — Replaced the persistent `development` branch with a permanent main-only flow. Initial delivery and enhancements both start from observed remote `main`; a non-default candidate branch carries implementation, exact-SHA review, complete tests, and any isolated preview-environment verification before separately authorized fast-forward promotion to `main`. The retired `development` name remains refused as a RUN target and can be deleted only after ancestry and dependency checks. This release also adds interactive `wireframes/3`, PRD-bound multi-agent UI grading from 0–100, the 80-point refinement loop, element-level responsive/layout checks, accessibility, design consistency, creative distinction, deferred MCP media/motion handoffs, and backward read compatibility for `wireframes/2`.
 

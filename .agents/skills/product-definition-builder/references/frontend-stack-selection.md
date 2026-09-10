@@ -88,7 +88,7 @@ Verify these rules against current official documentation on the date the PRD is
 3. Use React + Vite for an interaction-heavy SPA when client rendering is intentional. Define SPA asset fallback and the Worker API/auth boundary.
 4. Use Astro + React islands when most pages are content-led and only named regions need hydration.
 5. If SSR or full-stack React conventions are needed, select a framework that current Cloudflare docs support rather than assuming a build tool supplies routing, data loading, caching, or server behavior.
-6. For Worker-backed apps, document the `compatibility_date`, runtime compatibility flags, bindings, secrets, asset routing, local preview path, and build environment requirements. Every stateful binding class gets separately created production and preview resources, recorded as two ID sets in the deployment record's Resource Isolation table.
+6. For Worker-backed apps, document the `compatibility_date`, runtime compatibility flags, bindings, secrets, asset routing, local preview path, and build environment requirements. Every stateful binding class gets separately created production and development resources, recorded as two ID sets in the deployment record's Resource Isolation table; the development resource name derives from its canonical production resource name plus `-dev`.
 7. If authentication or middleware must run before protected assets, explicitly verify asset routing/order; never assume frontend route guards provide authorization.
 8. Use one codebase with separately named development and production Workers, following the Any Platform promotion rule above.
 9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker.

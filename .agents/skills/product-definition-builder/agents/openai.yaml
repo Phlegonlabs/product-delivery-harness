@@ -53,7 +53,10 @@ interface:
     row with upstream trace IDs and an observable expected signal. For every
     deployable web, API, mobile, desktop, or browser-extension surface, record a complete stable
     surface inventory and provider-neutral development and production release
-    targets, including exact source ref, artifact, signing, channel, release
+    targets. Give production the canonical `<product-slug>-<surface-suffix>`
+    release name with no -prod suffix, and give development that exact name
+    plus -dev. Include
+    exact source ref, artifact, signing, channel, release
     path, availability signal, rollout, and rollback or forward-fix. Upload,
     submission, or approval is not availability; production availability needs
     a serving or installable result, and native recovery may require a signed
