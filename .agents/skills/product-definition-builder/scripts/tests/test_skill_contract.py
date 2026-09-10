@@ -1946,6 +1946,7 @@ async function agent(_prompt, options) {
             ("AQ-GUIDANCE-CONTROL", "builder", "Guidance versus expert control"),
             ("AQ-INFORMATION-DENSITY", "builder", "Information density"),
             ("AQ-LAYOUT-PATTERN", "builder", "Layout and interaction pattern"),
+            ("AQ-MOTION-DIRECTION", "builder", "Motion direction and decision authority"),
             ("AQ-DEPLOYMENT-PLATFORM", "final", "Deployment platform"),
             ("AQ-MOBILE-PLATFORM", "final", "Mobile platform"),
             ("AQ-DESKTOP-PLATFORM", "final", "Desktop platform"),
@@ -2302,7 +2303,7 @@ async function agent(_prompt, options) {
             "Every visible product control responds",
             "opens the documented modal, drawer, or other overlay",
             "never calls a live backend, account, credential, identity provider, image generator, or animation generator",
-            "Do not generate, embed, or claim image or animation output",
+            "Do not generate, embed, or claim generated image or animation output",
         ):
             self.assertIn(marker, guide)
         for forbidden in (
@@ -2335,17 +2336,24 @@ async function agent(_prompt, options) {
             "Capability does not grant permission",
             "multi-agent capability unavailable",
             "matching current RUN `spawn_subagents` grant",
-            "Default to three fresh sibling graders",
+            "one complete diagnostic wave",
+            "Default to one fresh lead grader",
+            "at most two fresh specialist sibling graders",
             "integer score from `0` to `100`",
             "`80–100 — pass`",
+            "`60–79 — advisory`",
             "`0–59 — block`",
+            "wireframe overall score",
             "overall score is at least `80`",
+            "high-fidelity overall score",
+            "overall score is at least `90`",
+            "each score at least `90`",
             "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
             "Any such failure on required content is a `block`",
             "`W1 PRD conformance`",
             "`W5 Structural slop`",
             "`H3 Interaction wiring`",
-            "`H6 Deferred media and motion`",
+            "`H6 Media and motion fit`",
             "`H7 Creative distinction`",
             "`H8 Accessibility`",
             "`H9 Design consistency`",
@@ -2353,13 +2361,18 @@ async function agent(_prompt, options) {
             "no uncaught console error",
             "without duplicate event effects or stale state",
             "run a DOM geometry scan",
+            "With one grader, use its score directly",
             "reconciled numeric value for each dimension is their median score",
             "differ by more than 20 points",
             "mark it `disputed`",
-            "Every below-threshold high-fidelity candidate returns",
-            "repeats the complete Technical Hard Gate",
+            "one consolidated defect ledger",
+            "one repair batch",
+            "one re-review",
+            "stop at `blocked`",
+            "explicit owner decision",
+            "not a new grading or repair round",
+            "new revision cycle",
             "Do not present a below-threshold candidate",
-            "Continue the loop until the candidate passes or the owner stops it",
             "earns no credit by adding unapproved scope",
         ):
             self.assertIn(marker, rubric)
@@ -2368,6 +2381,36 @@ async function agent(_prompt, options) {
         for content in (skill, wireframe, guide):
             self.assertIn("multi-agent browser capability", content)
             self.assertIn("capability is unavailable", content)
+            self.assertIn("one complete diagnostic wave", content)
+            self.assertIn("one repair batch", content)
+            self.assertIn("one re-review", content)
+
+    def test_motion_need_gate_separates_local_ui_motion_from_generated_motion(self) -> None:
+        skill = self.read("SKILL.md")
+        interview = self.read("references/interview-guide.md")
+        wireframe = self.read("references/wireframe-guide.md")
+        guide = self.read("references/ui-design-pass.md")
+        rubric = self.read("references/ui-grading-rubric.md")
+        contract = self.read("references/output-contract.md")
+
+        for content in (skill, interview, guide, rubric, contract):
+            self.assertIn("Motion Need Gate", content)
+            lowered = content.lower()
+            self.assertIn("required", lowered)
+            self.assertIn("recommended", lowered)
+            self.assertIn("not_required", lowered)
+            self.assertIn("blocked", lowered)
+            self.assertIn("reduced-motion", content)
+        self.assertIn("AQ-MOTION-DIRECTION", interview)
+        self.assertIn("let the AI recommend", interview)
+        self.assertIn("## Motion Stage Contract", guide)
+        self.assertIn("PRD discovery records the Motion Need Gate", guide)
+        self.assertIn("Low-fidelity `wireframes.html` shows motion intent as a static annotation only", guide)
+        self.assertIn("Delivery Harness implements the approved motion", guide)
+        self.assertIn("deterministic local CSS or JavaScript", guide)
+        self.assertIn("generationStatus: deferred", guide)
+        self.assertIn("implements no final animation", wireframe)
+        self.assertIn("Functional UI motion evidence:", contract)
 
     def test_wireframe_actions_and_media_handoffs_are_executable_and_validated(self) -> None:
         skill = self.read("SKILL.md")

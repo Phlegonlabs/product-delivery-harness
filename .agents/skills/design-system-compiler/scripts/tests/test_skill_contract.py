@@ -9,6 +9,15 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
+    def test_motion_variants_follow_the_prd_motion_need_gate(self) -> None:
+        skill = self.read("SKILL.md")
+
+        self.assertIn("Motion Need Gate", skill)
+        self.assertIn("`required` or approved `recommended`", skill)
+        self.assertIn("a `not_required` row gets no decorative variant", skill)
+        self.assertIn("a `blocked` row returns upstream", skill)
+        self.assertIn("reduced-motion behavior", skill)
+
     def test_pair_compilation_requires_frontend_design_and_skips_reexploration(self) -> None:
         skill = self.read("SKILL.md")
         directions = self.read("references/visual-direction-guide.md")

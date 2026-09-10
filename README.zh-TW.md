@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.31.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.32.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -37,8 +37,8 @@
 
 - **小型工作維持精簡。** 一個有界變更只走檢查、實作、驗證與審查。
 - **大型工作明確記錄。** PLAN v6 定義 typed graph；RUN v11 記錄授權、嘗試與佐證。
-- **產品定義止於人工關卡。** UI 產品以一份 responsive 低擬真 `wireframes.html` 作結；每個 surface、target、state 與可見 PRD 動作都必須能在本機運作並通過瀏覽器版面檢查，owner 才能核准。Checker 會驗證 page、overlay、feedback flow，以及延後生成的 `mediaIntent` handoff。當 host 具備 multi-agent 瀏覽器能力且 dispatch 已獲授權時，三個 fresh read-only grader 會依凍結的 PRD 為每個維度直接給出 0–100 分；能力不可用時，核准紀錄寫入明確的 skip，瀏覽器、checker 與人工關卡仍照常執行。
-- **視覺目標是可互動的 responsive HTML。** 受要求的視覺階段會產出一份連通的高擬真 HTML reference；每個可見控制項都能換頁、切換 state、開啟已記錄的 overlay 或顯示 feedback。登入、註冊、復原與身分驗證錯誤 preview 在本輪記為 `n/a`。Image 與 motion 位置保留為靜態 placeholder，附專屬 prompt 與 `generationStatus: deferred`；只有後續取得明確授權的 MCP 階段才會呼叫生成工具。Technical Hard Gate 會拒絕 runtime error、意外 request、無法到達的 state 與重複事件效果。依 PRD 執行的條件式 multi-agent 評分要求總分至少 80，`H2` 排版、`H4` responsive 與 `H8` accessibility 也都至少 80，並在每個 target 檢查 element；同時評估產品專屬創意與設計一致性，但不會獎勵新增未核准 scope 或犧牲可用性。低於門檻的 candidate 必須先 refinement，再完整重跑 gate 與評分，不能直接進入人工核准。核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除。
+- **產品定義止於人工關卡。** UI 產品以一份 responsive 低擬真 `wireframes.html` 作結；每個 surface、target、state 與可見 PRD 動作都必須能在本機運作並通過瀏覽器版面檢查，owner 才能核准。Checker 會驗證 page、overlay、feedback flow，以及延後生成的 `mediaIntent` handoff。UI 評分只執行一個完整診斷 wave：預設一位 lead grader；只有 owner 要求或已記錄的高影響風險才可增加最多兩位檢查範圍不重疊的 specialist。Parent 先合併所有發現，再由單一 owner 完成一批修正與一次重驗；第二次仍失敗便回到 PRD 或要求 owner 核准結構性策略，不得展開無上限 round。分數描述視覺品質；明確的契約、行為、版面、state、motion 與 accessibility 義務仍是硬門檻。
+- **視覺目標是可互動的 responsive HTML。** 受要求的視覺階段會產出一份連通的高擬真 HTML reference；每個可見控制項都能換頁、切換 state、開啟已記錄的 overlay 或顯示 feedback。PRD Motion Need Gate 會把每個關鍵 surface 標記為 `required`、`recommended`、`not_required` 或 `blocked`；owner 可自行選擇，也可接受 AI 建議，但會改變 scope 或需要生成服務的 motion 仍由人決定。必要的 functional UI motion 可以在 reference 內以本機方式運作，並提供等價的 reduced-motion 路徑。生成式 image 與 motion 位置保留為靜態 placeholder，附專屬 prompt 與 `generationStatus: deferred`；只有後續取得明確授權的 MCP 階段才會呼叫生成工具。Technical Hard Gate 會拒絕 runtime error、意外 request、無法到達的 state、重複事件效果與必要 motion 失效。高擬真人工關卡要求總分至少 90，`H2` 排版、`H4` responsive 與 `H8` accessibility 也都至少 90；非關鍵的 60–79 分是 advisory，不會觸發追分 round。核可的 references 保留在 `docs/design/ui-references/`，被取代的組合採歸檔而非刪除。
 - **Worker 彼此隔離。** 寫入任務使用獨立 worktree 與有界範圍；parent 會驗證每個回傳的 commit 與 diff。
 - **每個 graph attempt 都可持久追蹤。** 非 mission 節點先保留 attempt，在 RUN lock 外執行檢查或外部動作，再記錄 outcome 與佐證；中斷的非 runtime attempt 也透過同一條結果路徑記為 `blocked`。本機 verifier 只能在 dirty-status 檢查中忽略 tracked RUN；路徑必須解析在 checkout 內，且執行與結果記錄期間都會保護其精確位元組與檔案身分。
 - **Runtime binding 明確可驗證。** `lease-worker` 從選取器 directive 衍生 provider、driver、model、effort 與 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精確目標可直接沿用，新精確目標只能從已啟用的 wildcard 授權 materialize，不會擴大權限。
@@ -453,6 +453,8 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 ## 版本紀錄
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
+
+- **0.32.0** — 把 Product Definition UI 評分限制為一個完整診斷 wave、一份 root-cause ledger、一批修正與一次重驗。預設只用一位 lead grader；最多兩位不重疊的 specialist 必須由 owner 要求或有高影響風險。數字分數只描述視覺品質；PRD 與 Technical Hard Gate 問題仍以二元結果處理，高擬真設計總分以及 `H2`、`H4`、`H8` 都要達到 90，非關鍵的 60–79 分是 advisory，已通過的 candidate 不會為追求 100 分而重做。PRD 新增 Motion Need Gate；高擬真 HTML 可以展示必要的本機 UI motion 與 reduced-motion 路徑，生成式 motion 則維持 deferred，直到另行授權。
 
 - **0.31.0** — 統一 Product Definition 與 Deployment 的發布單元命名。Production 使用不帶 `-prod` 的標準 `<product-slug>-<surface-suffix>` 名稱，development 再加 `-dev`，不同 surface 不得重用同一個 release name。常用後綴為 `web`、`api` 與 `extension`；原生 artifact 與獨立發布單元使用明確的 surface 後綴，並把 provider/store 身分分開記錄。Product Definition workflow 現在要求並驗證 `surface_suffix`／`release_name` 配對，`docs/DEPLOYMENT.md` 會記錄每個發布單元，其 checker 也執行同一命名契約。這是 workflow 輸入與 deployment record 的 breaking change。
 

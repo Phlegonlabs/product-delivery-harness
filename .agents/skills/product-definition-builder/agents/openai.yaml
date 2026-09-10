@@ -12,7 +12,10 @@ interface:
     AskUserQuestion. For a UI-bearing product, ask the human product/design
     decision owner for a Builder UX Direction covering experience priority,
     guidance versus expert control, information density, preferred
-    layout/interaction pattern, confirmation/recovery, and validation depth.
+    layout/interaction pattern, motion direction and decision authority,
+    confirmation/recovery, and validation depth. Record a Motion Need Gate for
+    each key surface as required, recommended, not_required, or blocked, with
+    purpose, trigger, source, and a reduced-motion fallback.
     Mark choices selected, provisional, or assumed, and state that builder
     preference is not usability proof. Freeze product scope, routes, content
     responsibilities, actions, states, trace IDs, brand constraints,
@@ -24,8 +27,11 @@ interface:
     switching pages, opening an accessible overlay, or showing feedback. After
     the first draft, bind the HTML to the exact PRD revision or hash. When the
     host has multi-agent browser capability and dispatch is explicitly
-    authorized, have three fresh read-only graders score it against that PRD;
-    when capability is unavailable, record the skip and continue. Review that
+    authorized, run one complete diagnostic wave with one lead grader by
+    default and at most two justified non-overlapping specialists. Consolidate
+    every finding before one repair batch and one re-review; if that re-review
+    still blocks, stop instead of opening another round. When capability is
+    unavailable, record the skip and continue. Review that
     file in the Wireframe Approval Gate with the human owner and record the
     result in PRD.md. Treat approval as a complete stopping point. Only when the owner explicitly continues into
     visual design, run the UI Design Pass: load $design-taste-frontend, record
@@ -33,11 +39,13 @@ interface:
     excluded product surfaces. Produce one recommended direction by default,
     create one connected interactive high-fidelity HTML, and omit login,
     registration, recovery, and authentication-error preview scenes while
-    retaining production auth requirements in the PRD. Keep image and motion
-    positions as static placeholders with dedicated prompts and
-    generationStatus deferred; do not invoke a generation provider in this
-    pass. Apply the same PRD-bound multi-agent grading rule before human visual
-    approval, and record the immutable page-faithful target in PRD.md. Then run the Design
+    retaining production auth requirements in the PRD. Required functional UI
+    motion may run locally with an equivalent reduced-motion path. Keep
+    generated image and motion positions as static placeholders with dedicated
+    prompts and generationStatus deferred; do not invoke a generation provider
+    in this pass. Apply the same PRD-bound diagnostic and bounded re-review rule before human visual
+    approval; require a high-fidelity overall score of at least 90 and H2,
+    H4, and H8 scores of at least 90, then record the immutable page-faithful target in PRD.md. Then run the Design
     System Need Gate. Use $design-system-compiler only when the gate is
     required; otherwise pass the approved UI target directly to Harness. Stop
     when a required dependency, preview decision, or gate decision is
