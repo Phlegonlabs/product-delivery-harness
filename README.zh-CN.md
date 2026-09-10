@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.31.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.32.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -37,8 +37,8 @@
 
 - **小型工作保持精简。** 一个有界变更只走检查、实现、验证和审查。
 - **大型工作明确记录。** PLAN v6 定义 typed graph；RUN v11 记录授权、尝试和证据。
-- **产品定义止于人工关卡。** UI 产品以一份响应式低保真 `wireframes.html` 收尾；每个 surface、target、state 和可见 PRD 动作都必须能在本地运行并通过浏览器布局检查，owner 才能批准。Checker 会验证 page、overlay、feedback flow 以及延后生成的 `mediaIntent` handoff。当 host 具备 multi-agent 浏览器能力且 dispatch 已获授权时，三个 fresh read-only grader 会按照冻结的 PRD 为每个维度直接给出 0–100 分；能力不可用时，批准记录写入明确的 skip，浏览器、checker 和人工关卡仍照常执行。
-- **视觉目标是可交互的响应式 HTML。** 被要求的视觉阶段会产出一份连通的高保真 HTML reference；每个可见控件都能换页、切换 state、打开已记录的 overlay 或显示 feedback。登录、注册、找回和身份验证错误 preview 在本轮记为 `n/a`。Image 和 motion 位置保留为静态 placeholder，附专属 prompt 与 `generationStatus: deferred`；只有后续获得明确授权的 MCP 阶段才会调用生成工具。Technical Hard Gate 会拒绝 runtime error、意外请求、无法到达的 state 和重复事件效果。以 PRD 为准的条件式 multi-agent 评分要求总分至少 80，`H2` 排版、`H4` responsive 和 `H8` accessibility 也都至少 80，并在每个 target 检查 element；同时评估产品专属创意和设计一致性，但不会奖励新增未批准 scope 或牺牲可用性。低于门槛的 candidate 必须先 refinement，再完整重跑 gate 与评分，不能直接进入人工批准。批准的 references 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除。
+- **产品定义止于人工关卡。** UI 产品以一份响应式低保真 `wireframes.html` 收尾；每个 surface、target、state 和可见 PRD 动作都必须能在本地运行并通过浏览器布局检查，owner 才能批准。Checker 会验证 page、overlay、feedback flow 以及延后生成的 `mediaIntent` handoff。UI 评分只执行一个完整诊断 wave：默认一位 lead grader；只有 owner 要求或已记录的高影响风险才可增加最多两位检查范围不重叠的 specialist。Parent 先合并所有发现，再由单一 owner 完成一批修正与一次重验；第二次仍失败就回到 PRD，或要求 owner 批准结构性策略，不得展开无上限 round。分数描述视觉质量；明确的契约、行为、布局、state、motion 和 accessibility 义务仍是硬门槛。
+- **视觉目标是可交互的响应式 HTML。** 被要求的视觉阶段会产出一份连通的高保真 HTML reference；每个可见控件都能换页、切换 state、打开已记录的 overlay 或显示 feedback。PRD Motion Need Gate 会把每个关键 surface 标记为 `required`、`recommended`、`not_required` 或 `blocked`；owner 可以自行选择，也可以接受 AI 建议，但会改变 scope 或需要生成服务的 motion 仍由人决定。必要的 functional UI motion 可以在 reference 内以本地方式运行，并提供等价的 reduced-motion 路径。生成式 image 和 motion 位置保留为静态 placeholder，附专属 prompt 与 `generationStatus: deferred`；只有后续获得明确授权的 MCP 阶段才会调用生成工具。Technical Hard Gate 会拒绝 runtime error、意外请求、无法到达的 state、重复事件效果和必要 motion 失效。高保真人工关卡要求总分至少 90，`H2` 排版、`H4` responsive 和 `H8` accessibility 也都至少 90；非关键的 60–79 分是 advisory，不会触发追分 round。批准的 references 保留在 `docs/design/ui-references/`，被取代的组合归档而非删除。
 - **工作节点彼此隔离。** 写入任务使用独立工作树和有界范围；父级会验证每个返回的提交和差异。
 - **每个 graph attempt 都可持久追踪。** 非 mission 节点先保留 attempt，在 RUN lock 外执行检查或外部动作，再记录 outcome 与证据；中断的非 runtime attempt 也通过同一结果路径记录为 `blocked`。本地 verifier 只能在 dirty-status 检查中忽略 tracked RUN；路径必须解析在 checkout 内，且执行与结果记录期间都会保护其精确字节和文件身份。
 - **Runtime binding 明确可验证。** `lease-worker` 从选择器 directive 派生 provider、driver、model、effort 和 portable runtime axes；只有 app task 接受 `--task-thread-id`，既有精确目标可直接沿用，新精确目标只能从已启用的 wildcard 授权 materialize，不会扩大权限。
@@ -453,6 +453,8 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 ## 版本历史
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
+
+- **0.32.0** — 把 Product Definition UI 评分限制为一个完整诊断 wave、一份 root-cause ledger、一批修正和一次重验。默认只使用一位 lead grader；最多两位不重叠的 specialist 必须由 owner 要求或有高影响风险。数字分数只描述视觉质量；PRD 和 Technical Hard Gate 问题仍按二元结果处理，高保真设计总分以及 `H2`、`H4`、`H8` 都要达到 90，非关键的 60–79 分是 advisory，已通过的 candidate 不会为了追求 100 分而重做。PRD 新增 Motion Need Gate；高保真 HTML 可以展示必要的本地 UI motion 与 reduced-motion 路径，生成式 motion 则保持 deferred，直到另行授权。
 
 - **0.31.0** — 统一 Product Definition 与 Deployment 的发布单元命名。Production 使用不带 `-prod` 的标准 `<product-slug>-<surface-suffix>` 名称，development 再加 `-dev`，不同 surface 不得重用同一个 release name。常用后缀为 `web`、`api` 和 `extension`；原生 artifact 与独立发布单元使用明确的 surface 后缀，并把 provider/store 身份分开记录。Product Definition workflow 现在要求并验证 `surface_suffix`／`release_name` 配对，`docs/DEPLOYMENT.md` 会记录每个发布单元，其 checker 也执行同一命名契约。这是 workflow 输入与 deployment record 的 breaking change。
 

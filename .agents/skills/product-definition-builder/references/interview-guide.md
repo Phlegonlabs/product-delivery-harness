@@ -7,7 +7,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include 
 Size each `AskUserQuestion` call to the question tool's actual per-call question and option limits. Batch each phase into the minimum number of calls the tool permits, never repeat an answered decision to reshape a call, and use the tool's built-in Other when its option limit cannot show the full candidate list; record that full list in `PRD.md`. There is no host-specific or cross-phase total-call cap. Start the closed-set phase only after the segmented free-text sequence is complete, in this order:
 
 1. The decisions that depend on no other answer: product archetype and validation depth.
-2. For a UI-bearing product, the four closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, and preferred layout/interaction pattern.
+2. For a UI-bearing product, the five closed Builder UX Direction dimensions: experience priority, guidance versus expert control, information density, preferred layout/interaction pattern, and motion direction.
 3. The decisions that depend on the archetype call's answer: deployment platform, the mobile or desktop platform follow-up, monetization model, partner channel, database category, and auth strategy.
 
 This table is the canonical closed-decision inventory and phase order. Each applicable ID is asked exactly once by the matching `(AskUserQuestion)` bullet below. Batch only within one phase; a host with a smaller per-call capacity splits that phase without dropping or moving decisions.
@@ -20,6 +20,7 @@ This table is the canonical closed-decision inventory and phase order. Each appl
 | AQ-GUIDANCE-CONTROL | builder | Guidance versus expert control |
 | AQ-INFORMATION-DENSITY | builder | Information density |
 | AQ-LAYOUT-PATTERN | builder | Layout and interaction pattern |
+| AQ-MOTION-DIRECTION | builder | Motion direction and decision authority |
 | AQ-DEPLOYMENT-PLATFORM | final | Deployment platform |
 | AQ-MOBILE-PLATFORM | final | Mobile platform |
 | AQ-DESKTOP-PLATFORM | final | Desktop platform |
@@ -115,6 +116,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - [AQ-GUIDANCE-CONTROL] Should the experience be guided, balanced, or expert-flexible? (AskUserQuestion)
    - [AQ-INFORMATION-DENSITY] Should the interface be sparse, balanced, or information-dense? (AskUserQuestion)
    - [AQ-LAYOUT-PATTERN] Which primary layout and interaction pattern does the builder prefer, and why does it fit the user's task? (AskUserQuestion)
+   - [AQ-MOTION-DIRECTION] Should the shipped interface stay quiet with only necessary functional feedback, use expressive motion where it improves hierarchy or brand, or let the AI recommend one of those directions from the product evidence? (AskUserQuestion) When the owner delegates the recommendation, the AI records its rationale and per-surface Motion Need Gate; it does not silently authorize generated motion, autoplay or sound, a material performance budget, an accessibility exception, or a new product surface.
    - Which actions require confirmation, undo, recovery, progress feedback, or human intervention? Ask this as free text — it varies too much by action to enumerate.
    - [AQ-VALIDATION-DEPTH] What validation depth does the builder expect: documented assumptions, internal prototype review, testing with likely users, or recurring usability benchmarking? (AskUserQuestion)
    - What screens, dashboards, forms, or notifications are expected?
@@ -122,7 +124,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - Do not ask the user to choose from a fixed catalog of high-fidelity visual styles in this discovery interview. Record known brand references, visual constraints, product-specific goals, and disliked patterns. After the PRD UI surface contract and wireframes are approved and the market-research gap pass is available, the direct UI Design Pass asks what style the owner wants, waits for the answer, checks `design-taste-frontend` applicability, and produces one recommended product-specific direction by default. It produces three comparable directions only when the owner asks for alternatives or a recorded conflict needs comparison. That later gate is a separate decision phase.
    - Are there known design references or brand constraints?
    - Which headings, body copy, labels, CTAs, legal text, and state messages already have approved wording? For the rest, what must each region display or communicate?
-   - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action?
+   - Which regions need a specific style direction or animation, and what should that treatment communicate about hierarchy, meaning, or action? Use the answer to classify each key surface as `required`, `recommended`, `not_required`, or `blocked` in the Motion Need Gate.
    - For a landing page, what single message and primary action belong in the first viewport, and which details can be deferred?
    - Which regions require an image, product media, video, or animation, and what should each help the user understand or do?
 8. Architecture constraints
@@ -163,10 +165,10 @@ Discovery is complete enough to draft when the agent can state:
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy, and the evidence needed to recommend a backend framework, database engine, and auth provider.
 - The monetization model and both the Monetization Infrastructure Gate and Partner Channel Gate, including explicit `not_required` reasons; when applicable, the pricing/offer rules, purchase surfaces, entitlement owner, merchant-of-record/tax owner, partner motion, attribution, commission, payout, and reseller responsibilities needed to recommend current providers.
 - The UI screens or interaction points that need a canonical PRD surface entry.
-- A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
+- A Builder UX Direction Decision naming the human decision owner, experience priority, guidance/control balance, information density, preferred layout/interaction pattern, motion direction and decision authority, recovery expectations, and validation depth. Each decision is `selected`, `provisional`, or `assumed`.
 - Approved or draft exact wording and bounded display responsibilities for visible regions, or permission to derive them.
 - Known brand references, visual hard limits, disliked patterns, and product-specific visual goals, with high-fidelity preference discovery explicitly deferred to the direct UI Design Pass after the PRD UI surface contract and wireframes are approved.
-- Required style and motion intent for visually important regions, or permission to derive it.
+- A Motion Need Gate for every key UI surface: `required`, `recommended`, `not_required`, or `blocked`, with purpose, trigger, decision source, and reduced-motion fallback; when the owner delegates the recommendation, the AI records why without expanding scope or authorizing a generation provider.
 - The success metrics and acceptance criteria.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
 - The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
