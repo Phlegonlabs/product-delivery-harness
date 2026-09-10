@@ -1242,6 +1242,7 @@ async function agent(_prompt, options) {
         interview = self.read("references/interview-guide.md")
         architecture = self.read("references/architecture-playbook.md")
         contract = self.read("references/output-contract.md")
+        workflow = self.read("assets/templates/CLAUDE_PRD_WORKFLOW.template.js")
         agent = self.read_agent_prompt()
 
         self.assertIn("## Provider-Neutral Release Target Pattern", architecture)
@@ -1292,6 +1293,10 @@ async function agent(_prompt, options) {
         self.assertIn("`ios`, `android`, `macos`, or `windows`", architecture)
         self.assertIn("Chrome, Firefox", architecture)
         self.assertIn("public listing title may differ", architecture.lower())
+        for content in (skill, interview, architecture, contract):
+            self.assertIn("release name", content.lower())
+            self.assertIn("surface", content.lower())
+        self.assertIn("releaseNameSurfaces", workflow)
         self.assertIn(
             "Preserve stable release target IDs for unchanged targets", interview
         )
@@ -1424,6 +1429,62 @@ async function agent(_prompt, options) {
 
         self.assertTrue(result["ok"])
         self.assertEqual("candidate_ready", result["status"])
+
+    def test_workflow_rejects_release_name_reuse_across_surfaces(self) -> None:
+        workflow_args = self.base_workflow_args()
+        workflow_args.update(
+            {
+                "product_archetypes": ["hybrid"],
+                "browser_frontend": True,
+                "hosted_deployable": True,
+                "deployment_platform": "Cloudflare",
+                "deployable_surfaces": ["web-app", "marketing-web"],
+                "release_targets": [
+                    self.release_target(
+                        "web-development",
+                        "web-app",
+                        "Cloudflare",
+                        "development",
+                        "exact candidate run branch head",
+                        "fixture-web-dev",
+                    ),
+                    self.release_target(
+                        "web-production",
+                        "web-app",
+                        "Cloudflare",
+                        "production",
+                        "main branch head after candidate PASS",
+                        "fixture-web",
+                    ),
+                    self.release_target(
+                        "marketing-development",
+                        "marketing-web",
+                        "Cloudflare",
+                        "development",
+                        "exact candidate run branch head",
+                        "fixture-web-dev",
+                    ),
+                    self.release_target(
+                        "marketing-production",
+                        "marketing-web",
+                        "Cloudflare",
+                        "production",
+                        "main branch head after candidate PASS",
+                        "fixture-web",
+                    ),
+                ],
+            }
+        )
+        for target in workflow_args["release_targets"]:
+            target["surface_suffix"] = "web"
+
+        result = self.run_workflow(workflow_args)
+
+        self.assertFalse(result["ok"])
+        self.assertIn(
+            "release_name fixture-web-dev is reused across surfaces web-app and marketing-web",
+            result["error"],
+        )
 
     def test_release_sources_name_exact_branch_or_ref(self) -> None:
         interview = self.read("references/interview-guide.md")

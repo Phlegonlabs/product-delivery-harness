@@ -454,7 +454,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
-- **0.31.0** — 统一 Product Definition 与 Deployment 的发布单元命名。Production 使用不带 `-prod` 的标准 `<product-slug>-<surface-suffix>` 名称，development 再加 `-dev`。常用后缀为 `web`、`api` 和 `extension`；原生 artifact 与独立发布单元使用明确的 surface 后缀，并把 provider/store 身份分开记录。Product Definition workflow 现在要求并验证 `surface_suffix`／`release_name` 配对，`docs/DEPLOYMENT.md` 会记录每个发布单元，其 checker 也执行同一命名契约。这是 workflow 输入与 deployment record 的 breaking change。
+- **0.31.0** — 统一 Product Definition 与 Deployment 的发布单元命名。Production 使用不带 `-prod` 的标准 `<product-slug>-<surface-suffix>` 名称，development 再加 `-dev`，不同 surface 不得重用同一个 release name。常用后缀为 `web`、`api` 和 `extension`；原生 artifact 与独立发布单元使用明确的 surface 后缀，并把 provider/store 身份分开记录。Product Definition workflow 现在要求并验证 `surface_suffix`／`release_name` 配对，`docs/DEPLOYMENT.md` 会记录每个发布单元，其 checker 也执行同一命名契约。这是 workflow 输入与 deployment record 的 breaking change。
 
 - **0.30.0** — 以永久 main-only 流程取代持久 `development` branch。第一次交付与后续 enhancement 都从观察到的 remote `main` 开始；非默认 candidate branch 承载实现、exact-SHA review、完整测试与适用的隔离 preview environment 验证，之后才另行授权 fast-forward 到 `main`。退役的 `development` 名称仍会被拒绝作为 RUN target，且只有通过 ancestry 与 dependency 检查后才能删除。本版也加入可交互 `wireframes/3`、PRD-bound 0–100 multi-agent UI 评分、80 分 refinement loop、element-level responsive/layout 检查、accessibility、设计一致性、创意表现、deferred MCP media/motion handoff，以及 `wireframes/2` 向后读取兼容。
 

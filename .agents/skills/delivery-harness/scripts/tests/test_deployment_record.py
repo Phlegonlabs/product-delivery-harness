@@ -214,6 +214,21 @@ class DeploymentRecordTests(unittest.TestCase):
 
         self.assertIn("production release name must end in -web", findings)
 
+    def test_release_unit_names_reject_cross_surface_name_reuse(self) -> None:
+        deployment = GOOD_DEPLOYMENT.replace(
+            "| web-app | web | example-web | example-web-dev | Cloudflare Workers |",
+            "| web-app | web | example-web | example-web-dev | Cloudflare Workers |\n"
+            "| marketing-web | web | example-web | example-web-dev | Cloudflare Pages |",
+            1,
+        )
+
+        findings = "\n".join(check_deployment.check_deployment_text(deployment))
+
+        self.assertIn(
+            "release name 'example-web' is reused by surfaces 'web-app' and 'marketing-web'",
+            findings,
+        )
+
     def test_secret_value_column_fails(self) -> None:
         deployment = GOOD_DEPLOYMENT.replace(
             "| Name | Kind | Consumer | Preview placement | Production placement | Source / owner | Status |",

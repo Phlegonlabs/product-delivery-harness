@@ -278,6 +278,7 @@ def check_deployment_text(text: str) -> list[str]:
         text, "## Release Unit Names", RELEASE_UNIT_HEADERS
     )
     findings.extend(release_findings)
+    release_name_surfaces: dict[str, str] = {}
     for row in release_rows:
         surface, suffix, production_name, development_name, provider = row
         if surface.casefold() in {"none", "n/a"}:
@@ -309,6 +310,17 @@ def check_deployment_text(text: str) -> list[str]:
             findings.append(
                 f"Release Unit Names: {surface} development release name must equal {production_name}-dev"
             )
+        for release_name in (production_name, development_name):
+            normalized_name = release_name.casefold()
+            if normalized_name in ABSENT_VALUES:
+                continue
+            prior_surface = release_name_surfaces.get(normalized_name)
+            if prior_surface is not None and prior_surface.casefold() != surface.casefold():
+                findings.append(
+                    f"Release Unit Names: release name {release_name!r} is reused by surfaces {prior_surface!r} and {surface!r}"
+                )
+            else:
+                release_name_surfaces[normalized_name] = surface
 
     secret_findings, secret_rows = check_handoff_table(
         text, "## Required Secrets and Variables", SECRET_HEADERS

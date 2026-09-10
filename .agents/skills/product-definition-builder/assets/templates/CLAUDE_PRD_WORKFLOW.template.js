@@ -119,6 +119,7 @@ const releaseTargetFields = [
 const releaseTargetIds = new Set();
 const releaseStagesBySurface = new Map();
 const releaseNamesBySurface = new Map();
+const releaseNameSurfaces = new Map();
 for (const [index, target] of workflowArgs.release_targets.entries()) {
   if (!target || typeof target !== "object" || Array.isArray(target)) {
     throw new Error(`product-definition-builder-graph requires args.release_targets[${index}] as an object`);
@@ -161,6 +162,11 @@ for (const [index, target] of workflowArgs.release_targets.entries()) {
   if (!canonicalReleaseName.endsWith(`-${surfaceSuffix}`)) {
     throw new Error(`product-definition-builder-graph release target ${target.id} canonical release_name must end with surface_suffix ${surfaceSuffix}`);
   }
+  const priorSurface = releaseNameSurfaces.get(releaseName);
+  if (priorSurface && priorSurface !== surface) {
+    throw new Error(`product-definition-builder-graph release_name ${releaseName} is reused across surfaces ${priorSurface} and ${surface}`);
+  }
+  releaseNameSurfaces.set(releaseName, surface);
   if (!releaseNamesBySurface.has(surface)) {
     releaseNamesBySurface.set(surface, { development: new Set(), production: new Set() });
   }
@@ -361,7 +367,7 @@ const reviewers = [
   },
   {
     key: "consistency-verifier",
-    task: "Check the complete draft package for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify both monetization and partner-channel gates are explicit; no pricing decision silently selects RevenueCat; affiliate, referral, and reseller are distinct; and provider claims cite current official sources. For UI products, verify wireframes/3 JSON maps every PRD UI-* entry, responsive set, state, never-drop region, working action flow, deferred media intent, and per-target layout without implementation code. Verify every expected surface has stable development and production targets whose release names match the supplied canonical production name and exact -dev development pair. Confirm development builds from the exact candidate run branch/ref, production from remote main only after internal exact-SHA PASS and separately authorized fast-forward, and both initial and enhancement runs start from observed remote main. Reject missing surfaces, upload as availability, or invalid native rollback claims.",
+    task: "Check the complete draft package for contradictory scope, unsupported claims, missing states, hidden assumptions, and invalid implementation or usability claims. Verify both monetization and partner-channel gates are explicit; no pricing decision silently selects RevenueCat; affiliate, referral, and reseller are distinct; and provider claims cite current official sources. For UI products, verify wireframes/3 JSON maps every PRD UI-* entry, responsive set, state, never-drop region, working action flow, deferred media intent, and per-target layout without implementation code. Verify every expected surface has stable development and production targets whose release names match the supplied canonical production name and exact -dev development pair, with no release name reused across surface IDs. Confirm development builds from the exact candidate run branch/ref, production from remote main only after internal exact-SHA PASS and separately authorized fast-forward, and both initial and enhancement runs start from observed remote main. Reject missing surfaces, upload as availability, or invalid native rollback claims.",
   },
 ];
 if (workflowArgs.has_public_marketing_content) {

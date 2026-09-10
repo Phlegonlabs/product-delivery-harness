@@ -16,7 +16,7 @@ The deployment record for this repository: the platform model, the exact configu
 
 ## Release Unit Names
 
-Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Chrome, Firefox, stores, and hosting vendors stay in Provider / channel unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names.
+Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`; no release name may appear under two different surfaces. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Chrome, Firefox, stores, and hosting vendors stay in Provider / channel unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, or `windows`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names.
 
 | Surface | Surface suffix | Production release name | Development release name | Provider / channel |
 | --- | --- | --- | --- | --- |
