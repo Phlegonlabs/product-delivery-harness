@@ -123,6 +123,8 @@ A managed-sequential route is selected when fewer than two safe write missions a
       {"id": "final-closeout", "status": "planned", "head_sha": null, "evidence": []}
     ],
     "ui_evidence": [],
+    "deviation_ledger": [],
+    "ui_impact_summary": [],
     "landing": {
       "mode": "local_only",
       "remote": "origin",

@@ -243,6 +243,8 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
         "batch_gate_results": _gate_results(plan.get("batch_verifiers")),
         "final_gate_results": _gate_results(plan.get("final_gates")),
         "ui_evidence": [],
+        "deviation_ledger": [],
+        "ui_impact_summary": [],
         "landing": {
             "mode": "local_only",
             "remote": "origin",

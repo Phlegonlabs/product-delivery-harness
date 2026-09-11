@@ -99,7 +99,7 @@ Builder approval proves direction conformance only. Use `UNVALIDATED` when only 
 
 ## Deviation Ledger
 
-Every accepted parity deviation from the Final Visual Parity Loop lands here with the allowed-deviation clause that admits it. A difference that changes structure, regions, states, actions, routes, or responsive behavior is never a tolerance deviation; route it upstream as a design-input delta. A repeated deviation on the same surface must cite its frozen design-input delta.
+The RUN's `deviation_ledger` structure is authoritative and machine-checked on runs pinned to harness 0.35.0 or later; this table mirrors it for scanning. Every accepted parity deviation from the Final Visual Parity Loop appears here with the allowed-deviation clause that admits it. A difference that changes structure, regions, states, actions, routes, or responsive behavior is never a tolerance deviation; route it upstream as a design-input delta. A repeated deviation on the same surface must cite its frozen design-input delta.
 
 | Surface / route | Breakpoint / state | Difference | Allowed-deviation citation | Run | Accepted by | Status |
 |---|---|---|---|---|---|---|

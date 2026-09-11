@@ -586,11 +586,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "never integrate a structural change ahead of its doc delta", contract
         )
-        self.assertIn("deviation ledger", gates)
+        self.assertIn("RUN `deviation_ledger`", gates)
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
         )
-        self.assertIn("The deviation ledger is complete", gates)
+        self.assertIn("The RUN `deviation_ledger` is complete", gates)
         self.assertIn("classify the completed change's UI impact", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)

@@ -107,6 +107,7 @@ from harness_graph import (
 )
 from harness_ui_evidence import (
     _validate_ui_evidence,
+    validate_deviation_ledger,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
     validate_ui_surface_design_coverage,
@@ -4234,6 +4235,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         optional_run_keys.add("runtime_metrics")
     if schema_version == 11:
         optional_run_keys.add("run_lock")
+    if schema_version in {9, 10, 11}:
+        optional_run_keys.update({"deviation_ledger", "ui_impact_summary"})
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     security_runtime = run.get("runtime_capabilities")
@@ -6131,6 +6134,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             label="final gate",
         )
         _validate_ui_evidence(errors, plan, run)
+        errors.extend(validate_deviation_ledger(run))
 
     if schema_version in {8, 9, 10, 11} and run.get("status") == "complete":
         if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:

@@ -450,6 +450,115 @@ class LayoutCheckSchemaTests(unittest.TestCase):
         self.assertEqual(self.validate(self.row(), harness_version=None), [])
 
 
+class DeviationLedgerTests(unittest.TestCase):
+    @staticmethod
+    def run_payload(
+        *,
+        harness_version: str | None,
+        ledger: object = ...,
+        differences: list[str] | None = None,
+    ) -> dict[str, object]:
+        comparison: dict[str, object] = {
+            "baseline": "design_system",
+            "baseline_artifact": "check_ui_contract:clean-run",
+            "verdict": "deviation" if differences else "pass",
+        }
+        if differences:
+            comparison["differences"] = differences
+        run: dict[str, object] = {
+            "schema_version": 11,
+            "status": "complete",
+            "ui_evidence": [
+                {
+                    "surface_id": "home",
+                    "route": "/home",
+                    "breakpoint": "mobile-390",
+                    "state": "ready",
+                    "artifact_path": "docs/goal/evidence/home-mobile-390-ready.png",
+                    "artifact_sha256": "a" * 64,
+                    "head_sha": "b" * 40,
+                    "status": "PASS",
+                    "layout_check": "pass",
+                    "target_comparison": comparison,
+                }
+            ],
+        }
+        if ledger is not ...:
+            run["deviation_ledger"] = ledger
+        if harness_version is not None:
+            run["runtime_capabilities"] = {
+                "runtime_adapter": {
+                    "version_gate": {
+                        "required_harness_version": harness_version
+                    }
+                }
+            }
+        return run
+
+    @staticmethod
+    def ledger_row(difference: str = "link underline differs") -> dict[str, object]:
+        return {
+            "surface_id": "home",
+            "route": "/home",
+            "breakpoint": "mobile-390",
+            "state": "ready",
+            "difference": difference,
+            "citation": "UI Design Handoff allowed deviations: underline weight",
+        }
+
+    def validate(self, run: dict[str, object]) -> list[str]:
+        return subject.validate_deviation_ledger(run)
+
+    def test_gated_deviation_requires_a_matching_cited_ledger_row(self) -> None:
+        run = self.run_payload(
+            harness_version="0.35.0",
+            differences=["link underline differs"],
+        )
+        errors = self.validate(run)
+        self.assertTrue(
+            any("require a deviation ledger" in error for error in errors), errors
+        )
+
+        run["deviation_ledger"] = [self.ledger_row()]
+        self.assertEqual(self.validate(run), [])
+
+    def test_gated_ledger_row_without_a_deviation_is_rejected(self) -> None:
+        run = self.run_payload(
+            harness_version="0.35.0",
+            ledger=[self.ledger_row("difference nobody observed")],
+        )
+        errors = self.validate(run)
+        self.assertTrue(
+            any("no matching deviation verdict" in error for error in errors),
+            errors,
+        )
+
+    def test_missing_citation_is_rejected(self) -> None:
+        row = self.ledger_row()
+        row["citation"] = ""
+        run = self.run_payload(
+            harness_version="0.35.0",
+            differences=["link underline differs"],
+            ledger=[row],
+        )
+        errors = self.validate(run)
+        self.assertTrue(
+            any("citation" in error for error in errors), errors
+        )
+
+    def test_older_harness_version_and_no_gate_stay_exempt(self) -> None:
+        for version in ("0.34.0", None):
+            run = self.run_payload(
+                harness_version=version,
+                differences=["link underline differs"],
+            )
+            self.assertEqual(self.validate(run), [])
+
+    def test_no_deviations_needs_no_ledger(self) -> None:
+        run = self.run_payload(harness_version="0.35.0")
+        self.assertEqual(self.validate(run), [])
+
+
 class TargetComparisonArtifactTests(unittest.TestCase):
     @staticmethod
     def git(root: Path, *args: str) -> str:
