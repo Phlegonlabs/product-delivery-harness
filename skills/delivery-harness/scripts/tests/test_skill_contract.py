@@ -600,6 +600,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "returns through `product-definition-builder` as a design-input delta",
             updates,
         )
+        self.assertIn(
+            "Motion is a design decision, not an implementation preference", contract
+        )
+        self.assertIn("Static screenshots never close a motion change", gates)
 
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")
