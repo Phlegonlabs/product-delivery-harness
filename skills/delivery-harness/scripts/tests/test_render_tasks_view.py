@@ -200,6 +200,114 @@ class RenderTasksViewTests(unittest.TestCase):
         )
         self.assertEqual(first, out.read_text(encoding="utf-8"))
 
+    def test_fresh_render_carries_the_update_log_scaffold(self) -> None:
+        run_path = self.generate_run()
+        out = self.dir / "tasks.md"
+
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("## Update Log", text)
+        self.assertIn(render_tasks_view.UPDATE_LOG_START, text)
+        self.assertIn(render_tasks_view.UPDATE_LOG_END, text)
+
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out), "--check"]
+            ),
+        )
+
+    def test_update_log_rows_survive_re_render_verbatim(self) -> None:
+        run_path = self.generate_run()
+        out = self.dir / "tasks.md"
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        row = "- 2026-09-11 · owner · tightened dashboard copy · rationale: review"
+        text = out.read_text(encoding="utf-8")
+        marked = text.replace(
+            render_tasks_view.UPDATE_LOG_START,
+            render_tasks_view.UPDATE_LOG_START + "\n" + row,
+            1,
+        )
+        out.write_text(marked, encoding="utf-8")
+
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        self.assertIn(row, out.read_text(encoding="utf-8"))
+
+    def test_check_ignores_log_edits_but_flags_generated_drift(self) -> None:
+        run_path = self.generate_run()
+        out = self.dir / "tasks.md"
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        text = out.read_text(encoding="utf-8")
+        edited = text.replace(
+            render_tasks_view.UPDATE_LOG_END,
+            "- 2026-09-11 · agent · small fix outside missions\n"
+            + render_tasks_view.UPDATE_LOG_END,
+            1,
+        )
+        out.write_text(edited, encoding="utf-8")
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out), "--check"]
+            ),
+        )
+
+        out.write_text(
+            edited.replace("0/1 missions integrated", "9/1 missions integrated", 1),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            1,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out), "--check"]
+            ),
+        )
+
+    def test_markerless_generated_file_is_migrated_not_refused(self) -> None:
+        run_path = self.generate_run()
+        out = self.dir / "tasks.md"
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        from harness_manifest import load_plan, load_run
+
+        legacy = render_tasks_view.build_view(
+            load_plan(PLAN_TEMPLATE), load_run(run_path)
+        )
+        out.write_text(legacy, encoding="utf-8")
+
+        self.assertEqual(
+            0,
+            render_tasks_view.main(
+                ["--plan", str(PLAN_TEMPLATE), "--run", str(run_path), "--out", str(out)]
+            ),
+        )
+        migrated = out.read_text(encoding="utf-8")
+        self.assertIn(render_tasks_view.UPDATE_LOG_START, migrated)
+
     def test_main_refuses_to_overwrite_a_foreign_file(self) -> None:
         run_path = self.generate_run()
         out = self.dir / "tasks.md"

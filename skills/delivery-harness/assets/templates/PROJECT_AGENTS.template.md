@@ -8,6 +8,12 @@ This file is ready-to-use shared repository guidance. Resolve the repository's r
 - Keep runtime-specific worker roles, model selection, subagent behavior, and launch flags in the Product Delivery Harness runtime adapter reference (`delivery-harness/references/runtime-adapters.md`, the section for the detected host). Never copy Codex, Claude Code, or Pi mechanics into another runtime's worker.
 - Rules under **Managed Product Delivery Harness Runs** apply only after the Harness routes work into PLAN/RUN. Small direct work follows the shared principles, Git safety, and verification rules without creating Harness state, missions, workers, or worktrees unless the repository or user requires them.
 
+## Required Reading
+
+- Before any managed Product Delivery Harness work, the session reads this file's **Managed Product Delivery Harness Runs** rules and the `delivery-harness` SKILL.md bound in the Skill Bindings table; the binding's pinned SHA-256 is verified by `delivery-harness/scripts/check_skill_bindings.py`.
+- Before any product-affecting direct work, the session reads the affected sections of `docs/product/PRD.md` plus every document `docs/DOCUMENTS.md` names for that scope (wireframes, design pair, architecture). A named source that does not exist yet is reported, not skipped.
+- Skipping this reading is a blocking review finding: a change built on unread contracts is not a completed change.
+
 ## Skill Bindings
 
 The delivery flow binds stage slots, not fixed skill names. This table binds the project's installed skills to those slots; updating it to adopt a new skill is a project edit, not a harness change, and a bound skill inherits the same modes, frozen sources, and review gates as the default.
@@ -136,6 +142,7 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - With matching `integrate_locally` authorization, merge only reviewed worktree heads into the resolved integration branch.
 - After serial integration, use fresh read-only reviewers on the exact unified integration SHA, then run one broad final validation on the fixed candidate SHA.
 - The RUN defaults to verified local completion; only explicit remote intent pushes the verified integration head to its run branch. Post-RUN `main` promotion follows the separate branch-promotion contract and never inherits the RUN grant.
+- After a completed plan and before its archival, record every owner or agent update not already reflected in `docs/product/PRD.md` as one dated row in the `docs/tasks.md` Update Log — the fenced section the renderer preserves verbatim; product-affecting updates also follow Keep Product Contracts Current into the PRD in the same change.
 - When the owner declares the goal complete and its run has passed the Closeout Bar, archive the finished plan runtime with `scripts/archive_run.py`: it moves `docs/goal/PLAN.md`, `RUN.md`, `DECISIONS.md`, `REFINEMENT_BACKLOG.md`, the `evidence/` directory, and the rendered `docs/tasks.md` into `docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/` and records the row in `docs/DOCUMENTS.md` (`contract-and-traceability.md`). Archival runs on the owner's completion instruction after its dry-run move list is approved; it never deletes and never moves anything under `docs/product/`. The archival commit rides the run branch and reaches `main` through the same promotion path. A later plan starts only after the completed set is archived, never by overwriting it.
 - Later enhancement work cuts a fresh run branch from the current observed remote `main` head after the prior promotion state is resolved.
 
@@ -171,4 +178,4 @@ Verified: <command or action> (<pass signal>)
 
 ## Review Guidelines
 
-Treat authorization bypasses, direct edits or commits on protected branches, unverified or non-fast-forward promotion, stale review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.
+Treat authorization bypasses, direct edits or commits on protected branches, unverified or non-fast-forward promotion, stale review SHAs, data loss, scope escapes, missing behavior verification, and work that skipped the Required Reading rules as blocking findings. Do not report style preferences as blockers.

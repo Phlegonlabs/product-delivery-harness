@@ -206,6 +206,8 @@ Record each such modification as its own mission: open it through a plan revisio
 
 A mid-run modification is not done when the edit lands; it is done when it is recorded in RUN and visible in the tasks view. `docs/tasks.md` ends the run listing every modification the run made — nothing stays only in the working tree or only in the conversation.
 
+After the run completes and before its coordination set is archived, every owner-requested or agent-side update that is not already reflected in `docs/product/PRD.md` is appended as one dated row — who, what, why — to the `docs/tasks.md` Update Log, the hand-maintained section fenced by `update-log` markers that `render_tasks_view.py` preserves verbatim and never rewrites. A product-affecting update additionally follows the project's keep-product-contracts-current rule into the PRD in the same change. The Update Log archives with its run; the PRD stays the persistent product record.
+
 ## Typed Graph State
 
 PLAN v6 and RUN v11 carry the typed-graph contract: typed nodes, explicit dependency/route edges, and one `graph_state` object with the matching plan revision, one state per node, and one state per edge. The graph state is the routing authority; mission state remains the operational lease, Git, worker, and integration detail for mission nodes.

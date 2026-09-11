@@ -1,5 +1,11 @@
 # Project Rules
 
+## Required Reading
+
+- Before editing `skills/` or any documented flow, read the canonical SKILL.md and the references the change touches; the four READMEs are the documentation of record.
+- Before running a Product Delivery Harness flow in a target repository, that repository's seeded `AGENTS.md` Required Reading rules govern the session — they are mandatory, not advisory.
+- Work that skipped this reading is a blocking review finding.
+
 ## Protect Local Data
 
 - Never delete, overwrite, or move important local data without explicit user approval.

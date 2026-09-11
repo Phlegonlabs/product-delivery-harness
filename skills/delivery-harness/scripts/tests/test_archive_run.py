@@ -133,7 +133,9 @@ class ArchiveRunTests(unittest.TestCase):
         # A second archival pass with the row present does not duplicate it.
         (self.goal / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
         (self.goal / "RUN.md").write_text(run_markdown(), encoding="utf-8")
-        result = self.archive("--apply", "--slug", "second-pass")
+        result = self.archive(
+            "--apply", "--slug", "second-pass", "--stamp", "20260101-000001"
+        )
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(
             1,
@@ -145,13 +147,19 @@ class ArchiveRunTests(unittest.TestCase):
         )
 
     def test_a_second_archive_into_an_existing_target_is_refused(self) -> None:
-        result = self.archive("--apply")
+        result = self.archive("--apply", "--stamp", "20260101-000000")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         (self.goal / "PLAN.md").write_text("# Plan\n", encoding="utf-8")
         (self.goal / "RUN.md").write_text(run_markdown(), encoding="utf-8")
-        result = self.archive("--apply")
+        result = self.archive("--apply", "--stamp", "20260101-000000")
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("archive target already exists", result.stderr)
+        self.assertTrue((self.goal / "RUN.md").exists())
+
+    def test_a_malformed_stamp_is_rejected(self) -> None:
+        result = self.archive("--apply", "--stamp", "not-a-stamp")
+        self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+        self.assertIn("YYYYMMDD-HHMMSS", result.stderr)
         self.assertTrue((self.goal / "RUN.md").exists())
 
     def test_slug_defaults_to_the_run_id(self) -> None:
