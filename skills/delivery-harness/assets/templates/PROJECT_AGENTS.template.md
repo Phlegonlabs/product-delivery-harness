@@ -8,6 +8,12 @@ This file is ready-to-use shared repository guidance. Resolve the repository's r
 - Keep runtime-specific worker roles, model selection, subagent behavior, and launch flags in the Product Delivery Harness runtime adapter reference (`delivery-harness/references/runtime-adapters.md`, the section for the detected host). Never copy Codex, Claude Code, or Pi mechanics into another runtime's worker.
 - Rules under **Managed Product Delivery Harness Runs** apply only after the Harness routes work into PLAN/RUN. Small direct work follows the shared principles, Git safety, and verification rules without creating Harness state, missions, workers, or worktrees unless the repository or user requires them.
 
+## Required Reading
+
+- Before any managed Product Delivery Harness work, the session reads this file's **Managed Product Delivery Harness Runs** rules and the `delivery-harness` SKILL.md bound in the Skill Bindings table; the binding's pinned SHA-256 is verified by `delivery-harness/scripts/check_skill_bindings.py`.
+- Before any product-affecting direct work, the session reads the affected sections of `docs/product/PRD.md` plus every document `docs/DOCUMENTS.md` names for that scope (wireframes, design pair, architecture). A named source that does not exist yet is reported, not skipped.
+- Skipping this reading is a blocking review finding: a change built on unread contracts is not a completed change.
+
 ## Skill Bindings
 
 The delivery flow binds stage slots, not fixed skill names. This table binds the project's installed skills to those slots; updating it to adopt a new skill is a project edit, not a harness change, and a bound skill inherits the same modes, frozen sources, and review gates as the default.
@@ -171,4 +177,4 @@ Verified: <command or action> (<pass signal>)
 
 ## Review Guidelines
 
-Treat authorization bypasses, direct edits or commits on protected branches, unverified or non-fast-forward promotion, stale review SHAs, data loss, scope escapes, and missing behavior verification as blocking findings. Do not report style preferences as blockers.
+Treat authorization bypasses, direct edits or commits on protected branches, unverified or non-fast-forward promotion, stale review SHAs, data loss, scope escapes, missing behavior verification, and work that skipped the Required Reading rules as blocking findings. Do not report style preferences as blockers.
