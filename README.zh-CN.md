@@ -313,19 +313,27 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安装方式
 
-克隆仓库，把五个 Product Delivery Harness skills 复制进你的用户 skills 目录：
+克隆仓库并运行安装脚本。它会把现有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中，把五个 Product Delivery Harness skills 复制进 `~/.agents/skills/`，并验证每个复制出来的 `SKILL.md`：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
-cp -r product-delivery-harness/.agents/skills/delivery-harness \
-      product-delivery-harness/.agents/skills/product-definition-builder \
-      product-delivery-harness/.agents/skills/design-system-compiler \
-      product-delivery-harness/.agents/skills/code-security-review \
-      product-delivery-harness/.agents/skills/product-activation \
+cd product-delivery-harness
+./install.sh             # macOS / Linux / Git Bash
+# Windows PowerShell：powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+手动等效做法：
+
+```bash
+cp -r product-delivery-harness/skills/delivery-harness \
+      product-delivery-harness/skills/product-definition-builder \
+      product-delivery-harness/skills/design-system-compiler \
+      product-delivery-harness/skills/code-security-review \
+      product-delivery-harness/skills/product-activation \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `.agents/skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。没有另外的更新脚本。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制之前，先把已有的新名称目录移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份中；该目录位于 skills 发现目录之外。再复制五个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
+如果 checkout 的 `skills/` 下有本机 `__pycache__` 目录，复制时排除或删掉——宿主不需要字节码。Windows 上改用 `Copy-Item -Recurse` 即可。安装脚本同时也是更新脚本：重跑一次会先备份旧副本再替换。更新前必须获得明确的安装／更新授权，并结束所有正在使用这些 skills 的会话。复制五个当前目录，验证文件与 checkout 一致，然后开启新宿主会话。验证失败时恢复备份；不要直接覆盖或删除旧副本。
 
 从 0.23 或更早版本升级时，先在同一份备份中用原 ID 保存各旧目录。然后安装对应的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。复制完成后，验证 `~/.agents/skills/` 中已没有三个旧 ID；否则宿主会发现重复且触发范围重叠的 skills。
 

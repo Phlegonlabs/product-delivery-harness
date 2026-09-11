@@ -313,19 +313,27 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### 最快安裝方式
 
-clone 儲存庫，把五個 Product Delivery Harness skills 複製進你的使用者 skills 目錄：
+clone 儲存庫並執行安裝腳本。它會把現有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份，把五個 Product Delivery Harness skills 複製進 `~/.agents/skills/`，並驗證每個複製出來的 `SKILL.md`：
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
-cp -r product-delivery-harness/.agents/skills/delivery-harness \
-      product-delivery-harness/.agents/skills/product-definition-builder \
-      product-delivery-harness/.agents/skills/design-system-compiler \
-      product-delivery-harness/.agents/skills/code-security-review \
-      product-delivery-harness/.agents/skills/product-activation \
+cd product-delivery-harness
+./install.sh             # macOS / Linux / Git Bash
+# Windows PowerShell：powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+手動等效做法：
+
+```bash
+cp -r product-delivery-harness/skills/delivery-harness \
+      product-delivery-harness/skills/product-definition-builder \
+      product-delivery-harness/skills/design-system-compiler \
+      product-delivery-harness/skills/code-security-review \
+      product-delivery-harness/skills/product-activation \
       ~/.agents/skills/
 ```
 
-如果 checkout 的 `.agents/skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。沒有另外的更新腳本。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製之前，先把既有的新名稱目錄移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份中；該目錄位於 skills 探索目錄之外。再複製五個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
+如果 checkout 的 `skills/` 下有本機 `__pycache__` 目錄，複製時排除或刪掉——host 不需要位元碼。Windows 上改用 `Copy-Item -Recurse` 即可。安裝腳本同時就是更新腳本：重跑一次會先備份舊副本再替換。更新前必須取得明確的安裝／更新授權，並結束所有正在使用這些 skills 的 session。複製五個目前目錄，驗證檔案與 checkout 相同，然後開啟新的 host session。驗證失敗時還原備份；不要直接覆寫或刪除舊副本。
 
 從 0.23 或更早版本升級時，先在同一份備份中用原 ID 保存各舊目錄。然後安裝對應的新版本——`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`——以及新的 `product-activation` skill。複製完成後，驗證 `~/.agents/skills/` 中已沒有三個舊 ID；否則 host 會探索到重複且觸發範圍重疊的 skills。
 

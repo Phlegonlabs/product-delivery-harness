@@ -313,19 +313,27 @@ git ls-remote https://github.com/Phlegonlabs/product-delivery-harness.git HEAD
 
 ### Fastest setup
 
-Clone the repository and copy the five Product Delivery Harness skills into your user skills directory:
+Clone the repository and run the installer. It moves any existing copies to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, copies the five Product Delivery Harness skills into `~/.agents/skills/`, and verifies each copied `SKILL.md`:
 
 ```bash
 git clone https://github.com/Phlegonlabs/product-delivery-harness.git
-cp -r product-delivery-harness/.agents/skills/delivery-harness \
-      product-delivery-harness/.agents/skills/product-definition-builder \
-      product-delivery-harness/.agents/skills/design-system-compiler \
-      product-delivery-harness/.agents/skills/code-security-review \
-      product-delivery-harness/.agents/skills/product-activation \
+cd product-delivery-harness
+./install.sh             # macOS / Linux / Git Bash
+# Windows PowerShell: powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Manual equivalent:
+
+```bash
+cp -r product-delivery-harness/skills/delivery-harness \
+      product-delivery-harness/skills/product-definition-builder \
+      product-delivery-harness/skills/design-system-compiler \
+      product-delivery-harness/skills/code-security-review \
+      product-delivery-harness/skills/product-activation \
       ~/.agents/skills/
 ```
 
-If the checkout has local `__pycache__` directories under `.agents/skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. There is no separate updater script. An update needs explicit install/update approval and no active skill-using session. Before copying, move any existing new-name destinations to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, outside the skills discovery directory. Copy the five current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
+If the checkout has local `__pycache__` directories under `skills/`, exclude or delete them from the copy — hosts never need the bytecode. On Windows, `Copy-Item -Recurse` does the same. The installer is also the updater: re-running it backs up the previous copies and replaces them. An update needs explicit install/update approval and no active skill-using session. Copy the five current directories, verify their files match the checkout, then start a fresh host session. Restore the backup if verification fails; never overwrite or delete the previous copies.
 
 When upgrading from 0.23 or earlier, archive the legacy directories under their original IDs through that same backup. Then install their replacements — `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, and `product-design-builder` → `design-system-compiler` — plus the new `product-activation` skill. After copying, verify the three legacy IDs are absent from `~/.agents/skills/`; otherwise the host will discover duplicate skills with overlapping triggers.
 
