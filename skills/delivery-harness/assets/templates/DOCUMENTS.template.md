@@ -29,5 +29,6 @@ Notes:
 
 - The PRD family lives under `docs/product/` with its own artifact lifecycle (staging, publish, archive); run state and evidence live under `docs/goal/`; deployment, activation, this manifest, and the rendered `tasks.md` view live under `docs/`. The repository root carries only what runtimes auto-discover — `AGENTS.md` and `CLAUDE.md` — so every discoverable-by-convention file stays where tools look for it and everything else is a flow contract.
 - `PLAN.md` and `RUN.md` exist only for the managed route; small direct work creates none of the run documents.
-- `tasks.md` is a rendered view: never edit it to change state — change RUN and re-render.
+- `tasks.md` is a rendered view: never edit it to change state — change RUN and re-render; its Update Log section is the one hand-maintained part, preserved verbatim by the renderer.
+- The PRD family and the run family never mix: a run references its PRD only through the frozen content hash in PLAN's sources, nothing under `docs/product/` ever enters `docs/goal/archived/`, and the PRD stays published as the living reference for later enhancement runs.
 - Evidence artifacts bind to exact SHAs with lowercase SHA-256 records; they are the only accepted proof for UI and verification gates.
