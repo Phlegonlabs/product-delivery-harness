@@ -133,7 +133,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
 
         self.assertIn("`` `responsive` `` field names are invariant", prd)
-        self.assertIn("at least two targets", prd)
+        self.assertIn("at least three ascending `viewports: 390, 768, 1200` for web", prd)
         self.assertIn("exactly one responsive verification set", design)
         self.assertIn("copied exactly from the approved PRD and wireframe", design)
         self.assertIn("references/contract-and-traceability.md", harness_skill)

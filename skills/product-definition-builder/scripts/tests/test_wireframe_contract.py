@@ -21,8 +21,8 @@ def wireframe_data(**overrides):
         "product": "Test Product",
         "approvalStatus": "approved",
         "source": "PRD.md#UI-Surface-Contract",
-        "viewports": [390, 1200],
-        "canvasWidths": {"390": 390, "1200": 1200},
+        "viewports": [390, 768, 1200],
+        "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
         "screens": [
             {
                 "id": "UI-001",
@@ -49,6 +49,14 @@ def wireframe_data(**overrides):
                         "spans": {"R1": 1},
                         "reflow": "Stack the summary in one column",
                         "interaction": "Use touch-sized controls",
+                    },
+                    "768": {
+                        "order": ["R1"],
+                        "hidden": [],
+                        "columns": 6,
+                        "spans": {"R1": 6},
+                        "reflow": "Widen the summary to half the canvas",
+                        "interaction": "Keep touch and pointer controls reachable",
                     },
                     "1200": {
                         "order": ["R1"],
@@ -98,7 +106,7 @@ def render_html(data):
 def prd_markdown(
     route="/home",
     states="ready",
-    responsive="viewports: 390, 1200",
+    responsive="viewports: 390, 768, 1200",
     surface_id="UI-001",
 ):
     return (
@@ -441,7 +449,7 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
         joined = "\n".join(validate_html(render_html(data)))
         self.assertIn("must match exactly one visible region action", joined)
 
-    def test_responsive_contract_requires_two_complete_targets(self):
+    def test_responsive_contract_requires_three_complete_web_targets(self):
         data = wireframe_data()
         data["viewports"] = [390]
         data["canvasWidths"] = {"390": 390}
@@ -449,7 +457,17 @@ class WireframeHtmlCheckerTests(unittest.TestCase):
             "390": data["screens"][0]["responsiveLayouts"]["390"]
         }
         joined = "\n".join(validate_html(render_html(data)))
-        self.assertIn("at least two unique targets", joined)
+        self.assertIn("at least three ascending numeric viewports", joined)
+
+        data = wireframe_data()
+        data["viewports"] = [390, 1200]
+        data["canvasWidths"] = {"390": 390, "1200": 1200}
+        data["screens"][0]["responsiveLayouts"] = {
+            "390": data["screens"][0]["responsiveLayouts"]["390"],
+            "1200": data["screens"][0]["responsiveLayouts"]["1200"],
+        }
+        joined = "\n".join(validate_html(render_html(data)))
+        self.assertIn("at least three ascending numeric viewports", joined)
 
         data = wireframe_data()
         del data["screens"][0]["responsiveLayouts"]["1200"]
@@ -549,10 +567,12 @@ class PrdUiContractParserTests(unittest.TestCase):
         self.assertEqual(entries["UI-001"]["routes"], ["/home"])
         self.assertEqual(entries["UI-001"]["states"], ["ready"])
         self.assertEqual(entries["UI-001"]["responsiveKind"], "viewports")
-        self.assertEqual(entries["UI-001"]["responsiveTargets"], ["390", "1200"])
+        self.assertEqual(entries["UI-001"]["responsiveTargets"], ["390", "768", "1200"])
 
-    def test_strict_parser_rejects_missing_or_single_responsive_target(self):
-        missing = prd_markdown().replace("- `responsive`: viewports: 390, 1200\n", "")
+    def test_strict_parser_rejects_missing_or_incomplete_responsive_target(self):
+        missing = prd_markdown().replace(
+            "- `responsive`: viewports: 390, 768, 1200\n", ""
+        )
         _, errors = prd_ui_contract.parse_prd_ui_contract(
             missing, require_responsive=True
         )
@@ -562,7 +582,14 @@ class PrdUiContractParserTests(unittest.TestCase):
             prd_markdown(responsive="sizeClasses: compact"),
             require_responsive=True,
         )
-        self.assertTrue(any("at least two responsive targets" in error for error in errors))
+        self.assertTrue(any("at least two responsive size classes" in error for error in errors))
+
+        _, errors = prd_ui_contract.parse_prd_ui_contract(
+            prd_markdown(responsive="viewports: 390, 1200"),
+            require_responsive=True,
+            web_floor=3,
+        )
+        self.assertTrue(any("at least three responsive viewports" in error for error in errors))
 
     def test_strict_parser_requires_one_package_responsive_set(self):
         text = prd_markdown()[:-1].replace(

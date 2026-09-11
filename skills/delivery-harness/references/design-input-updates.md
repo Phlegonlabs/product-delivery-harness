@@ -74,6 +74,7 @@ Rules:
 - When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. When it is `not_required`, a target change returns to the PRD UI Design Handoff and its human approval gate. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
 - Wireframe deltas return to `product-definition-builder`, require renewed human-owner approval, and invalidate downstream visual-direction selection until reconciled.
+- A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated: raise the set to at least three ascending viewports and carry the new target through `PRD.md`, `wireframes.html`, the design-system pair when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` files stay readable at two targets; they are never a reason to keep a new package at two.
 - Builder UX Direction deltas must preserve their human owner and selected/provisional/assumed status, map to affected `UX-*`, `UI-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page-Faithful Target Matrix

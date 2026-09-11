@@ -106,10 +106,10 @@ Do not repeat the full primitive or component inventory manually in Markdown; th
 
 ## Responsive, State, And Accessibility Rules
 
-Ship exactly one responsive set with at least two targets:
+Ship exactly one responsive set:
 
-- ascending `viewports` for web; or
-- `sizeClasses` for native or desktop.
+- at least three ascending `viewports` for web; or
+- at least two `sizeClasses` for native or desktop.
 
 Copy the exact approved PRD and wireframe set; do not add, remove, or rename targets during compilation. Choose that smallest sufficient set upstream during product definition. Native and desktop products use their platform's own size or window classes, not web pixel breakpoints. Each target has an implementation-facing reflow, visibility, interaction, long-content, and intended-overlay rule. Unintended overlap, clipping, occlusion, and horizontal overflow are blocking defects at every target and state.
 

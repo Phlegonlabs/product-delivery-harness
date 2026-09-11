@@ -74,7 +74,7 @@ Also confirm:
 - every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
 - every required UI element maps to a registered primitive or product component;
 - every Motion Need Gate row is resolved; `required` and approved `recommended` motion maps to a registered variant plus reduced-motion behavior, while `not_required` introduces no decorative variant;
-- exactly one responsive set with at least two targets exists: web `viewports` or native or desktop `sizeClasses`, and it matches the PRD and approved wireframe set;
+- exactly one responsive set exists — web `viewports` with at least three ascending targets, or native or desktop `sizeClasses` with at least two — and it matches the PRD and approved wireframe set;
 - no unresolved placeholder, page-local value, or one-off control remains; and
 - `design-system.md` and `design-system.json` publish together and agree through the pair checker.
 

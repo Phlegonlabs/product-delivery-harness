@@ -14,7 +14,7 @@
     "<path to the file that defines primitive classes, e.g. src/ui/primitives.css>"
   ],
 
-  "$comment:responsive": "Ship exactly one set with at least two targets, copied from the approved PRD and wireframes.html. Use ascending viewports for a web target. For a native or desktop target, delete viewports and ship sizeClasses instead with that platform's own model. Shipping both, neither, a one-target set, an unsorted viewport set, or an empty set is an error.",
+  "$comment:responsive": "Ship exactly one set, copied from the approved PRD and wireframes.html. Use at least three ascending viewports for a web target. For a native or desktop target, delete viewports and ship sizeClasses instead with that platform's own model, at least two. Shipping both, neither, a one- or two-target web viewport set, an unsorted viewport set, or an empty set is an error.",
   "viewports": [390, 768, 1200, 1440],
 
   "tokens": {

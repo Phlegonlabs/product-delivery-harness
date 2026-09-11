@@ -27,7 +27,7 @@ Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained fil
 New and structurally revised files use schema `wireframes/3`; the checker keeps `wireframes/2` read compatibility for unchanged historical files. Schema 3 must provide:
 
 1. an all-pages overview plus a page switcher showing each `UI-*` ID, page name, route or surface, and primary goal;
-2. controls generated from exactly one set with at least two targets: ascending positive numeric `viewports` for web, or ordered string `sizeClasses` for native or desktop, plus one positive `canvasWidths` value per target for the review projection;
+2. controls generated from exactly one set: at least three ascending positive numeric `viewports` for web, or at least two ordered string `sizeClasses` for native or desktop, plus one positive `canvasWidths` value per target for the review projection;
 3. a state selector for every required state represented by that screen;
 4. visible section labels such as `Global Header`, `Hero Section`, `Feature Grid`, `Primary Workspace`, `Results Table`, or `CTA`, using product-fit labels rather than a fixed catalog;
 5. each section's purpose, priority, elements, working actions, and state treatment;

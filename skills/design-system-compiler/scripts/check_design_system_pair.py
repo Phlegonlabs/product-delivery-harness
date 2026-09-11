@@ -217,7 +217,7 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     size_classes = registry.get("sizeClasses")
     valid_viewports = (
         isinstance(viewports, list)
-        and len(viewports) >= 2
+        and len(viewports) >= 3
         and all(
             isinstance(value, (int, float))
             and not isinstance(value, bool)
@@ -244,8 +244,8 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
     ):
         problems.append(
             "design-system.json must declare exactly one non-empty unique responsive "
-            "set with at least two targets: ascending positive numeric viewports or string "
-            "sizeClasses"
+            "set: at least three ascending numeric viewports for web, or at least "
+            "two unique string sizeClasses for native or desktop"
         )
     platform = registry.get("platform")
     if not isinstance(platform, str) or not platform.strip():

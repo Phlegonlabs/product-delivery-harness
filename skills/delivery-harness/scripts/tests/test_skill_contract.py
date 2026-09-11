@@ -580,7 +580,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         join = self.read("scripts/harness_contract_join.py")
 
         self.assertIn("exact responsive set", skill)
-        self.assertIn("at least two targets", skill)
+        self.assertIn("at least three web viewports", skill)
         self.assertIn("invariant `` `responsive` `` anchor", trace)
         self.assertIn("PRD, approved `wireframes.html`, every PLAN UI surface", trace)
         self.assertIn("missing or mismatched responsive set", ui_contract)

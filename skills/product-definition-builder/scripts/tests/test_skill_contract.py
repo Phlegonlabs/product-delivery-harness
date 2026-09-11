@@ -380,7 +380,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — 儀表板\n\n"
                 "- `route`: /\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -403,7 +403,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /different\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -427,7 +427,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /\n"
                 "- `states`: ready, empty\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -451,11 +451,11 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /\n"
                 "- `states`: ready\n\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "### UI-002 — Settings\n\n"
                 "- `route`: /settings\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -481,7 +481,7 @@ async function agent(_prompt, options) {
             "### UI-001 — 儀表板\n\n"
             "- `route`: /\n"
             "- `states`: ready\n"
-            "- `responsive`: viewports: 390, 1200\n"
+            "- `responsive`: viewports: 390, 768, 1200\n"
             "<!-- ui-surface-contract:end -->\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -514,7 +514,7 @@ async function agent(_prompt, options) {
                     "### UI-001 — Outside\n\n"
                     "- `route`: /\n"
                     "- `states`: ready\n"
-                    "- `responsive`: viewports: 390, 1200\n",
+                    "- `responsive`: viewports: 390, 768, 1200\n",
                     "headings outside the ui-surface-contract boundary",
                 ),
                 (
@@ -555,8 +555,8 @@ async function agent(_prompt, options) {
             "product": "P",
             "approvalStatus": "draft",
             "source": "PRD.md#UI-Surface-Contract",
-            "viewports": [390, 1200],
-            "canvasWidths": {"390": 390, "1200": 1200},
+            "viewports": [390, 768, 1200],
+            "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
             "screens": [
                 {
                     "id": "UI-001",
@@ -588,6 +588,14 @@ async function agent(_prompt, options) {
                             "spans": {"r1": 1},
                             "reflow": "Stack in one column",
                             "interaction": "Use touch-sized controls",
+                        },
+                        "768": {
+                            "order": ["r1"],
+                            "hidden": [],
+                            "columns": 6,
+                            "spans": {"r1": 6},
+                            "reflow": "Use the medium grid",
+                            "interaction": "Keep touch and pointer controls reachable",
                         },
                         "1200": {
                             "order": ["r1"],
