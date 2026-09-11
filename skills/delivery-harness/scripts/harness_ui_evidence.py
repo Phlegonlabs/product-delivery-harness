@@ -142,7 +142,7 @@ UI_TARGET_COMPARISON_VERDICTS = {"pass", "deviation"}
 UI_LAYOUT_CHECK_PREFIXES = ("fail", "manual", "n/a")
 UI_LAYOUT_CHECK_REQUIRED_VERSION = (0, 34, 0)
 UI_DEVIATION_LEDGER_REQUIRED_VERSION = (0, 35, 0)
-UI_DEVIATION_LEDGER_IMPACTS = {"none", "style", "structure", "both"}
+UI_IMPACT_VALUES = {"none", "style", "structure", "both"}
 
 
 def _run_required_harness_version(run: dict[str, Any]) -> str | None:

@@ -65,7 +65,7 @@ For design-system compilation mode, load `design-system-compiler` and `frontend-
 
 For frontend-design conformance mode, read the named PRD UI surface, approved matching wireframe, and active visual source. In system-conformance mode, read `design-system.md` and `design-system.json` and invent no token, primitive, variant, component, or motion rule. In target-conformance mode, read the approved immutable UI target and stay inside its scope and tolerance. Return a design-input delta and stop when the active source is incomplete.
 
-For any UI-touching mission, classify the completed change's UI impact against the `PRD.md` UI surface contract — `none`, `style`, `structure`, or `both` — and report it in the terminal payload. A `structure` or `both` change that the frozen `PRD.md` entries or approved `wireframes.html` do not already reflect returns a design-input delta and stops; it is never reported as `worker_passed`.
+For any UI-touching mission, classify the completed change's UI impact against the `PRD.md` UI surface contract — `none`, `style`, `structure`, or `both` — and report it in the terminal payload so the parent records it in the run's `ui_impact_summary`. A `structure` or `both` change that the frozen `PRD.md` entries or approved `wireframes.html` do not already reflect returns a design-input delta and stops; it is never reported as `worker_passed`.
 
 ## Verify
 
