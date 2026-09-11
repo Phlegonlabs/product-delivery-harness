@@ -572,6 +572,29 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not add attempts on top of that budget", gates)
         self.assertIn("Final Visual Parity Loop", contract)
 
+    def test_ui_impact_classification_and_deviation_ledger_are_binding(self) -> None:
+        contract = self.read("references/ui-implementation-contract.md")
+        gates = self.read("references/verification-gates.md")
+        worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
+        e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
+
+        self.assertIn(
+            "`none`, `style`, `structure`, or `both`", contract
+        )
+        self.assertIn(
+            "never integrate a structural change ahead of its doc delta", contract
+        )
+        self.assertIn("deviation ledger", gates)
+        self.assertIn(
+            "accumulated in-tolerance drift never substitutes for a doc update", gates
+        )
+        self.assertIn("The deviation ledger is complete", gates)
+        self.assertIn(
+            "classify the completed change's UI impact", worker_goal
+        )
+        self.assertIn("## Deviation Ledger", e2e_template)
+        self.assertIn("Allowed-deviation citation", e2e_template)
+
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")
         trace = self.read("references/contract-and-traceability.md")
