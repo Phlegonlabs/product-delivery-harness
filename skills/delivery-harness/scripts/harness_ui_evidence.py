@@ -139,6 +139,71 @@ def _read_git_artifact_blob(
 UI_TARGET_COMPARISON_BASELINES = {"html_target", "design_system"}
 UI_TARGET_COMPARISON_VERDICTS = {"pass", "deviation"}
 
+UI_LAYOUT_CHECK_PREFIXES = ("fail", "manual", "n/a")
+UI_LAYOUT_CHECK_REQUIRED_VERSION = (0, 34, 0)
+
+
+def _run_required_harness_version(run: dict[str, Any]) -> str | None:
+    runtime = run.get("runtime_capabilities")
+    adapter = runtime.get("runtime_adapter") if isinstance(runtime, dict) else None
+    gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
+    version = gate.get("required_harness_version") if isinstance(gate, dict) else None
+    return version if isinstance(version, str) else None
+
+
+def _version_at_least(value: str | None, minimum: tuple[int, int, int]) -> bool:
+    if not value:
+        return False
+    parts: list[int] = []
+    for piece in value.split("."):
+        if not piece.isdigit():
+            return False
+        parts.append(int(piece))
+    while len(parts) < len(minimum):
+        parts.append(0)
+    return tuple(parts[: len(minimum)]) >= minimum
+
+
+def _layout_check_required(run: dict[str, Any]) -> bool:
+    """RUN-v11 files pinned to harness 0.34.0+ carry layout_check on every row.
+
+    Runs without the version gate, or pinned to an older harness, keep their
+    frozen row shape so in-flight RUN files stay valid.
+    """
+
+    return run.get("schema_version") == 11 and _version_at_least(
+        _run_required_harness_version(run), UI_LAYOUT_CHECK_REQUIRED_VERSION
+    )
+
+
+def _validate_layout_check(
+    errors: list[str], path: str, item: dict[str, Any], *, required: bool
+) -> None:
+    """Check one ui_evidence row's recorded layout geometry result.
+
+    `pass` comes from a real-browser DOM geometry scan (or native UI-test
+    layout assertions); `fail — …` records the offending selectors, and a
+    PASS row carrying it is a contradiction that blocks the gate;
+    `manual — …` and `n/a — …` record their basis or reason.
+    """
+
+    if not required and "layout_check" not in item:
+        return
+    value = item.get("layout_check")
+    if not _nonempty_string(value):
+        _add(errors, f"{path}.layout_check", "must be a non-empty string")
+        return
+    if value == "pass":
+        return
+    if any(value.startswith(f"{prefix} — ") for prefix in UI_LAYOUT_CHECK_PREFIXES):
+        return
+    _add(
+        errors,
+        f"{path}.layout_check",
+        "must be `pass`, or `fail — <selectors>`, `manual — <basis>`, "
+        "or `n/a — <reason>`",
+    )
+
 
 def _validate_target_comparison(errors: list[str], path: str, item: dict[str, Any]) -> None:
     """Check one RUN-v11 ui_evidence row's Final Visual Parity Loop record.
@@ -230,6 +295,9 @@ def _validate_ui_evidence(
         "head_sha",
         "status",
     }
+    layout_required = _layout_check_required(run)
+    if layout_required:
+        evidence_keys = evidence_keys | {"layout_check"}
     integration = run.get("integration")
     integration_head = (
         integration.get("integration_head_sha")
@@ -243,6 +311,8 @@ def _validate_ui_evidence(
         optional_keys = (
             ("target_comparison",) if run.get("schema_version") == 11 else ()
         )
+        if not layout_required:
+            optional_keys = tuple(optional_keys) + ("layout_check",)
         if not _keys(errors, path, item, evidence_keys, optional_keys):
             continue
         scalar_fields_valid = True
@@ -298,6 +368,19 @@ def _validate_ui_evidence(
             )
         if run.get("schema_version") == 11:
             _validate_target_comparison(errors, path, item)
+        _validate_layout_check(errors, path, item, required=layout_required)
+        if (
+            layout_required
+            and item["status"] == "PASS"
+            and isinstance(item.get("layout_check"), str)
+            and item["layout_check"].startswith("fail")
+        ):
+            _add(
+                errors,
+                f"{path}.layout_check",
+                "a PASS row with a failed layout check is a contradiction; "
+                "repair the surface and recapture the matrix entry",
+            )
         if not isinstance(item["status"], str) or item["status"] not in GATE_VALUES:
             _add(errors, f"{path}.status", "has an unsupported gate value")
         elif item["status"] == "PASS":

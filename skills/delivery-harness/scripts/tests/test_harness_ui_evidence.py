@@ -360,6 +360,96 @@ class TargetComparisonSchemaTests(unittest.TestCase):
         )
 
 
+class LayoutCheckSchemaTests(unittest.TestCase):
+    @staticmethod
+    def row(layout_check: object = ...) -> dict[str, object]:
+        item = {
+            "surface_id": "home",
+            "route": "/home",
+            "breakpoint": "mobile-390",
+            "state": "ready",
+            "artifact_path": "docs/goal/evidence/home-mobile-390-ready.png",
+            "artifact_sha256": "a" * 64,
+            "head_sha": "b" * 40,
+            "status": "PASS",
+            "target_comparison": {
+                "baseline": "design_system",
+                "baseline_artifact": "check_ui_contract:clean-run",
+                "verdict": "pass",
+            },
+        }
+        if layout_check is not ...:
+            item["layout_check"] = layout_check
+        return item
+
+    def validate(
+        self,
+        item: dict[str, object],
+        *,
+        harness_version: str | None = "0.34.0",
+        schema_version: int = 11,
+    ) -> list[str]:
+        plan = {
+            "ui_surfaces": [
+                {
+                    "id": "home",
+                    "route": "/home",
+                    "breakpoints": ["mobile-390"],
+                    "states": ["ready"],
+                    "evidence_gate": "required",
+                }
+            ]
+        }
+        run: dict[str, object] = {
+            "schema_version": schema_version,
+            "ui_evidence": [item],
+            "integration": {"integration_head_sha": "b" * 40},
+        }
+        if harness_version is not None:
+            run["runtime_capabilities"] = {
+                "runtime_adapter": {
+                    "version_gate": {
+                        "required_harness_version": harness_version
+                    }
+                }
+            }
+        errors: list[str] = []
+        subject._validate_ui_evidence(errors, plan, run)
+        return errors
+
+    def test_gated_run_requires_layout_check_on_every_row(self) -> None:
+        errors = self.validate(self.row())
+        self.assertTrue(
+            any("layout_check" in error for error in errors), errors
+        )
+
+    def test_gated_run_accepts_pass_manual_and_na_forms(self) -> None:
+        for value in (
+            "pass",
+            "manual — XCUITest frame assertions recorded in run notes",
+            "n/a — terminal-only surface has no rendered geometry",
+        ):
+            self.assertEqual(self.validate(self.row(value)), [])
+
+    def test_gated_run_rejects_a_pass_row_with_a_failed_layout_check(self) -> None:
+        errors = self.validate(self.row("fail — .card overlaps .nav at 390px"))
+        self.assertTrue(
+            any("contradiction" in error for error in errors), errors
+        )
+
+    def test_gated_run_rejects_an_unrecognized_layout_check_value(self) -> None:
+        errors = self.validate(self.row("looks fine to me"))
+        self.assertTrue(
+            any("layout_check" in error for error in errors), errors
+        )
+
+    def test_older_harness_version_keeps_the_row_shape_frozen(self) -> None:
+        self.assertEqual(self.validate(self.row(), harness_version="0.33.0"), [])
+
+    def test_run_without_a_version_gate_keeps_the_row_shape_frozen(self) -> None:
+        self.assertEqual(self.validate(self.row(), harness_version=None), [])
+
+
 class TargetComparisonArtifactTests(unittest.TestCase):
     @staticmethod
     def git(root: Path, *args: str) -> str:
