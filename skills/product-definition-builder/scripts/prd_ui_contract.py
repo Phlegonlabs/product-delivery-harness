@@ -59,7 +59,9 @@ def _state(value: str) -> str:
     return state
 
 
-def _responsive(value: str) -> tuple[str | None, list[str], str | None]:
+def _responsive(
+    value: str, *, web_floor: int = 2
+) -> tuple[str | None, list[str], str | None]:
     kind, separator, raw_values = value.strip().partition(":")
     if not separator or kind not in {"viewports", "sizeClasses"}:
         return (
@@ -81,8 +83,17 @@ def _responsive(value: str) -> tuple[str | None, list[str], str | None]:
             normalized.append(str(int(number)) if number.is_integer() else str(number))
     else:
         normalized = values
-    if len(normalized) < 2:
-        return kind, normalized, "must declare at least two responsive targets"
+    floor_words = {2: "two", 3: "three"}
+    minimum = web_floor if kind == "viewports" else 2
+    if len(normalized) < minimum:
+        if kind == "viewports":
+            return (
+                kind,
+                normalized,
+                "must declare at least "
+                f"{floor_words.get(minimum, str(minimum))} responsive viewports for web",
+            )
+        return kind, normalized, "must declare at least two responsive size classes"
     if len(normalized) != len(set(normalized)):
         return kind, normalized, "must not contain duplicate responsive targets"
     if kind == "viewports" and any(
@@ -97,6 +108,7 @@ def parse_prd_ui_contract(
     text: str,
     *,
     require_responsive: bool = False,
+    web_floor: int = 2,
 ) -> tuple[dict[str, dict[str, Any]], list[str]]:
     blocks = list(MACHINE_BLOCK_RE.finditer(text))
     start_count = len(
@@ -178,7 +190,7 @@ def parse_prd_ui_contract(
         responsive_targets: list[str] = []
         if len(responsive_matches) == 1:
             responsive_kind, responsive_targets, responsive_error = _responsive(
-                responsive_matches[0].group(1)
+                responsive_matches[0].group(1), web_floor=web_floor
             )
             if responsive_error:
                 errors.append(
@@ -232,8 +244,12 @@ def _screen_states(screen: dict[str, Any]) -> set[str]:
     }
 
 
-def validate_prd_wireframe_data(text: str, data: dict[str, Any]) -> list[str]:
-    prd_surfaces, errors = parse_prd_ui_contract(text, require_responsive=True)
+def validate_prd_wireframe_data(
+    text: str, data: dict[str, Any], *, web_floor: int = 2
+) -> list[str]:
+    prd_surfaces, errors = parse_prd_ui_contract(
+        text, require_responsive=True, web_floor=web_floor
+    )
     screens, screen_errors = _screens(data)
     errors.extend(screen_errors)
     prd_ids = set(prd_surfaces)

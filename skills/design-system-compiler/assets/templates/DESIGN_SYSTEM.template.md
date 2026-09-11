@@ -20,7 +20,7 @@ The two files publish together. Edit structured fields in JSON, then run `script
 |---|---|---|
 | PRD | <path> | product scope and requirements |
 | PRD UI surface contract | <path and section> | screen structure, content, actions, states, and flows |
-| Approved wireframe | <wireframes.html path and PRD approval record> | low-fidelity all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
+| Approved wireframe | <wireframes.html path and PRD approval record> | structural all-page region order, grouping, element inventory, section labels, states, viewport arrangements, and responsive rearrangement |
 | Approved UI Design Handoff | <PRD section, direction ID, target path/hash, scope, tolerance, and Design System Need Gate> | approved visual input and pair requirement |
 | Taste and preview evidence | <applicable / partially_applicable / n/a, Design Read and dials when applicable, preview manifest and approval> | frozen UI treatment and direction-review evidence |
 
@@ -89,7 +89,7 @@ Do not duplicate the machine-owned primitive, variant, component, composition, o
 
 ## Responsive Rules
 
-- Responsive set: <the exact approved PRD and wireframe JSON viewports or sizeClasses, with at least two targets>
+- Responsive set: <the exact approved PRD and wireframe JSON viewports or sizeClasses — at least three ascending web viewports, or at least two native/desktop size classes>
 - Reflow and visibility rule: <what moves, stacks, resizes, or may hide at each target; never-drop content remains visible>
 - Layout safety: <no unintended overlap, clipping, occlusion, or horizontal overflow at any target/state; named stacking, focus, and dismissal behavior for intentional overlays>
 - Never-drop content: <what remains visible>

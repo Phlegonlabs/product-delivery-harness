@@ -20,7 +20,7 @@ Keep verification in `RUN.md` by default. Use this standalone expansion only whe
 | Browser journey | yes / no | planned | | |
 | Builder UX Direction conformance | yes / no | planned | | |
 | Usability / task success | yes / no | planned | | |
-| Responsive | yes / no | planned | | |
+| Responsive layout safety | yes / no | planned | <viewport captures + browser geometry/reviewer evidence per entry> | every required breakpoint or size-class × state renders with no unintended overlap, clipping, occlusion, or horizontal overflow; intentional overlays match their recorded stacking, focus, safe-area, and dismissal behavior |
 | Console / network | yes / no | planned | | |
 | Accessibility | yes / no | planned | | |
 | Visual design comparison | yes / no | planned | | |
@@ -96,6 +96,14 @@ Builder approval proves direction conformance only. Use `UNVALIDATED` when only 
 | Delta / page | Source | Expected conformance | Evidence | Status |
 |---|---|---|---|---|
 | DELTA-001 | <PRD/design/page UI source> | <expected result> | <test/screenshot/trace> | planned |
+
+## Deviation Ledger
+
+Every accepted parity deviation from the Final Visual Parity Loop lands here with the allowed-deviation clause that admits it. A difference that changes structure, regions, states, actions, routes, or responsive behavior is never a tolerance deviation; route it upstream as a design-input delta. A repeated deviation on the same surface must cite its frozen design-input delta.
+
+| Surface / route | Breakpoint / state | Difference | Allowed-deviation citation | Run | Accepted by | Status |
+|---|---|---|---|---|---|---|
+| UI-001 / <route> | <breakpoint × state> | <observed difference> | <handoff clause> | <run id> | <name/date> | accepted |
 
 ## Skipped Checks
 

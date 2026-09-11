@@ -315,9 +315,13 @@ def _validate_responsive_data(
     has_size_classes = "sizeClasses" in data
     viewports = data.get("viewports")
     size_classes = data.get("sizeClasses")
+    # wireframes/3 carries the three-viewport web floor; legacy wireframes/2
+    # files stay readable with their historical two-target sets.
+    web_floor = 3 if data.get("schema") == WIREFRAME_SCHEMA else 2
+    floor_words = {2: "two", 3: "three"}
     valid_viewports = (
         isinstance(viewports, list)
-        and len(viewports) >= 2
+        and len(viewports) >= web_floor
         and all(
             isinstance(value, (int, float))
             and not isinstance(value, bool)
@@ -342,8 +346,10 @@ def _validate_responsive_data(
         _add(
             problems,
             "wireframe-data",
-            "must declare exactly one responsive set with at least two unique "
-            "targets: ascending positive numeric viewports or string sizeClasses",
+            "must declare exactly one responsive set: at least "
+            f"{floor_words.get(web_floor, str(web_floor))} "
+            "ascending numeric viewports for web, or at least two unique "
+            "string sizeClasses for native or desktop",
         )
         return []
 
@@ -779,7 +785,10 @@ def validate(
             prd_text = prd_path.read_text(encoding="utf-8")
         except OSError as exc:
             return [f"{prd_path}: cannot read PRD: {exc}"]
-        problems.extend(validate_prd_wireframe_data(prd_text, data))
+        web_floor = 3 if data.get("schema") == WIREFRAME_SCHEMA else 2
+        problems.extend(
+            validate_prd_wireframe_data(prd_text, data, web_floor=web_floor)
+        )
 
     for required in (
         'id="page-list"',

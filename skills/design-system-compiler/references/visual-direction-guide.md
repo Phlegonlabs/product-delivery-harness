@@ -1,6 +1,6 @@
 # Visual Direction Guide
 
-Use this guide only when the human owner explicitly asks `design-system-compiler` to reopen visual direction after `PRD.md` has frozen the UI surface contract and approved `wireframes.html`. The normal Design System Compiler path consumes the already approved UI Design Handoff and skips this guide. `PRD.md` remains canonical for product structure and behavior; `wireframes.html` is its low-fidelity interactive projection.
+Use this guide only when the human owner explicitly asks `design-system-compiler` to reopen visual direction after `PRD.md` has frozen the UI surface contract and approved `wireframes.html`. The normal Design System Compiler path consumes the already approved UI Design Handoff and skips this guide. `PRD.md` remains canonical for product structure and behavior; `wireframes.html` is its structural interactive projection.
 
 ## Builder UX Direction Gate
 

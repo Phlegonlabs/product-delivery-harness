@@ -107,6 +107,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path = root / "PLAN.md"
@@ -295,6 +296,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path = root / "PLAN.md"
@@ -317,6 +319,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path = root / "PLAN.md"
@@ -335,9 +338,11 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "### UI-002 — Settings\n\n"
                 "- `route`: /settings\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -548,6 +553,28 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             errors,
         )
 
+    def test_prd_join_rejects_missing_responsive_anchor(self) -> None:
+        plan = valid_plan()
+        plan["ui_surfaces"] = [dict(HOME_SURFACE)]
+        prd = (
+            "<!-- ui-surface-contract:start -->\n"
+            "## UI Surface Contract\n\n"
+            "### UI-001 — Home\n\n"
+            "- `route`: /home\n"
+            "- `states`: ready\n"
+            "<!-- ui-surface-contract:end -->\n"
+        )
+
+        errors = validate_plan_prd_text(plan, prd)
+
+        self.assertTrue(
+            any(
+                "requires exactly one `responsive` anchor" in error
+                for error in errors
+            ),
+            errors,
+        )
+
     def test_wireframes_join_runs_the_full_builder_checker(self) -> None:
         """Frozen wireframes must pass the sibling skill's checker, not just the
         reduced PLAN join: reviewer shell, self-containment, and approved
@@ -631,6 +658,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path = root / "PLAN.md"
@@ -649,6 +677,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /dashboard\n"
                 "- `states`: ready, empty\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path.write_text(
@@ -676,6 +705,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — 首頁\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path = root / "PLAN.md"
@@ -694,6 +724,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home, /alias\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             plan_path.write_text(
@@ -721,6 +752,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             "### UI-001 — 首頁\n\n"
             "- `route`: /home\n"
             "- `states`: ready\n"
+            "- `responsive`: viewports: 390, 1200\n"
             "<!-- ui-surface-contract:end -->\n"
         )
         cases = (
@@ -747,6 +779,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                     "- `states`: ready\n",
                     "- `route`: /alias\n"
                     "- `states`: ready\n"
+                    "- `responsive`: viewports: 390, 1200\n"
                     "- `states`: empty\n",
                 ),
                 "exactly one `route` anchor",
@@ -824,6 +857,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
+                "- `responsive`: viewports: 390, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
             )
             registry_path = root / "design-system.json"

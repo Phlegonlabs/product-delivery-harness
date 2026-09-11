@@ -1,11 +1,11 @@
 # Wireframe Guide
 
-Use this guide after the `PRD.md` UI Surface Contract is complete. `product-definition-builder` owns one low-fidelity deliverable for every UI-bearing product: `wireframes.html`.
+Use this guide after the `PRD.md` UI Surface Contract is complete. `product-definition-builder` owns one wireframe deliverable for every UI-bearing product: `wireframes.html`.
 
 ## Ownership
 
 - `PRD.md` owns product scope, routes, screen purpose, content responsibilities, actions, flows, states, the platform-appropriate responsive set, per-target behavior, and `UI-*` / `UX-*` traces.
-- `wireframes.html` is the interactive low-fidelity projection of that contract. It owns no new behavior and never changes product scope.
+- `wireframes.html` is the interactive structural projection of that contract. It owns no new behavior and never changes product scope.
 - A native mobile or desktop app is UI-bearing without a browser frontend and gets the same single `wireframes.html` deliverable: every `UI-*` screen in one file, with the product's own size classes standing in as the viewport toggle. The product ships no browser surface; the file exists purely as the review projection.
 - When the HTML exposes a gap, update `PRD.md` first, then regenerate only the affected `UI-*` page.
 - Later visual or implementation work consumes the approved HTML but does not edit it. Structural changes return to `product-definition-builder`.
@@ -16,7 +16,7 @@ Before drafting the HTML, look up how comparable products structure the same kin
 
 - Run it inline as part of wireframe drafting; it needs no separate delegation. Skip it only when the user declined it, no web search or fetch tool is available, or the package is a trivial stub, and record which reason applied.
 - Fetch the mainstream sites first: use the web fetch tool on two to four of the best-known live products in this product's category, and read how their relevant pages are actually composed — region order, navigation shape, and how each common flow (for example search and results, wizard, dashboard and detail, feed, checkout) is laid out. A fetched real page outranks any secondhand summary of it.
-- Then pull composition references from a design gallery such as Dribbble for the main `UI-*` surfaces: search by surface type (landing page, dashboard, onboarding, settings) and read the shots for layout composition and region grouping only — color, typography, and imagery belong to the later visual phase, not the low-fidelity wireframe. A gallery shot ranks below a live mainstream product, because it shows an isolated screen without the flow between screens.
+- Then pull composition references from a design gallery such as Dribbble for the main `UI-*` surfaces: search by surface type (landing page, dashboard, onboarding, settings) and read the shots for layout composition and region grouping only — color, typography, and imagery belong to the later visual phase, not the structural wireframe. A gallery shot ranks below a live mainstream product, because it shows an isolated screen without the flow between screens.
 - Record every consulted source in `PRD.md`'s `### Wireframe Approval` as `Wireframe references consulted:` — one line per source with its URL, publisher, retrieval date, and the structural pattern adopted or rejected. A reference with no URL is recorded `UNVALIDATED`, the same rule as market research.
 - References inform structure only. They never create scope, mint `UI-*` entries, or override the Builder UX Direction Decision. When a reference conflicts with `PRD.md`, `PRD.md` wins and the divergence is recorded as a revision note.
 
@@ -27,7 +27,7 @@ Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained fil
 New and structurally revised files use schema `wireframes/3`; the checker keeps `wireframes/2` read compatibility for unchanged historical files. Schema 3 must provide:
 
 1. an all-pages overview plus a page switcher showing each `UI-*` ID, page name, route or surface, and primary goal;
-2. controls generated from exactly one set with at least two targets: ascending positive numeric `viewports` for web, or ordered string `sizeClasses` for native or desktop, plus one positive `canvasWidths` value per target for the review projection;
+2. controls generated from exactly one set: at least three ascending positive numeric `viewports` for web, or at least two ordered string `sizeClasses` for native or desktop, plus one positive `canvasWidths` value per target for the review projection;
 3. a state selector for every required state represented by that screen;
 4. visible section labels such as `Global Header`, `Hero Section`, `Feature Grid`, `Primary Workspace`, `Results Table`, or `CTA`, using product-fit labels rather than a fixed catalog;
 5. each section's purpose, priority, elements, working actions, and state treatment;
@@ -40,11 +40,11 @@ Use the template's embedded data block as the only product-specific input. Repla
 
 Project the PRD's flows and traces through the same block. `flows` lists each flow as `{from, trigger, to, presentation}`, where `from` is a screen ID, `trigger` exactly matches one visible region action on that screen, and `presentation` is `page`, `overlay`, or `feedback`. A `page` or `overlay` target is another `UI-*` screen in the same file; `feedback` may name a local result or external destination but never performs a network request. The reviewer shell renders region actions as working buttons: `page` switches screens, `overlay` opens an accessible local dialog for the target screen, and `feedback` shows local inline feedback. Every visible region action maps to exactly one outgoing flow, and every outgoing flow maps back to one visible action. Per-screen or per-region `traces` list the `UX-*` IDs the surface traces to. An element is either exact approved copy as a string or a `{label, contract}` object whose contract states the bounded display contract's source, order, format, count, and length limits.
 
-An optional `mediaIntent` object on a screen or a region records a motion or imagery treatment that is already decided before the design pass runs. It carries `treatment` — `motion-led`, `imagery-led`, or `motion + imagery`; a non-empty `draftPrompt` dedicated to that page or position; `source` naming the recorded Motion Need Gate decision that settled it; and `generationStatus: deferred`. Add one only where such a decision exists. A surface whose Motion Need Gate remains `blocked` stays unannotated and returns to the owner before visual approval. The reviewer shell renders the treatment, prompt, source, and deferred status as a visible note. The annotation is a later MCP-generation handoff only: the wireframe implements no final animation, and the UI Design Pass invokes no generation provider. Deterministic local UI motion required to demonstrate state feedback belongs to the later high-fidelity review, not this low-fidelity file.
+An optional `mediaIntent` object on a screen or a region records a motion or imagery treatment that is already decided before the design pass runs. It carries `treatment` — `motion-led`, `imagery-led`, or `motion + imagery`; a non-empty `draftPrompt` dedicated to that page or position; `source` naming the recorded Motion Need Gate decision that settled it; and `generationStatus: deferred`. Add one only where such a decision exists. A surface whose Motion Need Gate remains `blocked` stays unannotated and returns to the owner before visual approval. The reviewer shell renders the treatment, prompt, source, and deferred status as a visible note. The annotation is a later MCP-generation handoff only: the wireframe implements no final animation, and the UI Design Pass invokes no generation provider. Deterministic local UI motion required to demonstrate state feedback belongs to the later design-reference review, not this structural file.
 
 Every PRD `UI-*` entry carries one invariant `` `responsive`: `` anchor whose kind and values match the HTML's global set exactly. Every screen carries a non-empty `neverDrop` list and a `responsiveLayouts` object keyed by every target. Each target entry declares `order`, `hidden`, `columns`, a `spans` value for every region, plus filled `reflow` and `interaction` rules. `order` contains every region exactly once. `hidden` may omit secondary material only; it cannot contain a never-drop region, and every primary region belongs to `neverDrop`. These fields make responsive behavior inspectable instead of treating a generic compact stack as proof.
 
-Inline CSS and JavaScript implement the reviewer shell, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, annotations, and printing. They are not product implementation. Keep the canvas grayscale and low-fidelity: no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or design-system token decision.
+Inline CSS and JavaScript implement the reviewer shell, page switching, working PRD actions, local overlays and feedback, viewport switching, state switching, annotations, and printing. They are not product implementation. Keep the canvas grayscale and structural: no brand palette, decorative imagery, generated media, final animation, production component library, polished marketing treatment, or design-system token decision.
 
 After filling and approving the HTML, validate it from the repository root:
 
@@ -72,7 +72,7 @@ Approval confirms only:
 
 Approval does not prove usability and does not select a visual style. Record the owner, decision, date, approved `UI-*` scope, and unresolved items in `PRD.md`'s `### Wireframe Approval`. The HTML `approvalStatus` uses the same decision vocabulary as that record: `draft` before the gate, then `approved`, `revision_requested`, or `blocked` matching the owner's latest decision — never a different wording.
 
-An approved `wireframes.html` completes the wireframe stage. Do not run Taste, high-fidelity preview generation, Design System Compiler, or Harness unless the owner separately asks to continue.
+An approved `wireframes.html` completes the wireframe stage. Do not run Taste, design-reference preview generation, Design System Compiler, or Harness unless the owner separately asks to continue.
 
 ## Enhancement Revisions
 
@@ -93,7 +93,7 @@ An enhancement run first classifies the delta's UI impact with the owner — `no
 - Every `mediaIntent` annotation names a valid treatment (`motion-led`, `imagery-led`, or `motion + imagery`), a non-empty dedicated `draftPrompt`, its recorded Motion Need Gate decision `source`, and `generationStatus: deferred`.
 - Every page-target-state combination renders without unintended overlap, clipping, occlusion, or horizontal overflow; intended overlays have documented stacking, focus, and dismissal behavior.
 - The page switcher, overview, responsive-target control, state control, runtime layout QA, and visible section-purpose labels work from a local file.
-- No high-fidelity styling, generated imagery, design-system token, or product implementation code appears.
+- No design-reference styling, generated imagery, design-system token, or product implementation code appears.
 - `check_wireframe_html.py` passes with `--prd <staged PRD.md> --require-filled --require-approved`.
 - The PRD-bound diagnostic stage ran as one complete diagnostic wave with its scores, consolidated defect ledger, and bounded repair/re-review outcome recorded, or the host capability was unavailable and the exact skip was recorded; a parent-only review is never labeled as multi-agent grading.
 - `PRD.md` records the human owner, approval status, date, approved `UI-*` scope, and unresolved items.

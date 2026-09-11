@@ -258,7 +258,7 @@ async function agent(_prompt, options) {
         self.assertIn("sitemap and robots policy", contract)
         self.assertIn("traces to its own `TEST-*` row", contract)
 
-    def test_product_definition_builder_owns_approved_low_fidelity_wireframes(self) -> None:
+    def test_product_definition_builder_owns_wireframe_deliverable(self) -> None:
         skill = self.read("SKILL.md")
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
@@ -270,7 +270,7 @@ async function agent(_prompt, options) {
             self.assertIn("wireframes.html", content)
             self.assertNotIn("wireframes.md", content)
         self.assertFalse((SKILL_ROOT / "assets/templates/WIREFRAMES.template.md").exists())
-        self.assertIn("`product-definition-builder` owns one low-fidelity deliverable", guide)
+        self.assertIn("`product-definition-builder` owns one wireframe deliverable", guide)
         self.assertIn("Create one screen for every `UI-*` entry", guide)
         self.assertIn("## HTML Requirements", guide)
         self.assertIn("Generate one self-contained file", guide)
@@ -380,7 +380,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — 儀表板\n\n"
                 "- `route`: /\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -403,7 +403,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /different\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -427,7 +427,7 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /\n"
                 "- `states`: ready, empty\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -451,11 +451,11 @@ async function agent(_prompt, options) {
                 "### UI-001 — Dashboard\n\n"
                 "- `route`: /\n"
                 "- `states`: ready\n\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "### UI-002 — Settings\n\n"
                 "- `route`: /settings\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
@@ -481,7 +481,7 @@ async function agent(_prompt, options) {
             "### UI-001 — 儀表板\n\n"
             "- `route`: /\n"
             "- `states`: ready\n"
-            "- `responsive`: viewports: 390, 1200\n"
+            "- `responsive`: viewports: 390, 768, 1200\n"
             "<!-- ui-surface-contract:end -->\n"
         )
         with tempfile.TemporaryDirectory() as tmp:
@@ -514,7 +514,7 @@ async function agent(_prompt, options) {
                     "### UI-001 — Outside\n\n"
                     "- `route`: /\n"
                     "- `states`: ready\n"
-                    "- `responsive`: viewports: 390, 1200\n",
+                    "- `responsive`: viewports: 390, 768, 1200\n",
                     "headings outside the ui-surface-contract boundary",
                 ),
                 (
@@ -555,8 +555,8 @@ async function agent(_prompt, options) {
             "product": "P",
             "approvalStatus": "draft",
             "source": "PRD.md#UI-Surface-Contract",
-            "viewports": [390, 1200],
-            "canvasWidths": {"390": 390, "1200": 1200},
+            "viewports": [390, 768, 1200],
+            "canvasWidths": {"390": 390, "768": 768, "1200": 1200},
             "screens": [
                 {
                     "id": "UI-001",
@@ -588,6 +588,14 @@ async function agent(_prompt, options) {
                             "spans": {"r1": 1},
                             "reflow": "Stack in one column",
                             "interaction": "Use touch-sized controls",
+                        },
+                        "768": {
+                            "order": ["r1"],
+                            "hidden": [],
+                            "columns": 6,
+                            "spans": {"r1": 6},
+                            "reflow": "Use the medium grid",
+                            "interaction": "Keep touch and pointer controls reachable",
                         },
                         "1200": {
                             "order": ["r1"],
@@ -739,7 +747,7 @@ async function agent(_prompt, options) {
         )
         self.assertIn("stay at the bundled default", skill)
         self.assertIn("never reopened for this", skill)
-        self.assertIn("one self-contained high-fidelity HTML", guide)
+        self.assertIn("one self-contained design-reference HTML", guide)
         self.assertIn("Every visible product control responds", guide)
         self.assertIn("generationStatus: deferred", guide)
         self.assertNotIn("imagegen-frontend-web", guide)
@@ -2289,14 +2297,14 @@ async function agent(_prompt, options) {
             "Record the styling approach as its own layer row", frontend
         )
 
-    def test_high_fidelity_preview_is_interactive_auth_free_and_generation_deferred(self) -> None:
+    def test_design_reference_preview_is_interactive_auth_free_and_generation_deferred(self) -> None:
         skill = self.read("SKILL.md")
         guide = self.read("references/ui-design-pass.md")
         contract = self.read("references/output-contract.md")
 
         for content in (skill, guide, contract):
             lowered = content.lower()
-            self.assertIn("one self-contained high-fidelity html", lowered)
+            self.assertIn("one self-contained design-reference html", lowered)
             self.assertIn("login, registration, recovery", lowered)
             self.assertIn("generationstatus: deferred", lowered)
         for marker in (
@@ -2345,7 +2353,7 @@ async function agent(_prompt, options) {
             "`0–59 — block`",
             "wireframe overall score",
             "overall score is at least `80`",
-            "high-fidelity overall score",
+            "design-reference overall score",
             "overall score is at least `90`",
             "each score at least `90`",
             "`H2 Layout safety`, `H4 Responsive and edge states`, and `H8 Accessibility`",
@@ -2405,7 +2413,7 @@ async function agent(_prompt, options) {
         self.assertIn("let the AI recommend", interview)
         self.assertIn("## Motion Stage Contract", guide)
         self.assertIn("PRD discovery records the Motion Need Gate", guide)
-        self.assertIn("Low-fidelity `wireframes.html` shows motion intent as a static annotation only", guide)
+        self.assertIn("`wireframes.html` shows motion intent as a static annotation only", guide)
         self.assertIn("Delivery Harness implements the approved motion", guide)
         self.assertIn("deterministic local CSS or JavaScript", guide)
         self.assertIn("generationStatus: deferred", guide)

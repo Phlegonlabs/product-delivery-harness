@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.33.0"', package)
+        self.assertIn('"version": "0.34.0"', package)
         self.assertEqual(
-            "0.33.0",
+            "0.34.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -572,6 +572,39 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not add attempts on top of that budget", gates)
         self.assertIn("Final Visual Parity Loop", contract)
 
+    def test_ui_impact_classification_and_deviation_ledger_are_binding(self) -> None:
+        contract = self.read("references/ui-implementation-contract.md")
+        gates = self.read("references/verification-gates.md")
+        skill = self.read("SKILL.md")
+        updates = self.read("references/design-input-updates.md")
+        worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
+        e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
+
+        self.assertIn(
+            "`none`, `style`, `structure`, or `both`", contract
+        )
+        self.assertIn(
+            "never integrate a structural change ahead of its doc delta", contract
+        )
+        self.assertIn("deviation ledger", gates)
+        self.assertIn(
+            "accumulated in-tolerance drift never substitutes for a doc update", gates
+        )
+        self.assertIn("The deviation ledger is complete", gates)
+        self.assertIn("classify the completed change's UI impact", worker_goal)
+        self.assertIn("## Deviation Ledger", e2e_template)
+        self.assertIn("Allowed-deviation citation", e2e_template)
+        self.assertIn("rule-8 UI-impact classification", skill)
+        self.assertIn("never a silent local restyle", updates)
+        self.assertIn(
+            "returns through `product-definition-builder` as a design-input delta",
+            updates,
+        )
+        self.assertIn(
+            "Motion is a design decision, not an implementation preference", contract
+        )
+        self.assertIn("Static screenshots never close a motion change", gates)
+
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")
         trace = self.read("references/contract-and-traceability.md")
@@ -580,7 +613,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         join = self.read("scripts/harness_contract_join.py")
 
         self.assertIn("exact responsive set", skill)
-        self.assertIn("at least two targets", skill)
+        self.assertIn("declared platform minimum", skill)
         self.assertIn("invariant `` `responsive` `` anchor", trace)
         self.assertIn("PRD, approved `wireframes.html`, every PLAN UI surface", trace)
         self.assertIn("missing or mismatched responsive set", ui_contract)
@@ -876,7 +909,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.33.0"', runbook)
+        self.assertIn('"required_harness_version": "0.34.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

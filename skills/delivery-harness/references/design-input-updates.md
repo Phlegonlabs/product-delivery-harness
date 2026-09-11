@@ -74,6 +74,7 @@ Rules:
 - When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. When it is `not_required`, a target change returns to the PRD UI Design Handoff and its human approval gate. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
 - Wireframe deltas return to `product-definition-builder`, require renewed human-owner approval, and invalidate downstream visual-direction selection until reconciled.
+- A legacy two-target web responsive set is a mandatory delta before its package is next edited or re-validated: raise the set to at least three ascending viewports and carry the new target through `PRD.md`, `wireframes.html`, the design-system pair when present, and every PLAN `ui_surfaces` breakpoint list together. Historical `wireframes/2` files stay readable at two targets; they are never a reason to keep a new package at two.
 - Builder UX Direction deltas must preserve their human owner and selected/provisional/assumed status, map to affected `UX-*`, `UI-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
 ## Page-Faithful Target Matrix
@@ -241,7 +242,7 @@ Ranking rules:
 - Prefer issues with direct user impact and deterministic verification.
 - Prefer small improvements that preserve existing information architecture and contracts.
 - Do not hide product rewrites inside "polish".
-- Separate bug fixes from visual opinion changes.
+- Separate bug fixes from visual opinion changes; a visual opinion change that departs from a recorded visual value is a design-input delta under the rules above, never a silent local restyle.
 - Treat design-system drift as a contract issue when a design system exists.
 
 ### Mission Patterns
@@ -259,6 +260,8 @@ M5 regression verification
 ```
 
 For small accepted refinements, skip worktrees and run direct work with before/after evidence. Use worktrees when several accepted refinements can run independently or when the parent checkout must remain stable.
+
+Every refinement mission that touches UI records its UI-impact classification — `none`, `style`, `structure`, or `both` — in its result under the same rule as `ui-implementation-contract.md`. A refinement that changes regions, states, actions, routes, or responsive behavior is structural: it returns through `product-definition-builder` as a design-input delta before it integrates.
 
 ### Regression Protection
 

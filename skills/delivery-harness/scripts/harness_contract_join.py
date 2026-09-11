@@ -256,12 +256,12 @@ def parse_prd_ui_contract(
             errors.append(f"prd: UI surface {surface_id} has no states value")
         responsive_kind: str | None = None
         responsive_targets: list[str] = []
-        if len(responsive_matches) > 1:
+        if len(responsive_matches) != 1:
             errors.append(
                 f"prd: UI surface {surface_id} requires exactly one `responsive` "
                 f"anchor; found {len(responsive_matches)}"
             )
-        elif len(responsive_matches) == 1:
+        else:
             responsive_kind, responsive_targets, responsive_error = normalized_responsive(
                 responsive_matches[0].group(1)
             )

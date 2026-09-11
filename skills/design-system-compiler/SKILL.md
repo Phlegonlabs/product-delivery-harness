@@ -12,7 +12,7 @@ Turn an approved UI direction into two binding reusable UI sources:
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
 
-This skill is optional. Invoke it only when an explicitly requested visual-design phase has produced an approved UI Design Handoff and `PRD.md` records `Design System Need Gate: required`. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the approved UI Design Handoff. Approved `wireframes.html` is its low-fidelity interactive review projection. Do not duplicate or change those contracts, rerun visual exploration by default, implement production UI code, or create Harness PLAN/RUN state.
+This skill is optional. Invoke it only when an explicitly requested visual-design phase has produced an approved UI Design Handoff and `PRD.md` records `Design System Need Gate: required`. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the approved UI Design Handoff. Approved `wireframes.html` is its structural interactive review projection. Do not duplicate or change those contracts, rerun visual exploration by default, implement production UI code, or create Harness PLAN/RUN state.
 
 ## Compilation Skills Gate
 
@@ -74,7 +74,7 @@ Also confirm:
 - every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
 - every required UI element maps to a registered primitive or product component;
 - every Motion Need Gate row is resolved; `required` and approved `recommended` motion maps to a registered variant plus reduced-motion behavior, while `not_required` introduces no decorative variant;
-- exactly one responsive set with at least two targets exists: web `viewports` or native or desktop `sizeClasses`, and it matches the PRD and approved wireframe set;
+- exactly one responsive set exists — web `viewports` with at least three ascending targets, or native or desktop `sizeClasses` with at least two — and it matches the PRD and approved wireframe set;
 - no unresolved placeholder, page-local value, or one-off control remains; and
 - `design-system.md` and `design-system.json` publish together and agree through the pair checker.
 

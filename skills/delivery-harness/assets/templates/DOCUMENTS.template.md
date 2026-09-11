@@ -7,7 +7,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `AGENTS.md` | root | bootstrap | human + harness | shared governance | |
 | `CLAUDE.md` | root | bootstrap | human + harness | imports `AGENTS.md` | |
 | `PRD.md` | `docs/product/` | PRD | product-definition-builder + owner approval | product definition | |
-| `wireframes.html` | `docs/product/` | PRD (UI-bearing) | product-definition-builder + Wireframe Approval | low-fidelity projection | |
+| `wireframes.html` | `docs/product/` | PRD (UI-bearing) | product-definition-builder + Wireframe Approval | structural projection | |
 | `architecture.md` | `docs/product/` | PRD | product-definition-builder | technical definition | |
 | `stack-decisions.md` | `docs/product/` | PRD | product-definition-builder | stack choices + rationale | |
 | `market-research.md` | `docs/product/` | PRD (gap pass) | product-definition-builder | sourced research | |
