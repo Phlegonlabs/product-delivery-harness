@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.35.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.35.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -46,7 +46,8 @@
 - **Activation 必須讀回驗證。** 外部設定留在 PLAN/RUN 之外，核准綁定精確 action digest，且只有獨立 read-back 與行為證據完成後才算 verified。
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
 - **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄來自真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類其影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯到 PRD Motion Need Gate 的決策。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
-- **完成的 run 會收檔。** 晉升之後，`scripts/archive_run.py` 在 dry-run 移動清單確認後，把整個協作集——PLAN、RUN、決策、backlog、證據、tasks 視圖——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不刪除，歸檔 commit 沿同一條晉升路徑落到 `main`。
+- **完成的 run 會收檔。** 晉升之後，`scripts/archive_run.py` 在 dry-run 移動清單確認後，把整個協作集——PLAN、RUN、決策、backlog、證據、tasks 視圖——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不刪除，歸檔 commit 沿同一條晉升路徑落到 `main`。tasks 視圖結尾有一個 renderer 逐字保留的手寫 Update Log：plan 完成後，owner 或 agent 每一筆未進 PRD 的更新都以帶日期的一行記在那裡；歸檔集僅以凍結 hash 引用 PRD——PRD 永不進歸檔，始終是活引用。
+- **讀規則是強制的。** 種子化的專案 `AGENTS.md` 要求：受管工作前必讀綁定的 `delivery-harness` SKILL.md，影響產品的直接工作前必讀受影響的 PRD 段落；跳過即 blocking review finding。
 - **程式安全是全新的最終審查。** 每個新的受管 PLAN 都要明確標記 required，或說明非程式交付為何 not applicable。Required review 會在 broad final validation 前，讓 `code-security-review` 涵蓋統一整合 SHA 上的每個 mission；其宣告 scope 必須包含每個 mission 的完整 write scope。它會驗證 agent 的結構化結果，並且不能沿用相同 tree 的早期佐證。Security PASS 不得有 exclusions，且至少一個 tool 或人工審查必須記為 `passed` 或 `findings`。Required node 不得跳過或被 supersede；reserve 與 completion 會重查 live Git。精確的 interruption receipt 只能在後續 current reviewer 提供 structured PASS 後作為歷史保留。
 - **Promotion 一律 main-only。** RUN 仍預設在本機完成，也只能選擇性推送自己的 run branch。第一次交付與後續 enhancement 都從觀察到的 remote `main` 開始；RUN 關閉後，精確 candidate 必須通過所有本機與隔離 preview environment gate，才能另行授權 fast-forward 到 `main`。
 
@@ -465,6 +466,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
+- **0.35.1** — 種子化的專案 `AGENTS.md` 新增 Required Reading 段：受管 harness 工作先讀綁定的 `delivery-harness` SKILL.md，影響產品的直接工作先讀 `docs/product/PRD.md` 受影響段落與 `DOCUMENTS.md` 指名的檔案，跳過閱讀視為 blocking review finding；本倉庫自身的 `AGENTS.md` 帶維護者側鏡像。`docs/tasks.md` 新增由 `update-log` 標記圍起的手寫 Update Log——`render_tasks_view.py` 重寫標記以上的一切、逐字保留圍內行、`--check` 忽略 log 編輯——plan 完成後到歸檔前，owner 或 agent 的每筆未進 PRD 的更新都以帶日期的一行記入；影響產品的更新同時按 Keep Product Contracts Current 進 PRD。PRD 與 run 文件的分離在歸檔全程明文化：歸檔集僅以 PLAN sources 裡凍結的 `content_sha256` 引用 PRD，`docs/product/` 永不進入 `docs/goal/archived/`，PRD 留在正式路徑作為後續 enhancement run 的活引用。`archive_run.py` 另增 `--stamp` 以在確定性重跑中釘住歸檔時間戳。
 - **0.35.0** — UI 對齊改為機器強制：固定到 harness 0.35.0 及之後的 RUN-v11 檔案攜帶 `deviation_ledger`——每條被接受的 parity 偏差都要有一行帶引用的記錄，無對應偏差的行會被拒絕——以及 `ui_impact_summary`，為 UI run 的每個 mission 分類 `none`/`style`/`structure`/`both`，`structure`/`both` 必須指名其被接受的上游 doc delta；兩者都在 closeout 校驗。新增 `scripts/archive_run.py`：dry-run 列出移動清單後，把完成 run 的整個協作集——PLAN.md、RUN.md、DECISIONS.md、REFINEMENT_BACKLOG.md、evidence/ 與 tasks 渲染視圖——收進 `docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/`，在 DOCUMENTS.md 記錄該行，永不刪除；完成流程把「晉升後歸檔」列為必經下一步，歸檔 commit 沿 run 分支經同一晉升路徑進 `main`，new_run 遇到已完成的 run 會直接指向歸檔腳本。破壞性 skill bundle 變更，版本閘門限定 0.35.0+ 的 run。
 - **0.34.0** — 全鏈路更名保真度詞彙：高擬真 HTML 審查稿改為設計參考（design reference），線框明確為結構線框；已凍結的 PRD 位元組不受影響。Web responsive 集合從 PRD 起草、線框檢查器到設計系統契約一律要求至少三個遞增 viewport；歷史 `wireframes/2` 檔案維持雙目標可讀，舊的雙目標 web 集合在下次重驗前必須先透過 design-input delta 提升。harness 的 PRD join 現在要求每個 `UI-*` 條目恰好一個 `responsive` 錨點，不再靜默跳過 breakpoint 比對。固定到 harness 0.34.0 及之後的 RUN-v11 檔案在每條 UI 佐證行記錄 `layout_check`——真實瀏覽器 DOM 幾何掃描（重疊、裁切、遮擋、水平溢出）、標注的人工或原生依據，或記錄在案的原因——帶失敗檢查的 PASS 行永遠無法結案。UI 任務在驗收前分類影響（`none`/`style`/`structure`/`both`），結構性變更只在其文件 delta 之後整合，被接受的 parity 偏差連引用記入 deviation ledger，direct 與 open-ended refinement 同樣承擔文件同步義務，上線 motion 必須追溯 PRD Motion Need Gate 決策。破壞性 skill bundle 變更。
 - **0.33.0** — 五個標準 skill 由 `.agents/skills/` 移至頂層 `skills/`，確立公開 mono-repo 佈局，並新增一鍵安裝腳本。`install.sh`（bash）與 `install.ps1`（PowerShell）會先把現有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一個帶時間戳的備份，再將 `skills/` 排除 `__pycache__` 後複製進 `~/.agents/skills/`，並驗證每份 `SKILL.md`；重跑腳本即更新。`package.json` 的 Pi skills 指向、CI、contract test 的 repo-root 偵測與所有 repo 內部文件路徑一併跟隨搬移；使用者端 `~/.agents/skills/` 安裝慣例不變，現有安裝繼續有效。屬 breaking skill-bundle 佈局變更。
