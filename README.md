@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.32.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.33.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -410,27 +410,28 @@ Parallel implementation has no small fixed cap by default; the configured write-
 ## Repository layout
 
 ```text
-.agents/skills/                                      Canonical skill sources
+skills/                                              Canonical skill sources
 assets/                                              README covers
 .github/workflows/harness-ci.yml                     Contract, unit, and E2E checks
+install.sh / install.ps1                             One-command installers into ~/.agents/skills/
 ```
 
 ## Maintain the skills
 
-Edit only the canonical sources in `.agents/skills/`, then run the core verification suite:
+Edit only the canonical sources in `skills/`, then run the core verification suite:
 
 ```bash
-python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
-python .agents/skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts .agents/skills/product-activation/scripts
-python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
-python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
-python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
-python -m unittest discover -s .agents/skills/product-activation/scripts/tests -v
+python -m pip install -r skills/delivery-harness/requirements-test.txt
+python skills/delivery-harness/scripts/check_skill_spec.py
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python -m unittest discover -s skills/delivery-harness/scripts/tests -v
+python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
+python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
+python -m unittest discover -s skills/product-activation/scripts/tests -v
 git diff --check
 ```
 
-CI also runs the end-to-end spine check. Run it locally with `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`; it walks the real CLI spine (`new_run.py` → frozen joins including the sibling skill's full wireframe checker → `validate_result.py --repo-root`) over one synthetic product package, so cross-skill contract drift surfaces as one red test.
+CI also runs the end-to-end spine check. Run it locally with `HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v`; it walks the real CLI spine (`new_run.py` → frozen joins including the sibling skill's full wireframe checker → `validate_result.py --repo-root`) over one synthetic product package, so cross-skill contract drift surfaces as one red test.
 
 ## Keeping the READMEs current
 
@@ -440,10 +441,10 @@ The READMEs are documentation-of-record: every change that adds or alters a skil
 
 Every flow that lands on `main` is one release, and the version bump rides in the same change — patch by default, minor for a breaking skill-bundle change. Update all of these together:
 
-1. The `version` field in `package.json` and the copied-skill version in `.agents/skills/delivery-harness/VERSION`.
+1. The `version` field in `package.json` and the copied-skill version in `skills/delivery-harness/VERSION`.
 2. The version badge and the version-history entry in all four READMEs (`README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md`).
-3. The RUNBOOK `required_harness_version` default in `.agents/skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
-4. The pinned version asserts in `.agents/skills/delivery-harness/scripts/tests/test_skill_contract.py`.
+3. The RUNBOOK `required_harness_version` default in `skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md`.
+4. The pinned version asserts in `skills/delivery-harness/scripts/tests/test_skill_contract.py`.
 
 Then run the full verification above, review the entire diff, and land through `branch-promotion-contract.md`. Use a PR when repository protection requires it. If the provider creates a new main SHA, require tree equality with the verified candidate and immediately rerun the full suite plus security review on that exact main SHA before tagging or claiming release completion. After landing, tag the release commit on `main` with the matching `v<version>` tag (for example `v0.30.0`); the tag is part of the release, not an optional extra. Every released version has its tag — `git tag` and `package.json` must tell the same story.
 
@@ -461,6 +462,8 @@ This repository is licensed under the MIT License — see [LICENSE](LICENSE).
 ## Version history
 
 Update this section with each release, as part of the version bump and tag described in Releasing above.
+
+- **0.33.0** — Moved the five canonical skills from `.agents/skills/` to a top-level `skills/` folder for the public mono-repo layout, and added one-command installers. `install.sh` (bash) and `install.ps1` (PowerShell) move any existing copies to one timestamped backup under `~/.agents/skill-backups/product-delivery-harness/`, copy `skills/` into `~/.agents/skills/` excluding `__pycache__`, and verify each copied `SKILL.md`; re-running the installer is the update path. `package.json`'s Pi skills pointer, CI, the contract tests' repo-root detection, and every documented repo-internal path follow the move; the user-side `~/.agents/skills/` install convention is unchanged, so existing installs keep working. Breaking skill-bundle layout change.
 
 - **0.32.0** — Bounded Product Definition UI grading to one complete diagnostic wave, one consolidated root-cause ledger, one repair batch, and one re-review. One lead grader is now the default; at most two non-overlapping specialists require an owner request or recorded high-impact risk. Numeric scores describe visual quality, while explicit PRD and Technical Hard Gate failures remain binary; high-fidelity design needs an overall score of 90 with `H2`, `H4`, and `H8` also at 90, non-critical 60–79 scores are advisory, and passing candidates are not reworked to chase 100. PRDs now include a Motion Need Gate, high-fidelity HTML may demonstrate required local UI motion with a reduced-motion path, and generated motion remains deferred until separately authorized.
 
