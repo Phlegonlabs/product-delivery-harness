@@ -97,7 +97,7 @@ def check_bindings(
 
 def default_skill_dirs(agents_md: Path) -> list[Path]:
     return [
-        agents_md.parent / ".agents" / "skills",
+        agents_md.parent / "skills",
         Path.home() / ".agents" / "skills",
     ]
 

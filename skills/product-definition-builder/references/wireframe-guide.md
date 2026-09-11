@@ -49,7 +49,7 @@ Inline CSS and JavaScript implement the reviewer shell, page switching, working 
 After filling and approving the HTML, validate it from the repository root:
 
 ```text
-python .agents/skills/product-definition-builder/scripts/check_wireframe_html.py --html <staged wireframes.html> --prd <staged PRD.md> --require-filled --require-approved
+python skills/product-definition-builder/scripts/check_wireframe_html.py --html <staged wireframes.html> --prd <staged PRD.md> --require-filled --require-approved
 ```
 
 A passing static check proves internal structure, self-containment, complete responsive data, and that the wireframe screens and the PRD `UI-*` surface contract name the same IDs, routes, states, and responsive set. It does not prove rendered usability or visual quality.

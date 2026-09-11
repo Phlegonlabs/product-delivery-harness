@@ -204,11 +204,11 @@ The complete target set is the union of non-placeholder targets in ACT release b
 Run:
 
 ```text
-python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md
-python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md
-python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --require-filled
-python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md --require-verified-sources --require-ready <release-target-id>
-python .agents/skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --show-action-digests
+python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md
+python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md
+python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --require-filled
+python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --prd docs/product/PRD.md --require-verified-sources --require-ready <release-target-id>
+python skills/product-activation/scripts/check_activation.py --activation docs/ACTIVATION.md --show-action-digests
 ```
 
 The checker is read-only. Exit `0` means the requested contract checks pass, `1` means findings were printed, and `2` means the input could not be read or the CLI was invalid. It never calls a provider, executes a recorded command, reads a secret, or edits a document.

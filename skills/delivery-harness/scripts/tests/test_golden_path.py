@@ -4,7 +4,7 @@
 CI enables this test explicitly. Run it locally with:
 
     HARNESS_GOLDEN_PATH=1 python -m unittest discover \
-        -s .agents/skills/delivery-harness/scripts/tests \
+        -s skills/delivery-harness/scripts/tests \
         -p "test_golden_path.py" -v
 
 The per-component suites each stay green while the four skills drift apart;

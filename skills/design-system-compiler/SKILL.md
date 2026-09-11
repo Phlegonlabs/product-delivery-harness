@@ -59,10 +59,10 @@ Product scope, route, structure, content, action, flow, state, wireframe, or app
 Run these from the repository root:
 
 ```text
-python .agents/skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write
-python .agents/skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled
-python .agents/skills/design-system-compiler/scripts/check_color_contrast.py <the arguments required by the staged design system>
-python .agents/skills/design-system-compiler/scripts/check_type_scale.py <the arguments required by the staged design system>
+python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --write
+python skills/design-system-compiler/scripts/check_design_system_pair.py --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled
+python skills/design-system-compiler/scripts/check_color_contrast.py <the arguments required by the staged design system>
+python skills/design-system-compiler/scripts/check_type_scale.py <the arguments required by the staged design system>
 ```
 
 Also confirm:

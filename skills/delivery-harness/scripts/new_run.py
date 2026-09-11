@@ -58,7 +58,8 @@ def _harness_version() -> str:
         # above it, and walking on would happily record an unrelated app's
         # version from the user's home directory into the upgrade gate.
         if not package.is_file() or not (
-            (directory / ".agents" / "skills").is_dir()
+            (directory / "skills").is_dir()
+            or (directory / ".agents" / "skills").is_dir()
             or (directory / "plugins").is_dir()
         ):
             continue

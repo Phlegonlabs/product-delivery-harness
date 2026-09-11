@@ -182,7 +182,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
 
         self.assertIn("Run these from the repository root", skill)
         self.assertIn(
-            ".agents/skills/design-system-compiler/scripts/check_design_system_pair.py",
+            "skills/design-system-compiler/scripts/check_design_system_pair.py",
             skill,
         )
         self.assertIn("scripts/check_color_contrast.py", skill)
