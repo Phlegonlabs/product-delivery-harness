@@ -35,31 +35,31 @@ jobs:
           python-version: "3.13"
 
       - name: Install harness test dependencies
-        run: python -m pip install -r .agents/skills/delivery-harness/requirements-test.txt
+        run: python -m pip install -r skills/delivery-harness/requirements-test.txt
 
       - name: Validate Agent Skills specification compliance
-        run: python .agents/skills/delivery-harness/scripts/check_skill_spec.py
+        run: python skills/delivery-harness/scripts/check_skill_spec.py
 
       - name: Check for dead code with pyflakes
         run: |
-          python -m pyflakes .agents/skills/delivery-harness/scripts .agents/skills/product-definition-builder/scripts .agents/skills/design-system-compiler/scripts .agents/skills/product-activation/scripts
+          python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
 
       - name: Run harness unit, contract, and E2E tests
-        run: python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -v
+        run: python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 
       - name: Run golden-path cross-skill test
         env:
           HARNESS_GOLDEN_PATH: "1"
-        run: python -m unittest discover -s .agents/skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
+        run: python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 
       - name: Run product definition builder contract tests
-        run: python -m unittest discover -s .agents/skills/product-definition-builder/scripts/tests -v
+        run: python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
 
       - name: Run design system compiler contract tests
-        run: python -m unittest discover -s .agents/skills/design-system-compiler/scripts/tests -v
+        run: python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
 
       - name: Run product activation contract tests
-        run: python -m unittest discover -s .agents/skills/product-activation/scripts/tests -v
+        run: python -m unittest discover -s skills/product-activation/scripts/tests -v
 
       - name: Check diff whitespace
         run: |
