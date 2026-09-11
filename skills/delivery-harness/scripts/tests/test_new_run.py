@@ -137,6 +137,38 @@ class NewRunTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertEqual("live state", out.read_text(encoding="utf-8"))
 
+    def test_refusing_a_completed_run_points_at_archive_run(self) -> None:
+        import contextlib
+        import io
+        import json
+
+        out = self.generate()
+        out.write_text(
+            "# Run\n\n## Harness Run State\n\n```json\n"
+            + json.dumps({"harness_run": {"run_id": "RUN-old", "status": "complete"}})
+            + "\n```\n",
+            encoding="utf-8",
+        )
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = new_run.main(
+                [
+                    "--plan",
+                    str(PLAN_TEMPLATE),
+                    "--run-id",
+                    "RUN-test",
+                    "--branch",
+                    "refs/heads/test-run",
+                    "--out",
+                    str(out),
+                ]
+            )
+
+        self.assertEqual(2, code)
+        self.assertIn("archive_run.py", stderr.getvalue())
+        self.assertIn("complete", out.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

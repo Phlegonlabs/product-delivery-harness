@@ -34,6 +34,7 @@ from harness_manifest import (
     validate_plan,
 )
 from harness_contract import contract_digest
+from harness_core import load_run
 
 def _harness_version() -> str:
     """Read the Harness version from skill-local or package metadata.
@@ -243,6 +244,8 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
         "batch_gate_results": _gate_results(plan.get("batch_verifiers")),
         "final_gate_results": _gate_results(plan.get("final_gates")),
         "ui_evidence": [],
+        "deviation_ledger": [],
+        "ui_impact_summary": [],
         "landing": {
             "mode": "local_only",
             "remote": "origin",
@@ -380,8 +383,17 @@ def main(argv: list[str] | None = None) -> int:
         print(document, end="")
         return 0
     if args.out.exists():
-        # Never clobber live run state.
-        print(f"refusing to overwrite {args.out}", file=sys.stderr)
+        # Never clobber live run state; a completed run must be archived first.
+        hint = ""
+        try:
+            if load_run(args.out).get("status") == "complete":
+                hint = (
+                    "; this run is complete — archive it first with "
+                    "scripts/archive_run.py"
+                )
+        except Exception:  # noqa: BLE001 - any parse failure keeps the base message
+            pass
+        print(f"refusing to overwrite {args.out}{hint}", file=sys.stderr)
         return 2
     args.out.write_text(document, encoding="utf-8")
     print(f"wrote {args.out}")

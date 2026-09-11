@@ -141,6 +141,8 @@ UI_TARGET_COMPARISON_VERDICTS = {"pass", "deviation"}
 
 UI_LAYOUT_CHECK_PREFIXES = ("fail", "manual", "n/a")
 UI_LAYOUT_CHECK_REQUIRED_VERSION = (0, 34, 0)
+UI_DEVIATION_LEDGER_REQUIRED_VERSION = (0, 35, 0)
+UI_IMPACT_VALUES = {"none", "style", "structure", "both"}
 
 
 def _run_required_harness_version(run: dict[str, Any]) -> str | None:
@@ -203,6 +205,122 @@ def _validate_layout_check(
         "must be `pass`, or `fail — <selectors>`, `manual — <basis>`, "
         "or `n/a — <reason>`",
     )
+
+
+UI_DEVIATION_LEDGER_ROW_KEYS = {
+    "surface_id",
+    "route",
+    "breakpoint",
+    "state",
+    "difference",
+    "citation",
+}
+
+
+def _deviation_ledger_required(run: dict[str, Any]) -> bool:
+    """RUN-v11 files pinned to harness 0.35.0+ carry the deviation ledger.
+
+    Runs without the version gate, or pinned to an older harness, keep
+    their frozen shape so in-flight RUN files stay valid.
+    """
+
+    return run.get("schema_version") == 11 and _version_at_least(
+        _run_required_harness_version(run), UI_DEVIATION_LEDGER_REQUIRED_VERSION
+    )
+
+
+def validate_deviation_ledger(run: dict[str, Any]) -> list[str]:
+    """Cross-check run.deviation_ledger against every accepted deviation.
+
+    Every difference behind a `deviation` target_comparison verdict must
+    appear in one ledger row carrying the allowed-deviation citation that
+    admits it, and every ledger row must trace back to a real deviation —
+    an orphan row is a fabricated citation, not extra bookkeeping.
+    """
+
+    errors: list[str] = []
+    if not _deviation_ledger_required(run):
+        return errors
+    deviations: dict[tuple[str, str, str, str], list[str]] = {}
+    evidence_items = run.get("ui_evidence")
+    if isinstance(evidence_items, list):
+        for item in evidence_items:
+            if not isinstance(item, dict):
+                continue
+            comparison = item.get("target_comparison")
+            if not isinstance(comparison, dict):
+                continue
+            if comparison.get("verdict") != "deviation":
+                continue
+            key = (
+                item.get("surface_id"),
+                item.get("route"),
+                item.get("breakpoint"),
+                item.get("state"),
+            )
+            differences = [
+                difference
+                for difference in (comparison.get("differences") or [])
+                if _nonempty_string(difference)
+            ]
+            deviations.setdefault(key, []).extend(differences)
+    ledger = run.get("deviation_ledger")
+    if deviations and ledger is None:
+        _add(
+            errors,
+            "run.deviation_ledger",
+            "accepted deviations require a deviation ledger with one cited "
+            "row per difference",
+        )
+        return errors
+    if ledger is None:
+        return errors
+    if not isinstance(ledger, list):
+        _add(errors, "run.deviation_ledger", "must be a list")
+        return errors
+    covered: set[tuple[tuple[str, str, str, str], str]] = set()
+    for index, row in enumerate(ledger):
+        path = f"run.deviation_ledger[{index}]"
+        if not isinstance(row, dict):
+            _add(errors, path, "must be an object")
+            continue
+        if not _keys(errors, path, row, UI_DEVIATION_LEDGER_ROW_KEYS, ()):
+            continue
+        scalars_valid = True
+        for field in sorted(UI_DEVIATION_LEDGER_ROW_KEYS):
+            if not _nonempty_string(row.get(field)):
+                _add(errors, f"{path}.{field}", "must be a non-empty string")
+                scalars_valid = False
+        if not scalars_valid:
+            continue
+        key = (
+            row["surface_id"],
+            row["route"],
+            row["breakpoint"],
+            row["state"],
+        )
+        entry = (key, row["difference"])
+        if entry in covered:
+            _add(errors, path, "duplicates an earlier ledger row")
+            continue
+        covered.add(entry)
+        if row["difference"] not in deviations.get(key, []):
+            _add(
+                errors,
+                path,
+                "has no matching deviation verdict for this surface, route, "
+                "breakpoint, state, and difference",
+            )
+    for key in sorted(deviations):
+        for difference in deviations[key]:
+            if (key, difference) not in covered:
+                _add(
+                    errors,
+                    "run.deviation_ledger",
+                    "required ledger row is missing "
+                    f"{'|'.join(key)}|{difference}",
+                )
+    return errors
 
 
 def _validate_target_comparison(errors: list[str], path: str, item: dict[str, Any]) -> None:

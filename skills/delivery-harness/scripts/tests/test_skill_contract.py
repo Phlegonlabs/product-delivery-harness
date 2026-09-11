@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.34.0"', package)
+        self.assertIn('"version": "0.35.0"', package)
         self.assertEqual(
-            "0.34.0",
+            "0.35.0",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -586,11 +586,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "never integrate a structural change ahead of its doc delta", contract
         )
-        self.assertIn("deviation ledger", gates)
+        self.assertIn("RUN `deviation_ledger`", gates)
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
         )
-        self.assertIn("The deviation ledger is complete", gates)
+        self.assertIn("The RUN `deviation_ledger` is complete", gates)
         self.assertIn("classify the completed change's UI impact", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
@@ -909,7 +909,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.34.0"', runbook)
+        self.assertIn('"required_harness_version": "0.35.0"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

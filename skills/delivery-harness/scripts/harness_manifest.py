@@ -106,7 +106,10 @@ from harness_graph import (
     _validate_graph_state,
 )
 from harness_ui_evidence import (
+    _run_required_harness_version,
     _validate_ui_evidence,
+    UI_IMPACT_VALUES,
+    validate_deviation_ledger,
     validate_integration_head_against_git,
     validate_ui_evidence_files,
     validate_ui_surface_design_coverage,
@@ -1306,6 +1309,100 @@ def _version_at_least(value: Any, minimum: tuple[int, int, int]) -> bool:
     if len(parts) != 3 or any(not part.isdigit() for part in parts):
         return False
     return tuple(int(part) for part in parts) >= minimum
+
+
+UI_IMPACT_SUMMARY_REQUIRED_VERSION = (0, 35, 0)
+UI_IMPACT_SUMMARY_ROW_KEYS = {"mission_id", "impact"}
+
+
+def _validate_ui_impact_summary(
+    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+) -> None:
+    """Check run.ui_impact_summary against the plan's missions.
+
+    On RUN-v11 files pinned to harness 0.35.0+ with PLAN UI surfaces, a
+    complete run classifies every mission's UI impact; a `structure` or
+    `both` row names the accepted upstream doc delta that covers it.
+    Older and ungated runs keep their frozen shape.
+    """
+
+    if run.get("schema_version") != 11:
+        return
+    if not _version_at_least(
+        _run_required_harness_version(run), UI_IMPACT_SUMMARY_REQUIRED_VERSION
+    ):
+        return
+    summary = run.get("ui_impact_summary")
+    plan_ui_surfaces = plan.get("ui_surfaces")
+    required = (
+        run.get("status") == "complete"
+        and isinstance(plan_ui_surfaces, list)
+        and bool(plan_ui_surfaces)
+    )
+    if summary is None:
+        if required:
+            _add(
+                errors,
+                "run.ui_impact_summary",
+                "a complete UI run classifies every mission's UI impact",
+            )
+        return
+    if not isinstance(summary, list):
+        _add(errors, "run.ui_impact_summary", "must be a list")
+        return
+    plan_missions = {
+        mission.get("id")
+        for mission in plan.get("missions") or []
+        if isinstance(mission, dict) and _nonempty_string(mission.get("id"))
+    }
+    seen: set[str] = set()
+    for index, row in enumerate(summary):
+        path = f"run.ui_impact_summary[{index}]"
+        if not isinstance(row, dict):
+            _add(errors, path, "must be an object")
+            continue
+        if not _keys(errors, path, row, UI_IMPACT_SUMMARY_ROW_KEYS, {"doc_delta"}):
+            continue
+        if not _nonempty_string(row.get("mission_id")):
+            _add(errors, f"{path}.mission_id", "must be a non-empty string")
+            continue
+        mission_id = row["mission_id"]
+        if mission_id in seen:
+            _add(errors, path, f"duplicates the classification for {mission_id}")
+            continue
+        seen.add(mission_id)
+        if plan_missions and mission_id not in plan_missions:
+            _add(errors, path, f"{mission_id} is not a PLAN mission")
+        impact = row.get("impact")
+        if impact not in UI_IMPACT_VALUES:
+            _add(
+                errors,
+                f"{path}.impact",
+                f"must be one of {'|'.join(sorted(UI_IMPACT_VALUES))}",
+            )
+            continue
+        if impact in {"structure", "both"} and not _nonempty_string(
+            row.get("doc_delta")
+        ):
+            _add(
+                errors,
+                f"{path}.doc_delta",
+                "a structure or both classification must name the accepted "
+                "upstream design-input delta",
+            )
+    if not required:
+        return
+    missing = sorted(
+        mission_id
+        for mission_id in plan_missions
+        if mission_id not in seen
+    )
+    if missing:
+        _add(
+            errors,
+            "run.ui_impact_summary",
+            "missions without a UI-impact classification: " + ", ".join(missing),
+        )
 
 
 def validate_plan(
@@ -4234,6 +4331,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         optional_run_keys.add("runtime_metrics")
     if schema_version == 11:
         optional_run_keys.add("run_lock")
+    if schema_version in {9, 10, 11}:
+        optional_run_keys.update({"deviation_ledger", "ui_impact_summary"})
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
     security_runtime = run.get("runtime_capabilities")
@@ -6131,6 +6230,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             label="final gate",
         )
         _validate_ui_evidence(errors, plan, run)
+        errors.extend(validate_deviation_ledger(run))
+        _validate_ui_impact_summary(errors, plan, run)
 
     if schema_version in {8, 9, 10, 11} and run.get("status") == "complete":
         if run.get("intent") not in {"plan-then-execute", "execute-ready-plan"}:

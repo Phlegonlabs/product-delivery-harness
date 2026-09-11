@@ -22,6 +22,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 from harness_manifest import (  # noqa: E402
     ManifestError,
+    _validate_ui_impact_summary,
     load_plan,
     load_run,
     mission_conflicts,
@@ -2657,6 +2658,101 @@ class RunValidationTests(unittest.TestCase):
             validate_run(plan, run),
             "an explicitly disabled nested policy needs no spawn grant",
         )
+
+
+
+class UiImpactSummaryTests(unittest.TestCase):
+    @staticmethod
+    def payload(
+        *,
+        harness_version: str | None = "0.35.0",
+        status: str = "complete",
+        summary: object = None,
+        ui_surfaces: list[dict[str, object]] | None = [{"id": "UI-001"}],
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        plan: dict[str, object] = {
+            "missions": [{"id": "M1"}, {"id": "M2"}],
+        }
+        if ui_surfaces is not None:
+            plan["ui_surfaces"] = ui_surfaces
+        run: dict[str, object] = {
+            "schema_version": 11,
+            "status": status,
+            "ui_impact_summary": summary,
+        }
+        if harness_version is not None:
+            run["runtime_capabilities"] = {
+                "runtime_adapter": {
+                    "version_gate": {
+                        "required_harness_version": harness_version
+                    }
+                }
+            }
+        return plan, run
+
+    def validate(self, plan, run) -> list[str]:
+        errors: list[str] = []
+        _validate_ui_impact_summary(errors, plan, run)
+        return errors
+
+    def test_complete_ui_run_requires_one_classification_per_mission(self) -> None:
+        plan, run = self.payload(summary=None)
+        errors = self.validate(plan, run)
+        self.assertTrue(
+            any("classifies every mission" in error for error in errors), errors
+        )
+
+        plan, run = self.payload(
+            summary=[
+                {"mission_id": "M1", "impact": "style"},
+                {"mission_id": "M2", "impact": "none"},
+            ]
+        )
+        self.assertEqual(self.validate(plan, run), [])
+
+    def test_structure_or_both_requires_a_doc_delta(self) -> None:
+        for impact in ("structure", "both"):
+            plan, run = self.payload(
+                summary=[{"mission_id": "M1", "impact": impact}]
+            )
+            errors = self.validate(plan, run)
+            self.assertTrue(
+                any("design-input delta" in error for error in errors), errors
+            )
+            plan, run = self.payload(
+                summary=[
+                    {"mission_id": "M1", "impact": impact, "doc_delta": "D1"},
+                    {"mission_id": "M2", "impact": "none"},
+                ]
+            )
+            self.assertEqual(self.validate(plan, run), [])
+
+    def test_unknown_mission_and_impact_are_rejected(self) -> None:
+        plan, run = self.payload(
+            summary=[{"mission_id": "M9", "impact": "none"}]
+        )
+        errors = self.validate(plan, run)
+        self.assertTrue(any("not a PLAN mission" in error for error in errors), errors)
+
+        plan, run = self.payload(
+            summary=[{"mission_id": "M1", "impact": "cosmetic"}]
+        )
+        errors = self.validate(plan, run)
+        self.assertTrue(any("impact" in error for error in errors), errors)
+
+    def test_older_harness_or_no_ui_surfaces_stay_exempt(self) -> None:
+        plan, run = self.payload(harness_version="0.34.0", summary=None)
+        self.assertEqual(self.validate(plan, run), [])
+        plan, run = self.payload(harness_version=None, summary=None)
+        self.assertEqual(self.validate(plan, run), [])
+        plan, run = self.payload(ui_surfaces=None, summary=None)
+        self.assertEqual(self.validate(plan, run), [])
+
+    def test_incomplete_run_validates_rows_but_not_coverage(self) -> None:
+        plan, run = self.payload(
+            status="running", summary=[{"mission_id": "M1", "impact": "style"}]
+        )
+        self.assertEqual(self.validate(plan, run), [])
 
 
 if __name__ == "__main__":

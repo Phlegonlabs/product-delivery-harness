@@ -23,6 +23,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 | `REFINEMENT_BACKLOG.md` | `docs/goal/` | run closeout (when needed) | harness parent | deferred refinement items | |
 | `docs/goal/evidence/` | `docs/goal/evidence/` | verification | workers + parent | evidence artifacts (SHA-256 bound) | |
 | `docs/{product,design}/archived/` | `docs/*/archived/` | supersede | product-definition-builder / design pass | archived prior documents (move, never delete) | |
+| `docs/goal/archived/` | `docs/goal/archived/` | run closeout | harness parent | archived completed run coordination sets (move, never delete) | |
 
 Notes:
 

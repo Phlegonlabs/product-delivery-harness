@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.34.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.35.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -45,7 +45,8 @@
 - **有能力不等于有权限。** 即使运行时能够推送或清理，每个动作仍需要精确授权。
 - **Activation 必须读回验证。** 外部设置留在 PLAN/RUN 之外，批准绑定精确 action digest，而且只有独立 read-back 与行为证据完成后才算 verified。
 - **证据跟随 SHA。** 新的提交会让旧 head 的门禁和 UI 证据失效。
-- **UI 证据证明版面，而不只是像素。** 固定到 harness 0.34.0 及之后的 RUN 会在每条 route-breakpoint-state 证据行记录来自真实浏览器几何扫描的 `layout_check`；每个 UI 任务在验收前分类其影响（`none`/`style`/`structure`/`both`），被接受的 parity 偏差连同引用记入 deviation ledger，上线 motion 必须追溯到 PRD Motion Need Gate 的决策。
+- **UI 证据证明版面，而不只是像素。** 固定到 harness 0.34.0 及之后的 RUN 会在每条 route-breakpoint-state 证据行记录来自真实浏览器几何扫描的 `layout_check`；每个 UI 任务在验收前分类其影响（`none`/`style`/`structure`/`both`），被接受的 parity 偏差连同引用记入 deviation ledger，上线 motion 必须追溯到 PRD Motion Need Gate 的决策。固定到 0.35.0 及之后的 RUN 还会机器校验 `deviation_ledger` 与逐 mission 的 `ui_impact_summary`。
+- **完成的 run 会收档。** 晋升之后，`scripts/archive_run.py` 在 dry-run 移动清单确认后，把整个协作集——PLAN、RUN、决策、backlog、证据、tasks 视图——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不删除，归档 commit 沿同一条晋升路径落到 `main`。
 - **代码安全是全新的最终审查。** 每个新的受管 PLAN 都要明确标记 required，或说明非代码交付为何 not applicable。Required review 会在 broad final validation 前，让 `code-security-review` 覆盖统一集成 SHA 上的每个 mission；其声明 scope 必须包含每个 mission 的完整 write scope。它会验证 agent 的结构化结果，并且不能复用相同 tree 的早期证据。Security PASS 不得带 exclusions，且至少一个 tool 或人工审查必须记录为 `passed` 或 `findings`。Required node 不得跳过或被 supersede；reserve 和 completion 会重查 live Git。精确的 interruption receipt 只能在后续 current reviewer 提供 structured PASS 后作为历史保留。
 - **Promotion 一律 main-only。** RUN 仍默认在本地完成，也只能选择性推送自己的 run branch。第一次交付与后续 enhancement 都从观察到的 remote `main` 开始；RUN 关闭后，精确 candidate 必须通过所有本地与隔离 preview environment gate，才能另行授权 fast-forward 到 `main`。
 
@@ -464,6 +465,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.35.0** — UI 对齐改为机器强制：固定到 harness 0.35.0 及之后的 RUN-v11 文件携带 `deviation_ledger`——每条被接受的 parity 偏差都要有一行带引用的记录，无对应偏差的行会被拒绝——以及 `ui_impact_summary`，为 UI run 的每个 mission 分类 `none`/`style`/`structure`/`both`，`structure`/`both` 必须指名其被接受的上游 doc delta；两者都在 closeout 校验。新增 `scripts/archive_run.py`：dry-run 列出移动清单后，把完成 run 的整个协作集——PLAN.md、RUN.md、DECISIONS.md、REFINEMENT_BACKLOG.md、evidence/ 与 tasks 渲染视图——收进 `docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/`，在 DOCUMENTS.md 记录该行，永不删除；完成流程把「晋升后归档」列为必经下一步，归档 commit 沿 run 分支经同一晋升路径进 `main`，new_run 遇到已完成的 run 会直接指向归档脚本。破坏性 skill bundle 变更，版本闸门限定 0.35.0+ 的 run。
 - **0.34.0** — 全链路更名保真度词汇：高保真 HTML 审查稿改为设计参考（design reference），线框明确为结构线框；已冻结的 PRD 字节不受影响。Web responsive 集合从 PRD 起草、线框检查器到设计系统契约一律要求至少三个递增 viewport；历史 `wireframes/2` 文件保持双目标可读，旧的双目标 web 集合在下次重验前必须先通过 design-input delta 提升。harness 的 PRD join 现在要求每个 `UI-*` 条目恰好一个 `responsive` 锚点，不再静默跳过 breakpoint 比对。固定到 harness 0.34.0 及之后的 RUN-v11 文件在每条 UI 证据行记录 `layout_check`——真实浏览器 DOM 几何扫描（重叠、裁切、遮挡、水平溢出）、标注的人工或原生依据，或记录在案的原因——带失败检查的 PASS 行永远无法结案。UI 任务在验收前分类影响（`none`/`style`/`structure`/`both`），结构性变更只在其文档 delta 之后整合，被接受的 parity 偏差连引用记入 deviation ledger，direct 与 open-ended refinement 同样承担文档同步义务，上线 motion 必须追溯 PRD Motion Need Gate 决策。破坏性 skill bundle 变更。
 - **0.33.0** — 五个标准 skill 从 `.agents/skills/` 移到顶层 `skills/`，确立公开 mono-repo 布局，并新增一键安装脚本。`install.sh`（bash）和 `install.ps1`（PowerShell）会先把现有副本移到 `~/.agents/skill-backups/product-delivery-harness/` 下同一个带时间戳的备份，再将 `skills/` 排除 `__pycache__` 后复制进 `~/.agents/skills/`，并验证每份 `SKILL.md`；重跑脚本即更新。`package.json` 的 Pi skills 指向、CI、contract test 的 repo-root 检测以及所有 repo 内部文档路径一并跟随迁移；用户端 `~/.agents/skills/` 安装约定不变，现有安装继续有效。属于 breaking skill-bundle 布局变更。
 
