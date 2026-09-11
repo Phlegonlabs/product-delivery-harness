@@ -136,7 +136,12 @@ class ArchiveRunTests(unittest.TestCase):
         result = self.archive("--apply", "--slug", "second-pass")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(
-            1, documents.read_text(encoding="utf-8").count("docs/goal/archived/")
+            1,
+            sum(
+                1
+                for line in documents.read_text(encoding="utf-8").splitlines()
+                if "docs/goal/archived/" in line
+            ),
         )
 
     def test_a_second_archive_into_an_existing_target_is_refused(self) -> None:

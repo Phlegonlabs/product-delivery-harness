@@ -30,8 +30,9 @@ OPTIONAL_DIRS = ("evidence",)
 OPTIONAL_OUTSIDE = ("docs/tasks.md",)
 DOCUMENTS_PATH = Path("docs/DOCUMENTS.md")
 DOCUMENTS_ROW = (
-    "| `docs/goal/archived/` | archived completed run coordination sets "
-    "(move, never delete) | delivery-harness |"
+    "| `docs/goal/archived/` | `docs/goal/archived/` | run closeout | "
+    "harness parent | archived completed run coordination sets "
+    "(move, never delete) | "
 )
 
 

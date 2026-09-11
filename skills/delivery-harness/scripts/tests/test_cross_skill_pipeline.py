@@ -59,17 +59,17 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
 
         self.assertIn("declares the project or initiative complete", harness)
-        self.assertIn(
-            "docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/", harness
-        )
+        self.assertIn("run `scripts/archive_run.py` on the same instruction", harness)
+        self.assertIn("docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/", harness)
         self.assertIn("Closeout Bar", harness)
         self.assertIn("Never move anything under `docs/product/`", harness)
 
         # The seeded project AGENTS.md states the same rule directly, so every
         # runtime sees goal-complete archival without loading the reference.
         self.assertIn("archive the finished plan runtime", project_agents)
+        self.assertIn("archive the finished plan runtime with", project_agents)
         self.assertIn(
-            "docs/goal/archived/<YYYYMMDD-HHMMSS>-<initiative-slug>/",
+            "docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/",
             project_agents,
         )
         self.assertIn("Closeout Bar", project_agents)
