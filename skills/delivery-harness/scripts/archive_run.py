@@ -85,6 +85,7 @@ def archive(
     *,
     slug: str,
     apply: bool,
+    stamp: str | None = None,
 ) -> int:
     run_path = root / GOAL_DIR / "RUN.md"
     if not run_path.is_file():
@@ -111,7 +112,14 @@ def archive(
         print("error: nothing to archive", file=sys.stderr)
         return 1
 
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    if stamp is None:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    elif not re.fullmatch(r"\d{8}-\d{6}", stamp):
+        print(
+            f"error: --stamp {stamp!r} must look like YYYYMMDD-HHMMSS",
+            file=sys.stderr,
+        )
+        return 2
     target = root / GOAL_DIR / "archived" / f"{stamp}-{_slugify(slug)}"
     if target.exists():
         print(
@@ -173,6 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="perform the listed moves; default is a dry run",
     )
+    parser.add_argument(
+        "--stamp",
+        help="pin the archive directory timestamp as YYYYMMDD-HHMMSS "
+        "(default: now; deterministic re-runs and tests)",
+    )
     args = parser.parse_args(argv)
     run_path = args.repo_root / GOAL_DIR / "RUN.md"
     slug = args.slug
@@ -181,7 +194,7 @@ def main(argv: list[str] | None = None) -> int:
             slug = str(load_run(run_path).get("run_id") or "run")
         except Exception:  # noqa: BLE001 - slug falls back below
             slug = "run"
-    return archive(args.repo_root, slug=slug, apply=args.apply)
+    return archive(args.repo_root, slug=slug, apply=args.apply, stamp=args.stamp)
 
 
 if __name__ == "__main__":
