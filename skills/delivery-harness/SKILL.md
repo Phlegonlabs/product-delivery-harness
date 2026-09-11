@@ -11,8 +11,8 @@ Use the least ceremony that preserves safety. Keep work direct. Add PLAN/RUN sta
 
 Keep upstream ownership separate:
 
-- `product-definition-builder` owns `PRD.md`, approved low-fidelity `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
-- `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its low-fidelity page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
+- `product-definition-builder` owns `PRD.md`, approved `wireframes.html`, `architecture.md`, and `stack-decisions.md`.
+- `PRD.md` owns UI structure, behavior, the exact responsive set, and the approved UI Design Handoff; `wireframes.html` makes its page, section, state, and per-target map inspectable, with browser layout status. `design-system-compiler`, with `frontend-design`, owns `design-system.md` and `design-system.json` only when the Design System Need Gate is `required`.
 - This skill implements frozen inputs, including the Builder UX Direction and either the formal design-system pair or the approved page-faithful UI target recorded when the pair is `not_required`. It invents neither product direction nor design sources. Builder approval proves direction conformance, not usability proof; every must-have `UX-*` trace still needs objective evidence.
 - `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 

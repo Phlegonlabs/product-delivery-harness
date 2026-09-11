@@ -143,7 +143,7 @@ Resolve conflicts in this order:
 5. selected Visual Direction;
 6. provisional or assumed preference.
 
-`PRD.md` owns product structure and behavior, and approved `wireframes.html` is its low-fidelity interactive review projection. The design system owns visual implementation. A visual treatment that needs a structural change returns to `product-definition-builder` instead of silently changing the screen.
+`PRD.md` owns product structure and behavior, and approved `wireframes.html` is its structural interactive review projection. The design system owns visual implementation. A visual treatment that needs a structural change returns to `product-definition-builder` instead of silently changing the screen.
 
 ## Publish Check
 

@@ -251,7 +251,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "delivery-harness/references/ui-implementation-contract.md"
         )
 
-        self.assertIn("single approved low-fidelity projection", prd)
+        self.assertIn("single approved structural projection", prd)
         self.assertIn("`wireframes.html`", prd)
         self.assertIn("approved UI Design Handoff", design)
         self.assertIn("approved `wireframes.html`", design)
@@ -270,10 +270,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
             "delivery-harness/references/contract-and-traceability.md"
         )
 
-        # The UI Design Pass renders one connected high-fidelity HTML reference
+        # The UI Design Pass renders one connected design-reference HTML
         # with its loaded design skills and retains the approved file.
         self.assertIn(
-            "one self-contained high-fidelity HTML review file", prd
+            "one self-contained design-reference HTML review file", prd
         )
         self.assertIn(
             "one connected review surface",

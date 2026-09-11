@@ -106,7 +106,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         contract = self.read("references/output-contract.md")
 
         self.assertIn("../product-definition-builder/references/ui-design-pass.md", skill)
-        self.assertIn("one self-contained high-fidelity HTML", guide)
+        self.assertIn("one self-contained design-reference HTML", guide)
         self.assertIn("Every visible product control responds", guide)
         self.assertIn("generationStatus: deferred", guide)
         self.assertNotIn("imagegen-frontend-web", guide)

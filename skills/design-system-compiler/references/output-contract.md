@@ -5,7 +5,7 @@ Publish these files only when `PRD.md` records `Design System Need Gate: require
 - `design-system.md`
 - `design-system.json`
 
-The pair forms one reusable visual implementation handoff. `PRD.md` owns product structure, behavior, and the approved UI Design Handoff; approved `wireframes.html` provides its low-fidelity interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. The approved preview remains a scoped page-faithful target outside this pair.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product structure, behavior, and the approved UI Design Handoff; approved `wireframes.html` provides its structural interactive review view. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. The approved preview remains a scoped page-faithful target outside this pair.
 
 ## `design-system.md`
 

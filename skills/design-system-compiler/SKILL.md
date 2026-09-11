@@ -12,7 +12,7 @@ Turn an approved UI direction into two binding reusable UI sources:
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
 
-This skill is optional. Invoke it only when an explicitly requested visual-design phase has produced an approved UI Design Handoff and `PRD.md` records `Design System Need Gate: required`. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the approved UI Design Handoff. Approved `wireframes.html` is its low-fidelity interactive review projection. Do not duplicate or change those contracts, rerun visual exploration by default, implement production UI code, or create Harness PLAN/RUN state.
+This skill is optional. Invoke it only when an explicitly requested visual-design phase has produced an approved UI Design Handoff and `PRD.md` records `Design System Need Gate: required`. `PRD.md` owns product scope, structure, behavior, Builder UX Direction, and the approved UI Design Handoff. Approved `wireframes.html` is its structural interactive review projection. Do not duplicate or change those contracts, rerun visual exploration by default, implement production UI code, or create Harness PLAN/RUN state.
 
 ## Compilation Skills Gate
 

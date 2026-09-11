@@ -230,7 +230,7 @@ Repair cycle: a missing element, a structural difference, or any difference outs
 
 ### Final Page-Quality Pass
 
-Every run with at least one PLAN `ui_surfaces` entry follows the Final Visual Parity Loop with one final page-quality pass over the delivered high-fidelity pages, bound to the exact integration head. The pass runs the skill bound to the project's `ui_quality_verification` slot — `impeccable` by default — in evaluate mode: one `critique` (heuristic UX review) and one `audit` (accessibility, responsive, and performance checks) per delivered route, batched in a single round.
+Every run with at least one PLAN `ui_surfaces` entry follows the Final Visual Parity Loop with one final page-quality pass over the delivered design-reference pages, bound to the exact integration head. The pass runs the skill bound to the project's `ui_quality_verification` slot — `impeccable` by default — in evaluate mode: one `critique` (heuristic UX review) and one `audit` (accessibility, responsive, and performance checks) per delivered route, batched in a single round.
 
 - Findings are ordinary review findings. A blocking defect enters the repair cycle under the same Root-Cause Repair Escalation budget as a parity repair; the pass adds no review attempts of its own. Record the pass, every finding, and its verdict as evidence rows bound to the integration head, and never relabel an unresolved finding to close the run.
 - The pass verifies quality, not direction. A finding that conflicts with the frozen `PRD.md` UI contract, approved `wireframes.html`, or the active visual source never authorizes a local change; route it to `product-definition-builder` as a design-input delta.

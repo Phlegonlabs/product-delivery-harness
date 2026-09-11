@@ -21,7 +21,7 @@ interface:
     responsibilities, actions, states, trace IDs, brand constraints,
     accessibility, platform, and performance limits as design inputs. For a
     UI-bearing product, project every UI-* entry into one self-contained
-    low-fidelity wireframes.html. Put all pages in that HTML with an overview,
+    structural wireframes.html. Put all pages in that HTML with an overview,
     page switcher, expanded/compact and state controls, and visible
     section-purpose labels. Make every visible PRD action work locally by
     switching pages, opening an accessible overlay, or showing feedback. After
@@ -37,14 +37,14 @@ interface:
     visual design, run the UI Design Pass: load $design-taste-frontend, record
     applicable, partially_applicable, or n/a, and use $frontend-design for
     excluded product surfaces. Produce one recommended direction by default,
-    create one connected interactive high-fidelity HTML, and omit login,
+    create one connected interactive design-reference HTML, and omit login,
     registration, recovery, and authentication-error preview scenes while
     retaining production auth requirements in the PRD. Required functional UI
     motion may run locally with an equivalent reduced-motion path. Keep
     generated image and motion positions as static placeholders with dedicated
     prompts and generationStatus deferred; do not invoke a generation provider
     in this pass. Apply the same PRD-bound diagnostic and bounded re-review rule before human visual
-    approval; require a high-fidelity overall score of at least 90 and H2,
+    approval; require a design-reference overall score of at least 90 and H2,
     H4, and H8 scores of at least 90, then record the immutable page-faithful target in PRD.md. Then run the Design
     System Need Gate. Use $design-system-compiler only when the gate is
     required; otherwise pass the approved UI target directly to Harness. Stop

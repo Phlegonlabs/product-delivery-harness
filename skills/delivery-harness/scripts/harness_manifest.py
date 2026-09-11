@@ -195,6 +195,7 @@ PRODUCT_WIREFRAME_SOURCE_KINDS = {
     "wireframe",
     "ui wireframe",
     "low fidelity wireframe",
+    "structural wireframe",
 }
 
 
