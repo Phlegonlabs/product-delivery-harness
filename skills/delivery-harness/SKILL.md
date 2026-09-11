@@ -91,7 +91,7 @@ For small work:
 6. For code work, load `code-security-review` on that SHA; without one, report `UNVALIDATED`, not PASS.
 7. Perform only remaining authorized Git actions.
 
-For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`. Stop after two failed repair attempts and report the remaining gap.
+For small UI work, add one critique-repair-recheck cycle before final review. Use rendered evidence when available; otherwise perform a text-only markup/style review and state that no visual claim was made. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates. Stop after two failed repair attempts and report the remaining gap.
 
 For a self-contained feature inside an existing codebase, offer `/feature-dev` as an optional richer implementation loop. It does not change authorization, ownership, or verification rules.
 
@@ -175,7 +175,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 - Design-system compilation mode requires `design-system-compiler` and `frontend-design` together, after approved wireframes, an approved UI Design Handoff, and `Design System Need Gate: required`. It does not reopen Taste or concept generation by default.
 - UI implementation may use frontend-design conformance mode only when the user explicitly selected it for a new or high-impact visual surface.
-- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and contain at least three web viewports or at least two native/desktop size classes. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
+- System-conformance mode obeys the frozen PRD UI surface contract, approved `wireframes.html`, `design-system.md`, and `design-system.json`; their responsive sets must agree and meet the declared platform minimum. Target-conformance mode is allowed only when the PRD gate is `not_required`; it obeys the approved target's scope, states, exact PRD/wireframe responsive coverage, browser layout evidence, and tolerance in the UI Design Handoff. A missing required input is a design-input delta, not local invention.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
 - After the Final Visual Parity Loop closes, the final gate adds one page-quality pass (`references/verification-gates.md`): the skill bound to the `ui_quality_verification` slot — `impeccable` by default — runs one critique and one audit per delivered page on the exact integration head. Blocking findings enter the ordinary repair budget and never override the frozen design sources.
 - These are bundled defaults. A project's Skill Bindings table in its `AGENTS.md` may bind other skills to the design, implementation, and page-quality-verification slots, plus the code-security-verification slot; the same modes, sources, and gates apply.

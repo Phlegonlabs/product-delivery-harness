@@ -242,7 +242,7 @@ Ranking rules:
 - Prefer issues with direct user impact and deterministic verification.
 - Prefer small improvements that preserve existing information architecture and contracts.
 - Do not hide product rewrites inside "polish".
-- Separate bug fixes from visual opinion changes.
+- Separate bug fixes from visual opinion changes; a visual opinion change that departs from a recorded visual value is a design-input delta under the rules above, never a silent local restyle.
 - Treat design-system drift as a contract issue when a design system exists.
 
 ### Mission Patterns
@@ -260,6 +260,8 @@ M5 regression verification
 ```
 
 For small accepted refinements, skip worktrees and run direct work with before/after evidence. Use worktrees when several accepted refinements can run independently or when the parent checkout must remain stable.
+
+Every refinement mission that touches UI records its UI-impact classification — `none`, `style`, `structure`, or `both` — in its result under the same rule as `ui-implementation-contract.md`. A refinement that changes regions, states, actions, routes, or responsive behavior is structural: it returns through `product-definition-builder` as a design-input delta before it integrates.
 
 ### Regression Protection
 
