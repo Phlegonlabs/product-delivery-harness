@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.35.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.35.5-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -47,6 +47,7 @@
 - **佐證跟著 SHA。** 新的 commit 會讓舊 head 的閘門與 UI 佐證失效。
 - **UI 佐證證明版面，而不只是像素。** 固定到 harness 0.34.0 及之後的 RUN 會在每條 route-breakpoint-state 佐證行記錄來自真實瀏覽器幾何掃描的 `layout_check`；每個 UI 任務在驗收前分類其影響（`none`/`style`/`structure`/`both`），被接受的 parity 偏差連同引用記入 deviation ledger，上線 motion 必須追溯到 PRD Motion Need Gate 的決策。固定到 0.35.0 及之後的 RUN 還會機器校驗 `deviation_ledger` 與逐 mission 的 `ui_impact_summary`。
 - **完成的 run 會收檔。** 晉升之後，`scripts/archive_run.py` 在 dry-run 移動清單確認後，把整個協作集——PLAN、RUN、決策、backlog、證據、tasks 視圖——移入 `docs/goal/archived/<timestamp>-<run-id>/`，永不刪除，歸檔 commit 沿同一條晉升路徑落到 `main`。tasks 視圖結尾有一個 renderer 逐字保留的手寫 Update Log：plan 完成後，owner 或 agent 每一筆未進 PRD 的更新都以帶日期的一行記在那裡；歸檔集僅以凍結 hash 引用 PRD——PRD 永不進歸檔，始終是活引用。
+- **Parity 靠實拍，不靠記憶。** `scripts/parity_capture.py` 驅動 agent-browser CLI，為 PLAN 的每個 route×breakpoint×state 用同一 viewport 拍攝已核准的設計參考 HTML 與實作頁面，逐頁探測 DOM 幾何，並產生逐項判定的 parity board；生產驗證會對部署 URL 重跑一遍。
 - **讀規則是強制的。** 種子化的專案 `AGENTS.md` 要求：受管工作前必讀已安裝的 `delivery-harness` SKILL.md，影響產品的直接工作前必讀受影響的 PRD 段落；跳過即 blocking review finding。
 - **程式安全是全新的最終審查。** 每個新的受管 PLAN 都要明確標記 required，或說明非程式交付為何 not applicable。Required review 會在 broad final validation 前，讓 `code-security-review` 涵蓋統一整合 SHA 上的每個 mission；其宣告 scope 必須包含每個 mission 的完整 write scope。它會驗證 agent 的結構化結果，並且不能沿用相同 tree 的早期佐證。Security PASS 不得有 exclusions，且至少一個 tool 或人工審查必須記為 `passed` 或 `findings`。Required node 不得跳過或被 supersede；reserve 與 completion 會重查 live Git。精確的 interruption receipt 只能在後續 current reviewer 提供 structured PASS 後作為歷史保留。
 - **Promotion 一律 main-only。** RUN 仍預設在本機完成，也只能選擇性推送自己的 run branch。第一次交付與後續 enhancement 都從觀察到的 remote `main` 開始；RUN 關閉後，精確 candidate 必須通過所有本機與隔離 preview environment gate，才能另行授權 fast-forward 到 `main`。
@@ -467,6 +468,7 @@ README 是紀錄文件：每個新增或改動 skill、規則、表格、圖或�
 
 每次發佈都要更新這一節，連同上面《發佈》一節描述的版本號提升與 tag 一起完成。
 
+- **0.35.5** — 新增 `scripts/parity_capture.py`：Final Visual Parity Loop 變為可執行——從 PLAN `ui_surfaces` 列舉 route×breakpoint×state 矩陣，驅動 agent-browser CLI 以同一 viewport 拍攝設計參考渲染與實作頁面（`docs/goal/evidence/parity/` 下的 `-target.png`/`-actual.png` 配對），每頁跑 DOM 幾何探針（水平溢位＋可見重疊）供 `layout_check` attestation 引用，並寫出 `manifest.json` 與自包含的 `parity-board.html` 供判定；每 run 一份小 route map 提供參考選擇器與可選狀態觸發，ready 狀態免觸發即可拍，無 CLI 時手動拍攝仍是後備。Production smoke 首次獲得內容定義：帶 UI 的候選用同一腳本對正式 URL 重拍 parity 到 `docs/goal/evidence/production/`（晉升合約第 7 條、部署合約、種子 AGENTS.md）——部署偏離設計參考從此是被記錄的 finding，而不是 deploy 後的驚喜。
 - **0.35.4** — 小型直接工作的 commit 現在也用結構化 subject：種子 `AGENTS.md` 與 `commit-convention.md` 要求 managed run 之外的每個 commit——包括 plan-mode 原地修改、不開分支——使用 `<type>(<scope>): <imperative summary>`，尾碼可選，並附範例（`fix(dashboard): correct save-button copy`、`chore(deps): bump playwright to 1.49`）。subject 即記錄：run 之間的小改動在 git 歷史裡留下可搜尋、帶類型的軌跡。
 - **0.35.3** — 新增 `scripts/docs_weight.py`：唯讀的複雜度棘輪報告——統計每個 skill 的 SKILL.md 與 references 的規範字數，對照最近的 `v*` tag 輸出逐檔、逐 skill 與總計的增減。它在 CI 與 Required Verification 套件中執行，讓文件成長在每個 release 可見；只報告、不攔截。
 - **0.35.2** — 對 0.34/0.35 閘門棧的加固。harness 版本閘門全面改用單一嚴格解析器（`harness_schema.version_at_least`）：`0.35.1-rc.1` 這類預發布 pin 一致地啟用閘門，短版號或畸形 pin 一致地停用——關閉 layout/ledger 閘門與 impact-summary/安全閘門判斷相反的分岔。固定到 harness 0.34.0+ 的 run 在 harness join（design-system pair 與 PRD 錨點）同樣強制 web 三 viewport 下限；legacy 與未釘版本的 run 維持雙目標可讀。`archive_run.py` 歸檔前先跑真正的 PLAN/RUN 配對驗證，拒絕手改或無效的 "complete" run。tasks 視圖生成頭的不可手編輯警告收斂到生成區；coordination-paths 種子納入 `docs/tasks.md` 與 `docs/goal/REFINEMENT_BACKLOG.md`，文件規定的 closeout 重寫不再觸發 stale-head 檢查；Required Reading 如實指名編排 skill 本身；activation 定序在晉升之後、歸檔之前，其發現由 parent 記錄；UI-impact 分類經由 worker payload 的 integration notes 傳遞，按最強影響聚合進 `ui_impact_summary`；layout_check、deviation_ledger 與 ui_impact_summary 的值如實標注為「記錄式 attestation」——機器只驗完整性與形狀、可按引用查證——並由 `inspect_harness_run.py` 呈現計數與缺口。
