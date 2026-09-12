@@ -68,7 +68,10 @@ class ParityCaptureTests(unittest.TestCase):
         stub_dir = self.root / "bin"
         stub_dir.mkdir()
         (stub_dir / "_stub_browser.py").write_text(STUB_PY, encoding="utf-8")
-        (stub_dir / "agent-browser").write_text(STUB_SH, encoding="utf-8")
+        stub_sh = stub_dir / "agent-browser"
+        stub_sh.write_text(STUB_SH, encoding="utf-8")
+        # shutil.which on POSIX requires the executable bit.
+        stub_sh.chmod(0o755)
         (stub_dir / "agent-browser.bat").write_text(STUB_BAT, encoding="utf-8")
         self.log_path = self.root / "calls.jsonl"
         self._old_env = {
