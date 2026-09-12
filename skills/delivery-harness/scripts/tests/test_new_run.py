@@ -105,6 +105,20 @@ class NewRunTests(unittest.TestCase):
         self.assertEqual(2, run["active_wave"]["plan_revision"])
         self.assertEqual([], validate_current_plan_run(revised, run))
 
+    def test_seeded_coordination_paths_cover_closeout_rewrites(self) -> None:
+        run = load_run(self.generate())
+
+        self.assertEqual(
+            [
+                "docs/goal/PLAN.md",
+                "docs/goal/RUN.md",
+                "docs/goal/DECISIONS.md",
+                "docs/goal/REFINEMENT_BACKLOG.md",
+                "docs/tasks.md",
+            ],
+            run["integration"]["coordination_paths"],
+        )
+
     def test_generated_run_grants_nothing(self) -> None:
         run = load_run(self.generate())
 

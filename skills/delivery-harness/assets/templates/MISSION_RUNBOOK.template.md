@@ -115,7 +115,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
       "batch_base_sha": null,
       "integration_head_sha": null,
       "prior_head_shas": [],
-      "coordination_paths": ["docs/goal/PLAN.md", "docs/goal/RUN.md", "docs/goal/DECISIONS.md"]
+      "coordination_paths": ["docs/goal/PLAN.md", "docs/goal/RUN.md", "docs/goal/DECISIONS.md", "docs/goal/REFINEMENT_BACKLOG.md", "docs/tasks.md"]
     },
     "batch_gate_results": [],
     "final_gate_results": [
