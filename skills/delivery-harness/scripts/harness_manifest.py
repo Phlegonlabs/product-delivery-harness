@@ -6557,7 +6557,7 @@ def validate_current_plan_run(
     contract_errors = (
         []
         if effective_repo_root is None
-        else validate_frozen_contract_joins(plan, effective_repo_root)
+        else validate_frozen_contract_joins(plan, effective_repo_root, run=run)
     )
     return sorted(
         set([*plan_errors, *contract_errors, *validate_run(plan, run)])

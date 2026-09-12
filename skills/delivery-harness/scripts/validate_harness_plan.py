@@ -30,10 +30,13 @@ from harness_contract_join import (
     full_wireframe_checker_errors,
     parse_prd_ui_contract as shared_parse_prd_ui_contract,
     parse_wireframe_data,
+    prd_web_viewport_floor_errors,
+    registry_web_viewport_floor_errors,
     required_design_system_source_errors,
     validate_frozen_contract_joins,
     validate_plan_prd_text,
     validate_plan_wireframe_data,
+    web_viewport_floor_required,
 )
 from harness_design_contract import compare_design_system_pair
 
@@ -135,6 +138,37 @@ def validate_ui_surface_wireframe_coverage(
             Path(prd_path).read_bytes() if prd_path else None,
         )
     )
+    return errors
+
+
+def _viewport_floor_errors(
+    run: dict | None, *, prd_path: str | None, design_system_path: str | None
+) -> list[str]:
+    """Apply the three-viewport web floor at the CLI file joins.
+
+    The frozen-source joins inside ``validate_current_plan_run`` already
+    enforce this floor for gated runs; this covers the explicit ``--prd`` and
+    ``--design-system`` joins, which also run without ``--repo-root``. Runs
+    without a version gate pinning harness 0.34.0+ keep the two-target floor.
+    """
+
+    if not web_viewport_floor_required(run):
+        return []
+    errors: list[str] = []
+    if prd_path is not None:
+        try:
+            prd_text = Path(prd_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            prd_text = None  # unreadable bytes are reported by the coverage join
+        if prd_text is not None:
+            errors.extend(prd_web_viewport_floor_errors(prd_text))
+    if design_system_path is not None:
+        try:
+            registry = json.loads(Path(design_system_path).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            registry = None  # malformed JSON is reported by the design joins
+        if isinstance(registry, dict):
+            errors.extend(registry_web_viewport_floor_errors(registry))
     return errors
 
 
@@ -263,6 +297,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         if run is not None:
+            errors.extend(
+                _viewport_floor_errors(
+                    run, prd_path=args.prd, design_system_path=args.design_system
+                )
+            )
             repo_root = args.repo_root or "."
             run_errors.extend(validate_ui_evidence_files(run, repo_root))
             run_errors.extend(validate_integration_head_against_git(run, repo_root))
