@@ -70,6 +70,7 @@ Edit only the canonical sources in `skills/`, then run all of this from the repo
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
 python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
+python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v

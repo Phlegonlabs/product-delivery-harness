@@ -44,6 +44,9 @@ jobs:
         run: |
           python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts
 
+      - name: Report docs weight delta
+        run: python skills/delivery-harness/scripts/docs_weight.py
+
       - name: Run harness unit, contract, and E2E tests
         run: python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 
