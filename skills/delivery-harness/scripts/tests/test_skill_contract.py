@@ -619,6 +619,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Motion is a design decision, not an implementation preference", contract
         )
         self.assertIn("Static screenshots never close a motion change", gates)
+        self.assertIn("run `scripts/parity_capture.py", gates)
+        self.assertIn("parity-board.html", gates)
+        self.assertIn("`agent-browser` CLI", gates)
         self.assertIn("strongest task impact", contract)
         self.assertIn(
             "`doc_delta` is required when that strongest impact is `structure` or `both`",
