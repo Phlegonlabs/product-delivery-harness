@@ -226,6 +226,51 @@ class HarnessV11Tests(unittest.TestCase):
             subprocess.run(["git", "commit", "-qm", "code after review"], cwd=root, check=True)
             self.assertTrue(validate_integration_head_against_git(run, root))
 
+    def test_documented_closeout_rewrites_do_not_stale_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=root, check=True)
+            (root / "src.txt").write_text("candidate\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "candidate"], cwd=root, check=True)
+            candidate = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            goal = root / "docs" / "goal"
+            goal.mkdir(parents=True)
+            tasks = root / "docs" / "tasks.md"
+            tasks.write_text("tasks view\n", encoding="utf-8")
+            (goal / "REFINEMENT_BACKLOG.md").write_text("backlog\n", encoding="utf-8")
+            subprocess.run(["git", "add", "docs/tasks.md", "docs/goal/REFINEMENT_BACKLOG.md"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "run records"], cwd=root, check=True)
+            branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=root, text=True).strip()
+            run = {
+                "schema_version": 11,
+                "integration": {
+                    "branch": branch,
+                    "integration_head_sha": candidate,
+                    "coordination_paths": [
+                        "docs/goal/PLAN.md",
+                        "docs/goal/RUN.md",
+                        "docs/goal/DECISIONS.md",
+                        "docs/goal/REFINEMENT_BACKLOG.md",
+                        "docs/tasks.md",
+                    ],
+                },
+            }
+
+            self.assertEqual([], validate_integration_head_against_git(run, root))
+
+            tasks.write_text("tasks view with closeout update log row\n", encoding="utf-8")
+            subprocess.run(["git", "add", "docs/tasks.md"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "tasks update log"], cwd=root, check=True)
+            self.assertEqual([], validate_integration_head_against_git(run, root))
+
+            (root / "src.txt").write_text("changed after review\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "code after review"], cwd=root, check=True)
+            self.assertTrue(validate_integration_head_against_git(run, root))
+
     def test_review_packet_is_bounded(self) -> None:
         plan = valid_plan()
         run = valid_run(plan)
