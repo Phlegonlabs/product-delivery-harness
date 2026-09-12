@@ -175,6 +175,12 @@ Verified: <command or action> (<pass signal>)
 - Write in English. Keep the subject at 72 characters or fewer, lowercase `type` and `scope`, imperative summary, no final period. `type` is one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `build`, `ci`; `scope` is a stable area such as `auth` or `ui`, never a filename.
 - One commit holds one kind of change: a task commit carries one verified outcome, a repair commit one root-cause fix, an integration commit reviewed heads and coordination state only, a bookkeeping commit `PLAN.md`/`RUN.md` only. Two kinds of change land as two commits in dependency order.
 - Every commit names exactly one task ID, its upstream traces, and the actual verifier with its literal pass signal. A merge or integration-only commit uses the mission-level form (`chore(integration): integrate mission M2` with `Mission`, `Plan-Revision`, `Integrated-Head`), never a fake task body.
+- Direct small work — including plan-mode edits outside a managed run — commits with the same subject shape `<type>(<scope>): <imperative summary>` and no trailers required. The subject is the record:
+
+```text
+fix(dashboard): correct save-button copy
+chore(deps): bump playwright to 1.49
+```
 
 ## Review Guidelines
 

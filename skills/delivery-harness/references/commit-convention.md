@@ -60,6 +60,15 @@ Rules:
 - Record the actual verifier and literal result in `Verified`. Separate multiple verifiers with semicolons.
 - Use `type(scope)!:` plus a `BREAKING CHANGE:` paragraph when a deliberately approved breaking change is unavoidable.
 
+## Direct Commits
+
+Outside managed runs, every direct commit — including small plan-mode edits made in place without a branch or mission — uses the same subject shape, `<type>(<scope>): <imperative summary>`, with the same type and scope rules. Trailers are optional; add `Trace:` when a PRD trace covers the change. The subject is the record.
+
+```text
+fix(dashboard): correct save-button copy
+chore(deps): bump playwright to 1.49
+```
+
 ## RUN.md Recording
 
 After the commit succeeds and its task verifier passes, the worker reports the task as `worker_passed`. `record-worker-result` observes the bound worktree, confirms the commit is represented in the accepted mission result, and records the task as `mission_recorded` in RUN. The task itself is never marked `integrated`; only its mission may become `integrated` after exact-head review, integration onto the current head, and the mission integration gate.
