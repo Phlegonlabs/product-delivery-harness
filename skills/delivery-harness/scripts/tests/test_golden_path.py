@@ -89,14 +89,16 @@ class GoldenPathTests(unittest.TestCase):
                 "### UI-001 — Home\n\n"
                 "- `route`: /home\n"
                 "- `states`: ready\n"
-                "- `responsive`: viewports: 390, 1200\n"
+                "- `responsive`: viewports: 390, 768, 1200\n"
                 "<!-- ui-surface-contract:end -->\n",
                 encoding="utf-8",
             )
             wireframes_path = product / "wireframes.html"
             wireframes_path.write_text(
                 wireframes_html(
-                    [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
+                    [{"id": "UI-001", "route": "/home", "states": ["ready"]}],
+                    schema="wireframes/3",
+                    viewports=(390, 768, 1200),
                 ),
                 encoding="utf-8",
             )
@@ -114,7 +116,7 @@ class GoldenPathTests(unittest.TestCase):
                     "id": "UI-001",
                     "trace_ids": ["REQ-001"],
                     "route": "/home",
-                    "breakpoints": ["390", "1200"],
+                    "breakpoints": ["390", "768", "1200"],
                     "states": ["ready"],
                     "evidence_gate": "required",
                 }
