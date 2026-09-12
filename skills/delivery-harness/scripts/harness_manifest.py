@@ -42,6 +42,7 @@ from harness_schema import (
     RUNTIME_DRIVERS,
     is_current_pair,
     is_valid_provider_id,
+    run_required_harness_version,
     runtime_driver_priority,
     RUNTIME_REVIEW_TYPES,
     RUNTIME_REASONING_EFFORTS,
@@ -52,6 +53,7 @@ from harness_schema import (
     TASK_ID_RE,
     TASK_PHASES,
     TARGET_RE,
+    version_at_least,
     WORKER_PHASES,
     WORKFLOW_RUN_DRIVERS_BY_PROVIDER,
     WORKFLOW_RUN_STATUSES,
@@ -106,7 +108,6 @@ from harness_graph import (
     _validate_graph_state,
 )
 from harness_ui_evidence import (
-    _run_required_harness_version,
     _validate_ui_evidence,
     UI_IMPACT_VALUES,
     validate_deviation_ledger,
@@ -1301,16 +1302,6 @@ def _validate_plan_security_review(
             )
 
 
-def _version_at_least(value: Any, minimum: tuple[int, int, int]) -> bool:
-    if not isinstance(value, str):
-        return False
-    core = value.split("+", 1)[0].split("-", 1)[0]
-    parts = core.split(".")
-    if len(parts) != 3 or any(not part.isdigit() for part in parts):
-        return False
-    return tuple(int(part) for part in parts) >= minimum
-
-
 UI_IMPACT_SUMMARY_REQUIRED_VERSION = (0, 35, 0)
 UI_IMPACT_SUMMARY_ROW_KEYS = {"mission_id", "impact"}
 
@@ -1328,8 +1319,8 @@ def _validate_ui_impact_summary(
 
     if run.get("schema_version") != 11:
         return
-    if not _version_at_least(
-        _run_required_harness_version(run), UI_IMPACT_SUMMARY_REQUIRED_VERSION
+    if not version_at_least(
+        run_required_harness_version(run), UI_IMPACT_SUMMARY_REQUIRED_VERSION
     ):
         return
     summary = run.get("ui_impact_summary")
@@ -4335,25 +4326,10 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         optional_run_keys.update({"deviation_ledger", "ui_impact_summary"})
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
-    security_runtime = run.get("runtime_capabilities")
-    security_adapter = (
-        security_runtime.get("runtime_adapter")
-        if isinstance(security_runtime, dict)
-        else None
-    )
-    security_version_gate = (
-        security_adapter.get("version_gate")
-        if isinstance(security_adapter, dict)
-        else None
-    )
-    required_harness_version = (
-        security_version_gate.get("required_harness_version")
-        if isinstance(security_version_gate, dict)
-        else None
-    )
+    required_harness_version = run_required_harness_version(run)
     if (
         schema_version == 11
-        and _version_at_least(required_harness_version, (0, 28, 0))
+        and version_at_least(required_harness_version, (0, 28, 0))
         and plan.get("security_review") is None
     ):
         _add(
