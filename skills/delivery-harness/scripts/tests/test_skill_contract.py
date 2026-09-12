@@ -469,6 +469,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("| code_security_verification |", project_agents)
         self.assertIn("a project edit, not a harness change", project_agents)
         self.assertIn("An unbound slot uses the bundled default", project_agents)
+        # Required Reading names the installed orchestration skill itself; the
+        # Skill Bindings table binds only the stage slots it dispatches.
+        self.assertIn(
+            "the installed `delivery-harness` SKILL.md (the orchestration skill itself",
+            project_agents,
+        )
+        self.assertNotIn("bound in the Skill Bindings table", project_agents)
         self.assertIn("Skill Bindings table in its `AGENTS.md`", skill)
 
     @unittest.skipIf(REPO_ROOT is None, "security skill requires a source checkout")

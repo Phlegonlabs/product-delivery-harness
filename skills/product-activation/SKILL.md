@@ -28,7 +28,7 @@ An absent product package is a `contract_gap`. An absent release identity or amb
 ## Boundary
 
 - Start only after implementation has a fixed full Git SHA plus the exact signed artifact/build identity when one exists. Use `n/a` only when the target has no separate artifact. A not-yet-deployed product may enter `preparation`, but it cannot become activation-ready.
-- Never create, edit, reopen, or extend `docs/goal/PLAN.md`, `docs/goal/RUN.md`, or `docs/tasks.md`.
+- Never create, edit, reopen, or extend `docs/goal/PLAN.md`, `docs/goal/RUN.md`, or the generated part of `docs/tasks.md`. Activation findings that belong in the run's Update Log are reported to the delivery parent for recording; activation itself never writes them.
 - Never implement a missing product hook here. Record `code_gap` and return a scoped request to `delivery-harness` with the affected source IDs, release target, missing behavior, and expected verification signal.
 - Route a missing or contradictory product requirement, metric, `TEST-*`, or release target to `product-definition-builder` as `contract_gap`.
 - Do not merge, push, deploy, publish a store release, or change production traffic unless the user explicitly authorizes that exact action and target.

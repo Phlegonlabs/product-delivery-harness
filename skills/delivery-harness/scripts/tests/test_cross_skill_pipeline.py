@@ -74,6 +74,13 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         self.assertIn("Closeout Bar", project_agents)
         self.assertIn("never moves anything under `docs/product/`", project_agents)
+        state = self.read(
+            "delivery-harness/references/execution-state-model.md"
+        )
+        # Activation runs after promotion and before archival so its updates
+        # land in the still-live Update Log.
+        for source in (project_agents, state):
+            self.assertIn("runs after promotion and before archival", source)
 
     def test_activation_is_create_once_post_delivery_and_outcome_bound(self) -> None:
         product_skill = self.read("product-definition-builder/SKILL.md")
@@ -98,6 +105,9 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("creates it only when absent", product_contract)
         self.assertIn("Exclude it from the superseded-document inventory", product_lifecycle)
         self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation_skill)
+        self.assertIn(
+            "reported to the delivery parent for recording", activation_skill
+        )
         self.assertIn("Exact Action Digest", activation_contract)
         self.assertIn("verified `MS-*` sources", activation_skill)
         self.assertIn("`product-activation` follows required promotion and deployment verification; RUN grants no authority", delivery_skill)
