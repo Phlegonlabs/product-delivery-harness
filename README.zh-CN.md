@@ -10,7 +10,7 @@
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg?branch=main"></a>
   <img alt="Codex" src="https://img.shields.io/badge/Codex-supported-2563EB?style=flat-square">
   <img alt="Claude Code" src="https://img.shields.io/badge/Claude_Code-supported-D97706?style=flat-square">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.35.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.35.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -467,6 +467,7 @@ README 是记录文档：每个新增或改动 skill、规则、表格、图或�
 
 每次发布都要更新本节，连同上面《发布》一节描述的版本号提升与 tag 一起完成。
 
+- **0.35.4** — 小型直接工作的 commit 现在也用结构化 subject：种子 `AGENTS.md` 与 `commit-convention.md` 要求 managed run 之外的每个 commit——包括 plan-mode 原地修改、不开分支——使用 `<type>(<scope>): <imperative summary>`，尾码可选，并附示例（`fix(dashboard): correct save-button copy`、`chore(deps): bump playwright to 1.49`）。subject 即记录：run 之间的小改动在 git 历史里留下可搜索、带类型的轨迹。
 - **0.35.3** — 新增 `scripts/docs_weight.py`：只读的复杂度棘轮报告——统计每个 skill 的 SKILL.md 与 references 的规范字数，对照最近的 `v*` tag 输出逐档、逐 skill 与总计的增减。它在 CI 与 Required Verification 套件中运行，让文档增长在每个 release 可见；只报告、不拦截。
 - **0.35.2** — 对 0.34/0.35 闸门栈的加固。harness 版本闸门全面改用单一严格解析器（`harness_schema.version_at_least`）：`0.35.1-rc.1` 这类预发布 pin 一致地启用闸门，短版号或畸形 pin 一致地停用——关闭 layout/ledger 闸门与 impact-summary/安全闸门判断相反的分叉。固定到 harness 0.34.0+ 的 run 在 harness join（design-system pair 与 PRD 锚点）同样强制 web 三 viewport 下限；legacy 与未钉版本的 run 维持双目标可读。`archive_run.py` 归档前先跑真正的 PLAN/RUN 配对验证，拒绝手改或无效的 "complete" run。tasks 视图生成头的不可手编辑警告收敛到生成区；coordination-paths 种子纳入 `docs/tasks.md` 与 `docs/goal/REFINEMENT_BACKLOG.md`，文件规定的 closeout 重写不再触发 stale-head 检查；Required Reading 如实指名编排 skill 本身；activation 定序在晋升之后、归档之前，其发现由 parent 记录；UI-impact 分类经由 worker payload 的 integration notes 传递，按最强影响聚合进 `ui_impact_summary`；layout_check、deviation_ledger 与 ui_impact_summary 的值如实标注为「记录式 attestation」——机器只验完整性与形状、可按引用查证——并由 `inspect_harness_run.py` 呈现计数与缺口。
 - **0.35.1** — 种子化的项目 `AGENTS.md` 新增 Required Reading 段：受管 harness 工作先读绑定的 `delivery-harness` SKILL.md，影响产品的直接工作先读 `docs/product/PRD.md` 受影响段落与 `DOCUMENTS.md` 指名的文件，跳过阅读视为 blocking review finding；本仓库自身的 `AGENTS.md` 带维护者侧镜像。`docs/tasks.md` 新增由 `update-log` 标记围起的手写 Update Log——`render_tasks_view.py` 重写标记以上的一切、逐字保留围内行、`--check` 忽略 log 编辑——plan 完成后到归档前，owner 或 agent 的每笔未进 PRD 的更新都以带日期的一行记入；影响产品的更新同时按 Keep Product Contracts Current 进 PRD。PRD 与 run 文件的分离在归档全程明文化：归档集仅以 PLAN sources 里冻结的 `content_sha256` 引用 PRD，`docs/product/` 永不进入 `docs/goal/archived/`，PRD 留在正式路径作为后续 enhancement run 的活引用。`archive_run.py` 另增 `--stamp` 以在确定性重跑中钉住归档时间戳。

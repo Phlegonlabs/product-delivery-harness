@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.35.3"', package)
+        self.assertIn('"version": "0.35.4"', package)
         self.assertEqual(
-            "0.35.3",
+            "0.35.4",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -178,6 +178,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("One commit holds one kind of change", project_agents)
         self.assertIn("exactly one task ID", project_agents)
         self.assertIn("never a fake task body", project_agents)
+        self.assertIn(
+            "Direct small work — including plan-mode edits outside a managed run — "
+            "commits with the same subject shape",
+            project_agents,
+        )
+        self.assertIn("chore(deps): bump playwright to 1.49", project_agents)
+        self.assertIn("## Direct Commits", convention)
+        self.assertIn("The subject is the record", convention)
         orchestration = self.read("references/worktree-thread-orchestration.md")
         self.assertIn(
             "Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule",
@@ -925,7 +933,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.35.3"', runbook)
+        self.assertIn('"required_harness_version": "0.35.4"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

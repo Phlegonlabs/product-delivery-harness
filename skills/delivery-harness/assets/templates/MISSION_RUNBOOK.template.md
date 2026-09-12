@@ -63,7 +63,7 @@ A managed-sequential route is selected when fewer than two safe write missions a
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.35.3",
+          "required_harness_version": "0.35.4",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
