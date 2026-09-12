@@ -10,7 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from harness_core import ManifestError, load_run
+from harness_core import ManifestError, _nonempty_string, load_run
+from harness_ui_evidence import _layout_check_required
 
 
 def _git(worktree: Path, *args: str) -> str | None:
@@ -23,6 +24,43 @@ def _git(worktree: Path, *args: str) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout.strip()
+
+
+def _attestation_summary(run: dict[str, Any]) -> dict[str, Any]:
+    """Count parent-attested UI records and name failing or missing entries."""
+
+    def row_key(row: dict[str, Any]) -> str:
+        return "/".join(
+            str(row.get(part)) for part in ("surface_id", "route", "breakpoint", "state")
+        )
+
+    def rows(key: str) -> list[dict[str, Any]]:
+        return [row for row in run.get(key) or [] if isinstance(row, dict)]
+
+    evidence = rows("ui_evidence")
+    layout_required = _layout_check_required(run)
+    ledger = rows("deviation_ledger")
+    impacts = rows("ui_impact_summary")
+    return {
+        "ui_evidence_rows": len(evidence),
+        "layout_check_failing_or_missing": [
+            row_key(row)
+            for row in evidence
+            if str(row.get("layout_check") or "").startswith("fail")
+            or (layout_required and not _nonempty_string(row.get("layout_check")))
+        ],
+        "deviation_ledger_rows": len(ledger),
+        "ledger_rows_missing_citation": [
+            row_key(row) for row in ledger if not _nonempty_string(row.get("citation"))
+        ],
+        "ui_impact_summary_rows": len(impacts),
+        "impact_rows_missing_doc_delta": [
+            row.get("mission_id")
+            for row in impacts
+            if row.get("impact") in {"structure", "both"}
+            and not _nonempty_string(row.get("doc_delta"))
+        ],
+    }
 
 
 def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
@@ -128,6 +166,7 @@ def summarize_run(repo_root: Path, run: dict[str, Any]) -> dict[str, Any]:
         "runtime_process_state": "not inspected",
         "runtime_version_gate": version_gate if isinstance(version_gate, dict) else None,
         "missions": missions,
+        "attestations": _attestation_summary(run),
         "warnings": warnings,
     }
 
@@ -170,6 +209,23 @@ def render_text(summary: dict[str, Any]) -> str:
     if summary["warnings"]:
         lines.append("Warnings:")
         lines.extend(f"- {warning}" for warning in summary["warnings"])
+    attestations = summary.get("attestations") or {}
+    lines.append(
+        "UI attestations: "
+        f"evidence={attestations.get('ui_evidence_rows', 0)} | "
+        f"ledger={attestations.get('deviation_ledger_rows', 0)} | "
+        f"impact={attestations.get('ui_impact_summary_rows', 0)}"
+    )
+    for label, entries in (
+        (
+            "layout_check failing/missing",
+            attestations.get("layout_check_failing_or_missing"),
+        ),
+        ("ledger rows missing citation", attestations.get("ledger_rows_missing_citation")),
+        ("impact rows missing doc_delta", attestations.get("impact_rows_missing_doc_delta")),
+    ):
+        if entries:
+            lines.append(f"- {label}: {', '.join(str(entry) for entry in entries)}")
     return "\n".join(lines)
 
 

@@ -604,6 +604,15 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Motion is a design decision, not an implementation preference", contract
         )
         self.assertIn("Static screenshots never close a motion change", gates)
+        self.assertIn("strongest task impact", contract)
+        self.assertIn(
+            "`doc_delta` is required when that strongest impact is `structure` or `both`",
+            contract,
+        )
+        self.assertIn("`integration_notes` line", worker_goal)
+        self.assertIn("UI impact: <none|style|structure|both>", worker_goal)
+        self.assertIn("is a recorded attestation, not a validator-proven fact", gates)
+        self.assertIn("strongest task impact the mission's workers reported", gates)
 
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")

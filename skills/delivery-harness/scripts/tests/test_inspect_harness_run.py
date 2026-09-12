@@ -117,6 +117,83 @@ class InspectHarnessRunTests(unittest.TestCase):
         self.assertIn("Runtime version gate: upgrade_required", rendered)
         self.assertIn("required=0.6.0", rendered)
 
+    def test_summary_counts_attested_ui_records_and_names_gaps(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-ATTEST",
+            "status": "complete",
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {},
+            "workers": [],
+            "runtime_capabilities": {
+                "runtime_adapter": {
+                    "version_gate": {"required_harness_version": "0.35.0"}
+                }
+            },
+            "ui_evidence": [
+                {
+                    "surface_id": "S1",
+                    "route": "/",
+                    "breakpoint": "1280",
+                    "state": "ready",
+                    "layout_check": "pass",
+                },
+                {
+                    "surface_id": "S1",
+                    "route": "/",
+                    "breakpoint": "375",
+                    "state": "ready",
+                    "layout_check": "fail — .card",
+                },
+                {"surface_id": "S1", "route": "/", "breakpoint": "768", "state": "ready"},
+            ],
+            "deviation_ledger": [
+                {
+                    "surface_id": "S1",
+                    "route": "/",
+                    "breakpoint": "375",
+                    "state": "ready",
+                    "difference": "8px corner radius",
+                    "citation": "PRD UI-1 allowed deviations: radius",
+                },
+                {
+                    "surface_id": "S1",
+                    "route": "/",
+                    "breakpoint": "375",
+                    "state": "error",
+                    "difference": "shadow strength",
+                },
+            ],
+            "ui_impact_summary": [
+                {"mission_id": "M1", "impact": "none"},
+                {"mission_id": "M2", "impact": "structure"},
+            ],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+        attestations = summary["attestations"]
+
+        self.assertEqual(3, attestations["ui_evidence_rows"])
+        self.assertEqual(
+            ["S1///375/ready", "S1///768/ready"],
+            attestations["layout_check_failing_or_missing"],
+        )
+        self.assertEqual(2, attestations["deviation_ledger_rows"])
+        self.assertEqual(
+            ["S1///375/error"], attestations["ledger_rows_missing_citation"]
+        )
+        self.assertEqual(2, attestations["ui_impact_summary_rows"])
+        self.assertEqual(["M2"], attestations["impact_rows_missing_doc_delta"])
+
+        rendered = inspect_harness_run.render_text(summary)
+        self.assertIn("UI attestations: evidence=3 | ledger=2 | impact=2", rendered)
+        self.assertIn(
+            "- layout_check failing/missing: S1///375/ready, S1///768/ready", rendered
+        )
+        self.assertIn("- ledger rows missing citation: S1///375/error", rendered)
+        self.assertIn("- impact rows missing doc_delta: M2", rendered)
+
     def test_running_worker_without_a_worktree_requires_reconciliation(self) -> None:
         run = {
             "schema_version": 10,
