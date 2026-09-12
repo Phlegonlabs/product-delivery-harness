@@ -27,9 +27,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_product_delivery_harness_brand_and_skill_ids_are_canonical(self) -> None:
         package = (REPO_ROOT / "package.json").read_text(encoding="utf-8")
         self.assertIn('"name": "product-delivery-harness"', package)
-        self.assertIn('"version": "0.35.4"', package)
+        self.assertIn('"version": "0.35.5"', package)
         self.assertEqual(
-            "0.35.4",
+            "0.35.5",
             (REPO_ROOT / "skills" / "delivery-harness" / "VERSION")
             .read_text(encoding="utf-8")
             .strip(),
@@ -619,6 +619,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Motion is a design decision, not an implementation preference", contract
         )
         self.assertIn("Static screenshots never close a motion change", gates)
+        self.assertIn("run `scripts/parity_capture.py", gates)
+        self.assertIn("parity-board.html", gates)
+        self.assertIn("`agent-browser` CLI", gates)
         self.assertIn("strongest task impact", contract)
         self.assertIn(
             "`doc_delta` is required when that strongest impact is `structure` or `both`",
@@ -933,7 +936,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("an upgrade re-binds work, it does not redo it", upgrades)
         self.assertIn("a provider switch is never inferred from an upgrade alone", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        self.assertIn('"required_harness_version": "0.35.4"', runbook)
+        self.assertIn('"required_harness_version": "0.35.5"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",

@@ -69,6 +69,10 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("archive the finished plan runtime", project_agents)
         self.assertIn("archive the finished plan runtime with", project_agents)
         self.assertIn(
+            "scripts/parity_capture.py --out docs/goal/evidence/production",
+            project_agents,
+        )
+        self.assertIn(
             "docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/",
             project_agents,
         )
